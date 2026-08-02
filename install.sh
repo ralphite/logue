@@ -133,12 +133,8 @@ if [[ -L "${current_link}" ]]; then
 fi
 stop_managed_service
 
-release_dir="${install_root}/releases/${logue_version}"
-release_backup=""
-if [[ -e "${release_dir}" || -L "${release_dir}" ]]; then
-  release_backup="${install_root}/releases/.${logue_version}.previous.$$"
-  mv "${release_dir}" "${release_backup}"
-fi
+release_dir="$(mktemp -d "${install_root}/releases/${logue_version}.XXXXXX")"
+rmdir -- "${release_dir}"
 mv "${package_dir}" "${release_dir}"
 
 legacy_current_backup=""
@@ -154,16 +150,19 @@ say "程序已切换到 ${logue_version}"
 step "3/4  启动并检查服务"
 if ! start_service "${logue_version}"; then
   stop_managed_service
-  failed_release="${install_root}/releases/.${logue_version}.failed.$$"
-  if [[ -n "${release_backup}" && -d "${release_backup}" ]]; then
-    mv "${release_dir}" "${failed_release}"
-    mv "${release_backup}" "${release_dir}"
-  elif [[ -n "${previous_current}" ]]; then
+  failed_release="${release_dir}.failed"
+  mv "${release_dir}" "${failed_release}"
+  if [[ -n "${previous_current}" ]]; then
     rollback_link="${install_root}/.current.rollback.$$"
     ln -s "${previous_current}" "${rollback_link}"
     /bin/mv -f -h "${rollback_link}" "${current_link}"
+  elif [[ -n "${legacy_current_backup}" && -e "${legacy_current_backup}" ]]; then
+    rm -f -- "${current_link}"
+    mv "${legacy_current_backup}" "${current_link}"
+  else
+    rm -f -- "${current_link}"
   fi
-  if [[ -n "${previous_current}" ]]; then
+  if [[ -e "${current_link}/bin/logue" ]]; then
     start_service "$("${current_link}/bin/logue" -version 2>/dev/null || true)" || true
   fi
   printf '\n最近的服务日志：\n' >&2
@@ -197,7 +196,6 @@ if [[ -e "${bin_dir}/logue" && ! -L "${bin_dir}/logue" ]]; then
 fi
 ln -sfn "${current_link}/bin/logue" "${bin_dir}/logue"
 
-if [[ -n "${release_backup}" && -d "${release_backup}" ]]; then rm -rf -- "${release_backup}"; fi
 if [[ -n "${legacy_current_backup}" && -e "${legacy_current_backup}" ]]; then rm -rf -- "${legacy_current_backup}"; fi
 if [[ -n "${cli_backup}" && -e "${cli_backup}" ]]; then rm -f -- "${cli_backup}"; fi
 

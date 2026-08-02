@@ -12,8 +12,14 @@ data_root="${test_home}/Library/Application Support/Logue"
 launch_dir="${test_home}/Library/LaunchAgents"
 port="${LOGUE_TEST_PORT:-18798}"
 pid_file="${install_root}/run/logue.pid"
+probe_done="${test_root}/reinstall-done"
+probe_pid=""
 
 cleanup() {
+  if [[ -n "${probe_pid}" ]] && kill -0 "${probe_pid}" >/dev/null 2>&1; then
+    : > "${probe_done}"
+    kill "${probe_pid}" >/dev/null 2>&1 || true
+  fi
   if [[ -f "${pid_file}" ]]; then
     test_pid="$(tr -dc '0-9' < "${pid_file}")"
     if [[ -n "${test_pid}" ]] && kill -0 "${test_pid}" >/dev/null 2>&1; then
@@ -114,5 +120,33 @@ extension_content_v2="$(sed -n 's/.*"js": \["\([^"]*\)"\].*/\1/p' "${extension_m
 [[ -f "${install_root}/extension/${extension_content_v1}" ]] || { printf 'previous extension content script disappeared during upgrade\n' >&2; exit 1; }
 [[ -f "${install_root}/extension/${extension_worker_v2}" ]] || { printf 'v0.1.1 extension worker is missing\n' >&2; exit 1; }
 [[ -f "${install_root}/extension/${extension_content_v2}" ]] || { printf 'v0.1.1 extension content script is missing\n' >&2; exit 1; }
+
+current_before_reinstall="$(readlink "${install_root}/current")"
+pid_before_reinstall="${pid_after}"
+probe_failed="${test_root}/current-link-gap"
+(
+  while [[ ! -e "${probe_done}" ]]; do
+    if [[ ! -x "${install_root}/current/bin/logue" ]]; then
+      : > "${probe_failed}"
+      exit 0
+    fi
+    sleep 0.01
+  done
+) &
+probe_pid=$!
+run_installer "file://${fixture_v2}" no
+: > "${probe_done}"
+wait "${probe_pid}"
+[[ ! -e "${probe_failed}" ]] || { printf 'current link became unavailable during same-version reinstall\n' >&2; exit 1; }
+current_after_reinstall="$(readlink "${install_root}/current")"
+[[ "${current_before_reinstall}" != "${current_after_reinstall}" ]] || { printf 'same-version reinstall reused the live release directory\n' >&2; exit 1; }
+pid_after_reinstall="$(cat "${pid_file}")"
+[[ "${pid_before_reinstall}" != "${pid_after_reinstall}" ]] || { printf 'same-version reinstall did not replace the service\n' >&2; exit 1; }
+if kill -0 "${pid_before_reinstall}" >/dev/null 2>&1; then
+  printf 'same-version reinstall left the old service running\n' >&2
+  exit 1
+fi
+sentinel_after_reinstall="$(shasum -a 256 "${data_root}/items/installer-sentinel.txt" | awk '{print $1}')"
+[[ "${sentinel_before}" == "${sentinel_after_reinstall}" ]] || { printf 'same-version reinstall changed persistent data\n' >&2; exit 1; }
 
 printf 'Installer new-install and overwrite-upgrade regression passed.\n'
