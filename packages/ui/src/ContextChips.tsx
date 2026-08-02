@@ -16,7 +16,7 @@ export function ContextChips({
   onRemove?: (id: string) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5" aria-label="本次 Context">
+    <div className="flex flex-wrap gap-1.5" aria-label="Context used">
       {items.map((item) => {
         const Icon = icons[item.type];
         return (
@@ -30,7 +30,7 @@ export function ContextChips({
               <button
                 className="-mr-1 rounded p-0.5 text-[#8b8f99] transition hover:bg-[#e7e8f4] hover:text-[#3f4350] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#5b64f4]"
                 onClick={() => onRemove(item.id)}
-                aria-label={`移除 ${item.label}`}
+                aria-label={`Remove ${item.label}`}
                 type="button"
               >
                 <X size={12} />
