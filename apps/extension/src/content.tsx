@@ -1073,6 +1073,7 @@ function ExtensionApp() {
 if (!isLogueExtensionDisabledDocument(document, window.location.href) && !document.getElementById("logue-extension-host")) {
   const host = document.createElement("div");
   host.id = "logue-extension-host";
+  host.dataset.logueExtension = "disabled";
   const shadow = host.attachShadow({ mode: "open" });
   const style = document.createElement("style");
   style.textContent = styles;
