@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
   return (
-    <TooltipPrimitive.Provider delayDuration={420} skipDelayDuration={180} disableHoverableContent>
+    <TooltipPrimitive.Provider delayDuration={260} skipDelayDuration={120} disableHoverableContent>
       {children}
     </TooltipPrimitive.Provider>
   );
