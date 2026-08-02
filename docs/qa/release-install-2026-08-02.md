@@ -20,3 +20,21 @@
 5. 第一次生成的 LaunchAgent 通过 `plutil -lint`，且不含 `GEMINI_API_KEY` 或 `GOOGLE_GENERATIVE_AI_API_KEY`；第二次拒绝自动启动后 plist 已移除。
 
 另已由 `scripts/test-install.sh` 在隔离环境完成 `v0.1.0 → v0.1.1` 跨版本覆盖，证明版本软链接正确切换、旧服务退出、数据哈希保持、接受/拒绝登录自启均生效。
+
+## v0.2.1 公开升级闭环
+
+- 最新 Release：[`v0.2.1`](https://github.com/ralphite/logue/releases/tag/v0.2.1)，非 draft、非 prerelease；tag 指向 `8eb8cb5d5dc77dd23346f85a6b8868c209c963e2`。
+- 公开 `latest/download` 的 install.sh、checksums、arm64/amd64 包已重新下载；两个 tar 的 SHA-256 均通过，arm64 二进制返回 `v0.2.1`，Extension manifest 为 `0.2.1`。
+- 发布前审查发现安装器默认 `0.0.0.0` 会暴露无认证 API；`v0.2.1` 已改为默认 `127.0.0.1`。真实升级后 PID `89103` 只监听 `127.0.0.1:18831`。
+- 安装器使用唯一版本目录后原子切换 `current`；Extension 先完整落地版本化 background/content，最后原子替换 manifest。同版本重复覆盖期间持续探针没有观察到断链。
+
+在 `/tmp/logue-public-upgrade-v020.0NfOja` 的隔离 HOME 中，先用公开 `v0.1.1` 安装，再用完全相同的 `latest` 一行命令依次升级到 `v0.2.0` 和 `v0.2.1`。升级前通过真实 API 和 Gemini 创建：
+
+- 语音资料 `mat_4d52d74e39e723de` 与捕获 `cap_6dc5b906e7eb43a4`；原始音频 SHA-256 为 `f93c753bd72d25211e2f29f038244f63bab7110ddb65d9606cee73205de61b05`。
+- 项目 `Release QA`，含 overview 与两个 glossary 术语；资料的人工项目、Tag 和 confirmed 状态已固定。
+- 文档 `doc_1130967ba929dd89`，revision 2，保留资料来源。
+- 自定义 Agent `agt_a290101c91cb6133` 与 Personal context / glossary 设置。
+
+升级到 `v0.2.1` 后，上述 ID、正文、转写、项目、Tag、文档 revision/来源、自定义 Agent、设置和音频 hash 全部保持。旧 PID 退出，新 PID 启动；LaunchAgent 通过 `plutil -lint` 且不含 Gemini Key；安装后的 Web 和 Extension 脚本与公开 arm64 Release 包逐字节一致。
+
+真实浏览器最初在 `v0.2.0` 自定义端口发现 Web 错连固定 `8787`，页面显示 disconnected；`v0.2.1` 修复为 Go 托管端口使用同源 API。重新公开升级后，`http://127.0.0.1:18831/?view=generate` 成功加载升级前文档、来源和自定义 Agent，文档按钮首次点击即可打开，控制台 warn/error 为 0，页面无横向溢出。截图：`/tmp/logue-v021-public-document.png`。

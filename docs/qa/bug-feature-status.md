@@ -1,6 +1,6 @@
 # Logue bug 与 feature 状态
 
-更新时间：2026-08-02 15:18（America/Los_Angeles）
+更新时间：2026-08-02 15:51（America/Los_Angeles）
 
 这是用户历史 bug / feature request 的唯一滚动清单。`PASS` 表示实现和与风险相称的真实运行证据都存在；`PARTIAL` 表示核心已实现，但仍缺指定环境的最后闭环；`OPEN` 表示尚未交付。测试、提交、文档和截图本身不把状态升级为 `PASS`。
 
@@ -29,6 +29,9 @@
 | B19 | 平板关闭/完整页热区不足 44px、主导航无文字 | PASS | 768px 保留一级文字，详情与新建资料关闭/完整页命中区至少 44×44px；已有真实平板证据。 |
 | B20 | 320px Generate 的 `Documents` 被截断 | PASS | 移动 Generate 行保留完整 Documents / Agents 文案和独立 44px plus，移除不必要的前置图标。证据：`/tmp/logue-generate-320-fixed.png`。 |
 | B21 | Web UI / Web code 混用中文 | PARTIAL | 当前 `apps/web/src` 产品文案、无障碍文案和测试命名无中文；用户自有资料、项目名和自建 Agent 原样保留。系统 Agent、固定 fallback 和新分类理由为英文；14 条历史模型分类理由仍为中文派生数据，尚未安全回填。 |
+| B22 | 公开安装默认把无认证 API 暴露到局域网 | PASS | `v0.2.1` 安装器默认只监听 `127.0.0.1`；真实公开升级后 `lsof` 确认为 `127.0.0.1:18831`，不是 wildcard。显式 LAN 能力仍保留，但安全配对前不作为默认公开入口。 |
+| B23 | Extension 覆盖升级存在稳定目录短暂消失 | PASS | 安装器先完整写入版本化 Extension 资产，最后只原子替换 manifest；旧 manifest 与旧资产在切换前后都保持可读。跨版本和同版本重复安装回归均通过。 |
+| B24 | 自定义安装端口的发布版 Web 错连固定 `8787` | PASS | 真实 `v0.2.0` 在 `18831` 复现断线；`v0.2.1` 改为只有 Vite `5173` 才连接 `8787`，任何 Go 托管端口均使用同源 API。公开升级后真实浏览器成功加载资料、文档和来源，控制台无 warn/error。 |
 
 ## Features 与交付要求
 
@@ -43,18 +46,17 @@
 | F07 | Extension 中基于资料生成回复并插入、不自动发送 | PASS | 真实 ChatGPT.com 已完成独立 Agent 生成与插入；提交计数为 0。 |
 | F08 | Logue Web App 自己也能使用 Extension | PASS | 当前 unpacked Extension 重载后，Logue Task 输入框只出现 1 个语音和 1 个 Agent 入口；已完成真实录音 → Enter 停止 → Gemini → 保存 → 插入。资料只新增 1 条、request id 唯一、文字只插入 1 次、Agent run 不变且无自动提交。详见 `logue-in-logue-extension-2026-08-02.md`。 |
 | F09 | 所有关键竖向 panel 可拖拽并保持同一风格 | PASS | 至少一级导航、Generate、资料详情、文档列表和来源面板使用同一 `PanelResizer` 体系；键盘与 pointer 均支持。 |
-| F10 | 手机完整可用并可从同一局域网访问 | PARTIAL | Web/API 已监听局域网；320/390/768 已覆盖 Stream、Projects、Generate、详情和底栏。仍缺一台物理 iPhone 的触控、旋转、刷新和文档编辑闭环。 |
+| F10 | 手机完整可用并可从同一局域网访问 | PARTIAL | Web/API 支持显式局域网监听，320/390/768 已覆盖 Stream、Projects、Generate、详情和底栏；公开安装为保护资料默认只监听本机。仍缺安全配对入口和一台物理 iPhone 的触控、旋转、刷新与文档编辑闭环。 |
 | F11 | React + TypeScript + Tailwind + Storybook；Go；Gemini 终端环境变量 | PASS | 架构与构建已落地；Gemini Key 只由 Go 进程读取，不进入 Web、Extension、资料、日志或 Release。 |
 | F12 | GitHub 旧仓库彻底替换、永远 main、小提交后立即 push | PASS | `ralphite/logue` 已由当前项目替换；当前分支与 upstream 均为 `main`；本轮逻辑批次均提交后立即推送。 |
-| F13 | 一行 curl 安装、覆盖升级保留数据、询问开机启动、安装后自动启动 | PASS | 公共 `v0.1.1` 的 install.sh、双架构包和 checksums 已完成隔离 HOME 全新安装与重复覆盖实测；数据、Key 与 LaunchAgent 约束通过。 |
-| F14 | 最新主线也必须进入 Release | OPEN | 当前 `main` 已明显领先 `v0.1.1`；安装流程本身通过，但本轮最新 UI/Extension 修复尚未发布。应在当前审查批次稳定后发布下一版本并重跑覆盖升级。 |
+| F13 | 一行 curl 安装、覆盖升级保留数据、询问开机启动、安装后自动启动 | PASS | 公共 `v0.2.1` 提供 install.sh、双架构包和 checksums；安装器默认 loopback，程序/Web/Extension 均原子切换，同版本重复安装也不会断开 `current`。 |
+| F14 | 最新主线也必须进入 Release | PASS | `v0.2.1` 已由 tag 流水线发布为公开 `latest`。同一隔离数据真实完成 `v0.1.1 → v0.2.0 → v0.2.1`：旧 PID 退出，资料、音频、项目、文档来源、自定义 Agent、设置和 LaunchAgent 保持；公开 Web/Extension 与安装内容逐字节一致。 |
 | F15 | ChatGPT.com / Notion / 竞品级独立产品设计审查 | PARTIAL | 先前真实截图已完成 ChatGPT.com 严格审查并关闭当时 P1；本轮又完成 fresh-context 盲审和修复。最新 Documents/Agents 与移动截图仍需纳入下一次 ChatGPT.com 对照复审。 |
 | F16 | 提供真实截图 | PASS | 当前桌面和 320px 关键截图已保存于 `/tmp/logue-*.png`；Extension 真实运行截图仍保留。 |
 | F17 | 每小时自动重启当前 goal 并继续最高 ROI 工作 | PASS | `logue` automation 持续唤醒本任务；只有 fresh-context 与直接证据共同支持时才能结束。 |
 
 ## 当前未关闭队列
 
-1. **P1（外部设备）**：物理 iPhone 访问局域网入口，完成触控、旋转、刷新、Stream / Projects / Generate / 文档编辑。
-2. **P1（发布）**：当前主线稳定后发布下一版本，并用同一条 curl 命令从 `v0.1.1` 覆盖升级，确认数据和启动项保持。
-3. **P2（数据兼容）**：安全处理真实库中 14 条历史中文模型分类理由；不得改资料正文、人工项目/Tag 或自建 Agent。
-4. **P2**：将本轮最新桌面/移动/Extension 截图重新交给 ChatGPT.com，与 Notion 和直接竞品做一次最终对照审查。
+1. **P1（外部设备）**：完成安全 LAN 配对入口，并在物理 iPhone 上验证触控、旋转、刷新、Stream / Projects / Generate / 文档编辑。
+2. **P2（数据兼容）**：安全处理真实库中 14 条历史中文模型分类理由；不得改资料正文、人工项目/Tag 或自建 Agent。
+3. **P2**：将本轮最新桌面/移动/Extension 截图重新交给 ChatGPT.com，与 Notion 和直接竞品做一次最终对照审查。
