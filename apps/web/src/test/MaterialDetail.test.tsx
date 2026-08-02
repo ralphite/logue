@@ -103,6 +103,11 @@ describe("MaterialDetail", () => {
     expect(screen.queryByLabelText("Needs review")).toBeNull();
   });
 
+  it("formats material dates in English", () => {
+    renderDetail();
+    expect(screen.getByText("Aug 2")).toBeTruthy();
+  });
+
   it("applies an uncertain Agent suggestion only after review", async () => {
     const onUpdateOrganization = vi.fn().mockResolvedValue(undefined);
     render(

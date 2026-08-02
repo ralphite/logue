@@ -218,7 +218,7 @@ export function MaterialDetail({
           <div className={`mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[#92938e] ${isPage ? "text-[11px]" : "text-[10.5px]"}`}>
             <span>{material.projects[0] || "Unfiled"}</span>
             <span>·</span>
-            <span>{new Date(material.createdAt).toLocaleDateString("zh-CN", { month: "short", day: "numeric" })}</span>
+            <span>{new Date(material.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
             {dependentCount > 0 && <><span>·</span><span>{dependentCount} follow-up {dependentCount === 1 ? "item" : "items"}</span></>}
           </div>
         </div>
