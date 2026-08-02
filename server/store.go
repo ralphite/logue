@@ -44,7 +44,49 @@ func NewStore(root string) (*Store, error) {
 	if err := store.migrateLegacyUncertainOrganizations(); err != nil {
 		return nil, err
 	}
+	if err := store.migrateLegacyOrganizationReasons(); err != nil {
+		return nil, err
+	}
 	return store, nil
+}
+
+var legacyOrganizationReasons = map[string]string{
+	"自动整理暂时失败，请确认项目和标签":   "Automatic organization is temporarily unavailable. Review the project and tags.",
+	"自动整理结果不够确定，请确认项目和标签": "The organization result is uncertain. Review the project and tags.",
+}
+
+func (s *Store) migrateLegacyOrganizationReasons() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entries, err := os.ReadDir(filepath.Join(s.root, "items"))
+	if err != nil {
+		return fmt.Errorf("read items for organization reason migration: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		data, readErr := os.ReadFile(filepath.Join(s.root, "items", entry.Name()))
+		if readErr != nil {
+			return fmt.Errorf("read item %s for organization reason migration: %w", entry.Name(), readErr)
+		}
+		var item Material
+		if unmarshalErr := json.Unmarshal(data, &item); unmarshalErr != nil {
+			return fmt.Errorf("decode item %s for organization reason migration: %w", entry.Name(), unmarshalErr)
+		}
+		if item.Organization == nil || item.Organization.Status != "needs_review" {
+			continue
+		}
+		reason, migrate := legacyOrganizationReasons[item.Organization.Reason]
+		if !migrate {
+			continue
+		}
+		item.Organization.Reason = reason
+		if writeErr := s.writeItemLocked(item); writeErr != nil {
+			return fmt.Errorf("migrate organization reason for %s: %w", item.ID, writeErr)
+		}
+	}
+	return nil
 }
 
 func (s *Store) migrateLegacyUncertainOrganizations() error {

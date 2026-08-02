@@ -132,7 +132,7 @@ func (s *OrganizationService) Organize(ctx context.Context, id string) error {
 			nil,
 			nil,
 			0,
-			"自动整理暂时失败，请确认项目和标签",
+			"Automatic organization is temporarily unavailable. Review the project and tags.",
 			"needs_review",
 		)
 		if writeErr != nil && !errors.Is(writeErr, errOrganizationSuperseded) {
@@ -154,7 +154,7 @@ func (s *OrganizationService) Organize(ctx context.Context, id string) error {
 		suggestedProjects = decision.Projects
 		suggestedTags = decision.Tags
 		if reason == "" {
-			reason = "自动整理结果不够确定，请确认项目和标签"
+			reason = "The organization result is uncertain. Review the project and tags."
 		}
 	}
 	_, err = s.store.CompleteOrganization(

@@ -307,3 +307,49 @@ func TestRestartMigratesLegacyLowConfidenceAssignmentsToSuggestions(t *testing.T
 		t.Fatalf("legacy uncertain assignments were not retained as suggestions: %#v", migrated.Organization)
 	}
 }
+
+func TestRestartMigratesOnlyKnownProductOrganizationReasons(t *testing.T) {
+	root := t.TempDir()
+	store, err := NewStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	productReason, err := store.Create(CreateMaterialInput{Kind: "text", Content: "用户资料正文不应被修改"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	productReason.Organization = &MaterialOrganization{Status: "needs_review", Confidence: 0, Reason: "自动整理暂时失败，请确认项目和标签"}
+	if err := store.writeItem(productReason); err != nil {
+		t.Fatal(err)
+	}
+	modelReason, err := store.Create(CreateMaterialInput{Kind: "text", Content: "Another user material"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	modelReason.Organization = &MaterialOrganization{Status: "needs_review", Confidence: 0.4, Reason: "这是模型根据内容生成的具体理由"}
+	if err := store.writeItem(modelReason); err != nil {
+		t.Fatal(err)
+	}
+
+	restarted, err := NewStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	migrated, err := restarted.GetMaterial(productReason.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if migrated.Content != productReason.Content {
+		t.Fatalf("reason migration changed user material content: %q", migrated.Content)
+	}
+	if migrated.Organization == nil || migrated.Organization.Reason != "Automatic organization is temporarily unavailable. Review the project and tags." {
+		t.Fatalf("known product reason was not migrated: %#v", migrated.Organization)
+	}
+	unchanged, err := restarted.GetMaterial(modelReason.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unchanged.Organization == nil || unchanged.Organization.Reason != modelReason.Organization.Reason {
+		t.Fatalf("migration rewrote a content-specific model reason: %#v", unchanged.Organization)
+	}
+}

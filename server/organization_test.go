@@ -105,6 +105,31 @@ func TestOrganizationFailureDoesNotLoseMaterial(t *testing.T) {
 	if updated.Content != item.Content || len(updated.Tags) != 1 || updated.Organization == nil || updated.Organization.Status != "needs_review" {
 		t.Fatalf("classification failure damaged the saved material: %#v", updated)
 	}
+	if updated.Organization.Reason != "Automatic organization is temporarily unavailable. Review the project and tags." {
+		t.Fatalf("classification failure used non-English product copy: %q", updated.Organization.Reason)
+	}
+}
+
+func TestOrganizationUncertainFallbackUsesEnglish(t *testing.T) {
+	store, err := NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := store.Create(CreateMaterialInput{Kind: "text", Content: "Ambiguous material"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewOrganizationService(store, &stubMaterialClassifier{decision: OrganizationDecision{Confidence: 0.4}})
+	if err := service.Organize(context.Background(), item.ID); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := store.GetMaterial(item.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Organization == nil || updated.Organization.Reason != "The organization result is uncertain. Review the project and tags." {
+		t.Fatalf("uncertain result used non-English product copy: %#v", updated.Organization)
+	}
 }
 
 func TestBackgroundOrganizationSchedulerStopsDeterministically(t *testing.T) {
