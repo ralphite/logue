@@ -14,8 +14,9 @@ import {
   X,
 } from "lucide-react";
 import type { Material } from "@logue/ui";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { captureAudioURL, getProjects } from "../api";
+import { RecordingAudioPlayer } from "./RecordingAudioPlayer";
 
 const icons = {
   voice: Mic2,
@@ -41,6 +42,7 @@ export function MaterialDetail({
   onOpenParent,
   onExpand,
   mode = "peek",
+  peekWidth,
   parents,
   dependents,
 }: {
@@ -53,6 +55,7 @@ export function MaterialDetail({
   onOpenParent: (id: string) => void;
   onExpand: () => void;
   mode?: "peek" | "page";
+  peekWidth?: number;
   parents: Material[];
   dependents: Material[];
 }) {
@@ -197,13 +200,18 @@ export function MaterialDetail({
   }
 
   return (
-    <Root className={isPage ? "flex h-screen min-w-0 flex-1 flex-col bg-white" : "flex h-screen w-[390px] shrink-0 flex-col border-l border-[#e1e1dd] bg-white max-[1180px]:fixed max-[1180px]:inset-y-0 max-[1180px]:right-0 max-[1180px]:z-30 max-[1180px]:shadow-[-18px_0_54px_rgba(31,33,28,0.11)] max-[640px]:w-full max-[640px]:pb-16"}>
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-[#eeeeeb] px-4">
+    <Root
+      data-testid="material-detail-scroll"
+      style={!isPage ? ({ "--material-detail-width": peekWidth ? `${peekWidth}px` : "min(620px, 46vw)" } as CSSProperties) : undefined}
+      className={isPage ? "h-screen min-w-0 flex-1 overflow-y-auto overscroll-contain bg-white" : "h-screen w-[var(--material-detail-width)] min-w-[440px] shrink-0 overflow-y-auto overscroll-contain bg-white max-[1180px]:fixed max-[1180px]:inset-y-0 max-[1180px]:right-0 max-[1180px]:z-30 max-[1180px]:border-l max-[1180px]:border-[#e1e1dd] max-[1180px]:shadow-[-18px_0_54px_rgba(31,33,28,0.11)] max-[640px]:w-full max-[640px]:min-w-0 max-[640px]:pb-16"}
+    >
+      <header className="sticky top-0 z-10 flex h-12 items-center justify-between border-b border-[#eeeeeb] bg-white/95 px-4 backdrop-blur-xl">
         {isPage ? <button type="button" onClick={onClose} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11.5px] text-[#71726d] hover:bg-[#f1f1ee]"><ArrowLeft size={14} /> 资料流</button> : <div className="flex items-center gap-2.5"><span className="text-[11.5px] text-[#777873]">资料流</span><span className="text-[#b7b8b3]">/</span><span className="text-[11.5px] text-[#4f504c]">{materialTitles[material.kind]}</span></div>}
         {!isPage && <div className="flex items-center"><button onClick={onExpand} className="inline-flex size-11 items-center justify-center rounded-md text-[#858680] hover:bg-[#f1f1ee] hover:text-[#444541] focus-visible:outline-2 focus-visible:outline-[#5b64f4]" aria-label="打开完整页面" title="打开完整页面" type="button"><Maximize2 size={16} /></button><button onClick={onClose} className="inline-flex size-11 items-center justify-center rounded-md text-[#858680] hover:bg-[#f1f1ee] hover:text-[#444541] focus-visible:outline-2 focus-visible:outline-[#5b64f4]" aria-label="关闭详情" type="button"><X size={18} /></button></div>}
       </header>
 
-      <div className={`flex-1 overflow-y-auto pb-10 ${isPage ? "mx-auto w-full max-w-[820px] px-[9%] pt-14 max-[640px]:px-5 max-[640px]:pt-9" : "px-5 pt-8"}`}>
+      <div data-testid="material-detail-reading-column" className={isPage ? "mx-auto w-full max-w-[860px] px-10 pb-10 pt-14 max-[640px]:px-4 max-[640px]:pb-5 max-[640px]:pt-9" : "px-5 pb-8 pt-8 max-[640px]:px-4 max-[640px]:pb-4"}>
+        <div data-testid="material-detail-content">
         <div className="mb-8">
           <span className={`inline-flex items-center justify-center rounded-md bg-[#f0f0ed] text-[#6e6f6a] ${isPage ? "size-11" : "size-9"}`}><Icon size={isPage ? 21 : 17} /></span>
           <h1 className={`mt-4 font-bold tracking-[-0.04em] text-[#242522] ${isPage ? "text-[38px] max-[640px]:text-[30px]" : "text-[28px]"}`}>{materialTitles[material.kind]}</h1>
@@ -274,7 +282,7 @@ export function MaterialDetail({
                 <span className="absolute -left-3 top-0 inline-flex size-6 items-center justify-center rounded-full border border-[#d7d7d2] bg-white text-[#6f706b]"><Mic2 size={12} /></span>
                 <div className="flex items-baseline justify-between gap-3"><h3 className="text-[11.5px] font-semibold text-[#4c4d49]">原始录音</h3><span className="text-[9.5px] text-[#9a9b96]">原件</span></div>
                 <p className="mt-0.5 text-[10.5px] text-[#92938e]">保存的声音，可随时回听核对</p>
-                <audio controls preload="metadata" src={captureAudioURL(material.captureId!)} className="mt-3 h-9 w-full" aria-label="播放原始录音" />
+                <RecordingAudioPlayer src={captureAudioURL(material.captureId!)} label="播放原始录音" />
               </li>
               <li className="relative pb-7 pl-6">
                 <span className="absolute -left-3 top-0 inline-flex size-6 items-center justify-center rounded-full border border-[#d7d7d2] bg-white text-[#6f706b]"><FileText size={12} /></span>
@@ -395,9 +403,9 @@ export function MaterialDetail({
             <div className="divide-y divide-[#eeeeeb]">{parents.map((parent) => <button key={parent.id} type="button" onClick={() => onOpenParent(parent.id)} className="group flex w-full items-start gap-2 py-2.5 text-left"><span className="line-clamp-2 min-w-0 flex-1 text-[11.5px] leading-5 text-[#676863] group-hover:text-[#4f56bd]">{parent.content}</span><ArrowUpRight size={12} className="mt-1 shrink-0 text-[#aaa]" /></button>)}</div>
           </section>
         ) : null}
-      </div>
+        </div>
 
-      <footer className={isPage ? "mx-auto w-full max-w-[820px] shrink-0 border-t border-[#e7e7e2] bg-[#fcfcfa] px-[9%] py-4 max-[640px]:px-3 max-[640px]:py-2" : "shrink-0 border-t border-[#e7e7e2] bg-[#fcfcfa] p-4 max-[640px]:p-1"}>
+      <footer className="mt-10 border-t border-[#e7e7e2] bg-[#fcfcfa] py-4 max-[640px]:mt-7 max-[640px]:py-2">
         <label className="mb-2 block text-[11px] font-semibold text-[#656961] max-[640px]:sr-only" htmlFor="detail-annotation">
           追加批注
         </label>
@@ -429,6 +437,7 @@ export function MaterialDetail({
           <button type="button" onClick={() => setDeleteConfirming(true)} className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md text-[10.5px] font-medium text-[#a54b42] hover:bg-[#f9ece9] max-[640px]:h-11"><Trash2 size={12} /> 删除这条{materialTitles[material.kind]}{dependentCount > 0 ? ` · ${dependentCount} 条派生关系` : ""}</button>
         )}
       </footer>
+      </div>
     </Root>
   );
 }

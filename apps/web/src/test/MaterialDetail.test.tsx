@@ -45,6 +45,40 @@ function renderDetail(overrides: Partial<Material> = {}, onUpdateContent = vi.fn
 }
 
 describe("MaterialDetail", () => {
+  it("lets the surrounding workspace control the peek width", () => {
+    render(
+      <MaterialDetail
+        material={material}
+        peekWidth={540}
+        onClose={() => undefined}
+        onExpand={() => undefined}
+        onAddAnnotation={vi.fn().mockResolvedValue(undefined)}
+        onUpdateContent={vi.fn().mockResolvedValue(undefined)}
+        onUpdateOrganization={vi.fn().mockResolvedValue(undefined)}
+        onDelete={vi.fn().mockResolvedValue(undefined)}
+        onOpenParent={() => undefined}
+        parents={[]}
+        dependents={[]}
+      />,
+    );
+
+    expect(screen.getByTestId("material-detail-scroll").style.getPropertyValue("--material-detail-width")).toBe("540px");
+  });
+
+  it("uses one scroll surface and keeps reading content with its actions", () => {
+    renderDetail();
+
+    const scrollSurface = screen.getByTestId("material-detail-scroll");
+    const readingColumn = screen.getByTestId("material-detail-reading-column");
+    const content = screen.getByTestId("material-detail-content");
+
+    expect(scrollSurface.className).toContain("overflow-y-auto");
+    expect(content.className).not.toContain("overflow-y-auto");
+    expect(readingColumn.contains(content)).toBe(true);
+    expect(readingColumn.contains(screen.getByLabelText("追加批注"))).toBe(true);
+    expect(readingColumn.contains(screen.getByRole("button", { name: "删除这条文字资料" }))).toBe(true);
+  });
+
   it("only highlights uncertain automatic organization", () => {
     const { unmount } = render(
       <MaterialDetail
