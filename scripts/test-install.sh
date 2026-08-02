@@ -9,7 +9,9 @@ fixture_v1="${test_root}/release-v1"
 fixture_v2="${test_root}/release-v2"
 install_root="${test_home}/.local/share/logue"
 data_root="${test_home}/Library/Application Support/Logue"
+bin_dir="${test_home}/.local/bin"
 launch_dir="${test_home}/Library/LaunchAgents"
+launch_plist="${launch_dir}/com.ralphite.logue.plist"
 port="${LOGUE_TEST_PORT:-18798}"
 pid_file="${install_root}/run/logue.pid"
 probe_done="${test_root}/reinstall-done"
@@ -43,13 +45,15 @@ build_fixture() {
 }
 
 run_installer() {
-  local base_url="$1" autostart="$2"
+  local base_url="$1" autostart="$2" fail_at="${3:-}"
   HOME="${test_home}" \
   LOGUE_INSTALL_ROOT="${install_root}" \
   LOGUE_DATA_DIR="${data_root}" \
+  LOGUE_BIN_DIR="${bin_dir}" \
   LOGUE_LAUNCH_AGENTS_DIR="${launch_dir}" \
   LOGUE_ASSET_BASE_URL="${base_url}" \
   LOGUE_AUTO_START="${autostart}" \
+  LOGUE_INSTALLER_FAIL_AT="${fail_at}" \
   LOGUE_OPEN_BROWSER=no \
   LOGUE_PORT="${port}" \
   LOGUE_HEALTH_URL="http://127.0.0.1:${port}/v1/status" \
@@ -65,15 +69,86 @@ assert_loopback_listener() {
   }
 }
 
+file_sha256() {
+  shasum -a 256 "$1" | awk '{print $1}'
+}
+
+assert_failed_upgrade_restored() {
+  local failure_name="$1" pid_expectation="${2:-restarted}" restored_pid restored_status
+
+  [[ "$(readlink "${install_root}/current")" == "${baseline_current}" ]] || {
+    printf '%s failure did not restore current\n' "${failure_name}" >&2
+    exit 1
+  }
+  [[ "$(file_sha256 "${extension_manifest}")" == "${baseline_extension_manifest_sha}" ]] || {
+    printf '%s failure changed the Extension manifest\n' "${failure_name}" >&2
+    exit 1
+  }
+  [[ -f "${install_root}/extension/${extension_worker_v1}" ]] || {
+    printf '%s failure removed the active Extension worker\n' "${failure_name}" >&2
+    exit 1
+  }
+  [[ -f "${install_root}/extension/${extension_content_v1}" ]] || {
+    printf '%s failure removed the active Extension content script\n' "${failure_name}" >&2
+    exit 1
+  }
+  [[ -L "${bin_dir}/logue" && "$(readlink "${bin_dir}/logue")" == "${baseline_cli_target}" ]] || {
+    printf '%s failure did not restore the CLI link\n' "${failure_name}" >&2
+    exit 1
+  }
+  [[ "$("${bin_dir}/logue" -version)" == "v0.1.0" ]] || {
+    printf '%s failure left the CLI on the candidate version\n' "${failure_name}" >&2
+    exit 1
+  }
+  [[ -f "${launch_plist}" && "$(file_sha256 "${launch_plist}")" == "${baseline_launch_plist_sha}" ]] || {
+    printf '%s failure did not restore the LaunchAgent\n' "${failure_name}" >&2
+    exit 1
+  }
+  plutil -lint "${launch_plist}" >/dev/null || {
+    printf '%s failure restored an invalid LaunchAgent\n' "${failure_name}" >&2
+    exit 1
+  }
+  [[ "$(file_sha256 "${data_root}/items/installer-sentinel.txt")" == "${sentinel_before}" ]] || {
+    printf '%s failure changed persistent data\n' "${failure_name}" >&2
+    exit 1
+  }
+
+  restored_pid="$(tr -dc '0-9' < "${pid_file}")"
+  if [[ -z "${restored_pid}" ]] || ! kill -0 "${restored_pid}" >/dev/null 2>&1; then
+    printf '%s failure did not leave the old version running\n' "${failure_name}" >&2
+    exit 1
+  fi
+  case "${pid_expectation}" in
+    unchanged)
+      [[ "${restored_pid}" == "${baseline_pid}" ]] || {
+        printf '%s validation stopped the old service before failing\n' "${failure_name}" >&2
+        exit 1
+      }
+      ;;
+    restarted)
+      [[ "${restored_pid}" != "${baseline_pid}" ]] || {
+        printf '%s failure was injected before exercising service rollback\n' "${failure_name}" >&2
+        exit 1
+      }
+      ;;
+  esac
+  restored_status="$(curl -fsS "http://127.0.0.1:${port}/v1/status")"
+  [[ "${restored_status}" == *'"version":"v0.1.0"'* ]] || {
+    printf '%s failure did not restore the running old version\n' "${failure_name}" >&2
+    exit 1
+  }
+  assert_loopback_listener "${restored_pid}"
+}
+
 printf 'Building v0.1.0 fixture...\n'
 build_fixture v0.1.0 "${fixture_v1}"
 run_installer "file://${fixture_v1}" yes
 
 status_v1="$(curl -fsS "http://127.0.0.1:${port}/v1/status")"
 [[ "${status_v1}" == *'"version":"v0.1.0"'* ]] || { printf 'v0.1.0 did not start\n' >&2; exit 1; }
-[[ -f "${launch_dir}/com.ralphite.logue.plist" ]] || { printf 'autostart plist was not created\n' >&2; exit 1; }
-plutil -lint "${launch_dir}/com.ralphite.logue.plist" >/dev/null || { printf 'autostart plist is invalid\n' >&2; exit 1; }
-if grep -q 'GEMINI\|GOOGLE_GENERATIVE_AI' "${launch_dir}/com.ralphite.logue.plist"; then
+[[ -f "${launch_plist}" ]] || { printf 'autostart plist was not created\n' >&2; exit 1; }
+plutil -lint "${launch_plist}" >/dev/null || { printf 'autostart plist is invalid\n' >&2; exit 1; }
+if grep -q 'GEMINI\|GOOGLE_GENERATIVE_AI' "${launch_plist}"; then
   printf 'autostart plist must not persist API keys\n' >&2
   exit 1
 fi
@@ -95,6 +170,34 @@ assert_loopback_listener "${pid_before}"
 
 printf 'Building v0.1.1 fixture...\n'
 build_fixture v0.1.1 "${fixture_v2}"
+
+baseline_current="$(readlink "${install_root}/current")"
+baseline_extension_manifest_sha="$(file_sha256 "${extension_manifest}")"
+baseline_cli_target="$(readlink "${bin_dir}/logue")"
+baseline_launch_plist_sha="$(file_sha256 "${launch_plist}")"
+baseline_pid="${pid_before}"
+
+printf 'Checking invalid autostart is rejected before stopping the old service...\n'
+invalid_autostart_log="${test_root}/invalid-autostart.log"
+if run_installer "file://${fixture_v2}" invalid >"${invalid_autostart_log}" 2>&1; then
+  printf 'invalid LOGUE_AUTO_START unexpectedly succeeded\n' >&2
+  exit 1
+fi
+assert_failed_upgrade_restored invalid-autostart unchanged
+
+for failure_point in extension cli autostart; do
+  printf 'Checking rollback after injected %s failure...\n' "${failure_point}"
+  failure_log="${test_root}/failure-${failure_point}.log"
+  baseline_pid="$(cat "${pid_file}")"
+  if run_installer "file://${fixture_v2}" no "${failure_point}" >"${failure_log}" 2>&1; then
+    printf 'injected %s failure unexpectedly succeeded\n' "${failure_point}" >&2
+    exit 1
+  fi
+  assert_failed_upgrade_restored "${failure_point}"
+done
+
+pid_before="$(cat "${pid_file}")"
+assert_loopback_listener "${pid_before}"
 run_installer "file://${fixture_v2}" no
 
 status_v2="$(curl -fsS "http://127.0.0.1:${port}/v1/status")"
@@ -109,7 +212,7 @@ if kill -0 "${pid_before}" >/dev/null 2>&1; then
 fi
 sentinel_after="$(shasum -a 256 "${data_root}/items/installer-sentinel.txt" | awk '{print $1}')"
 [[ "${sentinel_before}" == "${sentinel_after}" ]] || { printf 'persistent data changed during upgrade\n' >&2; exit 1; }
-[[ ! -e "${launch_dir}/com.ralphite.logue.plist" ]] || { printf 'autostart plist was not removed after opt-out\n' >&2; exit 1; }
+[[ ! -e "${launch_plist}" ]] || { printf 'autostart plist was not removed after opt-out\n' >&2; exit 1; }
 [[ "$("${install_root}/current/bin/logue" -version)" == "v0.1.1" ]] || { printf 'current binary version mismatch\n' >&2; exit 1; }
 extension_worker_v2="$(sed -n 's/.*"service_worker": "\([^"]*\)".*/\1/p' "${extension_manifest}")"
 extension_content_v2="$(sed -n 's/.*"js": \["\([^"]*\)"\].*/\1/p' "${extension_manifest}")"
