@@ -172,14 +172,23 @@ if ! start_service "${logue_version}"; then
 fi
 say "服务已启动：${health_url}"
 
-extension_next="${install_root}/.extension.next.$$"
-extension_backup=""
-cp -R "${release_dir}/extension" "${extension_next}"
-if [[ -e "${extension_dir}" || -L "${extension_dir}" ]]; then
-  extension_backup="${install_root}/.extension.previous.$$"
-  mv "${extension_dir}" "${extension_backup}"
-fi
-mv "${extension_next}" "${extension_dir}"
+extension_asset_id="${logue_version}-$$"
+extension_releases_dir="${extension_dir}/releases"
+extension_stage="${extension_releases_dir}/.${extension_asset_id}.next"
+extension_assets="${extension_releases_dir}/${extension_asset_id}"
+extension_manifest_next="${extension_dir}/.manifest.next.$$"
+mkdir -p "${extension_stage}"
+cp -R "${release_dir}/extension/." "${extension_stage}/"
+rm -f -- "${extension_stage}/manifest.json"
+mv "${extension_stage}" "${extension_assets}"
+sed \
+  -e "s|\"service_worker\": \"background.js\"|\"service_worker\": \"releases/${extension_asset_id}/background.js\"|" \
+  -e "s|\"js\": \[\"content.js\"\]|\"js\": [\"releases/${extension_asset_id}/content.js\"]|" \
+  "${release_dir}/extension/manifest.json" > "${extension_manifest_next}"
+grep -Fq "\"service_worker\": \"releases/${extension_asset_id}/background.js\"" "${extension_manifest_next}" || fail "Extension manifest 缺少版本化 worker；旧 Extension 保持不变。"
+grep -Fq "\"js\": [\"releases/${extension_asset_id}/content.js\"]" "${extension_manifest_next}" || fail "Extension manifest 缺少版本化 content script；旧 Extension 保持不变。"
+/bin/mv -f "${extension_manifest_next}" "${extension_dir}/manifest.json"
+say "Extension 已原子切换到 ${logue_version}"
 
 cli_backup=""
 if [[ -e "${bin_dir}/logue" && ! -L "${bin_dir}/logue" ]]; then
@@ -190,7 +199,6 @@ ln -sfn "${current_link}/bin/logue" "${bin_dir}/logue"
 
 if [[ -n "${release_backup}" && -d "${release_backup}" ]]; then rm -rf -- "${release_backup}"; fi
 if [[ -n "${legacy_current_backup}" && -e "${legacy_current_backup}" ]]; then rm -rf -- "${legacy_current_backup}"; fi
-if [[ -n "${extension_backup}" && -e "${extension_backup}" ]]; then rm -rf -- "${extension_backup}"; fi
 if [[ -n "${cli_backup}" && -e "${cli_backup}" ]]; then rm -f -- "${cli_backup}"; fi
 
 choose_autostart() {

@@ -73,6 +73,13 @@ if grep -q 'GEMINI\|GOOGLE_GENERATIVE_AI' "${launch_dir}/com.ralphite.logue.plis
 fi
 [[ -d "${install_root}/extension" ]] || { printf 'stable extension directory was not created\n' >&2; exit 1; }
 [[ ! -L "${install_root}/extension" ]] || { printf 'extension path must remain stable across upgrades\n' >&2; exit 1; }
+extension_manifest="${install_root}/extension/manifest.json"
+extension_worker_v1="$(sed -n 's/.*"service_worker": "\([^"]*\)".*/\1/p' "${extension_manifest}")"
+extension_content_v1="$(sed -n 's/.*"js": \["\([^"]*\)"\].*/\1/p' "${extension_manifest}")"
+[[ "${extension_worker_v1}" == releases/v0.1.0-*/background.js ]] || { printf 'v0.1.0 extension worker is not versioned\n' >&2; exit 1; }
+[[ "${extension_content_v1}" == releases/v0.1.0-*/content.js ]] || { printf 'v0.1.0 extension content script is not versioned\n' >&2; exit 1; }
+[[ -f "${install_root}/extension/${extension_worker_v1}" ]] || { printf 'v0.1.0 extension worker is missing\n' >&2; exit 1; }
+[[ -f "${install_root}/extension/${extension_content_v1}" ]] || { printf 'v0.1.0 extension content script is missing\n' >&2; exit 1; }
 
 mkdir -p "${data_root}/items"
 printf '%s\n' 'preserve-me' > "${data_root}/items/installer-sentinel.txt"
@@ -98,5 +105,14 @@ sentinel_after="$(shasum -a 256 "${data_root}/items/installer-sentinel.txt" | aw
 [[ "${sentinel_before}" == "${sentinel_after}" ]] || { printf 'persistent data changed during upgrade\n' >&2; exit 1; }
 [[ ! -e "${launch_dir}/com.ralphite.logue.plist" ]] || { printf 'autostart plist was not removed after opt-out\n' >&2; exit 1; }
 [[ "$("${install_root}/current/bin/logue" -version)" == "v0.1.1" ]] || { printf 'current binary version mismatch\n' >&2; exit 1; }
+extension_worker_v2="$(sed -n 's/.*"service_worker": "\([^"]*\)".*/\1/p' "${extension_manifest}")"
+extension_content_v2="$(sed -n 's/.*"js": \["\([^"]*\)"\].*/\1/p' "${extension_manifest}")"
+[[ "${extension_worker_v2}" == releases/v0.1.1-*/background.js ]] || { printf 'v0.1.1 extension worker is not versioned\n' >&2; exit 1; }
+[[ "${extension_content_v2}" == releases/v0.1.1-*/content.js ]] || { printf 'v0.1.1 extension content script is not versioned\n' >&2; exit 1; }
+[[ "${extension_worker_v1}" != "${extension_worker_v2}" ]] || { printf 'extension manifest did not switch assets\n' >&2; exit 1; }
+[[ -f "${install_root}/extension/${extension_worker_v1}" ]] || { printf 'previous extension worker disappeared during upgrade\n' >&2; exit 1; }
+[[ -f "${install_root}/extension/${extension_content_v1}" ]] || { printf 'previous extension content script disappeared during upgrade\n' >&2; exit 1; }
+[[ -f "${install_root}/extension/${extension_worker_v2}" ]] || { printf 'v0.1.1 extension worker is missing\n' >&2; exit 1; }
+[[ -f "${install_root}/extension/${extension_content_v2}" ]] || { printf 'v0.1.1 extension content script is missing\n' >&2; exit 1; }
 
 printf 'Installer new-install and overwrite-upgrade regression passed.\n'
