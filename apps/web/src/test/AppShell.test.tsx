@@ -133,23 +133,21 @@ describe("application navigation shell", () => {
     expect(screen.getByRole("button", { name: "Close sidebar" })).toBeTruthy();
   });
 
-  it("renders documents inside the shared shell without another logo, primary nav, or connection state", async () => {
+  it("renders documents inside the shared Generate shell without a duplicate document sidebar", async () => {
     const { container } = render(<App />);
 
     expect(screen.getAllByTestId("primary-navigation-shell")).toHaveLength(1);
-    const documentSidebar = screen.getByTestId("document-sidebar");
-    expect(within(documentSidebar).getByRole("textbox", { name: "Search documents" }).getAttribute("placeholder")).toBe("Search documents");
-    expect(within(documentSidebar).queryByRole("navigation")).toBeNull();
+    const generateNavigation = screen.getByRole("complementary", { name: "Generate navigation" });
+    expect(screen.queryByTestId("document-sidebar")).toBeNull();
 
     await waitFor(() => {
-      const documentRow = documentSidebar.querySelector("button.group");
-      expect(documentRow).not.toBeNull();
-      expect(documentRow?.className).toContain("min-h-11");
+      const documentRow = within(generateNavigation).getByRole("button", { name: /Shell test document/ });
+      expect(documentRow.className).toContain("min-h-11");
     });
 
     expect(container.textContent).not.toContain("Results");
-    expect(within(documentSidebar).queryByText("Local service connected")).toBeNull();
-    expect(within(documentSidebar).queryByText("Local service unavailable")).toBeNull();
+    expect(within(generateNavigation).queryByText("Local service connected")).toBeNull();
+    expect(within(generateNavigation).queryByText("Local service unavailable")).toBeNull();
   });
 
   it("flushes a dirty document before the shared navigation leaves its section", async () => {
