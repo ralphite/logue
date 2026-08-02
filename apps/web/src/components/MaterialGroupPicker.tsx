@@ -10,7 +10,7 @@ function defaultLabel(material: Material) {
 }
 
 function defaultMeta(material: Material) {
-  return material.projects[0] || material.source?.domain || "未归项目";
+  return material.projects[0] || material.source?.domain || "Unfiled";
 }
 
 function useMaterialGroups(materials: Material[]) {
@@ -32,7 +32,7 @@ function Disclosure({
       type="button"
       onClick={onToggle}
       aria-expanded={expanded}
-      aria-label={`${expanded ? "收起" : "展开"}${group.items.length} 次捕获`}
+      aria-label={`${expanded ? "Collapse" : "Expand"} ${group.items.length} captures`}
       className="inline-flex size-7 shrink-0 items-center justify-center rounded text-[#8c8d88] hover:bg-[#ecece8] focus-visible:outline-2 focus-visible:outline-[#5b64f4]"
     >
       <ChevronRight size={13} className={`transition ${expanded ? "rotate-90" : ""}`} />
@@ -41,7 +41,7 @@ function Disclosure({
 }
 
 function CaptureMeta({ index, material, getMeta }: { index: number; material: Material; getMeta: MaterialText }) {
-  return <span className="mt-0.5 block truncate text-[9.5px] text-[#999a95]">第 {index + 1} 次 · {getMeta(material)}</span>;
+  return <span className="mt-0.5 block truncate text-[9.5px] text-[#999a95]">Capture {index + 1} / {getMeta(material)}</span>;
 }
 
 export function MaterialGroupPicker({
@@ -51,7 +51,7 @@ export function MaterialGroupPicker({
   getLabel = defaultLabel,
   getMeta = defaultMeta,
   getDescription,
-  emptyMessage = "没有匹配资料",
+  emptyMessage = "No matching materials",
 }: {
   materials: Material[];
   selectedIds: string[];
@@ -109,7 +109,7 @@ export function MaterialGroupPicker({
                   {getDescription?.(group.representative) && getDescription(group.representative) !== getLabel(group.representative) && <span className="mt-0.5 line-clamp-2 block text-[10px] leading-4 text-[#858680]">{getDescription(group.representative)}</span>}
                   <span className="mt-0.5 block truncate text-[9.5px] text-[#999a95]">{getMeta(group.representative)}</span>
                 </span>
-                {group.items.length > 1 && <span className="mt-0.5 shrink-0 rounded bg-[#ecece8] px-1.5 py-0.5 text-[9px] font-medium text-[#777873]">{group.items.length} 次{selectedCount > 0 ? ` · 已选 ${selectedCount}` : ""}</span>}
+                {group.items.length > 1 && <span className="mt-0.5 shrink-0 rounded bg-[#ecece8] px-1.5 py-0.5 text-[9px] font-medium text-[#777873]">{group.items.length} captures{selectedCount > 0 ? ` / ${selectedCount} selected` : ""}</span>}
               </button>
             </div>
             {group.items.length > 1 && isExpanded && (
@@ -144,7 +144,7 @@ export function MaterialGroupAddList({
   getLabel = defaultLabel,
   getMeta = defaultMeta,
   getDescription,
-  emptyMessage = "没有其他可引用资料",
+  emptyMessage = "No other materials to cite",
 }: {
   materials: Material[];
   onAdd: (id: string) => void;
@@ -175,10 +175,10 @@ export function MaterialGroupAddList({
           <div key={group.key} className="border-b border-[#f0f0ed] last:border-b-0">
             <div className="flex min-h-11 items-center gap-0.5">
               <Disclosure group={group} expanded={isExpanded} onToggle={() => toggleExpanded(group.key)} />
-              <button type="button" onClick={() => onAdd(group.representative.id)} title={`在正文引用 ${getLabel(group.representative)}`} className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-1.5 py-2 text-left hover:bg-[#f1f1ee] focus-visible:outline-2 focus-visible:outline-[#5b64f4]">
+              <button type="button" onClick={() => onAdd(group.representative.id)} title={`Cite ${getLabel(group.representative)} in the document`} className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-1.5 py-2 text-left hover:bg-[#f1f1ee] focus-visible:outline-2 focus-visible:outline-[#5b64f4]">
                 <span className="mt-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded text-[#777dd0]"><Plus size={14} /></span>
                 <span className="min-w-0 flex-1"><span className="block truncate text-[11.5px] font-medium text-[#565753]">{getLabel(group.representative)}</span>{getDescription?.(group.representative) && getDescription(group.representative) !== getLabel(group.representative) && <span className="mt-0.5 line-clamp-2 block text-[10px] leading-4 text-[#777873]">{getDescription(group.representative)}</span>}<span className="mt-0.5 block truncate text-[10px] text-[#8b8c87]">{getMeta(group.representative)}</span></span>
-                {group.items.length > 1 && <span className="mt-0.5 shrink-0 rounded bg-[#ecece8] px-1.5 py-0.5 text-[9px] font-medium text-[#777873]">{group.items.length} 次</span>}
+                {group.items.length > 1 && <span className="mt-0.5 shrink-0 rounded bg-[#ecece8] px-1.5 py-0.5 text-[9px] font-medium text-[#777873]">{group.items.length} captures</span>}
               </button>
             </div>
             {group.items.length > 1 && isExpanded && (

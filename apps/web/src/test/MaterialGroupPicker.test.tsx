@@ -17,9 +17,9 @@ function material(id: string, kind: Material["kind"], content: string, domain: s
 }
 
 const duplicates = [
-  material("capture-a", "voice", "同一段资料", "alpha.example"),
-  material("capture-b", "voice", "同一段资料", "beta.example"),
-  material("separate", "text", "同一段资料", "text.example"),
+  material("capture-a", "voice", "Same material", "alpha.example"),
+  material("capture-b", "voice", "Same material", "beta.example"),
+  material("separate", "text", "Same material", "text.example"),
 ];
 
 describe("MaterialGroupPicker", () => {
@@ -27,14 +27,14 @@ describe("MaterialGroupPicker", () => {
     const onChange = vi.fn();
     render(<MaterialGroupPicker materials={duplicates} selectedIds={[]} onChange={onChange} getLabel={(item) => item.content} getMeta={(item) => item.source?.domain ?? ""} />);
 
-    expect(screen.getByText("2 次")).toBeTruthy();
-    expect(screen.queryByText(/第 1 次/)).toBeNull();
+    expect(screen.getByText("2 captures")).toBeTruthy();
+    expect(screen.queryByText(/Capture 1/)).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "展开2 次捕获" }));
-    expect(screen.getByText("第 1 次 · alpha.example")).toBeTruthy();
-    expect(screen.getByText("第 2 次 · beta.example")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Expand 2 captures" }));
+    expect(screen.getByText("Capture 1 / alpha.example")).toBeTruthy();
+    expect(screen.getByText("Capture 2 / beta.example")).toBeTruthy();
 
-    fireEvent.click(screen.getByText("2 次").closest("button")!);
+    fireEvent.click(screen.getByText("2 captures").closest("button")!);
     expect(onChange).toHaveBeenCalledWith(["capture-a"]);
   });
 
@@ -42,11 +42,11 @@ describe("MaterialGroupPicker", () => {
     const onAdd = vi.fn();
     render(<MaterialGroupAddList materials={duplicates.slice(0, 2)} onAdd={onAdd} getLabel={(item) => item.content} getMeta={(item) => item.source?.domain ?? ""} />);
 
-    fireEvent.click(screen.getByText("2 次").closest("button")!);
+    fireEvent.click(screen.getByText("2 captures").closest("button")!);
     expect(onAdd).toHaveBeenLastCalledWith("capture-a");
 
-    fireEvent.click(screen.getByRole("button", { name: "展开2 次捕获" }));
-    fireEvent.click(screen.getByText("第 2 次 · beta.example").closest("button")!);
+    fireEvent.click(screen.getByRole("button", { name: "Expand 2 captures" }));
+    fireEvent.click(screen.getByText("Capture 2 / beta.example").closest("button")!);
     expect(onAdd).toHaveBeenLastCalledWith("capture-b");
   });
 });
