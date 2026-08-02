@@ -7,8 +7,8 @@ const { apiMocks, documentFixture } = vi.hoisted(() => ({
   apiMocks: { updateDocument: vi.fn() },
   documentFixture: {
     id: "document-1",
-    title: "壳层验证文档",
-    content: "验证正文",
+    title: "Shell test document",
+    content: "Test body",
     project: "Logue",
     source_ids: [] as string[],
     revision: 1,
@@ -36,13 +36,14 @@ vi.mock("../api", async (importOriginal) => {
 describe("application navigation shell", () => {
   beforeEach(() => {
     apiMocks.updateDocument.mockReset();
+    window.localStorage.clear();
     window.history.replaceState(null, "", "/?view=docs&doc=document-1");
   });
 
   it("keeps the same ordered product navigation on desktop and mobile", () => {
     render(<NavRail active="views" connected onChange={() => undefined} />);
 
-    const expectedLabels = ["资料流", "项目", "生成", "设置"];
+    const expectedLabels = ["Stream", "Projects", "Generate", "Settings"];
     const desktopShell = screen.getByTestId("primary-navigation-shell");
     const desktopButtons = desktopShell.querySelectorAll("nav button");
     expect(Array.from(desktopButtons, (button) => button.textContent?.trim())).toEqual(expectedLabels);
@@ -53,12 +54,66 @@ describe("application navigation shell", () => {
     expect(Array.from(mobileButtons).every((button) => button.className.includes("min-h-11"))).toBe(true);
   });
 
+  it("uses the same content column for the stream header and body", () => {
+    window.history.replaceState(null, "", "/?view=stream");
+    render(<App />);
+
+    const axisClasses = (element: HTMLElement) => element.className
+      .split(" ")
+      .filter((name) => name === "w-full" || name.startsWith("max-w-[") || name === "px-8" || name === "max-[640px]:px-4");
+
+    expect(axisClasses(screen.getByTestId("stream-header-column"))).toEqual([
+      "w-full",
+      "max-w-[1080px]",
+      "px-8",
+      "max-[640px]:px-4",
+    ]);
+    expect(axisClasses(screen.getByTestId("stream-content-column"))).toEqual(
+      axisClasses(screen.getByTestId("stream-header-column")),
+    );
+  });
+
+  it("collapses to an accessible icon rail without changing mobile navigation", () => {
+    const onCollapsedChange = vi.fn();
+    const { rerender } = render(
+      <NavRail active="views" connected collapsed={false} onCollapsedChange={onCollapsedChange} onChange={() => undefined} />,
+    );
+
+    const collapseButton = screen.getByRole("button", { name: "Close sidebar" });
+    expect(collapseButton.className).toContain("size-11");
+    fireEvent.click(collapseButton);
+    expect(onCollapsedChange).toHaveBeenCalledWith(true);
+
+    rerender(
+      <NavRail active="views" connected collapsed onCollapsedChange={onCollapsedChange} onChange={() => undefined} />,
+    );
+    expect(screen.getByTestId("primary-navigation-shell").getAttribute("data-collapsed")).toBe("true");
+    expect(screen.getByTestId("primary-navigation-shell").className).toContain("w-14");
+    expect(screen.getByRole("button", { name: "Open sidebar" }).getAttribute("aria-expanded")).toBe("false");
+    expect(within(screen.getByTestId("primary-navigation-shell")).getByRole("button", { name: "Stream" })).toBeTruthy();
+    expect(screen.getByTestId("mobile-primary-navigation").textContent).toContain("Stream");
+  });
+
+  it("restores and updates the collapsed preference", async () => {
+    window.localStorage.setItem("logue.navigation.collapsed", "true");
+    render(<App />);
+
+    const expandButton = screen.getByRole("button", { name: "Open sidebar" });
+    expect(screen.getByTestId("primary-navigation-shell").getAttribute("data-collapsed")).toBe("true");
+    fireEvent.click(expandButton);
+
+    await waitFor(() => {
+      expect(window.localStorage.getItem("logue.navigation.collapsed")).toBe("false");
+    });
+    expect(screen.getByRole("button", { name: "Close sidebar" })).toBeTruthy();
+  });
+
   it("renders documents inside the shared shell without another logo, primary nav, or connection state", async () => {
     const { container } = render(<App />);
 
     expect(screen.getAllByTestId("primary-navigation-shell")).toHaveLength(1);
     const documentSidebar = screen.getByTestId("document-sidebar");
-    expect(within(documentSidebar).getByRole("textbox", { name: "搜索文档" }).getAttribute("placeholder")).toBe("搜索文档");
+    expect(within(documentSidebar).getByRole("textbox", { name: "Search documents" }).getAttribute("placeholder")).toBe("Search documents");
     expect(within(documentSidebar).queryByRole("navigation")).toBeNull();
 
     await waitFor(() => {
@@ -67,29 +122,29 @@ describe("application navigation shell", () => {
       expect(documentRow?.className).toContain("min-h-11");
     });
 
-    expect(container.textContent).not.toContain("成果");
-    expect(within(documentSidebar).queryByText("本机服务已连接")).toBeNull();
-    expect(within(documentSidebar).queryByText("本机服务未连接")).toBeNull();
+    expect(container.textContent).not.toContain("Results");
+    expect(within(documentSidebar).queryByText("Local service connected")).toBeNull();
+    expect(within(documentSidebar).queryByText("Local service unavailable")).toBeNull();
   });
 
   it("flushes a dirty document before the shared navigation leaves its section", async () => {
     apiMocks.updateDocument.mockResolvedValue({
       ...documentFixture,
-      title: "保存后离开",
+      title: "Saved before leaving",
       revision: 2,
     });
     render(<App />);
 
-    const titleInput = await screen.findByDisplayValue("壳层验证文档");
-    fireEvent.change(titleInput, { target: { value: "保存后离开" } });
-    fireEvent.click(within(screen.getByTestId("primary-navigation-shell")).getByRole("button", { name: "资料流" }));
+    const titleInput = await screen.findByDisplayValue("Shell test document");
+    fireEvent.change(titleInput, { target: { value: "Saved before leaving" } });
+    fireEvent.click(within(screen.getByTestId("primary-navigation-shell")).getByRole("button", { name: "Stream" }));
 
     await waitFor(() => {
       expect(apiMocks.updateDocument).toHaveBeenCalledOnce();
       expect(window.location.search).toBe("?view=stream");
     });
     expect(apiMocks.updateDocument.mock.calls[0]?.[1]).toMatchObject({
-      title: "保存后离开",
+      title: "Saved before leaving",
       expectedRevision: 1,
     });
   });

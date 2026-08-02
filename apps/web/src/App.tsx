@@ -16,21 +16,32 @@ import { NewMaterialDialog } from "./components/NewMaterialDialog";
 import { ProjectPage } from "./components/ProjectPage";
 import { GenerationWorkspace, type GenerationMode } from "./components/GenerationWorkspace";
 import { SettingsPage } from "./components/SettingsPage";
+import { PanelResizer, usePersistentPanelSize } from "./components/PanelResizer";
 import { navigationURL, parseNavigation, type AppNavigation } from "./navigation";
 import { groupIdenticalMaterials } from "./materialGroups";
 
 type Filter = "all" | "unfiled" | "organized";
 
+const navigationCollapsedStorageKey = "logue.navigation.collapsed";
+
+function initialNavigationCollapsed() {
+  try {
+    return window.localStorage.getItem(navigationCollapsedStorageKey) === "true";
+  } catch {
+    return false;
+  }
+}
+
 const materialIcons = { voice: Mic2, selection: FileText, text: FileText, derived: Sparkles };
 
 function shortDate(value: string) {
   const date = new Date(value);
-  return date.toLocaleDateString("zh-CN", { month: "short", day: "numeric" });
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function sourceName(material: Material) {
-  const value = material.source?.domain || material.actor || "用户";
-  return value === "127.0.0.1" || value === "localhost" ? "Logue 本地页面" : value;
+  const value = material.source?.domain || material.actor || "User";
+  return value === "127.0.0.1" || value === "localhost" ? "Logue local page" : value;
 }
 
 export function App() {
@@ -43,6 +54,22 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [showComposer, setShowComposer] = useState(false);
+  const [navigationCollapsed, setNavigationCollapsed] = useState(initialNavigationCollapsed);
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+  const { size: navigationWidth, setSize: setNavigationWidth } = usePersistentPanelSize({
+    storageKey: "logue.panel.navigation.width",
+    defaultSize: 252,
+    min: 200,
+    max: 320,
+  });
+  const navigationFootprint = navigationCollapsed ? 56 : navigationWidth + 1;
+  const materialDetailMaxWidth = Math.max(440, Math.min(900, viewportWidth - navigationFootprint - 440));
+  const { size: materialDetailWidth, setSize: setMaterialDetailWidth } = usePersistentPanelSize({
+    storageKey: "logue.panel.material-detail.width",
+    defaultSize: materialDetailMaxWidth,
+    min: 440,
+    max: materialDetailMaxWidth,
+  });
   const [expandedMaterialGroups, setExpandedMaterialGroups] = useState<Set<string>>(() => new Set());
   const documentLeaveGuardRef = useRef<(() => Promise<boolean>) | undefined>(undefined);
   const section = navigation.section;
@@ -65,12 +92,12 @@ export function App() {
 
   useEffect(() => {
     const sectionTitle = section === "stream"
-      ? "资料流"
+      ? "Stream"
       : section === "projects"
-        ? navigation.projectName || "项目"
+        ? navigation.projectName || "Projects"
         : section === "settings"
-          ? "设置"
-          : "生成";
+          ? "Settings"
+          : "Generate";
     document.title = `${sectionTitle} · Logue`;
   }, [navigation.projectName, section]);
 
@@ -109,7 +136,7 @@ export function App() {
       setStatus(nextStatus);
       setError(undefined);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "无法连接本机服务");
+      setError(cause instanceof Error ? cause.message : "Could not connect to the local service");
     } finally {
       setLoading(false);
     }
@@ -118,6 +145,20 @@ export function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(navigationCollapsedStorageKey, String(navigationCollapsed));
+    } catch {
+      // The navigation remains usable when storage is unavailable.
+    }
+  }, [navigationCollapsed]);
+
+  useEffect(() => {
+    const updateViewportWidth = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", updateViewportWidth);
+    return () => window.removeEventListener("resize", updateViewportWidth);
+  }, []);
 
   useEffect(() => {
     if (!materials.some((material) => material.organization?.status === "pending")) return;
@@ -192,7 +233,15 @@ export function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-transparent max-[640px]:pb-16">
-      <NavRail active={section} onChange={openSection} connected={Boolean(status?.ok)} />
+      <NavRail
+        active={section}
+        onChange={openSection}
+        connected={Boolean(status?.ok)}
+        collapsed={navigationCollapsed}
+        onCollapsedChange={setNavigationCollapsed}
+        width={navigationWidth}
+        onWidthChange={setNavigationWidth}
+      />
 
       {section === "views" ? (
         <GenerationWorkspace
@@ -218,40 +267,40 @@ export function App() {
         <SettingsPage status={status} />
       ) : (
         <main className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${materialMode === "page" ? "hidden" : ""}`}>
-          <header className="sticky top-0 z-20 border-b border-[#eeeeeb] bg-white/92 px-8 py-4 backdrop-blur-xl max-[640px]:px-4">
-            <div className="mx-auto flex max-w-[1080px] items-center justify-between gap-4">
+          <header className="sticky top-0 z-20 border-b border-[#eeeeeb] bg-white/92 backdrop-blur-xl">
+            <div data-testid="stream-header-column" className="mx-auto flex w-full max-w-[1080px] items-center justify-between gap-4 px-8 py-4 max-[640px]:px-4">
               <div>
-                <h1 className="text-[20px] font-semibold tracking-[-0.035em] text-[#20211e]">资料流</h1>
-                <p className="mt-0.5 text-[11px] text-[#858680]">输入、采集与派生结果的永久记录</p>
+                <h1 className="text-[20px] font-semibold tracking-[-0.035em] text-[#20211e]">Stream</h1>
+                <p className="mt-0.5 text-[11px] text-[#858680]">A permanent record of inputs, captures, and derived work</p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowComposer(true)}
-                aria-label="添加资料"
+                aria-label="Add material"
                 className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[#242522] px-3 text-[12px] font-medium text-white transition hover:bg-[#3a3b37] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5b64f4]"
               >
                 <CirclePlus size={15} />
-                <span className="max-[540px]:hidden">添加资料</span>
+                <span className="max-[540px]:hidden">Add material</span>
               </button>
             </div>
           </header>
 
-          <div className="mx-auto max-w-[1080px] px-8 pb-12 pt-7 max-[640px]:px-4">
+          <div data-testid="stream-content-column" className="mx-auto w-full max-w-[1080px] px-8 pb-12 pt-7 max-[640px]:px-4">
             <div className="mb-4 flex items-center gap-3 max-[720px]:flex-wrap">
               <label className="relative min-w-[220px] flex-1">
                 <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#969990]" />
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="搜索内容、来源或项目"
+                  placeholder="Search content, sources, or projects"
                   className="h-9 w-full rounded-md border border-[#dfdfdc] bg-white pl-9 pr-3 text-[12px] text-[#2e302b] outline-none placeholder:text-[#9b9e96] focus:border-[#aaa]"
                 />
               </label>
               <div className="flex rounded-md border border-[#dfdfdc] bg-white p-0.5">
                 {([
-                  ["all", "全部"],
-                  ["unfiled", "未归项目"],
-                  ["organized", "已归项目"],
+                  ["all", "All"],
+                  ["unfiled", "Unfiled"],
+                  ["organized", "Filed"],
                 ] as const).map(([value, label]) => (
                   <button
                     key={value}
@@ -268,18 +317,18 @@ export function App() {
             {error && (
               <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-[#efd2cc] bg-[#fff5f2] px-4 py-3 text-[12px] text-[#9b4b42]">
                 <span>{error}</span>
-                <button type="button" className="font-semibold underline underline-offset-2" onClick={() => void refresh()}>重试</button>
+                <button type="button" className="font-semibold underline underline-offset-2" onClick={() => void refresh()}>Retry</button>
               </div>
             )}
 
             {loading ? (
-              <div className="space-y-1" aria-label="正在加载资料">
+              <div className="space-y-1" aria-label="Loading materials">
                 {[0, 1, 2, 3].map((value) => <div key={value} className="h-14 animate-pulse rounded-md bg-[#f3f3f0] motion-reduce:animate-none" />)}
               </div>
             ) : materialGroups.length ? (
               <>
                 <div className="mb-1 grid grid-cols-[minmax(0,1fr)_150px_150px_70px] gap-3 border-b border-[#e8e8e5] px-3 py-2 text-[10.5px] font-medium text-[#92938e] max-[800px]:grid-cols-[minmax(0,1fr)_100px_60px] max-[480px]:grid-cols-[minmax(0,1fr)_50px]">
-                  <span>内容</span><span className="max-[480px]:hidden">项目</span><span className="max-[800px]:hidden">来源</span><span>日期</span>
+                  <span>Content</span><span className="max-[480px]:hidden">Project</span><span className="max-[800px]:hidden">Source</span><span>Date</span>
                 </div>
                 <div>
                   {materialGroups.map((group) => {
@@ -289,10 +338,10 @@ export function App() {
                     const expanded = expandedMaterialGroups.has(group.key);
                     const selectedInGroup = group.items.some((item) => item.id === selectedId);
                     const projectLabel = group.projects.length === 0
-                      ? "未归项目"
+                      ? "Unfiled"
                       : group.projects.length === 1
                         ? group.projects[0]
-                        : `${group.projects[0]} 等 ${group.projects.length} 个项目`;
+                        : `${group.projects[0]} +${group.projects.length - 1}`;
                     return (
                       <div key={group.key}>
                         <button
@@ -316,14 +365,14 @@ export function App() {
                           <span className="flex min-w-0 items-center gap-2.5">
                             {duplicate ? <ChevronRight size={14} className={`shrink-0 text-[#969792] transition ${expanded ? "rotate-90" : ""}`} /> : <Icon size={15} className="shrink-0 text-[#7b7c77]" />}
                             <span className="truncate text-[12.5px] text-[#3d3e3a]">{material.content}</span>
-                            {duplicate && <span className="hidden shrink-0 rounded bg-[#eeeeea] px-1.5 py-0.5 text-[9px] font-medium text-[#777873] max-[800px]:inline-flex">{group.items.length} 条</span>}
-                            {group.needsReview && <span className="hidden shrink-0 rounded bg-[#fff3d8] px-1.5 py-0.5 text-[9px] font-medium text-[#8b611d] max-[480px]:inline-flex">待确认</span>}
+                            {duplicate && <span className="hidden shrink-0 rounded bg-[#eeeeea] px-1.5 py-0.5 text-[9px] font-medium text-[#777873] max-[800px]:inline-flex">{group.items.length} items</span>}
+                            {group.needsReview && <span className="hidden shrink-0 rounded bg-[#fff3d8] px-1.5 py-0.5 text-[9px] font-medium text-[#8b611d] max-[480px]:inline-flex">Review</span>}
                           </span>
                           <span className="flex min-w-0 items-center gap-1.5 max-[480px]:hidden">
                             <span className="truncate text-[11px] text-[#73746f]">{projectLabel}</span>
-                            {group.needsReview && <span className="shrink-0 rounded bg-[#fff3d8] px-1.5 py-0.5 text-[9px] font-medium text-[#8b611d]">需要确认</span>}
+                            {group.needsReview && <span className="shrink-0 rounded bg-[#fff3d8] px-1.5 py-0.5 text-[9px] font-medium text-[#8b611d]">Needs review</span>}
                           </span>
-                          <span className="truncate text-[11px] text-[#7f807b] max-[800px]:hidden">{duplicate ? `${group.items.length} 个来源` : sourceName(material)}</span>
+                          <span className="truncate text-[11px] text-[#7f807b] max-[800px]:hidden">{duplicate ? `${group.items.length} sources` : sourceName(material)}</span>
                           <span className="text-[10.5px] text-[#9b9c97]">{shortDate(material.createdAt)}</span>
                         </button>
                         {duplicate && expanded && (
@@ -337,7 +386,7 @@ export function App() {
                               >
                                 <span className="w-6 shrink-0 text-right text-[9.5px] font-medium text-[#aaaba6]">{index + 1}</span>
                                 <span className="min-w-0 flex-1 truncate text-[11px] text-[#595a56]">{instance.source?.title || sourceName(instance)}</span>
-                                <span className="max-w-32 truncate text-[10px] text-[#8a8b86] max-[480px]:hidden">{instance.projects[0] || "未归项目"}</span>
+                                <span className="max-w-32 truncate text-[10px] text-[#8a8b86] max-[480px]:hidden">{instance.projects[0] || "Unfiled"}</span>
                                 <span className="shrink-0 text-[10px] text-[#a0a19c]">{shortDate(instance.createdAt)}</span>
                               </button>
                             ))}
@@ -351,16 +400,16 @@ export function App() {
             ) : materials.length === 0 ? (
               <section className="mx-auto flex max-w-lg flex-col items-center px-6 py-20 text-center">
                 <span className="inline-flex size-10 items-center justify-center rounded-lg bg-[#f0f0ed] text-[#71736d]"><LibraryBig size={19} /></span>
-                <h2 className="mt-4 text-[16px] font-semibold tracking-[-0.02em] text-[#3f413c]">收下第一条资料</h2>
-                <p className="mt-1.5 max-w-sm text-[12px] leading-5 text-[#858780]">在任何网页通过 Logue 输入或保存选区，原文、来源和后续派生会留在同一条记录链里。</p>
-                <button type="button" onClick={() => setShowComposer(true)} className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[12px] font-medium text-white hover:bg-[#3a3b37]"><CirclePlus size={14} /> 添加第一条资料</button>
+                <h2 className="mt-4 text-[16px] font-semibold tracking-[-0.02em] text-[#3f413c]">Capture your first material</h2>
+                <p className="mt-1.5 max-w-sm text-[12px] leading-5 text-[#858780]">Use Logue on any webpage to dictate or save a selection. The original, its source, and every derivative stay in one record chain.</p>
+                <button type="button" onClick={() => setShowComposer(true)} className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[12px] font-medium text-white hover:bg-[#3a3b37]"><CirclePlus size={14} /> Add first material</button>
               </section>
             ) : (
               <section className="rounded-2xl border border-dashed border-[#cfd1ca] bg-white/45 px-6 py-16 text-center">
                 <span className="mx-auto inline-flex size-11 items-center justify-center rounded-full bg-[#eef0ea] text-[#747970]"><Search size={19} /></span>
-                <h2 className="mt-4 text-[15px] font-semibold text-[#3f423c]">没有符合条件的资料</h2>
-                <p className="mt-1 text-[12px] text-[#858980]">尝试更换搜索词或筛选条件。</p>
-                <button type="button" onClick={() => { setQuery(""); setFilter("all"); }} className="mt-4 h-8 rounded-md border border-[#d8d8d3] px-3 text-[11px] font-medium text-[#62635e] hover:bg-[#f4f4f1]">清除筛选</button>
+                <h2 className="mt-4 text-[15px] font-semibold text-[#3f423c]">No matching materials</h2>
+                <p className="mt-1 text-[12px] text-[#858980]">Try a different search or filter.</p>
+                <button type="button" onClick={() => { setQuery(""); setFilter("all"); }} className="mt-4 h-8 rounded-md border border-[#d8d8d3] px-3 text-[11px] font-medium text-[#62635e] hover:bg-[#f4f4f1]">Clear filters</button>
               </section>
             )}
           </div>
@@ -368,10 +417,24 @@ export function App() {
       )}
 
       {section === "stream" && selected && (
+        <>
+        {materialMode === "peek" && (
+          <PanelResizer
+            label="Resize material details"
+            value={materialDetailWidth}
+            min={440}
+            max={materialDetailMaxWidth}
+            defaultValue={materialDetailMaxWidth}
+            edge="left"
+            onChange={setMaterialDetailWidth}
+            className="max-[1180px]:hidden"
+          />
+        )}
         <MaterialDetail
           key={selected.id}
           material={selected}
           mode={materialMode}
+          peekWidth={materialDetailWidth}
           onClose={() => { navigate({ section: "stream" }); setMaterialMode("peek"); }}
           onExpand={() => setMaterialMode("page")}
           onAddAnnotation={addAnnotation}
@@ -382,6 +445,7 @@ export function App() {
           parents={(selected.parentIds ?? []).map((id) => materials.find((item) => item.id === id)).filter((item): item is Material => Boolean(item))}
           dependents={materials.filter((item) => item.parentIds?.includes(selected.id))}
         />
+        </>
       )}
       {showComposer && <NewMaterialDialog onClose={() => setShowComposer(false)} onSave={addManualMaterial} />}
     </div>
