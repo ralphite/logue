@@ -78,7 +78,7 @@ export function NavRail({
       data-resizing={resizing ? "true" : "false"}
       style={{ width: collapsed ? 56 : width }}
       className={cn(
-        "flex h-screen shrink-0 flex-col bg-[#f7f7f5] px-1.5 py-3 transition-[width] duration-200 ease-out motion-reduce:transition-none max-[640px]:hidden",
+        "group/sidebar flex h-screen shrink-0 flex-col bg-[#f7f7f5] px-1.5 py-3 transition-[width] duration-200 ease-out motion-reduce:transition-none max-[640px]:hidden",
         resizing && "transition-none",
         collapsed
           ? "w-14 border-r border-[#e7e7e4] max-[900px]:w-14"
@@ -86,30 +86,39 @@ export function NavRail({
       )}
     >
       <div className="flex h-11 items-center">
-        {!collapsed && (
-          <span className="min-w-0 flex-1 overflow-hidden pl-1.5">
-            <LogueLogo />
-          </span>
-        )}
-        <Tooltip content={toggleLabel} disabled={!collapsed}>
+        <Tooltip content={toggleLabel}>
         <button
           type="button"
+          data-testid="sidebar-brand-toggle"
           aria-label={toggleLabel}
           aria-expanded={!collapsed}
           aria-controls="primary-navigation"
           onClick={() => onCollapsedChange(!collapsed)}
-          className="group flex size-11 shrink-0 items-center justify-center rounded-lg text-[#73756f] transition hover:bg-[#ebebe8] hover:text-[#30322d] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4]"
+          className="group/toggle flex size-11 shrink-0 items-center justify-center rounded-lg text-[#73756f] transition hover:bg-[#ebebe8] hover:text-[#30322d] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4]"
         >
-          {collapsed ? (
-            <>
-              <span className="group-hover:hidden group-focus-visible:hidden" aria-hidden="true"><LogueLogo compact /></span>
-              <PanelLeftOpen className="hidden group-hover:block group-focus-visible:block" size={18} strokeWidth={1.9} aria-hidden="true" />
-            </>
-          ) : (
-            <PanelLeftClose size={18} strokeWidth={1.9} aria-hidden="true" />
-          )}
+          <span
+            data-testid="sidebar-brand-mark"
+            className="group-hover/sidebar:hidden group-focus-visible/toggle:hidden"
+            aria-hidden="true"
+          >
+            <LogueLogo compact />
+          </span>
+          <span
+            data-testid="sidebar-toggle-icon"
+            className="hidden items-center justify-center group-hover/sidebar:flex group-focus-visible/toggle:flex"
+            aria-hidden="true"
+          >
+            {collapsed
+              ? <PanelLeftOpen size={18} strokeWidth={1.9} />
+              : <PanelLeftClose size={18} strokeWidth={1.9} />}
+          </span>
         </button>
         </Tooltip>
+        {!collapsed && (
+          <span className="min-w-0 flex-1 truncate pr-2 text-[17px] font-semibold tracking-[-0.035em] text-[#181916]">
+            Logue
+          </span>
+        )}
       </div>
 
       <nav id="primary-navigation" className="mt-2 space-y-0.5" aria-label="Primary navigation">
@@ -138,27 +147,20 @@ export function NavRail({
         })}
       </nav>
 
-      <div className="mt-auto border-t border-[#e7e7e4] pt-2">
+      {!connected && <div className="mt-auto border-t border-[#e7e7e4] pt-2">
         <div
           role="status"
-          aria-label={connected ? "Local service running" : "Service disconnected"}
+          aria-label="Service disconnected"
           className="flex min-h-11 items-center rounded-lg"
         >
           <span className="flex size-11 shrink-0 items-center justify-center">
-            <span
-              className={cn(
-                "relative flex size-2 shrink-0 rounded-full",
-                connected ? "bg-[#5f8c62]" : "bg-[#cf574c]",
-              )}
-            >
-              {connected && <span className="absolute inset-0 animate-ping rounded-full bg-[#5f8c62]/35 motion-reduce:animate-none" />}
-            </span>
+            <span className="flex size-2 shrink-0 rounded-full bg-[#cf574c]" />
           </span>
           <span className={cn("min-w-0 flex-1 truncate pr-2 text-[11px] font-medium text-[#74776f]", collapsed && "sr-only")}>
-            {connected ? "Local service running" : "Service disconnected"}
+            Service disconnected
           </span>
         </div>
-      </div>
+      </div>}
     </aside>
     {!collapsed && (
       <PanelResizer

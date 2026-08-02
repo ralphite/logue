@@ -81,6 +81,13 @@ describe("application navigation shell", () => {
 
     const collapseButton = screen.getByRole("button", { name: "Close sidebar" });
     expect(collapseButton.className).toContain("size-11");
+    expect(collapseButton.getAttribute("data-testid")).toBe("sidebar-brand-toggle");
+    expect(screen.getByTestId("primary-navigation-shell").className).toContain("group/sidebar");
+    expect(screen.getByTestId("sidebar-brand-mark").className).toContain("group-hover/sidebar:hidden");
+    expect(screen.getByTestId("sidebar-toggle-icon").className).toContain("group-hover/sidebar:flex");
+    expect(within(screen.getByTestId("primary-navigation-shell")).getByText("Logue")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Close sidebar" })).toHaveLength(1);
+    expect(within(screen.getByTestId("primary-navigation-shell")).queryByText("Local service running")).toBeNull();
     const expandedStreamIconSlot = within(screen.getByTestId("primary-navigation-shell"))
       .getByRole("button", { name: "Stream" })
       .querySelector('[data-nav-icon-slot="true"]');
@@ -102,6 +109,14 @@ describe("application navigation shell", () => {
     expect(screen.getByTestId("primary-navigation-shell").className).toContain("px-1.5");
     expect(within(screen.getByTestId("primary-navigation-shell")).getByRole("button", { name: "Stream" })).toBeTruthy();
     expect(screen.getByTestId("mobile-primary-navigation").textContent).toContain("Stream");
+  });
+
+  it("only surfaces the local service state when action is needed", () => {
+    const { rerender } = render(<NavRail active="stream" connected onChange={() => undefined} />);
+    expect(screen.queryByRole("status", { name: "Local service running" })).toBeNull();
+
+    rerender(<NavRail active="stream" connected={false} onChange={() => undefined} />);
+    expect(screen.getByRole("status", { name: "Service disconnected" })).toBeTruthy();
   });
 
   it("restores and updates the collapsed preference", async () => {
