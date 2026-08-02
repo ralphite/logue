@@ -259,7 +259,7 @@ function GenerateSectionNavigation({ activeSection, creatingAgent, mobile = fals
     <nav className={mobile ? "grid h-12 grid-cols-2 items-center gap-1" : "space-y-0.5 px-2.5 pb-3"} aria-label={mobile ? "Mobile generate sections" : "Generate sections"}>
       <div className={rowClass(activeSection === "documents")}>
         <button type="button" onClick={onOpenDocuments} className={itemClass(activeSection === "documents")} aria-current={activeSection === "documents" ? "page" : undefined}>
-          <FileText size={14} className="shrink-0" />
+          {!mobile && <FileText size={14} className="shrink-0" />}
           <span className="truncate">Documents</span>
         </button>
         <button type="button" onClick={onStartGeneration} className={addClass} aria-label="New generation" title="New generation">
@@ -268,7 +268,7 @@ function GenerateSectionNavigation({ activeSection, creatingAgent, mobile = fals
       </div>
       <div className={rowClass(activeSection === "agents")}>
         <button type="button" onClick={onOpenAgents} className={itemClass(activeSection === "agents")} aria-current={activeSection === "agents" ? "page" : undefined}>
-          <Bot size={14} className="shrink-0" />
+          {!mobile && <Bot size={14} className="shrink-0" />}
           <span className="truncate">Agents</span>
         </button>
         <button type="button" onClick={onAddAgent} disabled={creatingAgent} className={`${addClass} disabled:cursor-wait disabled:opacity-60`} aria-label="New agent" title="New agent">

@@ -161,6 +161,12 @@ describe("GenerationWorkspace navigation", () => {
     expect(within(navigation).getByRole("button", { name: "Agents" }).getAttribute("aria-current")).toBeNull();
     const shell = screen.getByRole("complementary", { name: "Generate navigation" });
     expect(within(shell).getByRole("heading", { name: "Generate" }).closest("header")?.querySelector("button")).toBeNull();
+    const mobileNavigation = screen.getByRole("navigation", { name: "Mobile generate sections" });
+    for (const label of ["Documents", "Agents"]) {
+      const mobileSection = within(mobileNavigation).getByRole("button", { name: label });
+      expect(mobileSection.textContent).toBe(label);
+      expect(mobileSection.querySelector("svg")).toBeNull();
+    }
   });
 
   it("refreshes each row list while keeping the shared shell mounted", async () => {
