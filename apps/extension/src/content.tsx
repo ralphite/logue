@@ -1,6 +1,6 @@
 import { AgentGenerationPanel, CapturePanel, VoiceInputPanel, type AgentGenerationPhase, type CaptureMode, type CapturePhase, type ContextSource } from "@logue/ui";
 import { AudioLines, Check, Sparkles } from "lucide-react";
-import { StrictMode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { StrictMode, type PointerEvent as ReactPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import styles from "./extension.css?inline";
 
@@ -34,6 +34,7 @@ import { adoptedVoiceText, voiceMaterialPayload } from "./provenance";
 import { recordingShortcutAction } from "./recordingShortcuts";
 import { createRequestId } from "./requestId";
 import { completeSelectionVoiceInput, completeVoiceInput, saveBeforeInsert, VoiceInputTransactionError } from "./transaction";
+import { clampLauncherPosition, defaultLauncherPosition, type LauncherPosition } from "./launcherPosition";
 
 interface OpenMessage {
   type: "logue:open-selection" | "logue:open-input";
@@ -41,6 +42,14 @@ interface OpenMessage {
 }
 
 type ExtensionMode = CaptureMode | "agent";
+
+interface LauncherDragState {
+  moved: boolean;
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  startPosition: LauncherPosition;
+}
 
 function pageSource() {
   return {
@@ -106,6 +115,9 @@ function ExtensionApp() {
   const [agentSourceIds, setAgentSourceIds] = useState<string[]>([]);
   const [agentContextLabel, setAgentContextLabel] = useState("自动使用当前页面上下文");
   const [launcherKeyboardActive, setLauncherKeyboardActive] = useState(false);
+  const [launcherPosition, setLauncherPosition] = useState<LauncherPosition>();
+  const [launcherDragging, setLauncherDragging] = useState(false);
+  const [launcherViewport, setLauncherViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
   const targetRef = useRef<HTMLElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -123,6 +135,8 @@ function ExtensionApp() {
   const stopRecordingRef = useRef<() => void>(() => undefined);
   const closeRef = useRef<() => void>(() => undefined);
   const retryCommitRef = useRef<(text: string) => Promise<void>>(async () => undefined);
+  const launcherDragRef = useRef<LauncherDragState | undefined>(undefined);
+  const suppressLauncherClickRef = useRef(false);
 
   openRef.current = open;
 
@@ -131,6 +145,7 @@ function ExtensionApp() {
     if (forgetTarget) {
       targetRef.current = null;
       targetPageHrefRef.current = "";
+      setLauncherPosition(undefined);
     }
   }, []);
 
@@ -180,9 +195,11 @@ function ExtensionApp() {
         if (!openRef.current) clearTarget();
         return;
       }
+      const targetChanged = targetRef.current !== event.target;
       setLauncherKeyboardActive(false);
       targetRef.current = event.target;
       targetPageHrefRef.current = window.location.href;
+      if (targetChanged) setLauncherPosition(undefined);
       refreshTargetRect();
     };
     const onFocusOut = (event: FocusEvent) => {
@@ -194,9 +211,17 @@ function ExtensionApp() {
       }
       if (!openRef.current) clearTarget();
     };
-    const onViewportChange = () => refreshTargetRect();
+    const onViewportChange = () => {
+      setLauncherViewport((previous) =>
+        previous.width === window.innerWidth && previous.height === window.innerHeight
+          ? previous
+          : { width: window.innerWidth, height: window.innerHeight },
+      );
+      refreshTargetRect();
+    };
     const onWindowBlur = () => setTargetRect(undefined);
     const onWindowFocus = () => {
+      onViewportChange();
       if (document.activeElement === targetRef.current) refreshTargetRect();
     };
     let currentHref = window.location.href;
@@ -846,14 +871,59 @@ function ExtensionApp() {
     }
   }, [agentOutput, agentRunId]);
 
+  const defaultPosition = targetRect ? defaultLauncherPosition(targetRect, launcherViewport) : undefined;
+  const resolvedLauncherPosition = defaultPosition
+    ? clampLauncherPosition(launcherPosition ?? defaultPosition, launcherViewport)
+    : undefined;
+
+  const handleLauncherPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || !resolvedLauncherPosition) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    launcherDragRef.current = {
+      moved: false,
+      pointerId: event.pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startPosition: resolvedLauncherPosition,
+    };
+  }, [resolvedLauncherPosition]);
+
+  const handleLauncherPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = launcherDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    const deltaX = event.clientX - drag.startClientX;
+    const deltaY = event.clientY - drag.startClientY;
+    if (!drag.moved && Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 4) return;
+    drag.moved = true;
+    setLauncherDragging(true);
+    setLauncherPosition(
+      clampLauncherPosition(
+        { left: drag.startPosition.left + deltaX, top: drag.startPosition.top + deltaY },
+        { width: window.innerWidth, height: window.innerHeight },
+      ),
+    );
+  }, []);
+
+  const finishLauncherDrag = useCallback((event: ReactPointerEvent<HTMLDivElement>, suppressClick: boolean) => {
+    const drag = launcherDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    launcherDragRef.current = undefined;
+    setLauncherDragging(false);
+    if (!suppressClick || !drag.moved) return;
+    suppressLauncherClickRef.current = true;
+    window.setTimeout(() => {
+      suppressLauncherClickRef.current = false;
+    }, 0);
+  }, []);
+
   const launcherVisible =
     !open &&
     targetRect &&
     (document.activeElement === targetRef.current || launcherKeyboardActive) &&
     targetRect.width > 80 &&
     targetRect.height > 18;
-  const launcherTop = targetRect ? Math.min(window.innerHeight - 38, Math.max(8, targetRect.bottom - 34)) : 0;
-  const launcherLeft = targetRect ? Math.min(window.innerWidth - 76, Math.max(8, targetRect.right - 72)) : 0;
   const panelStyle = mode !== "selection" && targetRect && window.innerWidth > 720
     ? {
         right: Math.max(12, Math.min(window.innerWidth - 372, window.innerWidth - targetRect.right)),
@@ -866,8 +936,20 @@ function ExtensionApp() {
       {launcherVisible && (
         <div
           className="logue-launcher-group"
-          style={{ top: launcherTop, left: launcherLeft }}
-          onMouseDown={(event) => event.preventDefault()}
+          style={{ top: resolvedLauncherPosition?.top, left: resolvedLauncherPosition?.left }}
+          onPointerDown={handleLauncherPointerDown}
+          onPointerMove={handleLauncherPointerMove}
+          onPointerUp={(event) => finishLauncherDrag(event, true)}
+          onPointerCancel={(event) => finishLauncherDrag(event, false)}
+          onClickCapture={(event) => {
+            if (!suppressLauncherClickRef.current) return;
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          data-dragging={launcherDragging || undefined}
+          role="group"
+          aria-label="可拖动的 Logue 输入工具"
+          title="拖动以移动工具"
         >
           <button
             className="logue-launcher logue-launcher-voice"

@@ -33,6 +33,13 @@ textarea {
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 6px 18px rgba(25, 27, 23, 0.13);
   backdrop-filter: blur(12px);
+  cursor: grab;
+  touch-action: none;
+}
+
+.logue-launcher-group[data-dragging] {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .logue-launcher {
