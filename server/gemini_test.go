@@ -43,7 +43,7 @@ func TestGeminiTranscribeUsesHeaderAndUntrustedContext(t *testing.T) {
 
 func TestDefaultDictationSkillForbidsSynonymPolishing(t *testing.T) {
 	prompt := transcriptionPrompt(TranscriptionContext{}, defaultDictationSkill, 12000)
-	for _, required := range []string{"逐字逐词", "原语言、原词", "严禁同义词替换", "书面化润色"} {
+	for _, required := range []string{"word for word", "original language", "Never substitute synonyms", "polish the language"} {
 		if !strings.Contains(prompt, required) {
 			t.Fatalf("default dictation prompt is missing %q: %s", required, prompt)
 		}
@@ -69,6 +69,9 @@ func TestGeminiClassifyRequiresStrictJSONAndKnownProjects(t *testing.T) {
 		prompt := request.Contents[0].Parts[0].Text
 		if !strings.Contains(prompt, "只能从 available_projects") {
 			t.Fatal("classification prompt is missing the project whitelist rule")
+		}
+		if !strings.Contains(prompt, "reason 必须用一句简短英文") {
+			t.Fatal("classification prompt does not require an English review reason")
 		}
 		for _, required := range []string{"来源页面只是出处", "known_tags 只是命名参考", "tool-use", "没有可靠匹配时返回空数组", "优先选择具体子项目", "同义标签不得重复"} {
 			if !strings.Contains(prompt, required) {

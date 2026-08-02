@@ -66,6 +66,40 @@ type UpdateAgentInput struct {
 
 var errAgentRevisionConflict = errors.New("agent revision conflict")
 
+type agentProductCopy struct {
+	Name         string
+	Purpose      string
+	Instructions string
+}
+
+var legacyDefaultAgentCopy = map[string]agentProductCopy{
+	defaultTranscriptionAgentID: {
+		Name:         "准确转写",
+		Purpose:      "把说出的内容直接变成可插入文字",
+		Instructions: "逐字逐词准确转录用户实际说出的内容。保留原语言、原词、语气、专有名词、数字和明确表达的标点意图。严禁同义词替换或书面化润色，听到什么词就输出什么词。不要总结、改写、补全或加入音频中没有的信息。只修正常规断句与显然不影响原意的口吃重复。",
+	},
+	defaultOrganizationAgentID: {
+		Name:         "自动整理",
+		Purpose:      "在后台把新资料归入合适项目并添加标签",
+		Instructions: "仅从给定项目白名单选择最多三个项目，并生成最多五个简短标签。给出 0 到 1 的置信度和一句可供低置信度复核的理由。不要改写资料内容。",
+	},
+	defaultReplyAgentID: {
+		Name:         "生成回复",
+		Purpose:      "基于相关资料起草一条可直接插入的回复",
+		Instructions: "根据用户意图和明确提供的资料，生成自然、直接、与当前对话匹配的回复。不要解释过程，不要虚构资料没有支持的事实。只输出可直接使用的正文。",
+	},
+	defaultQAAgentID: {
+		Name:         "资料问答",
+		Purpose:      "针对选定资料回答问题",
+		Instructions: "只根据提供的资料回答问题；资料不足时明确说不确定。回答简洁，并在关键判断后标注 [来源 n]。",
+	},
+	defaultDocumentAgentID: {
+		Name:         "起草文档",
+		Purpose:      "把选定资料组织为可继续编辑的文档",
+		Instructions: "根据用户意图组织一份信息密度高、可继续编辑的 Markdown 文档。重要判断使用 [来源 n]；资料不足时标注待确认；不要重复文档标题。",
+	},
+}
+
 func normalizeAllowed(values []string, allowed map[string]bool, field string) ([]string, error) {
 	result := normalizeStrings(values)
 	for _, value := range result {
@@ -115,11 +149,11 @@ func validateAgent(agent Agent) (Agent, error) {
 func defaultAgents() []Agent {
 	now := time.Now().UTC()
 	return []Agent{
-		{ID: defaultTranscriptionAgentID, Name: "准确转写", Purpose: "把说出的内容直接变成可插入文字", Instructions: defaultDictationSkill, Task: "transcribe", Output: "insert", Surfaces: []string{"extension", "background"}, Contexts: []string{"page", "target", "selection", "project", "personal"}, Enabled: true, System: true, Revision: 1, CreatedAt: now, UpdatedAt: now},
-		{ID: defaultOrganizationAgentID, Name: "自动整理", Purpose: "在后台把新资料归入合适项目并添加标签", Instructions: "仅从给定项目白名单选择最多三个项目，并生成最多五个简短标签。给出 0 到 1 的置信度和一句可供低置信度复核的理由。不要改写资料内容。", Task: "organize", Output: "material", Surfaces: []string{"background"}, Contexts: []string{"project", "materials"}, Enabled: true, System: true, Revision: 1, CreatedAt: now, UpdatedAt: now},
-		{ID: defaultReplyAgentID, Name: "生成回复", Purpose: "基于相关资料起草一条可直接插入的回复", Instructions: "根据用户意图和明确提供的资料，生成自然、直接、与当前对话匹配的回复。不要解释过程，不要虚构资料没有支持的事实。只输出可直接使用的正文。", Task: "generate", Output: "insert", Surfaces: []string{"web", "extension"}, Contexts: []string{"page", "target", "selection", "project", "materials", "personal"}, Enabled: true, System: true, Revision: 1, CreatedAt: now, UpdatedAt: now},
-		{ID: defaultQAAgentID, Name: "资料问答", Purpose: "针对选定资料回答问题", Instructions: "只根据提供的资料回答问题；资料不足时明确说不确定。回答简洁，并在关键判断后标注 [来源 n]。", Task: "generate", Output: "qa", Surfaces: []string{"web"}, Contexts: []string{"project", "materials", "personal"}, Enabled: true, System: true, Revision: 1, CreatedAt: now, UpdatedAt: now},
-		{ID: defaultDocumentAgentID, Name: "起草文档", Purpose: "把选定资料组织为可继续编辑的文档", Instructions: "根据用户意图组织一份信息密度高、可继续编辑的 Markdown 文档。重要判断使用 [来源 n]；资料不足时标注待确认；不要重复文档标题。", Task: "generate", Output: "document", Surfaces: []string{"web"}, Contexts: []string{"project", "materials", "personal"}, Enabled: true, System: true, Revision: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: defaultTranscriptionAgentID, Name: "Accurate transcription", Purpose: "Transcribes speech verbatim into ready-to-insert text", Instructions: defaultDictationSkill, Task: "transcribe", Output: "insert", Surfaces: []string{"extension", "background"}, Contexts: []string{"page", "target", "selection", "project", "personal"}, Enabled: true, System: true, Revision: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: defaultOrganizationAgentID, Name: "Automatic organization", Purpose: "Files new materials into relevant projects and adds tags in the background", Instructions: "Choose up to three projects only from the provided project allowlist, and create up to five concise tags. Return a confidence score from 0 to 1 and one short English reason for low-confidence review. Never rewrite the material.", Task: "organize", Output: "material", Surfaces: []string{"background"}, Contexts: []string{"project", "materials"}, Enabled: true, System: true, Revision: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: defaultReplyAgentID, Name: "Draft reply", Purpose: "Drafts a ready-to-insert reply from relevant materials", Instructions: "Use the user's intent and explicitly provided materials to write a natural, direct reply that matches the current conversation. Do not explain the process or invent unsupported facts. Output only the ready-to-use reply.", Task: "generate", Output: "insert", Surfaces: []string{"web", "extension"}, Contexts: []string{"page", "target", "selection", "project", "materials", "personal"}, Enabled: true, System: true, Revision: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: defaultQAAgentID, Name: "Answer questions", Purpose: "Answers questions using selected materials", Instructions: "Answer only from the provided materials. Say when the evidence is insufficient. Keep the answer concise and cite key claims with [Source n].", Task: "generate", Output: "qa", Surfaces: []string{"web"}, Contexts: []string{"project", "materials", "personal"}, Enabled: true, System: true, Revision: 1, CreatedAt: now, UpdatedAt: now},
+		{ID: defaultDocumentAgentID, Name: "Draft document", Purpose: "Organizes selected materials into an editable document", Instructions: "Use the user's intent to create a dense, editable Markdown document. Cite important claims with [Source n], mark unsupported points for review, and do not repeat the document title.", Task: "generate", Output: "document", Surfaces: []string{"web"}, Contexts: []string{"project", "materials", "personal"}, Enabled: true, System: true, Revision: 1, CreatedAt: now, UpdatedAt: now},
 	}
 }
 
@@ -137,6 +171,48 @@ func (s *Store) ensureDefaultAgents() error {
 		}
 		if err := s.writeAgentFile(agent); err != nil {
 			return fmt.Errorf("seed default agent: %w", err)
+		}
+	}
+	return s.migrateDefaultAgentCopy()
+}
+
+func (s *Store) migrateDefaultAgentCopy() error {
+	for _, current := range defaultAgents() {
+		legacy, exists := legacyDefaultAgentCopy[current.ID]
+		if !exists {
+			continue
+		}
+		agent, err := s.readAgentLocked(current.ID)
+		if err != nil {
+			return fmt.Errorf("read default agent for copy migration: %w", err)
+		}
+		if !agent.System || agent.ID != current.ID {
+			continue
+		}
+		changed := false
+		if agent.Name == legacy.Name {
+			agent.Name = current.Name
+			changed = true
+		}
+		if agent.Purpose == legacy.Purpose {
+			agent.Purpose = current.Purpose
+			changed = true
+		}
+		if agent.Instructions == legacy.Instructions {
+			agent.Instructions = current.Instructions
+			changed = true
+		}
+		if !changed {
+			continue
+		}
+		agent, err = validateAgent(agent)
+		if err != nil {
+			return fmt.Errorf("validate default agent copy migration: %w", err)
+		}
+		agent.Revision++
+		agent.UpdatedAt = time.Now().UTC()
+		if err := s.writeAgentFile(agent); err != nil {
+			return fmt.Errorf("write default agent copy migration: %w", err)
 		}
 	}
 	return nil

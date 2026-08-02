@@ -33,7 +33,7 @@ func newAgentRunGeminiStub(t *testing.T) *agentRunGeminiStub {
 		stub.mu.Unlock()
 
 		output := "一步完成语音输入 [来源 1]"
-		if strings.Contains(prompt, "名称：起草文档") {
+		if strings.Contains(prompt, "名称：Draft document") {
 			output = "## 验收\n\n生成内容可继续编辑 [来源 2]"
 		}
 		w.Header().Set("Content-Type", "application/json")
