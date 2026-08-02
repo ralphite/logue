@@ -1,10 +1,10 @@
 # Logue 当前真实验收状态
 
-更新时间：2026-08-02 15:08（America/Los_Angeles）
+更新时间：2026-08-02 15:18（America/Los_Angeles）
 
 本文件逐项对应 `/GOAL.md` 的 14 个真实场景，是滚动状态而不是完成声明。`PASS` 必须有真实 Chrome、真实 Go 服务和真实持久数据；单元测试、构建、文档或截图不能单独升级状态。
 
-全部历史 bug / feature request 的逐项状态见 [`bug-feature-status.md`](./bug-feature-status.md)。当前未关闭的是：Logue Web App 内最新 Extension 的完整插入复验、物理 iPhone、把当前 `main` 发布为下一版本，以及用最新截图再做一轮 ChatGPT.com / Notion 对照审查。
+全部历史 bug / feature request 的逐项状态见 [`bug-feature-status.md`](./bug-feature-status.md)。Logue Web App 内最新 Extension 的完整插入已真实闭环；当前未关闭的是：物理 iPhone、把当前 `main` 发布为下一版本、14 条历史中文模型分类理由的安全兼容，以及用最新截图再做一轮 ChatGPT.com / Notion 对照审查。
 
 | # | 场景 | 状态 | 当前证据 / 未关闭项 |
 |---|---|---|---|
