@@ -18,8 +18,8 @@
 | 10 | 刷新/重启持久化与导出恢复 | PASS | 资料、音频、项目、Agent、生成记录、文档、来源和设置跨刷新/服务重启保持；导出恢复在隔离副本验证并创建备份。 |
 | 11 | Vibedoc 转写质量对齐 | PASS | 4 段全新同源 48 kHz WAV 覆盖中文长句、英文、中英混合与项目术语；Logue 总 CER 0.28%（1/352），VibeDoc 0.57%（2/352），每类均不低于对照。生产 Extension 的真实 WebM E2E 已单独通过。详见 `docs/qa/transcription/comparison.md`。 |
 | 12 | 真实手机完整 Web App | PARTIAL | Web/API 已由同一 Go 服务监听局域网；当前入口使用 `<LAN-IP>:8787`。320/390/768px 已验证资料、项目、生成、详情抽屉、重复资料折叠与底部导航；仍无物理 iPhone，因此真机触控闭环尚未关闭。 |
-| 13 | GitHub Release 一行全新安装 | IN PROGRESS | 发布资产、安装器与构建版本协议正在实现；只有从公开 Release 的稳定 URL 在无源码隔离环境真实执行、校验、启动并通过 `/v1/status` 后才能升级为 PASS。 |
-| 14 | 同一命令覆盖升级并保留数据 | IN PROGRESS | 必须用同一 Release URL 在已有版本与持久资料的隔离环境重复执行，直接证明旧服务停止、程序原子替换、数据哈希不变、安装后启动，以及接受/拒绝开机自启均正确。 |
+| 13 | GitHub Release 一行全新安装 | PASS | 已从公开 `releases/latest/download/install.sh` 在无源码隔离 HOME 执行一行命令；Apple Silicon 包下载与 SHA-256 校验通过，服务自动启动，`/v1/status` 返回 `v0.1.1`，并继承 Terminal 中的 Gemini 环境但不落盘 Key。详见 `docs/qa/release-install-2026-08-02.md`。 |
+| 14 | 同一命令覆盖升级并保留数据 | PASS | 已先做本地 `v0.1.0 → v0.1.1` 跨版本回归，再对公开 Release URL 连续执行两次：旧 PID 退出、新 PID 启动，已写入文档内容/revision 保持不变；接受开机自启时 plist 合法且不含 Key，第二次拒绝后 plist 被移除。详见 `docs/qa/release-install-2026-08-02.md`。 |
 
 ## 本批次强一致证据
 
