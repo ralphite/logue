@@ -1,10 +1,10 @@
 # Logue 当前真实验收状态
 
-更新时间：2026-08-02 15:51（America/Los_Angeles）
+更新时间：2026-08-02 16:49（America/Los_Angeles）
 
 本文件逐项对应 `/GOAL.md` 的 14 个真实场景，是滚动状态而不是完成声明。`PASS` 必须有真实 Chrome、真实 Go 服务和真实持久数据；单元测试、构建、文档或截图不能单独升级状态。
 
-全部历史 bug / feature request 的逐项状态见 [`bug-feature-status.md`](./bug-feature-status.md)。Logue Web App 内最新 Extension 的完整插入和公开 `v0.2.1` 发布升级已真实闭环；当前未关闭的是：安全 LAN 配对与物理 iPhone、14 条历史中文模型分类理由的安全兼容，以及用最新截图再做一轮 ChatGPT.com / Notion 对照审查。
+全部历史 bug / feature request 的逐项状态见 [`bug-feature-status.md`](./bug-feature-status.md)。Logue Web App 内最新 Extension 的完整插入和公开 `v0.2.3` 事务安装/升级已真实闭环；当前未关闭的是：安全 LAN 配对与物理 iPhone、14 条历史中文模型分类理由的安全兼容，以及用最新截图再做一轮 ChatGPT.com / Notion 对照审查。
 
 | # | 场景 | 状态 | 当前证据 / 未关闭项 |
 |---|---|---|---|
@@ -20,8 +20,8 @@
 | 10 | 刷新/重启持久化与导出恢复 | PASS | 资料、音频、项目、Agent、生成记录、文档、来源和设置跨刷新/服务重启保持；导出恢复在隔离副本验证并创建备份。 |
 | 11 | Vibedoc 转写质量对齐 | PASS | 4 段全新同源 48 kHz WAV 覆盖中文长句、英文、中英混合与项目术语；Logue 总 CER 0.28%（1/352），VibeDoc 0.57%（2/352），每类均不低于对照。生产 Extension 的真实 WebM E2E 已单独通过。详见 `docs/qa/transcription/comparison.md`。 |
 | 12 | 真实手机完整 Web App | PARTIAL | Web/API 支持显式局域网监听；320/390/768px 已验证资料、项目、生成、详情抽屉、重复资料折叠与底部导航。公开安装为保护无认证资料默认只监听本机；仍缺安全配对和物理 iPhone 真机触控闭环。 |
-| 13 | GitHub Release 一行全新安装 | PASS | 公开 `latest` 为 `v0.2.1`；双架构资产与 SHA-256 从公网重新下载校验通过，Release 包只含 bin/Web/Extension/VERSION，一行安装会自动启动并继承当前 Terminal 的 Gemini 环境但不落盘 Key。详见 `docs/qa/release-install-2026-08-02.md`。 |
-| 14 | 同一命令覆盖升级并保留数据 | PASS | 同一隔离 HOME 使用公开 URL 完成 `v0.1.1 → v0.2.0 → v0.2.1`。真实语音音频 hash、资料、人工项目/Tag、项目背景/术语、文档 revision/来源、自定义 Agent、设置和 LaunchAgent 保持；旧 PID 退出，新服务默认仅 loopback，Web/Extension 与公开资产一致。详见 `docs/qa/release-install-2026-08-02.md`。 |
+| 13 | GitHub Release 一行全新安装 | PASS | 公开 `latest` 为 `v0.2.3`；双架构资产、SHA-256、VERSION、Extension manifest 和安装器均从公网验证。一行安装自动启动并继承当前 Terminal 的 Gemini 环境但不落盘 Key；启动配置和全部资产在停服前预检。详见 `docs/qa/release-install-2026-08-02.md`。 |
+| 14 | 同一命令覆盖升级并保留数据 | PASS | 真实公开升级保持语音音频 hash、资料、人工项目/Tag、项目背景/术语、文档 revision/来源、自定义 Agent、设置和 LaunchAgent；旧 PID 退出，新服务仅 loopback。CI 另对 Extension、CLI、autostart 三个候选健康后故障点证明完整回滚旧状态和旧服务。详见 `docs/qa/release-install-2026-08-02.md`。 |
 
 ## 本批次强一致证据
 

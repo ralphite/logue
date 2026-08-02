@@ -1,6 +1,6 @@
 # Logue bug 与 feature 状态
 
-更新时间：2026-08-02 15:51（America/Los_Angeles）
+更新时间：2026-08-02 16:49（America/Los_Angeles）
 
 这是用户历史 bug / feature request 的唯一滚动清单。`PASS` 表示实现和与风险相称的真实运行证据都存在；`PARTIAL` 表示核心已实现，但仍缺指定环境的最后闭环；`OPEN` 表示尚未交付。测试、提交、文档和截图本身不把状态升级为 `PASS`。
 
@@ -49,8 +49,8 @@
 | F10 | 手机完整可用并可从同一局域网访问 | PARTIAL | Web/API 支持显式局域网监听，320/390/768 已覆盖 Stream、Projects、Generate、详情和底栏；公开安装为保护资料默认只监听本机。仍缺安全配对入口和一台物理 iPhone 的触控、旋转、刷新与文档编辑闭环。 |
 | F11 | React + TypeScript + Tailwind + Storybook；Go；Gemini 终端环境变量 | PASS | 架构与构建已落地；Gemini Key 只由 Go 进程读取，不进入 Web、Extension、资料、日志或 Release。 |
 | F12 | GitHub 旧仓库彻底替换、永远 main、小提交后立即 push | PASS | `ralphite/logue` 已由当前项目替换；当前分支与 upstream 均为 `main`；本轮逻辑批次均提交后立即推送。 |
-| F13 | 一行 curl 安装、覆盖升级保留数据、询问开机启动、安装后自动启动 | PASS | 公共 `v0.2.1` 提供 install.sh、双架构包和 checksums；安装器默认 loopback，程序/Web/Extension 均原子切换，同版本重复安装也不会断开 `current`。 |
-| F14 | 最新主线也必须进入 Release | PASS | `v0.2.1` 已由 tag 流水线发布为公开 `latest`。同一隔离数据真实完成 `v0.1.1 → v0.2.0 → v0.2.1`：旧 PID 退出，资料、音频、项目、文档来源、自定义 Agent、设置和 LaunchAgent 保持；公开 Web/Extension 与安装内容逐字节一致。 |
+| F13 | 一行 curl 安装、覆盖升级保留数据、询问开机启动、安装后自动启动 | PASS | 公开 `v0.2.3` 安装器在停服前完成全部输入和资产预检，并把程序、Extension、CLI、LaunchAgent 作为同一事务提交。CI 对 extension / cli / autostart 三点逐项证明“候选健康后故障 → 完整恢复旧状态和旧服务”；非法自动启动配置在停服前拒绝。 |
+| F14 | 最新主线也必须进入 Release | PASS | `main`、`origin/main`、`v0.2.3` tag 和公开 `latest` 同为 `88d10b5`。公开资产、checksum、双架构 VERSION/manifest 与安装器均已验证；真实公开升级保留语音、音频、资料、人工项目/Tag、文档来源、自建 Agent、设置和 LaunchAgent。 |
 | F15 | ChatGPT.com / Notion / 竞品级独立产品设计审查 | PARTIAL | 先前真实截图已完成 ChatGPT.com 严格审查并关闭当时 P1；本轮又完成 fresh-context 盲审和修复。最新 Documents/Agents 与移动截图仍需纳入下一次 ChatGPT.com 对照复审。 |
 | F16 | 提供真实截图 | PASS | 当前桌面和 320px 关键截图已保存于 `/tmp/logue-*.png`；Extension 真实运行截图仍保留。 |
 | F17 | 每小时自动重启当前 goal 并继续最高 ROI 工作 | PASS | `logue` automation 持续唤醒本任务；只有 fresh-context 与直接证据共同支持时才能结束。 |
