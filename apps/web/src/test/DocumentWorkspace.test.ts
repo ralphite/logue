@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  availableSourcePanelWidth,
   hasCitationNumber,
   reconcileDocumentCitations,
   removeSourceCitation,
@@ -7,6 +8,11 @@ import {
 } from "../components/DocumentWorkspace";
 
 describe("document source provenance", () => {
+  it("lets the sources panel use all space remaining after the document list", () => {
+    expect(availableSourcePanelWidth(1280, 252)).toBe(1027);
+    expect(availableSourcePanelWidth(480, 252)).toBe(240);
+  });
+
   it("detects only the exact linked citation", () => {
     expect(hasCitationNumber("Evidence [Source 2]", 2)).toBe(true);
     expect(hasCitationNumber("Evidence [Source 20]", 2)).toBe(false);

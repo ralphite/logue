@@ -63,6 +63,10 @@ function countLabel(count: number, singular: string) {
   return `${count} ${count === 1 ? singular : `${singular}s`}`;
 }
 
+export function availableSourcePanelWidth(workspaceWidth: number, documentListWidth: number) {
+  return Math.max(240, Math.floor(workspaceWidth - documentListWidth - 1));
+}
+
 function escapeHTML(value: string) {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
@@ -320,11 +324,14 @@ export function ViewWorkspace({
     min: 200,
     max: 360,
   });
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const [workspaceWidth, setWorkspaceWidth] = useState(() => window.innerWidth);
+  const sourcePanelMaxWidth = availableSourcePanelWidth(workspaceWidth, documentListWidth);
   const { size: sourcePanelWidth, setSize: setSourcePanelWidth } = usePersistentPanelSize({
     storageKey: "logue.panel.sources.width",
     defaultSize: 300,
     min: 240,
-    max: 420,
+    max: sourcePanelMaxWidth,
   });
   const loadedRef = useRef<string | undefined>(undefined);
   const titleRef = useRef<HTMLTextAreaElement | null>(null);
@@ -346,6 +353,22 @@ export function ViewWorkspace({
     sourceIds: [...sourceIds],
     version: dirtyVersionRef.current,
   } : undefined;
+
+  useEffect(() => {
+    const workspace = workspaceRef.current;
+    const measure = () => setWorkspaceWidth(workspace?.clientWidth || window.innerWidth);
+    measure();
+    window.addEventListener("resize", measure);
+    let observer: ResizeObserver | undefined;
+    if (typeof ResizeObserver !== "undefined" && workspace) {
+      observer = new ResizeObserver(measure);
+      observer.observe(workspace);
+    }
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -700,7 +723,7 @@ export function ViewWorkspace({
   }, [activeSourceId, content, sourceIds]);
 
   return (
-    <div className="flex h-full min-h-0 w-full overflow-hidden bg-white text-[#242522]">
+    <div ref={workspaceRef} className="flex h-full min-h-0 w-full overflow-hidden bg-white text-[#242522]">
       <aside style={{ "--document-list-width": `${documentListWidth}px` } as React.CSSProperties} data-testid="document-sidebar" aria-label="Document list" className={`flex w-[var(--document-list-width)] shrink-0 flex-col bg-[#f7f7f5] max-[760px]:fixed max-[760px]:bottom-0 max-[760px]:left-[72px] max-[760px]:right-0 max-[760px]:top-0 max-[760px]:z-30 max-[760px]:w-auto max-[640px]:inset-x-0 max-[640px]:bottom-16 ${mobileListOpen ? "" : "max-[760px]:hidden"}`}>
         <header className="flex h-12 shrink-0 items-center justify-between px-4">
           <div className="flex items-center gap-1.5 text-[12px]"><button type="button" onClick={onOpenGenerate} className="font-medium text-[#858681] hover:text-[#4e4f4b]">Generate</button><span className="text-[#b0b1ad]">/</span><h1 className="font-semibold text-[#555651]">Documents</h1></div>
@@ -858,7 +881,7 @@ export function ViewWorkspace({
           label="Resize sources panel"
           value={sourcePanelWidth}
           min={240}
-          max={420}
+          max={sourcePanelMaxWidth}
           defaultValue={300}
           edge="left"
           onChange={setSourcePanelWidth}
