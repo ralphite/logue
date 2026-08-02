@@ -97,7 +97,7 @@ export function RecordingAudioPlayer({ src, label }: { src: string; label: strin
         onError={() => setDurationUnavailable(true)}
       />
       {ready ? (
-        <p className="sr-only" aria-label={`录音时长 ${formatAudioDuration(duration)}`}>
+        <p className="sr-only" aria-label={`Audio duration ${formatAudioDuration(duration)}`}>
           {formatAudioDuration(duration)}
         </p>
       ) : (
@@ -106,12 +106,12 @@ export function RecordingAudioPlayer({ src, label }: { src: string; label: strin
             type="button"
             onClick={toggleFallbackPlayback}
             className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-[#242522] hover:bg-white focus-visible:outline-2 focus-visible:outline-[#5b64f4]"
-            aria-label={playing ? "暂停录音" : "播放录音"}
+            aria-label={playing ? "Pause recording" : "Play recording"}
           >
             {playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}
           </button>
           <span className="text-[10.5px]" role="status">
-            {durationUnavailable ? "录音时长暂不可用" : "正在读取录音时长…"}
+            {durationUnavailable ? "Audio duration unavailable" : "Reading audio duration…"}
           </span>
         </div>
       )}

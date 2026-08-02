@@ -12,16 +12,16 @@ const material: Material = {
   id: "mat_one",
   kind: "text",
   status: "organized",
-  content: "可以修改的原始内容",
+  content: "Editable original content",
   projects: ["Logue"],
-  tags: ["语音输入"],
+  tags: ["voice-input"],
   createdAt: "2026-08-02T12:00:00Z",
   organization: {
     status: "needs_review",
     confidence: 0.58,
-    reason: "项目归属有歧义",
+    reason: "Project assignment is ambiguous",
     suggested_projects: ["Logue"],
-    suggested_tags: ["待整理"],
+    suggested_tags: ["needs-review"],
   },
 };
 
@@ -75,8 +75,8 @@ describe("MaterialDetail", () => {
     expect(scrollSurface.className).toContain("overflow-y-auto");
     expect(content.className).not.toContain("overflow-y-auto");
     expect(readingColumn.contains(content)).toBe(true);
-    expect(readingColumn.contains(screen.getByLabelText("追加批注"))).toBe(true);
-    expect(readingColumn.contains(screen.getByRole("button", { name: "删除这条文字资料" }))).toBe(true);
+    expect(readingColumn.contains(screen.getByLabelText("Add annotation"))).toBe(true);
+    expect(readingColumn.contains(screen.getByRole("button", { name: "Delete this note" }))).toBe(true);
   });
 
   it("only highlights uncertain automatic organization", () => {
@@ -94,13 +94,13 @@ describe("MaterialDetail", () => {
         dependents={[]}
       />,
     );
-    expect(screen.getByLabelText("需要确认").textContent).toContain("项目归属有歧义");
-    expect(screen.getByLabelText("需要确认").textContent).toContain("Agent 置信度 58%");
-    expect(screen.getByLabelText("需要确认").textContent).toContain("#待整理");
+    expect(screen.getByLabelText("Needs review").textContent).toContain("Project assignment is ambiguous");
+    expect(screen.getByLabelText("Needs review").textContent).toContain("Agent confidence 58%");
+    expect(screen.getByLabelText("Needs review").textContent).toContain("#needs-review");
     unmount();
 
-    renderDetail({ organization: { status: "organized", confidence: 0.94, reason: "匹配 Logue" } });
-    expect(screen.queryByLabelText("需要确认")).toBeNull();
+    renderDetail({ organization: { status: "organized", confidence: 0.94, reason: "Matched Logue" } });
+    expect(screen.queryByLabelText("Needs review")).toBeNull();
   });
 
   it("applies an uncertain Agent suggestion only after review", async () => {
@@ -120,28 +120,28 @@ describe("MaterialDetail", () => {
         dependents={[]}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "采用建议" }));
-    await waitFor(() => expect(onUpdateOrganization).toHaveBeenCalledWith("mat_one", ["Logue"], ["待整理"]));
+    fireEvent.click(screen.getByRole("button", { name: "Apply suggestion" }));
+    await waitFor(() => expect(onUpdateOrganization).toHaveBeenCalledWith("mat_one", ["Logue"], ["needs-review"]));
   });
 
   it("lets every material edit and save its content", async () => {
     const onUpdateContent = renderDetail();
-    const editor = screen.getByRole("textbox", { name: "编辑资料内容" });
-    fireEvent.change(editor, { target: { value: "修改后的内容" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    const editor = screen.getByRole("textbox", { name: "Edit material content" });
+    fireEvent.change(editor, { target: { value: "Updated content" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
-      expect(onUpdateContent).toHaveBeenCalledWith("mat_one", "修改后的内容");
+      expect(onUpdateContent).toHaveBeenCalledWith("mat_one", "Updated content");
     });
   });
 
   it("keeps the draft visible when saving fails", async () => {
-    renderDetail({}, vi.fn().mockRejectedValue(new Error("暂时无法保存")));
-    const editor = screen.getByRole("textbox", { name: "编辑资料内容" });
-    fireEvent.change(editor, { target: { value: "不能丢失的草稿" } });
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    renderDetail({}, vi.fn().mockRejectedValue(new Error("Could not save yet")));
+    const editor = screen.getByRole("textbox", { name: "Edit material content" });
+    fireEvent.change(editor, { target: { value: "Draft that must be preserved" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(await screen.findByText("暂时无法保存")).toBeTruthy();
-    expect((editor as HTMLTextAreaElement).value).toBe("不能丢失的草稿");
+    expect(await screen.findByText("Could not save yet")).toBeTruthy();
+    expect((editor as HTMLTextAreaElement).value).toBe("Draft that must be preserved");
   });
 });
