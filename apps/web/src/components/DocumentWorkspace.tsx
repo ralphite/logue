@@ -284,6 +284,7 @@ export function ViewWorkspace({
   onLeaveGuardChange,
   onOpenGenerate,
   onManageAgents,
+  showDocumentSidebar = true,
 }: {
   materials: Material[];
   initialDocumentId?: string;
@@ -293,6 +294,7 @@ export function ViewWorkspace({
   onLeaveGuardChange?: (guard?: () => Promise<boolean>) => void;
   onOpenGenerate?: () => void;
   onManageAgents?: () => void;
+  showDocumentSidebar?: boolean;
 }) {
   const [documents, setDocuments] = useState<LogueDocument[]>([]);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
@@ -318,6 +320,7 @@ export function ViewWorkspace({
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string>();
   const [mobileListOpen, setMobileListOpen] = useState(!initialDocumentId);
+  const effectiveMobileListOpen = showDocumentSidebar && mobileListOpen;
   const { size: documentListWidth, setSize: setDocumentListWidth } = usePersistentPanelSize({
     storageKey: "logue.panel.documents.width",
     defaultSize: 252,
@@ -724,6 +727,7 @@ export function ViewWorkspace({
 
   return (
     <div ref={workspaceRef} className="flex h-full min-h-0 w-full overflow-hidden bg-white text-[#242522]">
+      {showDocumentSidebar && <>
       <aside style={{ "--document-list-width": `${documentListWidth}px` } as React.CSSProperties} data-testid="document-sidebar" aria-label="Document list" className={`flex w-[var(--document-list-width)] shrink-0 flex-col bg-[#f7f7f5] max-[760px]:fixed max-[760px]:bottom-0 max-[760px]:left-[72px] max-[760px]:right-0 max-[760px]:top-0 max-[760px]:z-30 max-[760px]:w-auto max-[640px]:inset-x-0 max-[640px]:bottom-16 ${mobileListOpen ? "" : "max-[760px]:hidden"}`}>
         <header className="flex h-12 shrink-0 items-center justify-between px-4">
           <div className="flex items-center gap-1.5 text-[12px]"><button type="button" onClick={onOpenGenerate} className="font-medium text-[#858681] hover:text-[#4e4f4b]">Generate</button><span className="text-[#b0b1ad]">/</span><h1 className="font-semibold text-[#555651]">Documents</h1></div>
@@ -776,12 +780,13 @@ export function ViewWorkspace({
         onChange={setDocumentListWidth}
         className="max-[760px]:hidden"
       />
+      </>}
 
       {selected ? (
-        <main className={`min-w-0 flex-1 overflow-y-auto bg-white ${mobileListOpen ? "max-[760px]:hidden" : ""}`}>
+        <main className={`min-w-0 flex-1 overflow-y-auto bg-white ${effectiveMobileListOpen ? "max-[760px]:hidden" : ""}`}>
           <header className="sticky top-0 z-10 flex h-12 items-center justify-between border-b border-[#eeeeeb] bg-white/92 px-4 backdrop-blur">
             <div className="flex min-w-0 items-center gap-2 text-[12px] text-[#777873]">
-              <button type="button" onClick={() => setMobileListOpen(true)} className="hidden h-11 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-[#666762] hover:bg-[#f1f1ee] max-[760px]:inline-flex"><BookOpenText size={14} /> Documents</button>
+              {showDocumentSidebar && <button type="button" onClick={() => setMobileListOpen(true)} className="hidden h-11 items-center gap-1 rounded-md px-2 text-[11px] font-medium text-[#666762] hover:bg-[#f1f1ee] max-[760px]:inline-flex"><BookOpenText size={14} /> Documents</button>}
               <span className="truncate max-[760px]:hidden">Documents</span><span className="text-[#b0b1ad] max-[760px]:hidden">/</span><span className="truncate text-[#4b4c48] max-[760px]:max-w-32">{title || "Untitled"}</span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -862,7 +867,7 @@ export function ViewWorkspace({
           </article>
         </main>
       ) : (
-        <main className={`flex min-w-0 flex-1 items-center justify-center bg-white px-6 ${mobileListOpen ? "max-[760px]:hidden" : ""}`}>
+        <main className={`flex min-w-0 flex-1 items-center justify-center bg-white px-6 ${effectiveMobileListOpen ? "max-[760px]:hidden" : ""}`}>
           <section className="w-full max-w-lg text-center">
             <span className="inline-flex size-11 items-center justify-center rounded-lg bg-[#f0f0ed] text-[#71736d]"><BookOpenText size={20} /></span>
             <h1 className="mt-4 text-[19px] font-semibold tracking-[-0.025em] text-[#343631]">Create your first document</h1>
