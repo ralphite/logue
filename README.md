@@ -71,7 +71,7 @@ npm run build:extension
 本地可从锁定依赖构建两个 macOS 架构的发布包：
 
 ```bash
-bash scripts/build-release.sh v0.1.1
+bash scripts/build-release.sh v0.2.0
 ```
 
 产物位于 `dist/release`：`logue-darwin-arm64.tar.gz`、`logue-darwin-amd64.tar.gz` 和 `checksums.txt`。推送 `v*` tag 后，GitHub Actions 会重新构建并创建 Release，同时上传一行安装脚本。

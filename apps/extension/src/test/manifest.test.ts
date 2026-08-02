@@ -3,6 +3,17 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("extension voice shortcut", () => {
+  it("keeps the Chrome manifest and extension package versions aligned", () => {
+    const manifest = JSON.parse(
+      readFileSync(resolve(process.cwd(), "public/manifest.json"), "utf8"),
+    ) as { version?: string };
+    const packageManifest = JSON.parse(
+      readFileSync(resolve(process.cwd(), "package.json"), "utf8"),
+    ) as { version?: string };
+
+    expect(manifest.version).toBe(packageManifest.version);
+  });
+
   it("registers the documented cross-platform shortcut", () => {
     const manifest = JSON.parse(
       readFileSync(resolve(process.cwd(), "public/manifest.json"), "utf8"),
