@@ -46,9 +46,17 @@ run_installer() {
   LOGUE_AUTO_START="${autostart}" \
   LOGUE_OPEN_BROWSER=no \
   LOGUE_PORT="${port}" \
-  LOGUE_ADDRESS="127.0.0.1:${port}" \
   LOGUE_HEALTH_URL="http://127.0.0.1:${port}/v1/status" \
   bash "${repo_dir}/install.sh"
+}
+
+assert_loopback_listener() {
+  local service_pid="$1" listeners
+  listeners="$(lsof -Pan -p "${service_pid}" -iTCP -sTCP:LISTEN 2>/dev/null || true)"
+  [[ "${listeners}" == *"127.0.0.1:${port} (LISTEN)"* ]] || {
+    printf 'installer must listen on loopback by default\n%s\n' "${listeners}" >&2
+    exit 1
+  }
 }
 
 printf 'Building v0.1.0 fixture...\n'
@@ -70,6 +78,7 @@ mkdir -p "${data_root}/items"
 printf '%s\n' 'preserve-me' > "${data_root}/items/installer-sentinel.txt"
 sentinel_before="$(shasum -a 256 "${data_root}/items/installer-sentinel.txt" | awk '{print $1}')"
 pid_before="$(cat "${pid_file}")"
+assert_loopback_listener "${pid_before}"
 
 printf 'Building v0.1.1 fixture...\n'
 build_fixture v0.1.1 "${fixture_v2}"
@@ -78,6 +87,7 @@ run_installer "file://${fixture_v2}" no
 status_v2="$(curl -fsS "http://127.0.0.1:${port}/v1/status")"
 [[ "${status_v2}" == *'"version":"v0.1.1"'* ]] || { printf 'v0.1.1 did not start\n' >&2; exit 1; }
 pid_after="$(cat "${pid_file}")"
+assert_loopback_listener "${pid_after}"
 [[ "${pid_before}" != "${pid_after}" ]] || { printf 'old service was not replaced\n' >&2; exit 1; }
 kill -0 "${pid_after}" >/dev/null 2>&1 || { printf 'new service is not running\n' >&2; exit 1; }
 if kill -0 "${pid_before}" >/dev/null 2>&1; then
