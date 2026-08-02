@@ -72,7 +72,7 @@ describe("VoiceInputPanel", () => {
 
   it("keeps saved text recoverable when the original target disappeared", () => {
     const actions = renderVoice({ phase: "error", errorKind: "target", errorMessage: "The material was saved." });
-    fireEvent.click(screen.getByRole("button", { name: "Copy text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
     fireEvent.click(screen.getByRole("button", { name: "Insert again" }));
     expect(actions.copy).toHaveBeenCalledOnce();
     expect(actions.retry).toHaveBeenCalledOnce();

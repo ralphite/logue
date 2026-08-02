@@ -109,7 +109,7 @@ export function VoiceInputPanel({
         <div className="mt-3 flex justify-end gap-1.5">
           {errorKind === "target" && onCopy && (
             <button type="button" onClick={onCopy} className="inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-[10.5px] text-[#696a65] hover:bg-white/60">
-              <Copy size={12} /> Copy text
+              <Copy size={12} /> Copy
             </button>
           )}
           <button type="button" onClick={onCancel} className="h-8 rounded-md px-2.5 text-[10.5px] text-[#855d58] hover:bg-white/60">Cancel</button>
