@@ -1,7 +1,6 @@
 import {
   BookOpenText,
   Bot,
-  Check,
   ChevronDown,
   FilePlus2,
   FileText,
@@ -790,9 +789,7 @@ export function ViewWorkspace({
               <span className="truncate max-[760px]:hidden">Documents</span><span className="text-[#b0b1ad] max-[760px]:hidden">/</span><span className="truncate text-[#4b4c48] max-[760px]:max-w-32">{title || "Untitled"}</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className={`mr-1 inline-flex items-center gap-1 text-[10.5px] ${saveState === "error" ? "text-[#b34e45]" : "text-[#8b8c87]"}`}>
-                {saveState === "saved" && <Check size={12} />}{saveState === "saving" ? "Saving…" : saveState === "dirty" ? "Unsaved" : saveState === "error" ? "Save failed" : "Saved"}
-              </span>
+              {saveState === "error" && <span role="status" className="mr-1 text-[10.5px] font-medium text-[#b34e45]">Save failed</span>}
               <button type="button" onClick={() => setSourcePanelOpen((value) => !value)} className={`inline-flex size-8 items-center justify-center rounded-md transition max-[640px]:size-11 ${sourcePanelOpen ? "bg-[#eeeefa] text-[#5d63d4]" : "text-[#73746f] hover:bg-[#f1f1ee]"}`} aria-label={sourcePanelOpen ? "Close sources panel" : "Open sources panel"}>{sourcePanelOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}</button>
               <div className="relative">
                 <button type="button" onClick={() => setMenuOpen((value) => !value)} className="inline-flex size-8 items-center justify-center rounded-md text-[#73746f] hover:bg-[#f1f1ee] max-[640px]:size-11" aria-label="Document menu"><MoreHorizontal size={16} /></button>
