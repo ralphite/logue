@@ -11,7 +11,7 @@ function renderSelection(overrides: Partial<CapturePanelProps> = {}) {
     <CapturePanel
       phase="idle"
       contexts={[]}
-      selectedText="待保存的完整原文"
+      selectedText="Complete source text to save"
       draft=""
       onDraftChange={() => undefined}
       onClose={() => undefined}
@@ -54,26 +54,26 @@ describe("VoiceInputPanel", () => {
     const actions = renderVoice();
     const buttons = screen.getAllByRole("button");
 
-    expect(buttons.map((button) => button.textContent?.trim())).toEqual(["取消 Esc", "停止并插入 ↵"]);
-    expect(screen.queryByText(/参考|项目|标签|检查转写/)).toBeNull();
+    expect(buttons.map((button) => button.textContent?.trim())).toEqual(["Cancel Esc", "Stop and insert ↵"]);
+    expect(screen.queryByText(/Sources|Projects|Tags|Review transcript/)).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: /停止并插入/ }));
-    fireEvent.click(screen.getByRole("button", { name: /取消/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Stop and insert/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Cancel/ }));
     expect(actions.stop).toHaveBeenCalledOnce();
     expect(actions.cancel).toHaveBeenCalledOnce();
   });
 
   it("shows automatic progress without a second confirmation", () => {
     renderVoice({ phase: "processing" });
-    expect(screen.getByText("正在转写并插入…")).toBeTruthy();
+    expect(screen.getByText("Transcribing and inserting…")).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
-    expect(screen.queryByText("检查转写")).toBeNull();
+    expect(screen.queryByText("Review transcript")).toBeNull();
   });
 
   it("keeps saved text recoverable when the original target disappeared", () => {
-    const actions = renderVoice({ phase: "error", errorKind: "target", errorMessage: "资料已经保存。" });
-    fireEvent.click(screen.getByRole("button", { name: "复制文字" }));
-    fireEvent.click(screen.getByRole("button", { name: "重新插入" }));
+    const actions = renderVoice({ phase: "error", errorKind: "target", errorMessage: "The material was saved." });
+    fireEvent.click(screen.getByRole("button", { name: "Copy text" }));
+    fireEvent.click(screen.getByRole("button", { name: "Insert again" }));
     expect(actions.copy).toHaveBeenCalledOnce();
     expect(actions.retry).toHaveBeenCalledOnce();
   });
@@ -83,12 +83,12 @@ function renderAgent(overrides: Partial<AgentGenerationPanelProps> = {}) {
   const actions = { generate: vi.fn(), insert: vi.fn(), close: vi.fn() };
   render(
     <AgentGenerationPanel
-      agents={[{ id: "reply", name: "简洁回复", purpose: "生成可直接使用的回复" }]}
+      agents={[{ id: "reply", name: "Concise reply", purpose: "Create a ready-to-use reply" }]}
       selectedAgentId="reply"
-      instruction="根据相关资料生成回复"
-      output="建议先完成核心输入闭环。"
+      instruction="Create a reply from relevant materials"
+      output="Complete the core input loop first."
       phase="ready"
-      contextLabel="当前页面 · Logue · 3 条相关资料"
+      contextLabel="Current page | Logue | 3 relevant materials"
       onAgentChange={() => undefined}
       onInstructionChange={() => undefined}
       onOutputChange={() => undefined}
@@ -106,17 +106,17 @@ function renderAgent(overrides: Partial<AgentGenerationPanelProps> = {}) {
 describe("AgentGenerationPanel", () => {
   it("generates from automatic context without filing controls", () => {
     const actions = renderAgent();
-    expect(screen.getByText("当前页面 · Logue · 3 条相关资料")).toBeTruthy();
-    expect(screen.queryByText(/标签|归入|项目选择/)).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "生成" }));
+    expect(screen.getByText("Current page | Logue | 3 relevant materials")).toBeTruthy();
+    expect(screen.queryByText(/Tags|Organization|Project selection/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     expect(actions.generate).toHaveBeenCalledOnce();
   });
 
   it("keeps the generated result editable and inserts without a send action", () => {
     const actions = renderAgent({ phase: "result" });
-    expect(screen.getByRole("textbox", { name: "生成结果" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /发送/ })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "插入输入框" }));
+    expect(screen.getByRole("textbox", { name: "Generated result" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Send/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Insert into field" }));
     expect(actions.insert).toHaveBeenCalledOnce();
   });
 });
@@ -124,18 +124,18 @@ describe("AgentGenerationPanel", () => {
 describe("selection CapturePanel", () => {
   it("saves an unannotated selection with one explicit action", () => {
     const actions = renderSelection();
-    fireEvent.click(screen.getByRole("button", { name: "保存选区" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save selection" }));
     expect(actions.primary).toHaveBeenCalledOnce();
   });
 
   it("keeps selection voice review independent from input-box voice", () => {
-    const actions = renderSelection({ phase: "review", transcript: "作为选区批注的转写" });
-    fireEvent.click(screen.getByRole("button", { name: "保存原文与批注" }));
+    const actions = renderSelection({ phase: "review", transcript: "Transcript saved as a selection annotation" });
+    fireEvent.click(screen.getByRole("button", { name: "Save source and annotation" }));
     expect(actions.useTranscript).toHaveBeenCalledOnce();
   });
 
   it("keeps the complete selection readable and supports multiple projects and tags", () => {
-    const selectedText = `${"完整选区原文不能被截断。".repeat(30)}末尾校验`;
+    const selectedText = `${"The complete selected source must not be truncated. ".repeat(30)}End check`;
     const onSelectedProjectsChange = vi.fn();
     const onTagsChange = vi.fn();
     renderSelection({
@@ -151,18 +151,18 @@ describe("selection CapturePanel", () => {
     });
 
     expect(screen.getByText(selectedText)).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "设置归入" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set organization" }));
     fireEvent.click(screen.getByRole("button", { name: "Logue" }));
     expect(onSelectedProjectsChange).toHaveBeenCalledWith(["Agent Harness", "Logue"]);
 
-    fireEvent.change(screen.getByRole("textbox", { name: "添加标签" }), { target: { value: "provenance" } });
-    fireEvent.keyDown(screen.getByRole("textbox", { name: "添加标签" }), { key: "Enter" });
+    fireEvent.change(screen.getByRole("textbox", { name: "Add tag" }), { target: { value: "provenance" } });
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Add tag" }), { key: "Enter" });
     expect(onTagsChange).toHaveBeenCalledWith(["research", "provenance"]);
   });
 
   it("disables recording and saving while the local service is unavailable", () => {
     renderSelection({ serviceConnected: false });
-    expect((screen.getByRole("button", { name: "开始语音" }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole("button", { name: "保存选区" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Start voice input" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Save selection" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

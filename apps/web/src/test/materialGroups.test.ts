@@ -18,13 +18,13 @@ describe("groupIdenticalMaterials", () => {
   it("groups only exact trimmed text with the same content type", () => {
     const groups = groupIdenticalMaterials([
       material("a", "voice", "same", "Logue"),
-      material("b", "voice", " same ", "浏览器扩展"),
+      material("b", "voice", " same ", "Browser Extension"),
       material("c", "text", "same"),
       material("d", "voice", "Same"),
     ]);
 
     expect(groups.map((group) => group.items.map((item) => item.id))).toEqual([["a", "b"], ["c"], ["d"]]);
-    expect(groups[0].projects).toEqual(["Logue", "浏览器扩展"]);
+    expect(groups[0].projects).toEqual(["Logue", "Browser Extension"]);
   });
 
   it("keeps every underlying record available for expansion and editing", () => {

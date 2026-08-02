@@ -96,7 +96,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
     } catch {
       // Keep a plain-text server response as-is.
     }
-    throw new Error(message || `请求失败 (${response.status})`);
+    throw new Error(message || `Request failed (${response.status})`);
   }
   return response.json() as Promise<T>;
 }
@@ -153,7 +153,7 @@ export async function createDocument(input: {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        title: input.title ?? "无标题",
+        title: input.title ?? "Untitled",
         content: input.content ?? "",
         project: input.project ?? "",
         source_ids: input.sourceIds ?? [],
@@ -183,7 +183,7 @@ export async function updateDocument(
 
 export async function deleteDocument(id: string) {
   const response = await fetch(`${apiBase}/v1/docs/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!response.ok) throw new Error((await response.text()) || `请求失败 (${response.status})`);
+  if (!response.ok) throw new Error((await response.text()) || `Request failed (${response.status})`);
 }
 
 export async function generateDocument(input: {
@@ -255,7 +255,7 @@ export async function updateMaterial(
 
 export async function deleteMaterial(id: string) {
   const response = await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!response.ok) throw new Error((await response.text()) || `请求失败 (${response.status})`);
+  if (!response.ok) throw new Error((await response.text()) || `Request failed (${response.status})`);
 }
 
 export async function getWorkspaceSettings() {

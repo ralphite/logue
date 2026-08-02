@@ -12,9 +12,9 @@ import { useState } from "react";
 import { userEvent, within } from "storybook/test";
 
 const contexts = [
-  { id: "page", label: "ChatGPT · New chat", type: "page" as const },
+  { id: "page", label: "ChatGPT | New chat", type: "page" as const },
   { id: "project", label: "Agent Harness", type: "project" as const, removable: true },
-  { id: "glossary", label: "6 个已确认术语", type: "glossary" as const },
+  { id: "glossary", label: "6 confirmed terms", type: "glossary" as const },
 ];
 
 function StoryHarness(props: Partial<CapturePanelProps> & { initialPhase?: CapturePhase }) {
@@ -101,28 +101,28 @@ export const VoiceStarting: Story = { render: () => <VoiceStoryHarness initialPh
 export const VoiceRecording: Story = { render: () => <VoiceStoryHarness /> };
 export const VoiceProcessing: Story = { render: () => <VoiceStoryHarness initialPhase="processing" /> };
 export const VoiceMicrophoneError: Story = {
-  render: () => <VoiceStoryHarness initialPhase="error" errorKind="microphone" errorMessage="麦克风权限未开启，请在浏览器地址栏允许后重试。" />,
+  render: () => <VoiceStoryHarness initialPhase="error" errorKind="microphone" errorMessage="Microphone access is blocked. Allow it in the address bar and try again." />,
 };
 export const VoiceTargetLostAfterSave: Story = {
-  render: () => <VoiceStoryHarness initialPhase="error" errorKind="target" errorMessage="资料已经保存。重新聚焦一个输入框后可再次插入，或直接复制文字。" />,
+  render: () => <VoiceStoryHarness initialPhase="error" errorKind="target" errorMessage="The material was saved. Focus another input to insert again, or copy the text." />,
 };
 
 function AgentStoryHarness({ result = false }: { result?: boolean }) {
-  const [instruction, setInstruction] = useState("基于我的相关资料，生成一段可直接使用的简洁回复（不超过 120 字）。");
-  const [output, setOutput] = useState("建议先聚焦最短的核心闭环：用户说完后自动转写、保存并插入，整理工作在后台完成，只有不确定项才需要复核。");
+  const [instruction, setInstruction] = useState("Use my relevant materials to draft a concise reply in under 120 words.");
+  const [output, setOutput] = useState("Focus on the shortest core loop first: transcribe, save, and insert automatically after the user finishes. Organize in the background and review only uncertain items.");
   const [phase, setPhase] = useState<"ready" | "generating" | "result">(result ? "result" : "ready");
   return (
     <div className="w-[360px] overflow-hidden rounded-[14px] border border-[#d9dad5] bg-white shadow-[0_22px_64px_rgba(25,27,23,0.18)]">
       <AgentGenerationPanel
         agents={[
-          { id: "reply", name: "简洁回复", purpose: "结合相关资料，生成可直接使用的回复" },
-          { id: "qa", name: "资料问答", purpose: "基于资料回答当前问题" },
+          { id: "reply", name: "Concise reply", purpose: "Create a ready-to-use reply from relevant materials" },
+          { id: "qa", name: "Material Q&A", purpose: "Answer the current question from materials" },
         ]}
         selectedAgentId="reply"
         instruction={instruction}
         output={output}
         phase={phase}
-        contextLabel="当前页面 · Logue · 3 条相关资料"
+        contextLabel="Current page | Logue | 3 relevant materials"
         onAgentChange={() => undefined}
         onInstructionChange={setInstruction}
         onOutputChange={setOutput}
@@ -149,24 +149,24 @@ export const SelectionRecording: Story = {
   render: () => <StoryHarness initialPhase="recording" selectedText="Design tool schemas around clear intent and make retries idempotent." />,
 };
 export const SelectionReview: Story = {
-  render: () => <StoryHarness initialPhase="review" selectedText="Design tool schemas around clear intent and make retries idempotent." transcript="把这段作为扩展事务设计依据。" />,
+  render: () => <StoryHarness initialPhase="review" selectedText="Design tool schemas around clear intent and make retries idempotent." transcript="Use this as a reference for Extension transaction design." />,
 };
 
 export const SelectionLongSourceAndFiling: Story = {
-  render: () => <StoryHarness selectedText={`${"完整选区原文必须保持可读、不可变，并允许用户滚动查看。".repeat(12)}\n\n末尾校验：这句话必须仍然存在。`} selectedProjects={["Agent Harness", "Logue"]} tags={["research", "provenance"]} />,
+  render: () => <StoryHarness selectedText={`${"The complete selected source must stay readable, immutable, and scrollable. ".repeat(12)}\n\nEnd check: this sentence must still be present.`} selectedProjects={["Agent Harness", "Logue"]} tags={["research", "provenance"]} />,
   play: async ({ canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole("button", { name: "设置归入" }));
+    await userEvent.click(within(canvasElement).getByRole("button", { name: "Set organization" }));
   },
 };
 
 export const SelectionTranscriptionError: Story = {
-  render: () => <StoryHarness initialPhase="error" selectedText="待保存的原文" errorKind="transcription" errorMessage="没有识别到清晰语音。录音仍保留，可重试。" />,
+  render: () => <StoryHarness initialPhase="error" selectedText="Source text to save" errorKind="transcription" errorMessage="No clear speech was detected. The recording is preserved so you can retry." />,
 };
-export const SelectionServiceDisconnected: Story = { render: () => <StoryHarness selectedText="待保存的原文" serviceConnected={false} /> };
+export const SelectionServiceDisconnected: Story = { render: () => <StoryHarness selectedText="Source text to save" serviceConnected={false} /> };
 
 export const SelectionReferenceDetails: Story = {
-  render: () => <StoryHarness selectedText="待保存的原文" />,
+  render: () => <StoryHarness selectedText="Source text to save" />,
   play: async ({ canvasElement }) => {
-    await userEvent.click(within(canvasElement).getByRole("button", { name: "查看本次参考" }));
+    await userEvent.click(within(canvasElement).getByRole("button", { name: "View sources used" }));
   },
 };

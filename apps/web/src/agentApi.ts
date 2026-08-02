@@ -57,13 +57,14 @@ export interface LogueAgentRun {
 async function parse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const body = await response.text();
+    let message = body;
     try {
       const value = JSON.parse(body) as { error?: string };
-      throw new Error(value.error || `请求失败 (${response.status})`);
-    } catch (cause) {
-      if (cause instanceof Error && cause.message !== body) throw cause;
-      throw new Error(body || `请求失败 (${response.status})`);
+      message = value.error || body;
+    } catch {
+      // Keep a plain-text server response as-is.
     }
+    throw new Error(message || `Request failed (${response.status})`);
   }
   return response.json() as Promise<T>;
 }
@@ -90,7 +91,7 @@ export async function updateAgent(id: string, changes: Partial<Pick<LogueAgent, 
 
 export async function deleteAgent(id: string) {
   const response = await fetch(`${apiBase}/v1/agents/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!response.ok) throw new Error((await response.text()) || `请求失败 (${response.status})`);
+  if (!response.ok) throw new Error((await response.text()) || `Request failed (${response.status})`);
 }
 
 export async function getAgentRuns() {

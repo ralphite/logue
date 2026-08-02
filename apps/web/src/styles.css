@@ -12,7 +12,7 @@
 }
 
 @media (max-width: 900px) {
-  select[aria-label="选择 Agent"] {
+  select[aria-label="Choose agent"] {
     display: block;
   }
 }
