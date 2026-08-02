@@ -1,9 +1,7 @@
 import type { AppliedContext, Material, MaterialKind, MaterialStatus, SourceInfo } from "@logue/ui";
+import { logueApiBase } from "./apiBase";
 
-const apiBase = import.meta.env.VITE_LOGUE_API_BASE
-  || (window.location.port === "8787"
-    ? window.location.origin
-    : `${window.location.protocol}//${window.location.hostname}:8787`);
+const apiBase = logueApiBase;
 
 interface ApiMaterial {
   id: string;
