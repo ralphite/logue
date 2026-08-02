@@ -82,7 +82,11 @@ xml_escape() {
 }
 
 inject_failure() {
-  [[ "${LOGUE_INSTALLER_FAIL_AT:-}" != "$1" ]]
+  if [[ "${LOGUE_INSTALLER_FAIL_AT:-}" == "$1" ]]; then
+    printf '  [test] injected failure after %s switch\n' "$1" >&2
+    return 1
+  fi
+  return 0
 }
 
 case "${LOGUE_INSTALLER_FAIL_AT:-}" in

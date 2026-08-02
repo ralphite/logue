@@ -73,6 +73,22 @@ file_sha256() {
   shasum -a 256 "$1" | awk '{print $1}'
 }
 
+assert_failure_order() {
+  local failure_point="$1" log_file="$2" switch_line healthy_line injection_line rollback_line
+  switch_line="$(grep -nF '程序已切换到 v0.1.1' "${log_file}" | head -1 | cut -d: -f1)"
+  healthy_line="$(grep -nF '服务已启动：' "${log_file}" | head -1 | cut -d: -f1)"
+  injection_line="$(grep -nF "[test] injected failure after ${failure_point} switch" "${log_file}" | head -1 | cut -d: -f1)"
+  rollback_line="$(grep -nF '均已恢复，数据未改动' "${log_file}" | head -1 | cut -d: -f1)"
+  if [[ -z "${switch_line}" || -z "${healthy_line}" || -z "${injection_line}" || -z "${rollback_line}" ]] ||
+     (( switch_line >= healthy_line || healthy_line >= injection_line || injection_line >= rollback_line )); then
+    printf '%s failure log does not prove candidate health before injection and rollback\n' "${failure_point}" >&2
+    sed -n '1,220p' "${log_file}" >&2
+    exit 1
+  fi
+  printf 'AUDIT %s: candidate v0.1.1 switched(line %s), healthy(line %s), injected after switch(line %s), full rollback(line %s)\n' \
+    "${failure_point}" "${switch_line}" "${healthy_line}" "${injection_line}" "${rollback_line}"
+}
+
 assert_failed_upgrade_restored() {
   local failure_name="$1" pid_expectation="${2:-restarted}" restored_pid restored_status
 
@@ -193,6 +209,7 @@ for failure_point in extension cli autostart; do
     printf 'injected %s failure unexpectedly succeeded\n' "${failure_point}" >&2
     exit 1
   fi
+  assert_failure_order "${failure_point}" "${failure_log}"
   assert_failed_upgrade_restored "${failure_point}"
 done
 
