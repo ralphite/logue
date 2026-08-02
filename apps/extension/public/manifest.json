@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Logue",
   "description": "在任意网页输入、采集选区并沉淀为本机资料。",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "permissions": ["activeTab", "contextMenus"],
   "host_permissions": ["http://127.0.0.1:8787/*"],
   "action": {
