@@ -1,0 +1,30 @@
+[
+  {
+    "id": "zh-long",
+    "language": "zh-CN",
+    "voice": "Tingting",
+    "reference": "今天我们需要把浏览器里的零散想法整理成一份可以继续编辑的工作文档，同时保留每条结论的原始来源，避免下一次讨论时重复解释已经确认的背景。",
+    "context": "Logue 是跨网页输入、资料沉淀和成果编辑工具。"
+  },
+  {
+    "id": "english",
+    "language": "en-US",
+    "voice": "Samantha",
+    "reference": "Before the deployment starts, verify the local backup, review every cited source, and keep the newest document revision if two browser tabs save at nearly the same time.",
+    "context": "The product uses local backups, cited sources, browser tabs, and document revisions."
+  },
+  {
+    "id": "mixed",
+    "language": "zh-CN/en-US",
+    "voice": "Tingting",
+    "reference": "请用 React、TypeScript 和 Tailwind CSS 完成 Web App，再让 Golang 服务通过 Gemini API 处理中文和 English 混合输入。",
+    "context": "技术栈术语：React、TypeScript、Tailwind CSS、Web App、Golang、Gemini API、English。"
+  },
+  {
+    "id": "project-terms",
+    "language": "zh-CN/en-US",
+    "voice": "Tingting",
+    "reference": "Logue 的 AppliedContext 必须按照 capture ID 原子绑定，VibeDoc 只用于同源转写对照，request ID 和 source IDs 不能串线。",
+    "context": "项目术语：Logue、AppliedContext、capture ID、VibeDoc、request ID、source IDs、原子绑定、同源转写、不能串线。"
+  }
+]

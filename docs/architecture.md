@@ -1,0 +1,85 @@
+# Logue 技术架构
+
+## 运行结构
+
+```text
+apps/web         React 19 + TypeScript + Tailwind CSS Web App
+apps/extension   Chrome MV3 Content Script + Background Service Worker
+packages/ui      Web App / Extension 共用的 CapturePanel 与品牌组件
+server           Go 本机 API、文件存储、Gemini 代理与静态 Web 服务
+```
+
+开发端口：Web `0.0.0.0:5173`，API `0.0.0.0:8787`，Storybook `127.0.0.1:6006`。Web/API 的局域网监听用于同一 Wi‑Fi 下的手机访问；CORS 只接受本机、私有局域网来源和 `chrome-extension://`。Extension 只访问本机 API；Gemini 调用只发生在 Go 后端。
+
+## 持久化
+
+默认数据根目录为 `.logue-data`，可用 `LOGUE_DATA_DIR` 覆盖：
+
+```text
+.logue-data/
+  items/*.json       # 资料、request_id、来源、项目和父子关系
+  audio/cap_*        # 原始录音
+  docs/*.json        # 可编辑文档与 source_ids
+  projects/*.json    # 项目概览与术语
+  settings.json      # 全局写作偏好、术语和忽略项
+```
+
+写入使用临时文件 + rename。`request_id` 在资料层提供幂等创建；选区请求派生稳定的 `:source` / `:annotation` ID；Agent 写回同样支持稳定 `request_id`。
+
+## API v1
+
+### 状态与资料
+
+- `GET /v1/status`
+- `GET|POST /v1/items`
+- `PATCH|DELETE /v1/items/{id}`
+- `POST /v1/selections`
+- `GET|DELETE /v1/captures/{id}`
+
+### 语音与 Context
+
+- `POST /v1/transcribe`：multipart 音频、页面、目标文字、选区、项目说明、术语和技能指令。
+- `GET /v1/context?url=...`：个人说明/术语、项目说明/术语及按域名建议的项目。
+
+### 项目、生成结果与 Agent
+
+- `GET|POST /v1/projects`
+- `PATCH /v1/projects/{name}`
+- `POST /v1/project-overview-drafts/{name}`
+- `GET|POST /v1/docs`
+- `GET|PATCH|DELETE /v1/docs/{id}`
+- `POST /v1/docs/generate`
+- `GET /v1/project-bundles/{name}`：只读项目包。
+- `POST /v1/agent/import`：追加带 `source_ids`、`actor`、`request_id` 的派生资料。
+
+### 设置与可移植性
+
+- `GET|PATCH /v1/settings`
+- `GET /v1/glossary-suggestions`
+- `GET /v1/export`
+- `POST /v1/restore`：校验 schema 和 ID，在同目录创建完整备份后原子切换。
+
+## Gemini
+
+- 默认模型：`gemini-3.6-flash`。
+- 环境变量：`GEMINI_API_KEY`（兼容 `GOOGLE_GENERATIVE_AI_API_KEY`）、`LOGUE_TRANSCRIPTION_MODEL`、`LOGUE_DICTATION_SKILL`、`LOGUE_TRANSCRIPTION_CONTEXT_LIMIT`。
+- 音频使用 inline data 直接发送 `generateContent`；V1 限制 20MB。
+- 转写 Prompt 把页面、目标文字、选区和项目背景放入带边界的不可信引用区；技能指令与上下文分离；只允许输出转写文本。
+- 文档生成接收用户选中的资料与项目概览，并要求使用 `[来源 n]` 行内引用；Agent 短回复可自动检索相关资料。
+
+## 安全边界
+
+- API 监听本机与私有局域网接口；CORS 只允许本机 Web、私有局域网 Web 和 `chrome-extension://`，不提供公网入口。
+- Key 不出现在 API 响应、前端构建、Extension storage 或数据文件。
+- Extension Background 负责网络请求；Content Script 不直接持有凭证。
+- 不读取浏览器 Cookie、登录状态或未显式选择的整页正文。
+- 不自动提交宿主表单；外部 Agent 通过 API 追加，避免直接并发写文件。
+
+文档更新携带 `expected_revision`。服务端只接受与当前 revision 一致的写入，否则返回 `409`；Web 端串行提交自动保存，并在切换文档或离开页面前强制落盘，避免较慢的旧请求覆盖较新的正文与引用。
+
+## 可恢复性
+
+- Extension 提交顺序固定为：保存资料 → 写入宿主输入框。
+- 本机服务断开时面板自动轮询恢复；失败保留可重试状态。
+- Go 服务重启后从文件重新加载所有对象。
+- 导出/恢复包含资料、音频、项目、文档与设置；恢复失败时回滚原目录。

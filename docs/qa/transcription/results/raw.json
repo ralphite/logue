@@ -1,0 +1,25 @@
+{
+  "recorded_at": "2026-08-02T04:20:00-07:00",
+  "audio": "macOS system voices rendered to 48 kHz mono WAV; the exact same WAV bytes were sent to both backends",
+  "logue": {
+    "endpoint": "http://127.0.0.1:8787/v1/transcribe",
+    "model": "gemini-3.6-flash",
+    "skill": "逐字逐词；保留原词；禁止同义替换和书面化润色",
+    "results": {
+      "zh-long": "今天我们需要把浏览器里的零散想法整理成一份可以继续编辑的工作文档，同时保留每条结论的原始来源，避免下一次讨论时重复解释已经确认的背景。",
+      "english": "Before the deployment starts, verify the local backup, review every cited source, and keep the newest document revision if two browser tabs save it nearly the same time.",
+      "mixed": "请用 React TypeScript 和 Tailwind CSS 完成 Web App，再让 Golang 服务通过 Gemini API 处理中文和 English 混合输入。",
+      "project-terms": "Logue的AppliedContext必须按照capture ID原子绑定，VibeDoc只用于同源转写对照，request ID和source IDs不能串线。"
+    }
+  },
+  "vibedoc": {
+    "endpoint": "http://127.0.0.1:8002/dictate",
+    "model": "gemini-3.5-flash (server default; no FAST_MODEL override present)",
+    "results": {
+      "zh-long": "今天我们需要把浏览器里的零散想法整理成一份可以继续编辑的工作文档，同时保留每条结论的原始来源，避免下一次讨论时重复解释已经确认的背景。",
+      "english": "Before the deployment starts, verify the local backup, review every cited source, and keep the newest document revision if two browser tabs save it at nearly the same time.",
+      "mixed": "请用 React、TypeScript 和 Tailwind CSS 完成 Web App，再让 Golang 服务通过 Gemini API 处理中文和 English 混合输入。",
+      "project-terms": "Logue的AppliedContext必须按照capture ID原子绑定，VibeDoc只用于同源转写对照，request ID和source IDs不能串线。"
+    }
+  }
+}

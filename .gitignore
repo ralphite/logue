@@ -1,0 +1,25 @@
+node_modules/
+dist/
+storybook-static/
+.DS_Store
+.logue-data/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+.codex-audit/
+artifacts/
+release/
+server/server
+
+# Local QA captures can contain browser/account state or recorded speech.
+docs/qa/**/*.png
+docs/qa/**/*.jpg
+docs/qa/**/*.jpeg
+docs/qa/**/*.webp
+docs/qa/**/*.wav
+docs/qa/**/*.aiff
+docs/qa/**/*.webm
+docs/qa/**/*.mp3
+docs/qa/**/*.m4a
