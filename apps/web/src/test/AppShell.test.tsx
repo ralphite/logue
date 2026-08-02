@@ -81,6 +81,11 @@ describe("application navigation shell", () => {
 
     const collapseButton = screen.getByRole("button", { name: "Close sidebar" });
     expect(collapseButton.className).toContain("size-11");
+    const expandedStreamIconSlot = within(screen.getByTestId("primary-navigation-shell"))
+      .getByRole("button", { name: "Stream" })
+      .querySelector('[data-nav-icon-slot="true"]');
+    expect(expandedStreamIconSlot?.className).toContain("size-11");
+    expect(screen.getByTestId("primary-navigation-shell").className).toContain("px-1.5");
     fireEvent.click(collapseButton);
     expect(onCollapsedChange).toHaveBeenCalledWith(true);
 
@@ -90,6 +95,11 @@ describe("application navigation shell", () => {
     expect(screen.getByTestId("primary-navigation-shell").getAttribute("data-collapsed")).toBe("true");
     expect(screen.getByTestId("primary-navigation-shell").className).toContain("w-14");
     expect(screen.getByRole("button", { name: "Open sidebar" }).getAttribute("aria-expanded")).toBe("false");
+    const collapsedStreamIconSlot = within(screen.getByTestId("primary-navigation-shell"))
+      .getByRole("button", { name: "Stream" })
+      .querySelector('[data-nav-icon-slot="true"]');
+    expect(collapsedStreamIconSlot?.className).toContain("size-11");
+    expect(screen.getByTestId("primary-navigation-shell").className).toContain("px-1.5");
     expect(within(screen.getByTestId("primary-navigation-shell")).getByRole("button", { name: "Stream" })).toBeTruthy();
     expect(screen.getByTestId("mobile-primary-navigation").textContent).toContain("Stream");
   });

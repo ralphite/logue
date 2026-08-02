@@ -78,16 +78,16 @@ export function NavRail({
       data-resizing={resizing ? "true" : "false"}
       style={{ width: collapsed ? 56 : width }}
       className={cn(
-        "flex h-screen shrink-0 flex-col bg-[#f7f7f5] py-3 transition-[width,padding] duration-200 ease-out motion-reduce:transition-none max-[640px]:hidden",
+        "flex h-screen shrink-0 flex-col bg-[#f7f7f5] px-1.5 py-3 transition-[width] duration-200 ease-out motion-reduce:transition-none max-[640px]:hidden",
         resizing && "transition-none",
         collapsed
-          ? "w-14 border-r border-[#e7e7e4] px-1.5 max-[900px]:w-14"
-          : "px-2.5",
+          ? "w-14 border-r border-[#e7e7e4] max-[900px]:w-14"
+          : "",
       )}
     >
-      <div className={cn("flex h-11 items-center", collapsed ? "justify-center" : "pl-1")}>
+      <div className="flex h-11 items-center">
         {!collapsed && (
-          <span className="min-w-0 flex-1 overflow-hidden">
+          <span className="min-w-0 flex-1 overflow-hidden pl-1.5">
             <LogueLogo />
           </span>
         )}
@@ -120,8 +120,7 @@ export function NavRail({
             <button
               onClick={() => onChange(item.id)}
               className={cn(
-                "flex w-full items-center rounded-lg text-[13px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4]",
-                collapsed ? "h-11 justify-center px-0" : "h-9 gap-2 px-2",
+                "flex h-11 w-full items-center rounded-lg text-[13px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4]",
                 active === item.id
                   ? "bg-[#e9e9e6] text-[#373834]"
                   : "text-[#686965] hover:bg-[#ededeb] hover:text-[#30322d]",
@@ -129,8 +128,10 @@ export function NavRail({
               type="button"
               aria-current={active === item.id ? "page" : undefined}
             >
-              <Icon className="shrink-0" size={18} strokeWidth={active === item.id ? 2.2 : 1.8} aria-hidden="true" />
-              <span className={cn("truncate", collapsed && "sr-only")}>{item.label}</span>
+              <span data-nav-icon-slot="true" className="flex size-11 shrink-0 items-center justify-center">
+                <Icon size={18} strokeWidth={active === item.id ? 2.2 : 1.8} aria-hidden="true" />
+              </span>
+              <span className={cn("min-w-0 flex-1 truncate pr-2 text-left", collapsed && "sr-only")}>{item.label}</span>
             </button>
             </Tooltip>
           );
@@ -141,20 +142,19 @@ export function NavRail({
         <div
           role="status"
           aria-label={connected ? "Local service running" : "Service disconnected"}
-          className={cn(
-            "flex min-h-11 items-center rounded-lg",
-            collapsed ? "justify-center px-0" : "gap-2.5 px-2",
-          )}
+          className="flex min-h-11 items-center rounded-lg"
         >
-          <span
-            className={cn(
-              "relative flex size-2 shrink-0 rounded-full",
-              connected ? "bg-[#5f8c62]" : "bg-[#cf574c]",
-            )}
-          >
-            {connected && <span className="absolute inset-0 animate-ping rounded-full bg-[#5f8c62]/35 motion-reduce:animate-none" />}
+          <span className="flex size-11 shrink-0 items-center justify-center">
+            <span
+              className={cn(
+                "relative flex size-2 shrink-0 rounded-full",
+                connected ? "bg-[#5f8c62]" : "bg-[#cf574c]",
+              )}
+            >
+              {connected && <span className="absolute inset-0 animate-ping rounded-full bg-[#5f8c62]/35 motion-reduce:animate-none" />}
+            </span>
           </span>
-          <span className={cn("text-[11px] font-medium text-[#74776f]", collapsed && "sr-only")}>
+          <span className={cn("min-w-0 flex-1 truncate pr-2 text-[11px] font-medium text-[#74776f]", collapsed && "sr-only")}>
             {connected ? "Local service running" : "Service disconnected"}
           </span>
         </div>
