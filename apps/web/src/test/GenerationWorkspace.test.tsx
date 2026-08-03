@@ -31,7 +31,7 @@ const { agent, secondAgent, createdAgent, documentItem, run, mocks } = vi.hoiste
     ...agent,
     id: "agt_new",
     name: "Untitled skill",
-    purpose: "",
+    purpose: "Create a useful result from the selected context.",
     instructions: "",
     surfaces: ["web"] as const,
     contexts: [] as const,
@@ -73,6 +73,7 @@ const { agent, secondAgent, createdAgent, documentItem, run, mocks } = vi.hoiste
       getAgentRuns: vi.fn(),
       getDocuments: vi.fn(),
       createAgent: vi.fn(),
+      createDocument: vi.fn(),
       createAgentRun: vi.fn(),
       updateAgent: vi.fn(),
       adoptAgentRun: vi.fn(),
@@ -85,6 +86,7 @@ vi.mock("../agentApi", () => ({
   getAgents: mocks.getAgents,
   getAgentRuns: mocks.getAgentRuns,
   createAgent: mocks.createAgent,
+  defaultSkillPurpose: "Create a useful result from the selected context.",
   createAgentRun: mocks.createAgentRun,
   updateAgent: mocks.updateAgent,
   adoptAgentRun: mocks.adoptAgentRun,
@@ -94,6 +96,7 @@ vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api")>();
   return {
     ...actual,
+    createDocument: mocks.createDocument,
     getDocuments: mocks.getDocuments,
     getWorkspaceSettings: vi.fn(),
     saveWorkspaceSettings: vi.fn(),
@@ -103,12 +106,12 @@ vi.mock("../api", async (importOriginal) => {
 vi.mock("../components/DocumentWorkspace", async () => {
   const React = await import("react");
   return {
-    ViewWorkspace: ({ initialDocumentId, onLeaveGuardChange, showDocumentSidebar }: { initialDocumentId?: string; onLeaveGuardChange?: (guard?: () => Promise<boolean>) => void; showDocumentSidebar?: boolean }) => {
+    ViewWorkspace: ({ initialDocumentId, onLeaveGuardChange, showDocumentSidebar, documents = [] }: { initialDocumentId?: string; onLeaveGuardChange?: (guard?: () => Promise<boolean>) => void; showDocumentSidebar?: boolean; documents?: Array<{ id: string }> }) => {
       React.useEffect(() => {
         onLeaveGuardChange?.(mocks.documentGuard);
         return () => onLeaveGuardChange?.(undefined);
       }, [onLeaveGuardChange]);
-      return <main data-testid="document-workspace" data-document-id={initialDocumentId} data-show-sidebar={String(showDocumentSidebar)}>Document editor</main>;
+      return <main data-testid="document-workspace" data-document-id={initialDocumentId} data-document-count={documents.length} data-show-sidebar={String(showDocumentSidebar)}>Document editor</main>;
     },
   };
 });
@@ -118,6 +121,7 @@ beforeEach(() => {
   mocks.getAgentRuns.mockReset().mockResolvedValue([run]);
   mocks.getDocuments.mockReset().mockResolvedValue([documentItem]);
   mocks.createAgent.mockReset().mockResolvedValue(createdAgent);
+  mocks.createDocument.mockReset().mockResolvedValue({ ...documentItem, id: "doc_new", title: "Untitled" });
   mocks.createAgentRun.mockReset().mockResolvedValue(run);
   mocks.updateAgent.mockReset();
   mocks.adoptAgentRun.mockReset();
@@ -148,7 +152,7 @@ describe("GenerationWorkspace navigation", () => {
     expect(within(navigation).getByRole("button", { name: "Skills" })).toBeTruthy();
     expect(within(navigation).queryByRole("button", { name: "New" })).toBeNull();
     expect(within(navigation).queryByRole("button", { name: "Recent" })).toBeNull();
-    const documentAdd = within(navigation).getByRole("button", { name: "New generation" });
+    const documentAdd = within(navigation).getByRole("button", { name: "New document" });
     const agentAdd = within(navigation).getByRole("button", { name: "New skill" });
     expect(documentAdd.className).toContain("size-11");
     expect(agentAdd.className).toContain("size-11");
@@ -169,14 +173,14 @@ describe("GenerationWorkspace navigation", () => {
     }
   });
 
-  it("refreshes each row list while keeping the shared shell mounted", async () => {
+  it("switches row lists without replacing the shared shell or reloading the active list", async () => {
     renderWorkspace({ initialMode: "documents", initialDocumentId: documentItem.id });
     const navigation = screen.getByRole("navigation", { name: "Generate sections" });
     await screen.findByText(documentItem.title);
 
     fireEvent.click(within(navigation).getByRole("button", { name: "Documents" }));
-    await waitFor(() => expect(mocks.getDocuments).toHaveBeenCalledTimes(2));
-    const documentAdd = within(navigation).getByRole("button", { name: "New generation" });
+    expect(mocks.getDocuments).toHaveBeenCalledTimes(1);
+    const documentAdd = within(navigation).getByRole("button", { name: "New document" });
     const agentAdd = within(navigation).getByRole("button", { name: "New skill" });
     expect(documentAdd.parentElement?.className).toContain("bg-[#e7e7e4]");
     expect(agentAdd.parentElement?.className).not.toContain("bg-[#e7e7e4]");
@@ -184,9 +188,9 @@ describe("GenerationWorkspace navigation", () => {
     expect(screen.getByRole("complementary", { name: "Generate navigation" })).toBeTruthy();
 
     fireEvent.click(within(navigation).getByRole("button", { name: "Skills" }));
-    await waitFor(() => expect(mocks.getAgents).toHaveBeenCalledTimes(2));
-    expect(documentAdd.parentElement?.className).not.toContain("bg-[#e7e7e4]");
-    expect(agentAdd.parentElement?.className).toContain("bg-[#e7e7e4]");
+    expect(mocks.getAgents).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(within(navigation).getByRole("button", { name: "New document" }).parentElement?.className).not.toContain("bg-[#e7e7e4]"));
+    expect(within(navigation).getByRole("button", { name: "New skill" }).parentElement?.className).toContain("bg-[#e7e7e4]");
     expect((await screen.findByRole("textbox", { name: "Skill name" }) as HTMLInputElement).value).toBe(agent.name);
     expect(screen.getByRole("complementary", { name: "Generate navigation" })).toBeTruthy();
   });
@@ -208,17 +212,17 @@ describe("GenerationWorkspace navigation", () => {
     expect(within(list).getByRole("button", { name: /Launch brief/ })).toBeTruthy();
   });
 
-  it("opens NewGeneration only from the Documents add action", async () => {
+  it("creates and opens a real document from the Documents add action", async () => {
     renderWorkspace({ initialMode: "agents" });
     const navigation = screen.getByRole("navigation", { name: "Generate sections" });
     await screen.findByRole("textbox", { name: "Skill name" });
 
-    fireEvent.click(within(navigation).getByRole("button", { name: "New generation" }));
-    expect(await screen.findByRole("heading", { name: "What do you want to create?" })).toBeTruthy();
-    expect(within(navigation).getByRole("button", { name: "Documents" }).getAttribute("aria-current")).toBeNull();
-    expect(within(navigation).getByRole("button", { name: "Skills" }).getAttribute("aria-current")).toBeNull();
-    const formColumn = screen.getByTestId("generation-form-content-column");
-    for (const className of ["w-full", "max-w-[960px]", "px-8", "max-[640px]:px-5"]) expect(formColumn.className).toContain(className);
+    fireEvent.click(within(navigation).getByRole("button", { name: "New document" }));
+    await waitFor(() => expect(mocks.createDocument).toHaveBeenCalledWith({ title: "Untitled", project: undefined }));
+    const workspace = await screen.findByTestId("document-workspace");
+    expect(workspace.getAttribute("data-document-id")).toBe("doc_new");
+    expect(workspace.getAttribute("data-document-count")).toBe("2");
+    expect(within(navigation).getByRole("button", { name: "Documents" }).getAttribute("aria-current")).toBe("page");
   });
 
   it("creates a blank Skill without copying the selected Skill and opens it for editing", async () => {
@@ -230,7 +234,7 @@ describe("GenerationWorkspace navigation", () => {
 
     await waitFor(() => expect(mocks.createAgent).toHaveBeenCalledWith({
       name: "Untitled skill",
-      purpose: "",
+      purpose: "Create a useful result from the selected context.",
       instructions: "",
       task: "generate",
       output: "insert",
@@ -239,7 +243,7 @@ describe("GenerationWorkspace navigation", () => {
       enabled: true,
     }));
     expect((await screen.findByRole("textbox", { name: "Skill name" }) as HTMLInputElement).value).toBe("Untitled skill");
-    expect(screen.getByRole("textbox", { name: "Skill instructions" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Skill prompt" })).toBeTruthy();
   });
 
   it("keeps the document editor open when its unsaved guard rejects a section switch", async () => {
@@ -262,8 +266,7 @@ describe("GenerationWorkspace navigation", () => {
     fireEvent.change(name, { target: { value: "Edited agent" } });
     for (const label of ["Saved", "Saving…", "Unsaved"]) expect(screen.queryByText(label)).toBeNull();
 
-    const navigation = screen.getByRole("navigation", { name: "Generate sections" });
-    fireEvent.click(within(navigation).getByRole("button", { name: "New generation" }));
+    renderWorkspace({ initialMode: "new" });
     await screen.findByRole("heading", { name: "What do you want to create?" });
     const instruction = screen.getByLabelText("Task");
     fireEvent.change(instruction, { target: { value: run.instruction } });

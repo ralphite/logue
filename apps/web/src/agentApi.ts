@@ -2,6 +2,15 @@ import { logueApiBase } from "./apiBase";
 
 const apiBase = logueApiBase;
 
+// The server stores Skills through the existing agent endpoint. Keep a useful
+// default in the client so creating or editing a blank Skill never depends on
+// a backend-specific empty-purpose validation rule.
+export const defaultSkillPurpose = "Create a useful result from the selected context.";
+
+function normalizedSkillPurpose(value?: string) {
+  return value?.trim() || defaultSkillPurpose;
+}
+
 export type AgentTask = "transcribe" | "organize" | "generate";
 export type AgentOutput = "insert" | "material" | "qa" | "document";
 export type AgentSurface = "web" | "extension" | "background";
@@ -76,7 +85,7 @@ export async function createAgent(input: Omit<LogueAgent, "id" | "system" | "rev
   return parse<LogueAgent>(await fetch(`${apiBase}/v1/agents`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, purpose: normalizedSkillPurpose(input.purpose) }),
   }));
 }
 
@@ -84,7 +93,10 @@ export async function updateAgent(id: string, changes: Partial<Pick<LogueAgent, 
   return parse<LogueAgent>(await fetch(`${apiBase}/v1/agents/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(changes),
+    body: JSON.stringify({
+      ...changes,
+      ...(changes.purpose !== undefined ? { purpose: normalizedSkillPurpose(changes.purpose) } : {}),
+    }),
   }));
 }
 

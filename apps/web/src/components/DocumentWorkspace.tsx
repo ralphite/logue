@@ -282,6 +282,9 @@ export function ViewWorkspace({
   onOpenGenerate,
   onManageAgents,
   showDocumentSidebar = true,
+  documents: suppliedDocuments,
+  documentsLoading = false,
+  onDocumentsChange,
 }: {
   materials: Material[];
   initialDocumentId?: string;
@@ -292,8 +295,11 @@ export function ViewWorkspace({
   onOpenGenerate?: () => void;
   onManageAgents?: () => void;
   showDocumentSidebar?: boolean;
+  documents?: LogueDocument[];
+  documentsLoading?: boolean;
+  onDocumentsChange?: (documents: LogueDocument[]) => void;
 }) {
-  const [documents, setDocuments] = useState<LogueDocument[]>([]);
+  const [documents, setDocuments] = useState<LogueDocument[]>(() => suppliedDocuments ?? []);
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState("");
   const [title, setTitle] = useState("");
@@ -337,6 +343,7 @@ export function ViewWorkspace({
   const titleRef = useRef<HTMLTextAreaElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
   const editorSelectionRef = useRef<Range | undefined>(undefined);
+  const documentsRef = useRef(documents);
   const dirtyVersionRef = useRef(0);
   const selectedIdRef = useRef<string | undefined>(undefined);
   const latestSnapshotRef = useRef<DocumentSnapshot | undefined>(undefined);
@@ -344,6 +351,7 @@ export function ViewWorkspace({
   const saveQueueRef = useRef(createSerialTaskQueue());
   const saveByVersionRef = useRef(new Map<string, Promise<boolean>>());
 
+  documentsRef.current = documents;
   selectedIdRef.current = selectedId;
   latestSnapshotRef.current = selectedId ? {
     id: selectedId,
@@ -353,6 +361,13 @@ export function ViewWorkspace({
     sourceIds: [...sourceIds],
     version: dirtyVersionRef.current,
   } : undefined;
+
+  const setDocumentCollection = useCallback((next: LogueDocument[] | ((current: LogueDocument[]) => LogueDocument[])) => {
+    const value = typeof next === "function" ? next(documentsRef.current) : next;
+    documentsRef.current = value;
+    setDocuments(value);
+    onDocumentsChange?.(value);
+  }, [onDocumentsChange]);
 
   useEffect(() => {
     const workspace = workspaceRef.current;
@@ -371,6 +386,14 @@ export function ViewWorkspace({
   }, []);
 
   useEffect(() => {
+    if (suppliedDocuments) {
+      revisionByDocumentRef.current = new Map(suppliedDocuments.map((item) => [item.id, item.revision]));
+      documentsRef.current = suppliedDocuments;
+      setDocuments(suppliedDocuments);
+      setLoadError(undefined);
+      setLoading(documentsLoading);
+      return;
+    }
     let cancelled = false;
     let retryTimer: number | undefined;
     const load = async (attempt: number) => {
@@ -378,7 +401,7 @@ export function ViewWorkspace({
         const items = await getDocuments();
         if (cancelled) return;
         revisionByDocumentRef.current = new Map(items.map((item) => [item.id, item.revision]));
-        setDocuments(items);
+        setDocumentCollection(items);
         setLoadError(undefined);
         setLoading(false);
       } catch (cause) {
@@ -396,7 +419,7 @@ export function ViewWorkspace({
       cancelled = true;
       if (retryTimer) window.clearTimeout(retryTimer);
     };
-  }, []);
+  }, [documentsLoading, setDocumentCollection, suppliedDocuments]);
 
   useEffect(() => {
     if (loading) return;
@@ -463,7 +486,7 @@ export function ViewWorkspace({
         expectedRevision,
       });
       revisionByDocumentRef.current.set(updated.id, updated.revision);
-      setDocuments((current) =>
+      setDocumentCollection((current) =>
         [updated, ...current.filter((document) => document.id !== updated.id)].sort(
           (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
         ),
@@ -493,7 +516,7 @@ export function ViewWorkspace({
       .finally(() => saveByVersionRef.current.delete(saveKey));
     saveByVersionRef.current.set(saveKey, pending);
     return pending;
-  }, []);
+  }, [setDocumentCollection]);
 
   useEffect(() => {
     if (!selected || loadedRef.current !== selected.id || saveState !== "dirty") return;
@@ -573,7 +596,7 @@ export function ViewWorkspace({
     if (!(await flushCurrentDocument())) return;
     const created = await createDocument({ title: "Untitled", project: project || initialProject });
     revisionByDocumentRef.current.set(created.id, created.revision);
-    setDocuments((current) => [created, ...current]);
+    setDocumentCollection((current) => [created, ...current.filter((document) => document.id !== created.id)]);
     loadedRef.current = undefined;
     selectedIdRef.current = created.id;
     setSelectedId(created.id);
@@ -587,7 +610,7 @@ export function ViewWorkspace({
     await deleteDocument(selected.id);
     revisionByDocumentRef.current.delete(selected.id);
     const remaining = documents.filter((document) => document.id !== selected.id);
-    setDocuments(remaining);
+    setDocumentCollection(remaining);
     loadedRef.current = undefined;
     selectedIdRef.current = remaining[0]?.id;
     setSelectedId(remaining[0]?.id);
@@ -619,7 +642,7 @@ export function ViewWorkspace({
         instruction: generationInstruction,
       });
       revisionByDocumentRef.current.set(created.id, created.revision);
-      setDocuments((current) => [created, ...current]);
+      setDocumentCollection((current) => [created, ...current.filter((document) => document.id !== created.id)]);
       loadedRef.current = undefined;
       selectedIdRef.current = created.id;
       setSelectedId(created.id);

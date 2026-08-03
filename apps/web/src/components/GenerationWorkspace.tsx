@@ -1,8 +1,8 @@
 import type { Material } from "@logue/ui";
 import { CheckCircle2, ChevronDown, Clipboard, Copy, FileText, LoaderCircle, Plus, Search, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { adoptAgentRun, createAgent, createAgentRun, getAgentRuns, getAgents, updateAgent, type AgentContext, type AgentOutput, type AgentSurface, type AgentTask, type LogueAgent, type LogueAgentRun } from "../agentApi";
-import { getDocuments, getWorkspaceSettings, saveWorkspaceSettings, type LogueDocument } from "../api";
+import { adoptAgentRun, createAgent, createAgentRun, defaultSkillPurpose, getAgentRuns, getAgents, updateAgent, type AgentContext, type AgentOutput, type AgentSurface, type AgentTask, type LogueAgent, type LogueAgentRun } from "../agentApi";
+import { createDocument, getDocuments, getWorkspaceSettings, saveWorkspaceSettings, type LogueDocument } from "../api";
 import { groupIdenticalMaterials } from "../materialGroups";
 import { ViewWorkspace } from "./DocumentWorkspace";
 import { MaterialGroupPicker } from "./MaterialGroupPicker";
@@ -52,6 +52,8 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
   const [agentsError, setAgentsError] = useState<string>();
   const [documentsError, setDocumentsError] = useState<string>();
   const [creatingAgent, setCreatingAgent] = useState(false);
+  const [creatingDocument, setCreatingDocument] = useState(false);
+  const [documentCreateError, setDocumentCreateError] = useState<string>();
   const documentLeaveGuardRef = useRef<(() => Promise<boolean>) | undefined>(undefined);
   const { size: navigationWidth, setSize: setNavigationWidth } = usePersistentPanelSize({
     storageKey: "logue.panel.generation.width",
@@ -120,13 +122,11 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
 
   async function openDocuments(showList = false) {
     applyMode("documents", showList ? "list" : "none");
-    await refreshDocuments();
   }
 
   async function openAgents(showList = false) {
     if (!(await canLeaveDocument())) return;
     applyMode("agents", showList ? "list" : "none");
-    await refreshAgents();
   }
 
   async function startGeneration() {
@@ -142,7 +142,7 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
     try {
       const created = await createAgent({
         name: "Untitled skill",
-        purpose: "",
+        purpose: defaultSkillPurpose,
         instructions: "",
         task: "generate",
         output: "insert",
@@ -160,33 +160,48 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
     }
   }
 
+  async function addDocument() {
+    if (creatingDocument || !(await canLeaveDocument())) return;
+    setCreatingDocument(true);
+    setDocumentCreateError(undefined);
+    try {
+      const created = await createDocument({ title: "Untitled", project: initialProject });
+      setDocuments((current) => [created, ...current.filter((document) => document.id !== created.id)]);
+      setSelectedDocumentId(created.id);
+      applyMode("documents");
+      onSelectedDocumentChange(created.id);
+    } catch (cause) {
+      setDocumentCreateError(cause instanceof Error ? cause.message : "Could not create document");
+    } finally {
+      setCreatingDocument(false);
+    }
+  }
+
   async function openDocument(id: string) {
     if (mode === "documents" && id !== selectedDocumentId && !(await canLeaveDocument())) return;
     setSelectedDocumentId(id);
-    setMode("documents");
-    setSelectedRunId(undefined);
-    setMobilePanel("none");
+    applyMode("documents");
     onSelectedDocumentChange(id);
   }
 
   const listSection = mode === "agents" ? "agents" : "documents";
   const activeSection = mode === "agents" ? "agents" : mode === "documents" ? "documents" : undefined;
   const selectedRun = runs.find((run) => run.id === selectedRunId);
-  const sectionList = (
+  const workspaceList = (section: "documents" | "agents") => (
     <WorkspaceNavigationList
-      section={listSection}
+      section={section}
       agents={agents}
       documents={documents}
       selectedAgentId={selectedAgentId}
       selectedDocumentId={selectedDocumentId}
-      loading={listSection === "agents" ? agentsLoading : documentsLoading}
-      error={listSection === "agents" ? agentsError : documentsError}
+      loading={section === "agents" ? agentsLoading : documentsLoading}
+      error={section === "agents" ? agentsError : documentsError}
       onSelectAgent={(id) => {
         setSelectedAgentId(id);
         setMobilePanel("none");
       }}
       onSelectDocument={(id) => void openDocument(id)}
-      onRetry={() => void (listSection === "agents" ? refreshAgents() : refreshDocuments())}
+      onRetry={() => void (section === "agents" ? refreshAgents() : refreshDocuments())}
     />
   );
 
@@ -196,21 +211,27 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
         <header className="flex h-12 shrink-0 items-center px-4">
           <h1 className="text-[14px] font-semibold text-[#555651]">Generate</h1>
         </header>
-        <GenerateSectionNavigation activeSection={activeSection} creatingAgent={creatingAgent} onOpenDocuments={() => void openDocuments(false)} onStartGeneration={() => void startGeneration()} onOpenAgents={() => void openAgents(false)} onAddAgent={() => void addAgent()} />
+        <GenerateSectionNavigation activeSection={activeSection} creatingAgent={creatingAgent} creatingDocument={creatingDocument} onOpenDocuments={() => void openDocuments(false)} onAddDocument={() => void addDocument()} onOpenAgents={() => void openAgents(false)} onAddAgent={() => void addAgent()} />
+        {documentCreateError && <p role="alert" className="mx-3 mb-2 rounded-md bg-[#f8ece9] px-3 py-2 text-[14px] leading-4 text-[#9f4a42]">{documentCreateError}</p>}
         <div className="mx-4 border-t border-[#e2e2df]" />
-        <div className="mt-1.5 flex-1 overflow-y-auto px-2 pb-3" aria-label={listSection === "agents" ? "Skills list" : "Documents list"}>
-          {sectionList}
+        <div className="mt-1.5 min-h-0 flex-1">
+          <div hidden={listSection !== "documents"} className="h-full overflow-y-auto px-2 pb-3" aria-label="Documents list">
+            {workspaceList("documents")}
+          </div>
+          <div hidden={listSection !== "agents"} className="h-full overflow-y-auto px-2 pb-3" aria-label="Skills list">
+            {workspaceList("agents")}
+          </div>
         </div>
       </aside>
       <PanelResizer label="Resize generate navigation" value={navigationWidth} min={200} max={360} defaultValue={252} onChange={setNavigationWidth} className="max-[900px]:hidden" />
 
       <div className="hidden shrink-0 border-b border-[#e7e7e4] bg-[#fafaf8] px-2 max-[900px]:block">
-        <GenerateSectionNavigation activeSection={activeSection} creatingAgent={creatingAgent} mobile onOpenDocuments={() => void openDocuments(true)} onStartGeneration={() => void startGeneration()} onOpenAgents={() => void openAgents(true)} onAddAgent={() => void addAgent()} />
+        <GenerateSectionNavigation activeSection={activeSection} creatingAgent={creatingAgent} creatingDocument={creatingDocument} mobile onOpenDocuments={() => void openDocuments(true)} onAddDocument={() => void addDocument()} onOpenAgents={() => void openAgents(true)} onAddAgent={() => void addAgent()} />
       </div>
 
       {mobilePanel === "list" ? (
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[#f7f7f5] px-3 py-3" data-testid="mobile-workspace-list" aria-label={listSection === "agents" ? "Skills list" : "Documents list"}>
-          {sectionList}
+          {workspaceList(listSection)}
         </main>
       ) : mode === "documents" ? (
         <ViewWorkspace
@@ -226,6 +247,9 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
           onOpenGenerate={() => void startGeneration()}
           onManageAgents={() => void openAgents(false)}
           showDocumentSidebar={false}
+          documents={documents}
+          documentsLoading={documentsLoading}
+          onDocumentsChange={setDocuments}
         />
       ) : mode === "agents" ? (
         <AgentEditor agents={agents} selectedAgentId={selectedAgentId} onSelect={setSelectedAgentId} onAgentsChange={setAgents} />
@@ -246,7 +270,7 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
   );
 }
 
-function GenerateSectionNavigation({ activeSection, creatingAgent, mobile = false, onOpenDocuments, onStartGeneration, onOpenAgents, onAddAgent }: { activeSection?: "documents" | "agents"; creatingAgent: boolean; mobile?: boolean; onOpenDocuments: () => void; onStartGeneration: () => void; onOpenAgents: () => void; onAddAgent: () => void }) {
+function GenerateSectionNavigation({ activeSection, creatingAgent, creatingDocument, mobile = false, onOpenDocuments, onAddDocument, onOpenAgents, onAddAgent }: { activeSection?: "documents" | "agents"; creatingAgent: boolean; creatingDocument: boolean; mobile?: boolean; onOpenDocuments: () => void; onAddDocument: () => void; onOpenAgents: () => void; onAddAgent: () => void }) {
   const rowClass = (active: boolean) => `flex h-11 w-full overflow-hidden rounded-lg ${active ? "bg-[#e7e7e4]" : "hover:bg-[#ececea]"}`;
   const itemClass = (active: boolean) => `flex h-11 min-w-0 flex-1 items-center gap-2 rounded-none bg-transparent px-2.5 text-left text-[14px] font-medium focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#777873] ${active ? "text-[#353632]" : "text-[#6d6e69]"}`;
   const addClass = "inline-flex size-11 shrink-0 items-center justify-center rounded-none bg-transparent text-[#777873] hover:bg-[#dfdfdc] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#777873]";
@@ -257,8 +281,8 @@ function GenerateSectionNavigation({ activeSection, creatingAgent, mobile = fals
           {!mobile && <FileText size={14} className="shrink-0" />}
           <span className="truncate">Documents</span>
         </button>
-        <button type="button" onClick={onStartGeneration} className={addClass} aria-label="New generation" title="New generation">
-          <Plus size={15} />
+        <button type="button" onClick={onAddDocument} disabled={creatingDocument} className={`${addClass} disabled:cursor-wait disabled:opacity-60`} aria-label="New document" title="New document">
+          {creatingDocument ? <LoaderCircle size={15} className="animate-spin motion-reduce:animate-none" /> : <Plus size={15} />}
         </button>
       </div>
       <div className={rowClass(activeSection === "agents")}>
@@ -573,6 +597,11 @@ function AgentEditor({ agents, selectedAgentId, onSelect, onAgentsChange }: { ag
     setDraft({ ...draft, ...changes });
     setSaveState("dirty");
   }
+  function retrySave() {
+    if (!draft) return;
+    dirtyRef.current = true;
+    setSaveState("dirty");
+  }
   async function duplicate() {
     if (!draft) return;
     const copy = await createAgent({
@@ -601,7 +630,7 @@ function AgentEditor({ agents, selectedAgentId, onSelect, onAgentsChange }: { ag
       <header className="sticky top-0 z-10 border-b border-[#eeeeeb] bg-white/92 backdrop-blur">
         <div data-testid="agent-editor-header-column" className={`${editorColumnClass} flex h-12 items-center justify-between gap-3`}>
           <span className="text-[14px] font-medium text-[#777873]">Skills</span>
-          {saveState === "error" && <span className="text-[14px] text-[#a34b42]">Save failed</span>}
+          {saveState === "error" && <span className="flex items-center gap-2 text-[14px] text-[#a34b42]"><span>Save failed</span><button type="button" onClick={retrySave} className="font-medium underline underline-offset-2">Retry</button></span>}
         </div>
       </header>
       <article data-testid="agent-editor-content-column" className={`${editorColumnClass} pb-24 pt-14 max-[700px]:pt-8`}>
@@ -613,18 +642,21 @@ function AgentEditor({ agents, selectedAgentId, onSelect, onAgentsChange }: { ag
           ))}
         </select>
         <input value={draft.name} onChange={(event) => change({ name: event.target.value })} aria-label="Skill name" className="w-full border-0 bg-transparent text-[38px] font-bold tracking-[-0.045em] text-[#242522] outline-none placeholder:text-[#d0d0cc] max-[640px]:text-[30px]" placeholder="Untitled skill" />
-        <textarea value={draft.instructions} onChange={(event) => change({ instructions: event.target.value })} aria-label="Skill instructions" className="mt-7 min-h-[360px] w-full resize-none border-0 bg-transparent text-[15px] leading-7 text-[#343531] outline-none placeholder:text-[#aaa]" placeholder="Write instructions…" />
+        <label className="mt-7 block">
+          <span className="mb-1.5 block text-[14px] font-medium text-[#777873]">Prompt</span>
+          <textarea value={draft.instructions} onChange={(event) => change({ instructions: event.target.value })} aria-label="Skill prompt" className="min-h-[360px] w-full resize-none border-0 bg-transparent text-[15px] leading-7 text-[#343531] outline-none placeholder:text-[#aaa]" placeholder="Write a prompt…" />
+        </label>
         <details className="group mt-8 border-t border-[#e9e9e6] pt-5">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-md px-1 text-[14px] font-medium text-[#777873] hover:text-[#4d4e49]">
             Advanced
             <ChevronDown size={15} className="transition group-open:rotate-180" />
           </summary>
           <section className="mt-4 grid grid-cols-[160px_1fr] gap-x-7 gap-y-5 max-[640px]:grid-cols-1 max-[640px]:gap-y-2">
-          <span className="pt-2 text-[15px] font-medium text-[#6e706a]">Behavior</span>
+          <span className="pt-2 text-[15px] font-medium text-[#6e706a]">Use for</span>
           <div className="grid grid-cols-2 gap-2">
             <label className="space-y-1">
-              <span className="block text-[14px] text-[#969792]">Task</span>
-              <select aria-label="Task" value={draft.task} onChange={(event) => change({ task: event.target.value as AgentTask })} className="h-10 w-full rounded-md border border-[#dcdcd8] bg-white px-2.5 text-[15px]">
+              <span className="block text-[14px] text-[#969792]">Purpose</span>
+              <select aria-label="Skill use" value={draft.task} onChange={(event) => change({ task: event.target.value as AgentTask })} className="h-10 w-full rounded-md border border-[#dcdcd8] bg-white px-2.5 text-[15px]">
                 <option value="transcribe">Transcribe</option>
                 <option value="organize">Organize</option>
                 <option value="generate">Generate</option>
