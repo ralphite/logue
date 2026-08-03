@@ -99,7 +99,7 @@
 - 永远使用 `main`；每个已验证批次使用小而原子的 commit，并立即 push `origin/main`。
 - Mobile 当前不是优先项，不阻塞当前桌面 Web、Extension、Storybook、legacy 清理、Release 和设计终审；现有响应式不应故意退化，但暂不投入移动端专项优化。
 - Linux 主机运行服务、MacBook Chrome/Web 通过局域网可变域名连接是最新 P0，不能与已后置的 Mobile 混为一项。Extension 必须可配置 Server URL、按具体 origin 请求权限、验证兼容 Logue 服务、在连接失败时允许 Retry/Change server，并在域名变化后无需重装即可恢复；所有 Extension API 都使用同一配置，不能有 localhost 旁路。
-- Release 与一行安装必须支持 Linux 服务端资产、安装/覆盖、自动启动、可选 systemd 用户级开机启动和显式监听地址；隔离 Linux 验收机上的既有数据可视为不存在，但真实服务主机上的 Logue 数据仍必须保护。
+- Release 与一行安装必须支持 Linux 服务端资产、安装/覆盖、自动启动、可选 systemd 用户级开机启动和显式监听地址；安装时让用户选择 `0.0.0.0` 或 `127.0.0.1`，默认 `0.0.0.0`，并明确提示 wildcard 监听必须受可信局域网/VPN 防火墙保护；隔离 Linux 验收机上的既有数据可视为不存在，但真实服务主机上的 Logue 数据仍必须保护。
 - Linux 服务端安装无法跨机器替 MacBook 静默安装 Chrome Extension。Release 需提供独立、可校验、可覆盖的 Extension 客户端安装命令/资产；MacBook 不必运行 Go 服务，首次只在 `chrome://extensions` 选择稳定 unpacked 目录，后续升级保留 Chrome storage 并复用该目录。
 
 ## 用户对产品方向的连续纠正

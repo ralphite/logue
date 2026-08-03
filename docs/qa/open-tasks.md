@@ -8,7 +8,7 @@
 
 | 优先级 | 范围 | 状态 | 仍未完成的用户结果 | 完成证据要求 |
 |---|---|---|---|---|
-| P0 | Linux / LAN 远程服务（F22） | IN_PROGRESS | 真实 Linux 主机的 systemd user service、防火墙分配且可能变化的域名、Mac Extension 的具体 origin 权限、Server URL 替换，以及 Chrome/MV3/Linux 重启后恢复尚未形成完整跨机闭环。 | 在真实 Linux + Mac Chrome 上完成安装、连接、地址替换、保存/读取、浏览器重启和服务重启。 |
+| P0 | Linux / LAN 远程服务（F22） | IN_PROGRESS | 安装器尚未提供 `0.0.0.0` / `127.0.0.1` 交互选择并默认前者；真实 Linux systemd user service、防火墙分配且可能变化的域名、Mac Extension 具体 origin 权限、Server URL 替换，以及 Chrome/MV3/Linux 重启后恢复尚未形成完整跨机闭环。 | 安装时可选择监听地址且默认 wildcard，并有无公网认证警告；在真实 Linux + Mac Chrome 完成连接、地址替换、保存/读取、浏览器重启和服务重启。 |
 | P1 | Extension 核心可靠性（B03、B27、F04） | IN_PROGRESS | 标准 input 首击、选区文字/语音批注、无输入框页面录音、页面历史即时刷新、目标丢失、断线重试幂等，以及 `Cmd+Shift+L` 重开后的焦点仍缺当前 Release 的完整实测。 | 当前 Release 在真实 Chrome 覆盖以上路径；不丢资料、不重复保存/插入、不自动 submit。 |
 | P1 | Selection Skills 最终防护（F06、F18） | IN_PROGRESS | textarea/contenteditable 的实际写回已通过；仍缺 Gemini 运行中按 Esc、切换选区/目标/SPA 路由后等待迟到结果返回也绝不写回的真实 Chrome 验证。 | 当前 Release 在真实 Chrome 完成取消与漂移回归，原文保持不变，提交计数为 0。 |
 | P1 | Selection Skills 文本与菜单稳定性 | IN_PROGRESS | Skill 的多行结果会被压平成单行；选区菜单会随机不显示，取消选中后又错误出现。 | textarea、contenteditable、Document 均保留换行；菜单只跟随当前有效选区，取消选择/失焦/导航/漂移后立即关闭且不被迟到事件唤回。 |
