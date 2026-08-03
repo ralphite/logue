@@ -39,6 +39,7 @@
           <textarea aria-label="Regular textarea">Existing start: </textarea>
         </form>
         <div class="qa-actions">
+          <button type="button" data-test-change-route>Simulate an SPA route</button>
           <button type="button" data-test-replace-target>Simulate a replaced input</button>
         </div>
         <output data-test-output="textarea">Submit count: 0</output>
@@ -72,6 +73,12 @@
         const replacement = current.cloneNode();
         replacement.value = "Replacement input: ";
         current.replaceWith(replacement);
+      });
+      const routeButton = document.querySelector("[data-test-change-route]");
+      routeButton?.addEventListener("pointerdown", (event) => event.preventDefault());
+      routeButton?.addEventListener("click", () => {
+        const nextRoute = location.search === "?route=one" ? "?route=two" : "?route=one";
+        history.pushState({}, "", `${nextRoute}${location.hash}`);
       });
     </script>
   </body>
