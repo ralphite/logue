@@ -1,5 +1,7 @@
 import { useLayoutEffect, type ReactNode } from "react";
 
+export type StoryFixtureMode = "ready" | "empty" | "loading" | "error" | "needs-review";
+
 const materials = [
   {
     id: "mat_voice",
@@ -95,31 +97,47 @@ const skills = [
   },
 ];
 
+const materialsNeedingReview = materials.map((material) => material.id === "mat_voice" ? {
+  ...material,
+  organization: {
+    status: "needs_review",
+    confidence: 0.48,
+    reason: "The note may relate to Research, but the intended project is not clear.",
+    suggested_projects: ["Research"],
+    suggested_tags: ["decision"],
+  },
+} : material);
+
 function response(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
 }
 
-function fixtureResponse(input: RequestInfo | URL) {
+function fixtureResponse(input: RequestInfo | URL, mode: Exclude<StoryFixtureMode, "loading">) {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url, window.location.origin);
+  if (mode === "error") return response({ error: "The local Logue service is unavailable." }, 503);
+  const isEmpty = mode === "empty";
+  const fixtureMaterials = mode === "needs-review" ? materialsNeedingReview : materials;
   switch (url.pathname) {
     case "/v1/status": return response({ ok: true, ai_configured: true, model: "gemini-3.6-flash", storage_root: "Storybook fixture", version: "story" });
-    case "/v1/items": return response({ items: materials });
-    case "/v1/projects": return response({ projects: [{ name: "Research", overview: "A focused research project.", glossary: ["Logue", "source"], count: 2, created_at: "2026-08-03T03:00:00Z", updated_at: "2026-08-03T03:30:00Z" }] });
-    case "/v1/docs": return response({ documents });
-    case "/v1/skills": return response({ skills });
+    case "/v1/items": return response({ items: isEmpty ? [] : fixtureMaterials });
+    case "/v1/projects": return response({ projects: isEmpty ? [] : [{ name: "Research", overview: "A focused research project.", glossary: ["Logue", "source"], count: 2, created_at: "2026-08-03T03:00:00Z", updated_at: "2026-08-03T03:30:00Z" }] });
+    case "/v1/docs": return response({ documents: isEmpty ? [] : documents });
+    case "/v1/skills": return response({ skills: isEmpty ? [] : skills });
     case "/v1/skill-runs": return response({ runs: [] });
     case "/v1/settings": return response({ personal_context: "Keep writing concise and direct.", glossary: ["Logue", "source"], ignored_terms: [], default_transcription_skill: "sk_reply", default_organization_skill: "sk_organize", default_extension_skill: "sk_reply" });
-    case "/v1/material-search": return response({ matches: materials.map((item) => ({ id: item.id, match: "related", reason: "Related to the current knowledge request." })), strategy: "semantic" });
-    case "/v1/document-search": return response({ matches: documents.map((item) => ({ id: item.id, match: "related", reason: "Related to the current document request." })), strategy: "semantic" });
+    case "/v1/material-search": return response({ matches: (isEmpty ? [] : fixtureMaterials).map((item) => ({ id: item.id, match: "related", reason: "Related to the current knowledge request." })), strategy: "semantic" });
+    case "/v1/document-search": return response({ matches: (isEmpty ? [] : documents).map((item) => ({ id: item.id, match: "related", reason: "Related to the current document request." })), strategy: "semantic" });
     default: return response({ error: "Story fixture has no response for this action." }, 404);
   }
 }
 
-export function StoryApiFixture({ children }: { children: ReactNode }) {
+export function StoryApiFixture({ children, mode = "ready" }: { children: ReactNode; mode?: StoryFixtureMode }) {
   useLayoutEffect(() => {
     const originalFetch = window.fetch;
-    window.fetch = ((input: RequestInfo | URL) => Promise.resolve(fixtureResponse(input))) as typeof window.fetch;
+    window.fetch = ((input: RequestInfo | URL) => mode === "loading"
+      ? new Promise<Response>(() => undefined)
+      : Promise.resolve(fixtureResponse(input, mode))) as typeof window.fetch;
     return () => { window.fetch = originalFetch; };
-  }, []);
+  }, [mode]);
   return <>{children}</>;
 }

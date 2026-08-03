@@ -422,14 +422,14 @@ export function App() {
                   })}
                 </div>
               </>
-            ) : materials.length === 0 ? (
+            ) : !error && materials.length === 0 ? (
               <section className="mx-auto flex max-w-lg flex-col items-center px-6 py-20 text-center">
                 <span className="inline-flex size-10 items-center justify-center rounded-lg bg-[#f0f0ed] text-[#71736d]"><LibraryBig size={19} /></span>
                 <h2 className="mt-4 text-[16px] font-semibold tracking-[-0.02em] text-[#3f413c]">Capture your first material</h2>
                 <p className="mt-1.5 max-w-sm text-[14px] leading-5 text-[#858780]">Use Logue on any webpage to dictate or save a selection. The original, its source, and every derivative stay in one record chain.</p>
                 <button type="button" onClick={() => setShowComposer(true)} className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[14px] font-medium text-white hover:bg-[#3a3b37]"><CirclePlus size={14} /> Add first material</button>
               </section>
-            ) : materialSearchPending ? (
+            ) : error ? null : materialSearchPending ? (
               <SearchPending label="materials" className="min-h-36" />
             ) : (
               <div className="flex items-center gap-2 px-3 py-5 text-[14px] text-[#8d8f89]">

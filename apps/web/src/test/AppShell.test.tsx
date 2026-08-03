@@ -199,6 +199,17 @@ describe("application navigation shell", () => {
     }
   });
 
+  it("does not show a first-capture call to action while the service is unavailable", async () => {
+    apiMocks.getMaterials.mockRejectedValueOnce(new Error("The local Logue service is unavailable."));
+    window.history.replaceState(null, "", "/?view=stream");
+    render(<App />);
+
+    expect(await screen.findByText("The local Logue service is unavailable.")).toBeTruthy();
+    expect(screen.queryByText("Capture your first material")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add first material" })).toBeNull();
+    expect(screen.queryByText("No matches")).toBeNull();
+  });
+
   it("stays quiet until a failed service request confirms the disconnected state", () => {
     apiMocks.getMaterials.mockReturnValue(new Promise(() => undefined));
     apiMocks.getStatus.mockReturnValue(new Promise(() => undefined));
