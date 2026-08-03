@@ -25,7 +25,7 @@ async function request<T>(action: string, payload?: Record<string, unknown>) {
     payload,
   })) as ApiResponse<T>;
   if (!response?.ok) {
-    throw new ExtensionApiError(response?.error || "无法连接 Logue 本机服务", response?.captureId);
+    throw new ExtensionApiError(response?.error || "Could not connect to the Logue service.", response?.captureId);
   }
   return response.value as T;
 }

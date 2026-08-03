@@ -1,11 +1,125 @@
-const selectionMenuId = "logue-save-selection";
-const voiceInputCommand = "start-voice-input";
+import { mergePanelCaptureState, sourceFromTab, type CaptureIntent, type PanelCaptureState } from "./capturePrimitives";
+import {
+  consumePanelAutoStart,
+  isOpenSelectionMenu,
+  isSaveSelectionMenu,
+  isSelectionMenu,
+  openPanelWithPreparedState,
+  panelStateForTab,
+  preserveMatchingPanelDraft,
+  selectionSavePayload,
+  selectionContextMenus,
+  sidePanelCommand,
+  toggleSidePanel,
+} from "./sidePanelController";
+import { createRequestId } from "./requestId";
+
 const apiBase = "http://127.0.0.1:8787";
+const panelStoragePrefix = "logue:panel:";
+const activePanelStorageKey = "logue:panel:active-tab";
+const openPanelTabs = new Set<number>();
+const panelStates = new Map<number, PanelCaptureState>();
+let activePanelTabId: number | undefined;
 
 interface ApiMessage {
   type: "logue:api";
   action: "status" | "context" | "transcribe" | "save-material" | "save-selection" | "delete-capture" | "agents" | "settings" | "agent-run" | "adopt-agent-run";
   payload?: Record<string, unknown>;
+}
+
+interface OpenPanelMessage {
+  type: "logue:open-side-panel";
+  intent: CaptureIntent;
+  source: PanelCaptureState["source"];
+  selectionText?: string;
+  targetText?: string;
+  autoStartRecording?: boolean;
+}
+
+interface PanelStateMessage {
+  type: "logue:get-panel-state" | "logue:update-panel-state" | "logue:close-side-panel" | "logue:consume-panel-autostart";
+  patch?: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">>;
+  token?: string;
+}
+
+type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage;
+
+const nativeSidePanel = chrome.sidePanel as typeof chrome.sidePanel & {
+  close?: (options: { tabId: number }) => Promise<void>;
+  onOpened?: chrome.events.Event<(info: { tabId?: number }) => void>;
+  onClosed?: chrome.events.Event<(info: { tabId?: number }) => void>;
+};
+
+async function persistPanelState(state: PanelCaptureState) {
+  panelStates.set(state.tabId, state);
+  activePanelTabId = state.tabId;
+  await chrome.storage.session.set({
+    [`${panelStoragePrefix}${state.tabId}`]: state,
+    [activePanelStorageKey]: state.tabId,
+  });
+}
+
+function stagePanelState(state: PanelCaptureState) {
+  const staged = preserveMatchingPanelDraft(state, panelStates.get(state.tabId));
+  panelStates.set(staged.tabId, staged);
+  activePanelTabId = staged.tabId;
+  void chrome.storage.session.set({
+    [`${panelStoragePrefix}${staged.tabId}`]: staged,
+    [activePanelStorageKey]: staged.tabId,
+  });
+  void chrome.runtime.sendMessage({ type: "logue:panel-state-changed", state: staged }).catch(() => undefined);
+  return staged;
+}
+
+async function restorePanelState(tabId: number) {
+  const current = panelStates.get(tabId);
+  if (current) return current;
+  const key = `${panelStoragePrefix}${tabId}`;
+  const stored = (await chrome.storage.session.get(key))[key] as PanelCaptureState | undefined;
+  if (stored) panelStates.set(tabId, stored);
+  return stored;
+}
+
+function openPanel(tabId: number) {
+  activePanelTabId = tabId;
+  openPanelTabs.add(tabId);
+  void chrome.storage.session.set({ [activePanelStorageKey]: tabId });
+  return nativeSidePanel.open({ tabId });
+}
+
+function canCloseNativePanel() {
+  return typeof (nativeSidePanel as unknown as { close?: unknown }).close === "function";
+}
+
+async function getActivePanelTabId() {
+  if (typeof activePanelTabId === "number") return activePanelTabId;
+  const stored = (await chrome.storage.session.get(activePanelStorageKey))[activePanelStorageKey];
+  if (typeof stored === "number") activePanelTabId = stored;
+  return activePanelTabId;
+}
+
+async function setPanelContext(
+  tab: chrome.tabs.Tab,
+  intent: CaptureIntent,
+  selectionText?: string,
+  targetText?: string,
+  source = sourceFromTab(tab),
+) {
+  const state = panelStateForTab(tab, intent, source, selectionText, targetText);
+  if (!state) return;
+  const merged = preserveMatchingPanelDraft(state, await restorePanelState(state.tabId));
+  await persistPanelState(merged);
+  void chrome.runtime.sendMessage({ type: "logue:panel-state-changed", state: merged }).catch(() => undefined);
+}
+
+function openTabPanel(tab: chrome.tabs.Tab, intent: CaptureIntent, selectionText?: string) {
+  if (typeof tab.id !== "number") return Promise.resolve();
+  const state = panelStateForTab(tab, intent, sourceFromTab(tab), selectionText);
+  if (!state) return Promise.resolve();
+  return openPanelWithPreparedState(
+    () => { stagePanelState(state); },
+    () => openPanel(tab.id!),
+  );
 }
 
 async function parseResponse(response: Response) {
@@ -21,7 +135,7 @@ async function parseResponse(response: Response) {
     const message =
       typeof value === "object" && value && "error" in value
         ? String((value as { error: unknown }).error)
-        : text || `本机服务返回错误 (${response.status})`;
+        : text || `The Logue service returned an error (${response.status}).`;
     const error = new Error(message) as Error & { captureId?: string };
     if (typeof value === "object" && value && "capture_id" in value) {
       error.captureId = String((value as { capture_id: unknown }).capture_id);
@@ -74,7 +188,7 @@ async function handleApiMessage(message: ApiMessage) {
   }
   if (message.action === "transcribe") {
     const audioBase64 = String(payload.audioBase64 ?? "");
-    if (!audioBase64) throw new Error("录音数据为空");
+    if (!audioBase64) throw new Error("The recording is empty.");
     const mimeType = String(payload.mimeType ?? "audio/webm");
     const form = new FormData();
     form.append("audio", new Blob([decodeBase64(audioBase64)], { type: mimeType }), "logue-recording.webm");
@@ -113,45 +227,166 @@ async function handleApiMessage(message: ApiMessage) {
       }),
     );
   }
-  throw new Error("未知的 Logue API 操作");
+  throw new Error("Unknown Logue API action.");
 }
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
-      id: selectionMenuId,
-      title: "保存到 Logue",
-      contexts: ["selection"],
-    });
+    selectionContextMenus.forEach((item) => chrome.contextMenus.create(item));
   });
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId !== selectionMenuId || !tab?.id || !info.selectionText) return;
-  void chrome.tabs.sendMessage(tab.id, {
-    type: "logue:open-selection",
-    selectionText: info.selectionText,
-  }).catch(() => undefined);
+  if (
+    !isSelectionMenu(info.menuItemId) ||
+    !tab || typeof tab.id !== "number" || !info.selectionText
+  ) return;
+  if (isSaveSelectionMenu(info.menuItemId)) {
+    void handleApiMessage({
+      type: "logue:api",
+      action: "save-selection",
+      payload: selectionSavePayload(tab, info.selectionText, createRequestId()),
+    }).catch(() => undefined);
+    return;
+  }
+  if (isOpenSelectionMenu(info.menuItemId)) {
+    void openTabPanel(tab, "selection", info.selectionText).catch(() => undefined);
+  }
 });
 
 chrome.action.onClicked.addListener((tab) => {
-  if (!tab.id) return;
-  void chrome.tabs.sendMessage(tab.id, { type: "logue:open-input" }).catch(() => undefined);
+  if (typeof tab.id !== "number") return;
+  if (openPanelTabs.has(tab.id) && canCloseNativePanel()) {
+    void toggleSidePanel(nativeSidePanel, openPanelTabs, tab.id).catch(() => undefined);
+    return;
+  }
+  const state = panelStateForTab(tab, "page", sourceFromTab(tab));
+  if (!state) return;
+  void openPanelWithPreparedState(
+    () => { stagePanelState(state); },
+    () => toggleSidePanel(nativeSidePanel, openPanelTabs, tab.id!),
+  ).catch(() => undefined);
 });
 
 chrome.commands.onCommand.addListener((command, tab) => {
-  if (command !== voiceInputCommand || !tab?.id) return;
-  void chrome.tabs.sendMessage(tab.id, { type: "logue:open-input" }).catch(() => undefined);
+  if (command !== sidePanelCommand || !tab || typeof tab.id !== "number") return;
+  if (openPanelTabs.has(tab.id) && canCloseNativePanel()) {
+    void toggleSidePanel(nativeSidePanel, openPanelTabs, tab.id).catch(() => undefined);
+    return;
+  }
+  const state = panelStateForTab(tab, "page", sourceFromTab(tab));
+  if (!state) return;
+  void openPanelWithPreparedState(
+    () => { stagePanelState(state); },
+    () => toggleSidePanel(nativeSidePanel, openPanelTabs, tab.id!),
+  ).catch(() => undefined);
 });
 
-chrome.runtime.onMessage.addListener((message: ApiMessage, _sender, sendResponse) => {
+nativeSidePanel.onOpened?.addListener((info) => {
+  if (typeof info.tabId === "number") {
+    activePanelTabId = info.tabId;
+    openPanelTabs.add(info.tabId);
+  }
+});
+
+nativeSidePanel.onClosed?.addListener((info) => {
+  if (typeof info.tabId === "number") openPanelTabs.delete(info.tabId);
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  panelStates.delete(tabId);
+  openPanelTabs.delete(tabId);
+  void chrome.storage.session.remove(`${panelStoragePrefix}${tabId}`);
+});
+
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  if (openPanelTabs.size === 0) return;
+  void chrome.tabs.get(tabId).then((tab) => setPanelContext(tab, "page")).catch(() => undefined);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (!changeInfo.url || tabId !== activePanelTabId || openPanelTabs.size === 0) return;
+  void setPanelContext(tab, "page");
+});
+
+chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
+  if (message?.type === "logue:open-side-panel") {
+    const tab = sender.tab;
+    if (!tab || typeof tab.id !== "number") return false;
+    const nextState: PanelCaptureState = {
+      tabId: tab.id,
+      intent: message.intent,
+      source: message.source,
+      selectionText: message.selectionText?.trim() || undefined,
+      targetText: message.targetText?.trim() || undefined,
+      autoStartToken: message.autoStartRecording ? createRequestId() : undefined,
+      updatedAt: Date.now(),
+    };
+    void openPanelWithPreparedState(
+      () => { stagePanelState(nextState); },
+      () => openPanel(tab.id!),
+    ).then(() => sendResponse({ ok: true })).catch((error: unknown) => sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : "Could not open Logue.",
+    }));
+    return true;
+  }
+
+  if (message?.type === "logue:get-panel-state") {
+    void getActivePanelTabId().then((tabId) => {
+      if (typeof tabId !== "number") {
+        sendResponse({ ok: true, value: undefined });
+        return;
+      }
+      void restorePanelState(tabId).then((value) => sendResponse({ ok: true, value }));
+    });
+    return true;
+  }
+
+  if (message?.type === "logue:update-panel-state") {
+    if (typeof activePanelTabId !== "number") return false;
+    void restorePanelState(activePanelTabId).then((current) => {
+      if (current && message.patch) void persistPanelState(mergePanelCaptureState(current, message.patch));
+    });
+    return false;
+  }
+
+  if (message?.type === "logue:consume-panel-autostart") {
+    void getActivePanelTabId().then(async (tabId) => {
+      if (typeof tabId !== "number" || !message.token) {
+        sendResponse({ ok: true, consumed: false });
+        return;
+      }
+      const current = await restorePanelState(tabId);
+      if (!current) {
+        sendResponse({ ok: true, consumed: false });
+        return;
+      }
+      const result = consumePanelAutoStart(current, message.token);
+      if (result.consumed) await persistPanelState(result.state);
+      sendResponse({ ok: true, consumed: result.consumed });
+    }).catch((error: unknown) => sendResponse({
+      ok: false,
+      consumed: false,
+      error: error instanceof Error ? error.message : "Could not start voice capture.",
+    }));
+    return true;
+  }
+
+  if (message?.type === "logue:close-side-panel") {
+    if (typeof activePanelTabId !== "number" || !nativeSidePanel.close) return false;
+    const closingTabId = activePanelTabId;
+    void nativeSidePanel.close({ tabId: closingTabId }).then(() => openPanelTabs.delete(closingTabId)).catch(() => undefined);
+    return false;
+  }
+
   if (message?.type !== "logue:api") return false;
   void handleApiMessage(message)
     .then((value) => sendResponse({ ok: true, value }))
     .catch((error: unknown) =>
       sendResponse({
         ok: false,
-        error: error instanceof Error ? error.message : "本机服务请求失败",
+        error: error instanceof Error ? error.message : "The Logue service request failed.",
         captureId:
           error instanceof Error && "captureId" in error
             ? String((error as Error & { captureId?: string }).captureId ?? "")

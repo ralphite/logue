@@ -1,20 +1,23 @@
 {
   "manifest_version": 3,
   "name": "Logue",
-  "description": "在任意网页输入、采集选区并沉淀为本机资料。",
+  "description": "Capture voice, selections, and page context without leaving your work.",
   "version": "0.2.3",
-  "permissions": ["activeTab", "contextMenus"],
+  "permissions": ["activeTab", "contextMenus", "sidePanel", "storage"],
   "host_permissions": ["http://127.0.0.1:8787/*"],
   "action": {
-    "default_title": "打开 Logue"
+    "default_title": "Open Logue"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "commands": {
-    "start-voice-input": {
+    "toggle-side-panel": {
       "suggested_key": {
         "default": "Ctrl+Shift+L",
         "mac": "Command+Shift+L"
       },
-      "description": "在当前聚焦的输入框开始 Logue 语音输入"
+      "description": "Open or close Logue"
     }
   },
   "background": {
