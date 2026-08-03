@@ -61,11 +61,11 @@ run_installer() {
   bash "${repo_dir}/install.sh"
 }
 
-assert_loopback_listener() {
+assert_network_listener() {
   local service_pid="$1" listeners
   listeners="$(lsof -Pan -p "${service_pid}" -iTCP -sTCP:LISTEN 2>/dev/null || true)"
-  [[ "${listeners}" == *"127.0.0.1:${port} (LISTEN)"* ]] || {
-    printf 'installer must listen on loopback by default\n%s\n' "${listeners}" >&2
+  [[ "${listeners}" == *"*:${port} (LISTEN)"* || "${listeners}" == *"0.0.0.0:${port} (LISTEN)"* ]] || {
+    printf 'installer must listen on every interface by default\n%s\n' "${listeners}" >&2
     exit 1
   }
 }
@@ -173,7 +173,7 @@ assert_failed_upgrade_restored() {
     printf '%s failure did not restore the running old version\n' "${failure_name}" >&2
     exit 1
   }
-  assert_loopback_listener "${restored_pid}"
+  assert_network_listener "${restored_pid}"
 }
 
 printf 'Building v0.1.0 fixture...\n'
@@ -212,7 +212,7 @@ mkdir -p "${data_root}/items"
 printf '%s\n' 'preserve-me' > "${data_root}/items/installer-sentinel.txt"
 sentinel_before="$(shasum -a 256 "${data_root}/items/installer-sentinel.txt" | awk '{print $1}')"
 pid_before="$(cat "${pid_file}")"
-assert_loopback_listener "${pid_before}"
+assert_network_listener "${pid_before}"
 
 printf 'Building v0.1.1 fixture...\n'
 build_fixture v0.1.1 "${fixture_v2}"
@@ -244,7 +244,7 @@ for failure_point in extension cli autostart; do
 done
 
 pid_before="$(cat "${pid_file}")"
-assert_loopback_listener "${pid_before}"
+assert_network_listener "${pid_before}"
 upgrade_log="${test_root}/upgrade.log"
 run_installer "file://${fixture_v2}" no >"${upgrade_log}"
 grep -Fq 'click Reload on the Logue card' "${upgrade_log}" || { printf 'macOS Extension upgrade omitted Reload\n' >&2; exit 1; }
@@ -253,7 +253,7 @@ grep -Fq 'Do not use Load unpacked again' "${upgrade_log}" || { printf 'macOS Ex
 status_v2="$(curl -fsS "http://127.0.0.1:${port}/v1/status")"
 [[ "${status_v2}" == *'"version":"v0.1.1"'* ]] || { printf 'v0.1.1 did not start\n' >&2; exit 1; }
 pid_after="$(cat "${pid_file}")"
-assert_loopback_listener "${pid_after}"
+assert_network_listener "${pid_after}"
 [[ "${pid_before}" != "${pid_after}" ]] || { printf 'old service was not replaced\n' >&2; exit 1; }
 kill -0 "${pid_after}" >/dev/null 2>&1 || { printf 'new service is not running\n' >&2; exit 1; }
 if kill -0 "${pid_before}" >/dev/null 2>&1; then

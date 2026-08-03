@@ -6,11 +6,10 @@ Logue is a local-first tool for capturing and organizing information across the 
 
 ### Linux server + Mac Chrome client
 
-1. On the Linux server, install the service and explicitly enable trusted LAN/VPN access:
+1. On the Linux server, install the service. The installer asks where to listen and defaults to network access (`0.0.0.0`):
 
 ```bash
-curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh \
-  | LOGUE_ADDRESS=0.0.0.0:8787 LOGUE_AUTO_START=yes bash
+curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh | bash
 ```
 
 2. On the Mac, install only the Chrome Extension:
@@ -29,15 +28,15 @@ To run the service and Extension on the same Mac:
 curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh | bash
 ```
 
-The installer detects macOS or Linux and the current amd64 or arm64 architecture, verifies the release checksum, starts Logue immediately, and asks whether it should start automatically when you sign in. It downloads the complete Go service, Web App, and Chrome Extension; source code, Go, Node.js, and other build tools are not required. Open `http://127.0.0.1:8787` in a browser to use Logue.
+The installer detects macOS or Linux and the current amd64 or arm64 architecture, verifies the release checksum, asks whether Logue should be available on the network or only this computer, starts Logue immediately, and asks whether it should start automatically when you sign in. It downloads the complete Go service, Web App, and Chrome Extension; source code, Go, Node.js, and other build tools are not required. Open `http://127.0.0.1:8787` in a browser to use Logue locally.
 
 Run the applicable command again to upgrade in place. The service installer stops the previous service it manages, verifies and stages the complete candidate, and atomically updates `$HOME/.local/share/logue/current`. It replaces only the program, Web App, extension, CLI, and startup configuration. A failed upgrade restores the previous version and service. After every Extension upgrade, open `chrome://extensions` and click **Reload** on the existing Logue card; do not use **Load unpacked** again.
 
 Persistent data is never overwritten. Its default location is `$HOME/Library/Application Support/Logue` on macOS and `${XDG_DATA_HOME:-$HOME/.local/share}/logue/data` on Linux. The command-line entry point is `$HOME/.local/bin/logue`. Login startup uses `$HOME/Library/LaunchAgents/com.ralphite.logue.plist` on macOS or `$HOME/.config/systemd/user/logue.service` on Linux.
 
-For unattended installations, set `LOGUE_AUTO_START=yes` or `LOGUE_AUTO_START=no` explicitly. Without an interactive terminal, the installer disables login startup by default. The current service starts immediately after installation regardless of this setting.
+For unattended installations, set `LOGUE_AUTO_START=yes` or `LOGUE_AUTO_START=no` explicitly. Set `LOGUE_ADDRESS=127.0.0.1:8787` to limit Logue to the current machine, or `LOGUE_ADDRESS=0.0.0.0:8787` for network access. Without an interactive terminal, the installer disables login startup and defaults the listener to `0.0.0.0:8787`. The current service starts immediately after installation regardless of this setting.
 
-The secure default listens only on loopback. The split Linux command above explicitly uses `0.0.0.0`, which accepts traffic on every interface. Use a specific private interface address when possible, and restrict port `8787` with the host firewall or a controlled reverse proxy. Logue has no public-internet authentication boundary. The default remains `127.0.0.1:8787` unless `LOGUE_ADDRESS` is set explicitly.
+The default `0.0.0.0` listener accepts traffic on every interface so a separate Mac can use the Linux service. Use a specific private interface address when possible, and restrict port `8787` with the host firewall, VPN, or a controlled reverse proxy. Logue has no public-internet authentication boundary.
 
 The Gemini API key is read only by the local service and is never compiled into the Web App or extension. Set it in the same Terminal before installation:
 

@@ -21,6 +21,10 @@ case "${logue_machine}" in
   *) printf 'Unsupported %s architecture: %s\n' "${logue_system}" "${logue_machine}" >&2; exit 69 ;;
 esac
 
+has_interactive_terminal() {
+  [[ -t 0 || -t 1 || -t 2 ]] && [[ -r /dev/tty && -w /dev/tty ]]
+}
+
 logue_home="${HOME:?HOME is required}"
 install_root="${LOGUE_INSTALL_ROOT:-${logue_home}/.local/share/logue}"
 if [[ "${logue_platform}" == "darwin" ]]; then
@@ -41,7 +45,29 @@ if [[ ! "${systemd_unit_name}" =~ ^[A-Za-z0-9_.@-]+\.service$ ]]; then
 fi
 systemd_unit="${systemd_user_dir}/${systemd_unit_name}"
 logue_port="${LOGUE_PORT:-8787}"
-logue_address="${LOGUE_ADDRESS:-127.0.0.1:${logue_port}}"
+choose_address() {
+  local configured="${LOGUE_ADDRESS:-}" answer
+  if [[ -n "${configured}" ]]; then
+    printf '%s' "${configured}"
+    return
+  fi
+  if has_interactive_terminal; then
+    printf '\nWhere should Logue listen?\n' > /dev/tty
+    printf '  1) Network — 0.0.0.0:%s (recommended)\n' "${logue_port}" > /dev/tty
+    printf '  2) This computer only — 127.0.0.1:%s\n' "${logue_port}" > /dev/tty
+    printf 'Choose 1 or 2 [1]: ' > /dev/tty
+    answer=""
+    IFS= read -r answer < /dev/tty || true
+    case "${answer}" in
+      2|local|LOCAL|Local) printf '127.0.0.1:%s' "${logue_port}" ;;
+      *) printf '0.0.0.0:%s' "${logue_port}" ;;
+    esac
+    return
+  fi
+  printf 'No interactive terminal; using 0.0.0.0:%s so Logue is reachable on the network. Restrict access with a firewall or VPN.\n' "${logue_port}" >&2
+  printf '0.0.0.0:%s' "${logue_port}"
+}
+logue_address="$(choose_address)"
 if [[ ! "${logue_address}" =~ ^(\[[^]]+\]|[^:]+):([0-9]+)$ ]]; then
   printf 'LOGUE_ADDRESS must be a host and port, for example 127.0.0.1:8787 or 0.0.0.0:8787.\n' >&2
   exit 64
@@ -77,10 +103,6 @@ current_switched="no"
 say() { printf '  %s\n' "$*"; }
 step() { printf '\n%s\n' "$*"; }
 fail() { printf '\nInstallation did not complete: %s\n' "$*" >&2; exit 1; }
-
-has_interactive_terminal() {
-  [[ -t 0 || -t 1 || -t 2 ]] && [[ -r /dev/tty && -w /dev/tty ]]
-}
 
 cleanup() {
   if [[ "${current_switched}" == "no" && -n "${staged_release_dir}" && -d "${staged_release_dir}" ]]; then
@@ -601,6 +623,9 @@ staged_extension_assets=""
 printf '\n✓ Logue %s is installed and running\n' "${logue_version}"
 say "Open: ${open_url}"
 say "Listen address: ${logue_address}"
+case "${address_host}" in
+  0.0.0.0|'*'|'[::]') say "Security: Logue has no public-internet authentication. Limit access with a firewall, VPN, or controlled reverse proxy." ;;
+esac
 if [[ "${logue_platform}" == "linux" ]]; then
   say "Next on your Mac: curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install-extension.sh | bash"
 else
