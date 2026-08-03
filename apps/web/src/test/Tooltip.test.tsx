@@ -14,7 +14,10 @@ describe("Tooltip", () => {
 
     const trigger = screen.getByRole("button", { name: "Open projects" });
     fireEvent.focus(trigger);
-    expect((await screen.findByRole("tooltip")).textContent).toContain("Projects");
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip.textContent).toContain("Projects");
+    expect(tooltip.className).toContain("rounded-[10px]");
+    expect(tooltip.className).toContain("text-[14px]");
 
     fireEvent.keyDown(trigger, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("tooltip")).toBeNull());

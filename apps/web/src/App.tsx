@@ -253,7 +253,7 @@ export function App() {
       <NavRail
         active={section}
         onChange={openSection}
-        connected={Boolean(status?.ok)}
+        connected={status?.ok ?? !error}
         collapsed={navigationCollapsed}
         onCollapsedChange={setNavigationCollapsed}
         width={navigationWidth}

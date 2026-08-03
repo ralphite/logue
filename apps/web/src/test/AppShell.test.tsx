@@ -96,6 +96,9 @@ describe("application navigation shell", () => {
       .querySelector('[data-nav-icon-slot="true"]');
     expect(expandedStreamIconSlot?.className).toContain("size-11");
     expect(screen.getByTestId("primary-navigation-shell").className).toContain("px-1.5");
+    expect(screen.getByTestId("sidebar-header").className).toContain("shrink-0");
+    expect(within(screen.getByTestId("primary-navigation-shell")).getByRole("navigation", { name: "Primary navigation" }).className).toContain("overflow-y-auto");
+    expect(within(screen.getByTestId("primary-navigation-shell")).getByRole("navigation", { name: "Primary navigation" }).className).toContain("flex-1");
     fireEvent.click(collapseButton);
     expect(onCollapsedChange).toHaveBeenCalledWith(true);
 
@@ -105,8 +108,8 @@ describe("application navigation shell", () => {
     expect(screen.getByTestId("primary-navigation-shell").getAttribute("data-collapsed")).toBe("true");
     expect(screen.getByTestId("primary-navigation-shell").className).toContain("w-14");
     expect(screen.getByRole("button", { name: "Open sidebar" }).getAttribute("aria-expanded")).toBe("false");
-    expect(screen.getByTestId("sidebar-brand-mark").className).toContain("group-hover/toggle:hidden");
-    expect(screen.getByTestId("sidebar-toggle-icon").className).toContain("group-hover/toggle:flex");
+    expect(screen.getByTestId("sidebar-brand-mark").className).not.toContain("group-hover/toggle:hidden");
+    expect(screen.queryByTestId("sidebar-toggle-icon")).toBeNull();
     const collapsedStreamIconSlot = within(screen.getByTestId("primary-navigation-shell"))
       .getByRole("button", { name: "Stream" })
       .querySelector('[data-nav-icon-slot="true"]');
@@ -142,6 +145,15 @@ describe("application navigation shell", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("stays quiet until a failed service request confirms the disconnected state", () => {
+    apiMocks.getMaterials.mockReturnValue(new Promise(() => undefined));
+    apiMocks.getStatus.mockReturnValue(new Promise(() => undefined));
+
+    render(<App />);
+
+    expect(screen.queryByRole("status", { name: "Service disconnected" })).toBeNull();
   });
 
   it("restores and updates the collapsed preference", async () => {

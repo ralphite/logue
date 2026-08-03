@@ -2,7 +2,6 @@ import {
   FolderKanban,
   LibraryBig,
   PanelLeftClose,
-  PanelLeftOpen,
   Settings,
   Sparkles,
 } from "lucide-react";
@@ -68,7 +67,6 @@ export function NavRail({
   onWidthChange?: (width: number) => void;
 }) {
   const [resizing, setResizing] = useState(false);
-  const toggleLabel = collapsed ? "Open sidebar" : "Close sidebar";
 
   return (
     <TooltipProvider>
@@ -78,14 +76,14 @@ export function NavRail({
       data-resizing={resizing ? "true" : "false"}
       style={{ width: collapsed ? 56 : width }}
       className={cn(
-        "group/sidebar flex h-screen shrink-0 flex-col bg-[#f7f7f5] px-1.5 py-3 transition-[width] duration-200 ease-out motion-reduce:transition-none max-[640px]:hidden",
+        "group/sidebar flex h-screen min-h-0 shrink-0 flex-col overflow-hidden bg-[#f7f7f5] px-1.5 py-3 transition-[width] duration-200 ease-out motion-reduce:transition-none max-[640px]:hidden",
         resizing && "transition-none",
         collapsed
           ? "w-14 border-r border-[#e7e7e4] max-[900px]:w-14"
           : "",
       )}
     >
-      <div className="flex h-11 items-center">
+      <div data-testid="sidebar-header" className="flex h-11 shrink-0 items-center">
         {collapsed ? (
           <Tooltip content="Open sidebar">
             <button
@@ -95,13 +93,10 @@ export function NavRail({
               aria-expanded="false"
               aria-controls="primary-navigation"
               onClick={() => onCollapsedChange(false)}
-              className="group/toggle flex size-11 shrink-0 items-center justify-center rounded-lg text-[#73756f] transition hover:bg-[#ebebe8] hover:text-[#30322d] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4]"
+              className="flex size-11 shrink-0 items-center justify-center rounded-lg text-[#73756f] transition hover:bg-[#ebebe8] hover:text-[#30322d] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4]"
             >
-              <span data-testid="sidebar-brand-mark" className="group-hover/toggle:hidden group-focus-visible/toggle:hidden" aria-hidden="true">
+              <span data-testid="sidebar-brand-mark" aria-hidden="true">
                 <LogueLogo compact />
-              </span>
-              <span data-testid="sidebar-toggle-icon" className="hidden items-center justify-center group-hover/toggle:flex group-focus-visible/toggle:flex" aria-hidden="true">
-                <PanelLeftOpen size={18} strokeWidth={1.9} />
               </span>
             </button>
           </Tooltip>
@@ -130,7 +125,7 @@ export function NavRail({
         )}
       </div>
 
-      <nav id="primary-navigation" className="mt-2 space-y-0.5" aria-label="Primary navigation">
+      <nav id="primary-navigation" className="mt-2 min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain pr-px" aria-label="Primary navigation">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (
@@ -156,7 +151,7 @@ export function NavRail({
         })}
       </nav>
 
-      {!connected && <div className="mt-auto border-t border-[#e7e7e4] pt-2">
+      {!connected && <div className="mt-2 shrink-0 border-t border-[#e7e7e4] pt-2">
         <div
           role="status"
           aria-label="Service disconnected"
