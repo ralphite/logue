@@ -76,11 +76,23 @@ func duplicateMaterialContent(left, right string) bool {
 	return leftNormalized != "" && leftNormalized == rightNormalized
 }
 
-// RelevantMaterialIDs selects supporting sources without adding another choice
-// to the Extension flow. It is deterministic, local, and never changes items.
-func (s *Store) RelevantMaterialIDs(query, project string, limit int) ([]string, error) {
-	if limit <= 0 {
-		return []string{}, nil
+// MaterialSearchMatch is a stable, explainable match returned to product search
+// surfaces. Match is deliberately product language rather than an implementation
+// label: callers can say why a non-body result appeared without exposing search
+// infrastructure to the user.
+type MaterialSearchMatch struct {
+	ID     string `json:"id"`
+	Match  string `json:"match"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// LocalMaterialSearch is the deterministic fallback for material search. It only
+// returns a material when one visible field actually matches the query, and keeps
+// the particular matching field so the UI never presents a source/tag match as a
+// content match.
+func (s *Store) LocalMaterialSearch(query, project string, limit int) ([]MaterialSearchMatch, error) {
+	if limit <= 0 || strings.TrimSpace(query) == "" {
+		return []MaterialSearchMatch{}, nil
 	}
 	items, err := s.List()
 	if err != nil {
@@ -88,7 +100,7 @@ func (s *Store) RelevantMaterialIDs(query, project string, limit int) ([]string,
 	}
 	queryTokens := relevanceTokens(query)
 	type candidate struct {
-		id      string
+		match   MaterialSearchMatch
 		content string
 		score   int
 		order   int
@@ -102,17 +114,35 @@ func (s *Store) RelevantMaterialIDs(query, project string, limit int) ([]string,
 		if project != "" && !projectMatch {
 			continue
 		}
-		score := tokenOverlap(queryTokens, relevanceTokens(item.Content))
-		score += 3 * tokenOverlap(queryTokens, relevanceTokens(strings.Join(item.Tags, " ")))
-		score += 3 * tokenOverlap(queryTokens, relevanceTokens(strings.Join(item.Projects, " ")))
-		score += 2 * tokenOverlap(queryTokens, relevanceTokens(item.Source.Title))
+		contentScore := tokenOverlap(queryTokens, relevanceTokens(item.Content))
+		annotationScore := tokenOverlap(queryTokens, relevanceTokens(item.Annotation))
+		tagScore := tokenOverlap(queryTokens, relevanceTokens(strings.Join(item.Tags, " ")))
+		projectScore := tokenOverlap(queryTokens, relevanceTokens(strings.Join(item.Projects, " ")))
+		titleScore := tokenOverlap(queryTokens, relevanceTokens(item.Source.Title))
+		domainScore := tokenOverlap(queryTokens, relevanceTokens(item.Source.Domain))
+		score := contentScore + annotationScore + 3*tagScore + 3*projectScore + 2*titleScore + domainScore
 		if projectMatch {
 			score += 4
 		}
 		if score == 0 {
 			continue
 		}
-		candidates = append(candidates, candidate{id: item.ID, content: item.Content, score: score, order: index})
+		match := MaterialSearchMatch{ID: item.ID, Match: "content"}
+		switch {
+		case contentScore > 0:
+			// The default content match needs no extra line of UI.
+		case annotationScore > 0:
+			match = MaterialSearchMatch{ID: item.ID, Match: "annotation", Reason: "Matches annotation"}
+		case titleScore > 0:
+			match = MaterialSearchMatch{ID: item.ID, Match: "source", Reason: "Matches source title"}
+		case domainScore > 0:
+			match = MaterialSearchMatch{ID: item.ID, Match: "source", Reason: "Matches source"}
+		case tagScore > 0:
+			match = MaterialSearchMatch{ID: item.ID, Match: "tag", Reason: "Matches tag"}
+		case projectScore > 0 || projectMatch:
+			match = MaterialSearchMatch{ID: item.ID, Match: "project", Reason: "Matches project"}
+		}
+		candidates = append(candidates, candidate{match: match, content: item.Content, score: score, order: index})
 	}
 	sort.SliceStable(candidates, func(i, j int) bool {
 		if candidates[i].score == candidates[j].score {
@@ -137,9 +167,23 @@ func (s *Store) RelevantMaterialIDs(query, project string, limit int) ([]string,
 			break
 		}
 	}
-	ids := make([]string, 0, len(selected))
+	matches := make([]MaterialSearchMatch, 0, len(selected))
 	for _, candidate := range selected {
-		ids = append(ids, candidate.id)
+		matches = append(matches, candidate.match)
+	}
+	return matches, nil
+}
+
+// RelevantMaterialIDs selects supporting sources without adding another choice
+// to the Extension flow. It is deterministic, local, and never changes items.
+func (s *Store) RelevantMaterialIDs(query, project string, limit int) ([]string, error) {
+	matches, err := s.LocalMaterialSearch(query, project, limit)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(matches))
+	for _, match := range matches {
+		ids = append(ids, match.ID)
 	}
 	return ids, nil
 }

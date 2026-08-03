@@ -4,7 +4,7 @@ import { App } from "../App";
 import { NavRail } from "../components/NavRail";
 
 const { apiMocks, documentFixture } = vi.hoisted(() => ({
-  apiMocks: { getMaterials: vi.fn(), getStatus: vi.fn(), updateDocument: vi.fn() },
+  apiMocks: { getMaterials: vi.fn(), getStatus: vi.fn(), searchMaterials: vi.fn(), updateDocument: vi.fn() },
   documentFixture: {
     id: "document-1",
     title: "Shell test document",
@@ -24,6 +24,7 @@ vi.mock("../api", async (importOriginal) => {
     getDocuments: vi.fn().mockResolvedValue([documentFixture]),
     getMaterials: apiMocks.getMaterials,
     getStatus: apiMocks.getStatus,
+    searchMaterials: apiMocks.searchMaterials,
     updateDocument: apiMocks.updateDocument,
   };
 });
@@ -37,6 +38,7 @@ describe("application navigation shell", () => {
       model: "",
       storage_root: "/tmp/logue-test",
     });
+    apiMocks.searchMaterials.mockReset().mockResolvedValue({ matches: [], strategy: "local" });
     apiMocks.updateDocument.mockReset();
     window.localStorage.clear();
     window.history.replaceState(null, "", "/?view=docs&doc=document-1");
@@ -73,6 +75,56 @@ describe("application navigation shell", () => {
     expect(axisClasses(screen.getByTestId("stream-content-column"))).toEqual(
       axisClasses(screen.getByTestId("stream-header-column")),
     );
+  });
+
+  it("quietly ranks a natural-language material search and explains related results", async () => {
+    const material = {
+      id: "material-related",
+      kind: "text" as const,
+      status: "unfiled" as const,
+      content: "The side panel captures the current page without an editor.",
+      projects: [],
+      tags: [],
+      createdAt: "2026-08-02T12:00:00Z",
+    };
+    apiMocks.getMaterials.mockResolvedValue([material]);
+    apiMocks.searchMaterials.mockResolvedValue({
+      strategy: "semantic",
+      matches: [{ id: material.id, match: "related", reason: "Explains page capture without an input" }],
+    });
+    window.history.replaceState(null, "", "/?view=stream");
+    render(<App />);
+
+    const search = await screen.findByPlaceholderText("Search materials");
+    fireEvent.change(search, { target: { value: "How can I save a page note?" } });
+
+    await waitFor(() => {
+      expect(apiMocks.searchMaterials).toHaveBeenCalledWith("How can I save a page note?", expect.any(AbortSignal));
+    });
+    expect(await screen.findByText("Explains page capture without an input")).toBeTruthy();
+    expect(screen.queryByText("Semantic search")).toBeNull();
+  });
+
+  it("does not claim there are no results while a natural-language search is pending", async () => {
+    const material = {
+      id: "material-pending",
+      kind: "text" as const,
+      status: "unfiled" as const,
+      content: "A saved note about source provenance.",
+      projects: [],
+      tags: [],
+      createdAt: "2026-08-02T12:00:00Z",
+    };
+    apiMocks.getMaterials.mockResolvedValue([material]);
+    apiMocks.searchMaterials.mockReturnValue(new Promise(() => undefined));
+    window.history.replaceState(null, "", "/?view=stream");
+    render(<App />);
+
+    const search = await screen.findByRole("textbox", { name: "Search materials" });
+    fireEvent.change(search, { target: { value: "How can I keep a source trace?" } });
+
+    expect(screen.queryByText("No matching materials")).toBeNull();
+    expect(screen.getByLabelText("Searching materials").getAttribute("aria-busy")).toBe("true");
   });
 
   it("collapses to an accessible icon rail without changing mobile navigation", () => {

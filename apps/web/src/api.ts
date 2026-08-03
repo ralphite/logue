@@ -21,6 +21,15 @@ interface ApiMaterial {
   organization?: Material["organization"];
 }
 
+export type MaterialSearchMatch =
+  | { id: string; match: "content" | "annotation" | "source" | "tag" | "project"; reason?: string }
+  | { id: string; match: "related"; reason: string };
+
+export interface MaterialSearchResponse {
+  matches: MaterialSearchMatch[];
+  strategy: "semantic" | "local";
+}
+
 export interface ServiceStatus {
   ok: boolean;
   ai_configured: boolean;
@@ -106,6 +115,12 @@ export async function getStatus() {
 export async function getMaterials() {
   const result = await parseResponse<{ items: ApiMaterial[] }>(await fetch(`${apiBase}/v1/items`));
   return result.items.map(fromApiMaterial);
+}
+
+export async function searchMaterials(query: string, signal?: AbortSignal) {
+  return parseResponse<MaterialSearchResponse>(
+    await fetch(`${apiBase}/v1/material-search?query=${encodeURIComponent(query)}`, { signal }),
+  );
 }
 
 export async function createMaterial(input: {

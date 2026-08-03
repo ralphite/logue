@@ -9,7 +9,15 @@ import {
 } from "lucide-react";
 import { type Material } from "@logue/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createMaterial, deleteMaterial, getMaterials, getStatus, updateMaterial, updateMaterialMetadata, type ServiceStatus } from "./api";
+import {
+  createMaterial,
+  deleteMaterial,
+  getMaterials,
+  getStatus,
+  updateMaterial,
+  updateMaterialMetadata,
+  type ServiceStatus,
+} from "./api";
 import { MaterialDetail } from "./components/MaterialDetail";
 import { NavRail, type Section } from "./components/NavRail";
 import { NewMaterialDialog } from "./components/NewMaterialDialog";
@@ -21,9 +29,9 @@ import { Button, PageHeader } from "./components/ui";
 import { pageColumnClass } from "./components/layout";
 import { navigationURL, parseNavigation, type AppNavigation } from "./navigation";
 import { groupIdenticalMaterials } from "./materialGroups";
+import { matchesMaterialSearchText, orderMaterialSearchResults, useMaterialSearch } from "./materialSearch";
 
 type Filter = "all" | "unfiled" | "organized";
-
 const navigationCollapsedStorageKey = "logue.navigation.collapsed";
 
 function initialNavigationCollapsed() {
@@ -53,6 +61,12 @@ function shortDate(value: string) {
 function sourceName(material: Material) {
   const value = material.source?.domain || material.actor || "User";
   return value === "127.0.0.1" || value === "localhost" ? "Logue local page" : value;
+}
+
+function matchesMaterialFilter(material: Material, filter: Filter) {
+  if (filter === "unfiled") return material.projects.length === 0;
+  if (filter === "organized") return material.projects.length > 0;
+  return true;
 }
 
 export function App() {
@@ -183,24 +197,13 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [materials, refresh]);
 
+  const { normalizedQuery, result: activeMaterialSearch, matches: materialSearchMatches, pending: materialSearchPending } = useMaterialSearch(query, materials);
   const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return materials.filter((item) => {
-      if (filter === "unfiled" && item.projects.length > 0) return false;
-      if (filter === "organized" && item.projects.length === 0) return false;
-      if (!normalized) return true;
-      return [
-        item.content,
-        item.annotation,
-        item.source?.title,
-        item.source?.domain,
-        ...item.projects,
-        ...item.tags,
-      ]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(normalized));
-    });
-  }, [filter, materials, query]);
+    if (!normalizedQuery || !activeMaterialSearch) {
+      return materials.filter((item) => matchesMaterialFilter(item, filter) && matchesMaterialSearchText(item, normalizedQuery));
+    }
+    return orderMaterialSearchResults(materials, activeMaterialSearch).filter((item) => matchesMaterialFilter(item, filter));
+  }, [activeMaterialSearch, filter, materials, normalizedQuery]);
   const materialGroups = useMemo(() => groupIdenticalMaterials(filtered), [filtered]);
 
   const selectedId = section === "stream" ? navigation.materialId : undefined;
@@ -306,9 +309,10 @@ export function App() {
               <label className="relative min-w-[220px] flex-1">
                 <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#969990]" />
                 <input
+                  aria-label="Search materials"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search content, sources, or projects"
+                  placeholder="Search materials"
                   className="h-9 w-full rounded-md border border-[#dfdfdc] bg-white pl-9 pr-3 text-[14px] text-[#2e302b] outline-none placeholder:text-[#9b9e96] focus:border-[#aaa]"
                 />
               </label>
@@ -353,6 +357,7 @@ export function App() {
                     const duplicate = group.items.length > 1;
                     const expanded = expandedMaterialGroups.has(group.key);
                     const selectedInGroup = group.items.some((item) => item.id === selectedId);
+                    const searchMatch = materialSearchMatches.get(material.id);
                     const projectLabel = group.projects.length === 0
                       ? "Unfiled"
                       : group.projects.length === 1
@@ -380,7 +385,10 @@ export function App() {
                         >
                           <span className="flex min-w-0 items-center gap-2.5">
                             {duplicate ? <ChevronRight size={14} className={`shrink-0 text-[#969792] transition ${expanded ? "rotate-90" : ""}`} /> : <Icon size={15} className="shrink-0 text-[#7b7c77]" />}
-                            <span className="truncate text-[14px] text-[#3d3e3a]">{material.content}</span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-[14px] text-[#3d3e3a]">{material.content}</span>
+                              {searchMatch?.reason && searchMatch.match !== "content" && <span className="mt-0.5 block truncate text-[12px] text-[#8b8d87]">{searchMatch.reason}</span>}
+                            </span>
                             {duplicate && <span className="hidden shrink-0 rounded bg-[#eeeeea] px-1.5 py-0.5 text-[12px] font-medium text-[#777873] max-[800px]:inline-flex">{group.items.length} items</span>}
                             {group.needsReview && <span aria-label="Needs review" title="Needs review" className="hidden size-2 shrink-0 rounded-full bg-[#d3a244] max-[480px]:inline-flex" />}
                           </span>
@@ -420,13 +428,13 @@ export function App() {
                 <p className="mt-1.5 max-w-sm text-[14px] leading-5 text-[#858780]">Use Logue on any webpage to dictate or save a selection. The original, its source, and every derivative stay in one record chain.</p>
                 <button type="button" onClick={() => setShowComposer(true)} className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[14px] font-medium text-white hover:bg-[#3a3b37]"><CirclePlus size={14} /> Add first material</button>
               </section>
+            ) : materialSearchPending ? (
+              <div aria-busy="true" aria-label="Searching materials" className="min-h-36" />
             ) : (
-              <section className="rounded-2xl border border-dashed border-[#cfd1ca] bg-white/45 px-6 py-16 text-center">
-                <span className="mx-auto inline-flex size-11 items-center justify-center rounded-full bg-[#eef0ea] text-[#747970]"><Search size={19} /></span>
-                <h2 className="mt-4 text-[15px] font-semibold text-[#3f423c]">No matching materials</h2>
-                <p className="mt-1 text-[14px] text-[#858980]">Try a different search or filter.</p>
-                <button type="button" onClick={() => { setQuery(""); setFilter("all"); }} className="mt-4 h-8 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#62635e] hover:bg-[#f4f4f1]">Clear filters</button>
-              </section>
+              <div className="flex items-center gap-2 px-3 py-5 text-[14px] text-[#8d8f89]">
+                <span>No matches</span>
+                {filter !== "all" && <button type="button" onClick={() => setFilter("all")} className="font-medium text-[#686964] hover:text-[#3f413c] focus-visible:outline-2 focus-visible:outline-[#5b64f4]">Clear</button>}
+              </div>
             )}
           </div>
         </main>

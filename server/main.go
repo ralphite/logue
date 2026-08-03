@@ -118,6 +118,7 @@ func main() {
 	mux.HandleFunc("/v1/status", api.status)
 	mux.HandleFunc("/v1/items", api.items)
 	mux.HandleFunc("/v1/items/", api.item)
+	mux.HandleFunc("/v1/material-search", api.materialSearch)
 	mux.HandleFunc("/v1/cancellations/", api.cancelMaterialSave)
 	mux.HandleFunc("/v1/projects", api.projects)
 	mux.HandleFunc("/v1/projects/", api.project)
