@@ -60,7 +60,7 @@
 | F17 | 每小时自动重启当前 goal 并继续最高 ROI 工作 | PASS | `logue` automation 持续唤醒本任务；只有 fresh-context 与直接证据共同支持时才能结束。 |
 | F18 | Notion 式 Selection Skills：Document 与网页编辑目标原位变换 | PARTIAL | 已真实观察 Notion 配置与选区 `Skills` 菜单；Logue Document 已在真实运行验证轻量入口、菜单、Esc/↓ 键盘操作和不越过 Sources 的定位，运行会持久化 Skill revision、选区、目标、输出与采用结果，并在来源登记失败时保留可重试动作。Extension 的 textarea/contenteditable 新入口已实现、构建和单测通过，但已安装 Chrome 扩展尚未允许重载，故不能关闭实机闭环。 |
 | F19 | 所有搜索入口的语义检索、排序、解释和本地降级 | PASS | 2026-08-03 已在真实 Chrome 验证 Stream、Generate 的 Documents 列表、Document Sources（All materials）与 Generate source picker：自然语言查询按语义相关性排序并展示简短英文理由。Documents 主列表补上此前缺失的生产搜索入口，搜索期间使用共享、局部的 `Finding related…` 状态，避免空白或错误的无结果结论。独立无 Gemini 运行时副本验证 Material / Document API 返回 `strategy=local` 且仅有可解释的直接匹配。 |
-| F20 | Storybook 生产组件 inventory 与所有有意义状态 | OPEN | 现有 Story 数量和组织不足；遗留 demo 组件仍只为 Storybook/测试保留，缺少可审计 inventory、真实生产组件和状态覆盖。 |
+| F20 | Storybook 生产组件 inventory 与所有有意义状态 | PARTIAL | `Native Side Panel` 直接复用生产 `SidePanelView`，已覆盖 Current Page、Selection、Starting、Recording、Transcribing、Target Lost、Service Unavailable、Generate、Empty；`Pages/App Compositions` 直接运行生产 `App`，覆盖 Stream、Material Detail、Projects、Documents、Skills、Settings。侧栏以全高无浮层视口呈现；真实 DOM 键盘回归覆盖 R、Enter、Esc 与编辑文本不抢键。仍缺完整 production component→Story→state inventory，以及各页面 empty/loading/local-error/review 等有意义状态。 |
 | F21 | 清除 legacy 代码、旧路由/数据/测试/未挂载 demo | PASS | 真实 `.logue-data` 已完整备份、一次性转换为 `skills/` 与 `skill-runs/`、在 live API 与隔离导出恢复中验证后删除转换工具；旧 `/v1/agents` 返回 404。旧 demo seed、路由/字段 alias、启动修复与旧 Chrome 降级分支均已删除。 |
 
 ## 当前未关闭队列

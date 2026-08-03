@@ -1,0 +1,25 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { App } from "../App";
+import { StoryApiFixture } from "./storyApiFixture";
+
+function AppComposition({ route = "?view=stream" }: { route?: string }) {
+  if (window.location.search !== route) window.history.replaceState(null, "", `${window.location.pathname}${route}`);
+  return <StoryApiFixture><div className="h-[760px] overflow-hidden border border-[#deded9] bg-white"><App key={route} /></div></StoryApiFixture>;
+}
+
+const meta = {
+  title: "Pages/App Compositions",
+  component: AppComposition,
+  parameters: { layout: "fullscreen" },
+} satisfies Meta<typeof AppComposition>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Stream: Story = { args: { route: "?view=stream" } };
+export const MaterialDetail: Story = { args: { route: "?view=stream&material=mat_voice" } };
+export const Projects: Story = { args: { route: "?view=projects" } };
+export const ProjectDetail: Story = { args: { route: "?view=projects&project=Research" } };
+export const Documents: Story = { args: { route: "?view=generate&tab=documents&doc=doc_research" } };
+export const Skills: Story = { args: { route: "?view=generate&tab=skills" } };
+export const Settings: Story = { args: { route: "?view=settings" } };
