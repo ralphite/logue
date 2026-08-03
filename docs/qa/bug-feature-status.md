@@ -34,7 +34,7 @@
 | B24 | 自定义安装端口的发布版 Web 错连固定 `8787` | PASS | 真实 `v0.2.0` 在 `18831` 复现断线；`v0.2.1` 改为只有 Vite `5173` 才连接 `8787`，任何 Go 托管端口均使用同源 API。公开升级后真实浏览器成功加载资料、文档和来源，控制台无 warn/error。 |
 | B25 | 输入框旁语音与生成两个入口长期并列，主操作不够极简 | PASS | 当前构建在真实 ChatGPT contenteditable 中只显示一个语音入口；生成不与主入口并列。录音时原位变为 Cancel 与 Stop and insert。 |
 | B26 | 录音中关闭原生 Side Panel 后麦克风继续运行 | PASS | 初次真实回归复现后已改为 content-script 生命周期 Port，并保留 background close/tab-switch 与页面卸载三层停轨；复测关闭后 Chrome 麦克风指示立即消失，未保存资料。 |
-| B27 | `Cmd+Shift+L` 应打开/关闭 Logue Side Panel | PASS | 2026-08-03 已在真实 macOS Chrome 以物理 `⌘⇧L` 打开并再次关闭原生 Side Panel；打开后焦点进入 Side Panel document。 |
+| B27 | `Cmd+Shift+L` 应打开/关闭 Logue Side Panel | PARTIAL | 2026-08-03 当前安装的 macOS Chrome 已用 `⌘⇧L` 连续关闭/重开原生 Side Panel，宿主页面可用宽度稳定变化 386px。实机同时复现“重开后焦点仍可能留在宿主”；`50d8ec0` 已改为每次显式打开只消费一次焦点请求，并通过 DOM 回归与独立设计复审，仍需重载该提交后做最终实机确认。 |
 | B28 | Chrome 原生 Side Panel 顶栏不应显示 unpin | NOT_APPLICABLE | unpin 与 close 均由 Chrome 浏览器原生顶栏拥有，Extension API 无法删除或隐藏；Logue 内容内部没有重复 header、pin 或侧位设置。 |
 
 ## Features 与交付要求
@@ -62,11 +62,11 @@
 | F19 | 所有搜索入口的语义检索、排序、解释和本地降级 | PASS | 2026-08-03 已在真实 Chrome 验证 Stream、Generate 的 Documents 列表、Document Sources（All materials）与 Generate source picker：自然语言查询按语义相关性排序并展示简短英文理由。Documents 主列表补上此前缺失的生产搜索入口，搜索期间使用共享、局部的 `Finding related…` 状态，避免空白或错误的无结果结论。独立无 Gemini 运行时副本验证 Material / Document API 返回 `strategy=local` 且仅有可解释的直接匹配。 |
 | F20 | Storybook 生产组件 inventory 与所有有意义状态 | PARTIAL | `Native Side Panel` 直接复用生产 `SidePanelView`，已覆盖 Current Page、Selection、Starting、Recording、Transcribing、Target Lost、Service Unavailable、Generate、Empty；`Pages/App Compositions` 直接运行生产 `App`，覆盖 Stream、Material Detail、Projects、Documents、Skills、Settings，以及 Stream/Documents/Skills 的 empty、loading、local-error 和 Material 的 low-confidence review。侧栏以全高无浮层视口呈现；真实 DOM 键盘回归覆盖 R、Enter、Esc 与编辑文本不抢键。仍缺完整 production component→Story→state inventory，以及其它页面有意义状态。 |
 | F21 | 清除 legacy 代码、旧路由/数据/测试/未挂载 demo | PASS | 真实 `.logue-data` 已完整备份、一次性转换为 `skills/` 与 `skill-runs/`、在 live API 与隔离导出恢复中验证后删除转换工具；旧 `/v1/agents` 返回 404。旧 demo seed、路由/字段 alias、启动修复与旧 Chrome 降级分支均已删除。 |
-| F22 | Linux 主机运行服务；MacBook Extension/Web 通过可变局域网域名连接 | OPEN | 已提升为当前 P0。实现中：Extension 统一动态 Server URL、具体 origin 权限、兼容状态验证和断线恢复；仍需 Linux release/install/systemd 支持及跨机器真实闭环。 |
+| F22 | Linux 主机运行服务；MacBook Extension/Web 通过可变局域网域名连接 | PARTIAL | Extension 已统一动态 Server URL、具体 origin 权限、API 版本验证、安静断线恢复与全部 background API；Release 已构建 darwin/linux × amd64/arm64，Linux installer 已支持显式 LAN listen、数据保护、立即启动、systemd user 自启动和失败回滚。真实 Mac Chrome 已通过局域网 IP 打开同源生产 Web、确认 Extension 注入并稳定 toggle 原生 Side Panel。仍需在真实 Linux 主机验证 systemd/防火墙域名，并在重载 `50d8ec0` 后完成 Server settings 权限、地址切换和重启持久化闭环。 |
 
 ## 当前未关闭队列
 
-1. **P0（Linux / LAN 远程服务）**：完成 Linux 服务运行、MacBook Extension/Web 可配置可变域名、具体 origin 权限、断线恢复、Linux 安装/systemd 与跨机器真实闭环。
+1. **P0（Linux / LAN 远程服务）**：代码与本机局域网候选已完成；下一步只关闭真实 Linux systemd/防火墙域名，以及重载当前 Extension 后的具体 origin 权限、地址切换与重启持久化闭环。
 2. **P0（Selection Skills Extension 实机闭环）**：在可重载的已安装 Chrome 扩展中，验证 textarea 与 contenteditable 选区入口、菜单、Esc、漂移拒绝和不自动提交；当前构建/单测不替代这一项。
 3. **已关闭（legacy 清理）**：旧 Prompt-only Agent schema、旧路由/未挂载 demo 与兼容分支已在一次性备份、转换、真实验证后删除。
 4. **P1（当前 Extension 核心缺口）**：完成标准 input、选区文字/语音批注、无输入框页面录音、页面历史刷新、目标丢失/断线/重试幂等与焦点防护的真实闭环。
