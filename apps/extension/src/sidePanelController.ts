@@ -1,4 +1,8 @@
-import { sourceFromTab, type CaptureIntent, type PanelCaptureState } from "./capturePrimitives";
+import {
+  sourceFromTab,
+  type CaptureIntent,
+  type PanelCaptureState,
+} from "./capturePrimitives";
 
 export const saveSelectionMenuId = "logue-save-selection";
 export const openSelectionMenuId = "logue-open-selection";
@@ -26,30 +30,24 @@ export interface SidePanelChrome {
   close?: (options: { tabId: number } | { windowId: number }) => Promise<void>;
 }
 
-export interface OpenSidePanelState {
-  tabId: number;
-  windowId?: number;
-}
-
-export function restoreOpenSidePanelTab(openTabs: Set<number>, stored: unknown) {
-  const state = typeof stored === "number"
-    ? { tabId: stored }
-    : stored as Partial<OpenSidePanelState> | undefined;
-  if (typeof state?.tabId !== "number") return undefined;
-  openTabs.add(state.tabId);
-  return { tabId: state.tabId, windowId: state.windowId } satisfies OpenSidePanelState;
-}
-
 export async function toggleSidePanel(
   api: SidePanelChrome,
   openTabs: Set<number>,
   tabId: number,
-  windowId?: number,
+  _windowId?: number,
 ) {
   if (openTabs.has(tabId) && api.close) {
-    await api.close(typeof windowId === "number" ? { windowId } : { tabId });
-    openTabs.delete(tabId);
-    return "closed" as const;
+    try {
+      // Closing the tab-scoped panel is more reliable than window-scoped close
+      // when Chrome's side-panel focus has just moved away from the tab.
+      await api.close({ tabId });
+      openTabs.delete(tabId);
+      return "closed" as const;
+    } catch {
+      // Chrome can retain session state across an extension reload after its native panel
+      // is already gone. Treat that state as stale and satisfy the user's toggle by opening.
+      openTabs.delete(tabId);
+    }
   }
   await api.open({ tabId });
   openTabs.add(tabId);
@@ -63,6 +61,7 @@ export function panelStateForTab(
   selectionText?: string,
   targetText?: string,
   autoStartToken?: string,
+  targetAvailable = false,
 ): PanelCaptureState | undefined {
   if (typeof tab.id !== "number") return undefined;
   return {
@@ -70,7 +69,8 @@ export function panelStateForTab(
     intent,
     source,
     selectionText: selectionText?.trim() || undefined,
-    targetText: targetText?.trim() || undefined,
+    targetText: targetAvailable ? targetText ?? "" : undefined,
+    targetAvailable,
     autoStartToken,
     updatedAt: Date.now(),
   };

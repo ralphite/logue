@@ -1,6 +1,8 @@
 import type { MaterialKind, SourceInfo } from "@logue/ui";
 import { createRequestId } from "./requestId";
 
+const apiBase = "http://127.0.0.1:8787";
+
 interface ApiResponse<T> {
   ok: boolean;
   value?: T;
@@ -127,6 +129,32 @@ export interface AppliedContext {
 
 export async function getCaptureContext(pageUrl: string, project = "") {
   return request<CaptureContext>("context", { pageUrl, project });
+}
+
+export interface PageMaterial {
+  id: string;
+  content: string;
+  annotation?: string;
+  createdAt: string;
+}
+
+export async function getPageMaterials(pageUrl: string) {
+  const query = new URLSearchParams({ source_url: pageUrl });
+  const response = await fetch(`${apiBase}/v1/items?${query.toString()}`);
+  if (!response.ok) {
+    throw new Error((await response.text()) || `Request failed (${response.status})`);
+  }
+  const result = await response.json() as {
+    items?: Array<{ id: string; content: string; annotation?: string; created_at: string }>;
+  };
+  return (result.items ?? [])
+    .map((item): PageMaterial => ({
+      id: item.id,
+      content: item.content,
+      annotation: item.annotation,
+      createdAt: item.created_at,
+    }))
+    .sort((first, second) => Date.parse(second.createdAt) - Date.parse(first.createdAt));
 }
 
 export async function transcribeAudio(input: {

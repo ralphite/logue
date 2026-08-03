@@ -14,12 +14,14 @@ describe("side panel recording shortcuts", () => {
 
   it("never steals input, composition, modified, or repeated keystrokes", () => {
     const textarea = document.createElement("textarea");
+    const select = document.createElement("select");
     const editable = document.createElement("div");
     editable.contentEditable = "true";
     Object.defineProperty(editable, "isContentEditable", { value: true });
-    document.body.append(textarea, editable);
+    document.body.append(textarea, select, editable);
 
     expect(sidePanelShortcutAction({ phase: "recording", key: "Enter", target: textarea })).toBeUndefined();
+    expect(sidePanelShortcutAction({ phase: "idle", key: "r", target: select })).toBeUndefined();
     expect(sidePanelShortcutAction({ phase: "idle", key: "r", target: editable })).toBeUndefined();
     expect(sidePanelShortcutAction({ phase: "recording", key: "Enter", target: document.body, isComposing: true })).toBeUndefined();
     expect(sidePanelShortcutAction({ phase: "recording", key: "Enter", target: document.body, ctrlKey: true })).toBeUndefined();

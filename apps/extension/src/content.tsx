@@ -5,7 +5,7 @@ import { cancelMaterialSave, getCaptureContext, saveMaterial, transcribeAudio, t
 import { getEditableText, insertIntoElement, isEditableElement, isEditableTargetAvailable } from "./dom";
 import { isLogueExtensionDisabledDocument } from "./eligibility";
 import { clampLauncherPosition, defaultLauncherPosition, inlineVoiceControlMetrics, launcherErrorPlacement } from "./launcherPosition";
-import type { CaptureSource } from "./capturePrimitives";
+import type { CaptureSource, PageCaptureContext } from "./capturePrimitives";
 import {
   audioBlobFromEvent,
   createContentRecordingBridge,
@@ -349,14 +349,19 @@ function ExtensionLauncher() {
         return false;
       }
       if (message?.type === "logue:get-page-context") {
+        const target = targetRef.current;
+        const targetAvailable = isEditableTargetAvailable(target, targetPageHrefRef.current, window.location.href);
+        const context: PageCaptureContext = {
+          source: pageSource(),
+          selectionText: window.getSelection()?.toString().trim() || undefined,
+          targetText: targetAvailable ? getEditableText(target) : undefined,
+          targetAvailable,
+        };
         sendResponse({
           ok: true,
-          value: {
-            source: pageSource(),
-            selectionText: window.getSelection()?.toString().trim() || undefined,
-            targetText: targetRef.current ? getEditableText(targetRef.current) : undefined,
-          },
+          value: context,
         });
+        return false;
       }
       return false;
     };

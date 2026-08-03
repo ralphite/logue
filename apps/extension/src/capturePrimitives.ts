@@ -11,12 +11,20 @@ export interface CaptureOrganization {
   tags: string[];
 }
 
+export interface PageCaptureContext {
+  source: CaptureSource;
+  selectionText?: string;
+  targetText?: string;
+  targetAvailable: boolean;
+}
+
 export interface PanelCaptureState {
   tabId: number;
   intent: CaptureIntent;
   source: CaptureSource;
   selectionText?: string;
   targetText?: string;
+  targetAvailable: boolean;
   draft?: string;
   transcript?: string;
   projects?: string[];

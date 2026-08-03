@@ -4,7 +4,7 @@ export interface CapturePhasePresentation {
   captureActive: boolean;
   showSource: boolean;
   showEditor: boolean;
-  showOrganization: boolean;
+  showSavedMaterials: boolean;
   showErrors: boolean;
   showActions: boolean;
   status?: "Starting microphone…" | "Transcribing…";
@@ -16,7 +16,7 @@ export function capturePhasePresentation(phase: CapturePhase): CapturePhasePrese
     captureActive,
     showSource: true,
     showEditor: !captureActive,
-    showOrganization: !captureActive,
+    showSavedMaterials: !captureActive,
     showErrors: !captureActive,
     showActions: phase !== "processing",
     status: phase === "starting" ? "Starting microphone…" : phase === "processing" ? "Transcribing…" : undefined,

@@ -1,10 +1,11 @@
-import { ChevronRight, Mic, Square } from "lucide-react";
+import { ArrowLeft, Mic, Sparkles, Square } from "lucide-react";
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   getCaptureContext,
   getExtensionAgents,
   getExtensionSettings,
+  getPageMaterials,
   createExtensionAgentRun,
   adoptExtensionAgentRun,
   saveMaterial,
@@ -13,6 +14,7 @@ import {
   type AppliedContext,
   type CaptureContext,
   type ExtensionAgent,
+  type PageMaterial,
 } from "./api";
 import {
   friendlyLocalError,
@@ -34,10 +36,6 @@ type Phase = CapturePhase;
 interface RuntimeResponse<T> { ok: boolean; value?: T; }
 interface RecordingSession { id: string; tabId: number; }
 
-function splitTags(value: string) {
-  return [...new Set(value.split(",").map((item) => item.trim().replace(/^#/, "")).filter(Boolean))];
-}
-
 function sourceLabel(state: PanelCaptureState) {
   if (state.intent === "selection") return "Selection";
   if (state.intent === "input") return "Current editor";
@@ -50,9 +48,8 @@ function SidePanelApp() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [draft, setDraft] = useState("");
   const [transcript, setTranscript] = useState("");
-  const [project, setProject] = useState("");
-  const [tags, setTags] = useState("");
   const [context, setContext] = useState<CaptureContext>();
+  const [pageMaterials, setPageMaterials] = useState<PageMaterial[]>([]);
   const [error, setError] = useState<LocalError>();
   const [elapsed, setElapsed] = useState(0);
   const [skills, setSkills] = useState<ExtensionAgent[]>([]);
@@ -65,8 +62,6 @@ function SidePanelApp() {
   const requestIdRef = useRef(createRequestId());
   const lastBlobRef = useRef<Blob | undefined>(undefined);
   const stateRef = useRef<PanelCaptureState | undefined>(undefined);
-  const projectRef = useRef("");
-  const tagsRef = useRef("");
   const draftRef = useRef("");
   const transcriptRef = useRef("");
   const transcribeAndSaveRef = useRef<(blob: Blob) => Promise<void>>(async () => undefined);
@@ -77,8 +72,6 @@ function SidePanelApp() {
   const phaseRef = useRef<Phase>("idle");
 
   stateRef.current = state;
-  projectRef.current = project;
-  tagsRef.current = tags;
   draftRef.current = draft;
   transcriptRef.current = transcript;
   phaseRef.current = phase;
@@ -100,27 +93,31 @@ function SidePanelApp() {
     }) as Promise<{ ok?: boolean } | undefined>;
   }, []);
 
-  const appliedContext = useCallback((captureContext: CaptureContext, projectName: string): AppliedContext => {
-    const selectedProject = captureContext.projects.find((item) => item.name === projectName);
+  const appliedContext = useCallback((captureContext: CaptureContext): AppliedContext => {
     return {
       page_url: stateRef.current?.source.url ?? "",
       page_title: stateRef.current?.source.title ?? "",
-      reference_project: projectName || undefined,
       personal_context: captureContext.personal_context || undefined,
-      project_overview: selectedProject?.overview || undefined,
-      glossary: [...captureContext.personal_glossary, ...(selectedProject?.glossary ?? [])],
+      glossary: captureContext.personal_glossary,
       recent_adopted_ids: captureContext.recent_adopted_refs?.map((item) => item.id) ?? [],
       recent_adopted_texts: captureContext.recent_adopted_refs?.map((item) => item.text) ?? captureContext.recent_adopted,
     };
   }, []);
 
+  const refreshPageMaterials = useCallback(async (pageUrl: string) => {
+    try {
+      const materials = await getPageMaterials(pageUrl);
+      if (stateRef.current?.source.url === pageUrl) setPageMaterials(materials);
+    } catch {
+      // Page material history is quiet context, so a failed refresh must not obscure capture.
+    }
+  }, []);
+
   const saveContent = useCallback(async (content: string, captureId?: string, rawTranscript?: string) => {
     const current = stateRef.current;
     if (!current) return;
-    const projects = projectRef.current ? [projectRef.current] : [];
-    const selectedTags = splitTags(tagsRef.current);
-    const currentContext = context ?? await getCaptureContext(current.source.url, projectRef.current);
-    const provenance = appliedContext(currentContext, projectRef.current);
+    const currentContext = context ?? await getCaptureContext(current.source.url);
+    const provenance = appliedContext(currentContext);
     if (current.selectionText) {
       await saveSelection({
         requestId: requestIdRef.current,
@@ -128,8 +125,8 @@ function SidePanelApp() {
         annotation: content.trim() || undefined,
         transcript: captureId ? rawTranscript : undefined,
         source: { ...current.source, selection: current.selectionText },
-        projects,
-        tags: selectedTags,
+        projects: [],
+        tags: [],
         captureId,
         appliedContext: provenance,
       });
@@ -140,11 +137,12 @@ function SidePanelApp() {
         content,
         transcript: captureId ? rawTranscript : undefined,
         source: current.source,
-        projects,
-        tags: selectedTags,
+        projects: [],
+        tags: [],
         captureId,
         appliedContext: provenance,
       });
+      await refreshPageMaterials(current.source.url);
       if (current.intent === "input") {
         const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:insert-text", text: content }) as { ok?: boolean } | undefined;
         if (!response?.ok) {
@@ -159,7 +157,7 @@ function SidePanelApp() {
     setError(undefined);
     requestIdRef.current = createRequestId();
     persistDraft({ draft: "", transcript: "" });
-  }, [appliedContext, context, persistDraft]);
+  }, [appliedContext, context, persistDraft, refreshPageMaterials]);
 
   const transcribeAndSave = useCallback(async (blob: Blob) => {
     const current = stateRef.current;
@@ -167,19 +165,18 @@ function SidePanelApp() {
     setPhase("processing");
     setError(undefined);
     try {
-      const currentContext = context ?? await getCaptureContext(current.source.url, projectRef.current);
-      const selectedProject = currentContext.projects.find((item) => item.name === projectRef.current);
+      const currentContext = context ?? await getCaptureContext(current.source.url);
       const result = await transcribeAudio({
         audio: blob,
         source: current.source,
         targetText: current.intent === "input" ? current.targetText : undefined,
         selectedText: current.selectionText,
-        projectContext: [currentContext.personal_context, selectedProject?.overview].filter(Boolean).join("\n\n"),
-        glossary: [...currentContext.personal_glossary, ...(selectedProject?.glossary ?? [])].join("\n"),
+        projectContext: currentContext.personal_context,
+        glossary: currentContext.personal_glossary.join("\n"),
         instructions: current.selectionText
           ? "Transcribe this as an annotation to the selected source."
           : "Transcribe this as concise text linked to the current page.",
-        appliedContext: appliedContext(currentContext, projectRef.current),
+        appliedContext: appliedContext(currentContext),
       });
       setTranscript(result.text);
       setDraft(result.text);
@@ -375,6 +372,34 @@ function SidePanelApp() {
     await navigator.clipboard.writeText(pendingInsertText);
   }, [pendingInsertText]);
 
+  const requestGeneration = useCallback(() => {
+    void chrome.runtime.sendMessage({ type: "logue:request-panel-generate" })
+      .then((response: { ok?: boolean; error?: string } | undefined) => {
+        if (!response?.ok) {
+          setError({
+            kind: "target",
+            message: response?.error || "Focus a writable editor, then try again.",
+            action: "retry",
+          });
+        }
+      })
+      .catch((cause: unknown) => setError(friendlyLocalError(cause, "target")));
+  }, []);
+
+  const returnToPage = useCallback(() => {
+    void chrome.runtime.sendMessage({ type: "logue:return-panel-to-page" })
+      .then((response: { ok?: boolean; error?: string } | undefined) => {
+        if (!response?.ok) {
+          setError({
+            kind: "target",
+            message: response?.error || "Could not return to this page.",
+            action: "retry",
+          });
+        }
+      })
+      .catch((cause: unknown) => setError(friendlyLocalError(cause, "target")));
+  }, []);
+
   useEffect(() => {
     const hydrate = (next?: PanelCaptureState) => {
       if (!next) return;
@@ -395,14 +420,14 @@ function SidePanelApp() {
       setDraft(next.draft ?? "");
       setTranscript(next.transcript ?? "");
       setPendingInsertText("");
-      setProject(next.projects?.[0] ?? "");
-      setTags((next.tags ?? []).join(", "));
+      setPageMaterials([]);
       setPhase("idle");
       setError(undefined);
       requestIdRef.current = createRequestId();
-      void getCaptureContext(next.source.url, next.projects?.[0] ?? "")
+      void getCaptureContext(next.source.url)
         .then(setContext)
         .catch(() => setContext(undefined));
+      if (!next.selectionText && next.intent !== "generate") void refreshPageMaterials(next.source.url);
       if (next.intent === "generate") {
         void Promise.all([getExtensionAgents(), getExtensionSettings()]).then(([available, settings]) => {
           setSkills(available);
@@ -428,7 +453,7 @@ function SidePanelApp() {
     };
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
-  }, [sendRecordingControl, stopTimer]);
+  }, [refreshPageMaterials, sendRecordingControl, stopTimer]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -465,13 +490,10 @@ function SidePanelApp() {
       persistDraft({
         draft: draftRef.current,
         transcript: transcriptRef.current,
-        projects: projectRef.current ? [projectRef.current] : [],
-        tags: splitTags(tagsRef.current),
       });
     };
   }, [persistDraft, sendRecordingControl, stopTimer]);
 
-  const organizationCount = (project ? 1 : 0) + splitTags(tags).length;
   const sourceHref = useMemo(() => state?.source.url || undefined, [state]);
   const presentation = capturePhasePresentation(phase);
 
@@ -502,26 +524,13 @@ function SidePanelApp() {
           />
         ))}
 
-        {presentation.showOrganization && (state.intent === "generate" ? (
+        {presentation.showEditor && state.intent === "generate" && !generatedText && (
           <label className="field-label generation-skill">Skill
             <select className="field" value={skillId} onChange={(event) => setSkillId(event.target.value)}>
               {skills.length ? skills.map((item) => <option key={item.id} value={item.id}>{item.name}</option>) : <option value="">No extension skills</option>}
             </select>
           </label>
-        ) : <details className="organization">
-          <summary>Organize <span className="organization-meta">{organizationCount ? `${organizationCount} set` : "Automatic"}</span><ChevronRight size={15} /></summary>
-          <div className="organization-fields">
-            <label className="field-label">Project
-              <select className="field" value={project} onChange={(event) => { setProject(event.target.value); persistDraft({ projects: event.target.value ? [event.target.value] : [] }); }}>
-                <option value="">Automatic</option>
-                {(context?.projects ?? []).map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}
-              </select>
-            </label>
-            <label className="field-label">Tags
-              <input className="field" value={tags} onChange={(event) => { setTags(event.target.value); persistDraft({ tags: splitTags(event.target.value) }); }} placeholder="Automatic, or add tags separated by commas" />
-            </label>
-          </div>
-        </details>)}
+        )}
 
         {presentation.showErrors && error && <div className="error" role="alert">{error.message}</div>}
 
@@ -534,9 +543,12 @@ function SidePanelApp() {
               <button type="button" className="record-button recording" onClick={stopRecording} aria-keyshortcuts="Enter" title="Stop and save (Enter)"><Square size={14} fill="currentColor" /> Stop <span className="shortcut">{elapsed}s</span></button>
             </>
           ) : state.intent === "generate" ? (
-            generatedText ? <button type="button" className="button secondary" onClick={() => { setGeneratedText(""); setGenerationRunId(undefined); }}>Back</button> : null
+            <button type="button" className="icon-button" onClick={returnToPage} aria-label="Back to page capture" title="Back to page capture"><ArrowLeft size={17} /></button>
           ) : pendingInsertText ? null : (
-            <button type="button" className="record-button" onClick={startRecording} aria-keyshortcuts="R" title="Record (R)"><Mic size={17} /> Record <span className="shortcut">R</span></button>
+            <>
+              <button type="button" className="record-button" onClick={startRecording} aria-keyshortcuts="R" title="Record — R when this sidebar is focused"><Mic size={17} /> Record</button>
+              {state.targetAvailable && <button type="button" className="icon-button" onClick={requestGeneration} aria-label="Generate reply" title="Generate reply"><Sparkles size={17} /></button>}
+            </>
           )}
           {!presentation.captureActive && <>
             <span className="spacer" />
@@ -557,6 +569,17 @@ function SidePanelApp() {
             >Save</button> : null}
           </>}
         </div>}
+
+        {presentation.showSavedMaterials && !state.selectionText && state.intent !== "generate" && pageMaterials.length > 0 && (
+          <section className="page-materials" aria-label="Saved materials">
+            <h2 className="page-materials-heading">Recent</h2>
+            <ol className="page-materials-list">
+              {pageMaterials.slice(0, 4).map((material) => <li key={material.id} className="page-material">
+                <p className="page-material-text">{material.annotation?.trim() || material.content}</p>
+              </li>)}
+            </ol>
+          </section>
+        )}
       </div>
     </main>
   );

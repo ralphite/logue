@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cancelMaterialSave, saveSelection, transcribeAudio } from "../api";
+import { cancelMaterialSave, getPageMaterials, saveSelection, transcribeAudio } from "../api";
 
 describe("selection API", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -96,5 +96,24 @@ describe("selection API", () => {
       action: "transcribe",
       payload: expect.objectContaining({ requestId: "inline-voice-request" }),
     }));
+  });
+
+  it("loads current-page materials from the source endpoint with the newest first", async () => {
+    const fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        items: [
+          { id: "older", content: "Earlier note", created_at: "2026-08-01T10:00:00Z" },
+          { id: "newer", content: "Latest note", annotation: "Voice note", created_at: "2026-08-02T10:00:00Z" },
+        ],
+      }),
+    }));
+    vi.stubGlobal("fetch", fetch);
+
+    await expect(getPageMaterials("https://example.com/current page")).resolves.toEqual([
+      { id: "newer", content: "Latest note", annotation: "Voice note", createdAt: "2026-08-02T10:00:00Z" },
+      { id: "older", content: "Earlier note", annotation: undefined, createdAt: "2026-08-01T10:00:00Z" },
+    ]);
+    expect(fetch).toHaveBeenCalledWith("http://127.0.0.1:8787/v1/items?source_url=https%3A%2F%2Fexample.com%2Fcurrent+page");
   });
 });

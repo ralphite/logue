@@ -1,4 +1,10 @@
-import { mergePanelCaptureState, sourceFromTab, type CaptureIntent, type PanelCaptureState } from "./capturePrimitives";
+import {
+  mergePanelCaptureState,
+  sourceFromTab,
+  type CaptureIntent,
+  type PageCaptureContext,
+  type PanelCaptureState,
+} from "./capturePrimitives";
 import {
   consumePanelAutoStart,
   isOpenSelectionMenu,
@@ -7,7 +13,6 @@ import {
   openPanelWithPreparedState,
   panelStateForTab,
   preserveMatchingPanelDraft,
-  restoreOpenSidePanelTab,
   selectionSavePayload,
   selectionContextMenus,
   sidePanelCommand,
@@ -19,17 +24,14 @@ import type { RecordingBridgeEvent, RecordingPanelEvent } from "./recordingBridg
 const apiBase = "http://127.0.0.1:8787";
 const panelStoragePrefix = "logue:panel:";
 const activePanelStorageKey = "logue:panel:active-tab";
-const openPanelStorageKey = "logue:panel:open-tab";
+// This is session-only Chrome UI state, not restored product data. Chrome can
+// suspend a MV3 worker while its Side Panel stays visible, so a fresh worker
+// needs this one bit to keep the toolbar command behaving as a real toggle.
+const openPanelStoragePrefix = "logue:side-panel:open:";
 const openPanelTabs = new Set<number>();
 const panelStates = new Map<number, PanelCaptureState>();
 let activePanelTabId: number | undefined;
 let openPanelWindowId: number | undefined;
-void chrome.storage.session.get(openPanelStorageKey)
-  .then((stored) => {
-    const state = restoreOpenSidePanelTab(openPanelTabs, stored[openPanelStorageKey]);
-    openPanelWindowId = state?.windowId;
-  })
-  .catch(() => undefined);
 
 interface ApiMessage {
   type: "logue:api";
@@ -43,11 +45,12 @@ interface OpenPanelMessage {
   source: PanelCaptureState["source"];
   selectionText?: string;
   targetText?: string;
+  targetAvailable?: boolean;
   autoStartRecording?: boolean;
 }
 
 interface PanelStateMessage {
-  type: "logue:get-panel-state" | "logue:update-panel-state" | "logue:close-side-panel" | "logue:consume-panel-autostart";
+  type: "logue:get-panel-state" | "logue:update-panel-state" | "logue:close-side-panel" | "logue:consume-panel-autostart" | "logue:request-panel-generate" | "logue:return-panel-to-page";
   patch?: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">>;
   token?: string;
 }
@@ -67,6 +70,23 @@ async function persistPanelState(state: PanelCaptureState) {
     [`${panelStoragePrefix}${state.tabId}`]: state,
     [activePanelStorageKey]: state.tabId,
   });
+}
+
+function openPanelStorageKey(tabId: number) {
+  return `${openPanelStoragePrefix}${tabId}`;
+}
+
+async function markPanelOpen(tabId: number, windowId?: number) {
+  activePanelTabId = tabId;
+  openPanelTabs.add(tabId);
+  if (typeof windowId === "number") openPanelWindowId = windowId;
+  await chrome.storage.session.set({ [openPanelStorageKey(tabId)]: true });
+}
+
+async function clearPanelOpen(tabId: number) {
+  openPanelTabs.delete(tabId);
+  if (activePanelTabId === tabId) openPanelWindowId = undefined;
+  await chrome.storage.session.remove(openPanelStorageKey(tabId));
 }
 
 function stagePanelState(state: PanelCaptureState) {
@@ -90,11 +110,12 @@ async function restorePanelState(tabId: number) {
   return stored;
 }
 
-function openPanel(tabId: number) {
-  activePanelTabId = tabId;
-  openPanelTabs.add(tabId);
-  void chrome.storage.session.set({ [activePanelStorageKey]: tabId });
-  return nativeSidePanel.open({ tabId });
+async function openPanel(tabId: number, windowId?: number) {
+  // Keep this API invocation synchronous relative to the original user
+  // gesture. Only persist the tracking bit after Chrome accepts the open.
+  const opening = nativeSidePanel.open({ tabId });
+  await opening;
+  await markPanelOpen(tabId, windowId);
 }
 
 function canCloseNativePanel() {
@@ -104,13 +125,83 @@ function canCloseNativePanel() {
 async function toggleTrackedSidePanel(tabId: number, windowId?: number) {
   const result = await toggleSidePanel(nativeSidePanel, openPanelTabs, tabId, windowId);
   if (result === "closed") {
-    openPanelWindowId = undefined;
-    await chrome.storage.session.remove(openPanelStorageKey);
+    await clearPanelOpen(tabId);
   } else {
-    openPanelWindowId = windowId;
-    await chrome.storage.session.set({ [openPanelStorageKey]: { tabId, windowId } });
+    await markPanelOpen(tabId, windowId);
   }
   return result;
+}
+
+function fallbackPageCaptureContext(tab: chrome.tabs.Tab): PageCaptureContext {
+  return {
+    source: sourceFromTab(tab),
+    targetAvailable: false,
+  };
+}
+
+function isCurrentPageContext(value: unknown, tab: chrome.tabs.Tab): value is PageCaptureContext {
+  if (!value || typeof value !== "object") return false;
+  const context = value as Partial<PageCaptureContext>;
+  return Boolean(
+    context.source &&
+    typeof context.source.url === "string" &&
+    context.source.url === tab.url &&
+    typeof context.source.title === "string" &&
+    typeof context.source.domain === "string" &&
+    typeof context.targetAvailable === "boolean",
+  );
+}
+
+async function readPageCaptureContext(tab: chrome.tabs.Tab): Promise<PageCaptureContext> {
+  if (typeof tab.id !== "number") return fallbackPageCaptureContext(tab);
+  try {
+    const response = await chrome.tabs.sendMessage(tab.id, { type: "logue:get-page-context" }) as {
+      ok?: boolean;
+      value?: unknown;
+    } | undefined;
+    const latest = await chrome.tabs.get(tab.id);
+    if (latest.url !== tab.url || !response?.ok || !isCurrentPageContext(response.value, latest)) {
+      return fallbackPageCaptureContext(latest);
+    }
+    return response.value;
+  } catch {
+    return fallbackPageCaptureContext(tab);
+  }
+}
+
+async function startPanelGenerate() {
+  const tabId = await getActivePanelTabId();
+  if (typeof tabId !== "number") return false;
+  const current = await restorePanelState(tabId);
+  if (!current?.targetAvailable) return false;
+  const next: PanelCaptureState = {
+    ...current,
+    intent: "generate",
+    updatedAt: Date.now(),
+  };
+  await persistPanelState(next);
+  void chrome.runtime.sendMessage({ type: "logue:panel-state-changed", state: next }).catch(() => undefined);
+  return true;
+}
+
+async function returnPanelToPage() {
+  const tabId = await getActivePanelTabId();
+  if (typeof tabId !== "number") return false;
+  const tab = await chrome.tabs.get(tabId);
+  const context = await readPageCaptureContext(tab);
+  const next = panelStateForTab(
+    tab,
+    "page",
+    context.source,
+    undefined,
+    context.targetText,
+    undefined,
+    context.targetAvailable,
+  );
+  if (!next) return false;
+  await persistPanelState(next);
+  void chrome.runtime.sendMessage({ type: "logue:panel-state-changed", state: next }).catch(() => undefined);
+  return true;
 }
 
 async function toggleTabPanel(tab?: chrome.tabs.Tab) {
@@ -126,12 +217,45 @@ async function toggleTabPanel(tab?: chrome.tabs.Tab) {
   }
   if (!tab || typeof tab.id !== "number") return;
 
-  const state = panelStateForTab(tab, "page", sourceFromTab(tab));
+  // Start reading the last native-panel state before opening, but never await it
+  // on this gesture path. `sidePanel.open` must be called synchronously from the
+  // toolbar/command event. If an MV3 worker was restarted while the panel stayed
+  // open, Chrome receives an idempotent open first and then the stored-open
+  // result closes it; a fresh panel stays open and is tracked afterwards.
+  const priorOpen = chrome.storage.session.get(openPanelStorageKey(tabId));
+
+  // sidePanel.open must be invoked within Chrome's original user gesture. Stage a
+  // safe page state first, open immediately, then enrich it from the content script.
+  const state = panelStateForTab(
+    tab,
+    "page",
+    sourceFromTab(tab),
+  );
   if (!state) return;
-  await openPanelWithPreparedState(
+  const opening = openPanelWithPreparedState(
     () => { stagePanelState(state); },
     () => toggleTrackedSidePanel(tabId, windowId),
   );
+  void readPageCaptureContext(tab).then((context) => setPanelContext(
+    tab,
+    "page",
+    undefined,
+    context.targetText,
+    context.source,
+    context.targetAvailable,
+  )).catch(() => undefined);
+  const wasOpen = (await priorOpen)[openPanelStorageKey(tabId)] === true;
+  if (wasOpen && canCloseNativePanel()) {
+    try {
+      await nativeSidePanel.close!({ tabId });
+      await clearPanelOpen(tabId);
+      return;
+    } catch {
+      // The session bit was stale (for example after Chrome restored tabs).
+      // The synchronous open above is the correct safe fallback.
+    }
+  }
+  await opening;
 }
 
 async function getActivePanelTabId() {
@@ -147,8 +271,9 @@ async function setPanelContext(
   selectionText?: string,
   targetText?: string,
   source = sourceFromTab(tab),
+  targetAvailable = false,
 ) {
-  const state = panelStateForTab(tab, intent, source, selectionText, targetText);
+  const state = panelStateForTab(tab, intent, source, selectionText, targetText, undefined, targetAvailable);
   if (!state) return;
   const merged = preserveMatchingPanelDraft(state, await restorePanelState(state.tabId));
   await persistPanelState(merged);
@@ -278,10 +403,17 @@ async function handleApiMessage(message: ApiMessage) {
   throw new Error("Unknown Logue API action.");
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   chrome.contextMenus.removeAll(() => {
     selectionContextMenus.forEach((item) => chrome.contextMenus.create(item));
   });
+  if (details.reason === "update") {
+    void chrome.storage.session.get(null).then((session) => {
+      const staleOpenKeys = Object.keys(session).filter((key) => key.startsWith(openPanelStoragePrefix));
+      if (staleOpenKeys.length) return chrome.storage.session.remove(staleOpenKeys);
+      return undefined;
+    }).catch(() => undefined);
+  }
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -312,39 +444,35 @@ chrome.commands.onCommand.addListener((command, tab) => {
 });
 
 nativeSidePanel.onOpened?.addListener((info) => {
-  if (typeof info.windowId === "number") openPanelWindowId = info.windowId;
   if (typeof info.tabId === "number") {
-    activePanelTabId = info.tabId;
-    openPanelTabs.add(info.tabId);
-  }
-  const tabId = typeof info.tabId === "number" ? info.tabId : openPanelTabs.values().next().value;
-  if (typeof tabId === "number") {
-    void chrome.storage.session.set({
-      [openPanelStorageKey]: { tabId, windowId: openPanelWindowId },
-    });
+    void markPanelOpen(info.tabId, info.windowId);
   }
 });
 
 nativeSidePanel.onClosed?.addListener((info) => {
   const closingTabs = typeof info.tabId === "number" ? [info.tabId] : [...openPanelTabs];
   for (const tabId of closingTabs) {
-    openPanelTabs.delete(tabId);
+    void clearPanelOpen(tabId);
     void chrome.tabs.sendMessage(tabId, { type: "logue:recording-dispose" }).catch(() => undefined);
   }
   openPanelWindowId = undefined;
-  void chrome.storage.session.remove(openPanelStorageKey);
 });
+
+// MV3 workers can be suspended while Chrome keeps the native Side Panel open.
+// Rehydrate its ephemeral tracking in the background, never on the user-gesture
+// path that is required for `sidePanel.open`.
+void chrome.storage.session.get(null).then((session) => {
+  for (const [key, value] of Object.entries(session)) {
+    if (value !== true || !key.startsWith(openPanelStoragePrefix)) continue;
+    const tabId = Number(key.slice(openPanelStoragePrefix.length));
+    if (Number.isInteger(tabId)) openPanelTabs.add(tabId);
+  }
+}).catch(() => undefined);
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   panelStates.delete(tabId);
-  openPanelTabs.delete(tabId);
-  void chrome.storage.session.get(openPanelStorageKey).then((stored) => {
-    const restored = stored[openPanelStorageKey] as Partial<{ tabId: number }> | number | undefined;
-    if (restored === tabId || (typeof restored === "object" && restored?.tabId === tabId)) {
-      void chrome.storage.session.remove(openPanelStorageKey);
-    }
-  });
-  void chrome.storage.session.remove(`${panelStoragePrefix}${tabId}`);
+  void clearPanelOpen(tabId);
+  void chrome.storage.session.remove([`${panelStoragePrefix}${tabId}`, openPanelStorageKey(tabId)]);
 });
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
@@ -382,7 +510,8 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
       intent: message.intent,
       source: message.source,
       selectionText: message.selectionText?.trim() || undefined,
-      targetText: message.targetText?.trim() || undefined,
+      targetText: message.targetAvailable ? message.targetText ?? "" : undefined,
+      targetAvailable: Boolean(message.targetAvailable),
       autoStartToken: message.autoStartRecording ? createRequestId() : undefined,
       updatedAt: Date.now(),
     };
@@ -404,6 +533,30 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
       }
       void restorePanelState(tabId).then((value) => sendResponse({ ok: true, value }));
     });
+    return true;
+  }
+
+  if (message?.type === "logue:request-panel-generate") {
+    void startPanelGenerate().then((started) => {
+      if (!started) {
+        sendResponse({ ok: false, error: "Open Logue from a page first." });
+        return;
+      }
+      sendResponse({ ok: true });
+    }).catch((error: unknown) => sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : "Could not prepare generation.",
+    }));
+    return true;
+  }
+
+  if (message?.type === "logue:return-panel-to-page") {
+    void returnPanelToPage().then((returned) => {
+      sendResponse(returned ? { ok: true } : { ok: false, error: "Could not return to this page." });
+    }).catch((error: unknown) => sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : "Could not return to this page.",
+    }));
     return true;
   }
 

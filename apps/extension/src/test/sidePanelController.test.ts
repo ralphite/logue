@@ -9,7 +9,6 @@ import {
   openSelectionMenuId,
   panelStateForTab,
   preserveMatchingPanelDraft,
-  restoreOpenSidePanelTab,
   saveSelectionMenuId,
   selectionSavePayload,
   selectionContextMenus,
@@ -70,6 +69,15 @@ describe("native side panel controller", () => {
       intent: "page",
       selectionText: undefined,
       targetText: undefined,
+      targetAvailable: false,
+    });
+  });
+
+  it("preserves an empty writable editor for a generated reply", () => {
+    const tab = { id: 18, url: "https://example.com/reply", title: "Reply" };
+    expect(panelStateForTab(tab, "page", sourceFromTab(tab), undefined, "", undefined, true)).toMatchObject({
+      targetText: "",
+      targetAvailable: true,
     });
   });
 
@@ -108,7 +116,7 @@ describe("native side panel controller", () => {
     const source = { url: "https://example.com", title: "Example", domain: "example.com" };
     const current = {
       tabId: 4, intent: "selection" as const, source, selectionText: "source",
-      draft: "unfinished note", transcript: "completed transcript", projects: ["Logue"], tags: ["review"], updatedAt: 1,
+      targetAvailable: false, draft: "unfinished note", transcript: "completed transcript", projects: ["Logue"], tags: ["review"], updatedAt: 1,
     };
     const sameCapture = { ...current, draft: undefined, transcript: undefined, projects: undefined, tags: undefined, updatedAt: 2 };
     expect(preserveMatchingPanelDraft(sameCapture, current)).toMatchObject({
@@ -127,23 +135,22 @@ describe("native side panel controller", () => {
     expect(open).toHaveBeenCalledWith({ tabId: 9 });
     expect(close).toHaveBeenCalledWith({ tabId: 9 });
 
+    await expect(toggleSidePanel({ open, close }, new Set([12]), 12, 77)).resolves.toBe("closed");
+    expect(close).toHaveBeenLastCalledWith({ tabId: 12 });
+
     const oldChromeTabs = new Set<number>([10]);
     await expect(toggleSidePanel({ open }, oldChromeTabs, 10)).resolves.toBe("opened-fallback");
     expect(open).toHaveBeenLastCalledWith({ tabId: 10 });
   });
 
-  it("restores the open tab after a Manifest V3 worker restart", async () => {
-    const close = vi.fn(async () => undefined);
+  it("opens when a restored panel state is stale after an extension reload", async () => {
     const open = vi.fn(async () => undefined);
-    const restartedWorkerTabs = new Set<number>();
+    const close = vi.fn(async () => { throw new Error("No native side panel is open"); });
+    const openTabs = new Set<number>([11]);
 
-    expect(restoreOpenSidePanelTab(restartedWorkerTabs, { tabId: 12, windowId: 3 })).toEqual({
-      tabId: 12,
-      windowId: 3,
-    });
-    await expect(toggleSidePanel({ open, close }, restartedWorkerTabs, 12, 3)).resolves.toBe("closed");
-    expect(close).toHaveBeenCalledWith({ windowId: 3 });
-    expect(open).not.toHaveBeenCalled();
-    expect(restoreOpenSidePanelTab(restartedWorkerTabs, undefined)).toBeUndefined();
+    await expect(toggleSidePanel({ open, close }, openTabs, 11)).resolves.toBe("opened");
+    expect(open).toHaveBeenCalledWith({ tabId: 11 });
+    expect(openTabs.has(11)).toBe(true);
   });
+
 });
