@@ -8,6 +8,7 @@ import {
   renumberCitationsAfterRemoval,
 } from "../components/DocumentWorkspace";
 import { availableMaterialDetailWidth, defaultMaterialDetailWidth } from "../App";
+import { captureStableEditableSelection, replaceSelectionIfUnchanged } from "@logue/ui";
 
 describe("document source provenance", () => {
   it("preserves a usable stream list while allowing a wide material panel", () => {
@@ -49,5 +50,48 @@ describe("document source provenance", () => {
   it("removes a source and every matching inline citation atomically", () => {
     expect(removeSourceCitation("First [Source 1]; second [Source 2], again [Source 2].", ["a", "b"], "a"))
       .toEqual({ content: "First; second [Source 1], again [Source 1].", sourceIds: ["b"] });
+  });
+});
+
+describe("document selection skills", () => {
+  it("keeps a multiline skill result as visible editor line breaks", () => {
+    const editor = document.createElement("div");
+    editor.className = "logue-view-editor";
+    editor.innerHTML = "<p>Before selected text after</p>";
+    editor.setAttribute("contenteditable", "true");
+    Object.defineProperty(editor, "isContentEditable", { value: true });
+    document.body.append(editor);
+    const text = editor.querySelector("p")!.firstChild!;
+    const range = document.createRange();
+    range.setStart(text, 7);
+    range.setEnd(text, 20);
+    Object.defineProperty(range, "getBoundingClientRect", { value: () => new DOMRect(0, 0, 100, 20) });
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    const snapshot = captureStableEditableSelection(editor);
+
+    expect(snapshot && replaceSelectionIfUnchanged(snapshot, "first line\nsecond line\nthird line")).toBe(true);
+    expect(editor.innerHTML).toBe("<p>Before first line<br>second line<br>third line after</p>");
+  });
+
+  it("does not reopen the Skill menu from a stale document selection", () => {
+    const editor = document.createElement("div");
+    editor.textContent = "Before selected text after";
+    editor.setAttribute("contenteditable", "true");
+    Object.defineProperty(editor, "isContentEditable", { value: true });
+    document.body.append(editor);
+    const range = document.createRange();
+    range.setStart(editor.firstChild!, 7);
+    range.setEnd(editor.firstChild!, 20);
+    Object.defineProperty(range, "getBoundingClientRect", { value: () => new DOMRect(0, 0, 100, 20) });
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    const snapshot = captureStableEditableSelection(editor);
+
+    expect(captureStableEditableSelection(editor, snapshot)).toBe(snapshot);
+    range.collapse(false);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    expect(captureStableEditableSelection(editor, snapshot)).toBeUndefined();
   });
 });

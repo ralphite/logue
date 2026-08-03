@@ -94,6 +94,36 @@ export function captureEditableSelection(target: HTMLElement, menuBounds?: HTMLE
   };
 }
 
+export function editableSelectionSnapshotsMatch(
+  first: EditableSelectionSnapshot | undefined,
+  second: EditableSelectionSnapshot | undefined,
+) {
+  if (!first || !second || first.kind !== second.kind || first.target !== second.target || first.text !== second.text) return false;
+  if (first.kind === "input" && second.kind === "input") {
+    return first.start === second.start && first.end === second.end;
+  }
+  if (first.kind === "rich-text" && second.kind === "rich-text") {
+    return first.range.startContainer === second.range.startContainer &&
+      first.range.startOffset === second.range.startOffset &&
+      first.range.endContainer === second.range.endContainer &&
+      first.range.endOffset === second.range.endOffset;
+  }
+  return false;
+}
+
+/**
+ * Repeated browser selection events must not manufacture a new invocation.
+ * Keep the existing object while the selected DOM range is logically unchanged.
+ */
+export function captureStableEditableSelection(
+  target: HTMLElement,
+  current?: EditableSelectionSnapshot,
+  menuBounds?: HTMLElement,
+) {
+  const next = captureEditableSelection(target, menuBounds);
+  return editableSelectionSnapshotsMatch(current, next) ? current : next;
+}
+
 export async function saveSelectionSkillHistory(
   transaction: SelectionSkillApplyTransaction,
   adopt: (runId: string, replacement: string) => Promise<unknown>,
@@ -116,10 +146,11 @@ export function selectionSnapshotStillMatches(snapshot: EditableSelectionSnapsho
 
 export function replaceSelectionIfUnchanged(snapshot: EditableSelectionSnapshot, replacement: string) {
   if (!selectionSnapshotStillMatches(snapshot)) return false;
+  const normalized = replacement.replace(/\r\n?/g, "\n");
   if (snapshot.kind === "input") {
     snapshot.target.focus({ preventScroll: true });
-    snapshot.target.setRangeText(replacement, snapshot.start, snapshot.end, "end");
-    snapshot.target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: replacement }));
+    snapshot.target.setRangeText(normalized, snapshot.start, snapshot.end, "end");
+    snapshot.target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: normalized }));
     snapshot.target.dispatchEvent(new Event("change", { bubbles: true }));
     return true;
   }
@@ -128,12 +159,24 @@ export function replaceSelectionIfUnchanged(snapshot: EditableSelectionSnapshot,
   selection?.removeAllRanges();
   selection?.addRange(snapshot.range);
   snapshot.range.deleteContents();
-  const node = document.createTextNode(replacement);
-  snapshot.range.insertNode(node);
-  snapshot.range.setStartAfter(node);
+  const fragment = document.createDocumentFragment();
+  let lastNode: Node | undefined;
+  normalized.split("\n").forEach((line, index) => {
+    if (index > 0) {
+      lastNode = document.createElement("br");
+      fragment.append(lastNode);
+    }
+    if (line || normalized.length === 0) {
+      lastNode = document.createTextNode(line);
+      fragment.append(lastNode);
+    }
+  });
+  if (!lastNode) lastNode = fragment.appendChild(document.createTextNode(""));
+  snapshot.range.insertNode(fragment);
+  snapshot.range.setStartAfter(lastNode);
   snapshot.range.collapse(true);
   selection?.removeAllRanges();
   selection?.addRange(snapshot.range);
-  snapshot.target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: replacement }));
+  snapshot.target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: normalized }));
   return true;
 }

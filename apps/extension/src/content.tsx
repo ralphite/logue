@@ -1,4 +1,4 @@
-import { SelectionSkillMenu, captureEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility, type EditableSelectionSnapshot, type SelectionSkillApplyTransaction } from "@logue/ui";
+import { SelectionSkillMenu, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility, type EditableSelectionSnapshot, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { adoptExtensionSkillRun, cancelMaterialSave, createExtensionSkillRun, getCaptureContext, getExtensionSkills, saveMaterial, transcribeAudio, type AppliedContext, type ExtensionSkill } from "./api";
@@ -66,6 +66,7 @@ function ExtensionLauncher() {
   const voiceSessionRef = useRef<InlineVoiceSession | undefined>(undefined);
   const recordingBridgeRef = useRef<ContentRecordingBridge | undefined>(undefined);
   const selectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
+  const selectionRefreshFrameRef = useRef<number | undefined>(undefined);
   const selectionSkillsLoadedRef = useRef(false);
   const selectionNoticeTimerRef = useRef<number | undefined>(undefined);
   const eligibleSelectionSkills = selectionSkillEligibility(selectionSkills, "extension");
@@ -119,7 +120,7 @@ function ExtensionLauncher() {
       setSelectionSnapshot(undefined);
       return;
     }
-    const next = captureEditableSelection(target);
+    const next = captureStableEditableSelection(target, selectionSnapshotRef.current);
     selectionSnapshotRef.current = next;
     setSelectionSnapshot(next);
     if (!next || selectionSkillsLoadedRef.current) return;
@@ -128,6 +129,16 @@ function ExtensionLauncher() {
       selectionSkillsLoadedRef.current = false;
     });
   }, []);
+
+  const scheduleSelectionSkillRefresh = useCallback(() => {
+    if (selectionRefreshFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(selectionRefreshFrameRef.current);
+    }
+    selectionRefreshFrameRef.current = window.requestAnimationFrame(() => {
+      selectionRefreshFrameRef.current = undefined;
+      refreshSelectionSkillTarget();
+    });
+  }, [refreshSelectionSkillTarget]);
 
   const showSelectionSkillNotice = useCallback((notice: {
     anchor: { left: number; top: number };
@@ -281,7 +292,7 @@ function ExtensionLauncher() {
         return;
       }
       activateTarget(event.target);
-      window.requestAnimationFrame(refreshSelectionSkillTarget);
+      scheduleSelectionSkillRefresh();
     };
     const onViewport = () => {
       setViewport({ width: window.innerWidth, height: window.innerHeight });
@@ -299,9 +310,20 @@ function ExtensionLauncher() {
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
     document.addEventListener("focusin", onFocusIn, true);
-    document.addEventListener("selectionchange", refreshSelectionSkillTarget);
+    const onSelectionInteraction = (event: Event) => {
+      if (host && event.composedPath().includes(host)) return;
+      scheduleSelectionSkillRefresh();
+    };
+    document.addEventListener("selectionchange", scheduleSelectionSkillRefresh);
+    document.addEventListener("select", onSelectionInteraction, true);
+    document.addEventListener("pointerup", onSelectionInteraction, true);
+    document.addEventListener("keyup", onSelectionInteraction, true);
     activateTarget(activeEditableElement(document));
-    const initialLayoutFrame = window.requestAnimationFrame(() => activateTarget(activeEditableElement(document)));
+    scheduleSelectionSkillRefresh();
+    const initialLayoutFrame = window.requestAnimationFrame(() => {
+      activateTarget(activeEditableElement(document));
+      scheduleSelectionSkillRefresh();
+    });
     window.addEventListener("scroll", onViewport, true);
     window.addEventListener("resize", onViewport);
     window.addEventListener("hashchange", onRoute);
@@ -311,13 +333,20 @@ function ExtensionLauncher() {
       window.cancelAnimationFrame(initialLayoutFrame);
       window.clearInterval(routeTimer);
       document.removeEventListener("focusin", onFocusIn, true);
-      document.removeEventListener("selectionchange", refreshSelectionSkillTarget);
+      document.removeEventListener("selectionchange", scheduleSelectionSkillRefresh);
+      document.removeEventListener("select", onSelectionInteraction, true);
+      document.removeEventListener("pointerup", onSelectionInteraction, true);
+      document.removeEventListener("keyup", onSelectionInteraction, true);
+      if (selectionRefreshFrameRef.current !== undefined) {
+        window.cancelAnimationFrame(selectionRefreshFrameRef.current);
+        selectionRefreshFrameRef.current = undefined;
+      }
       window.removeEventListener("scroll", onViewport, true);
       window.removeEventListener("resize", onViewport);
       window.removeEventListener("hashchange", onRoute);
       window.removeEventListener("popstate", onRoute);
     };
-  }, [clearTarget, refreshSelectionSkillTarget, refreshTarget]);
+  }, [clearTarget, refreshTarget, scheduleSelectionSkillRefresh]);
 
   useEffect(() => () => {
     if (selectionNoticeTimerRef.current) window.clearTimeout(selectionNoticeTimerRef.current);

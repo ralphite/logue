@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { SelectionSkillMenu, captureEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility, type EditableSelectionSnapshot, type Material, type SelectionSkillApplyTransaction } from "@logue/ui";
+import { SelectionSkillMenu, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility, type EditableSelectionSnapshot, type Material, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSerialTaskQueue } from "../documentSaveQueue";
 import { groupIdenticalMaterials } from "../materialGroups";
@@ -360,6 +360,7 @@ export function ViewWorkspace({
   const editorRef = useRef<HTMLDivElement | null>(null);
   const editorSelectionRef = useRef<Range | undefined>(undefined);
   const selectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
+  const selectionRefreshFrameRef = useRef<number | undefined>(undefined);
   const selectionDocumentRef = useRef<{ id: string; revision: number } | undefined>(undefined);
   const selectionSkillsLoadedRef = useRef(false);
   const selectionUndoTimerRef = useRef<number | undefined>(undefined);
@@ -709,11 +710,11 @@ export function ViewWorkspace({
     if (editor.contains(range.commonAncestorContainer)) editorSelectionRef.current = range.cloneRange();
   }
 
-  function refreshDocumentSkillSelection() {
+  const refreshDocumentSkillSelection = useCallback(() => {
     const editor = editorRef.current;
     const documentID = selectedIdRef.current;
     if (!editor || !documentID) return;
-    const next = captureEditableSelection(editor, editor);
+    const next = captureStableEditableSelection(editor, selectionSnapshotRef.current, editor);
     selectionSnapshotRef.current = next;
     selectionDocumentRef.current = next ? { id: documentID, revision: revisionByDocumentRef.current.get(documentID) ?? 0 } : undefined;
     setSelectionSnapshot(next);
@@ -722,7 +723,33 @@ export function ViewWorkspace({
     void getSkills().then(setSelectionSkills).catch(() => {
       selectionSkillsLoadedRef.current = false;
     });
-  }
+  }, []);
+
+  const scheduleDocumentSkillSelectionRefresh = useCallback(() => {
+    if (selectionRefreshFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(selectionRefreshFrameRef.current);
+    }
+    selectionRefreshFrameRef.current = window.requestAnimationFrame(() => {
+      selectionRefreshFrameRef.current = undefined;
+      refreshDocumentSkillSelection();
+    });
+  }, [refreshDocumentSkillSelection]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !selectedId) return;
+    const onSelectionChange = () => scheduleDocumentSkillSelectionRefresh();
+    document.addEventListener("selectionchange", onSelectionChange);
+    editor.addEventListener("select", onSelectionChange);
+    return () => {
+      document.removeEventListener("selectionchange", onSelectionChange);
+      editor.removeEventListener("select", onSelectionChange);
+      if (selectionRefreshFrameRef.current !== undefined) {
+        window.cancelAnimationFrame(selectionRefreshFrameRef.current);
+        selectionRefreshFrameRef.current = undefined;
+      }
+    };
+  }, [scheduleDocumentSkillSelectionRefresh, selectedId]);
 
   const eligibleSelectionSkills = selectionSkillEligibility(selectionSkills, "web");
 
@@ -757,6 +784,17 @@ export function ViewWorkspace({
       target_text: editor.innerText,
       selection: snapshot.text,
     });
+    const currentSelectionDocument = selectionDocumentRef.current;
+    if (!selectionSnapshotRef.current || !currentSelectionDocument) return;
+    if (
+      selectionSnapshotRef.current !== snapshot ||
+      currentSelectionDocument.id !== selectionDocument.id ||
+      currentSelectionDocument.revision !== selectionDocument.revision ||
+      selectedIdRef.current !== selectedDocument
+    ) {
+      showSelectionSkillNotice({ message: "Selection changed — choose a skill again." });
+      return;
+    }
     const replacement = run.original_output?.trim();
     if (!replacement) throw new Error("This skill returned no text.");
     const beforeContent = editor.innerHTML;
@@ -1019,8 +1057,8 @@ export function ViewWorkspace({
                 event.preventDefault();
                 setFocusSelectionSkillTrigger(true);
               }}
-              onKeyUp={() => { rememberEditorSelection(); refreshDocumentSkillSelection(); }}
-              onMouseUp={() => { rememberEditorSelection(); refreshDocumentSkillSelection(); }}
+              onKeyUp={() => { rememberEditorSelection(); scheduleDocumentSkillSelectionRefresh(); }}
+              onMouseUp={() => { rememberEditorSelection(); scheduleDocumentSkillSelectionRefresh(); }}
               onClick={(event) => {
                 const target = event.target;
                 if (!(target instanceof HTMLElement) || target.tagName !== "MARK") return;

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { captureEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility } from "@logue/ui";
+import { captureEditableSelection, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility } from "@logue/ui";
 import { activeEditableElement, insertIntoElement, isEditableElement, isEditableTargetAvailable } from "../dom";
 
 describe("editable integration", () => {
@@ -110,6 +110,31 @@ describe("editable integration", () => {
     expect(submit).not.toHaveBeenCalled();
   });
 
+  it("preserves every line in a textarea skill replacement", () => {
+    const textarea = document.createElement("textarea");
+    textarea.value = "Before selected text after";
+    document.body.append(textarea);
+    textarea.focus();
+    textarea.setSelectionRange(7, 20);
+    const snapshot = captureEditableSelection(textarea);
+
+    expect(snapshot && replaceSelectionIfUnchanged(snapshot, "first line\nsecond line\nthird line")).toBe(true);
+    expect(textarea.value).toBe("Before first line\nsecond line\nthird line after");
+  });
+
+  it("keeps a stable snapshot until the textarea selection is cleared", () => {
+    const textarea = document.createElement("textarea");
+    textarea.value = "Before selected text after";
+    document.body.append(textarea);
+    textarea.focus();
+    textarea.setSelectionRange(7, 20);
+    const snapshot = captureStableEditableSelection(textarea);
+
+    expect(captureStableEditableSelection(textarea, snapshot)).toBe(snapshot);
+    textarea.setSelectionRange(20, 20);
+    expect(captureStableEditableSelection(textarea, snapshot)).toBeUndefined();
+  });
+
   it("replaces a contenteditable selection without submitting its form", () => {
     const form = document.createElement("form");
     const editor = document.createElement("div");
@@ -133,6 +158,25 @@ describe("editable integration", () => {
     expect(snapshot && replaceSelectionIfUnchanged(snapshot, "that")).toBe(true);
     expect(editor.textContent).toBe("Rewrite that phrase.");
     expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("preserves every line in a contenteditable skill replacement", () => {
+    const editor = document.createElement("div");
+    editor.innerHTML = "<p>Before selected text after</p>";
+    editor.setAttribute("contenteditable", "true");
+    Object.defineProperty(editor, "isContentEditable", { value: true });
+    document.body.append(editor);
+    const text = editor.querySelector("p")!.firstChild!;
+    const range = document.createRange();
+    range.setStart(text, 7);
+    range.setEnd(text, 20);
+    Object.defineProperty(range, "getBoundingClientRect", { value: () => new DOMRect(0, 0, 100, 20) });
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    const snapshot = captureEditableSelection(editor);
+
+    expect(snapshot && replaceSelectionIfUnchanged(snapshot, "first line\nsecond line\nthird line")).toBe(true);
+    expect(editor.innerHTML).toBe("<p>Before first line<br>second line<br>third line after</p>");
   });
 
   it("refuses to overwrite rich text after its captured selection changed", () => {
