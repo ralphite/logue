@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { SelectionSkillMenu, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility, type EditableSelectionSnapshot, type Material, type SelectionSkillApplyTransaction } from "@logue/ui";
+import { OverlayMenu, SelectionSkillMenu, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility, type EditableSelectionSnapshot, type Material, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSerialTaskQueue } from "../documentSaveQueue";
 import { groupIdenticalMaterials } from "../materialGroups";
@@ -994,10 +994,20 @@ export function ViewWorkspace({
             <div className="flex items-center gap-1.5">
               {saveState === "error" && <span role="status" className="mr-1 text-[14px] font-medium text-[#b34e45]">Save failed</span>}
               <button type="button" onClick={() => setSourcePanelOpen((value) => !value)} className={`inline-flex size-8 items-center justify-center rounded-md transition max-[900px]:size-11 ${sourcePanelOpen ? "bg-[#eeeefa] text-[#5d63d4]" : "text-[#73746f] hover:bg-[#f1f1ee]"}`} aria-label={sourcePanelOpen ? "Close sources panel" : "Open sources panel"}>{sourcePanelOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}</button>
-              <div className="relative">
-                <button type="button" onClick={() => setMenuOpen((value) => !value)} className="inline-flex size-8 items-center justify-center rounded-md text-[#73746f] hover:bg-[#f1f1ee] max-[900px]:size-11" aria-label="Document menu"><MoreHorizontal size={16} /></button>
-                {menuOpen && <div className="absolute right-0 top-9 w-44 rounded-lg border border-[#e1e1de] bg-white p-1.5 shadow-[0_12px_34px_rgba(24,25,22,0.14)]"><button type="button" onClick={() => void removeCurrent()} className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[14px] text-[#a5443b] hover:bg-[#f9ece9]"><Trash2 size={14} /> Delete document</button></div>}
-              </div>
+              <OverlayMenu
+                open={menuOpen}
+                onOpenChange={setMenuOpen}
+                placement="bottom-end"
+                ariaLabel="Document actions"
+                menuClassName="w-44 rounded-lg border border-[#e1e1de] bg-white p-1.5 shadow-[0_12px_34px_rgba(24,25,22,0.14)]"
+                trigger={(props) => (
+                  <button {...props} type="button" className="inline-flex size-8 items-center justify-center rounded-md text-[#73746f] hover:bg-[#f1f1ee] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5b64f4] max-[900px]:size-11" aria-label="Document menu">
+                    <MoreHorizontal size={16} />
+                  </button>
+                )}
+              >
+                <button type="button" role="menuitem" onClick={() => void removeCurrent()} className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[14px] text-[#a5443b] hover:bg-[#f9ece9] focus-visible:bg-[#f9ece9] focus-visible:outline-none"><Trash2 size={14} /> Delete document</button>
+              </OverlayMenu>
             </div>
           </header>
 

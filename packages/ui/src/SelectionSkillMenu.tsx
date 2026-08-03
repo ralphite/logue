@@ -1,5 +1,6 @@
 import { LoaderCircle, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { OverlayMenu, PRODUCT_OVERLAY_LAYER } from "./OverlayMenu";
 
 export interface SelectionSkillOption {
   id: string;
@@ -30,18 +31,6 @@ export function SelectionSkillMenu({
   const [runningSkillId, setRunningSkillId] = useState<string>();
   const [error, setError] = useState<string>();
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const firstMenuItemRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      setError(undefined);
-      onDismiss();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onDismiss]);
 
   useEffect(() => {
     if (!focusTrigger) return;
@@ -69,58 +58,65 @@ export function SelectionSkillMenu({
 
   if (!skills.length) return null;
 
-  function openWithKeyboard() {
-    setOpen(true);
-    setError(undefined);
-    window.requestAnimationFrame(() => firstMenuItemRef.current?.focus());
-  }
+  const viewportWidth = typeof window === "undefined" ? anchor.left + 88 : window.innerWidth;
+  const viewportHeight = typeof window === "undefined" ? anchor.top + 40 : window.innerHeight;
 
   return (
     <div
-      className="fixed z-[2147483645]"
-      style={{ left: anchor.left, top: anchor.top }}
+      className="fixed"
+      style={{
+        left: Math.max(8, Math.min(anchor.left, viewportWidth - 88)),
+        top: Math.max(8, Math.min(anchor.top, viewportHeight - 40)),
+        zIndex: PRODUCT_OVERLAY_LAYER,
+      }}
       role="group"
       aria-label="Selection skills"
       onPointerDown={preserveSelection}
       onMouseDown={preserveSelection}
     >
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => { setOpen((value) => !value); setError(undefined); }}
-        onKeyDown={(event) => {
-          if (event.key !== "ArrowDown") return;
-          event.preventDefault();
-          openWithKeyboard();
+      <OverlayMenu
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (nextOpen) setError(undefined);
         }}
-        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#ddddda] bg-white px-2.5 text-[13px] font-medium text-[#555651] shadow-[0_4px_14px_rgba(20,21,18,0.12)] transition hover:bg-[#f4f4f1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5b64f4]"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-keyshortcuts="Alt+Enter"
-        title="Apply a skill to this selection (Alt+Enter)"
+        triggerRef={triggerRef}
+        ariaLabel="Choose a skill"
+        placement="bottom-start"
+        onMenuPointerDown={preserveSelection}
+        menuClassName="min-w-48 max-w-80 rounded-lg border border-[#ddddda] bg-white p-1 shadow-[0_12px_32px_rgba(20,21,18,0.16)]"
+        trigger={(props) => (
+          <button
+            {...props}
+            type="button"
+            onKeyDown={(event) => {
+              props.onKeyDown(event);
+              if (!event.defaultPrevented && event.key === "Escape" && !open) onDismiss();
+            }}
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#ddddda] bg-white px-2.5 text-[13px] font-medium text-[#555651] shadow-[0_4px_14px_rgba(20,21,18,0.12)] transition hover:bg-[#f4f4f1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5b64f4]"
+            aria-keyshortcuts="Alt+Enter"
+            title="Apply a skill to this selection (Alt+Enter)"
+          >
+            <Sparkles size={14} aria-hidden="true" />
+            Skills
+          </button>
+        )}
       >
-        <Sparkles size={14} aria-hidden="true" />
-        Skills
-      </button>
-      {open && (
-        <div role="menu" aria-label="Choose a skill" className="mt-1.5 min-w-48 overflow-hidden rounded-lg border border-[#ddddda] bg-white p-1 shadow-[0_12px_32px_rgba(20,21,18,0.16)]">
-          {skills.length ? skills.map((skill) => (
-            <button
-              key={skill.id}
-              ref={skill === skills[0] ? firstMenuItemRef : undefined}
-              type="button"
-              role="menuitem"
-              disabled={Boolean(runningSkillId)}
-              onClick={() => void useSkill(skill.id)}
-              className="flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-[14px] text-[#3f403c] hover:bg-[#f2f2ef] focus-visible:bg-[#f2f2ef] focus-visible:outline-none disabled:cursor-wait"
-            >
-              {runningSkillId === skill.id ? <LoaderCircle size={14} className="animate-spin text-[#656de0]" aria-hidden="true" /> : <Sparkles size={14} className="text-[#777873]" aria-hidden="true" />}
-              <span className="truncate">{skill.name}</span>
-            </button>
-          )) : <p className="px-2.5 py-2 text-[13px] leading-5 text-[#858681]">No text skills available.</p>}
-          {error && <p role="alert" className="mx-1 mb-1 mt-1 rounded-md bg-[#fbefec] px-2 py-1.5 text-[12px] leading-4 text-[#9a453d]">{error}</p>}
-        </div>
-      )}
+        {skills.map((skill) => (
+          <button
+            key={skill.id}
+            type="button"
+            role="menuitem"
+            disabled={Boolean(runningSkillId)}
+            onClick={() => void useSkill(skill.id)}
+            className="flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-[14px] text-[#3f403c] hover:bg-[#f2f2ef] focus-visible:bg-[#f2f2ef] focus-visible:outline-none disabled:cursor-wait"
+          >
+            {runningSkillId === skill.id ? <LoaderCircle size={14} className="animate-spin text-[#656de0]" aria-hidden="true" /> : <Sparkles size={14} className="text-[#777873]" aria-hidden="true" />}
+            <span className="truncate">{skill.name}</span>
+          </button>
+        ))}
+        {error && <p role="alert" className="mx-1 mb-1 mt-1 rounded-md bg-[#fbefec] px-2 py-1.5 text-[12px] leading-4 text-[#9a453d]">{error}</p>}
+      </OverlayMenu>
     </div>
   );
 }
