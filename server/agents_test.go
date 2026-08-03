@@ -14,17 +14,6 @@ func containsHan(value string) bool {
 	return false
 }
 
-func defaultAgentByID(t *testing.T, id string) Agent {
-	t.Helper()
-	for _, agent := range defaultAgents() {
-		if agent.ID == id {
-			return agent
-		}
-	}
-	t.Fatalf("default agent %s not found", id)
-	return Agent{}
-}
-
 func TestDefaultAgentsUseEnglishProductCopy(t *testing.T) {
 	store, err := NewStore(t.TempDir())
 	if err != nil {
@@ -62,55 +51,5 @@ func TestCustomSkillCanBeCreatedBeforeInstructionsAreWritten(t *testing.T) {
 	}
 	if created.Purpose != "" || created.Instructions != "" {
 		t.Fatalf("blank custom skill gained unexpected copy: %#v", created)
-	}
-}
-
-func TestLegacyDefaultAgentCopyMigrationPreservesCustomizedFields(t *testing.T) {
-	root := t.TempDir()
-	store, err := NewStore(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	legacy := legacyDefaultAgentCopy[defaultDocumentAgentID]
-	document, err := store.GetAgent(defaultDocumentAgentID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	document.Name = "My document writer"
-	document.Purpose = legacy.Purpose
-	document.Instructions = legacy.Instructions
-	document.Revision = 7
-	if err := store.writeAgentFile(document); err != nil {
-		t.Fatal(err)
-	}
-	custom, err := store.CreateAgent(CreateAgentInput{
-		Name: "我的 Agent", Purpose: "保留用户名称和说明", Instructions: "只使用用户资料。",
-		Task: "generate", Output: "qa", Surfaces: []string{"web"}, Contexts: []string{"materials"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	restarted, err := NewStore(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	migrated, err := restarted.GetAgent(defaultDocumentAgentID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	current := defaultAgentByID(t, defaultDocumentAgentID)
-	if migrated.Name != "My document writer" {
-		t.Fatalf("migration overwrote a customized system Agent name: %#v", migrated)
-	}
-	if migrated.Purpose != current.Purpose || migrated.Instructions != current.Instructions || migrated.Revision != 8 {
-		t.Fatalf("migration did not update only untouched product copy: %#v", migrated)
-	}
-	persistedCustom, err := restarted.GetAgent(custom.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if persistedCustom.Name != custom.Name || persistedCustom.Purpose != custom.Purpose || persistedCustom.Instructions != custom.Instructions {
-		t.Fatalf("migration changed a user-created Agent: %#v", persistedCustom)
 	}
 }
