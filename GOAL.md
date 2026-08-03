@@ -77,6 +77,7 @@ Web App 一级导航只使用以下五个等权入口：
 - Chrome 原生 pin/unpin/close 顶栏不由 Extension 控制。Logue 不制造重复的 pin、unpin、位置或关闭控件，也不把无法控制的 Chrome 原生 unpin 当作产品 Bug。
 - Side Panel 是全高、安静、可阅读的工作面，不得原样移植旧 320px 浮层、重阴影或 9–11px 小字体。
 - 关闭 Side Panel、关闭/切换 tab、页面卸载或导航时必须停止麦克风，取消未采用录音，并防止迟到的权限/录音回调重新写入已关闭状态。
+- 同一 tab 内由 content script、SPA 或 Chrome URL 规范化引起的无害上下文刷新绝不能被误判为页面离开：录音控制、计时和 `Cancel` / `Stop` 状态必须持续可用。真正的 document 卸载、tab 切换或明确流程切换才停止未采用录音。
 
 ### 4.2 打开方式与上下文
 
