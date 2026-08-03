@@ -759,7 +759,13 @@ export function ViewWorkspace({
     const onSelectionChange = () => scheduleDocumentSkillSelectionRefresh();
     const onPointerDownOutsideSelection = (event: PointerEvent) => {
       const path = event.composedPath();
-      const selectionMenu = path.some((item) => item instanceof HTMLElement && item.getAttribute("aria-label") === "Selection skills");
+      // The skill choices are portalled so they are not descendants of the
+      // visible trigger. Treat both surfaces as one selection control: a click
+      // on a choice must apply it, not first dismiss the current selection.
+      const selectionMenu = path.some((item) => item instanceof HTMLElement && (
+        item.getAttribute("aria-label") === "Selection skills" ||
+        item.getAttribute("aria-label") === "Choose a skill"
+      ));
       if (path.includes(editor) || selectionMenu) return;
       dismissDocumentSelectionSkills();
     };
