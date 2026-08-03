@@ -698,7 +698,7 @@ function SkillEditor({ skills, selectedSkillId, onSelect, onSkillsChange }: { sk
         <input value={draft.name} onChange={(event) => change({ name: event.target.value })} aria-label="Skill name" className="w-full border-0 bg-transparent text-[38px] font-bold tracking-[-0.045em] text-[#242522] outline-none placeholder:text-[#d0d0cc] max-[640px]:text-[30px]" placeholder="Untitled skill" />
         <label className="mt-7 block">
           <span className="mb-1.5 block text-[14px] font-medium text-[#777873]">Prompt</span>
-          <textarea value={draft.instructions} onChange={(event) => change({ instructions: event.target.value })} aria-label="Skill prompt" className="min-h-[360px] w-full resize-none border-0 bg-transparent text-[15px] leading-7 text-[#343531] outline-none placeholder:text-[#aaa]" placeholder="Write a prompt…" />
+          <textarea value={draft.instructions} onChange={(event) => change({ instructions: event.target.value })} aria-label="Skill prompt" className="min-h-40 max-h-[60vh] w-full resize-y overflow-y-auto border-0 bg-transparent text-[15px] leading-7 text-[#343531] outline-none placeholder:text-[#aaa] [field-sizing:content]" placeholder="Write a prompt…" />
         </label>
         <details className="group mt-8 border-t border-[#e9e9e6] pt-5">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-md px-1 text-[14px] font-medium text-[#777873] hover:text-[#4d4e49]">

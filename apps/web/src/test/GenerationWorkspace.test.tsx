@@ -260,7 +260,10 @@ describe("GenerationWorkspace navigation", () => {
       enabled: true,
     }));
     expect((await screen.findByRole("textbox", { name: "Skill name" }) as HTMLInputElement).value).toBe("New skill");
-    expect(screen.getByRole("textbox", { name: "Skill prompt" })).toBeTruthy();
+    const prompt = screen.getByRole("textbox", { name: "Skill prompt" });
+    expect(prompt).toBeTruthy();
+    expect(prompt.className).toContain("min-h-40");
+    expect(prompt.className).toContain("[field-sizing:content]");
   });
 
   it("keeps the document editor open when its unsaved guard rejects a section switch", async () => {
