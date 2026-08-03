@@ -73,6 +73,20 @@ describe("native side panel controller", () => {
     });
   });
 
+  it("carries a marked Logue page server candidate into panel state", () => {
+    const tab = { id: 9, url: "https://logue.example.com/doc", title: "Logue" };
+    expect(panelStateForTab(
+      tab,
+      "page",
+      sourceFromTab(tab),
+      undefined,
+      undefined,
+      undefined,
+      false,
+      "https://logue.example.com",
+    )).toMatchObject({ candidateServerURL: "https://logue.example.com" });
+  });
+
   it("preserves an empty writable editor for a generated reply", () => {
     const tab = { id: 18, url: "https://example.com/reply", title: "Reply" };
     expect(panelStateForTab(tab, "page", sourceFromTab(tab), undefined, "", undefined, true)).toMatchObject({

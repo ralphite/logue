@@ -13,6 +13,7 @@ export interface CaptureOrganization {
 
 export interface PageCaptureContext {
   source: CaptureSource;
+  candidateServerURL?: string;
   selectionText?: string;
   targetText?: string;
   targetAvailable: boolean;
@@ -28,6 +29,7 @@ export interface PanelCaptureState {
   tabId: number;
   intent: CaptureIntent;
   source: CaptureSource;
+  candidateServerURL?: string;
   selectionText?: string;
   targetText?: string;
   targetAvailable: boolean;

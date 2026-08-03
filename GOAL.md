@@ -137,6 +137,7 @@ Web App 一级导航只使用以下五个等权入口：
 
 - Go API 与生产 Web App 必须可在 Linux 主机上作为同源服务运行。交互式安装时明确让用户选择监听 `0.0.0.0` 或 `127.0.0.1`，默认选择 `0.0.0.0`；同时必须明确提示 Logue 当前没有公网认证，只应由防火墙限制在可信局域网/VPN 或置于受控反向代理之后。
 - MacBook Chrome Extension 默认连接 `http://127.0.0.1:8787`，同时提供极简的 `Server settings…` 入口，可连接用户已知的任意 `http(s)` origin（含端口）。防火墙重新分配域名后，用户只需替换一次地址即可恢复全部流程。
+- 当用户已经在 Mac Chrome 打开 Linux 主机同源托管的 Logue Web App，而 Extension 当前 Server 不可达时，Extension 必须只依据 Logue 产品 marker 将该页面 origin 作为候选，并提供一次点击、显示精确 host 的连接动作；普通网页不得出现这一授权入口，候选仍须通过精确 origin 权限和 `/v1/status` 兼容性验证后才保存。
 - 远程 Server URL 只存于该 Chrome 安装的 `chrome.storage.local`；只接受规范化的 `http(s)` origin，拒绝凭据、query、fragment 和非 Web scheme。不得保存 Gemini Key，也不得把远程地址复制进每条资料。
 - 用户点击 `Connect` 时只申请该具体 origin 的 Chrome 可选权限；拒绝权限、DNS/超时/拒绝连接、TLS 错误、错误服务或 API 版本不兼容时，不覆盖上一个可用配置，也不丢失当前草稿、选区或已完成录音。
 - 保存新地址前必须通过 `/v1/status` 验证确实是兼容的 Logue 服务；成功后安静关闭设置并重新加载当前页面上下文、页面资料、Skills 和设置。正常连接不显示 `Connected`；断开时只显示局部 `Retry` 与 `Change server`。

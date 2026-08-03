@@ -55,7 +55,11 @@ interface PanelStateMessage {
   token?: string;
 }
 
-type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage | RecordingBridgeEvent;
+interface PageContextReadyMessage {
+  type: "logue:page-context-ready";
+}
+
+type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage | RecordingBridgeEvent | PageContextReadyMessage;
 
 const nativeSidePanel = chrome.sidePanel as typeof chrome.sidePanel & {
   close: (options: { tabId: number } | { windowId: number }) => Promise<void>;
@@ -148,6 +152,7 @@ function isCurrentPageContext(value: unknown, tab: chrome.tabs.Tab): value is Pa
     context.source.url === tab.url &&
     typeof context.source.title === "string" &&
     typeof context.source.domain === "string" &&
+    (context.candidateServerURL === undefined || typeof context.candidateServerURL === "string") &&
     typeof context.targetAvailable === "boolean",
   );
 }
@@ -197,6 +202,7 @@ async function returnPanelToPage() {
     context.targetText,
     undefined,
     context.targetAvailable,
+    context.candidateServerURL,
   );
   if (!next) return false;
   await persistPanelState(next);
@@ -243,6 +249,7 @@ async function toggleTabPanel(tab?: chrome.tabs.Tab) {
     context.targetText,
     context.source,
     context.targetAvailable,
+    context.candidateServerURL,
   )).catch(() => undefined);
   const wasOpen = (await priorOpen)[openPanelStorageKey(tabId)] === true;
   if (wasOpen) {
@@ -277,12 +284,26 @@ async function setPanelContext(
   targetText?: string,
   source = sourceFromTab(tab),
   targetAvailable = false,
+  candidateServerURL?: string,
 ) {
-  const state = panelStateForTab(tab, intent, source, selectionText, targetText, undefined, targetAvailable);
+  const state = panelStateForTab(tab, intent, source, selectionText, targetText, undefined, targetAvailable, candidateServerURL);
   if (!state) return;
   const merged = preserveMatchingPanelDraft(state, await restorePanelState(state.tabId));
   await persistPanelState(merged);
   void chrome.runtime.sendMessage({ type: "logue:panel-state-changed", state: merged }).catch(() => undefined);
+}
+
+async function refreshPanelContextFromPage(tab: chrome.tabs.Tab) {
+  const context = await readPageCaptureContext(tab);
+  await setPanelContext(
+    tab,
+    "page",
+    context.selectionText,
+    context.targetText,
+    context.source,
+    context.targetAvailable,
+    context.candidateServerURL,
+  );
 }
 
 function openTabPanel(tab: chrome.tabs.Tab, intent: CaptureIntent, selectionText?: string) {
@@ -515,7 +536,7 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
   if (typeof previousTabId === "number" && previousTabId !== tabId) {
     void chrome.tabs.sendMessage(previousTabId, { type: "logue:recording-dispose" }).catch(() => undefined);
   }
-  void chrome.tabs.get(tabId).then((tab) => setPanelContext(tab, "page")).catch(() => undefined);
+  void chrome.tabs.get(tabId).then(refreshPanelContextFromPage).catch(() => undefined);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -524,6 +545,17 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
+  if (message?.type === "logue:page-context-ready") {
+    const tab = sender.tab;
+    if (
+      tab && typeof tab.id === "number" &&
+      tab.id === activePanelTabId && openPanelTabs.size > 0
+    ) {
+      void refreshPanelContextFromPage(tab).catch(() => undefined);
+    }
+    return false;
+  }
+
   if (message?.type === "logue:recording-bridge-event") {
     if (typeof sender.tab?.id === "number") {
       const panelEvent: RecordingPanelEvent = {

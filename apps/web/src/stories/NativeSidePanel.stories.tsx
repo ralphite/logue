@@ -92,6 +92,7 @@ function SidePanelStage({
     generating={false}
     canRetry
     serverURLDraft={serverURLDraft}
+    serverCandidateURL={state?.candidateServerURL}
     serverSettingsOpen={serverSettingsOpen}
     serverConnecting={initialServerConnecting}
     serverSettingsError={initialServerSettingsError}
@@ -113,6 +114,7 @@ function SidePanelStage({
     onOpenServerSettings={() => setServerSettingsOpen(true)}
     onCloseServerSettings={() => setServerSettingsOpen(false)}
     onConnectServer={() => setServerSettingsOpen(false)}
+    onConnectCandidateServer={() => setActiveError(undefined)}
     onRetryServer={() => setActiveError(undefined)}
   />;
 }
@@ -134,6 +136,7 @@ export const Recording: Story = { args: { state: currentEditor, initialPhase: "r
 export const Transcribing: Story = { args: { state: pageSelection, initialPhase: "processing" } };
 export const TargetLost: Story = { args: { state: currentEditor, initialPhase: "error", pendingInsert: true, error: { kind: "target", message: "The original editor is no longer available. Your text is saved in Logue.", action: "copy" } } };
 export const ServiceUnavailable: Story = { args: { state: currentPage, initialPhase: "error", error: { kind: "service", message: "Can’t reach Logue.", action: "change-server" } } };
+export const LinuxServerAvailable: Story = { args: { state: { ...currentPage, source: { url: "https://logue.example.com/doc", title: "Logue", domain: "logue.example.com" }, candidateServerURL: "https://logue.example.com" }, initialPhase: "error", error: { kind: "service", message: "Can’t reach Logue.", action: "change-server" } } };
 export const ServerSettings: Story = { args: { state: currentPage, initialServerSettingsOpen: true } };
 export const ServerConnecting: Story = { args: { state: currentPage, initialServerSettingsOpen: true, initialServerConnecting: true } };
 export const ServerPermissionDenied: Story = { args: { state: currentPage, initialServerSettingsOpen: true, initialServerSettingsError: "Chrome did not allow access to this server." } };

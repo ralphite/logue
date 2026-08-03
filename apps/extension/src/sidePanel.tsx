@@ -192,6 +192,35 @@ function SidePanelApp() {
     }).finally(() => setServerConnecting(false));
   }, [refreshServerConnection, serverConnecting, serverURLDraft]);
 
+  const connectCandidateServer = useCallback(() => {
+    const current = stateRef.current;
+    const candidate = current?.candidateServerURL;
+    if (serverConnecting || !current || !candidate) return;
+    let currentPageOrigin: string | undefined;
+    try {
+      currentPageOrigin = new URL(current.source.url).origin;
+    } catch {
+      // A navigation can invalidate the candidate before the click is handled.
+    }
+    if (currentPageOrigin !== candidate) {
+      setServerSettingsError("This page is no longer using that Logue server.");
+      return;
+    }
+    setServerConnecting(true);
+    setServerSettingsError(undefined);
+    void connectServer(candidate).then(async (connected) => {
+      setServerURL(connected.url);
+      setServerURLDraft(connected.url);
+      setContext(undefined);
+      setPageMaterials([]);
+      setSkills([]);
+      setSkillId("");
+      await refreshServerConnection();
+    }).catch(() => {
+      setServerSettingsError("Couldn’t verify this Logue server.");
+    }).finally(() => setServerConnecting(false));
+  }, [refreshServerConnection, serverConnecting]);
+
   const saveContent = useCallback(async (content: string, captureId?: string, rawTranscript?: string) => {
     const current = stateRef.current;
     if (!current) return;
@@ -680,6 +709,7 @@ function SidePanelApp() {
       generating={generating}
       canRetry={Boolean(lastBlobRef.current)}
       serverURLDraft={serverURLDraft}
+      serverCandidateURL={state?.candidateServerURL && state.candidateServerURL !== serverURL ? state.candidateServerURL : undefined}
       serverSettingsOpen={serverSettingsOpen}
       serverConnecting={serverConnecting}
       serverSettingsError={serverSettingsError}
@@ -702,6 +732,7 @@ function SidePanelApp() {
       onOpenServerSettings={openServerSettings}
       onCloseServerSettings={closeServerSettings}
       onConnectServer={connectConfiguredServer}
+      onConnectCandidateServer={connectCandidateServer}
       onRetryServer={() => void refreshServerConnection()}
     />
   );

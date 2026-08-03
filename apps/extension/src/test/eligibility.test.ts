@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { hasLogueExtensionOptOut, isLogueExtensionDisabledDocument } from "../eligibility";
+import { hasLogueExtensionOptOut, isLogueExtensionDisabledDocument, logueServerCandidate } from "../eligibility";
 
 describe("extension page eligibility", () => {
   beforeEach(() => {
@@ -54,5 +54,17 @@ describe("extension page eligibility", () => {
 
     expect(hasLogueExtensionOptOut(document.getElementById("disabled-editor"))).toBe(true);
     expect(hasLogueExtensionOptOut(document.getElementById("enabled-editor"))).toBe(false);
+  });
+
+  it("offers the current origin only when the page has Logue's server marker", () => {
+    expect(logueServerCandidate(document, "https://notes.example.com/doc/1")).toBeUndefined();
+    const marker = document.createElement("meta");
+    marker.name = "logue-server";
+    marker.content = "api-v1";
+    document.head.append(marker);
+
+    expect(logueServerCandidate(document, "https://notes.example.com:9443/doc/1?view=documents"))
+      .toBe("https://notes.example.com:9443");
+    expect(logueServerCandidate(document, "chrome://extensions")).toBeUndefined();
   });
 });

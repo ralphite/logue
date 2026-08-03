@@ -72,12 +72,14 @@ export function panelStateForTab(
   targetText?: string,
   autoStartToken?: string,
   targetAvailable = false,
+  candidateServerURL?: string,
 ): PanelCaptureState | undefined {
   if (typeof tab.id !== "number") return undefined;
   return {
     tabId: tab.id,
     intent,
     source,
+    candidateServerURL,
     selectionText: selectionText?.trim() || undefined,
     targetText: targetAvailable ? targetText ?? "" : undefined,
     targetAvailable,

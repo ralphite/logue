@@ -25,6 +25,7 @@ function props(overrides: Partial<ComponentProps<typeof SidePanelView>> = {}) {
     generating: false,
     canRetry: false,
     serverURLDraft: "https://logue.example.com",
+    serverCandidateURL: undefined,
     serverSettingsOpen: false,
     serverConnecting: false,
     onDraftChange: vi.fn(),
@@ -45,6 +46,7 @@ function props(overrides: Partial<ComponentProps<typeof SidePanelView>> = {}) {
     onOpenServerSettings: vi.fn(),
     onCloseServerSettings: vi.fn(),
     onConnectServer: vi.fn(),
+    onConnectCandidateServer: vi.fn(),
     onRetryServer: vi.fn(),
     ...overrides,
   } satisfies ComponentProps<typeof SidePanelView>;
@@ -58,11 +60,26 @@ describe("native side panel server connection states", () => {
     })} />);
 
     expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Change server" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Change server…" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Record" })).toBeNull();
     expect(screen.queryByRole("button", { name: "More options" })).toBeNull();
     expect(screen.queryByText("Saved page note")).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Note" })).toBeNull();
+  });
+
+  it("offers the marked Logue page origin as the primary recovery action", () => {
+    const onConnectCandidateServer = vi.fn();
+    render(<SidePanelView {...props({
+      phase: "error",
+      error: { kind: "service", message: "Can’t reach Logue.", action: "change-server" },
+      serverCandidateURL: "https://logue.example.com:9443",
+      onConnectCandidateServer,
+    })} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Connect to logue.example.com:9443" }));
+    expect(onConnectCandidateServer).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Change server…" })).toBeTruthy();
   });
 
   it("uses a dismissible keyboard menu without leaking the recording shortcut", async () => {

@@ -3,7 +3,7 @@ import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { adoptExtensionSkillRun, cancelMaterialSave, createExtensionSkillRun, getCaptureContext, getExtensionSkills, saveMaterial, transcribeAudio, type AppliedContext, type ExtensionSkill } from "./api";
 import { activeEditableElement, getEditableText, insertIntoElement, isEditableElement, isEditableTargetAvailable } from "./dom";
-import { isLogueExtensionDisabledDocument } from "./eligibility";
+import { isLogueExtensionDisabledDocument, logueServerCandidate } from "./eligibility";
 import { clampLauncherPosition, defaultLauncherPosition, inlineVoiceControlMetrics, launcherErrorPlacement } from "./launcherPosition";
 import type { CaptureSource, PageCaptureContext } from "./capturePrimitives";
 import {
@@ -447,6 +447,7 @@ function ExtensionLauncher() {
         const targetAvailable = isEditableTargetAvailable(target, targetPageHrefRef.current, window.location.href);
         const context: PageCaptureContext = {
           source: pageSource(),
+          candidateServerURL: logueServerCandidate(document, window.location.href),
           selectionText: window.getSelection()?.toString().trim() || undefined,
           targetText: targetAvailable ? getEditableText(target) : undefined,
           targetAvailable,
@@ -461,6 +462,7 @@ function ExtensionLauncher() {
     };
     chrome.runtime.onConnect.addListener(onConnect);
     chrome.runtime.onMessage.addListener(listener);
+    void chrome.runtime.sendMessage({ type: "logue:page-context-ready" }).catch(() => undefined);
     return () => {
       chrome.runtime.onConnect.removeListener(onConnect);
       chrome.runtime.onMessage.removeListener(listener);

@@ -11,6 +11,14 @@ function sourceLabel(state: PanelCaptureState) {
   return "Current page";
 }
 
+function serverCandidateLabel(value: string) {
+  try {
+    return new URL(value).host;
+  } catch {
+    return value;
+  }
+}
+
 export function SidePanelView({
   state,
   phase,
@@ -26,6 +34,7 @@ export function SidePanelView({
   generating,
   canRetry,
   serverURLDraft,
+  serverCandidateURL,
   serverSettingsOpen,
   serverConnecting,
   serverSettingsError,
@@ -48,6 +57,7 @@ export function SidePanelView({
   onOpenServerSettings,
   onCloseServerSettings,
   onConnectServer,
+  onConnectCandidateServer,
   onRetryServer,
 }: {
   state?: PanelCaptureState;
@@ -64,6 +74,7 @@ export function SidePanelView({
   generating: boolean;
   canRetry: boolean;
   serverURLDraft: string;
+  serverCandidateURL?: string;
   serverSettingsOpen: boolean;
   serverConnecting: boolean;
   serverSettingsError?: string;
@@ -86,6 +97,7 @@ export function SidePanelView({
   onOpenServerSettings: () => void;
   onCloseServerSettings: () => void;
   onConnectServer: () => void;
+  onConnectCandidateServer: () => void;
   onRetryServer: () => void;
 }) {
   const [serverMenuOpen, setServerMenuOpen] = useState(false);
@@ -210,9 +222,12 @@ export function SidePanelView({
 
         {presentation.showErrors && error?.kind === "service" ? <div className="error connection-error" role="alert">
           <p>Can’t reach Logue</p>
+          {serverSettingsError && <p className="candidate-server-error">{serverSettingsError}</p>}
           <div className="connection-error-actions">
-            <button type="button" onClick={onRetryServer} disabled={serverConnecting}>{serverConnecting ? "Retrying…" : "Retry"}</button>
-            <button type="button" onClick={onOpenServerSettings} disabled={serverConnecting}>Change server</button>
+            {serverCandidateURL ? <button type="button" className="button connection-primary" onClick={onConnectCandidateServer} disabled={serverConnecting}>
+              {serverConnecting ? "Connecting…" : `Connect to ${serverCandidateLabel(serverCandidateURL)}`}
+            </button> : <button type="button" className="connection-link" onClick={onRetryServer} disabled={serverConnecting}>{serverConnecting ? "Retrying…" : "Retry"}</button>}
+            <button type="button" className="connection-link" onClick={onOpenServerSettings} disabled={serverConnecting}>Change server…</button>
           </div>
         </div> : presentation.showErrors && error ? <div className="error" role="alert">{error.message}</div> : null}
 
