@@ -1,0 +1,152 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+test_root="$(mktemp -d /tmp/logue-linux-installer-test.XXXXXX)"
+test_home="${test_root}/home"
+fixture_v1="${test_root}/release-v1"
+fixture_v2="${test_root}/release-v2"
+fake_bin="${test_root}/bin"
+systemctl_state="${test_root}/systemctl-state"
+systemctl_log="${test_root}/systemctl.log"
+install_root="${test_home}/.local/share/logue"
+data_root="${install_root}/data"
+bin_dir="${test_home}/.local/bin"
+systemd_dir="${test_home}/.config/systemd/user"
+systemd_unit="${systemd_dir}/logue.service"
+pid_file="${install_root}/run/logue.pid"
+port="${LOGUE_LINUX_TEST_PORT:-18799}"
+
+cleanup() {
+  if [[ -f "${pid_file}" ]]; then
+    test_pid="$(tr -dc '0-9' < "${pid_file}")"
+    if [[ -n "${test_pid}" ]] && kill -0 "${test_pid}" >/dev/null 2>&1; then
+      kill "${test_pid}" >/dev/null 2>&1 || true
+    fi
+  fi
+  if [[ "${test_root}" == /tmp/logue-linux-installer-test.* && -d "${test_root}" ]]; then
+    rm -rf -- "${test_root}"
+  fi
+}
+trap cleanup EXIT
+
+mkdir -p "${test_home}" "${fixture_v1}" "${fixture_v2}" "${fake_bin}" "${systemctl_state}"
+
+cat > "${fake_bin}/systemctl" <<'SYSTEMCTL'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+[[ "${1:-}" == "--user" ]] || exit 64
+shift
+command_name="${1:-}"
+shift || true
+printf '%s %s\n' "${command_name}" "$*" >> "${LOGUE_TEST_SYSTEMCTL_LOG:?}"
+case "${command_name}" in
+  show-environment|daemon-reload|stop) exit 0 ;;
+  is-enabled) [[ -f "${LOGUE_TEST_SYSTEMCTL_STATE:?}/enabled" ]] ;;
+  enable) : > "${LOGUE_TEST_SYSTEMCTL_STATE:?}/enabled" ;;
+  disable) rm -f -- "${LOGUE_TEST_SYSTEMCTL_STATE:?}/enabled" ;;
+  *) exit 64 ;;
+esac
+SYSTEMCTL
+chmod +x "${fake_bin}/systemctl"
+
+case "$(uname -m)" in
+  arm64|aarch64) host_arch="arm64" ;;
+  x86_64|amd64) host_arch="amd64" ;;
+  *) printf 'Unsupported test host architecture: %s\n' "$(uname -m)" >&2; exit 69 ;;
+esac
+
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  runtime_platform="darwin"
+else
+  runtime_platform="linux"
+fi
+
+build_fixture() {
+  local version="$1" destination="$2" runtime_asset target_asset
+  bash "${repo_dir}/scripts/build-release.sh" "${version}" >/dev/null
+  runtime_asset="${repo_dir}/dist/release/logue-${runtime_platform}-${host_arch}.tar.gz"
+  target_asset="${destination}/logue-linux-amd64.tar.gz"
+  cp "${runtime_asset}" "${target_asset}"
+  (
+    cd "${destination}"
+    if command -v sha256sum >/dev/null 2>&1; then
+      sha256sum logue-linux-amd64.tar.gz > checksums.txt
+    else
+      shasum -a 256 logue-linux-amd64.tar.gz > checksums.txt
+    fi
+  )
+}
+
+run_installer() {
+  local base_url="$1" autostart="$2" address="$3" fail_at="${4:-}"
+  HOME="${test_home}" \
+  PATH="${fake_bin}:${PATH}" \
+  LOGUE_INSTALLER_TESTING=1 \
+  LOGUE_INSTALLER_TEST_OS=Linux \
+  LOGUE_INSTALLER_TEST_ARCH=x86_64 \
+  LOGUE_INSTALL_ROOT="${install_root}" \
+  LOGUE_BIN_DIR="${bin_dir}" \
+  LOGUE_SYSTEMD_USER_DIR="${systemd_dir}" \
+  LOGUE_ASSET_BASE_URL="${base_url}" \
+  LOGUE_AUTO_START="${autostart}" \
+  LOGUE_INSTALLER_FAIL_AT="${fail_at}" \
+  LOGUE_OPEN_BROWSER=no \
+  LOGUE_ADDRESS="${address}" \
+  LOGUE_TEST_SYSTEMCTL_STATE="${systemctl_state}" \
+  LOGUE_TEST_SYSTEMCTL_LOG="${systemctl_log}" \
+  bash "${repo_dir}/install.sh"
+}
+
+file_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+printf 'Building Linux installer v0.1.0 fixture...\n'
+build_fixture v0.1.0 "${fixture_v1}"
+run_installer "file://${fixture_v1}" yes "127.0.0.1:${port}"
+
+status_v1="$(curl -fsS "http://127.0.0.1:${port}/v1/status")"
+[[ "${status_v1}" == *'"version":"v0.1.0"'* ]] || { printf 'Linux fixture v0.1.0 did not start\n' >&2; exit 1; }
+[[ -f "${systemd_unit}" ]] || { printf 'systemd user service was not created\n' >&2; exit 1; }
+[[ -f "${systemctl_state}/enabled" ]] || { printf 'systemd user service was not enabled\n' >&2; exit 1; }
+grep -Fq "ExecStart=\"${install_root}/current/bin/logue\" -address \"127.0.0.1:${port}\"" "${systemd_unit}" || {
+  printf 'systemd user service has the wrong command or listen address\n' >&2
+  exit 1
+}
+grep -Fq 'enable logue.service' "${systemctl_log}" || { printf 'systemd enable was not requested\n' >&2; exit 1; }
+
+mkdir -p "${data_root}/items"
+printf '%s\n' 'preserve-linux-data' > "${data_root}/items/installer-sentinel.txt"
+sentinel_before="$(file_sha256 "${data_root}/items/installer-sentinel.txt")"
+baseline_current="$(readlink "${install_root}/current")"
+
+printf 'Building Linux installer v0.1.1 fixture...\n'
+build_fixture v0.1.1 "${fixture_v2}"
+
+failure_log="${test_root}/rollback.log"
+if run_installer "file://${fixture_v2}" no "0.0.0.0:${port}" autostart >"${failure_log}" 2>&1; then
+  printf 'Injected Linux autostart failure unexpectedly succeeded\n' >&2
+  exit 1
+fi
+[[ "$(readlink "${install_root}/current")" == "${baseline_current}" ]] || { printf 'Linux rollback did not restore current\n' >&2; exit 1; }
+[[ -f "${systemd_unit}" && -f "${systemctl_state}/enabled" ]] || { printf 'Linux rollback did not restore enabled systemd service\n' >&2; exit 1; }
+restored_status="$(curl -fsS "http://127.0.0.1:${port}/v1/status")"
+[[ "${restored_status}" == *'"version":"v0.1.0"'* ]] || { printf 'Linux rollback did not restore the prior service\n' >&2; exit 1; }
+[[ "$(file_sha256 "${data_root}/items/installer-sentinel.txt")" == "${sentinel_before}" ]] || { printf 'Linux rollback changed persistent data\n' >&2; exit 1; }
+
+upgrade_log="${test_root}/upgrade.log"
+run_installer "file://${fixture_v2}" no "0.0.0.0:${port}" >"${upgrade_log}"
+status_v2="$(curl -fsS "http://127.0.0.1:${port}/v1/status")"
+[[ "${status_v2}" == *'"version":"v0.1.1"'* ]] || { printf 'Linux fixture v0.1.1 did not start on the explicit LAN address\n' >&2; exit 1; }
+grep -Fq "Listen address: 0.0.0.0:${port}" "${upgrade_log}" || { printf 'Installer did not report the explicit listen address\n' >&2; exit 1; }
+[[ ! -e "${systemd_unit}" && ! -e "${systemctl_state}/enabled" ]] || { printf 'systemd user service was not disabled and removed\n' >&2; exit 1; }
+grep -Fq 'disable logue.service' "${systemctl_log}" || { printf 'systemd disable was not requested\n' >&2; exit 1; }
+[[ "$(file_sha256 "${data_root}/items/installer-sentinel.txt")" == "${sentinel_before}" ]] || { printf 'Linux upgrade changed persistent data\n' >&2; exit 1; }
+
+printf 'Linux installer startup, LAN listen, rollback, and data-preservation regression passed.\n'

@@ -2,7 +2,7 @@
 
 Logue is a local-first tool for capturing and organizing information across the web. The browser extension enters text on the current page, captures selections, and appends annotations. A local Go service stores content, maintains source relationships, and processes audio with Gemini. The React Web App organizes content and projects.
 
-## Install and upgrade (macOS)
+## Install and upgrade (macOS and Linux)
 
 Run one command in Terminal:
 
@@ -10,11 +10,22 @@ Run one command in Terminal:
 curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh | bash
 ```
 
-The installer detects Apple Silicon or Intel Macs, verifies the download, starts Logue immediately after installation, and asks whether it should start automatically at login. Open `http://127.0.0.1:8787` in a browser to use Logue.
+The installer detects macOS or Linux and the current amd64 or arm64 architecture, verifies the release checksum, starts Logue immediately, and asks whether it should start automatically when you sign in. It downloads the complete Go service, Web App, and Chrome Extension; source code, Go, Node.js, and other build tools are not required. Open `http://127.0.0.1:8787` in a browser to use Logue.
 
-Run the same command again to upgrade in place. The installer stops the previous service it manages and atomically updates `$HOME/.local/share/logue/current` to the new release. It replaces only the program, Web App, and extension; it never overwrites content stored in `$HOME/Library/Application Support/Logue`. The command-line entry point is `$HOME/.local/bin/logue`, and login startup is managed by `$HOME/Library/LaunchAgents/com.ralphite.logue.plist`.
+Run the same command again to upgrade in place. The installer stops the previous service it manages, verifies and stages the complete candidate, and atomically updates `$HOME/.local/share/logue/current`. It replaces only the program, Web App, extension, CLI, and startup configuration. A failed upgrade restores the previous version and service.
+
+Persistent data is never overwritten. Its default location is `$HOME/Library/Application Support/Logue` on macOS and `${XDG_DATA_HOME:-$HOME/.local/share}/logue/data` on Linux. The command-line entry point is `$HOME/.local/bin/logue`. Login startup uses `$HOME/Library/LaunchAgents/com.ralphite.logue.plist` on macOS or `$HOME/.config/systemd/user/logue.service` on Linux.
 
 For unattended installations, set `LOGUE_AUTO_START=yes` or `LOGUE_AUTO_START=no` explicitly. Without an interactive terminal, the installer disables login startup by default. The current service starts immediately after installation regardless of this setting.
+
+The secure default listens only on loopback. To make a Linux service reachable on a trusted LAN or VPN, pass an explicit listen address to the installer:
+
+```bash
+curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh \
+  | LOGUE_ADDRESS=0.0.0.0:8787 LOGUE_AUTO_START=yes bash
+```
+
+`0.0.0.0` accepts traffic on every interface. Use a specific private interface address when possible, and restrict port `8787` with the host firewall or a controlled reverse proxy. Logue has no public-internet authentication boundary. The default remains `127.0.0.1:8787` unless `LOGUE_ADDRESS` is set explicitly.
 
 The Gemini API key is read only by the local service and is never compiled into the Web App or extension. Set it in the same Terminal before installation:
 
@@ -22,7 +33,7 @@ The Gemini API key is read only by the local service and is never compiled into 
 export GEMINI_API_KEY="your API key"
 ```
 
-The installer does not write the key to the program, LaunchAgent, logs, or repository; the service started during installation inherits the current Terminal environment. Without a key, browsing and editing content still work, but transcription, automatic organization, and generation are unavailable. To make the service started at login read the key, add `export GEMINI_API_KEY=...` to `~/.zprofile` yourself. The installer never stores the secret for you.
+The installer does not write the key to the program, LaunchAgent, systemd unit, logs, or repository; the service started during installation inherits the current Terminal environment. Without a key, browsing and editing content still work, but transcription, automatic organization, and generation are unavailable. On macOS, you can make login startup read the key by adding `export GEMINI_API_KEY=...` to `~/.zprofile` yourself. On Linux, configure the key through a user-controlled systemd environment or service drop-in. The installer never stores the secret for you.
 
 ### Install the Chrome extension
 
@@ -67,10 +78,10 @@ See [`docs`](./docs) for design documentation.
 
 ## Release
 
-Build release packages for both macOS architectures locally from locked dependencies:
+Build release packages for both supported operating systems and architectures locally from locked dependencies:
 
 ```bash
 bash scripts/build-release.sh v0.2.3
 ```
 
-The output is written to `dist/release`: `logue-darwin-arm64.tar.gz`, `logue-darwin-amd64.tar.gz`, and `checksums.txt`. Pushing a `v*` tag triggers GitHub Actions to rebuild the packages, create a GitHub Release, and upload the one-command installer.
+The output is written to `dist/release`: macOS and Linux packages for amd64 and arm64, plus `checksums.txt`. Each package contains the Go service, production Web App, Chrome Extension, and version metadata. Pushing a `v*` tag triggers GitHub Actions to rebuild the packages, create a GitHub Release, and upload the one-command installer.

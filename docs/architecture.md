@@ -9,7 +9,16 @@ packages/ui      Web App / Extension 共用的基础交互组件与品牌组件
 server           Go 本机 API、文件存储、Gemini 代理与静态 Web 服务
 ```
 
-开发端口：Web `0.0.0.0:5173`，API `0.0.0.0:8787`，Storybook `127.0.0.1:6006`。Web/API 的局域网监听用于同一 Wi‑Fi 下的手机访问；CORS 只接受本机、私有局域网来源和 `chrome-extension://`。Extension 只访问本机 API；Gemini 调用只发生在 Go 后端。
+开发端口：Web `0.0.0.0:5173`，API `0.0.0.0:8787`，Storybook `127.0.0.1:6006`。生产安装默认监听 `127.0.0.1:8787`；只有显式设置 `LOGUE_ADDRESS` 才监听 Linux 私网接口。生产 Web 与 API 由同一个 Go 服务同源提供。Extension 的全部请求由 Background 统一发送到当前配置并验证过的 Server origin；Gemini 调用只发生在 Go 后端。
+
+## 安装与服务管理
+
+Release 同时包含 macOS/Linux 的 amd64 与 arm64 完整资产，每个资产均包含静态 Go 二进制、生产 Web App、Chrome Extension 和版本文件，并由统一的 `checksums.txt` 校验。一行安装器不依赖源码、Go 或 Node.js。
+
+- 程序版本位于 `~/.local/share/logue/releases`，`current` 通过原子 symlink 切换；CLI 固定为 `~/.local/bin/logue`。
+- macOS 数据默认位于 `~/Library/Application Support/Logue`，登录启动使用 LaunchAgent。
+- Linux 数据默认位于 `${XDG_DATA_HOME:-$HOME/.local/share}/logue/data`，登录启动使用 `systemd --user` 的 `logue.service`。
+- 安装与覆盖升级先校验并完整 staging，停止受管服务后再切换；候选服务健康检查失败或后续提交失败时恢复旧程序、Extension、CLI、启动配置和旧服务。数据目录从不参与程序覆盖。
 
 ## 持久化
 
@@ -69,7 +78,7 @@ server           Go 本机 API、文件存储、Gemini 代理与静态 Web 服�
 
 ## 安全边界
 
-- API 监听本机与私有局域网接口；CORS 只允许本机 Web、私有局域网 Web 和 `chrome-extension://`，不提供公网入口。
+- API 安全默认只监听 loopback；私网监听必须由用户显式配置，并配合主机防火墙、VPN 或受控反向代理，不能作为公网认证边界。CORS 只允许受支持的 Web 与 `chrome-extension://` 来源。
 - Key 不出现在 API 响应、前端构建、Extension storage 或数据文件。
 - Extension Background 负责网络请求；Content Script 不直接持有凭证。
 - 不读取浏览器 Cookie、登录状态或未显式选择的整页正文。

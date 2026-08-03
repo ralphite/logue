@@ -270,3 +270,5 @@ sentinel_after_reinstall="$(shasum -a 256 "${data_root}/items/installer-sentinel
 [[ "${sentinel_before}" == "${sentinel_after_reinstall}" ]] || { printf 'same-version reinstall changed persistent data\n' >&2; exit 1; }
 
 printf 'Installer new-install and overwrite-upgrade regression passed.\n'
+
+bash "${repo_dir}/scripts/test-install-linux.sh"

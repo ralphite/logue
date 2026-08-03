@@ -2,29 +2,64 @@
 
 set -Eeuo pipefail
 
-if [[ "$(uname -s)" != "Darwin" ]]; then
-  printf 'Logue installer currently supports macOS only.\n' >&2
-  exit 69
+logue_system="$(uname -s)"
+logue_machine="$(uname -m)"
+if [[ "${LOGUE_INSTALLER_TESTING:-}" == "1" ]]; then
+  logue_system="${LOGUE_INSTALLER_TEST_OS:-${logue_system}}"
+  logue_machine="${LOGUE_INSTALLER_TEST_ARCH:-${logue_machine}}"
 fi
 
-case "$(uname -m)" in
-  arm64) logue_arch="arm64" ;;
-  x86_64) logue_arch="amd64" ;;
-  *) printf 'Unsupported Mac architecture: %s\n' "$(uname -m)" >&2; exit 69 ;;
+case "${logue_system}" in
+  Darwin) logue_platform="darwin" ;;
+  Linux) logue_platform="linux" ;;
+  *) printf 'Unsupported operating system: %s\n' "${logue_system}" >&2; exit 69 ;;
+esac
+
+case "${logue_machine}" in
+  arm64|aarch64) logue_arch="arm64" ;;
+  x86_64|amd64) logue_arch="amd64" ;;
+  *) printf 'Unsupported %s architecture: %s\n' "${logue_system}" "${logue_machine}" >&2; exit 69 ;;
 esac
 
 logue_home="${HOME:?HOME is required}"
 install_root="${LOGUE_INSTALL_ROOT:-${logue_home}/.local/share/logue}"
-data_root="${LOGUE_DATA_DIR:-${logue_home}/Library/Application Support/Logue}"
+if [[ "${logue_platform}" == "darwin" ]]; then
+  default_data_root="${logue_home}/Library/Application Support/Logue"
+else
+  default_data_root="${XDG_DATA_HOME:-${logue_home}/.local/share}/logue/data"
+fi
+data_root="${LOGUE_DATA_DIR:-${default_data_root}}"
 bin_dir="${LOGUE_BIN_DIR:-${logue_home}/.local/bin}"
 launch_agents_dir="${LOGUE_LAUNCH_AGENTS_DIR:-${logue_home}/Library/LaunchAgents}"
 launch_label="${LOGUE_LAUNCH_LABEL:-com.ralphite.logue}"
 launch_plist="${launch_agents_dir}/${launch_label}.plist"
+systemd_user_dir="${LOGUE_SYSTEMD_USER_DIR:-${XDG_CONFIG_HOME:-${logue_home}/.config}/systemd/user}"
+systemd_unit_name="${LOGUE_SYSTEMD_UNIT_NAME:-logue.service}"
+if [[ ! "${systemd_unit_name}" =~ ^[A-Za-z0-9_.@-]+\.service$ ]]; then
+  printf 'LOGUE_SYSTEMD_UNIT_NAME must be a systemd service unit name without a path.\n' >&2
+  exit 64
+fi
+systemd_unit="${systemd_user_dir}/${systemd_unit_name}"
 logue_port="${LOGUE_PORT:-8787}"
 logue_address="${LOGUE_ADDRESS:-127.0.0.1:${logue_port}}"
-health_url="${LOGUE_HEALTH_URL:-http://127.0.0.1:${logue_port}/v1/status}"
+if [[ ! "${logue_address}" =~ ^(\[[^]]+\]|[^:]+):([0-9]+)$ ]]; then
+  printf 'LOGUE_ADDRESS must be a host and port, for example 127.0.0.1:8787 or 0.0.0.0:8787.\n' >&2
+  exit 64
+fi
+address_host="${BASH_REMATCH[1]}"
+address_port="${BASH_REMATCH[2]}"
+if (( address_port < 1 || address_port > 65535 )); then
+  printf 'LOGUE_ADDRESS uses an invalid port: %s.\n' "${address_port}" >&2
+  exit 64
+fi
+case "${address_host}" in
+  0.0.0.0|'*'|'[::]') health_host="127.0.0.1" ;;
+  *) health_host="${address_host}" ;;
+esac
+health_url="${LOGUE_HEALTH_URL:-http://${health_host}:${address_port}/v1/status}"
+open_url="${LOGUE_OPEN_URL:-${health_url%/v1/status}}"
 asset_base_url="${LOGUE_ASSET_BASE_URL:-https://github.com/ralphite/logue/releases/latest/download}"
-asset_name="logue-darwin-${logue_arch}.tar.gz"
+asset_name="logue-${logue_platform}-${logue_arch}.tar.gz"
 current_link="${install_root}/current"
 extension_dir="${install_root}/extension"
 run_dir="${install_root}/run"
@@ -36,6 +71,7 @@ staged_extension_assets=""
 extension_manifest_next=""
 cli_next=""
 launch_plist_next=""
+systemd_unit_next=""
 current_switched="no"
 
 say() { printf '  %s\n' "$*"; }
@@ -52,6 +88,7 @@ cleanup() {
   [[ -n "${extension_manifest_next}" ]] && rm -f -- "${extension_manifest_next}"
   [[ -n "${cli_next}" ]] && rm -f -- "${cli_next}"
   [[ -n "${launch_plist_next}" ]] && rm -f -- "${launch_plist_next}"
+  [[ -n "${systemd_unit_next}" ]] && rm -f -- "${systemd_unit_next}"
   if [[ -n "${install_tmp}" && -d "${install_tmp}" ]]; then
     rm -rf -- "${install_tmp}"
   fi
@@ -67,18 +104,43 @@ choose_autostart() {
     *) fail "LOGUE_AUTO_START accepts only yes or no." ;;
   esac
   if [[ -r /dev/tty && -w /dev/tty ]]; then
-    printf '\nStart Logue when you sign in to this Mac? [Y/n] ' > /dev/tty
+    if [[ "${logue_platform}" == "darwin" ]]; then
+      printf '\nStart Logue when you sign in to this Mac? [Y/n] ' > /dev/tty
+    else
+      printf '\nCreate a systemd user service to start Logue when you sign in? [Y/n] ' > /dev/tty
+    fi
     answer=""
     IFS= read -r answer < /dev/tty || true
     case "${answer}" in n|N|no|NO|No) printf 'no' ;; *) printf 'yes' ;; esac
   else
-    say "No interactive terminal; sign-in launch stays off. Re-run with LOGUE_AUTO_START=yes to enable it." >&2
+    say "No interactive terminal; automatic startup stays off. Re-run with LOGUE_AUTO_START=yes to enable it." >&2
     printf 'no'
   fi
 }
 
 xml_escape() {
   printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'
+}
+
+systemd_escape() {
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/%/%%/g'
+}
+
+replace_path() {
+  local source="$1" destination="$2"
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    /bin/mv -fT -- "${source}" "${destination}"
+  else
+    /bin/mv -f -h "${source}" "${destination}"
+  fi
+}
+
+verify_checksum() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    (cd "${install_tmp}" && sha256sum -c selected-checksum.txt >/dev/null)
+  else
+    (cd "${install_tmp}" && shasum -a 256 -c selected-checksum.txt >/dev/null)
+  fi
 }
 
 inject_failure() {
@@ -96,15 +158,28 @@ esac
 
 autostart="$(choose_autostart)"
 
-for required_command in curl tar shasum plutil; do
+for required_command in curl tar; do
   command -v "${required_command}" >/dev/null 2>&1 || fail "Missing required system command: ${required_command}."
 done
+if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
+  fail "Missing required system command: sha256sum or shasum."
+fi
+if [[ "${logue_platform}" == "darwin" ]]; then
+  command -v plutil >/dev/null 2>&1 || fail "Missing required system command: plutil."
+elif [[ "${autostart}" == "yes" || -f "${systemd_unit}" ]]; then
+  command -v systemctl >/dev/null 2>&1 || fail "systemctl is required to manage the existing or requested systemd user service."
+fi
 
 printf '\nLogue install and upgrade\n'
 say "App: ${install_root}"
 say "Data: ${data_root} (never overwritten)"
 
-mkdir -p "${install_root}/releases" "${data_root}" "${bin_dir}" "${launch_agents_dir}" "${run_dir}"
+mkdir -p "${install_root}/releases" "${data_root}" "${bin_dir}" "${run_dir}"
+if [[ "${logue_platform}" == "darwin" ]]; then
+  mkdir -p "${launch_agents_dir}"
+else
+  mkdir -p "${systemd_user_dir}"
+fi
 install_tmp="$(mktemp -d "${install_root}/.install.XXXXXX")"
 
 step "1/4  Download and verify the release"
@@ -113,7 +188,7 @@ curl -fsSL --retry 3 --retry-delay 1 "${asset_base_url}/checksums.txt" -o "${ins
 checksum_line="$(awk -v wanted="${asset_name}" '$2 == wanted || $2 == "./" wanted { print; exit }' "${install_tmp}/checksums.txt")"
 [[ -n "${checksum_line}" ]] || fail "checksums.txt does not contain ${asset_name}."
 printf '%s\n' "${checksum_line}" > "${install_tmp}/selected-checksum.txt"
-(cd "${install_tmp}" && shasum -a 256 -c selected-checksum.txt >/dev/null) || fail "Release verification failed; the existing installation was not changed."
+verify_checksum || fail "Release verification failed; the existing installation was not changed."
 say "Verified"
 
 package_dir="${install_tmp}/package"
@@ -134,13 +209,25 @@ previous_current_backup=""
 extension_manifest_backup="${extension_dir}/.manifest.previous.$$"
 cli_backup="${bin_dir}/.logue.previous.$$"
 launch_plist_backup="${launch_agents_dir}/.${launch_label}.previous.$$"
+systemd_unit_backup="${systemd_user_dir}/.${systemd_unit_name}.previous.$$"
 had_extension_manifest="no"
 had_cli="no"
 had_launch_plist="no"
+had_systemd_unit="no"
+systemd_was_enabled="no"
 
 validate_managed_service() {
-  local old_command
+  local old_command systemd_pid
   managed_pid=""
+  if [[ "${logue_platform}" == "linux" && -f "${systemd_unit}" ]] && command -v systemctl >/dev/null 2>&1; then
+    systemd_pid="$(systemctl --user show --property MainPID --value "${systemd_unit_name}" 2>/dev/null || true)"
+    if [[ "${systemd_pid}" =~ ^[1-9][0-9]*$ ]] && kill -0 "${systemd_pid}" >/dev/null 2>&1; then
+      old_command="$(ps -p "${systemd_pid}" -o command= 2>/dev/null || true)"
+      [[ "${old_command}" == *"${install_root}"*"/logue"* ]] || fail "The systemd user service does not belong to this Logue installation; stopped to avoid terminating another process."
+      managed_pid="${systemd_pid}"
+      return
+    fi
+  fi
   if [[ -f "${pid_file}" ]]; then
     managed_pid="$(tr -dc '0-9' < "${pid_file}")"
     if [[ -n "${managed_pid}" ]] && kill -0 "${managed_pid}" >/dev/null 2>&1; then
@@ -158,7 +245,11 @@ stop_managed_service() {
     old_command="$(ps -p "${managed_pid}" -o command= 2>/dev/null || true)"
     [[ "${old_command}" == *"${install_root}"*"/logue"* ]] || return 1
   fi
-  launchctl bootout "gui/$(id -u)" "${launch_plist}" >/dev/null 2>&1 || launchctl unload "${launch_plist}" >/dev/null 2>&1 || true
+  if [[ "${logue_platform}" == "darwin" ]]; then
+    launchctl bootout "gui/$(id -u)" "${launch_plist}" >/dev/null 2>&1 || launchctl unload "${launch_plist}" >/dev/null 2>&1 || true
+  elif [[ -f "${systemd_unit}" ]]; then
+    systemctl --user stop "${systemd_unit_name}" >/dev/null 2>&1 || true
+  fi
   if [[ -n "${managed_pid}" ]] && kill -0 "${managed_pid}" >/dev/null 2>&1; then
     say "Stopping existing service (PID ${managed_pid})"
     kill "${managed_pid}" >/dev/null 2>&1 || true
@@ -234,6 +325,32 @@ create_launch_plist() {
   plutil -lint "${launch_plist_next}" >/dev/null || return 1
 }
 
+create_systemd_unit() {
+  local escaped_binary escaped_address escaped_data escaped_web
+  escaped_binary="$(systemd_escape "${current_link}/bin/logue")"
+  escaped_address="$(systemd_escape "${logue_address}")"
+  escaped_data="$(systemd_escape "${data_root}")"
+  escaped_web="$(systemd_escape "${current_link}/web")"
+  {
+    printf '%s\n' '[Unit]'
+    printf '%s\n' 'Description=Logue service'
+    printf '%s\n' 'After=network-online.target'
+    printf '%s\n' 'Wants=network-online.target'
+    printf '%s\n' ''
+    printf '%s\n' '[Service]'
+    printf 'Environment="LOGUE_DATA_DIR=%s"\n' "${escaped_data}"
+    printf 'Environment="LOGUE_WEB_DIST=%s"\n' "${escaped_web}"
+    printf 'ExecStart="%s" -address "%s"\n' "${escaped_binary}" "${escaped_address}"
+    printf '%s\n' 'Restart=on-failure'
+    printf '%s\n' 'RestartSec=2'
+    printf '%s\n' ''
+    printf '%s\n' '[Install]'
+    printf '%s\n' 'WantedBy=default.target'
+  } > "${systemd_unit_next}" || return 1
+  chmod 600 "${systemd_unit_next}" || return 1
+  grep -Fq "ExecStart=\"${escaped_binary}\" -address \"${escaped_address}\"" "${systemd_unit_next}" || return 1
+}
+
 step "2/4  Stage and verify the full upgrade"
 release_dir="$(mktemp -d "${install_root}/releases/${logue_version}.XXXXXX")"
 rmdir -- "${release_dir}"
@@ -284,16 +401,37 @@ fi
 cli_next="${bin_dir}/.logue.next.$$"
 ln -s "${current_link}/bin/logue" "${cli_next}"
 
-if [[ -d "${launch_plist}" && ! -L "${launch_plist}" ]]; then
-  fail "LaunchAgent path is a directory; stopped to avoid overwriting unknown content."
-fi
-if [[ -e "${launch_plist}" || -L "${launch_plist}" ]]; then
-  /bin/cp -pP "${launch_plist}" "${launch_plist_backup}"
-  had_launch_plist="yes"
-fi
-if [[ "${autostart}" == "yes" ]]; then
-  launch_plist_next="${launch_agents_dir}/.${launch_label}.next.$$"
-  create_launch_plist || fail "Could not create a valid LaunchAgent; the existing installation was not changed."
+if [[ "${logue_platform}" == "darwin" ]]; then
+  if [[ -d "${launch_plist}" && ! -L "${launch_plist}" ]]; then
+    fail "LaunchAgent path is a directory; stopped to avoid overwriting unknown content."
+  fi
+  if [[ -e "${launch_plist}" || -L "${launch_plist}" ]]; then
+    /bin/cp -pP "${launch_plist}" "${launch_plist_backup}"
+    had_launch_plist="yes"
+  fi
+  if [[ "${autostart}" == "yes" ]]; then
+    launch_plist_next="${launch_agents_dir}/.${launch_label}.next.$$"
+    create_launch_plist || fail "Could not create a valid LaunchAgent; the existing installation was not changed."
+  fi
+else
+  if [[ -d "${systemd_unit}" && ! -L "${systemd_unit}" ]]; then
+    fail "systemd unit path is a directory; stopped to avoid overwriting unknown content."
+  fi
+  if [[ -e "${systemd_unit}" || -L "${systemd_unit}" ]]; then
+    grep -Fq "${current_link}/bin/logue" "${systemd_unit}" || fail "The existing ${systemd_unit_name} does not belong to this Logue installation; stopped to avoid overwriting it."
+    /bin/cp -pP "${systemd_unit}" "${systemd_unit_backup}"
+    had_systemd_unit="yes"
+    if systemctl --user is-enabled "${systemd_unit_name}" >/dev/null 2>&1; then
+      systemd_was_enabled="yes"
+    fi
+  fi
+  if [[ "${autostart}" == "yes" || "${had_systemd_unit}" == "yes" ]]; then
+    systemctl --user show-environment >/dev/null 2>&1 || fail "The systemd user manager is unavailable. Re-run with LOGUE_AUTO_START=no or enable the user manager first."
+  fi
+  if [[ "${autostart}" == "yes" ]]; then
+    systemd_unit_next="${systemd_user_dir}/.${systemd_unit_name}.next.$$"
+    create_systemd_unit || fail "Could not create a valid systemd user service; the existing installation was not changed."
+  fi
 fi
 
 validate_managed_service
@@ -307,7 +445,7 @@ commit_install() {
   fi
   next_link="${install_root}/.current.next.$$"
   ln -s "${release_dir}" "${next_link}" || return 1
-  /bin/mv -f -h "${next_link}" "${current_link}" || return 1
+  replace_path "${next_link}" "${current_link}" || return 1
   current_switched="yes"
   say "App switched to ${logue_version}"
 
@@ -318,13 +456,25 @@ commit_install() {
   say "Extension switched atomically to ${logue_version}"
   inject_failure extension || return 1
 
-  /bin/mv -f -h "${cli_next}" "${bin_dir}/logue" || return 1
+  replace_path "${cli_next}" "${bin_dir}/logue" || return 1
   inject_failure cli || return 1
 
-  if [[ "${autostart}" == "yes" ]]; then
-    /bin/mv -f -h "${launch_plist_next}" "${launch_plist}" || return 1
+  if [[ "${logue_platform}" == "darwin" ]]; then
+    if [[ "${autostart}" == "yes" ]]; then
+      replace_path "${launch_plist_next}" "${launch_plist}" || return 1
+    else
+      rm -f -- "${launch_plist}" || return 1
+    fi
   else
-    rm -f -- "${launch_plist}" || return 1
+    if [[ "${autostart}" == "yes" ]]; then
+      replace_path "${systemd_unit_next}" "${systemd_unit}" || return 1
+      systemctl --user daemon-reload >/dev/null || return 1
+      systemctl --user enable "${systemd_unit_name}" >/dev/null || return 1
+    elif [[ "${had_systemd_unit}" == "yes" ]]; then
+      systemctl --user disable "${systemd_unit_name}" >/dev/null || return 1
+      rm -f -- "${systemd_unit}" || return 1
+      systemctl --user daemon-reload >/dev/null || return 1
+    fi
   fi
   inject_failure autostart || return 1
   return 0
@@ -341,20 +491,36 @@ rollback_install() {
     rm -f -- "${extension_dir}/manifest.json" || rollback_failed="yes"
   fi
   if [[ "${had_cli}" == "yes" ]]; then
-    /bin/mv -f -h "${cli_backup}" "${bin_dir}/logue" || rollback_failed="yes"
+    replace_path "${cli_backup}" "${bin_dir}/logue" || rollback_failed="yes"
   else
     rm -f -- "${bin_dir}/logue" || rollback_failed="yes"
   fi
-  if [[ "${had_launch_plist}" == "yes" ]]; then
-    /bin/mv -f -h "${launch_plist_backup}" "${launch_plist}" || rollback_failed="yes"
+  if [[ "${logue_platform}" == "darwin" ]]; then
+    if [[ "${had_launch_plist}" == "yes" ]]; then
+      replace_path "${launch_plist_backup}" "${launch_plist}" || rollback_failed="yes"
+    else
+      rm -f -- "${launch_plist}" || rollback_failed="yes"
+    fi
   else
-    rm -f -- "${launch_plist}" || rollback_failed="yes"
+    if [[ "${had_systemd_unit}" == "yes" ]]; then
+      replace_path "${systemd_unit_backup}" "${systemd_unit}" || rollback_failed="yes"
+    else
+      rm -f -- "${systemd_unit}" || rollback_failed="yes"
+    fi
+    if command -v systemctl >/dev/null 2>&1; then
+      systemctl --user daemon-reload >/dev/null || rollback_failed="yes"
+      if [[ "${systemd_was_enabled}" == "yes" ]]; then
+        systemctl --user enable "${systemd_unit_name}" >/dev/null || rollback_failed="yes"
+      else
+        systemctl --user disable "${systemd_unit_name}" >/dev/null 2>&1 || true
+      fi
+    fi
   fi
 
   if [[ -n "${previous_current}" ]]; then
     rollback_link="${install_root}/.current.rollback.$$"
     ln -s "${previous_current}" "${rollback_link}" || rollback_failed="yes"
-    /bin/mv -f -h "${rollback_link}" "${current_link}" || rollback_failed="yes"
+    replace_path "${rollback_link}" "${current_link}" || rollback_failed="yes"
   elif [[ -n "${previous_current_backup}" && -e "${previous_current_backup}" ]]; then
     rm -f -- "${current_link}" || rollback_failed="yes"
     mv "${previous_current_backup}" "${current_link}" || rollback_failed="yes"
@@ -401,13 +567,14 @@ else
   say "Logue will not start automatically when you sign in"
 fi
 
-rm -f -- "${extension_manifest_backup}" "${cli_backup}" "${launch_plist_backup}"
+rm -f -- "${extension_manifest_backup}" "${cli_backup}" "${launch_plist_backup}" "${systemd_unit_backup}"
 if [[ -n "${previous_current_backup}" && -e "${previous_current_backup}" ]]; then rm -rf -- "${previous_current_backup}"; fi
 staged_release_dir=""
 staged_extension_assets=""
 
 printf '\n✓ Logue %s is installed and running\n' "${logue_version}"
-say "Open: http://127.0.0.1:${logue_port}"
+say "Open: ${open_url}"
+say "Listen address: ${logue_address}"
 say "Extension: ${extension_dir} (load it in chrome://extensions)"
 say "Command: ${bin_dir}/logue"
 say "Data remains at: ${data_root}"
@@ -417,5 +584,11 @@ if [[ -z "${open_browser}" ]]; then
   [[ -r /dev/tty && -w /dev/tty ]] && open_browser="yes" || open_browser="no"
 fi
 case "${open_browser}" in
-  1|true|TRUE|True|yes|YES|Yes|y|Y) open "http://127.0.0.1:${logue_port}" >/dev/null 2>&1 || true ;;
+  1|true|TRUE|True|yes|YES|Yes|y|Y)
+    if [[ "${logue_platform}" == "darwin" ]]; then
+      open "${open_url}" >/dev/null 2>&1 || true
+    elif command -v xdg-open >/dev/null 2>&1; then
+      xdg-open "${open_url}" >/dev/null 2>&1 || true
+    fi
+    ;;
 esac
