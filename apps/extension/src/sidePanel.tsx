@@ -35,6 +35,7 @@ import { type CapturePhase } from "./sidePanelPresentation";
 import { saveThenRefreshPageHistory, shouldLoadPageHistory } from "./sidePanelPageHistory";
 import { canInsertGeneratedText, generationTargetKey } from "./sidePanelGeneration";
 import { handleSidePanelShortcut } from "./sidePanelShortcuts";
+import { createSidePanelFocusController, type SidePanelFocusController } from "./sidePanelFocus";
 import { SidePanelView } from "./sidePanelView";
 import "./sidePanel.css";
 
@@ -80,6 +81,18 @@ function SidePanelApp() {
   const pendingInsertInFlightRef = useRef(false);
   const panelMainRef = useRef<HTMLElement>(null);
   const focusPanelOnHydrationRef = useRef(false);
+  const panelFocusControllerRef = useRef<SidePanelFocusController | undefined>(undefined);
+
+  if (!panelFocusControllerRef.current) {
+    panelFocusControllerRef.current = createSidePanelFocusController({
+      visibility: () => document.visibilityState,
+      requestFrame: (callback) => { window.requestAnimationFrame(callback); },
+      focusWindow: () => { window.focus(); },
+      activeElement: () => document.activeElement,
+      serverInput: () => document.getElementById("logue-server-url"),
+      panel: () => panelMainRef.current,
+    });
+  }
 
   stateRef.current = state;
   draftRef.current = draft;
@@ -570,9 +583,24 @@ function SidePanelApp() {
       .then((response: RuntimeResponse<PanelCaptureState>) => {
         hydrate(response.value);
       });
-    const listener = (message: { type?: string; state?: PanelCaptureState } | RecordingPanelEvent) => {
+    const requestPanelFocus = () => {
+      if (!stateRef.current) {
+        focusPanelOnHydrationRef.current = true;
+        return;
+      }
+      panelFocusControllerRef.current?.request();
+    };
+    const listener = (message: { type?: string; state?: PanelCaptureState; tabId?: number } | RecordingPanelEvent) => {
       if (message.type === "logue:panel-state-changed") hydrate(message.state);
-      if (message.type === "logue:recording-event" && "tabId" in message) recordingEventRef.current(message);
+      if (message.type === "logue:side-panel-opened" && (
+        typeof message.tabId !== "number" || message.tabId === stateRef.current?.tabId
+      )) requestPanelFocus();
+      if (
+        message.type === "logue:recording-event" &&
+        "event" in message &&
+        "sessionId" in message &&
+        "tabId" in message
+      ) recordingEventRef.current(message);
     };
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
@@ -588,8 +616,16 @@ function SidePanelApp() {
   useEffect(() => {
     if (!state || !focusPanelOnHydrationRef.current) return;
     focusPanelOnHydrationRef.current = false;
-    window.requestAnimationFrame(() => panelMainRef.current?.focus({ preventScroll: true }));
+    panelFocusControllerRef.current?.request();
   }, [state]);
+
+  useEffect(() => {
+    const focusWhenShown = () => {
+      panelFocusControllerRef.current?.visibilityChanged();
+    };
+    document.addEventListener("visibilitychange", focusWhenShown);
+    return () => document.removeEventListener("visibilitychange", focusWhenShown);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

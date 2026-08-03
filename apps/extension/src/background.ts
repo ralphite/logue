@@ -81,6 +81,10 @@ async function markPanelOpen(tabId: number, windowId?: number) {
   openPanelTabs.add(tabId);
   if (typeof windowId === "number") openPanelWindowId = windowId;
   await chrome.storage.session.set({ [openPanelStorageKey(tabId)]: true });
+  // Chrome can keep the Side Panel document alive while hiding it. Reopening
+  // therefore does not necessarily remount React or rehydrate state, so tell
+  // the existing document to take keyboard focus on every accepted open.
+  void chrome.runtime.sendMessage({ type: "logue:side-panel-opened", tabId }).catch(() => undefined);
 }
 
 async function clearPanelOpen(tabId: number) {
