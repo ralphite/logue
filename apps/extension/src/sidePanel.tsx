@@ -25,10 +25,11 @@ import {
   type RecordingPanelEvent,
 } from "./recordingBridge";
 import { createRequestId } from "./requestId";
+import { capturePhasePresentation, type CapturePhase } from "./sidePanelPresentation";
 import { sidePanelShortcutAction } from "./sidePanelShortcuts";
 import "./sidePanel.css";
 
-type Phase = "idle" | "starting" | "recording" | "processing" | "error";
+type Phase = CapturePhase;
 
 interface RuntimeResponse<T> { ok: boolean; value?: T; }
 interface RecordingSession { id: string; tabId: number; }
@@ -472,23 +473,25 @@ function SidePanelApp() {
 
   const organizationCount = (project ? 1 : 0) + splitTags(tags).length;
   const sourceHref = useMemo(() => state?.source.url || undefined, [state]);
+  const presentation = capturePhasePresentation(phase);
 
   if (!state) return <div className="empty">Open Logue from a page to begin.</div>;
 
   return (
     <main className="panel">
       <div className="panel-main">
-        <p className="eyebrow">{sourceLabel(state)}</p>
-        <h1 className="page-title">
-          {sourceHref ? <a className="source-link" href={sourceHref} target="_blank" rel="noreferrer" title={state.source.title}>{state.source.title}</a> : state.source.title}
-        </h1>
+        {presentation.showSource && <>
+          <p className="eyebrow">{sourceLabel(state)}</p>
+          <h1 className="page-title">
+            {sourceHref ? <a className="source-link" href={sourceHref} target="_blank" rel="noreferrer" title={state.source.title}>{state.source.title}</a> : state.source.title}
+          </h1>
+          {state.selectionText && <blockquote className="selection">{state.selectionText}</blockquote>}
+        </>}
 
-        {state.selectionText && <blockquote className="selection">{state.selectionText}</blockquote>}
+        {presentation.status && <div className="processing" role="status"><span className="spinner" />{presentation.status}</div>}
 
-        {state.intent === "generate" && generatedText ? (
+        {presentation.showEditor && (state.intent === "generate" && generatedText ? (
           <textarea className="text-area" value={generatedText} onChange={(event) => setGeneratedText(event.target.value)} aria-label="Generated reply" />
-        ) : phase === "processing" || phase === "starting" ? (
-          <div className="processing" role="status"><span className="spinner" />{phase === "starting" ? "Starting microphone…" : "Transcribing…"}</div>
         ) : (
           <textarea
             className="text-area"
@@ -497,9 +500,9 @@ function SidePanelApp() {
             placeholder={state.intent === "generate" ? "What should Logue write?" : state.selectionText ? "Add a note…" : state.intent === "input" ? "Write or record…" : "Add a note to this page…"}
             aria-label={state.intent === "generate" ? "Generation instruction" : state.selectionText ? "Annotation" : "Note"}
           />
-        )}
+        ))}
 
-        {state.intent === "generate" ? (
+        {presentation.showOrganization && (state.intent === "generate" ? (
           <label className="field-label generation-skill">Skill
             <select className="field" value={skillId} onChange={(event) => setSkillId(event.target.value)}>
               {skills.length ? skills.map((item) => <option key={item.id} value={item.id}>{item.name}</option>) : <option value="">No extension skills</option>}
@@ -518,41 +521,42 @@ function SidePanelApp() {
               <input className="field" value={tags} onChange={(event) => { setTags(event.target.value); persistDraft({ tags: splitTags(event.target.value) }); }} placeholder="Automatic, or add tags separated by commas" />
             </label>
           </div>
-        </details>}
+        </details>)}
 
-        {error && <div className="error" role="alert">{error.message}</div>}
+        {presentation.showErrors && error && <div className="error" role="alert">{error.message}</div>}
 
-        <div className="actions">
-          {state.intent === "generate" ? (
-            generatedText ? <button type="button" className="button secondary" onClick={() => { setGeneratedText(""); setGenerationRunId(undefined); }}>Back</button> : null
-          ) : pendingInsertText ? null : phase === "starting" ? (
+        {presentation.showActions && <div className="actions">
+          {phase === "starting" ? (
             <button type="button" className="button secondary" onClick={cancelRecording} aria-keyshortcuts="Escape" title="Cancel (Esc)">Cancel</button>
           ) : phase === "recording" ? (
             <>
               <button type="button" className="button secondary" onClick={cancelRecording} aria-keyshortcuts="Escape" title="Cancel (Esc)">Cancel</button>
               <button type="button" className="record-button recording" onClick={stopRecording} aria-keyshortcuts="Enter" title="Stop and save (Enter)"><Square size={14} fill="currentColor" /> Stop <span className="shortcut">{elapsed}s</span></button>
             </>
-          ) : (
-            <button type="button" className="record-button" onClick={startRecording} disabled={phase === "processing"} aria-keyshortcuts="R" title="Record (R)"><Mic size={17} /> Record <span className="shortcut">R</span></button>
+          ) : state.intent === "generate" ? (
+            generatedText ? <button type="button" className="button secondary" onClick={() => { setGeneratedText(""); setGenerationRunId(undefined); }}>Back</button> : null
+          ) : pendingInsertText ? null : (
+            <button type="button" className="record-button" onClick={startRecording} aria-keyshortcuts="R" title="Record (R)"><Mic size={17} /> Record <span className="shortcut">R</span></button>
           )}
-          <span className="spacer" />
-          {state.intent !== "generate" && error && lastBlobRef.current && !pendingInsertText && <button type="button" className="button secondary" onClick={() => void transcribeAndSave(lastBlobRef.current!)}>Retry</button>}
-          {state.intent !== "generate" && pendingInsertText && <>
-            <button type="button" className="button secondary" onClick={() => void copyPendingInsert()}>Copy</button>
-            <button type="button" className="button" onClick={() => void retryInsert()}>Insert again</button>
+          {!presentation.captureActive && <>
+            <span className="spacer" />
+            {state.intent !== "generate" && error && lastBlobRef.current && !pendingInsertText && <button type="button" className="button secondary" onClick={() => void transcribeAndSave(lastBlobRef.current!)}>Retry</button>}
+            {state.intent !== "generate" && pendingInsertText && <>
+              <button type="button" className="button secondary" onClick={() => void copyPendingInsert()}>Copy</button>
+              <button type="button" className="button" onClick={() => void retryInsert()}>Insert again</button>
+            </>}
+            {state.intent === "generate" ? <button
+              type="button"
+              className="button"
+              disabled={generatedText ? false : !draft.trim() || !skillId || generating}
+              onClick={() => generatedText ? void useGeneratedText() : void runGeneration()}
+            >{generating ? "Generating…" : generatedText ? "Insert" : "Generate"}</button> : draft.trim() && !pendingInsertText ? <button
+              type="button"
+              className="button"
+              onClick={() => void saveContent(draft.trim()).catch((cause) => { setError(friendlyLocalError(cause, "save")); setPhase("error"); })}
+            >Save</button> : null}
           </>}
-          {state.intent === "generate" ? <button
-            type="button"
-            className="button"
-            disabled={generatedText ? false : !draft.trim() || !skillId || generating}
-            onClick={() => generatedText ? void useGeneratedText() : void runGeneration()}
-          >{generating ? "Generating…" : generatedText ? "Insert" : "Generate"}</button> : draft.trim() && !pendingInsertText ? <button
-            type="button"
-            className="button"
-            disabled={!draft.trim() || phase === "recording" || phase === "processing" || phase === "starting"}
-            onClick={() => void saveContent(draft.trim()).catch((cause) => { setError(friendlyLocalError(cause, "save")); setPhase("error"); })}
-          >Save</button> : null}
-        </div>
+        </div>}
       </div>
     </main>
   );
