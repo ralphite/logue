@@ -50,7 +50,7 @@ server           Go 本机 API、文件存储、Gemini 代理与静态 Web 服�
 - `GET|PATCH|DELETE /v1/docs/{id}`
 - `POST /v1/docs/generate`
 - `GET /v1/project-bundles/{name}`：只读项目包。
-- `POST /v1/agent/import`：追加带 `source_ids`、`actor`、`request_id` 的派生资料。
+- `POST /v1/external-agent/import`：追加带 `source_ids`、`actor`、`request_id` 的外部自主 Agent 派生资料。
 
 ### 设置与可移植性
 
@@ -62,10 +62,10 @@ server           Go 本机 API、文件存储、Gemini 代理与静态 Web 服�
 ## Gemini
 
 - 默认模型：`gemini-3.6-flash`。
-- 环境变量：`GEMINI_API_KEY`（兼容 `GOOGLE_GENERATIVE_AI_API_KEY`）、`LOGUE_TRANSCRIPTION_MODEL`、`LOGUE_DICTATION_SKILL`、`LOGUE_TRANSCRIPTION_CONTEXT_LIMIT`。
+- 环境变量：`GEMINI_API_KEY`、`LOGUE_TRANSCRIPTION_MODEL`、`LOGUE_DICTATION_SKILL`、`LOGUE_TRANSCRIPTION_CONTEXT_LIMIT`。
 - 音频使用 inline data 直接发送 `generateContent`；V1 限制 20MB。
 - 转写 Prompt 把页面、目标文字、选区和项目背景放入带边界的不可信引用区；技能指令与上下文分离；只允许输出转写文本。
-- 文档生成接收用户选中的资料与项目概览，并要求使用 `[来源 n]` 行内引用；Agent 短回复可自动检索相关资料。
+- 文档生成接收用户选中的资料与项目概览，并要求使用 `[Source n]` 行内引用；Skill 短回复可自动检索相关资料。
 
 ## 安全边界
 
