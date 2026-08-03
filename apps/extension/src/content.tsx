@@ -1,4 +1,3 @@
-import { AudioLines, Check, LoaderCircle, X } from "lucide-react";
 import { SelectionSkillMenu, captureEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility, type EditableSelectionSnapshot, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -19,6 +18,7 @@ import {
 import { recordingShortcutAction } from "./recordingShortcuts";
 import { createRequestId } from "./requestId";
 import { completeVoiceInput, VoiceInputTransactionError } from "./transaction";
+import { InlineVoiceControls, type InlineVoicePhase } from "./InlineVoiceControls";
 import styles from "./extension.css?inline";
 
 interface ContentRequestMessage {
@@ -27,8 +27,6 @@ interface ContentRequestMessage {
 }
 
 type ContentMessage = ContentRequestMessage | RecordingControlMessage | RecordingDisposeMessage;
-
-type InlineVoicePhase = "idle" | "starting" | "recording" | "processing" | "error";
 
 interface InlineVoiceSession {
   id: string;
@@ -447,7 +445,9 @@ function ExtensionLauncher() {
   const controlMetrics = inlineVoiceControlMetrics[voicePhase];
   const defaultPosition = targetRect ? defaultLauncherPosition(targetRect, viewport, controlMetrics.width, controlMetrics.height) : undefined;
   const position = defaultPosition ? clampLauncherPosition(defaultPosition, viewport, controlMetrics.width, controlMetrics.height) : undefined;
-  const errorPlacement = position ? launcherErrorPlacement(position, controlMetrics.width) : { vertical: "below", horizontal: "right" };
+  const errorPlacement: { vertical: "above" | "below"; horizontal: "left" | "right" } = position
+    ? launcherErrorPlacement(position, controlMetrics.width)
+    : { vertical: "below", horizontal: "right" };
   const visible = Boolean(
     targetRect && position && !hasSelectionSkillMenu &&
     (document.activeElement === targetRef.current || keyboardActive || captureActive) &&
@@ -519,25 +519,17 @@ function ExtensionLauncher() {
       >
         {selectionSkillNotice.message}{selectionSkillNotice.history && <button type="button" onClick={() => void retrySelectionSkillHistory()}>Retry saving history</button>}
       </div>}
-      {visible && <div className={`logue-launcher-group is-${voicePhase}${captureActive ? " is-capturing" : ""}`} style={{ top: position?.top, left: position?.left }} role="group" aria-label="Logue voice input">
-      {voicePhase === "recording" ? <>
-        <button type="button" className="logue-launcher logue-inline-cancel" aria-label="Cancel voice input" aria-keyshortcuts="Escape" title="Cancel (Esc)" onPointerDown={(event) => event.preventDefault()} onClick={cancelInlineVoice}><X size={17} /></button>
-        <button type="button" className="logue-launcher logue-inline-accept" aria-label="Stop and insert voice input" aria-keyshortcuts="Enter" title="Stop and insert (Enter)" onPointerDown={(event) => event.preventDefault()} onClick={stopAndInsertInlineVoice}><Check size={18} strokeWidth={2.3} /></button>
-      </> : captureActive ? <>
-        <button type="button" className="logue-launcher logue-inline-cancel" aria-label="Cancel voice input" aria-keyshortcuts="Escape" title="Cancel (Esc)" onPointerDown={(event) => event.preventDefault()} onClick={cancelInlineVoice}><X size={17} /></button>
-        <span className="logue-inline-status" role="status" aria-label={voicePhase === "starting" ? "Starting microphone" : "Transcribing and inserting"}><LoaderCircle size={17} className="logue-inline-spinner" /></span>
-      </> : <button
-        type="button"
-        className="logue-launcher logue-launcher-voice"
-        aria-label="Start voice input"
-        title={voicePhase === "error" ? "Try voice input again" : "Start voice input"}
-        onPointerDown={(event) => event.preventDefault()}
-        onClick={startInlineVoice}
-      >
-        <AudioLines size={17} strokeWidth={2.1} />
-      </button>}
-      {voiceError && <div className={`logue-launcher-error is-${errorPlacement.vertical} is-${errorPlacement.horizontal}`} role="alert"><span>{voiceError}</span>{pendingCopyText && <button type="button" onClick={() => void navigator.clipboard.writeText(pendingCopyText)}>Copy</button>}</div>}
-      </div>}
+      {visible && <InlineVoiceControls
+        phase={voicePhase}
+        style={{ top: position?.top, left: position?.left }}
+        onStart={startInlineVoice}
+        onCancel={cancelInlineVoice}
+        onStopAndInsert={stopAndInsertInlineVoice}
+        error={voiceError}
+        pendingCopyText={pendingCopyText}
+        onCopy={() => void navigator.clipboard.writeText(pendingCopyText)}
+        errorPlacement={errorPlacement}
+      />}
     </>
   );
 }

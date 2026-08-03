@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button, ContextHeader } from "../components/ui";
+import { editorColumnClass } from "../components/layout";
 
 function ContextHeaderFrame({ error = false, title = "All projects" }: { error?: boolean; title?: string }) {
   return (
@@ -9,7 +10,7 @@ function ContextHeaderFrame({ error = false, title = "All projects" }: { error?:
         leading={<Button variant="ghost" size="sm"><ArrowLeft size={14} />{title}</Button>}
         actions={error ? <span className="text-[14px] text-[#a84d44]">Save failed</span> : undefined}
       />
-      <div className="mx-auto max-w-[960px] bg-white px-8 py-6 text-[14px] text-[#999a95]">Editor content follows the same axis.</div>
+      <div className={`${editorColumnClass} bg-white py-6 text-[14px] text-[#999a95]`}>Editor content follows the same axis.</div>
     </main>
   );
 }

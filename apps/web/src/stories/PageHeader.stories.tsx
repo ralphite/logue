@@ -1,12 +1,13 @@
 import { CirclePlus } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button, ContextHeader, PageHeader, PaneHeader } from "../components/ui";
+import { editorColumnClass, pageColumnClass } from "../components/layout";
 
 function PageHeaderFrame({ title = "Stream", withAction = false }: { title?: string; withAction?: boolean }) {
   return (
     <main className="min-h-44 bg-[#f7f7f5]">
       <PageHeader title={title} actions={withAction ? <Button variant="primary" size="sm"><CirclePlus size={14} />Add material</Button> : undefined} />
-      <div className="mx-auto max-w-[1080px] bg-white px-8 py-6 text-[14px] text-[#999a95]">Page content follows the same axis.</div>
+      <div className={`${pageColumnClass} bg-white py-6 text-[14px] text-[#999a95]`}>Page content follows the same axis.</div>
     </main>
   );
 }
@@ -14,8 +15,8 @@ function PageHeaderFrame({ title = "Stream", withAction = false }: { title?: str
 function HeaderOverview() {
   return (
     <main className="space-y-8 bg-[#f7f7f5] py-8">
-      <section><p className="mx-auto mb-2 max-w-[1080px] px-8 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#888984]">Page</p><PageHeader title="Stream" actions={<Button variant="primary" size="sm"><CirclePlus size={14} />Add material</Button>} /></section>
-      <section><p className="mx-auto mb-2 max-w-[960px] px-8 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#888984]">Context</p><ContextHeader leading={<Button variant="ghost" size="sm">All projects</Button>} /></section>
+      <section><p className={`${pageColumnClass} mb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#888984]`}>Page</p><PageHeader title="Stream" actions={<Button variant="primary" size="sm"><CirclePlus size={14} />Add material</Button>} /></section>
+      <section><p className={`${editorColumnClass} mb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#888984]`}>Context</p><ContextHeader leading={<Button variant="ghost" size="sm">All projects</Button>} /></section>
       <section className="mx-auto w-[360px] bg-white"><p className="mb-2 bg-[#f7f7f5] text-[12px] font-semibold uppercase tracking-[0.08em] text-[#888984]">Pane</p><PaneHeader title="Sources" /><div className="h-20" /></section>
     </main>
   );

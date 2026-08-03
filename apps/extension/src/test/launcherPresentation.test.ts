@@ -5,13 +5,15 @@ import { describe, expect, it } from "vitest";
 describe("page launcher presentation", () => {
   it("starts voice input in place and replaces the launcher with accessible capture controls", () => {
     const content = readFileSync(resolve(process.cwd(), "src/content.tsx"), "utf8");
+    const controls = readFileSync(resolve(process.cwd(), "src/InlineVoiceControls.tsx"), "utf8");
     const styles = readFileSync(resolve(process.cwd(), "src/extension.css"), "utf8");
 
-    expect(content).toContain('aria-label="Start voice input"');
-    expect(content).toContain('aria-label="Cancel voice input"');
-    expect(content).toContain('aria-label="Stop and insert voice input"');
-    expect(content).toContain('aria-keyshortcuts="Escape"');
-    expect(content).toContain('aria-keyshortcuts="Enter"');
+    expect(content).toContain("<InlineVoiceControls");
+    expect(controls).toContain('aria-label="Start voice input"');
+    expect(controls).toContain('aria-label="Cancel voice input"');
+    expect(controls).toContain('aria-label="Stop and insert voice input"');
+    expect(controls).toContain('aria-keyshortcuts="Escape"');
+    expect(controls).toContain('aria-keyshortcuts="Enter"');
     expect(content).toContain("startInlineVoice");
     expect(content).toContain("cancelMaterialSave(session.id)");
     expect(content).toContain("requestId: session.id");

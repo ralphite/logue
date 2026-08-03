@@ -30,7 +30,11 @@ function Demo({ options = skills }: { options?: typeof skills }) {
   );
 }
 
-export const Closed: Story = { render: () => <Demo /> };
+export const MenuOpen: Story = { render: () => <Demo /> };
+
+export const KeyboardFocus: Story = {
+  render: () => <div className="min-h-72 bg-white p-14 text-[15px] leading-7 text-[#373834]"><p>The selected sentence stays in place while a configured Skill changes only that text.</p><SelectionSkillMenu anchor={{ left: 56, top: 114 }} skills={skills} onUseSkill={async () => undefined} onDismiss={() => undefined} focusTrigger /></div>,
+};
 
 export const NoAvailableSkill: Story = { render: () => <Demo options={[]} /> };
 
