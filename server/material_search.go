@@ -24,7 +24,12 @@ type materialSearchCandidate struct {
 	Tags       []string `json:"tags,omitempty"`
 }
 
-type semanticMaterialSearchResponse struct {
+type semanticSearchMatch struct {
+	ID     string `json:"id"`
+	Reason string `json:"reason"`
+}
+
+type semanticSearchResponse struct {
 	Matches []struct {
 		ID     string `json:"id"`
 		Reason string `json:"reason"`
@@ -127,66 +132,85 @@ Rules:
 </candidates>`, materialSearchResultLimit, bounded(query, 1000), bounded(string(candidateJSON), contextLimit))
 }
 
-func (g *GeminiClient) SearchMaterials(ctx context.Context, query string, candidates []materialSearchCandidate) ([]MaterialSearchMatch, error) {
+func (g *GeminiClient) rankSearch(ctx context.Context, prompt string, allowed map[string]bool) ([]semanticSearchMatch, error) {
 	if !g.Configured() {
 		return nil, errors.New("Gemini API key is not configured")
 	}
-	if strings.TrimSpace(query) == "" || len(candidates) == 0 {
-		return []MaterialSearchMatch{}, nil
+	if len(allowed) == 0 {
+		return []semanticSearchMatch{}, nil
 	}
 	payload := geminiRequest{
-		Contents:         []geminiContent{{Role: "user", Parts: []geminiPart{{Text: semanticMaterialSearchPrompt(query, candidates, g.contextLimit)}}}},
+		Contents:         []geminiContent{{Role: "user", Parts: []geminiPart{{Text: prompt}}}},
 		GenerationConfig: &geminiGenerationConfig{ResponseMIMEType: "application/json", Temperature: 0},
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("encode material search request: %w", err)
+		return nil, fmt.Errorf("encode semantic search request: %w", err)
 	}
 	endpoint := fmt.Sprintf("%s/models/%s:generateContent", strings.TrimRight(g.baseURL, "/"), g.model)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("create material search request: %w", err)
+		return nil, fmt.Errorf("create semantic search request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-goog-api-key", g.key)
 	response, err := g.client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("call Gemini material search: %w", err)
+		return nil, fmt.Errorf("call Gemini semantic search: %w", err)
 	}
 	defer response.Body.Close()
 	responseBody, err := io.ReadAll(io.LimitReader(response.Body, 2<<20))
 	if err != nil {
-		return nil, fmt.Errorf("read material search response: %w", err)
+		return nil, fmt.Errorf("read semantic search response: %w", err)
 	}
 	var result geminiResponse
 	if err := json.Unmarshal(responseBody, &result); err != nil {
-		return nil, fmt.Errorf("decode material search response: %w", err)
+		return nil, fmt.Errorf("decode semantic search response: %w", err)
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		message := response.Status
 		if result.Error != nil && result.Error.Message != "" {
 			message = result.Error.Message
 		}
-		return nil, fmt.Errorf("Gemini rejected material search: %s", message)
+		return nil, fmt.Errorf("Gemini rejected semantic search: %s", message)
 	}
 	if len(result.Candidates) != 1 || len(result.Candidates[0].Content.Parts) != 1 {
-		return nil, errors.New("Gemini returned an invalid material search response")
+		return nil, errors.New("Gemini returned an invalid semantic search response")
 	}
-	var decoded semanticMaterialSearchResponse
+	var decoded semanticSearchResponse
 	if err := json.Unmarshal([]byte(result.Candidates[0].Content.Parts[0].Text), &decoded); err != nil {
-		return nil, fmt.Errorf("decode material search result: %w", err)
+		return nil, fmt.Errorf("decode semantic search result: %w", err)
 	}
-	allowed := make(map[string]bool, len(candidates))
-	for _, candidate := range candidates {
-		allowed[candidate.ID] = true
-	}
-	matches := make([]MaterialSearchMatch, 0, min(len(decoded.Matches), materialSearchResultLimit))
+	matches := make([]semanticSearchMatch, 0, min(len(decoded.Matches), materialSearchResultLimit))
 	seen := make(map[string]bool, len(decoded.Matches))
 	for _, match := range decoded.Matches {
 		id := strings.TrimSpace(match.ID)
 		if id == "" || !allowed[id] || seen[id] {
 			continue
 		}
+		matches = append(matches, semanticSearchMatch{ID: id, Reason: match.Reason})
+		seen[id] = true
+		if len(matches) == materialSearchResultLimit {
+			break
+		}
+	}
+	return matches, nil
+}
+
+func (g *GeminiClient) SearchMaterials(ctx context.Context, query string, candidates []materialSearchCandidate) ([]MaterialSearchMatch, error) {
+	if strings.TrimSpace(query) == "" || len(candidates) == 0 {
+		return []MaterialSearchMatch{}, nil
+	}
+	allowed := make(map[string]bool, len(candidates))
+	for _, candidate := range candidates {
+		allowed[candidate.ID] = true
+	}
+	ranked, err := g.rankSearch(ctx, semanticMaterialSearchPrompt(query, candidates, g.contextLimit), allowed)
+	if err != nil {
+		return nil, err
+	}
+	matches := make([]MaterialSearchMatch, 0, len(ranked))
+	for _, match := range ranked {
 		reason := strings.Join(strings.Fields(match.Reason), " ")
 		if len(reason) > 120 {
 			reason = reason[:120] + "…"
@@ -194,11 +218,7 @@ func (g *GeminiClient) SearchMaterials(ctx context.Context, query string, candid
 		if reason == "" {
 			continue
 		}
-		matches = append(matches, MaterialSearchMatch{ID: id, Match: "related", Reason: reason})
-		seen[id] = true
-		if len(matches) == materialSearchResultLimit {
-			break
-		}
+		matches = append(matches, MaterialSearchMatch{ID: match.ID, Match: "related", Reason: reason})
 	}
 	return matches, nil
 }

@@ -19,7 +19,7 @@ import { type Material } from "@logue/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSerialTaskQueue } from "../documentSaveQueue";
 import { groupIdenticalMaterials } from "../materialGroups";
-import { matchesMaterialSearchText, orderMaterialSearchResults, useMaterialSearch } from "../materialSearch";
+import { matchesMaterialSearchText, orderMaterialSearchResults, useDocumentSearch, useMaterialSearch } from "../materialSearch";
 import {
   createDocument,
   deleteDocument,
@@ -528,15 +528,25 @@ export function ViewWorkspace({
     return () => window.clearTimeout(timer);
   }, [content, enqueueSave, project, saveState, selected, sourceIds, title]);
 
+  const documentSearch = useDocumentSearch(query, documents);
   const filteredDocuments = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return documents;
+    if (!documentSearch.normalizedQuery) return documents;
+    if (documentSearch.result) {
+      const documentsByID = new Map(documents.map((document) => [document.id, document]));
+      return documentSearch.result.matches
+        .map((match) => documentsByID.get(match.id))
+        .filter((document): document is LogueDocument => Boolean(document));
+    }
     return documents.filter((document) =>
       [document.title, document.content, document.project]
         .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(normalized)),
+        .some((value) => value!.toLowerCase().includes(documentSearch.normalizedQuery)),
     );
-  }, [documents, query]);
+  }, [documentSearch.normalizedQuery, documentSearch.result, documents]);
+  const documentSearchReason = useCallback((document: LogueDocument) => {
+    const match = documentSearch.matches.get(document.id);
+    return match?.match === "related" ? match.reason : "";
+  }, [documentSearch.matches]);
 
   const projects = useMemo(
     () => Array.from(new Set(materials.flatMap((material) => material.projects))).sort(),
@@ -781,7 +791,7 @@ export function ViewWorkspace({
                 <FileText size={14} className="shrink-0 text-[#898a85]" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[14px] font-medium">{document.title || "Untitled"}</span>
-                  {document.project && <span className="mt-0.5 block truncate text-[14px] text-[#9a9b96]">{document.project}</span>}
+                  {documentSearchReason(document) ? <span className="mt-0.5 block truncate text-[12px] text-[#8b8d87]">{documentSearchReason(document)}</span> : document.project && <span className="mt-0.5 block truncate text-[14px] text-[#9a9b96]">{document.project}</span>}
                 </span>
               </button>
             ))
@@ -791,6 +801,8 @@ export function ViewWorkspace({
               <button type="button" onClick={() => void addDocument()} className="mt-2 w-full rounded-md bg-white px-2 py-2 text-[15px] font-medium text-[#5e605a] shadow-[0_0_0_1px_#deded9] hover:bg-[#fafaf8]">New blank document</button>
               <button type="button" onClick={materials.length > 0 ? openGenerator : onOpenMaterials} className="mt-1 w-full rounded-md px-2 py-2 text-[15px] font-medium text-[#777873] hover:bg-white">{materials.length > 0 ? "Generate from materials" : "Add materials first"}</button>
             </div>
+          ) : documentSearch.pending ? (
+            <div aria-busy="true" aria-label="Searching documents" className="min-h-16" />
           ) : (
             <div className="px-3 py-6 text-center"><p className="text-[14px] text-[#999a95]">No matching documents</p><button type="button" onClick={() => setQuery("")} className="mt-2 text-[14px] font-medium text-[#666762] underline underline-offset-2">Clear search</button></div>
           )}

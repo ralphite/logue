@@ -1,8 +1,60 @@
 import type { Material } from "@logue/ui";
 import { useEffect, useMemo, useState } from "react";
-import { searchMaterials, type MaterialSearchMatch, type MaterialSearchResponse } from "./api";
+import {
+  searchDocuments,
+  searchMaterials,
+  type DocumentSearchMatch,
+  type DocumentSearchResponse,
+  type LogueDocument,
+  type MaterialSearchMatch,
+  type MaterialSearchResponse,
+} from "./api";
 
-type ActiveMaterialSearch = MaterialSearchResponse & { query: string };
+type SearchMatch = { id: string };
+type SearchResponse<TMatch extends SearchMatch> = { matches: TMatch[] };
+type ActiveSearch<TResponse> = TResponse & { query: string };
+
+export function useRankedSearch<TMatch extends SearchMatch, TResponse extends SearchResponse<TMatch>>(
+  query: string,
+  candidates: unknown[],
+  search: (query: string, signal?: AbortSignal) => Promise<TResponse>,
+) {
+  const [activeSearch, setActiveSearch] = useState<ActiveSearch<TResponse>>();
+  const normalizedQuery = query.trim().toLowerCase();
+
+  useEffect(() => {
+    if (!normalizedQuery) {
+      setActiveSearch(undefined);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void search(query.trim(), controller.signal)
+        .then((result) => {
+          if (!controller.signal.aborted) setActiveSearch({ ...result, query: normalizedQuery });
+        })
+        .catch((cause: unknown) => {
+          if ((cause as { name?: string } | undefined)?.name !== "AbortError") setActiveSearch(undefined);
+        });
+    }, 260);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [candidates, normalizedQuery, query, search]);
+
+  const result = activeSearch?.query === normalizedQuery ? activeSearch : undefined;
+  const matches = useMemo(
+    () => new Map<string, TMatch>(result?.matches.map((match) => [match.id, match]) ?? []),
+    [result],
+  );
+  return {
+    normalizedQuery,
+    result,
+    matches,
+    pending: Boolean(normalizedQuery) && !result,
+  };
+}
 
 export function matchesMaterialSearchText(material: Material, normalizedQuery: string) {
   if (!normalizedQuery) return true;
@@ -19,41 +71,11 @@ export function matchesMaterialSearchText(material: Material, normalizedQuery: s
 }
 
 export function useMaterialSearch(query: string, materials: Material[]) {
-  const [materialSearch, setMaterialSearch] = useState<ActiveMaterialSearch>();
-  const normalizedQuery = query.trim().toLowerCase();
+  return useRankedSearch<MaterialSearchMatch, MaterialSearchResponse>(query, materials, searchMaterials);
+}
 
-  useEffect(() => {
-    if (!normalizedQuery) {
-      setMaterialSearch(undefined);
-      return;
-    }
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      void searchMaterials(query.trim(), controller.signal)
-        .then((result) => {
-          if (!controller.signal.aborted) setMaterialSearch({ ...result, query: normalizedQuery });
-        })
-        .catch((cause: unknown) => {
-          if ((cause as { name?: string } | undefined)?.name !== "AbortError") setMaterialSearch(undefined);
-        });
-    }, 260);
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [materials, normalizedQuery, query]);
-
-  const result = materialSearch?.query === normalizedQuery ? materialSearch : undefined;
-  const matches = useMemo(
-    () => new Map<string, MaterialSearchMatch>(result?.matches.map((match) => [match.id, match]) ?? []),
-    [result],
-  );
-  return {
-    normalizedQuery,
-    result,
-    matches,
-    pending: Boolean(normalizedQuery) && !result,
-  };
+export function useDocumentSearch(query: string, documents: LogueDocument[]) {
+  return useRankedSearch<DocumentSearchMatch, DocumentSearchResponse>(query, documents, searchDocuments);
 }
 
 export function orderMaterialSearchResults(materials: Material[], result?: MaterialSearchResponse) {

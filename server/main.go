@@ -135,6 +135,7 @@ func main() {
 	mux.HandleFunc("/v1/glossary-suggestions", api.glossarySuggestions)
 	mux.HandleFunc("/v1/project-overview-drafts/", api.projectOverviewDraft)
 	mux.HandleFunc("/v1/docs", api.documents)
+	mux.HandleFunc("/v1/document-search", api.documentSearch)
 	mux.HandleFunc("/v1/docs/generate", api.generateDocument)
 	mux.HandleFunc("/v1/docs/", api.document)
 	mux.HandleFunc("/v1/selections", api.selection)

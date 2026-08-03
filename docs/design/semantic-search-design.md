@@ -25,5 +25,6 @@ exist.
 
 ## Open scope
 
-This batch supplies the shared Material search API and Stream integration. Document-title
-search is a separate object search and should use the same API contract in its own batch.
+This batch supplies the shared Material and Document search APIs. Stream, document search,
+and material pickers use the same quiet interaction contract; other future object searches
+must reuse it rather than introduce a visible search mode.

@@ -30,6 +30,15 @@ export interface MaterialSearchResponse {
   strategy: "semantic" | "local";
 }
 
+export type DocumentSearchMatch =
+  | { id: string; match: "title" | "content" | "project"; reason?: string }
+  | { id: string; match: "related"; reason: string };
+
+export interface DocumentSearchResponse {
+  matches: DocumentSearchMatch[];
+  strategy: "semantic" | "local";
+}
+
 export interface ServiceStatus {
   ok: boolean;
   ai_configured: boolean;
@@ -153,6 +162,12 @@ export async function createMaterial(input: {
 export async function getDocuments() {
   const result = await parseResponse<{ documents: LogueDocument[] }>(await fetch(`${apiBase}/v1/docs`));
   return result.documents;
+}
+
+export async function searchDocuments(query: string, signal?: AbortSignal) {
+  return parseResponse<DocumentSearchResponse>(
+    await fetch(`${apiBase}/v1/document-search?query=${encodeURIComponent(query)}`, { signal }),
+  );
 }
 
 export async function createDocument(input: {
