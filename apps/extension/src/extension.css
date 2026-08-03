@@ -88,6 +88,32 @@ textarea {
   text-underline-offset: 2px;
 }
 
+.logue-selection-feedback {
+  position: fixed;
+  z-index: 2147483645;
+  max-width: 240px;
+  padding: 7px 9px;
+  border: 1px solid #deded9;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(25, 27, 23, 0.12);
+  color: #5f605b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.logue-selection-feedback button {
+  margin-left: 7px;
+  border: 0;
+  background: transparent;
+  color: #4f57cd;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .logue-launcher {
   display: flex;
   width: 38px;

@@ -199,6 +199,45 @@ func TestAgentRunSourceAssemblyDeduplicatesSimilarMaterialsWithoutChangingThem(t
 	}
 }
 
+func TestSelectionSkillRunPersistsSelectionAndTargetContext(t *testing.T) {
+	root := t.TempDir()
+	store, err := NewStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent, err := store.GetAgent(defaultReplyAgentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, existing, err := store.CreateAgentRun(CreateAgentRunInput{
+		RequestID:   "selection-skill-trace",
+		AgentID:     agent.ID,
+		Instruction: "Transform only the selected text.",
+		PageTitle:   "Draft",
+		PageURL:     "logue://document/doc_123",
+		TargetText:  "The full draft has this sentence.",
+		Selection:   "this sentence",
+	}, agent)
+	if err != nil || existing {
+		t.Fatalf("create selection skill run: run=%#v existing=%t err=%v", run, existing, err)
+	}
+	if run.PageTitle != "Draft" || run.PageURL != "logue://document/doc_123" || run.TargetText != "The full draft has this sentence." || run.Selection != "this sentence" {
+		t.Fatalf("selection trace missing: %#v", run)
+	}
+	completed, err := store.CompleteAgentRun(run.ID, "that sentence", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	replacement := "that sentence"
+	adopted, err := store.UpdateAgentRun(completed.ID, UpdateAgentRunInput{AdoptedOutput: &replacement})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if adopted.Selection != run.Selection || adopted.AdoptedOutput != "that sentence" {
+		t.Fatalf("selection adoption lost trace: %#v", adopted)
+	}
+}
+
 func TestDocumentAgentRunCreatesTraceableDocumentAndSurvivesRestart(t *testing.T) {
 	root := t.TempDir()
 	store, err := NewStore(root)

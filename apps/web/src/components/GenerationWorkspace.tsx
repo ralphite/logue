@@ -142,13 +142,13 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
     setAgentsError(undefined);
     try {
       const created = await createAgent({
-        name: "Untitled skill",
+        name: "New skill",
         purpose: defaultSkillPurpose,
-        instructions: "",
+        instructions: "Transform only the selected text. Preserve its meaning and formatting. Return only the replacement text.",
         task: "generate",
         output: "insert",
-        surfaces: ["web"],
-        contexts: [],
+        surfaces: ["web", "extension"],
+        contexts: ["selection"],
         enabled: true,
       });
       setAgents((current) => [created, ...current.filter((agent) => agent.id !== created.id)]);

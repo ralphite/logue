@@ -51,6 +51,10 @@ export interface LogueAgentRun {
   output_type: AgentOutput;
   instruction: string;
   project?: string;
+  page_title?: string;
+  page_url?: string;
+  target_text?: string;
+  selection?: string;
   sources: AgentRunSource[];
   original_output?: string;
   adopted_output?: string;
@@ -109,7 +113,7 @@ export async function getAgentRuns() {
   return (await parse<{ runs: LogueAgentRun[] }>(await fetch(`${apiBase}/v1/agent-runs`))).runs;
 }
 
-export async function createAgentRun(input: { agent_id: string; instruction: string; project?: string; source_ids?: string[] }) {
+export async function createAgentRun(input: { agent_id: string; instruction: string; project?: string; source_ids?: string[]; page_title?: string; page_url?: string; target_text?: string; selection?: string }) {
   const requestId = globalThis.crypto?.randomUUID?.() ?? `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return parse<LogueAgentRun>(await fetch(`${apiBase}/v1/agent-runs`, {
     method: "POST",

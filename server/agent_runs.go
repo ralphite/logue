@@ -31,6 +31,10 @@ type AgentRun struct {
 	OutputType        string           `json:"output_type"`
 	Instruction       string           `json:"instruction"`
 	Project           string           `json:"project,omitempty"`
+	PageTitle         string           `json:"page_title,omitempty"`
+	PageURL           string           `json:"page_url,omitempty"`
+	TargetText        string           `json:"target_text,omitempty"`
+	Selection         string           `json:"selection,omitempty"`
 	Sources           []AgentRunSource `json:"sources"`
 	OriginalOutput    string           `json:"original_output,omitempty"`
 	AdoptedOutput     string           `json:"adopted_output,omitempty"`
@@ -124,7 +128,7 @@ func (s *Store) CreateAgentRun(input CreateAgentRunInput, agent Agent) (AgentRun
 		return AgentRun{}, false, err
 	}
 	now := time.Now().UTC()
-	run := AgentRun{ID: id, RequestID: input.RequestID, AgentID: agent.ID, AgentRevision: agent.Revision, AgentName: agent.Name, AgentInstructions: agent.Instructions, Task: agent.Task, OutputType: agent.Output, Instruction: input.Instruction, Project: strings.TrimSpace(input.Project), Sources: sources, Status: "running", CreatedAt: now, UpdatedAt: now}
+	run := AgentRun{ID: id, RequestID: input.RequestID, AgentID: agent.ID, AgentRevision: agent.Revision, AgentName: agent.Name, AgentInstructions: agent.Instructions, Task: agent.Task, OutputType: agent.Output, Instruction: input.Instruction, Project: strings.TrimSpace(input.Project), PageTitle: strings.TrimSpace(input.PageTitle), PageURL: strings.TrimSpace(input.PageURL), TargetText: strings.TrimSpace(input.TargetText), Selection: strings.TrimSpace(input.Selection), Sources: sources, Status: "running", CreatedAt: now, UpdatedAt: now}
 	if err := s.writeAgentRunLocked(run); err != nil {
 		return AgentRun{}, false, err
 	}

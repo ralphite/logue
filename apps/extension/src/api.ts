@@ -53,6 +53,7 @@ export interface ExtensionAgent {
   task: "transcribe" | "organize" | "generate";
   output: "insert" | "material" | "qa" | "document";
   surfaces: Array<"web" | "extension" | "background">;
+  contexts: Array<"page" | "target" | "selection" | "project" | "materials" | "personal">;
   enabled: boolean;
 }
 

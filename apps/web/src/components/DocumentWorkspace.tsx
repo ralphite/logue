@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { type Material } from "@logue/ui";
+import { SelectionSkillMenu, captureEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility, type EditableSelectionSnapshot, type Material, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSerialTaskQueue } from "../documentSaveQueue";
 import { groupIdenticalMaterials } from "../materialGroups";
@@ -28,6 +28,7 @@ import {
   updateDocument,
   type LogueDocument,
 } from "../api";
+import { adoptAgentRun, createAgentRun, getAgents, type LogueAgent } from "../agentApi";
 import { MaterialGroupAddList, MaterialGroupPicker } from "./MaterialGroupPicker";
 import { PanelResizer, usePersistentPanelSize } from "./PanelResizer";
 import { readingColumnClass } from "./layout";
@@ -323,6 +324,18 @@ export function ViewWorkspace({
   const [generationSourceIds, setGenerationSourceIds] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string>();
+  const [selectionSnapshot, setSelectionSnapshot] = useState<EditableSelectionSnapshot>();
+  const [selectionSkills, setSelectionSkills] = useState<LogueAgent[]>([]);
+  const [selectionUndo, setSelectionUndo] = useState<{
+    documentId: string;
+    beforeContent: string;
+    afterContent: string;
+    sourceIds: string[];
+  }>();
+  const [selectionSkillNotice, setSelectionSkillNotice] = useState<{
+    message: string;
+    history?: SelectionSkillApplyTransaction;
+  }>();
   const [mobileListOpen, setMobileListOpen] = useState(!initialDocumentId);
   const effectiveMobileListOpen = showDocumentSidebar && mobileListOpen;
   const { size: documentListWidth, setSize: setDocumentListWidth } = usePersistentPanelSize({
@@ -344,6 +357,11 @@ export function ViewWorkspace({
   const titleRef = useRef<HTMLTextAreaElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
   const editorSelectionRef = useRef<Range | undefined>(undefined);
+  const selectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
+  const selectionDocumentRef = useRef<{ id: string; revision: number } | undefined>(undefined);
+  const selectionSkillsLoadedRef = useRef(false);
+  const selectionUndoTimerRef = useRef<number | undefined>(undefined);
+  const selectionNoticeTimerRef = useRef<number | undefined>(undefined);
   const documentsRef = useRef(documents);
   const dirtyVersionRef = useRef(0);
   const selectedIdRef = useRef<string | undefined>(undefined);
@@ -452,7 +470,17 @@ export function ViewWorkspace({
     setSaveState("saved");
     dirtyVersionRef.current = 0;
     editorSelectionRef.current = undefined;
+    selectionSnapshotRef.current = undefined;
+    selectionDocumentRef.current = undefined;
+    setSelectionSnapshot(undefined);
+    setSelectionUndo(undefined);
+    setSelectionSkillNotice(undefined);
   }, [selected]);
+
+  useEffect(() => () => {
+    if (selectionUndoTimerRef.current) window.clearTimeout(selectionUndoTimerRef.current);
+    if (selectionNoticeTimerRef.current) window.clearTimeout(selectionNoticeTimerRef.current);
+  }, []);
 
   useEffect(() => {
     if (selected) document.title = `${title.trim() || "Untitled"} | Logue`;
@@ -679,6 +707,103 @@ export function ViewWorkspace({
     if (editor.contains(range.commonAncestorContainer)) editorSelectionRef.current = range.cloneRange();
   }
 
+  function refreshDocumentSkillSelection() {
+    const editor = editorRef.current;
+    const documentID = selectedIdRef.current;
+    if (!editor || !documentID) return;
+    const next = captureEditableSelection(editor, editor);
+    selectionSnapshotRef.current = next;
+    selectionDocumentRef.current = next ? { id: documentID, revision: revisionByDocumentRef.current.get(documentID) ?? 0 } : undefined;
+    setSelectionSnapshot(next);
+    if (!next || selectionSkillsLoadedRef.current) return;
+    selectionSkillsLoadedRef.current = true;
+    void getAgents().then(setSelectionSkills).catch(() => {
+      selectionSkillsLoadedRef.current = false;
+    });
+  }
+
+  const eligibleSelectionSkills = selectionSkillEligibility(selectionSkills, "web");
+
+  function showSelectionSkillNotice(notice: { message: string; history?: SelectionSkillApplyTransaction }) {
+    if (selectionNoticeTimerRef.current) window.clearTimeout(selectionNoticeTimerRef.current);
+    setSelectionSkillNotice(notice);
+    if (!notice.history) {
+      selectionNoticeTimerRef.current = window.setTimeout(() => setSelectionSkillNotice(undefined), 4500);
+    }
+  }
+
+  async function applyDocumentSelectionSkill(skillId: string) {
+    const snapshot = selectionSnapshotRef.current;
+    const selectionDocument = selectionDocumentRef.current;
+    const editor = editorRef.current;
+    const selectedDocument = selectedIdRef.current;
+    if (!snapshot || !selectionDocument || !editor || !selectedDocument || selectionDocument.id !== selectedDocument || selectionDocument.revision !== (revisionByDocumentRef.current.get(selectedDocument) ?? 0)) {
+      showSelectionSkillNotice({ message: "Selection changed — choose a skill again." });
+      return;
+    }
+    const skill = eligibleSelectionSkills.find((item) => item.id === skillId);
+    if (!skill) {
+      showSelectionSkillNotice({ message: "That skill is no longer available." });
+      return;
+    }
+    const run = await createAgentRun({
+      agent_id: skill.id,
+      instruction: "Transform only the selected text. Return only the replacement text.",
+      project,
+      page_title: title || "Untitled",
+      page_url: `logue://document/${selectedDocument}`,
+      target_text: editor.innerText,
+      selection: snapshot.text,
+    });
+    const replacement = run.original_output?.trim();
+    if (!replacement) throw new Error("This skill returned no text.");
+    const beforeContent = editor.innerHTML;
+    const beforeSourceIds = [...sourceIds];
+    if (!replaceSelectionIfUnchanged(snapshot, replacement)) {
+      showSelectionSkillNotice({ message: "Selection changed — choose a skill again." });
+      return;
+    }
+    const next = reconcileDocumentCitations(sanitizeEditorHTML(editor.innerHTML), sourceIds);
+    const afterContent = next.content;
+    setContent(next.content);
+    setSourceIds(next.sourceIds);
+    markDirty();
+    if (selectionUndoTimerRef.current) window.clearTimeout(selectionUndoTimerRef.current);
+    setSelectionUndo({ documentId: selectedDocument, beforeContent, afterContent, sourceIds: beforeSourceIds });
+    selectionUndoTimerRef.current = window.setTimeout(() => setSelectionUndo(undefined), 8000);
+    const history = await saveSelectionSkillHistory({ runId: run.id, replacement }, adoptAgentRun);
+    if (history) showSelectionSkillNotice({ message: "Applied", history });
+    selectionSnapshotRef.current = undefined;
+    selectionDocumentRef.current = undefined;
+    setSelectionSnapshot(undefined);
+  }
+
+  function undoSelectionSkill() {
+    const entry = selectionUndo;
+    const editor = editorRef.current;
+    if (!entry || !editor || entry.documentId !== selectedIdRef.current || sanitizeEditorHTML(editor.innerHTML) !== entry.afterContent) {
+      setSelectionUndo(undefined);
+      return;
+    }
+    editor.innerHTML = entry.beforeContent;
+    setContent(entry.beforeContent);
+    setSourceIds(entry.sourceIds);
+    markDirty();
+    if (selectionUndoTimerRef.current) window.clearTimeout(selectionUndoTimerRef.current);
+    setSelectionUndo(undefined);
+  }
+
+  async function retrySelectionSkillHistory() {
+    const history = selectionSkillNotice?.history;
+    if (!history) return;
+    const retry = await saveSelectionSkillHistory(history, adoptAgentRun);
+    if (retry) {
+      setSelectionSkillNotice({ message: "Applied", history: retry });
+      return;
+    }
+    setSelectionSkillNotice(undefined);
+  }
+
   function insertSourceCitation(id: string) {
     if (sourceIds.includes(id) || !editorRef.current) return;
     const editor = editorRef.current;
@@ -881,11 +1006,14 @@ export function ViewWorkspace({
                 setContent(next.content);
                 setSourceIds(next.sourceIds);
                 if (activeSourceId && !next.sourceIds.includes(activeSourceId)) setActiveSourceId(undefined);
+                selectionSnapshotRef.current = undefined;
+                selectionDocumentRef.current = undefined;
+                setSelectionSnapshot(undefined);
                 markDirty();
               }}
               onBlur={rememberEditorSelection}
-              onKeyUp={rememberEditorSelection}
-              onMouseUp={rememberEditorSelection}
+              onKeyUp={() => { rememberEditorSelection(); refreshDocumentSkillSelection(); }}
+              onMouseUp={() => { rememberEditorSelection(); refreshDocumentSkillSelection(); }}
               onClick={(event) => {
                 const target = event.target;
                 if (!(target instanceof HTMLElement) || target.tagName !== "MARK") return;
@@ -899,6 +1027,22 @@ export function ViewWorkspace({
               className="logue-view-editor mt-7 min-h-[62vh] w-full text-[15px] leading-[1.75] text-[#373834] outline-none"
               spellCheck
             />
+            {selectionSnapshot && eligibleSelectionSkills.length > 0 && <SelectionSkillMenu
+              anchor={selectionSnapshot.anchor}
+              skills={eligibleSelectionSkills}
+              onUseSkill={applyDocumentSelectionSkill}
+              onDismiss={() => {
+                selectionSnapshotRef.current = undefined;
+                selectionDocumentRef.current = undefined;
+                setSelectionSnapshot(undefined);
+              }}
+            />}
+            {selectionUndo?.documentId === selectedId && <div role="status" className="fixed bottom-5 left-1/2 z-30 -translate-x-1/2 rounded-md border border-[#ddddda] bg-white px-2.5 py-1.5 text-[13px] text-[#5b5c57] shadow-[0_8px_24px_rgba(20,21,18,0.12)]">
+              Applied <button type="button" onClick={undoSelectionSkill} className="ml-1.5 font-medium text-[#4f57cd] underline underline-offset-2">Undo</button>
+            </div>}
+            {selectionSkillNotice && <div role={selectionSkillNotice.history ? "status" : "alert"} className="fixed bottom-[3.5rem] left-1/2 z-30 -translate-x-1/2 rounded-md border border-[#ddddda] bg-white px-2.5 py-1.5 text-[13px] text-[#5b5c57] shadow-[0_8px_24px_rgba(20,21,18,0.12)]">
+              {selectionSkillNotice.message}{selectionSkillNotice.history && <button type="button" onClick={() => void retrySelectionSkillHistory()} className="ml-1.5 font-medium text-[#4f57cd] underline underline-offset-2">Retry saving history</button>}
+            </div>}
           </article>
         </main>
       ) : (

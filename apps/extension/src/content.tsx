@@ -1,7 +1,8 @@
 import { AudioLines, Check, LoaderCircle, X } from "lucide-react";
+import { SelectionSkillMenu, captureEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility, type EditableSelectionSnapshot, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { cancelMaterialSave, getCaptureContext, saveMaterial, transcribeAudio, type AppliedContext } from "./api";
+import { adoptExtensionAgentRun, cancelMaterialSave, createExtensionAgentRun, getCaptureContext, getExtensionAgents, saveMaterial, transcribeAudio, type AppliedContext, type ExtensionAgent } from "./api";
 import { activeEditableElement, getEditableText, insertIntoElement, isEditableElement, isEditableTargetAvailable } from "./dom";
 import { isLogueExtensionDisabledDocument } from "./eligibility";
 import { clampLauncherPosition, defaultLauncherPosition, inlineVoiceControlMetrics, launcherErrorPlacement } from "./launcherPosition";
@@ -51,12 +52,22 @@ function ExtensionLauncher() {
   const [voicePhase, setVoicePhase] = useState<InlineVoicePhase>("idle");
   const [voiceError, setVoiceError] = useState("");
   const [pendingCopyText, setPendingCopyText] = useState("");
+  const [selectionSnapshot, setSelectionSnapshot] = useState<EditableSelectionSnapshot>();
+  const [selectionSkills, setSelectionSkills] = useState<ExtensionAgent[]>([]);
+  const [selectionSkillNotice, setSelectionSkillNotice] = useState<{
+    anchor: { left: number; top: number };
+    message: string;
+    history?: SelectionSkillApplyTransaction;
+  }>();
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
   const targetRef = useRef<HTMLElement | null>(null);
   const targetPageHrefRef = useRef("");
   const voicePhaseRef = useRef<InlineVoicePhase>("idle");
   const voiceSessionRef = useRef<InlineVoiceSession | undefined>(undefined);
   const recordingBridgeRef = useRef<ContentRecordingBridge | undefined>(undefined);
+  const selectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
+  const selectionSkillsLoadedRef = useRef(false);
+  const selectionNoticeTimerRef = useRef<number | undefined>(undefined);
 
   const setInlineVoicePhase = useCallback((phase: InlineVoicePhase) => {
     voicePhaseRef.current = phase;
@@ -86,6 +97,8 @@ function ExtensionLauncher() {
     targetRef.current = null;
     targetPageHrefRef.current = "";
     setTargetRect(undefined);
+    selectionSnapshotRef.current = undefined;
+    setSelectionSnapshot(undefined);
     setKeyboardActive(false);
   }, [cancelInlineVoice]);
 
@@ -97,6 +110,35 @@ function ExtensionLauncher() {
     }
     setTargetRect(target.getBoundingClientRect());
   }, [clearTarget]);
+
+  const refreshSelectionSkillTarget = useCallback(() => {
+    const target = targetRef.current;
+    if (!isEditableTargetAvailable(target, targetPageHrefRef.current, window.location.href)) {
+      selectionSnapshotRef.current = undefined;
+      setSelectionSnapshot(undefined);
+      return;
+    }
+    const next = captureEditableSelection(target);
+    selectionSnapshotRef.current = next;
+    setSelectionSnapshot(next);
+    if (!next || selectionSkillsLoadedRef.current) return;
+    selectionSkillsLoadedRef.current = true;
+    void getExtensionAgents().then(setSelectionSkills).catch(() => {
+      selectionSkillsLoadedRef.current = false;
+    });
+  }, []);
+
+  const showSelectionSkillNotice = useCallback((notice: {
+    anchor: { left: number; top: number };
+    message: string;
+    history?: SelectionSkillApplyTransaction;
+  }) => {
+    if (selectionNoticeTimerRef.current) window.clearTimeout(selectionNoticeTimerRef.current);
+    setSelectionSkillNotice(notice);
+    if (!notice.history) {
+      selectionNoticeTimerRef.current = window.setTimeout(() => setSelectionSkillNotice(undefined), 4500);
+    }
+  }, []);
 
   const finishInlineVoice = useCallback((event: RecordingBridgeEvent) => {
     const session = voiceSessionRef.current;
@@ -238,6 +280,7 @@ function ExtensionLauncher() {
         return;
       }
       activateTarget(event.target);
+      window.requestAnimationFrame(refreshSelectionSkillTarget);
     };
     const onViewport = () => {
       setViewport({ width: window.innerWidth, height: window.innerHeight });
@@ -255,6 +298,7 @@ function ExtensionLauncher() {
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
     document.addEventListener("focusin", onFocusIn, true);
+    document.addEventListener("selectionchange", refreshSelectionSkillTarget);
     activateTarget(activeEditableElement(document));
     const initialLayoutFrame = window.requestAnimationFrame(() => activateTarget(activeEditableElement(document)));
     window.addEventListener("scroll", onViewport, true);
@@ -266,12 +310,17 @@ function ExtensionLauncher() {
       window.cancelAnimationFrame(initialLayoutFrame);
       window.clearInterval(routeTimer);
       document.removeEventListener("focusin", onFocusIn, true);
+      document.removeEventListener("selectionchange", refreshSelectionSkillTarget);
       window.removeEventListener("scroll", onViewport, true);
       window.removeEventListener("resize", onViewport);
       window.removeEventListener("hashchange", onRoute);
       window.removeEventListener("popstate", onRoute);
     };
-  }, [clearTarget, refreshTarget]);
+  }, [clearTarget, refreshSelectionSkillTarget, refreshTarget]);
+
+  useEffect(() => () => {
+    if (selectionNoticeTimerRef.current) window.clearTimeout(selectionNoticeTimerRef.current);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -377,19 +426,81 @@ function ExtensionLauncher() {
   }, [finishInlineVoice]);
 
   const captureActive = voicePhase === "starting" || voicePhase === "recording" || voicePhase === "processing";
+  const eligibleSelectionSkills = selectionSkillEligibility(selectionSkills, "extension");
+  const hasSelectionSkillMenu = Boolean(selectionSnapshot && eligibleSelectionSkills.length && !captureActive);
   const controlMetrics = inlineVoiceControlMetrics[voicePhase];
   const defaultPosition = targetRect ? defaultLauncherPosition(targetRect, viewport, controlMetrics.width, controlMetrics.height) : undefined;
   const position = defaultPosition ? clampLauncherPosition(defaultPosition, viewport, controlMetrics.width, controlMetrics.height) : undefined;
   const errorPlacement = position ? launcherErrorPlacement(position, controlMetrics.width) : { vertical: "below", horizontal: "right" };
   const visible = Boolean(
-    targetRect && position &&
+    targetRect && position && !hasSelectionSkillMenu &&
     (document.activeElement === targetRef.current || keyboardActive || captureActive) &&
     targetRect.width > 80 && targetRect.height > 18,
   );
 
-  if (!visible) return null;
+  async function applySelectionSkill(skillId: string) {
+    const snapshot = selectionSnapshotRef.current;
+    const target = targetRef.current;
+    if (!snapshot || !target || !isEditableTargetAvailable(target, targetPageHrefRef.current, window.location.href)) {
+      if (snapshot) showSelectionSkillNotice({ anchor: snapshot.anchor, message: "Selection changed — choose a skill again." });
+      return;
+    }
+    const skill = eligibleSelectionSkills.find((item) => item.id === skillId);
+    if (!skill) {
+      showSelectionSkillNotice({ anchor: snapshot.anchor, message: "That skill is no longer available." });
+      return;
+    }
+    const run = await createExtensionAgentRun({
+      agentId: skill.id,
+      instruction: "Transform only the selected text. Return only the replacement text.",
+      pageTitle: document.title,
+      pageUrl: window.location.href,
+      targetText: getEditableText(target),
+      selection: snapshot.text,
+    });
+    const replacement = run.original_output?.trim();
+    if (!replacement) throw new Error("This skill returned no text.");
+    if (!replaceSelectionIfUnchanged(snapshot, replacement)) {
+      showSelectionSkillNotice({ anchor: snapshot.anchor, message: "Selection changed — choose a skill again." });
+      return;
+    }
+    const history = await saveSelectionSkillHistory({ runId: run.id, replacement }, adoptExtensionAgentRun);
+    if (history) showSelectionSkillNotice({ anchor: snapshot.anchor, message: "Applied", history });
+    selectionSnapshotRef.current = undefined;
+    setSelectionSnapshot(undefined);
+  }
+
+  async function retrySelectionSkillHistory() {
+    const notice = selectionSkillNotice;
+    if (!notice?.history) return;
+    const retry = await saveSelectionSkillHistory(notice.history, adoptExtensionAgentRun);
+    if (retry) {
+      setSelectionSkillNotice({ ...notice, history: retry });
+      return;
+    }
+    setSelectionSkillNotice(undefined);
+  }
+
+  if (!visible && !hasSelectionSkillMenu) return null;
   return (
-    <div className={`logue-launcher-group is-${voicePhase}${captureActive ? " is-capturing" : ""}`} style={{ top: position?.top, left: position?.left }} role="group" aria-label="Logue voice input">
+    <>
+      {hasSelectionSkillMenu && selectionSnapshot && <SelectionSkillMenu
+        anchor={selectionSnapshot.anchor}
+        skills={eligibleSelectionSkills}
+        onUseSkill={applySelectionSkill}
+        onDismiss={() => {
+          selectionSnapshotRef.current = undefined;
+          setSelectionSnapshot(undefined);
+        }}
+      />}
+      {selectionSkillNotice && <div
+        className="logue-selection-feedback"
+        role={selectionSkillNotice.history ? "status" : "alert"}
+        style={{ left: selectionSkillNotice.anchor.left, top: selectionSkillNotice.anchor.top }}
+      >
+        {selectionSkillNotice.message}{selectionSkillNotice.history && <button type="button" onClick={() => void retrySelectionSkillHistory()}>Retry saving history</button>}
+      </div>}
+      {visible && <div className={`logue-launcher-group is-${voicePhase}${captureActive ? " is-capturing" : ""}`} style={{ top: position?.top, left: position?.left }} role="group" aria-label="Logue voice input">
       {voicePhase === "recording" ? <>
         <button type="button" className="logue-launcher logue-inline-cancel" aria-label="Cancel voice input" aria-keyshortcuts="Escape" title="Cancel (Esc)" onPointerDown={(event) => event.preventDefault()} onClick={cancelInlineVoice}><X size={17} /></button>
         <button type="button" className="logue-launcher logue-inline-accept" aria-label="Stop and insert voice input" aria-keyshortcuts="Enter" title="Stop and insert (Enter)" onPointerDown={(event) => event.preventDefault()} onClick={stopAndInsertInlineVoice}><Check size={18} strokeWidth={2.3} /></button>
@@ -407,7 +518,8 @@ function ExtensionLauncher() {
         <AudioLines size={17} strokeWidth={2.1} />
       </button>}
       {voiceError && <div className={`logue-launcher-error is-${errorPlacement.vertical} is-${errorPlacement.horizontal}`} role="alert"><span>{voiceError}</span>{pendingCopyText && <button type="button" onClick={() => void navigator.clipboard.writeText(pendingCopyText)}>Copy</button>}</div>}
-    </div>
+      </div>}
+    </>
   );
 }
 

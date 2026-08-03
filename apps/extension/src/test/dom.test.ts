@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { captureEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility } from "@logue/ui";
 import { activeEditableElement, insertIntoElement, isEditableElement, isEditableTargetAvailable } from "../dom";
 
 describe("editable integration", () => {
@@ -88,6 +89,55 @@ describe("editable integration", () => {
 
     expect(isEditableElement(textarea)).toBe(true);
     expect(isEditableElement(richText)).toBe(true);
+  });
+
+  it("captures and replaces exactly the original textarea selection", () => {
+    const textarea = document.createElement("textarea");
+    textarea.value = "Rewrite this phrase.";
+    document.body.append(textarea);
+    textarea.focus();
+    textarea.setSelectionRange(8, 12);
+
+    const snapshot = captureEditableSelection(textarea);
+
+    expect(snapshot?.text).toBe("this");
+    expect(snapshot && replaceSelectionIfUnchanged(snapshot, "that")).toBe(true);
+    expect(textarea.value).toBe("Rewrite that phrase.");
+  });
+
+  it("refuses to overwrite a textarea after its captured selection changed", () => {
+    const textarea = document.createElement("textarea");
+    textarea.value = "Keep this safe.";
+    document.body.append(textarea);
+    textarea.focus();
+    textarea.setSelectionRange(5, 9);
+    const snapshot = captureEditableSelection(textarea);
+    textarea.setRangeText("that", 5, 9, "end");
+
+    expect(snapshot && replaceSelectionIfUnchanged(snapshot, "other")).toBe(false);
+    expect(textarea.value).toBe("Keep that safe.");
+  });
+
+  it("offers only enabled selection-replacement skills on the active surface", () => {
+    const skills = [
+      { id: "selection", name: "Improve writing", enabled: true, task: "generate", output: "insert", surfaces: ["web", "extension"], contexts: ["selection"] },
+      { id: "page", name: "Draft reply", enabled: true, task: "generate", output: "insert", surfaces: ["extension"], contexts: ["page"] },
+      { id: "material", name: "Save material", enabled: true, task: "generate", output: "material", surfaces: ["extension"], contexts: ["selection"] },
+      { id: "disabled", name: "Disabled", enabled: false, task: "generate", output: "insert", surfaces: ["extension"], contexts: ["selection"] },
+    ];
+
+    expect(selectionSkillEligibility(skills, "web").map((skill) => skill.id)).toEqual(["selection"]);
+    expect(selectionSkillEligibility(skills, "extension").map((skill) => skill.id)).toEqual(["selection"]);
+  });
+
+  it("keeps a completed replacement retryable when provenance saving fails", async () => {
+    const transaction = { runId: "run_123", replacement: "Rewritten text" };
+    const failingAdoption = vi.fn().mockRejectedValue(new Error("offline"));
+
+    await expect(saveSelectionSkillHistory(transaction, failingAdoption)).resolves.toEqual(transaction);
+    expect(failingAdoption).toHaveBeenCalledWith("run_123", "Rewritten text");
+
+    await expect(saveSelectionSkillHistory(transaction, vi.fn().mockResolvedValue(undefined))).resolves.toBeUndefined();
   });
 
   it("honors a scoped DOM opt-out without disabling other editors", () => {
