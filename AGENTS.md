@@ -6,6 +6,13 @@
 - The Web App UI uses English. Web App identifiers, comments, accessibility labels, and test descriptions also use English.
 - Preserve user data and unrelated worktree changes. Never discard or overwrite another contributor's edits.
 
+## Single-user data and compatibility rules
+
+- This machine is the only supported installation and its current Logue data is the only data that must be preserved. There are no external users or deployed historical schemas to support.
+- The current schema, routes, product names, defaults, and file formats are the only source of truth. Do not add or retain legacy migrations, deprecated field or route aliases, old-copy fallbacks, dual-format parsers, or compatibility fixtures unless the user explicitly requests compatibility.
+- When a schema or format change affects this machine's current data, perform one explicit, backed-up, verified data update and then delete the migration code. Never keep a permanent migration path for a completed local transition.
+- Installer overwrite and rollback must continue to preserve this machine's current data and recover the current installed version. This operational safety requirement does not authorize support for legacy schemas or obsolete product behavior.
+
 ## Non-negotiable product design rules
 
 - Internal consistency is the minimum quality bar. Navigation, content axes, typography, spacing, buttons, tooltips, selected/hover/focus states, drawers, dialogs, and resizers must come from shared product patterns. A page must not invent a local visual language.
