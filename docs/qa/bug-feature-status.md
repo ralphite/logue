@@ -1,6 +1,6 @@
 # Logue bug 与 feature 状态
 
-更新时间：2026-08-02 19:58（America/Los_Angeles）
+更新时间：2026-08-03 01:14（America/Los_Angeles）
 
 这是用户历史 bug / feature request 的唯一滚动清单。`PASS` 表示实现和与风险相称的真实运行证据都存在；`PARTIAL` 表示核心已实现，但仍缺指定环境的最后闭环；`OPEN` 表示尚未交付；`NOT_APPLICABLE` 表示请求指向浏览器拥有且扩展无法控制的原生 UI。测试、提交、文档和截图本身不把状态升级为 `PASS`。
 
@@ -9,7 +9,7 @@
 | ID | 用户报告 / 要求 | 状态 | 当前结论与证据 |
 |---|---|---|---|
 | B01 | 不得出现“接受后再确认插入”的第二次确认 | PASS | 当前原生 Side Panel 已在真实 Chrome 完成“一击开始 → Enter 停止 → Gemini 转写 → 保存 → 单次插入”；成功后安静回到 Record，没有前置审阅或第二次确认。 |
-| B02 | 左栏搜索和按钮结构不稳定、导航随长列表滚走 | PASS | 一级栏无搜索；一级导航固定，内容区独立滚动；Generate 只保留稳定的 Documents / Agents 行。 |
+| B02 | 左栏搜索和按钮结构不稳定、导航随长列表滚走 | PASS | 一级栏无搜索；一级导航固定，内容区独立滚动；Generate 只保留稳定的 Documents / Skills 行。 |
 | B03 | Extension 面板点击跳位、首次点击无效 | PASS | 当前原生 Side Panel 在 fixture textarea 中首次点击即可 stage `Current editor` 并自动开始录音；目标替换后使用 `Insert again`，无需重新转写或重新保存。input 与真实 ChatGPT 富文本仍列入新架构回归队列。 |
 | B04 | 麦克风启动中 Esc 无法取消、无可见取消、迟到回调回写 | PASS | 真实 Chrome 已验证 Esc 立即取消且资料数不变；录音中关闭原生 Side Panel 也会立即停止麦克风。tab/session 防护忽略迟到结果。 |
 | B05 | Extension 启动器不在 Tab 顺序、无 focus 状态或快捷键提示 | PASS | Tab 可聚焦语音入口，存在 focus ring 与 `⌘⇧L` 提示；录音期 Enter 停止并插入，Esc 取消，且不抢占普通文本输入。 |
@@ -24,7 +24,7 @@
 | B14 | Copy 文案重复上下文、过于啰嗦 | PASS | 可见动作统一为 `Copy`；完整对象只保留在 `aria-label`，成功后仅短暂显示 `Copied`。 |
 | B15 | 左栏折叠/展开时图标水平跳动 | PASS | 品牌和所有一级图标共用固定 44px slot 与相同左 padding；真实展开/折叠截图已比较。 |
 | B16 | 折叠栏没有 ChatGPT 级 tooltip | PASS | 使用可访问 Tooltip 组件，hover / focus 均可发现，260ms 延迟；真实 Chrome 已显示 `Stream` tooltip。 |
-| B17 | 独立右侧 collapse 按钮多余 | PASS | 删除独立按钮；鼠标进入整个栏时，左上品牌图标原位切换为 expand / collapse，键盘仍可操作。 |
+| B17 | 独立右侧 collapse 按钮多余 | PASS | 展开栏仅在整个侧栏 hover/focus-within 时，于栏右侧显示收起控件；折叠栏保持固定品牌与图标锚点，并可键盘展开。 |
 | B18 | 320px 详情批注区遮挡风险正文、Projects 最后一行被底栏遮挡 | PASS | 详情正文和操作在同一可滚动安全区；Projects 底部预留完整空间。证据：`/tmp/logue-projects-320-bottom.png`、`/tmp/logue-material-detail-320-end-current.png`。 |
 | B19 | 平板关闭/完整页热区不足 44px、主导航无文字 | PASS | 768px 保留一级文字，详情与新建资料关闭/完整页命中区至少 44×44px；已有真实平板证据。 |
 | B20 | 320px Generate 的 `Documents` 被截断 | PASS | 移动 Generate 行保留完整 Documents / Agents 文案和独立 44px plus，移除不必要的前置图标。证据：`/tmp/logue-generate-320-fixed.png`。 |
@@ -32,9 +32,9 @@
 | B22 | 公开安装默认把无认证 API 暴露到局域网 | PASS | `v0.2.1` 安装器默认只监听 `127.0.0.1`；真实公开升级后 `lsof` 确认为 `127.0.0.1:18831`，不是 wildcard。显式 LAN 能力仍保留，但安全配对前不作为默认公开入口。 |
 | B23 | Extension 覆盖升级存在稳定目录短暂消失 | PASS | 安装器先完整写入版本化 Extension 资产，最后只原子替换 manifest；旧 manifest 与旧资产在切换前后都保持可读。跨版本和同版本重复安装回归均通过。 |
 | B24 | 自定义安装端口的发布版 Web 错连固定 `8787` | PASS | 真实 `v0.2.0` 在 `18831` 复现断线；`v0.2.1` 改为只有 Vite `5173` 才连接 `8787`，任何 Go 托管端口均使用同源 API。公开升级后真实浏览器成功加载资料、文档和来源，控制台无 warn/error。 |
-| B25 | 输入框旁语音与生成两个入口长期并列，主操作不够极简 | PASS | 默认只显示一个语音入口；hover / focus-within 才渐进显示 Generate，第二次 Tab 可聚焦。真实截图和独立设计复审为 9.1/10 PASS。 |
+| B25 | 输入框旁语音与生成两个入口长期并列，主操作不够极简 | PASS | 当前构建在真实 ChatGPT contenteditable 中只显示一个语音入口；生成不与主入口并列。录音时原位变为 Cancel 与 Stop and insert。 |
 | B26 | 录音中关闭原生 Side Panel 后麦克风继续运行 | PASS | 初次真实回归复现后已改为 content-script 生命周期 Port，并保留 background close/tab-switch 与页面卸载三层停轨；复测关闭后 Chrome 麦克风指示立即消失，未保存资料。 |
-| B27 | `Cmd+Shift+L` 应打开/关闭 Logue Side Panel | PARTIAL | manifest 已分配 `⇧⌘L`、Chrome 显示 Scope=`In Chrome`；toolbar 同一 toggle 路径和代码测试通过。当前自动化无法向 macOS 注入 Command 键（连 `⌘L` 控制实验也未抵达 Chrome），因此物理按键仍未伪报 PASS。 |
+| B27 | `Cmd+Shift+L` 应打开/关闭 Logue Side Panel | PASS | 2026-08-03 已在真实 macOS Chrome 以物理 `⌘⇧L` 打开并再次关闭原生 Side Panel；打开后焦点进入 Side Panel document。 |
 | B28 | Chrome 原生 Side Panel 顶栏不应显示 unpin | NOT_APPLICABLE | unpin 与 close 均由 Chrome 浏览器原生顶栏拥有，Extension API 无法删除或隐藏；Logue 内容内部没有重复 header、pin 或侧位设置。 |
 
 ## Features 与交付要求
@@ -43,26 +43,26 @@
 |---|---|---|---|
 | F01 | Notion 式资料流、文档列表和文档编辑 | PASS | 生成长内容进入持续可编辑文档；文档列表、编辑器、来源引用和自动保存共享安静工作区。 |
 | F02 | 产品一级名称用 Stream / Projects / Generate / Settings，不用 View / Inbox / 成果 | PASS | 当前 Web 一级导航与 URL 兼容层分离，UI 只显示英文产品名。 |
-| F03 | Generate 只保留 Documents / Agents；行尾 plus 分别新建 | PASS | 无 `New`、无顶部重复 plus；点击行只更新列表，点击行尾 plus 才创建。 |
-| F04 | 极简网页语音输入：聚焦才显示、一键开始、停止并插入、取消、快捷键 | PARTIAL | 原生 Side Panel 的 textarea 已真实完成一击录音、Enter 转写/保存/单次插入、Esc 取消、关闭停麦和目标丢失恢复；宿主提交计数始终为 0。仍需在当前原生架构重跑标准 input、ChatGPT contenteditable 与物理 `⇧⌘L`。 |
+| F03 | Generate 只保留 Documents / Skills；行尾 plus 分别新建 | PASS | 无 `New`、无顶部重复 plus；点击行只更新列表，点击行尾 plus 才创建。 |
+| F04 | 极简网页语音输入：聚焦才显示、一键开始、停止并插入、取消、快捷键 | PARTIAL | 标准 textarea 已真实完成一击录音、Enter 转写/保存/单次插入、Esc 取消、关闭停麦和目标丢失恢复；真实 ChatGPT contenteditable 已验证 launcher、录音期 Cancel/Stop、Enter 和局部空音频错误，且未发送。仍缺一段非空真实语音在 ChatGPT contenteditable 中的成功插入证据。 |
 | F05 | 自动项目/Tag 整理，低置信可审阅，任何 item 可事后编辑 | PASS | Agent 分类、建议/确认、内容/项目/Tag 编辑和不可覆盖人工判断均已真实验证。 |
 | F06 | 多个可定制 Agent，用于转写、整理、短回复、QA、文档 | PASS | 系统与自建 Agent 可编辑/复制/设默认；Web 已产生可追溯的 Text、Material、QA、Document run。 |
-| F07 | Extension 中基于资料生成回复并插入、不自动发送 | PARTIAL | 旧浮层架构已在 ChatGPT.com 通过；原生 Side Panel 保留 Generate 与插入实现，但尚未在真实 ChatGPT.com 重跑完整 Agent 事务。 |
-| F08 | Logue Web App 自己也能使用 Extension | PARTIAL | 旧浮层架构已通过；原生 Side Panel 的 content-script 仍允许 Logue 页面，但需用当前 `3fc2ac6` 构建重跑录音与 Generate 插入。 |
+| F07 | Extension 中基于资料生成回复并插入、不自动发送 | PASS | 2026-08-03 在真实 ChatGPT 通过原生 Side Panel 生成 `Logue capture is ready.`，点击 Insert 后仅写入 ChatGPT 草稿，Send 未被点击；测试草稿已清除。 |
+| F08 | Logue Web App 自己也能使用 Extension | PARTIAL | 当前 `275d510` 构建已在真实 Logue Generate 自动聚焦 textarea 后显示 launcher，并验证录音/取消；仍缺该页面非空真实语音的成功转写、保存与插入证据。 |
 | F09 | 所有关键竖向 panel 可拖拽并保持同一风格 | PASS | 至少一级导航、Generate、资料详情、文档列表和来源面板使用同一 `PanelResizer` 体系；键盘与 pointer 均支持。 |
 | F10 | 手机完整可用并可从同一局域网访问 | PARTIAL | Web/API 支持显式局域网监听，320/390/768 已覆盖 Stream、Projects、Generate、详情和底栏；公开安装为保护资料默认只监听本机。仍缺安全配对入口和一台物理 iPhone 的触控、旋转、刷新与文档编辑闭环。 |
 | F11 | React + TypeScript + Tailwind + Storybook；Go；Gemini 终端环境变量 | PASS | 架构与构建已落地；Gemini Key 只由 Go 进程读取，不进入 Web、Extension、资料、日志或 Release。 |
 | F12 | GitHub 旧仓库彻底替换、永远 main、小提交后立即 push | PASS | `ralphite/logue` 已由当前项目替换；当前分支与 upstream 均为 `main`；本轮逻辑批次均提交后立即推送。 |
 | F13 | 一行 curl 安装、覆盖升级保留数据、询问开机启动、安装后自动启动 | PASS | 公开 `v0.2.3` 安装器在停服前完成全部输入和资产预检，并把程序、Extension、CLI、LaunchAgent 作为同一事务提交。CI 对 extension / cli / autostart 三点逐项证明“候选健康后故障 → 完整恢复旧状态和旧服务”；非法自动启动配置在停服前拒绝。 |
-| F14 | 最新主线也必须进入 Release | OPEN | 当前 `main` / `origin/main` 为 `3fc2ac6`，公开 `v0.2.3` 仍为较早的 `88d10b5`；安装/升级机制已通过，但最新主线尚未发布，不能沿用旧 PASS。 |
+| F14 | 最新主线也必须进入 Release | OPEN | 当前 `main` / `origin/main` 为 `275d510`，公开 `v0.2.3` 仍为较早的 `88d10b5`；安装/升级机制已通过，但最新主线尚未发布，不能沿用旧 PASS。 |
 | F15 | ChatGPT.com / Notion / 竞品级独立产品设计审查 | PARTIAL | 原生 Side Panel 与渐进式启动器完成可复用产品设计代理审查并达到 9.1/10 PASS；全产品最新 Web、移动和 Extension 截图仍需一次统一 Notion/ChatGPT 对照终审。 |
-| F16 | 提供真实截图 | PASS | 当前桌面和 320px 关键截图已保存于 `/tmp/logue-*.png`；Extension 真实运行截图仍保留。 |
+| F16 | 提供真实截图 | PASS | 可复用、无敏感信息的当前截图保存在 `docs/design/references/runtime/`；例如生成页 input-first 与扩展 Side Panel 页面资料流。 |
 | F17 | 每小时自动重启当前 goal 并继续最高 ROI 工作 | PASS | `logue` automation 持续唤醒本任务；只有 fresh-context 与直接证据共同支持时才能结束。 |
 
 ## 当前未关闭队列
 
-1. **P1（原生 Extension 回归）**：用 `3fc2ac6` 在标准 input、真实 ChatGPT contenteditable 和 Logue Web App 重跑语音/Generate 事务；物理 `⇧⌘L` 仍需可用输入设备验证。
-2. **P1（发布）**：完成当前最新 `main` 的新 Release 与真实覆盖升级，不能继续把旧 `v0.2.3` 当作最新主线。
-3. **P1（外部设备）**：完成安全 LAN 配对入口，并在物理 iPhone 上验证触控、旋转、刷新、Stream / Projects / Generate / 文档编辑。
-4. **P2（数据兼容）**：安全处理真实库中 14 条历史中文模型分类理由；不得改资料正文、人工项目/Tag 或自建 Agent。
-5. **P2**：将最新桌面/移动/Extension 截图重新交给 ChatGPT.com，与 Notion 和直接竞品做一次最终对照审查。
+1. **P1（原生 Extension 语音成功态）**：在真实 ChatGPT contenteditable 和 Logue Web App 以非空真实语音完成转写、保存与单次插入；不得发送宿主表单。
+2. **P1（全产品设计终审）**：用当前主要 Web/Extension 截图与项目内 Notion/ChatGPT 参照完成两名 fresh-context 独立审查，直接修复无歧义的高影响问题。
+3. **P1（发布）**：在上述核心闭环与审查达到可发布质量后，完成当前最新 `main` 的新 Release 与真实覆盖升级，不能继续把旧 `v0.2.3` 当作最新主线。
+4. **P2（数据整理）**：安全处理真实库中 14 条历史中文模型分类理由；不得改资料正文、人工项目/Tag 或自建 Agent。
+5. **P3（移动端，用户明确后置）**：安全 LAN 配对入口与物理 iPhone 的触控、旋转、刷新、Stream / Projects / Generate / 文档编辑闭环。
