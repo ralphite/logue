@@ -78,7 +78,7 @@
 
 ## 本任务最新明确纠正
 
-- 当前机器是唯一支持的安装，当前机器上的数据是唯一需要保护的数据，目前没有其他用户。除非用户以后明确要求兼容，禁止 legacy migration、旧字段/路由 alias、旧文案 fallback、双格式 parser、兼容 fixture/test 和废弃默认数据。当前数据需要变化时只做一次有备份、可验证的数据更新，随后删除迁移代码。
+- 当前仍只有一个用户且不需要历史版本兼容；最新部署允许 Linux 服务主机与 MacBook Chrome 客户端分离。真实服务主机上的当前数据必须保护，隔离验收机器可视为没有数据。除非用户以后明确要求兼容，禁止 legacy migration、旧字段/路由 alias、旧文案 fallback、双格式 parser、兼容 fixture/test 和废弃默认数据。当前数据需要变化时只做一次有备份、可验证的数据更新，随后删除迁移代码。
 - 当前可复用能力只有 Prompt/指令编辑，因此用户界面名称应为 `Skills`，不是 `Agents`。只有未来具备 trigger、tools、permissions 和 runs 的自主能力才称为 Agents。
 - Extension 当前产品架构是 Chrome 原生 Side Panel，不继续保留旧网页浮层作为兼容路径。Toolbar 与 `Cmd+Shift+L` / `Ctrl+Shift+L` 都必须可靠 toggle；关闭、切页或 Side Panel 消失时必须停止录音并忽略迟到回调。
 - Side Panel 的左/右位置及原生 pin/unpin 由 Chrome 控制；Logue 不提供自己的侧位或 unpin 设置，也不能删除 Chrome 原生按钮。
