@@ -110,7 +110,7 @@ export function RecordingAudioPlayer({ src, label }: { src: string; label: strin
           >
             {playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}
           </button>
-          <span className="text-[10.5px]" role="status">
+          <span className="text-[14px]" role="status">
             {durationUnavailable ? "Audio duration unavailable" : "Reading audio duration…"}
           </span>
         </div>
