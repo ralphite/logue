@@ -13,6 +13,15 @@
 - When a schema or format change affects this machine's current data, perform one explicit, backed-up, verified data update and then delete the migration code. Never keep a permanent migration path for a completed local transition.
 - Installer overwrite and rollback must continue to preserve this machine's current data and recover the current installed version. This operational safety requirement does not authorize support for legacy schemas or obsolete product behavior.
 
+## Prototype delivery and complexity discipline
+
+- Optimize first for the user's normal, high-frequency workflow working directly and reliably. A prototype with fewer working paths is better than a broader system whose main path is blocked by speculative safeguards.
+- Do not add guards, lifecycle checks, state transitions, validation, fallbacks, retries, compatibility layers, or edge-case handling merely because a failure is imaginable. Add complexity only when a real, reproducible user problem or an explicit requirement proves that its benefit exceeds its cost to the primary flow.
+- Prefer the smallest direct implementation that satisfies the current user outcome. Every additional condition must have a named user-visible failure it prevents, a clear owner, and a realistic removal path if it later blocks normal use.
+- When a safeguard conflicts with normal use, preserve the normal workflow and make the exceptional case recoverable rather than silently preventing the primary action. Do not turn uncertain background state into a hard stop.
+- Diagnose concrete failures from the real product before generalizing a solution. Do not spend prototype time pre-solving hypothetical lifecycle, compatibility, migration, permission, or concurrency scenarios while requested core features remain incomplete.
+- Revisit hardening only after the requested end-to-end workflow is working and the user asks for it, or when direct runtime evidence shows it is necessary to protect data, privacy, or a completed primary action.
+
 ## Non-negotiable product design rules
 
 - Internal consistency is the minimum quality bar. Navigation, content axes, typography, spacing, buttons, tooltips, selected/hover/focus states, drawers, dialogs, and resizers must come from shared product patterns. A page must not invent a local visual language.
