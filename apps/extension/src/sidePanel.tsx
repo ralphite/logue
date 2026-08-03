@@ -28,6 +28,7 @@ import {
 } from "./recordingBridge";
 import { createRequestId } from "./requestId";
 import { capturePhasePresentation, type CapturePhase } from "./sidePanelPresentation";
+import { saveThenRefreshPageHistory, shouldLoadPageHistory, shouldShowPageHistory } from "./sidePanelPageHistory";
 import { canInsertGeneratedText, generationTargetKey } from "./sidePanelGeneration";
 import { sidePanelShortcutAction } from "./sidePanelShortcuts";
 import "./sidePanel.css";
@@ -120,31 +121,37 @@ function SidePanelApp() {
     if (!current) return;
     const currentContext = context ?? await getCaptureContext(current.source.url);
     const provenance = appliedContext(currentContext);
-    if (current.selectionText) {
-      await saveSelection({
-        requestId: requestIdRef.current,
-        sourceContent: current.selectionText,
-        annotation: content.trim() || undefined,
-        transcript: captureId ? rawTranscript : undefined,
-        source: { ...current.source, selection: current.selectionText },
-        projects: [],
-        tags: [],
-        captureId,
-        appliedContext: provenance,
-      });
+    const selectionText = current.selectionText;
+    if (selectionText) {
+      await saveThenRefreshPageHistory(
+        () => saveSelection({
+          requestId: requestIdRef.current,
+          sourceContent: selectionText,
+          annotation: content.trim() || undefined,
+          transcript: captureId ? rawTranscript : undefined,
+          source: { ...current.source, selection: selectionText },
+          projects: [],
+          tags: [],
+          captureId,
+          appliedContext: provenance,
+        }),
+        () => refreshPageMaterials(current.source.url),
+      );
     } else {
-      const saved = await saveMaterial({
-        requestId: requestIdRef.current,
-        kind: captureId ? "voice" : "text",
-        content,
-        transcript: captureId ? rawTranscript : undefined,
-        source: current.source,
-        projects: [],
-        tags: [],
-        captureId,
-        appliedContext: provenance,
-      });
-      await refreshPageMaterials(current.source.url);
+      const saved = await saveThenRefreshPageHistory(
+        () => saveMaterial({
+          requestId: requestIdRef.current,
+          kind: captureId ? "voice" : "text",
+          content,
+          transcript: captureId ? rawTranscript : undefined,
+          source: current.source,
+          projects: [],
+          tags: [],
+          captureId,
+          appliedContext: provenance,
+        }),
+        () => refreshPageMaterials(current.source.url),
+      );
       if (current.intent === "input") {
         const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:insert-text", text: content }) as { ok?: boolean } | undefined;
         if (!response?.ok) {
@@ -450,7 +457,7 @@ function SidePanelApp() {
       void getCaptureContext(next.source.url)
         .then(setContext)
         .catch(() => setContext(undefined));
-      if (!next.selectionText && next.intent !== "generate") void refreshPageMaterials(next.source.url);
+      if (shouldLoadPageHistory(next.intent)) void refreshPageMaterials(next.source.url);
       if (next.intent === "generate") {
         void Promise.all([getExtensionAgents(), getExtensionSettings()]).then(([available, settings]) => {
           setSkills(available);
@@ -593,11 +600,11 @@ function SidePanelApp() {
           </>}
         </div>}
 
-        {presentation.showSavedMaterials && !state.selectionText && state.intent !== "generate" && pageMaterials.length > 0 && (
-          <section className="page-materials" aria-label="Saved materials">
-            <h2 className="page-materials-heading">Recent</h2>
+        {shouldShowPageHistory(presentation.showSavedMaterials, state.intent, pageMaterials.length) && (
+          <section className="page-materials" aria-label="Notes from this page">
+            <h2 className="page-materials-heading">On this page</h2>
             <ol className="page-materials-list">
-              {pageMaterials.slice(0, 4).map((material) => <li key={material.id} className="page-material">
+              {pageMaterials.map((material) => <li key={material.id} className="page-material">
                 <p className="page-material-text">{material.annotation?.trim() || material.content}</p>
               </li>)}
             </ol>
