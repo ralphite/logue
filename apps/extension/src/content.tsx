@@ -1,4 +1,4 @@
-import { AudioLines, Check, LoaderCircle, Square, X } from "lucide-react";
+import { AudioLines, Check, LoaderCircle, X } from "lucide-react";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { cancelMaterialSave, getCaptureContext, saveMaterial, transcribeAudio, type AppliedContext } from "./api";
@@ -392,7 +392,6 @@ function ExtensionLauncher() {
     <div className={`logue-launcher-group is-${voicePhase}${captureActive ? " is-capturing" : ""}`} style={{ top: position?.top, left: position?.left }} role="group" aria-label="Logue voice input">
       {voicePhase === "recording" ? <>
         <button type="button" className="logue-launcher logue-inline-cancel" aria-label="Cancel voice input" aria-keyshortcuts="Escape" title="Cancel (Esc)" onPointerDown={(event) => event.preventDefault()} onClick={cancelInlineVoice}><X size={17} /></button>
-        <span className="logue-inline-live" role="status" aria-label="Recording"><Square size={13} fill="currentColor" /></span>
         <button type="button" className="logue-launcher logue-inline-accept" aria-label="Stop and insert voice input" aria-keyshortcuts="Enter" title="Stop and insert (Enter)" onPointerDown={(event) => event.preventDefault()} onClick={stopAndInsertInlineVoice}><Check size={18} strokeWidth={2.3} /></button>
       </> : captureActive ? <>
         <button type="button" className="logue-launcher logue-inline-cancel" aria-label="Cancel voice input" aria-keyshortcuts="Escape" title="Cancel (Esc)" onPointerDown={(event) => event.preventDefault()} onClick={cancelInlineVoice}><X size={17} /></button>

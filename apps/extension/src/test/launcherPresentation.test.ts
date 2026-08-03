@@ -19,10 +19,11 @@ describe("page launcher presentation", () => {
     expect(content).toContain("isInlineVoiceShortcutTarget");
     expect(content).not.toContain('openSidePanel("input", true)');
     expect(content).not.toContain("logue-launcher-generation");
-    expect(styles).toContain(".logue-inline-live");
+    expect(content).not.toContain("logue-inline-live");
     expect(styles).toContain(".logue-inline-accept");
     expect(styles).toContain(".logue-inline-cancel");
     expect(styles).toContain(".logue-launcher-group.is-recording");
+    expect(styles).toContain("width: 86px");
     expect(styles).toContain(".logue-launcher-error.is-below");
   });
 });

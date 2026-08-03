@@ -22,7 +22,7 @@ export const inlineVoiceControlMetrics = {
   error: { width: 46, height: 46 },
   starting: { width: 86, height: 46 },
   processing: { width: 86, height: 46 },
-  recording: { width: 126, height: 46 },
+  recording: { width: 86, height: 46 },
 } as const;
 
 const ERROR_ESTIMATED_HEIGHT = 84;

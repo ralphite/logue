@@ -47,7 +47,7 @@ textarea {
 }
 
 .logue-launcher-group.is-recording {
-  width: 126px;
+  width: 86px;
 }
 
 .logue-launcher-error {
@@ -119,17 +119,6 @@ textarea {
 
 .logue-inline-cancel { color: #6f716b; }
 .logue-inline-cancel:hover { background: #f1f1ed; color: #343631; }
-.logue-inline-live {
-  display: flex;
-  width: 38px;
-  height: 38px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: #fff0ee;
-  color: #d73e36;
-  box-shadow: inset 0 0 0 1px #ffd9d4;
-}
 .logue-inline-accept { color: #16984a; }
 .logue-inline-accept:hover { background: #ecf8ef; color: #0a7f39; }
 
