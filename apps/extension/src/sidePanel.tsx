@@ -36,13 +36,18 @@ import { saveThenRefreshPageHistory, shouldLoadPageHistory } from "./sidePanelPa
 import { canInsertGeneratedText, generationTargetKey } from "./sidePanelGeneration";
 import { handleSidePanelShortcut } from "./sidePanelShortcuts";
 import { createSidePanelFocusController, type SidePanelFocusController } from "./sidePanelFocus";
+import {
+  shouldInterruptPanelCapture,
+  shouldPreservePanelCapturePresentation,
+  type ActivePanelCaptureScope,
+} from "./sidePanelRecordingState";
 import { SidePanelView } from "./sidePanelView";
 import "./sidePanel.css";
 
 type Phase = CapturePhase;
 
 interface RuntimeResponse<T> { ok: boolean; value?: T; }
-interface RecordingSession { id: string; tabId: number; }
+interface RecordingSession extends ActivePanelCaptureScope { id: string; }
 
 function SidePanelApp() {
   const [state, setState] = useState<PanelCaptureState>();
@@ -75,6 +80,9 @@ function SidePanelApp() {
   const startRecordingRef = useRef<() => void>(() => undefined);
   const recordingEventRef = useRef<(event: RecordingPanelEvent) => void>(() => undefined);
   const recordingSessionRef = useRef<RecordingSession | undefined>(undefined);
+  // This remains set through transcription, after the recording port is
+  // released, so a harmless panel-state refresh cannot collapse the active UI.
+  const activeCaptureScopeRef = useRef<ActivePanelCaptureScope | undefined>(undefined);
   const recordingPortRef = useRef<chrome.runtime.Port | undefined>(undefined);
   const phaseRef = useRef<Phase>("idle");
   const generatedForTargetRef = useRef<string | undefined>(undefined);
@@ -316,13 +324,14 @@ function SidePanelApp() {
     if (phaseRef.current === "starting" || phaseRef.current === "recording" || phaseRef.current === "processing") return;
     const current = stateRef.current;
     if (!current) return;
-    const session = { id: createRequestId(), tabId: current.tabId };
+    const session = { id: createRequestId(), tabId: current.tabId, intent: current.intent };
     recordingPortRef.current?.disconnect();
     try {
       const port = chrome.tabs.connect(current.tabId, { name: "logue:recording-lifecycle" });
       port.onDisconnect.addListener(() => {
         if (recordingSessionRef.current?.id !== session.id) return;
         recordingSessionRef.current = undefined;
+        activeCaptureScopeRef.current = undefined;
         recordingPortRef.current = undefined;
         stopTimer();
         setError({
@@ -339,6 +348,7 @@ function SidePanelApp() {
       return;
     }
     recordingSessionRef.current = session;
+    activeCaptureScopeRef.current = session;
     setPhase("starting");
     setError(undefined);
     setPendingInsert(undefined);
@@ -347,6 +357,7 @@ function SidePanelApp() {
     }).catch((cause: unknown) => {
       if (recordingSessionRef.current?.id !== session.id) return;
       recordingSessionRef.current = undefined;
+      activeCaptureScopeRef.current = undefined;
       recordingPortRef.current?.disconnect();
       recordingPortRef.current = undefined;
       setError({
@@ -375,11 +386,13 @@ function SidePanelApp() {
     recordingPortRef.current = undefined;
     stopTimer();
     if (event.event === "cancelled") {
+      activeCaptureScopeRef.current = undefined;
       setPhase("idle");
       setElapsed(0);
       return;
     }
     if (event.event === "error") {
+      activeCaptureScopeRef.current = undefined;
       setError(friendlyLocalError(new Error(event.error || "Could not start recording."), "microphone"));
       setPhase("error");
       return;
@@ -387,8 +400,11 @@ function SidePanelApp() {
     try {
       const blob = audioBlobFromEvent(event);
       lastBlobRef.current = blob;
-      void transcribeAndSaveRef.current(blob);
+      void transcribeAndSaveRef.current(blob).finally(() => {
+        activeCaptureScopeRef.current = undefined;
+      });
     } catch (cause) {
+      activeCaptureScopeRef.current = undefined;
       setError(friendlyLocalError(cause, "transcription"));
       setPhase("error");
     }
@@ -565,12 +581,14 @@ function SidePanelApp() {
       const previous = stateRef.current;
       if (!previous) focusPanelOnHydrationRef.current = true;
       const activeSession = recordingSessionRef.current;
-      if (activeSession && previous && (
-        activeSession.tabId !== next.tabId ||
-        previous.intent !== next.intent ||
-        previous.source.url !== next.source.url
-      )) {
+      const preserveActiveCapture = shouldPreservePanelCapturePresentation(
+        phaseRef.current,
+        activeCaptureScopeRef.current,
+        next,
+      );
+      if (activeSession && shouldInterruptPanelCapture(activeSession, next)) {
         recordingSessionRef.current = undefined;
+        activeCaptureScopeRef.current = undefined;
         void sendRecordingControl(activeSession, "cancel").catch(() => undefined);
         recordingPortRef.current?.disconnect();
         recordingPortRef.current = undefined;
@@ -591,12 +609,14 @@ function SidePanelApp() {
         setSkills([]);
         setSkillId("");
       }
-      setPhase("idle");
-      setError(next.pendingInsert ? {
-        kind: "target",
-        message: "The original editor is no longer available. Your text is saved in Logue.",
-        action: "copy",
-      } : undefined);
+      if (!preserveActiveCapture) {
+        setPhase("idle");
+        setError(next.pendingInsert ? {
+          kind: "target",
+          message: "The original editor is no longer available. Your text is saved in Logue.",
+          action: "copy",
+        } : undefined);
+      }
       requestIdRef.current = createRequestId();
       void refreshServerConnection(next);
       if (next.autoStartToken) {
