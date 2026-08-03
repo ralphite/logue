@@ -73,6 +73,24 @@ file_sha256() {
   shasum -a 256 "$1" | awk '{print $1}'
 }
 
+assert_sidepanel_assets() {
+  local extension_root="$1" sidepanel_path="$2" html_file html_dir asset_ref asset_count=0
+  html_file="${extension_root}/${sidepanel_path}"
+  html_dir="$(dirname "${html_file}")"
+  [[ -f "${html_file}" ]] || { printf 'Extension Side Panel HTML is missing: %s\n' "${sidepanel_path}" >&2; exit 1; }
+  while IFS= read -r asset_ref; do
+    asset_count=$((asset_count + 1))
+    case "${asset_ref}" in
+      ./*) ;;
+      *) printf 'Extension Side Panel asset is not relative: %s\n' "${asset_ref}" >&2; exit 1 ;;
+    esac
+    asset_ref="${asset_ref%%\#*}"
+    asset_ref="${asset_ref%%\?*}"
+    [[ -f "${html_dir}/${asset_ref}" ]] || { printf 'Extension Side Panel asset is missing: %s\n' "${asset_ref}" >&2; exit 1; }
+  done < <(grep -Eo '(src|href)="[^"]+"' "${html_file}" | sed -e 's/^[^=]*="//' -e 's/"$//')
+  (( asset_count > 0 )) || { printf 'Extension Side Panel HTML has no versioned asset references\n' >&2; exit 1; }
+}
+
 assert_failure_order() {
   local failure_point="$1" log_file="$2" switch_line healthy_line injection_line rollback_line
   switch_line="$(grep -nF 'App switched to v0.1.1' "${log_file}" | head -1 | cut -d: -f1)"
@@ -108,6 +126,7 @@ assert_failed_upgrade_restored() {
     printf '%s failure removed the active Extension content script\n' "${failure_name}" >&2
     exit 1
   }
+  assert_sidepanel_assets "${install_root}/extension" "${extension_sidepanel_v1}"
   [[ -L "${bin_dir}/logue" && "$(readlink "${bin_dir}/logue")" == "${baseline_cli_target}" ]] || {
     printf '%s failure did not restore the CLI link\n' "${failure_name}" >&2
     exit 1
@@ -173,10 +192,13 @@ fi
 extension_manifest="${install_root}/extension/manifest.json"
 extension_worker_v1="$(sed -n 's/.*"service_worker": "\([^"]*\)".*/\1/p' "${extension_manifest}")"
 extension_content_v1="$(sed -n 's/.*"js": \["\([^"]*\)"\].*/\1/p' "${extension_manifest}")"
+extension_sidepanel_v1="$(sed -n 's/.*"default_path": "\([^"]*\)".*/\1/p' "${extension_manifest}")"
 [[ "${extension_worker_v1}" == releases/v0.1.0-*/background.js ]] || { printf 'v0.1.0 extension worker is not versioned\n' >&2; exit 1; }
 [[ "${extension_content_v1}" == releases/v0.1.0-*/content.js ]] || { printf 'v0.1.0 extension content script is not versioned\n' >&2; exit 1; }
+[[ "${extension_sidepanel_v1}" == releases/v0.1.0-*/sidepanel.html ]] || { printf 'v0.1.0 Extension Side Panel is not versioned\n' >&2; exit 1; }
 [[ -f "${install_root}/extension/${extension_worker_v1}" ]] || { printf 'v0.1.0 extension worker is missing\n' >&2; exit 1; }
 [[ -f "${install_root}/extension/${extension_content_v1}" ]] || { printf 'v0.1.0 extension content script is missing\n' >&2; exit 1; }
+assert_sidepanel_assets "${install_root}/extension" "${extension_sidepanel_v1}"
 
 mkdir -p "${data_root}/items"
 printf '%s\n' 'preserve-me' > "${data_root}/items/installer-sentinel.txt"
@@ -233,13 +255,17 @@ sentinel_after="$(shasum -a 256 "${data_root}/items/installer-sentinel.txt" | aw
 [[ "$("${install_root}/current/bin/logue" -version)" == "v0.1.1" ]] || { printf 'current binary version mismatch\n' >&2; exit 1; }
 extension_worker_v2="$(sed -n 's/.*"service_worker": "\([^"]*\)".*/\1/p' "${extension_manifest}")"
 extension_content_v2="$(sed -n 's/.*"js": \["\([^"]*\)"\].*/\1/p' "${extension_manifest}")"
+extension_sidepanel_v2="$(sed -n 's/.*"default_path": "\([^"]*\)".*/\1/p' "${extension_manifest}")"
 [[ "${extension_worker_v2}" == releases/v0.1.1-*/background.js ]] || { printf 'v0.1.1 extension worker is not versioned\n' >&2; exit 1; }
 [[ "${extension_content_v2}" == releases/v0.1.1-*/content.js ]] || { printf 'v0.1.1 extension content script is not versioned\n' >&2; exit 1; }
+[[ "${extension_sidepanel_v2}" == releases/v0.1.1-*/sidepanel.html ]] || { printf 'v0.1.1 Extension Side Panel is not versioned\n' >&2; exit 1; }
 [[ "${extension_worker_v1}" != "${extension_worker_v2}" ]] || { printf 'extension manifest did not switch assets\n' >&2; exit 1; }
 [[ -f "${install_root}/extension/${extension_worker_v1}" ]] || { printf 'previous extension worker disappeared during upgrade\n' >&2; exit 1; }
 [[ -f "${install_root}/extension/${extension_content_v1}" ]] || { printf 'previous extension content script disappeared during upgrade\n' >&2; exit 1; }
+assert_sidepanel_assets "${install_root}/extension" "${extension_sidepanel_v1}"
 [[ -f "${install_root}/extension/${extension_worker_v2}" ]] || { printf 'v0.1.1 extension worker is missing\n' >&2; exit 1; }
 [[ -f "${install_root}/extension/${extension_content_v2}" ]] || { printf 'v0.1.1 extension content script is missing\n' >&2; exit 1; }
+assert_sidepanel_assets "${install_root}/extension" "${extension_sidepanel_v2}"
 
 current_before_reinstall="$(readlink "${install_root}/current")"
 pid_before_reinstall="${pid_after}"
@@ -270,5 +296,3 @@ sentinel_after_reinstall="$(shasum -a 256 "${data_root}/items/installer-sentinel
 [[ "${sentinel_before}" == "${sentinel_after_reinstall}" ]] || { printf 'same-version reinstall changed persistent data\n' >&2; exit 1; }
 
 printf 'Installer new-install and overwrite-upgrade regression passed.\n'
-
-bash "${repo_dir}/scripts/test-install-linux.sh"

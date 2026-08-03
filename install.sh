@@ -358,6 +358,22 @@ create_systemd_unit() {
   grep -Fq "ExecStart=\"${escaped_binary}\" -address \"${escaped_address}\"" "${systemd_unit_next}" || return 1
 }
 
+validate_extension_html_assets() {
+  local html_file="$1" html_dir asset_ref asset_count=0
+  html_dir="$(dirname "${html_file}")"
+  while IFS= read -r asset_ref; do
+    asset_count=$((asset_count + 1))
+    case "${asset_ref}" in
+      ./*) ;;
+      *) return 1 ;;
+    esac
+    asset_ref="${asset_ref%%\#*}"
+    asset_ref="${asset_ref%%\?*}"
+    [[ -f "${html_dir}/${asset_ref}" ]] || return 1
+  done < <(grep -Eo '(src|href)="[^"]+"' "${html_file}" | sed -e 's/^[^=]*="//' -e 's/"$//')
+  (( asset_count > 0 ))
+}
+
 step "2/4  Stage and verify the full upgrade"
 release_dir="$(mktemp -d "${install_root}/releases/${logue_version}.XXXXXX")"
 rmdir -- "${release_dir}"
@@ -385,10 +401,13 @@ mv "${extension_stage}" "${staged_extension_assets}"
 sed \
   -e "s|\"service_worker\": \"background.js\"|\"service_worker\": \"releases/${extension_asset_id}/background.js\"|" \
   -e "s|\"js\": \[\"content.js\"\]|\"js\": [\"releases/${extension_asset_id}/content.js\"]|" \
+  -e "s|\"default_path\": \"sidepanel.html\"|\"default_path\": \"releases/${extension_asset_id}/sidepanel.html\"|" \
   "${release_dir}/extension/manifest.json" > "${extension_manifest_next}"
 grep -Fq "\"service_worker\": \"releases/${extension_asset_id}/background.js\"" "${extension_manifest_next}" || fail "Extension manifest is missing a versioned worker; the existing installation was not changed."
 grep -Fq "\"js\": [\"releases/${extension_asset_id}/content.js\"]" "${extension_manifest_next}" || fail "Extension manifest is missing a versioned content script; the existing installation was not changed."
-[[ -f "${staged_extension_assets}/background.js" && -f "${staged_extension_assets}/content.js" ]] || fail "Extension assets are incomplete; the existing installation was not changed."
+grep -Fq "\"default_path\": \"releases/${extension_asset_id}/sidepanel.html\"" "${extension_manifest_next}" || fail "Extension manifest is missing a versioned Side Panel; the existing installation was not changed."
+[[ -f "${staged_extension_assets}/background.js" && -f "${staged_extension_assets}/content.js" && -f "${staged_extension_assets}/sidepanel.html" ]] || fail "Extension assets are incomplete; the existing installation was not changed."
+validate_extension_html_assets "${staged_extension_assets}/sidepanel.html" || fail "Extension Side Panel references missing or non-versioned assets; the existing installation was not changed."
 
 if [[ -d "${extension_dir}/manifest.json" && ! -L "${extension_dir}/manifest.json" ]]; then
   fail "Extension manifest path is a directory; stopped to avoid overwriting unknown content."
@@ -582,7 +601,18 @@ staged_extension_assets=""
 printf '\n✓ Logue %s is installed and running\n' "${logue_version}"
 say "Open: ${open_url}"
 say "Listen address: ${logue_address}"
-say "Extension: ${extension_dir} (load it in chrome://extensions)"
+say "Extension folder: ${extension_dir}"
+say "Chrome will not install or update an unpacked Extension silently"
+if [[ "${had_extension_manifest}" == "no" ]]; then
+  printf '\nFirst-time Chrome setup:\n'
+  printf '%s\n' '  1. Open chrome://extensions.'
+  printf '%s\n' '  2. Turn on Developer mode.'
+  printf '%s\n' '  3. Click Load unpacked.'
+  printf '  4. Select: %s\n' "${extension_dir}"
+else
+  say "Extension upgrade: open chrome://extensions and click Reload on the Logue card"
+  say "Do not use Load unpacked again"
+fi
 say "Command: ${bin_dir}/logue"
 say "Data remains at: ${data_root}"
 
