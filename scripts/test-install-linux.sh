@@ -138,7 +138,14 @@ grep -Fq 'No interactive terminal; automatic startup stays off.' "${noninteracti
 systemctl_log_after="$(wc -l < "${systemctl_log}" 2>/dev/null || printf '0')"
 [[ "${systemctl_log_before}" == "${systemctl_log_after}" ]] || { printf 'Noninteractive installation unexpectedly contacted systemd\n' >&2; exit 1; }
 
-run_installer "file://${fixture_v1}" yes "127.0.0.1:${port}"
+linux_install_log="${test_root}/linux-install.log"
+run_installer "file://${fixture_v1}" yes "127.0.0.1:${port}" >"${linux_install_log}"
+grep -Fq 'Next on your Mac:' "${linux_install_log}" || { printf 'Linux install omitted the standalone Mac Extension command\n' >&2; exit 1; }
+grep -Fq 'install-extension.sh | bash' "${linux_install_log}" || { printf 'Linux install printed an incomplete standalone Mac Extension command\n' >&2; exit 1; }
+if grep -Fq 'Load unpacked' "${linux_install_log}" || grep -Fq 'chrome://extensions' "${linux_install_log}"; then
+  printf 'Linux service install incorrectly printed local Chrome setup steps\n' >&2
+  exit 1
+fi
 
 status_v1="$(curl -fsS "http://127.0.0.1:${port}/v1/status")"
 [[ "${status_v1}" == *'"version":"v0.1.0"'* ]] || { printf 'Linux fixture v0.1.0 did not start\n' >&2; exit 1; }

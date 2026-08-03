@@ -178,7 +178,14 @@ assert_failed_upgrade_restored() {
 
 printf 'Building v0.1.0 fixture...\n'
 build_fixture v0.1.0 "${fixture_v1}"
-run_installer "file://${fixture_v1}" yes
+first_install_log="${test_root}/first-install.log"
+run_installer "file://${fixture_v1}" yes >"${first_install_log}"
+grep -Fq '1. Open chrome://extensions.' "${first_install_log}" || { printf 'macOS first install omitted chrome://extensions\n' >&2; exit 1; }
+grep -Fq '3. Click Load unpacked.' "${first_install_log}" || { printf 'macOS first install omitted Load unpacked\n' >&2; exit 1; }
+if grep -Fq '<Linux host>' "${first_install_log}"; then
+  printf 'macOS all-in-one install incorrectly requested a Linux server\n' >&2
+  exit 1
+fi
 
 status_v1="$(curl -fsS "http://127.0.0.1:${port}/v1/status")"
 [[ "${status_v1}" == *'"version":"v0.1.0"'* ]] || { printf 'v0.1.0 did not start\n' >&2; exit 1; }
@@ -238,7 +245,10 @@ done
 
 pid_before="$(cat "${pid_file}")"
 assert_loopback_listener "${pid_before}"
-run_installer "file://${fixture_v2}" no
+upgrade_log="${test_root}/upgrade.log"
+run_installer "file://${fixture_v2}" no >"${upgrade_log}"
+grep -Fq 'click Reload on the Logue card' "${upgrade_log}" || { printf 'macOS Extension upgrade omitted Reload\n' >&2; exit 1; }
+grep -Fq 'Do not use Load unpacked again' "${upgrade_log}" || { printf 'macOS Extension upgrade did not reject Load unpacked\n' >&2; exit 1; }
 
 status_v2="$(curl -fsS "http://127.0.0.1:${port}/v1/status")"
 [[ "${status_v2}" == *'"version":"v0.1.1"'* ]] || { printf 'v0.1.1 did not start\n' >&2; exit 1; }

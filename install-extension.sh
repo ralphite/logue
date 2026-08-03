@@ -128,6 +128,9 @@ if [[ "${first_install}" == "yes" ]]; then
   printf '%s\n' '  2. Turn on Developer mode.'
   printf '%s\n' '  3. Click Load unpacked.'
   printf '  4. Select: %s\n' "${extension_dir}"
+  printf '%s\n' '  5. Open the Logue Side Panel.'
+  printf '%s\n' '  6. Open More options → Server settings.'
+  printf '%s\n' '  7. Enter http(s)://<Linux host>:8787, click Connect, and allow that origin.'
 else
   say "Upgrade: open chrome://extensions and click Reload on the Logue card"
   say "Do not use Load unpacked again"

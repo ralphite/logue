@@ -601,15 +601,19 @@ staged_extension_assets=""
 printf '\n✓ Logue %s is installed and running\n' "${logue_version}"
 say "Open: ${open_url}"
 say "Listen address: ${logue_address}"
-say "Extension folder: ${extension_dir}"
-say "Chrome will not install or update an unpacked Extension silently"
-if [[ "${had_extension_manifest}" == "no" ]]; then
+if [[ "${logue_platform}" == "linux" ]]; then
+  say "Next on your Mac: curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install-extension.sh | bash"
+else
+  say "Extension folder: ${extension_dir}"
+  say "Chrome will not install or update an unpacked Extension silently"
+fi
+if [[ "${logue_platform}" == "darwin" && "${had_extension_manifest}" == "no" ]]; then
   printf '\nFirst-time Chrome setup:\n'
   printf '%s\n' '  1. Open chrome://extensions.'
   printf '%s\n' '  2. Turn on Developer mode.'
   printf '%s\n' '  3. Click Load unpacked.'
   printf '  4. Select: %s\n' "${extension_dir}"
-else
+elif [[ "${logue_platform}" == "darwin" ]]; then
   say "Extension upgrade: open chrome://extensions and click Reload on the Logue card"
   say "Do not use Load unpacked again"
 fi

@@ -86,6 +86,9 @@ grep -Fq '1. Open chrome://extensions.' "${first_install_log}" || { printf 'Stan
 grep -Fq '2. Turn on Developer mode.' "${first_install_log}" || { printf 'Standalone installer omitted Developer mode\n' >&2; exit 1; }
 grep -Fq '3. Click Load unpacked.' "${first_install_log}" || { printf 'Standalone installer omitted Load unpacked\n' >&2; exit 1; }
 grep -Fq "4. Select: ${extension_dir}" "${first_install_log}" || { printf 'Standalone installer omitted the exact stable folder\n' >&2; exit 1; }
+grep -Fq '5. Open the Logue Side Panel.' "${first_install_log}" || { printf 'Standalone installer omitted opening the Side Panel\n' >&2; exit 1; }
+grep -Fq '6. Open More options → Server settings.' "${first_install_log}" || { printf 'Standalone installer omitted Server settings\n' >&2; exit 1; }
+grep -Fq '7. Enter http(s)://<Linux host>:8787, click Connect, and allow that origin.' "${first_install_log}" || { printf 'Standalone installer omitted the remote origin permission step\n' >&2; exit 1; }
 
 printf '%s\n' 'preserve-extension-root' > "${extension_dir}/installer-sentinel.txt"
 sentinel_before="$(file_sha256 "${extension_dir}/installer-sentinel.txt")"
@@ -111,6 +114,10 @@ assert_installed_extension v0.1.1
 grep -Fq 'click Reload on the Logue card' "${upgrade_log}" || { printf 'Standalone upgrade omitted the Reload step\n' >&2; exit 1; }
 if grep -Fq 'Click Load unpacked' "${upgrade_log}"; then
   printf 'Standalone upgrade incorrectly repeated first-time Load unpacked instructions\n' >&2
+  exit 1
+fi
+if grep -Fq 'Server settings' "${upgrade_log}"; then
+  printf 'Standalone upgrade incorrectly repeated first-time Server settings instructions\n' >&2
   exit 1
 fi
 
