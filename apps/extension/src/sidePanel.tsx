@@ -28,6 +28,7 @@ import {
 } from "./recordingBridge";
 import { createRequestId } from "./requestId";
 import { capturePhasePresentation, type CapturePhase } from "./sidePanelPresentation";
+import { canInsertGeneratedText, generationTargetKey } from "./sidePanelGeneration";
 import { sidePanelShortcutAction } from "./sidePanelShortcuts";
 import "./sidePanel.css";
 
@@ -70,6 +71,7 @@ function SidePanelApp() {
   const recordingSessionRef = useRef<RecordingSession | undefined>(undefined);
   const recordingPortRef = useRef<chrome.runtime.Port | undefined>(undefined);
   const phaseRef = useRef<Phase>("idle");
+  const generatedForTargetRef = useRef<string | undefined>(undefined);
 
   stateRef.current = state;
   draftRef.current = draft;
@@ -276,6 +278,7 @@ function SidePanelApp() {
   const runGeneration = useCallback(async () => {
     const current = stateRef.current;
     if (!current || !skillId || !draft.trim()) return;
+    const targetKey = generationTargetKey(current);
     setGenerating(true);
     setError(undefined);
     try {
@@ -288,6 +291,7 @@ function SidePanelApp() {
         selection: current.selectionText,
       });
       if (run.status !== "complete" || !run.original_output?.trim()) throw new Error(run.error || "No result returned");
+      generatedForTargetRef.current = targetKey;
       setGenerationRunId(run.id);
       setGeneratedText(run.original_output);
     } catch (cause) {
@@ -300,6 +304,13 @@ function SidePanelApp() {
   const useGeneratedText = useCallback(async () => {
     const current = stateRef.current;
     if (!current || !generatedText.trim() || !generationRunId) return;
+    if (!canInsertGeneratedText(current, generatedForTargetRef.current)) {
+      generatedForTargetRef.current = undefined;
+      setGeneratedText("");
+      setGenerationRunId(undefined);
+      setError({ kind: "target", message: "The original editor changed. Generate again.", action: "retry" });
+      return;
+    }
     try {
       await adoptExtensionAgentRun(generationRunId, generatedText.trim());
       const response = await chrome.tabs.sendMessage(current.tabId, {
@@ -314,6 +325,7 @@ function SidePanelApp() {
       setDraft("");
       setGeneratedText("");
       setGenerationRunId(undefined);
+      generatedForTargetRef.current = undefined;
     } catch (cause) {
       setError(friendlyLocalError(cause, "target"));
     }
@@ -373,6 +385,9 @@ function SidePanelApp() {
   }, [pendingInsertText]);
 
   const requestGeneration = useCallback(() => {
+    generatedForTargetRef.current = undefined;
+    setGeneratedText("");
+    setGenerationRunId(undefined);
     void chrome.runtime.sendMessage({ type: "logue:request-panel-generate" })
       .then((response: { ok?: boolean; error?: string } | undefined) => {
         if (!response?.ok) {
@@ -387,6 +402,9 @@ function SidePanelApp() {
   }, []);
 
   const returnToPage = useCallback(() => {
+    generatedForTargetRef.current = undefined;
+    setGeneratedText("");
+    setGenerationRunId(undefined);
     void chrome.runtime.sendMessage({ type: "logue:return-panel-to-page" })
       .then((response: { ok?: boolean; error?: string } | undefined) => {
         if (!response?.ok) {
@@ -415,6 +433,11 @@ function SidePanelApp() {
         recordingPortRef.current?.disconnect();
         recordingPortRef.current = undefined;
         stopTimer();
+      }
+      if (!canInsertGeneratedText(next, generatedForTargetRef.current)) {
+        generatedForTargetRef.current = undefined;
+        setGeneratedText("");
+        setGenerationRunId(undefined);
       }
       setState(next);
       setDraft(next.draft ?? "");
