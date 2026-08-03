@@ -794,9 +794,9 @@ export function ViewWorkspace({
             </div>
             <div className="flex items-center gap-1.5">
               {saveState === "error" && <span role="status" className="mr-1 text-[14px] font-medium text-[#b34e45]">Save failed</span>}
-              <button type="button" onClick={() => setSourcePanelOpen((value) => !value)} className={`inline-flex size-8 items-center justify-center rounded-md transition max-[640px]:size-11 ${sourcePanelOpen ? "bg-[#eeeefa] text-[#5d63d4]" : "text-[#73746f] hover:bg-[#f1f1ee]"}`} aria-label={sourcePanelOpen ? "Close sources panel" : "Open sources panel"}>{sourcePanelOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}</button>
+              <button type="button" onClick={() => setSourcePanelOpen((value) => !value)} className={`inline-flex size-8 items-center justify-center rounded-md transition max-[900px]:size-11 ${sourcePanelOpen ? "bg-[#eeeefa] text-[#5d63d4]" : "text-[#73746f] hover:bg-[#f1f1ee]"}`} aria-label={sourcePanelOpen ? "Close sources panel" : "Open sources panel"}>{sourcePanelOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}</button>
               <div className="relative">
-                <button type="button" onClick={() => setMenuOpen((value) => !value)} className="inline-flex size-8 items-center justify-center rounded-md text-[#73746f] hover:bg-[#f1f1ee] max-[640px]:size-11" aria-label="Document menu"><MoreHorizontal size={16} /></button>
+                <button type="button" onClick={() => setMenuOpen((value) => !value)} className="inline-flex size-8 items-center justify-center rounded-md text-[#73746f] hover:bg-[#f1f1ee] max-[900px]:size-11" aria-label="Document menu"><MoreHorizontal size={16} /></button>
                 {menuOpen && <div className="absolute right-0 top-9 w-44 rounded-lg border border-[#e1e1de] bg-white p-1.5 shadow-[0_12px_34px_rgba(24,25,22,0.14)]"><button type="button" onClick={() => void removeCurrent()} className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[14px] text-[#a5443b] hover:bg-[#f9ece9]"><Trash2 size={14} /> Delete document</button></div>}
               </div>
             </div>
@@ -818,7 +818,7 @@ export function ViewWorkspace({
               className="block w-full resize-none overflow-hidden border-0 bg-transparent text-[38px] font-bold leading-[1.12] tracking-[-0.045em] text-[#242522] outline-none placeholder:text-[#d0d0cc] max-[640px]:text-[30px]"
             />
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <label className="inline-flex h-7 items-center gap-1 rounded-md bg-[#f2f2ef] px-2 text-[15px] text-[#676863]">
+              <label className="inline-flex h-7 items-center gap-1 rounded-md bg-[#f2f2ef] px-2 text-[15px] text-[#676863] max-[900px]:h-11">
                 <FolderKanban size={13} />
                 <select value={project} onChange={(event) => { setProject(event.target.value); markDirty(); }} className="max-w-44 appearance-none bg-transparent font-medium outline-none">
                   <option value="">Unfiled</option>
@@ -826,7 +826,7 @@ export function ViewWorkspace({
                 </select>
                 <ChevronDown size={12} />
               </label>
-              <span className="inline-flex h-7 items-center gap-1.5 rounded-md bg-[#f2f2ef] px-2 text-[15px] text-[#777873]"><Link2 size={12} /> {countLabel(sourceIds.length, "source")}</span>
+              <span className="inline-flex h-7 items-center gap-1.5 rounded-md bg-[#f2f2ef] px-2 text-[15px] text-[#777873] max-[900px]:h-11"><Link2 size={12} /> {countLabel(sourceIds.length, "source")}</span>
               <span className="text-[14px] text-[#aaa]">Updated {relativeDate(selected.updated_at)}</span>
             </div>
             <div
@@ -894,11 +894,11 @@ export function ViewWorkspace({
           className="max-[900px]:hidden"
         />
         <aside style={{ "--source-panel-width": `${sourcePanelWidth}px` } as React.CSSProperties} className="flex w-[var(--source-panel-width)] shrink-0 flex-col bg-[#fcfcfb] max-[900px]:fixed max-[900px]:inset-x-0 max-[900px]:bottom-0 max-[900px]:top-0 max-[900px]:z-50 max-[900px]:w-full max-[640px]:bottom-16">
-          <header className="flex h-12 items-center justify-between border-b border-[#ecece9] px-4"><div><h2 className="text-[14px] font-semibold text-[#454642]">Sources</h2></div><button type="button" onClick={() => setSourcePanelOpen(false)} className="inline-flex size-8 items-center justify-center rounded text-[#888984] hover:bg-[#eeeeeb] max-[640px]:size-11" aria-label="Close sources"><X size={14} /></button></header>
+          <header className="flex h-12 items-center justify-between border-b border-[#ecece9] px-4"><div><h2 className="text-[14px] font-semibold text-[#454642]">Sources</h2></div><button type="button" onClick={() => setSourcePanelOpen(false)} className="inline-flex size-8 items-center justify-center rounded text-[#888984] hover:bg-[#eeeeeb] max-[900px]:size-11" aria-label="Close sources"><X size={14} /></button></header>
           <div className="px-3 pb-3 pt-2.5">
             <div className="mb-2 flex border-b border-[#e7e7e4]" aria-label="Source scope">
-              <button type="button" disabled={!project} onClick={() => setSourceScope("project")} className={`h-7 flex-1 border-b-2 text-[14px] font-medium transition ${sourceScope === "project" && project ? "border-[#777dd9] text-[#4f54ad]" : "border-transparent text-[#8a8b86] hover:text-[#555651] disabled:cursor-not-allowed disabled:opacity-45"}`}>This project</button>
-              <button type="button" onClick={() => setSourceScope("all")} className={`h-7 flex-1 border-b-2 text-[14px] font-medium transition ${sourceScope === "all" || !project ? "border-[#777dd9] text-[#4f54ad]" : "border-transparent text-[#8a8b86] hover:text-[#555651]"}`}>All materials</button>
+              <button type="button" disabled={!project} onClick={() => setSourceScope("project")} className={`h-7 flex-1 border-b-2 text-[14px] font-medium transition max-[900px]:h-11 ${sourceScope === "project" && project ? "border-[#777dd9] text-[#4f54ad]" : "border-transparent text-[#8a8b86] hover:text-[#555651] disabled:cursor-not-allowed disabled:opacity-45"}`}>This project</button>
+              <button type="button" onClick={() => setSourceScope("all")} className={`h-7 flex-1 border-b-2 text-[14px] font-medium transition max-[900px]:h-11 ${sourceScope === "all" || !project ? "border-[#777dd9] text-[#4f54ad]" : "border-transparent text-[#8a8b86] hover:text-[#555651]"}`}>All materials</button>
             </div>
             <label className="relative block"><Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#999a95]" /><input value={sourceQuery} onChange={(event) => setSourceQuery(event.target.value)} placeholder={sourceScope === "project" && project ? `Search ${project} materials` : "Search all materials"} className="h-8 w-full rounded-md border border-transparent bg-[#f1f1ee] pl-8 pr-2 text-[15px] outline-none transition focus:border-[#d8d8d3] focus:bg-white" /></label>
             {sourceMessage && <p role="status" className="mt-2 rounded-md bg-[#fff5e9] px-2.5 py-2 text-[14px] leading-4 text-[#8c612c]">{sourceMessage}</p>}

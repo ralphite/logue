@@ -379,11 +379,11 @@ export function App() {
                             {duplicate ? <ChevronRight size={14} className={`shrink-0 text-[#969792] transition ${expanded ? "rotate-90" : ""}`} /> : <Icon size={15} className="shrink-0 text-[#7b7c77]" />}
                             <span className="truncate text-[14px] text-[#3d3e3a]">{material.content}</span>
                             {duplicate && <span className="hidden shrink-0 rounded bg-[#eeeeea] px-1.5 py-0.5 text-[12px] font-medium text-[#777873] max-[800px]:inline-flex">{group.items.length} items</span>}
-                            {group.needsReview && <span className="hidden shrink-0 rounded bg-[#fff3d8] px-1.5 py-0.5 text-[12px] font-medium text-[#8b611d] max-[480px]:inline-flex">Review</span>}
+                            {group.needsReview && <span aria-label="Needs review" title="Needs review" className="hidden size-2 shrink-0 rounded-full bg-[#d3a244] max-[480px]:inline-flex" />}
                           </span>
                           <span className="flex min-w-0 items-center gap-1.5 max-[480px]:hidden">
                             <span className="truncate text-[15px] text-[#73746f]">{projectLabel}</span>
-                            {group.needsReview && <span className="shrink-0 rounded bg-[#fff3d8] px-1.5 py-0.5 text-[12px] font-medium text-[#8b611d]">Needs review</span>}
+                            {group.needsReview && <span aria-label="Needs review" title="Needs review" className="size-2 shrink-0 rounded-full bg-[#d3a244]" />}
                           </span>
                           <span className="truncate text-[15px] text-[#7f807b] max-[800px]:hidden">{duplicate ? `${group.items.length} sources` : sourceName(material)}</span>
                           <span className="text-[14px] text-[#9b9c97]">{shortDate(material.createdAt)}</span>
