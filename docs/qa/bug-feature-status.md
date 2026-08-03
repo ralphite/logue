@@ -53,12 +53,12 @@
 | F10 | 手机完整可用并可从同一局域网访问 | PARTIAL | Web/API 支持显式局域网监听，320/390/768 已覆盖 Stream、Projects、Generate、详情和底栏；公开安装为保护资料默认只监听本机。仍缺安全配对入口和一台物理 iPhone 的触控、旋转、刷新与文档编辑闭环。 |
 | F11 | React + TypeScript + Tailwind + Storybook；Go；Gemini 终端环境变量 | PASS | 架构与构建已落地；Gemini Key 只由 Go 进程读取，不进入 Web、Extension、资料、日志或 Release。 |
 | F12 | GitHub 旧仓库彻底替换、永远 main、小提交后立即 push | PASS | `ralphite/logue` 已由当前项目替换；当前分支与 upstream 均为 `main`；本轮逻辑批次均提交后立即推送。 |
-| F13 | 一行 curl 安装、覆盖升级保留数据、询问开机启动、安装后自动启动 | PARTIAL | `3f8d7c4` 的 macOS 完整安装、覆盖升级、失败回滚、数据保留，以及 Linux 安装回归已在双平台 CI 全绿；安装器用户可见文案为英文。仍需用最终 Release 资产在独立机器完成一次真实安装与覆盖升级。 |
-| F14 | 最新主线也必须进入 Release | OPEN | 当前 `main` / `origin/main` 为 `3f8d7c4`，公开 `v0.2.3` 是旧祖先；必须在所有核心闭环后发布和真实验证。 |
+| F13 | 一行 curl 安装、覆盖升级保留数据、询问开机启动、安装后自动启动 | PARTIAL | `v0.2.4` 的 macOS 完整安装、覆盖升级、失败回滚、数据保留，以及 Linux 安装回归已在双平台 CI 全绿；两份公开安装脚本均无中文。公开 `releases/latest` 的独立 Extension 命令已在隔离 HOME 完成首次安装和覆盖升级，稳定目录、版本化 Side Panel、首次 Server settings 与升级 Reload 均通过。仍需在另一台真实机器完成服务安装和覆盖升级。 |
+| F14 | 最新主线也必须进入 Release | PASS | `v0.2.4` 已从 `7b906cf` 发布并成为 Latest；Release workflow 成功，包含两份安装脚本、checksums、平台无关 Extension，以及 darwin/linux × amd64/arm64 服务资产。 |
 | F15 | ChatGPT.com / Notion / 竞品级独立产品设计审查 | PARTIAL | 原生 Side Panel 与渐进式启动器完成可复用产品设计代理审查并达到 9.1/10 PASS；2026-08-03 fresh-context 盲审复核真实 Web 与项目内 Notion/ChatGPT 参考后，发现 Documents Sources 默认过宽、Settings 内容轴错位、Settings 表单焦点不清晰（均 P1）和 Skills 编辑密度 P2。必须修复并再做两名独立终审。 |
 | F16 | 提供真实截图 | PASS | 可复用、无敏感信息的当前截图保存在 `docs/design/references/runtime/`；例如生成页 input-first 与扩展 Side Panel 页面资料流。 |
 | F17 | 每小时自动重启当前 goal 并继续最高 ROI 工作 | PASS | `logue` automation 持续唤醒本任务；只有 fresh-context 与直接证据共同支持时才能结束。 |
-| F18 | Notion 式 Selection Skills：Document 与网页编辑目标原位变换 | PARTIAL | 已真实观察 Notion 配置与选区 `Skills` 菜单；Logue Document 已在真实运行验证轻量入口、菜单、Esc/↓ 键盘操作和不越过 Sources 的定位，运行会持久化 Skill revision、选区、目标、输出与采用结果，并在来源登记失败时保留可重试动作。Extension 的 textarea/contenteditable 新入口已实现、构建和单测通过，但已安装 Chrome 扩展尚未允许重载，故不能关闭实机闭环。 |
+| F18 | Notion 式 Selection Skills：Document 与网页编辑目标原位变换 | PARTIAL | 已真实观察 Notion 配置与选区 `Skills` 菜单；Logue Document 已真实验证轻量入口、键盘和来源记录。当前已安装 Chrome 在真实 fixture 的 textarea 与 contenteditable 均完成 `Simplify` 就地写回，保存的 run 保留 Skill、原选区、原输出与 adopted output，两种宿主的 `Submit count` 都保持 0；菜单 Esc 关闭且保留选区。`7b906cf` 进一步阻止 Esc、选区/目标/路由变化后的迟到结果写回并通过 24 项回归。仍需在真实 Chrome 补一次“Gemini 运行中 Esc/漂移后等待返回也不写回”的最终实测。 |
 | F19 | 所有搜索入口的语义检索、排序、解释和本地降级 | PASS | 2026-08-03 已在真实 Chrome 验证 Stream、Generate 的 Documents 列表、Document Sources（All materials）与 Generate source picker：自然语言查询按语义相关性排序并展示简短英文理由。Documents 主列表补上此前缺失的生产搜索入口，搜索期间使用共享、局部的 `Finding related…` 状态，避免空白或错误的无结果结论。独立无 Gemini 运行时副本验证 Material / Document API 返回 `strategy=local` 且仅有可解释的直接匹配。 |
 | F20 | Storybook 生产组件 inventory 与所有有意义状态 | PARTIAL | `Native Side Panel` 直接复用生产 `SidePanelView`，已覆盖 Current Page、Selection、Starting、Recording、Transcribing、Target Lost、Service Unavailable、Generate、Empty；`Pages/App Compositions` 直接运行生产 `App`，覆盖 Stream、Material Detail、Projects、Documents、Skills、Settings，以及 Stream/Documents/Skills 的 empty、loading、local-error 和 Material 的 low-confidence review。侧栏以全高无浮层视口呈现；真实 DOM 键盘回归覆盖 R、Enter、Esc 与编辑文本不抢键。仍缺完整 production component→Story→state inventory，以及其它页面有意义状态。 |
 | F21 | 清除 legacy 代码、旧路由/数据/测试/未挂载 demo | PASS | 真实 `.logue-data` 已完整备份、一次性转换为 `skills/` 与 `skill-runs/`、在 live API 与隔离导出恢复中验证后删除转换工具；旧 `/v1/agents` 返回 404。旧 demo seed、路由/字段 alias、启动修复与旧 Chrome 降级分支均已删除。 |
@@ -67,10 +67,10 @@
 ## 当前未关闭队列
 
 1. **P0（Linux / LAN 远程服务）**：代码与本机局域网候选已完成；下一步只关闭真实 Linux systemd/防火墙域名，以及重载当前 Extension 后的具体 origin 权限、地址切换与重启持久化闭环。
-2. **P0（Selection Skills Extension 实机闭环）**：在可重载的已安装 Chrome 扩展中，验证 textarea 与 contenteditable 选区入口、菜单、Esc、漂移拒绝和不自动提交；当前构建/单测不替代这一项。
+2. **P1（Selection Skills 最终实机防护）**：textarea 与 contenteditable 的入口、菜单、实际 Gemini 写回和不自动提交已在当前 Chrome 完成；只剩运行中 Esc / 切换选区后等待迟到结果的最后一轮真实防护确认。
 3. **已关闭（legacy 清理）**：旧 Prompt-only Agent schema、旧路由/未挂载 demo 与兼容分支已在一次性备份、转换、真实验证后删除。
 4. **P1（当前 Extension 核心缺口）**：完成标准 input、选区文字/语音批注、无输入框页面录音、页面历史刷新、目标丢失/断线/重试幂等与焦点防护的真实闭环。
 5. **P1（Storybook 与英文文案）**：改为生产组件 inventory、全状态覆盖，并清除 Installer/fixture/系统 copy 中的中文。
 6. **P1（全产品一致性）**：独立盲审已发现 Documents Sources 默认过宽、Settings 内容轴错位、Settings 表单焦点不清晰；先修共享布局/焦点问题，再进行两名 fresh-context 独立终审。
-7. **P1（发布）**：仅在以上核心闭环完成后，发布当前最新 `main` 并完成真实覆盖升级。
+7. **P1（Release 跨机验收）**：`v0.2.4` 与公开 Extension 首装/覆盖升级已完成；仍需在另一台真实 Linux/Mac 环境完成服务安装、Chrome Load unpacked/Reload、可变域名和覆盖升级。
 8. **P3（移动端，用户明确后置）**：物理 iPhone 的触控、旋转、刷新、Stream / Projects / Generate / 文档编辑闭环；不再把桌面 LAN 服务连接错误归入此项。
