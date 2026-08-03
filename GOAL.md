@@ -92,7 +92,7 @@ Generate 可以产生：
 - 点击 launcher 一次即开始录音并把焦点可靠交给 Side Panel；首次点击不得因布局跳位、焦点变化或命中区改变而失效。
 - 录音态只有两个用户决策：`Stop and insert` 与 `Cancel`。
 - `Stop and insert` 自动完成转写、保存、插入；不得出现转写审阅、项目、Tag、Reference、归档设置、接受后第二次确认或自动发送。
-- `Cancel` 在权限等待、starting、recording 和未采用结果阶段都必须立即退出，不保存、不插入；界面必须有可见取消动作。
+- `Cancel` 在权限等待、starting、recording、transcribing、saving 及完成插入前都必须立即退出，不保存、不插入；不得因此引入转写审阅或“未采用结果”界面；界面必须有可见取消动作。
 - 必须先成功保存最终文字、原始音频、机器转写、来源和关系，再插入宿主目标。
 - 永不按 Enter、永不点击发送、永不自动 submit 宿主表单。
 - 保存/插入失败必须局部显示可恢复动作；重试不得重复保存或重复插入。
@@ -122,11 +122,12 @@ Generate 可以产生：
 - 原始录音、机器转写、最终采用文字分别保存；原始录音始终可播放核对。
 - 音频播放器在首次播放前也必须显示真实时长，不能先显示 `0:00`。
 - 任何 Material 的内容、Projects 和 Tags 都可事后修改。
-- 系统在后台使用可配置 Skill/Agent 依据内容自动归 Project 和 Tag，不能机械匹配。
+- 系统在后台使用可配置 Skill 或非用户可见的系统分类器依据内容自动归 Project 和 Tag，不能机械匹配；当前 Prompt-only 的用户能力不得在 UI 或验收中称为 Agent。
 - 高置信度分类安静完成；低置信度才以轻量、局部的方式提示 review。
 - 低置信度结果必须显示可理解的分类理由与置信度；没有可靠匹配时宁可不关联，不能强行分类。
 - 用户确认或修改后的分类不能被后续后台运行静默覆盖。
-- 原文与 Annotation 是独立 Material，使用父子关系追溯；Agent/Skill 结果不能覆盖原始资料。
+- 原文与 Annotation 是独立 Material，使用父子关系追溯；Skill 或系统自动化结果不能覆盖原始资料。
+- 任一已保存 Material 都可在事后追加文字或语音 Annotation / instruction；每次追加形成独立、可编辑的子 Material，保留原始资料、既有批注和人工分类，不覆盖原文。
 - 只有用户采用、明确固定或可靠重复出现的表达才能形成强记忆，避免错误自我强化。
 - 默认最多使用一个参考 Project；多项目归属不能自动混入多个 Project Context。
 - 外部 Agent 只能读取只读 Project package；写回只允许追加带 source、actor、idempotency key 的派生 Material 或 Document。
@@ -209,15 +210,20 @@ Generate 可以产生：
 - 必须实际使用 `app.notion.com` 和 `chatgpt.com`，不能靠记忆或猜测其设计。
 - 对照应覆盖：信息架构、层级、密度、内容轴、Sidebar、Header、Document list/editor、Sources、Tooltip、Panel、状态、键盘、噪音和任务流；不能只比较颜色。
 - 需要采集 Logue 全部主要页面与关键状态截图，并与真实 Notion/ChatGPT 同类截图成对审查。
+- 除 app.notion.com 与 chatgpt.com 外，审查必须比较当前直接或相邻竞品的核心输入、资料整理与生成流程；结论关注任务流和差异化能力，不能只比较视觉。
+- 全产品终审必须将所有主要 Logue 页面及关键状态截图交给 ChatGPT.com 审阅，并保留可复用、无敏感信息的项目内对照证据。
 - 可复用的 Notion/ChatGPT 截图、观察笔记和对照结果保存在项目内的非临时设计研究目录；不得只放 `/tmp`。敏感登录信息不得进入仓库，截图是否 commit 由隐私审查决定。
 - 每次大型用户可见 Feature 或 UI/UX 改动前后，必须启动或复用只读 `logue_product_designer`，检查真实 runtime 与项目内 Notion 参照；一致性、简洁性或可用性不达标时阻止该批次完成。
 - 最终审查使用 fresh-context、高推理强度的独立 Agent；实现者自评不能替代独立审查。
+- 全产品终审至少由两名 fresh-context、只读独立审查者完成；实现者、同一上下文或同一审查者的重复结论不能替代独立视角。
 - 对明显且无歧义的问题直接修复；确实存在产品取舍且无法从用户要求判断时，才列为待用户 review。
 - 维护项目内的 `product spec`、`interaction spec` 和 `design system`，忠实细化本目标；初始 Mock、Storybook 或后续截图不能反向覆盖用户目标。
 
 ## 9. Storybook 与共享组件系统
 
 Storybook 是明确交付物，但仍只是产品质量的支持证据。真实 Web/Extension runtime 仍是最终来源。
+
+项目内的 product spec、interaction spec、design system 与初始 mock 是可复用设计资产；它们必须支持真实任务验证，但不能反向替代用户结果或固定未经验证的 UI 方案。
 
 ### 9.1 可用性
 
@@ -254,6 +260,7 @@ Storybook 至少包含：
 
 - Web App：React + TypeScript + Tailwind CSS；本机 API/数据层：Go；组件系统：Storybook；AI：Gemini。
 - Gemini API Key 只从本机 Go 进程的终端环境变量读取，不得进入 Web、Extension storage、数据文件、日志、GitHub 或 Release。
+- 转写模型、默认处理 Skill 与上下文上限必须可由本机 Go 进程环境变量配置；配置与日志不得泄露 Gemini Key 或用户资料。
 - 默认 Prompt、Skills、分类理由、demo 和系统生成文案使用英文；不得把用户自己的中文资料或多语言转写误删、误翻译。
 - 前端遵守单一职责、清晰状态所有权、共享 primitives、稳定 key、最小重渲染边界和可测试交互；不得用复制粘贴页面结构修 Bug。
 - 列表选择应更新必要区域而非重挂整个列表；保持 scroll 和 local UI state。
@@ -284,7 +291,7 @@ Storybook 至少包含：
 5. 发布当前最新 `main` 并真实覆盖升级；
 6. 完成全产品 Notion/ChatGPT 对照与独立终审。
 
-**Mobile 当前不是优先任务，也不阻塞上述桌面目标。** 现有响应式体验不应被故意破坏，但在用户重新提高优先级前，不投入时间做物理手机、LAN 配对或移动端专项优化。
+**Mobile、LAN 和物理手机当前延期，不是已取消，也不阻塞上述桌面目标。** 现有响应式体验不应被故意破坏；在桌面核心闭环完成或用户重新提高优先级前，不投入移动端专项优化。
 
 ## 13. 真实验收场景
 
