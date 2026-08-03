@@ -1,27 +1,27 @@
 # Logue 当前真实验收状态
 
-更新时间：2026-08-02 16:49（America/Los_Angeles）
+更新时间：2026-08-02 19:58（America/Los_Angeles）
 
 本文件逐项对应 `/GOAL.md` 的 14 个真实场景，是滚动状态而不是完成声明。`PASS` 必须有真实 Chrome、真实 Go 服务和真实持久数据；单元测试、构建、文档或截图不能单独升级状态。
 
-全部历史 bug / feature request 的逐项状态见 [`bug-feature-status.md`](./bug-feature-status.md)。Logue Web App 内最新 Extension 的完整插入和公开 `v0.2.3` 事务安装/升级已真实闭环；当前未关闭的是：安全 LAN 配对与物理 iPhone、14 条历史中文模型分类理由的安全兼容，以及用最新截图再做一轮 ChatGPT.com / Notion 对照审查。
+全部历史 bug / feature request 的逐项状态见 [`bug-feature-status.md`](./bug-feature-status.md)。原生 Side Panel 当前已在真实 Chrome 完成 textarea 录音、取消、关闭停麦、目标丢失恢复和单次插入；这不能自动继承旧浮层在其它网站上的 PASS。当前还需重跑标准 input、ChatGPT contenteditable、选区语音、Extension Generate、Logue Web App 与断线恢复，并把最新 `main` 发布；此外仍有安全 LAN/物理 iPhone、历史中文分类理由和全产品最终设计复审。
 
 | # | 场景 | 状态 | 当前证据 / 未关闭项 |
 |---|---|---|---|
-| 1 | 标准 input/textarea 语音输入 | PASS | 当前生产构建已在真实 Chrome 完成：单击开始、Enter 停止、Gemini 转写、先保存再插入；保留原输入前缀，提交计数始终为 0。启动阶段 Esc 立即关闭且没有迟到录音回写。另已实测保存完成时宿主替换输入框：Extension 保留结果，聚焦新目标后一次重新插入；服务端仍只有 1 条资料，新目标只插入 1 次且不提交。输入框按 Tab 可直接聚焦语音入口，并显示焦点环和 `⌘⇧L` 提示。详见 `docs/qa/target-loss-recovery-2026-08-02.md`。 |
-| 2 | 富文本编辑器输入 | PASS | 当前生产构建已在真实 `chatgpt.com` contenteditable 完成同一闭环；输入框出现准确转写，URL 仍为新对话且未发送。证据：`docs/qa/audit-2026-08-02-1905/15-extension-chatgpt-inserted.png`。测试资料、音频和输入框随后已清理。 |
-| 3 | 选区保存与文字/语音批注 | PASS | 当前 production Extension 已在真实 Chrome 完成右键选区＋真实语音批注。原文保持只读，批注为独立 `derived`，`parent_ids` 只指向原文；音频、机器转写和最终文字可追溯。期间关闭 Go 后录音保留并可“重新转写”，恢复后只产生一组 source/annotation request id，无重复、无宿主提交。详见 `docs/qa/selection-recovery-2026-08-02.md`。 |
+| 1 | 标准 input/textarea 语音输入 | PARTIAL | 当前原生 Side Panel 已在真实 textarea 完成一击录音、Enter 停止、Gemini、保存、单次插入、Esc、关闭停麦和目标丢失恢复；资料数 56→57→58 均与事务一一对应，提交计数始终为 0。标准 input 与物理 `⇧⌘L` 仍需用当前构建重跑。 |
+| 2 | 富文本编辑器输入 | PARTIAL | 旧浮层已在真实 ChatGPT.com 通过；原生 Side Panel 架构尚未重跑 contenteditable，因此旧截图不能证明当前版本。 |
+| 3 | 选区保存与文字/语音批注 | PARTIAL | 原生 Side Panel 的右键保存与打开选区已经可用；选区语音批注、父子关系和断线恢复尚未用网页上下文录音桥重跑。 |
 | 4 | 多项目 Context 隔离 | PASS | 当前 production Extension 已用两个冲突术语/背景项目分别完成真实语音与 Agent 生成；每条语音的 `applied_context` 只包含一个 reference project、对应 overview/glossary/recent adopted。Go 重启后隔离保持；两次生成各只使用本项目 4 条来源，输出无跨项目术语，宿主提交计数为 0。详见 `docs/qa/project-isolation-2026-08-02.md`。 |
 | 5 | 自动整理、短回复、QA 与文档闭环 | PASS | 最新四条真实语音由可定制整理 Agent 重跑：两条高置信度安静写入准确项目/Tag，两条低置信度只保留建议；错误 `tool-use` 命中为 0。短回复、QA、文档均有真实 Agent run；多来源文档的编辑、自动保存、引用定位和增删已实测。详见 `docs/qa/agent-organization-2026-08-02.md`。 |
 | 6 | 创建/修改 Agent 并在 Web 使用 | PASS | 真实工作区保留两个非系统 Agent，均已修改至 revision 2；`简洁回复` 与 `沉淀为资料` 在 Web/Extension 产生完成 run，实际来源可追溯。 |
-| 7 | Extension 在聊天输入框生成并插入 | PASS | 当前 production Extension 已在真实 `chatgpt.com` 用独立 Agent 能力基于资料生成并插入；没有发送。证据：`docs/qa/audit-2026-08-02-1905/17-extension-agent-inserted.png`。 |
+| 7 | Extension 在聊天输入框生成并插入 | PARTIAL | 旧浮层已在真实 ChatGPT.com 通过；原生 Side Panel 保留 Generate 与插入实现，但当前架构尚未重跑完整 Agent 事务。 |
 | 8 | 外部 Agent 只读与幂等写回 | PASS | 缺 actor、缺 source_ids、引用不存在均拒绝；合法写回保留 actor/父来源；稳定 request_id 不重复。 |
-| 9 | Go 服务断线与恢复 | PASS | 在选区语音批注录音结束前真实关闭 Go；Extension 显示本机服务不可达、保留录音并提供重新转写。使用同一数据目录和 Gemini 环境重启后重试成功，原文/批注 request id 共用稳定前缀且无重复。 |
+| 9 | Go 服务断线与恢复 | PARTIAL | 旧浮层已通过真实断线恢复；原生 Side Panel 的局部错误、保留音频与幂等重试仍需重新验证。 |
 | 10 | 刷新/重启持久化与导出恢复 | PASS | 资料、音频、项目、Agent、生成记录、文档、来源和设置跨刷新/服务重启保持；导出恢复在隔离副本验证并创建备份。 |
 | 11 | Vibedoc 转写质量对齐 | PASS | 4 段全新同源 48 kHz WAV 覆盖中文长句、英文、中英混合与项目术语；Logue 总 CER 0.28%（1/352），VibeDoc 0.57%（2/352），每类均不低于对照。生产 Extension 的真实 WebM E2E 已单独通过。详见 `docs/qa/transcription/comparison.md`。 |
 | 12 | 真实手机完整 Web App | PARTIAL | Web/API 支持显式局域网监听；320/390/768px 已验证资料、项目、生成、详情抽屉、重复资料折叠与底部导航。公开安装为保护无认证资料默认只监听本机；仍缺安全配对和物理 iPhone 真机触控闭环。 |
-| 13 | GitHub Release 一行全新安装 | PASS | 公开 `latest` 为 `v0.2.3`；双架构资产、SHA-256、VERSION、Extension manifest 和安装器均从公网验证。一行安装自动启动并继承当前 Terminal 的 Gemini 环境但不落盘 Key；启动配置和全部资产在停服前预检。详见 `docs/qa/release-install-2026-08-02.md`。 |
-| 14 | 同一命令覆盖升级并保留数据 | PASS | 真实公开升级保持语音音频 hash、资料、人工项目/Tag、项目背景/术语、文档 revision/来源、自定义 Agent、设置和 LaunchAgent；旧 PID 退出，新服务仅 loopback。CI 另对 Extension、CLI、autostart 三个候选健康后故障点证明完整回滚旧状态和旧服务。详见 `docs/qa/release-install-2026-08-02.md`。 |
+| 13 | GitHub Release 一行全新安装 | PARTIAL | 公开 `v0.2.3` 的一行安装和资产已通过，但当前 `main` 为 `3fc2ac6`，尚未进入公开 Release；因此不能把旧 Release 当成最新交付。 |
+| 14 | 同一命令覆盖升级并保留数据 | PARTIAL | `v0.2.3` 的真实覆盖升级、保留数据和失败回滚已通过；仍需将当前主线发布并对最新版本再做一次真实覆盖升级。 |
 
 ## 本批次强一致证据
 
