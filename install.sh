@@ -78,6 +78,10 @@ say() { printf '  %s\n' "$*"; }
 step() { printf '\n%s\n' "$*"; }
 fail() { printf '\nInstallation did not complete: %s\n' "$*" >&2; exit 1; }
 
+has_interactive_terminal() {
+  [[ -t 0 || -t 1 || -t 2 ]] && [[ -r /dev/tty && -w /dev/tty ]]
+}
+
 cleanup() {
   if [[ "${current_switched}" == "no" && -n "${staged_release_dir}" && -d "${staged_release_dir}" ]]; then
     rm -rf -- "${staged_release_dir}"
@@ -103,7 +107,7 @@ choose_autostart() {
     "") ;;
     *) fail "LOGUE_AUTO_START accepts only yes or no." ;;
   esac
-  if [[ -r /dev/tty && -w /dev/tty ]]; then
+  if has_interactive_terminal; then
     if [[ "${logue_platform}" == "darwin" ]]; then
       printf '\nStart Logue when you sign in to this Mac? [Y/n] ' > /dev/tty
     else
@@ -248,7 +252,10 @@ stop_managed_service() {
   if [[ "${logue_platform}" == "darwin" ]]; then
     launchctl bootout "gui/$(id -u)" "${launch_plist}" >/dev/null 2>&1 || launchctl unload "${launch_plist}" >/dev/null 2>&1 || true
   elif [[ -f "${systemd_unit}" ]]; then
-    systemctl --user stop "${systemd_unit_name}" >/dev/null 2>&1 || true
+    systemctl --user stop "${systemd_unit_name}" >/dev/null 2>&1 || return 1
+    if systemctl --user is-active --quiet "${systemd_unit_name}" >/dev/null 2>&1; then
+      return 1
+    fi
   fi
   if [[ -n "${managed_pid}" ]] && kill -0 "${managed_pid}" >/dev/null 2>&1; then
     say "Stopping existing service (PID ${managed_pid})"
@@ -581,7 +588,7 @@ say "Data remains at: ${data_root}"
 
 open_browser="${LOGUE_OPEN_BROWSER:-}"
 if [[ -z "${open_browser}" ]]; then
-  [[ -r /dev/tty && -w /dev/tty ]] && open_browser="yes" || open_browser="no"
+  has_interactive_terminal && open_browser="yes" || open_browser="no"
 fi
 case "${open_browser}" in
   1|true|TRUE|True|yes|YES|Yes|y|Y)

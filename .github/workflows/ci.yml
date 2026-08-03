@@ -28,3 +28,19 @@ jobs:
       - run: npm run build
       - name: Verify transactional installer rollback
         run: bash scripts/test-install.sh
+
+  installer-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: server/go.mod
+      - name: Verify Linux release installation and rollback
+        run: bash scripts/test-install-linux.sh

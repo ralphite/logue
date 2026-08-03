@@ -32,6 +32,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "${test_home}" "${fixture_v1}" "${fixture_v2}" "${fake_bin}" "${systemctl_state}"
+: > "${systemctl_log}"
 
 cat > "${fake_bin}/systemctl" <<'SYSTEMCTL'
 #!/usr/bin/env bash
@@ -42,7 +43,9 @@ command_name="${1:-}"
 shift || true
 printf '%s %s\n' "${command_name}" "$*" >> "${LOGUE_TEST_SYSTEMCTL_LOG:?}"
 case "${command_name}" in
-  show-environment|daemon-reload|stop) exit 0 ;;
+  show-environment|daemon-reload) exit 0 ;;
+  stop) [[ ! -f "${LOGUE_TEST_SYSTEMCTL_STATE:?}/fail-stop" ]] ;;
+  is-active) exit 3 ;;
   is-enabled) [[ -f "${LOGUE_TEST_SYSTEMCTL_STATE:?}/enabled" ]] ;;
   enable) : > "${LOGUE_TEST_SYSTEMCTL_STATE:?}/enabled" ;;
   disable) rm -f -- "${LOGUE_TEST_SYSTEMCTL_STATE:?}/enabled" ;;
@@ -109,6 +112,32 @@ file_sha256() {
 
 printf 'Building Linux installer v0.1.0 fixture...\n'
 build_fixture v0.1.0 "${fixture_v1}"
+
+noninteractive_log="${test_root}/noninteractive.log"
+systemctl_log_before="$(wc -l < "${systemctl_log}" 2>/dev/null || printf '0')"
+if HOME="${test_home}" \
+  PATH="${fake_bin}:${PATH}" \
+  LOGUE_INSTALLER_TESTING=1 \
+  LOGUE_INSTALLER_TEST_OS=Linux \
+  LOGUE_INSTALLER_TEST_ARCH=x86_64 \
+  LOGUE_INSTALL_ROOT="${test_root}/noninteractive-install" \
+  LOGUE_SYSTEMD_USER_DIR="${test_root}/noninteractive-systemd" \
+  LOGUE_ASSET_BASE_URL="file://${test_root}/missing-release" \
+  LOGUE_AUTO_START='' \
+  LOGUE_OPEN_BROWSER=no \
+  LOGUE_TEST_SYSTEMCTL_STATE="${systemctl_state}" \
+  LOGUE_TEST_SYSTEMCTL_LOG="${systemctl_log}" \
+  bash "${repo_dir}/install.sh" </dev/null >"${noninteractive_log}" 2>&1; then
+  printf 'Installer unexpectedly succeeded with a missing noninteractive fixture\n' >&2
+  exit 1
+fi
+grep -Fq 'No interactive terminal; automatic startup stays off.' "${noninteractive_log}" || {
+  printf 'Noninteractive installation did not default automatic startup to off\n' >&2
+  exit 1
+}
+systemctl_log_after="$(wc -l < "${systemctl_log}" 2>/dev/null || printf '0')"
+[[ "${systemctl_log_before}" == "${systemctl_log_after}" ]] || { printf 'Noninteractive installation unexpectedly contacted systemd\n' >&2; exit 1; }
+
 run_installer "file://${fixture_v1}" yes "127.0.0.1:${port}"
 
 status_v1="$(curl -fsS "http://127.0.0.1:${port}/v1/status")"
@@ -119,6 +148,9 @@ grep -Fq "ExecStart=\"${install_root}/current/bin/logue\" -address \"127.0.0.1:$
   printf 'systemd user service has the wrong command or listen address\n' >&2
   exit 1
 }
+if [[ "$(uname -s)" == "Linux" ]] && command -v systemd-analyze >/dev/null 2>&1; then
+  systemd-analyze --user verify "${systemd_unit}" >/dev/null || { printf 'systemd rejected the generated user service\n' >&2; exit 1; }
+fi
 grep -Fq 'enable logue.service' "${systemctl_log}" || { printf 'systemd enable was not requested\n' >&2; exit 1; }
 
 mkdir -p "${data_root}/items"
@@ -128,6 +160,19 @@ baseline_current="$(readlink "${install_root}/current")"
 
 printf 'Building Linux installer v0.1.1 fixture...\n'
 build_fixture v0.1.1 "${fixture_v2}"
+
+pid_before_stop_failure="$(tr -dc '0-9' < "${pid_file}")"
+: > "${systemctl_state}/fail-stop"
+stop_failure_log="${test_root}/stop-failure.log"
+if run_installer "file://${fixture_v2}" yes "127.0.0.1:${port}" >"${stop_failure_log}" 2>&1; then
+  printf 'Installer unexpectedly ignored a systemd stop failure\n' >&2
+  exit 1
+fi
+rm -f -- "${systemctl_state}/fail-stop"
+[[ "$(readlink "${install_root}/current")" == "${baseline_current}" ]] || { printf 'systemd stop failure switched current\n' >&2; exit 1; }
+[[ "$(tr -dc '0-9' < "${pid_file}")" == "${pid_before_stop_failure}" ]] || { printf 'systemd stop failure replaced the running service\n' >&2; exit 1; }
+kill -0 "${pid_before_stop_failure}" >/dev/null 2>&1 || { printf 'systemd stop failure did not leave the prior service running\n' >&2; exit 1; }
+grep -Fq 'Could not stop the existing service safely' "${stop_failure_log}" || { printf 'systemd stop failure was not reported clearly\n' >&2; exit 1; }
 
 failure_log="${test_root}/rollback.log"
 if run_installer "file://${fixture_v2}" no "0.0.0.0:${port}" autostart >"${failure_log}" 2>&1; then
