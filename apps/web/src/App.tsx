@@ -22,7 +22,7 @@ import { MaterialDetail } from "./components/MaterialDetail";
 import { NavRail, type Section } from "./components/NavRail";
 import { NewMaterialDialog } from "./components/NewMaterialDialog";
 import { ProjectPage } from "./components/ProjectPage";
-import { GenerationWorkspace, type GenerationMode } from "./components/GenerationWorkspace";
+import { GenerationWorkspace, type WorkspaceSection } from "./components/GenerationWorkspace";
 import { SettingsPage } from "./components/SettingsPage";
 import { PanelResizer, usePersistentPanelSize } from "./components/PanelResizer";
 import { SearchPending } from "./components/SearchPending";
@@ -121,16 +121,20 @@ export function App() {
       ? "Stream"
       : section === "projects"
         ? navigation.projectName || "Projects"
+        : section === "documents"
+          ? "Documents"
+          : section === "skills"
+            ? "Skills"
         : section === "settings"
           ? "Settings"
-          : "Generate";
+          : "Logue";
     document.title = `${sectionTitle} · Logue`;
   }, [navigation.projectName, section]);
 
   const openSection = useCallback((nextSection: Section) => {
     const completeNavigation = () => navigate({ section: nextSection });
     const leaveGuard = documentLeaveGuardRef.current;
-    if (section === "generate" && nextSection !== "generate" && leaveGuard) {
+    if (section === "documents" && nextSection !== "documents" && leaveGuard) {
       void leaveGuard().then((saved) => {
         if (saved) completeNavigation();
       });
@@ -144,11 +148,11 @@ export function App() {
   }, []);
 
   const openDocument = useCallback((id?: string, replace = false) => {
-    navigate({ section: "generate", generationMode: "documents", documentId: id }, { replace });
+    navigate({ section: "documents", documentId: id }, { replace });
   }, [navigate]);
 
-  const openGenerationMode = useCallback((generationMode: GenerationMode) => {
-    navigate({ section: "generate", generationMode });
+  const openWorkspaceSection = useCallback((workspace: WorkspaceSection) => {
+    navigate({ section: workspace });
   }, [navigate]);
 
   const openProject = useCallback((name?: string, replace = false) => {
@@ -264,16 +268,16 @@ export function App() {
         onWidthChange={setNavigationWidth}
       />
 
-      {section === "generate" ? (
+      {section === "documents" || section === "skills" ? (
         <GenerationWorkspace
           materials={materials}
-          initialMode={navigation.generationMode ?? (navigation.documentId ? "documents" : "new")}
+          initialMode={section}
           initialDocumentId={navigation.documentId}
           initialProject={navigation.projectName}
           onSelectedDocumentChange={openDocument}
           onOpenMaterials={() => openSection("stream")}
           onLeaveGuardChange={registerDocumentLeaveGuard}
-          onModeChange={openGenerationMode}
+          onModeChange={openWorkspaceSection}
         />
       ) : section === "projects" ? (
         <ProjectPage
@@ -282,7 +286,7 @@ export function App() {
           onSelectedProjectChange={openProject}
           onOpenStream={(project) => { openSection("stream"); if (project) { setQuery(project); setFilter("all"); } else { setQuery(""); setFilter("unfiled"); } }}
           onOpenMaterial={(materialId) => { setQuery(""); setFilter("all"); setMaterialMode("peek"); navigate({ section: "stream", materialId }); }}
-          onOpenResults={(project, id) => navigate({ section: "generate", generationMode: "documents", projectName: project, documentId: id })}
+          onOpenResults={(project, id) => navigate({ section: "documents", projectName: project, documentId: id })}
         />
       ) : section === "settings" ? (
         <SettingsPage status={status} />

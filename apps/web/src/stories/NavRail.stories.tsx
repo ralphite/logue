@@ -24,5 +24,5 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Expanded: Story = {};
-export const CollapsedWithTooltips: Story = { args: { initiallyCollapsed: true, initialSection: "generate" } };
+export const CollapsedWithTooltips: Story = { args: { initiallyCollapsed: true, initialSection: "documents" } };
 export const ServiceDisconnected: Story = { args: { connected: false, initialSection: "projects" } };

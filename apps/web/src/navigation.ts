@@ -1,18 +1,17 @@
 import type { Section } from "./components/NavRail";
-import type { GenerationMode } from "./components/GenerationWorkspace";
 
 export interface AppNavigation {
   section: Section;
   materialId?: string;
   projectName?: string;
   documentId?: string;
-  generationMode?: GenerationMode;
 }
 
 const canonicalView: Record<Section, string> = {
   stream: "stream",
   projects: "projects",
-  generate: "generate",
+  documents: "documents",
+  skills: "skills",
   settings: "settings",
 };
 
@@ -27,22 +26,19 @@ export function parseNavigation(search: string): AppNavigation {
     ? "stream"
     : rawView === "projects"
       ? "projects"
+      : rawView === "documents"
+        ? "documents"
+        : rawView === "skills"
+          ? "skills"
       : rawView === "settings"
         ? "settings"
-        : "generate";
+        : "stream";
 
   if (section === "stream") return { section, materialId: value(params, "material") };
   if (section === "projects") return { section, projectName: value(params, "project") };
-  if (section === "generate") {
-    const rawMode = value(params, "tab")?.toLowerCase();
-    const generationMode: GenerationMode = value(params, "doc") || rawMode === "documents"
-      ? "documents"
-      : rawMode === "skills"
-        ? "skills"
-        : "new";
+  if (section === "documents") {
     return {
       section,
-      generationMode,
       documentId: value(params, "doc"),
       projectName: value(params, "project"),
     };
@@ -62,8 +58,7 @@ export function navigationURL(
     params.set("material", navigation.materialId);
   } else if (navigation.section === "projects" && navigation.projectName) {
     params.set("project", navigation.projectName);
-  } else if (navigation.section === "generate") {
-    if (navigation.documentId || (navigation.generationMode && navigation.generationMode !== "new")) params.set("tab", navigation.generationMode ?? "documents");
+  } else if (navigation.section === "documents") {
     if (navigation.documentId) params.set("doc", navigation.documentId);
     if (navigation.projectName) params.set("project", navigation.projectName);
   }

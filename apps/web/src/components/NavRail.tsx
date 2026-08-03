@@ -1,4 +1,5 @@
 import {
+  FileText,
   FolderKanban,
   LibraryBig,
   PanelLeftClose,
@@ -11,12 +12,13 @@ import { useState } from "react";
 import { PanelResizer } from "./PanelResizer";
 import { Tooltip, TooltipProvider } from "./Tooltip";
 
-export type Section = "stream" | "projects" | "generate" | "settings";
+export type Section = "stream" | "projects" | "documents" | "skills" | "settings";
 
 const navItems = [
   { id: "stream" as const, label: "Stream", icon: LibraryBig },
   { id: "projects" as const, label: "Projects", icon: FolderKanban },
-  { id: "generate" as const, label: "Generate", icon: Sparkles },
+  { id: "documents" as const, label: "Documents", icon: FileText },
+  { id: "skills" as const, label: "Skills", icon: Sparkles },
   { id: "settings" as const, label: "Settings", icon: Settings },
 ];
 

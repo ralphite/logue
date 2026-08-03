@@ -42,13 +42,13 @@ describe("application navigation shell", () => {
     apiMocks.searchMaterials.mockReset().mockResolvedValue({ matches: [], strategy: "local" });
     apiMocks.updateDocument.mockReset();
     window.localStorage.clear();
-    window.history.replaceState(null, "", "/?view=generate&tab=documents&doc=document-1");
+    window.history.replaceState(null, "", "/?view=documents&doc=document-1");
   });
 
   it("keeps the same ordered product navigation on desktop and mobile", () => {
-    render(<NavRail active="generate" connected onChange={() => undefined} />);
+    render(<NavRail active="documents" connected onChange={() => undefined} />);
 
-    const expectedLabels = ["Stream", "Projects", "Generate", "Settings"];
+    const expectedLabels = ["Stream", "Projects", "Documents", "Skills", "Settings"];
     const desktopShell = screen.getByTestId("primary-navigation-shell");
     const desktopButtons = desktopShell.querySelectorAll("nav button");
     expect(Array.from(desktopButtons, (button) => button.textContent?.trim())).toEqual(expectedLabels);
@@ -131,7 +131,7 @@ describe("application navigation shell", () => {
   it("collapses to an accessible icon rail without changing mobile navigation", () => {
     const onCollapsedChange = vi.fn();
     const { rerender } = render(
-      <NavRail active="generate" connected collapsed={false} onCollapsedChange={onCollapsedChange} onChange={() => undefined} />,
+      <NavRail active="documents" connected collapsed={false} onCollapsedChange={onCollapsedChange} onChange={() => undefined} />,
     );
 
     const collapseButton = screen.getByRole("button", { name: "Close sidebar" });
@@ -156,7 +156,7 @@ describe("application navigation shell", () => {
     expect(onCollapsedChange).toHaveBeenCalledWith(true);
 
     rerender(
-      <NavRail active="generate" connected collapsed onCollapsedChange={onCollapsedChange} onChange={() => undefined} />,
+      <NavRail active="documents" connected collapsed onCollapsedChange={onCollapsedChange} onChange={() => undefined} />,
     );
     expect(screen.getByTestId("primary-navigation-shell").getAttribute("data-collapsed")).toBe("true");
     expect(screen.getByTestId("primary-navigation-shell").className).toContain("w-14");
@@ -234,21 +234,21 @@ describe("application navigation shell", () => {
     expect(screen.getByRole("button", { name: "Close sidebar" })).toBeTruthy();
   });
 
-  it("renders documents inside the shared Generate shell without a duplicate document sidebar", async () => {
+  it("renders documents in their own workspace without a duplicate document sidebar", async () => {
     const { container } = render(<App />);
 
     expect(screen.getAllByTestId("primary-navigation-shell")).toHaveLength(1);
-    const generateNavigation = screen.getByRole("complementary", { name: "Generate navigation" });
+    const documentNavigation = screen.getByRole("complementary", { name: "Documents navigation" });
     expect(screen.queryByTestId("document-sidebar")).toBeNull();
 
     await waitFor(() => {
-      const documentRow = within(generateNavigation).getByRole("button", { name: /Shell test document/ });
+      const documentRow = within(documentNavigation).getByRole("button", { name: /Shell test document/ });
       expect(documentRow.className).toContain("min-h-11");
     });
 
     expect(container.textContent).not.toContain("Results");
-    expect(within(generateNavigation).queryByText("Local service connected")).toBeNull();
-    expect(within(generateNavigation).queryByText("Local service unavailable")).toBeNull();
+    expect(within(documentNavigation).queryByText("Local service connected")).toBeNull();
+    expect(within(documentNavigation).queryByText("Local service unavailable")).toBeNull();
   });
 
   it("flushes a dirty document before the shared navigation leaves its section", async () => {

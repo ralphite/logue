@@ -11,7 +11,8 @@ import { PanelResizer, usePersistentPanelSize } from "./PanelResizer";
 import { SearchPending } from "./SearchPending";
 import { editorColumnClass } from "./layout";
 
-export type GenerationMode = "new" | "skills" | "documents";
+export type WorkspaceSection = "skills" | "documents";
+type WorkspaceMode = "new" | WorkspaceSection;
 
 const outputLabels: Record<SkillOutput, string> = {
   insert: "Text",
@@ -40,8 +41,8 @@ function shortDate(value: string) {
   });
 }
 
-export function GenerationWorkspace({ materials, initialMode = "new", initialDocumentId, initialProject, onModeChange, onSelectedDocumentChange, onOpenMaterials, onLeaveGuardChange }: { materials: Material[]; initialMode?: GenerationMode; initialDocumentId?: string; initialProject?: string; onModeChange: (mode: GenerationMode) => void; onSelectedDocumentChange: (documentId?: string, replace?: boolean) => void; onOpenMaterials: () => void; onLeaveGuardChange?: (guard?: () => Promise<boolean>) => void }) {
-  const [mode, setMode] = useState<GenerationMode>(initialMode);
+export function GenerationWorkspace({ materials, initialMode = "documents", initialDocumentId, initialProject, onModeChange, onSelectedDocumentChange, onOpenMaterials, onLeaveGuardChange }: { materials: Material[]; initialMode?: WorkspaceSection; initialDocumentId?: string; initialProject?: string; onModeChange: (mode: WorkspaceSection) => void; onSelectedDocumentChange: (documentId?: string, replace?: boolean) => void; onOpenMaterials: () => void; onLeaveGuardChange?: (guard?: () => Promise<boolean>) => void }) {
+  const [mode, setMode] = useState<WorkspaceMode>(initialMode);
   const [skills, setSkills] = useState<LogueSkill[]>([]);
   const [runs, setRuns] = useState<LogueSkillRun[]>([]);
   const [documents, setDocuments] = useState<LogueDocument[]>([]);
@@ -59,7 +60,7 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
   const [documentCreateError, setDocumentCreateError] = useState<string>();
   const documentLeaveGuardRef = useRef<(() => Promise<boolean>) | undefined>(undefined);
   const { size: navigationWidth, setSize: setNavigationWidth } = usePersistentPanelSize({
-    storageKey: "logue.panel.generation.width",
+    storageKey: "logue.panel.workspace-list.width",
     defaultSize: 252,
     min: 200,
     max: 360,
@@ -96,7 +97,7 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
     setMode(initialMode);
   }, [initialMode]);
   useEffect(() => {
-    setSelectedDocumentId(initialDocumentId);
+    if (initialDocumentId) setSelectedDocumentId(initialDocumentId);
   }, [initialDocumentId]);
   useEffect(() => {
     void refreshSkills();
@@ -111,20 +112,16 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
     [onLeaveGuardChange],
   );
 
-  function applyMode(next: GenerationMode, nextMobilePanel: "none" | "list" = "none") {
+  function applyMode(next: WorkspaceMode, nextMobilePanel: "none" | "list" = "none") {
     const changed = mode !== next;
     setMode(next);
     setSelectedRunId(undefined);
     setMobilePanel(nextMobilePanel);
-    if (changed) onModeChange(next);
+    if (changed && next !== "new") onModeChange(next);
   }
 
   async function canLeaveDocument() {
     return mode !== "documents" || !documentLeaveGuardRef.current || (await documentLeaveGuardRef.current());
-  }
-
-  async function openDocuments(showList = false) {
-    applyMode("documents", showList ? "list" : "none");
   }
 
   async function openSkills(showList = false) {
@@ -188,7 +185,6 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
   }
 
   const listSection = mode === "skills" ? "skills" : "documents";
-  const activeSection = mode === "skills" ? "skills" : mode === "documents" ? "documents" : undefined;
   const selectedRun = runs.find((run) => run.id === selectedRunId);
   const documentSearch = useDocumentSearch(documentQuery, documents);
   const visibleDocuments = useMemo(() => {
@@ -233,11 +229,20 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
 
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden bg-white text-[#242522] max-[900px]:flex-col">
-      <aside style={{ width: navigationWidth }} className="flex shrink-0 flex-col bg-[#f7f7f5] max-[900px]:hidden" aria-label="Generate navigation">
-        <header className="flex h-12 shrink-0 items-center px-4">
-          <h1 className="text-[14px] font-semibold text-[#555651]">Generate</h1>
+      <aside style={{ width: navigationWidth }} className="flex shrink-0 flex-col bg-[#f7f7f5] max-[900px]:hidden" aria-label={`${listSection === "skills" ? "Skills" : "Documents"} navigation`}>
+        <header className="flex h-12 shrink-0 items-center justify-between px-4">
+          <h1 className="text-[14px] font-semibold text-[#555651]">{listSection === "skills" ? "Skills" : "Documents"}</h1>
+          <button
+            type="button"
+            onClick={() => void (listSection === "skills" ? addSkill() : addDocument())}
+            disabled={listSection === "skills" ? creatingSkill : creatingDocument}
+            className="inline-flex size-8 items-center justify-center rounded-md text-[#777873] hover:bg-[#e8e8e5] focus-visible:outline-2 focus-visible:outline-[#777873] disabled:cursor-wait disabled:opacity-60"
+            aria-label={listSection === "skills" ? "New skill" : "New document"}
+            title={listSection === "skills" ? "New skill" : "New document"}
+          >
+            {(listSection === "skills" ? creatingSkill : creatingDocument) ? <LoaderCircle size={15} className="animate-spin motion-reduce:animate-none" /> : <Plus size={15} />}
+          </button>
         </header>
-        <GenerateSectionNavigation activeSection={activeSection} creatingSkill={creatingSkill} creatingDocument={creatingDocument} onOpenDocuments={() => void openDocuments(false)} onAddDocument={() => void addDocument()} onOpenSkills={() => void openSkills(false)} onAddSkill={() => void addSkill()} />
         {listSection === "documents" && (
           <label className="relative mx-2.5 mb-1.5 block">
             <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#999a96]" />
@@ -262,10 +267,11 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
           </div>
         </div>
       </aside>
-      <PanelResizer label="Resize generate navigation" value={navigationWidth} min={200} max={360} defaultValue={252} onChange={setNavigationWidth} className="max-[900px]:hidden" />
+      <PanelResizer label="Resize workspace navigation" value={navigationWidth} min={200} max={360} defaultValue={252} onChange={setNavigationWidth} className="max-[900px]:hidden" />
 
-      <div className="hidden shrink-0 border-b border-[#e7e7e4] bg-[#fafaf8] px-2 max-[900px]:block">
-        <GenerateSectionNavigation activeSection={activeSection} creatingSkill={creatingSkill} creatingDocument={creatingDocument} mobile onOpenDocuments={() => void openDocuments(true)} onAddDocument={() => void addDocument()} onOpenSkills={() => void openSkills(true)} onAddSkill={() => void addSkill()} />
+      <div className="hidden h-12 shrink-0 items-center justify-between border-b border-[#e7e7e4] bg-[#fafaf8] px-3 max-[900px]:flex">
+        <button type="button" onClick={() => setMobilePanel((current) => current === "list" ? "none" : "list")} className="h-10 rounded-md px-2 text-[14px] font-semibold text-[#555651] hover:bg-[#ececea]">{listSection === "skills" ? "Skills" : "Documents"}</button>
+        <button type="button" onClick={() => void (listSection === "skills" ? addSkill() : addDocument())} className="inline-flex size-10 items-center justify-center rounded-md text-[#777873] hover:bg-[#e8e8e5]" aria-label={listSection === "skills" ? "New skill" : "New document"}><Plus size={16} /></button>
       </div>
 
       {mobilePanel === "list" ? (
@@ -306,34 +312,6 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
         />
       )}
     </div>
-  );
-}
-
-function GenerateSectionNavigation({ activeSection, creatingSkill, creatingDocument, mobile = false, onOpenDocuments, onAddDocument, onOpenSkills, onAddSkill }: { activeSection?: "documents" | "skills"; creatingSkill: boolean; creatingDocument: boolean; mobile?: boolean; onOpenDocuments: () => void; onAddDocument: () => void; onOpenSkills: () => void; onAddSkill: () => void }) {
-  const rowClass = (active: boolean) => `flex h-11 w-full overflow-hidden rounded-lg ${active ? "bg-[#e7e7e4]" : "hover:bg-[#ececea]"}`;
-  const itemClass = (active: boolean) => `flex h-11 min-w-0 flex-1 items-center gap-2 rounded-none bg-transparent px-2.5 text-left text-[14px] font-medium focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#777873] ${active ? "text-[#353632]" : "text-[#6d6e69]"}`;
-  const addClass = "inline-flex size-11 shrink-0 items-center justify-center rounded-none bg-transparent text-[#777873] hover:bg-[#dfdfdc] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#777873]";
-  return (
-    <nav className={mobile ? "grid h-12 grid-cols-2 items-center gap-1" : "space-y-0.5 px-2.5 pb-3"} aria-label={mobile ? "Mobile generate sections" : "Generate sections"}>
-      <div className={rowClass(activeSection === "documents")}>
-        <button type="button" onClick={onOpenDocuments} className={itemClass(activeSection === "documents")} aria-current={activeSection === "documents" ? "page" : undefined}>
-          {!mobile && <FileText size={14} className="shrink-0" />}
-          <span className="truncate">Documents</span>
-        </button>
-        <button type="button" onClick={onAddDocument} disabled={creatingDocument} className={`${addClass} disabled:cursor-wait disabled:opacity-60`} aria-label="New document" title="New document">
-          {creatingDocument ? <LoaderCircle size={15} className="animate-spin motion-reduce:animate-none" /> : <Plus size={15} />}
-        </button>
-      </div>
-      <div className={rowClass(activeSection === "skills")}>
-        <button type="button" onClick={onOpenSkills} className={itemClass(activeSection === "skills")} aria-current={activeSection === "skills" ? "page" : undefined}>
-          {!mobile && <Sparkles size={14} className="shrink-0" />}
-          <span className="truncate">Skills</span>
-        </button>
-        <button type="button" onClick={onAddSkill} disabled={creatingSkill} className={`${addClass} disabled:cursor-wait disabled:opacity-60`} aria-label="New skill" title="New skill">
-          {creatingSkill ? <LoaderCircle size={15} className="animate-spin motion-reduce:animate-none" /> : <Plus size={15} />}
-        </button>
-      </div>
-    </nav>
   );
 }
 
