@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -23,36 +23,36 @@
   <body>
     <main>
       <header>
-        <h1>Logue Extension 真实输入夹具</h1>
-        <p>分别聚焦普通输入框与富文本，完成语音插入；提交计数必须始终为 0。下方原文可用于选区语音批注。</p>
+        <h1>Logue Extension input fixture</h1>
+        <p>Focus a regular field or rich text editor, then complete voice insertion. Submission must remain at zero. The source text below supports selection annotation tests.</p>
       </header>
       <section>
-        <h2>普通 input</h2>
+        <h2>Regular input</h2>
         <form data-test-form="input">
-          <input aria-label="单行输入框" value="已有单行开头：" style="box-sizing:border-box;width:100%;height:44px;padding:0 12px;border:1px solid #d9d9d4;border-radius:8px;font:inherit;outline:none" />
+          <input aria-label="Single-line input" value="Existing single-line start: " style="box-sizing:border-box;width:100%;height:44px;padding:0 12px;border:1px solid #d9d9d4;border-radius:8px;font:inherit;outline:none" />
         </form>
-        <output data-test-output="input">提交次数：0</output>
+        <output data-test-output="input">Submit count: 0</output>
       </section>
       <section>
-        <h2>普通 textarea</h2>
+        <h2>Regular textarea</h2>
         <form data-test-form="textarea">
-          <textarea aria-label="普通输入框">已有开头：</textarea>
+          <textarea aria-label="Regular textarea">Existing start: </textarea>
         </form>
         <div class="qa-actions">
-          <button type="button" data-test-replace-target>模拟网页更换输入框</button>
+          <button type="button" data-test-replace-target>Simulate a replaced input</button>
         </div>
-        <output data-test-output="textarea">提交次数：0</output>
+        <output data-test-output="textarea">Submit count: 0</output>
       </section>
       <section>
-        <h2>contenteditable 富文本</h2>
+        <h2>Contenteditable rich text</h2>
         <form data-test-form="richtext">
-          <div contenteditable="true" role="textbox" aria-label="富文本输入框">已有富文本开头：</div>
+          <div contenteditable="true" role="textbox" aria-label="Rich text input">Existing rich text start: </div>
         </form>
-        <output data-test-output="richtext">提交次数：0</output>
+        <output data-test-output="richtext">Submit count: 0</output>
       </section>
       <section>
-        <h2>选区语音批注原文</h2>
-        <p>Logue 的语音输入必须在一次停止操作后自动转写、保存并写入目标，不允许再要求第二次确认。</p>
+        <h2>Selection annotation source text</h2>
+        <p>Logue voice input must transcribe, save, and write to its target after one stop action. It must never require a second confirmation.</p>
       </section>
     </main>
     <script>
@@ -62,7 +62,7 @@
           event.preventDefault();
           count += 1;
           const output = document.querySelector(`[data-test-output="${form.dataset.testForm}"]`);
-          if (output) output.textContent = `提交次数：${count}`;
+          if (output) output.textContent = `Submit count: ${count}`;
         });
       }
       document.querySelector("[data-test-replace-target]")?.addEventListener("click", () => {
@@ -70,7 +70,7 @@
         const current = form?.querySelector("textarea");
         if (!form || !current) return;
         const replacement = current.cloneNode();
-        replacement.value = "新输入框：";
+        replacement.value = "Replacement input: ";
         current.replaceWith(replacement);
       });
     </script>

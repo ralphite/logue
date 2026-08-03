@@ -40,7 +40,7 @@ current_switched="no"
 
 say() { printf '  %s\n' "$*"; }
 step() { printf '\n%s\n' "$*"; }
-fail() { printf '\n安装没有完成：%s\n' "$*" >&2; exit 1; }
+fail() { printf '\nInstallation did not complete: %s\n' "$*" >&2; exit 1; }
 
 cleanup() {
   if [[ "${current_switched}" == "no" && -n "${staged_release_dir}" && -d "${staged_release_dir}" ]]; then
@@ -64,15 +64,15 @@ choose_autostart() {
     1|true|TRUE|True|yes|YES|Yes|y|Y) printf 'yes' ; return ;;
     0|false|FALSE|False|no|NO|No|n|N) printf 'no' ; return ;;
     "") ;;
-    *) fail "LOGUE_AUTO_START 只接受 yes 或 no。" ;;
+    *) fail "LOGUE_AUTO_START accepts only yes or no." ;;
   esac
   if [[ -r /dev/tty && -w /dev/tty ]]; then
-    printf '\n登录这台 Mac 时自动启动 Logue？[Y/n] ' > /dev/tty
+    printf '\nStart Logue when you sign in to this Mac? [Y/n] ' > /dev/tty
     answer=""
     IFS= read -r answer < /dev/tty || true
     case "${answer}" in n|N|no|NO|No) printf 'no' ;; *) printf 'yes' ;; esac
   else
-    say "当前没有交互终端；默认不启用登录时自动启动。可用 LOGUE_AUTO_START=yes 重新运行。" >&2
+    say "No interactive terminal; sign-in launch stays off. Re-run with LOGUE_AUTO_START=yes to enable it." >&2
     printf 'no'
   fi
 }
@@ -91,41 +91,41 @@ inject_failure() {
 
 case "${LOGUE_INSTALLER_FAIL_AT:-}" in
   ""|extension|cli|autostart) ;;
-  *) fail "LOGUE_INSTALLER_FAIL_AT 只接受 extension、cli 或 autostart。" ;;
+  *) fail "LOGUE_INSTALLER_FAIL_AT accepts only extension, cli, or autostart." ;;
 esac
 
 autostart="$(choose_autostart)"
 
 for required_command in curl tar shasum plutil; do
-  command -v "${required_command}" >/dev/null 2>&1 || fail "缺少系统命令 ${required_command}。"
+  command -v "${required_command}" >/dev/null 2>&1 || fail "Missing required system command: ${required_command}."
 done
 
-printf '\nLogue 安装与升级\n'
-say "程序：${install_root}"
-say "数据：${data_root}（永不覆盖）"
+printf '\nLogue install and upgrade\n'
+say "App: ${install_root}"
+say "Data: ${data_root} (never overwritten)"
 
 mkdir -p "${install_root}/releases" "${data_root}" "${bin_dir}" "${launch_agents_dir}" "${run_dir}"
 install_tmp="$(mktemp -d "${install_root}/.install.XXXXXX")"
 
-step "1/4  下载并校验发布包"
+step "1/4  Download and verify the release"
 curl -fsSL --retry 3 --retry-delay 1 "${asset_base_url}/${asset_name}" -o "${install_tmp}/${asset_name}"
 curl -fsSL --retry 3 --retry-delay 1 "${asset_base_url}/checksums.txt" -o "${install_tmp}/checksums.txt"
 checksum_line="$(awk -v wanted="${asset_name}" '$2 == wanted || $2 == "./" wanted { print; exit }' "${install_tmp}/checksums.txt")"
-[[ -n "${checksum_line}" ]] || fail "checksums.txt 中没有 ${asset_name}。"
+[[ -n "${checksum_line}" ]] || fail "checksums.txt does not contain ${asset_name}."
 printf '%s\n' "${checksum_line}" > "${install_tmp}/selected-checksum.txt"
-(cd "${install_tmp}" && shasum -a 256 -c selected-checksum.txt >/dev/null) || fail "发布包校验失败，现有安装未改动。"
-say "校验通过"
+(cd "${install_tmp}" && shasum -a 256 -c selected-checksum.txt >/dev/null) || fail "Release verification failed; the existing installation was not changed."
+say "Verified"
 
 package_dir="${install_tmp}/package"
 mkdir -p "${package_dir}"
 tar -xzf "${install_tmp}/${asset_name}" -C "${package_dir}"
-[[ -x "${package_dir}/bin/logue" ]] || fail "发布包缺少可执行的 bin/logue。"
-[[ -f "${package_dir}/web/index.html" ]] || fail "发布包缺少 Web App。"
-[[ -f "${package_dir}/extension/manifest.json" ]] || fail "发布包缺少 Chrome Extension。"
-[[ -f "${package_dir}/VERSION" ]] || fail "发布包缺少 VERSION。"
+[[ -x "${package_dir}/bin/logue" ]] || fail "Release is missing executable bin/logue."
+[[ -f "${package_dir}/web/index.html" ]] || fail "Release is missing the Web App."
+[[ -f "${package_dir}/extension/manifest.json" ]] || fail "Release is missing the Chrome Extension."
+[[ -f "${package_dir}/VERSION" ]] || fail "Release is missing VERSION."
 logue_version="$(tr -d '\r\n' < "${package_dir}/VERSION")"
-[[ "${logue_version}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || fail "无效版本：${logue_version}。"
-say "准备安装 ${logue_version}"
+[[ "${logue_version}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || fail "Invalid release version: ${logue_version}."
+say "Preparing ${logue_version}"
 
 managed_pid=""
 previous_current=""
@@ -145,7 +145,7 @@ validate_managed_service() {
     managed_pid="$(tr -dc '0-9' < "${pid_file}")"
     if [[ -n "${managed_pid}" ]] && kill -0 "${managed_pid}" >/dev/null 2>&1; then
       old_command="$(ps -p "${managed_pid}" -o command= 2>/dev/null || true)"
-      [[ "${old_command}" == *"${install_root}"*"/logue"* ]] || fail "PID 文件指向的进程不是本次安装的 Logue；为避免误停其他程序，已中止。"
+      [[ "${old_command}" == *"${install_root}"*"/logue"* ]] || fail "The PID file does not belong to this Logue installation; stopped to avoid terminating another process."
     else
       managed_pid=""
     fi
@@ -160,7 +160,7 @@ stop_managed_service() {
   fi
   launchctl bootout "gui/$(id -u)" "${launch_plist}" >/dev/null 2>&1 || launchctl unload "${launch_plist}" >/dev/null 2>&1 || true
   if [[ -n "${managed_pid}" ]] && kill -0 "${managed_pid}" >/dev/null 2>&1; then
-    say "正在停止旧服务（PID ${managed_pid}）"
+    say "Stopping existing service (PID ${managed_pid})"
     kill "${managed_pid}" >/dev/null 2>&1 || true
     for ((wait_count = 0; wait_count < 30; wait_count++)); do
       kill -0 "${managed_pid}" >/dev/null 2>&1 || break
@@ -234,7 +234,7 @@ create_launch_plist() {
   plutil -lint "${launch_plist_next}" >/dev/null || return 1
 }
 
-step "2/4  暂存并验证完整升级"
+step "2/4  Stage and verify the full upgrade"
 release_dir="$(mktemp -d "${install_root}/releases/${logue_version}.XXXXXX")"
 rmdir -- "${release_dir}"
 mv "${package_dir}" "${release_dir}"
@@ -243,7 +243,7 @@ staged_release_dir="${release_dir}"
 if [[ -L "${current_link}" ]]; then
   previous_current="$(readlink "${current_link}")"
 elif [[ -e "${current_link}" && ! -d "${current_link}" ]]; then
-  fail "现有 current 既不是符号链接也不是目录；为避免覆盖未知文件，已中止。"
+  fail "Existing current is neither a symlink nor a directory; stopped to avoid overwriting an unknown file."
 fi
 if [[ -x "${current_link}/bin/logue" ]]; then
   previous_current_version="$("${current_link}/bin/logue" -version 2>/dev/null || true)"
@@ -262,12 +262,12 @@ sed \
   -e "s|\"service_worker\": \"background.js\"|\"service_worker\": \"releases/${extension_asset_id}/background.js\"|" \
   -e "s|\"js\": \[\"content.js\"\]|\"js\": [\"releases/${extension_asset_id}/content.js\"]|" \
   "${release_dir}/extension/manifest.json" > "${extension_manifest_next}"
-grep -Fq "\"service_worker\": \"releases/${extension_asset_id}/background.js\"" "${extension_manifest_next}" || fail "Extension manifest 缺少版本化 worker；旧安装未改动。"
-grep -Fq "\"js\": [\"releases/${extension_asset_id}/content.js\"]" "${extension_manifest_next}" || fail "Extension manifest 缺少版本化 content script；旧安装未改动。"
-[[ -f "${staged_extension_assets}/background.js" && -f "${staged_extension_assets}/content.js" ]] || fail "Extension 资产不完整；旧安装未改动。"
+grep -Fq "\"service_worker\": \"releases/${extension_asset_id}/background.js\"" "${extension_manifest_next}" || fail "Extension manifest is missing a versioned worker; the existing installation was not changed."
+grep -Fq "\"js\": [\"releases/${extension_asset_id}/content.js\"]" "${extension_manifest_next}" || fail "Extension manifest is missing a versioned content script; the existing installation was not changed."
+[[ -f "${staged_extension_assets}/background.js" && -f "${staged_extension_assets}/content.js" ]] || fail "Extension assets are incomplete; the existing installation was not changed."
 
 if [[ -d "${extension_dir}/manifest.json" && ! -L "${extension_dir}/manifest.json" ]]; then
-  fail "Extension manifest 路径是目录；为避免覆盖未知内容，已中止。"
+  fail "Extension manifest path is a directory; stopped to avoid overwriting unknown content."
 fi
 if [[ -e "${extension_dir}/manifest.json" || -L "${extension_dir}/manifest.json" ]]; then
   cp -p "${extension_dir}/manifest.json" "${extension_manifest_backup}"
@@ -275,7 +275,7 @@ if [[ -e "${extension_dir}/manifest.json" || -L "${extension_dir}/manifest.json"
 fi
 
 if [[ -d "${bin_dir}/logue" && ! -L "${bin_dir}/logue" ]]; then
-  fail "CLI 路径是目录；为避免覆盖未知内容，已中止。"
+  fail "CLI path is a directory; stopped to avoid overwriting unknown content."
 fi
 if [[ -e "${bin_dir}/logue" || -L "${bin_dir}/logue" ]]; then
   /bin/cp -pP "${bin_dir}/logue" "${cli_backup}"
@@ -285,7 +285,7 @@ cli_next="${bin_dir}/.logue.next.$$"
 ln -s "${current_link}/bin/logue" "${cli_next}"
 
 if [[ -d "${launch_plist}" && ! -L "${launch_plist}" ]]; then
-  fail "LaunchAgent 路径是目录；为避免覆盖未知内容，已中止。"
+  fail "LaunchAgent path is a directory; stopped to avoid overwriting unknown content."
 fi
 if [[ -e "${launch_plist}" || -L "${launch_plist}" ]]; then
   /bin/cp -pP "${launch_plist}" "${launch_plist_backup}"
@@ -293,11 +293,11 @@ if [[ -e "${launch_plist}" || -L "${launch_plist}" ]]; then
 fi
 if [[ "${autostart}" == "yes" ]]; then
   launch_plist_next="${launch_agents_dir}/.${launch_label}.next.$$"
-  create_launch_plist || fail "无法创建有效的 LaunchAgent；旧安装未改动。"
+  create_launch_plist || fail "Could not create a valid LaunchAgent; the existing installation was not changed."
 fi
 
 validate_managed_service
-say "程序、Extension、CLI 与启动设置均已预检"
+say "App, Extension, CLI, and startup settings are ready"
 
 commit_install() {
   local next_link
@@ -309,13 +309,13 @@ commit_install() {
   ln -s "${release_dir}" "${next_link}" || return 1
   /bin/mv -f -h "${next_link}" "${current_link}" || return 1
   current_switched="yes"
-  say "程序已切换到 ${logue_version}"
+  say "App switched to ${logue_version}"
 
   start_service "${logue_version}" || return 1
-  say "服务已启动：${health_url}"
+  say "Service started: ${health_url}"
 
   /bin/mv -f "${extension_manifest_next}" "${extension_dir}/manifest.json" || return 1
-  say "Extension 已原子切换到 ${logue_version}"
+  say "Extension switched atomically to ${logue_version}"
   inject_failure extension || return 1
 
   /bin/mv -f -h "${cli_next}" "${bin_dir}/logue" || return 1
@@ -380,25 +380,25 @@ rollback_install() {
   [[ "${rollback_failed}" == "no" ]]
 }
 
-step "3/4  原子提交并检查服务"
+step "3/4  Commit atomically and check the service"
 if ! stop_managed_service; then
-  fail "无法安全停止旧服务；旧安装未切换。"
+  fail "Could not stop the existing service safely; the existing installation was not switched."
 fi
 if ! commit_install; then
-  printf '\n升级提交失败，正在恢复完整旧版本…\n' >&2
+  printf '\nUpgrade commit failed; restoring the complete previous version…\n' >&2
   if rollback_install; then
-    fail "升级未完成；程序、Extension、CLI、启动设置与旧服务均已恢复，数据未改动。"
+    fail "Upgrade did not complete; the app, Extension, CLI, startup settings, and previous service were restored. Data was not changed."
   fi
-  printf '\n最近的服务日志：\n' >&2
+  printf '\nLatest service log:\n' >&2
   tail -n 12 "${log_file}" >&2 || true
-  fail "升级未完成且自动恢复不完整；数据未改动，请保留以上日志。"
+  fail "Upgrade did not complete and automatic recovery was incomplete. Data was not changed; keep the log above."
 fi
 
-step "4/4  完成启动设置"
+step "4/4  Finish startup settings"
 if [[ "${autostart}" == "yes" ]]; then
-  say "已启用登录时自动启动（当前服务已由本次安装启动）"
+  say "Logue will start when you sign in (the current service was started by this install)"
 else
-  say "未启用登录时自动启动"
+  say "Logue will not start automatically when you sign in"
 fi
 
 rm -f -- "${extension_manifest_backup}" "${cli_backup}" "${launch_plist_backup}"
@@ -406,11 +406,11 @@ if [[ -n "${previous_current_backup}" && -e "${previous_current_backup}" ]]; the
 staged_release_dir=""
 staged_extension_assets=""
 
-printf '\n✓ Logue %s 已安装并正在运行\n' "${logue_version}"
-say "打开：http://127.0.0.1:${logue_port}"
-say "Extension：${extension_dir}（在 chrome://extensions 中加载）"
-say "命令：${bin_dir}/logue"
-say "数据仍在：${data_root}"
+printf '\n✓ Logue %s is installed and running\n' "${logue_version}"
+say "Open: http://127.0.0.1:${logue_port}"
+say "Extension: ${extension_dir} (load it in chrome://extensions)"
+say "Command: ${bin_dir}/logue"
+say "Data remains at: ${data_root}"
 
 open_browser="${LOGUE_OPEN_BROWSER:-}"
 if [[ -z "${open_browser}" ]]; then

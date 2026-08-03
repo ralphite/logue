@@ -75,10 +75,10 @@ file_sha256() {
 
 assert_failure_order() {
   local failure_point="$1" log_file="$2" switch_line healthy_line injection_line rollback_line
-  switch_line="$(grep -nF '程序已切换到 v0.1.1' "${log_file}" | head -1 | cut -d: -f1)"
-  healthy_line="$(grep -nF '服务已启动：' "${log_file}" | head -1 | cut -d: -f1)"
+  switch_line="$(grep -nF 'App switched to v0.1.1' "${log_file}" | head -1 | cut -d: -f1)"
+  healthy_line="$(grep -nF 'Service started:' "${log_file}" | head -1 | cut -d: -f1)"
   injection_line="$(grep -nF "[test] injected failure after ${failure_point} switch" "${log_file}" | head -1 | cut -d: -f1)"
-  rollback_line="$(grep -nF '均已恢复，数据未改动' "${log_file}" | head -1 | cut -d: -f1)"
+  rollback_line="$(grep -nF 'previous service were restored. Data was not changed.' "${log_file}" | head -1 | cut -d: -f1)"
   if [[ -z "${switch_line}" || -z "${healthy_line}" || -z "${injection_line}" || -z "${rollback_line}" ]] ||
      (( switch_line >= healthy_line || healthy_line >= injection_line || injection_line >= rollback_line )); then
     printf '%s failure log does not prove candidate health before injection and rollback\n' "${failure_point}" >&2

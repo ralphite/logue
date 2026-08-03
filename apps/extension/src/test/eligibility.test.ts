@@ -19,7 +19,7 @@ describe("extension page eligibility", () => {
   it("injects into the Logue Web App so its editors can use the extension", () => {
     const description = document.createElement("meta");
     description.name = "description";
-    description.content = "Logue 本机资料与跨网页输入工作台";
+    description.content = "Logue local-first capture and cross-page input workspace";
     document.head.append(description);
     const root = document.createElement("div");
     root.id = "root";
