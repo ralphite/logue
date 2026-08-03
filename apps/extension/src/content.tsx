@@ -2,7 +2,7 @@ import { AudioLines, Check, LoaderCircle, X } from "lucide-react";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { cancelMaterialSave, getCaptureContext, saveMaterial, transcribeAudio, type AppliedContext } from "./api";
-import { getEditableText, insertIntoElement, isEditableElement, isEditableTargetAvailable } from "./dom";
+import { activeEditableElement, getEditableText, insertIntoElement, isEditableElement, isEditableTargetAvailable } from "./dom";
 import { isLogueExtensionDisabledDocument } from "./eligibility";
 import { clampLauncherPosition, defaultLauncherPosition, inlineVoiceControlMetrics, launcherErrorPlacement } from "./launcherPosition";
 import type { CaptureSource, PageCaptureContext } from "./capturePrimitives";
@@ -221,19 +221,23 @@ function ExtensionLauncher() {
 
   useEffect(() => {
     const host = document.getElementById("logue-extension-host");
+    const activateTarget = (candidate: EventTarget | null | undefined) => {
+      const target = candidate ?? null;
+      if (!isEditableElement(target)) {
+        clearTarget();
+        return;
+      }
+      targetRef.current = target;
+      targetPageHrefRef.current = window.location.href;
+      setKeyboardActive(false);
+      refreshTarget();
+    };
     const onFocusIn = (event: FocusEvent) => {
       if (host && event.composedPath().includes(host)) {
         setKeyboardActive(true);
         return;
       }
-      if (!isEditableElement(event.target)) {
-        clearTarget();
-        return;
-      }
-      targetRef.current = event.target;
-      targetPageHrefRef.current = window.location.href;
-      setKeyboardActive(false);
-      refreshTarget();
+      activateTarget(event.target);
     };
     const onViewport = () => {
       setViewport({ width: window.innerWidth, height: window.innerHeight });
@@ -251,12 +255,15 @@ function ExtensionLauncher() {
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
     document.addEventListener("focusin", onFocusIn, true);
+    activateTarget(activeEditableElement(document));
+    const initialLayoutFrame = window.requestAnimationFrame(() => activateTarget(activeEditableElement(document)));
     window.addEventListener("scroll", onViewport, true);
     window.addEventListener("resize", onViewport);
     window.addEventListener("hashchange", onRoute);
     window.addEventListener("popstate", onRoute);
     return () => {
       observer.disconnect();
+      window.cancelAnimationFrame(initialLayoutFrame);
       window.clearInterval(routeTimer);
       document.removeEventListener("focusin", onFocusIn, true);
       window.removeEventListener("scroll", onViewport, true);

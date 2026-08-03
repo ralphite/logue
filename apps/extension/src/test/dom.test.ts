@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { insertIntoElement, isEditableElement, isEditableTargetAvailable } from "../dom";
+import { activeEditableElement, insertIntoElement, isEditableElement, isEditableTargetAvailable } from "../dom";
 
 describe("editable integration", () => {
   beforeEach(() => {
@@ -10,6 +10,14 @@ describe("editable integration", () => {
     const input = document.createElement("input");
     input.type = "password";
     expect(isEditableElement(input)).toBe(false);
+  });
+
+  it("recognizes an editor focused before the extension mounted", () => {
+    const textarea = document.createElement("textarea");
+    document.body.append(textarea);
+    textarea.focus();
+
+    expect(activeEditableElement(document)).toBe(textarea);
   });
 
   it("inserts at the current selection without submitting", () => {

@@ -12,6 +12,12 @@ export function isEditableElement(value: EventTarget | null): value is HTMLEleme
   return value.isContentEditable;
 }
 
+/** Finds an editor that was already focused before the content script mounted. */
+export function activeEditableElement(document: Document): HTMLElement | undefined {
+  const active = document.activeElement;
+  return isEditableElement(active) ? active : undefined;
+}
+
 export function isEditableTargetAvailable(
   target: HTMLElement | null,
   focusedAtHref: string,
