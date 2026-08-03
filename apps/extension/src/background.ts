@@ -443,8 +443,12 @@ chrome.action.onClicked.addListener((tab) => {
   void toggleTabPanel(tab).catch(() => undefined);
 });
 
-chrome.commands.onCommand.addListener((command) => {
+chrome.commands.onCommand.addListener((command, tab) => {
   if (command !== sidePanelCommand) return;
+  if (tab) {
+    void toggleTabPanel(tab).catch(() => undefined);
+    return;
+  }
   void toggleActiveTabPanel().catch(() => undefined);
 });
 
