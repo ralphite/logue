@@ -5,18 +5,18 @@ describe("browser navigation", () => {
   it("restores every product section and its selected object", () => {
     expect(parseNavigation("?view=stream&material=material-1")).toEqual({ section: "stream", materialId: "material-1" });
     expect(parseNavigation("?view=projects&project=Agent%20Harness")).toEqual({ section: "projects", projectName: "Agent Harness" });
-    expect(parseNavigation("?view=generate&tab=documents&doc=document-1&project=Logue")).toEqual({ section: "views", generationMode: "documents", documentId: "document-1", projectName: "Logue" });
+    expect(parseNavigation("?view=generate&tab=documents&doc=document-1&project=Logue")).toEqual({ section: "generate", generationMode: "documents", documentId: "document-1", projectName: "Logue" });
     expect(parseNavigation("?view=settings")).toEqual({ section: "settings" });
   });
 
   it("defaults an empty URL to the generate workspace", () => {
-    expect(parseNavigation("")).toEqual({ section: "views", generationMode: "new", documentId: undefined, projectName: undefined });
+    expect(parseNavigation("")).toEqual({ section: "generate", generationMode: "new", documentId: undefined, projectName: undefined });
   });
 
   it("writes a canonical link while preserving unrelated query params and hashes", () => {
     expect(navigationURL(
       { pathname: "/", search: "?debug=1&view=stream&material=old", hash: "#source" },
-      { section: "views", documentId: "doc / 1" },
+      { section: "generate", documentId: "doc / 1" },
     )).toBe("/?debug=1&view=generate&tab=documents&doc=doc+%2F+1#source");
   });
 

@@ -10,7 +10,7 @@ import { MaterialGroupPicker } from "./MaterialGroupPicker";
 import { PanelResizer, usePersistentPanelSize } from "./PanelResizer";
 import { editorColumnClass } from "./layout";
 
-export type GenerationMode = "new" | "agents" | "documents";
+export type GenerationMode = "new" | "skills" | "documents";
 
 const outputLabels: Record<AgentOutput, string> = {
   insert: "Text",
@@ -127,7 +127,7 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
 
   async function openAgents(showList = false) {
     if (!(await canLeaveDocument())) return;
-    applyMode("agents", showList ? "list" : "none");
+    applyMode("skills", showList ? "list" : "none");
   }
 
   async function startGeneration() {
@@ -153,7 +153,7 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
       });
       setAgents((current) => [created, ...current.filter((agent) => agent.id !== created.id)]);
       setSelectedAgentId(created.id);
-      applyMode("agents");
+      applyMode("skills");
     } catch (cause) {
       setAgentsError(cause instanceof Error ? cause.message : "Could not create skill");
     } finally {
@@ -185,24 +185,24 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
     onSelectedDocumentChange(id);
   }
 
-  const listSection = mode === "agents" ? "agents" : "documents";
-  const activeSection = mode === "agents" ? "agents" : mode === "documents" ? "documents" : undefined;
+  const listSection = mode === "skills" ? "skills" : "documents";
+  const activeSection = mode === "skills" ? "skills" : mode === "documents" ? "documents" : undefined;
   const selectedRun = runs.find((run) => run.id === selectedRunId);
-  const workspaceList = (section: "documents" | "agents") => (
+  const workspaceList = (section: "documents" | "skills") => (
     <WorkspaceNavigationList
       section={section}
       agents={agents}
       documents={documents}
       selectedAgentId={selectedAgentId}
       selectedDocumentId={selectedDocumentId}
-      loading={section === "agents" ? agentsLoading : documentsLoading}
-      error={section === "agents" ? agentsError : documentsError}
+      loading={section === "skills" ? agentsLoading : documentsLoading}
+      error={section === "skills" ? agentsError : documentsError}
       onSelectAgent={(id) => {
         setSelectedAgentId(id);
         setMobilePanel("none");
       }}
       onSelectDocument={(id) => void openDocument(id)}
-      onRetry={() => void (section === "agents" ? refreshAgents() : refreshDocuments())}
+      onRetry={() => void (section === "skills" ? refreshAgents() : refreshDocuments())}
     />
   );
 
@@ -219,8 +219,8 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
           <div hidden={listSection !== "documents"} className="h-full overflow-y-auto px-2 pb-3" aria-label="Documents list">
             {workspaceList("documents")}
           </div>
-          <div hidden={listSection !== "agents"} className="h-full overflow-y-auto px-2 pb-3" aria-label="Skills list">
-            {workspaceList("agents")}
+          <div hidden={listSection !== "skills"} className="h-full overflow-y-auto px-2 pb-3" aria-label="Skills list">
+            {workspaceList("skills")}
           </div>
         </div>
       </aside>
@@ -231,7 +231,7 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
       </div>
 
       {mobilePanel === "list" ? (
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[#f7f7f5] px-3 py-3" data-testid="mobile-workspace-list" aria-label={listSection === "agents" ? "Skills list" : "Documents list"}>
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[#f7f7f5] px-3 py-3" data-testid="mobile-workspace-list" aria-label={listSection === "skills" ? "Skills list" : "Documents list"}>
           {workspaceList(listSection)}
         </main>
       ) : mode === "documents" ? (
@@ -252,7 +252,7 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
           documentsLoading={documentsLoading}
           onDocumentsChange={setDocuments}
         />
-      ) : mode === "agents" ? (
+      ) : mode === "skills" ? (
         <AgentEditor agents={agents} selectedAgentId={selectedAgentId} onSelect={setSelectedAgentId} onAgentsChange={setAgents} />
       ) : selectedRun ? (
         <RunResult run={selectedRun} onRunChange={(updated) => setRuns((current) => current.map((run) => (run.id === updated.id ? updated : run)))} onOpenDocument={(id) => void openDocument(id)} onBack={() => setSelectedRunId(undefined)} />
@@ -271,7 +271,7 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
   );
 }
 
-function GenerateSectionNavigation({ activeSection, creatingAgent, creatingDocument, mobile = false, onOpenDocuments, onAddDocument, onOpenAgents, onAddAgent }: { activeSection?: "documents" | "agents"; creatingAgent: boolean; creatingDocument: boolean; mobile?: boolean; onOpenDocuments: () => void; onAddDocument: () => void; onOpenAgents: () => void; onAddAgent: () => void }) {
+function GenerateSectionNavigation({ activeSection, creatingAgent, creatingDocument, mobile = false, onOpenDocuments, onAddDocument, onOpenAgents, onAddAgent }: { activeSection?: "documents" | "skills"; creatingAgent: boolean; creatingDocument: boolean; mobile?: boolean; onOpenDocuments: () => void; onAddDocument: () => void; onOpenAgents: () => void; onAddAgent: () => void }) {
   const rowClass = (active: boolean) => `flex h-11 w-full overflow-hidden rounded-lg ${active ? "bg-[#e7e7e4]" : "hover:bg-[#ececea]"}`;
   const itemClass = (active: boolean) => `flex h-11 min-w-0 flex-1 items-center gap-2 rounded-none bg-transparent px-2.5 text-left text-[14px] font-medium focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#777873] ${active ? "text-[#353632]" : "text-[#6d6e69]"}`;
   const addClass = "inline-flex size-11 shrink-0 items-center justify-center rounded-none bg-transparent text-[#777873] hover:bg-[#dfdfdc] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#777873]";
@@ -286,8 +286,8 @@ function GenerateSectionNavigation({ activeSection, creatingAgent, creatingDocum
           {creatingDocument ? <LoaderCircle size={15} className="animate-spin motion-reduce:animate-none" /> : <Plus size={15} />}
         </button>
       </div>
-      <div className={rowClass(activeSection === "agents")}>
-        <button type="button" onClick={onOpenAgents} className={itemClass(activeSection === "agents")} aria-current={activeSection === "agents" ? "page" : undefined}>
+      <div className={rowClass(activeSection === "skills")}>
+        <button type="button" onClick={onOpenAgents} className={itemClass(activeSection === "skills")} aria-current={activeSection === "skills" ? "page" : undefined}>
           {!mobile && <Sparkles size={14} className="shrink-0" />}
           <span className="truncate">Skills</span>
         </button>
@@ -299,10 +299,10 @@ function GenerateSectionNavigation({ activeSection, creatingAgent, creatingDocum
   );
 }
 
-function WorkspaceNavigationList({ section, agents, documents, selectedAgentId, selectedDocumentId, loading, error, onSelectAgent, onSelectDocument, onRetry }: { section: "documents" | "agents"; agents: LogueAgent[]; documents: LogueDocument[]; selectedAgentId?: string; selectedDocumentId?: string; loading: boolean; error?: string; onSelectAgent: (id: string) => void; onSelectDocument: (id: string) => void; onRetry: () => void }) {
+function WorkspaceNavigationList({ section, agents, documents, selectedAgentId, selectedDocumentId, loading, error, onSelectAgent, onSelectDocument, onRetry }: { section: "documents" | "skills"; agents: LogueAgent[]; documents: LogueDocument[]; selectedAgentId?: string; selectedDocumentId?: string; loading: boolean; error?: string; onSelectAgent: (id: string) => void; onSelectDocument: (id: string) => void; onRetry: () => void }) {
   if (loading)
     return (
-      <div className="space-y-1 px-1 py-1" aria-label={`Loading ${section === "agents" ? "skills" : section}`}>
+      <div className="space-y-1 px-1 py-1" aria-label={`Loading ${section === "skills" ? "skills" : section}`}>
         {[0, 1, 2].map((item) => (
           <div key={item} className="h-11 animate-pulse rounded-md bg-[#ecece9] motion-reduce:animate-none" />
         ))}
@@ -317,7 +317,7 @@ function WorkspaceNavigationList({ section, agents, documents, selectedAgentId, 
         </button>
       </div>
     );
-  if (section === "agents")
+  if (section === "skills")
     return agents.length ? (
       <>
         {agents.map((agent) => (

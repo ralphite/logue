@@ -30,11 +30,11 @@ const { agent, secondAgent, createdAgent, documentItem, run, mocks } = vi.hoiste
   const createdAgent = {
     ...agent,
     id: "agt_new",
-    name: "Untitled skill",
+    name: "New skill",
     purpose: "Create a useful result from the selected context.",
-    instructions: "",
-    surfaces: ["web"] as const,
-    contexts: [] as const,
+    instructions: "Transform only the selected text. Preserve its meaning and formatting. Return only the replacement text.",
+    surfaces: ["web", "extension"] as const,
+    contexts: ["selection"] as const,
     system: false,
   };
   const documentItem = {
@@ -213,7 +213,7 @@ describe("GenerationWorkspace navigation", () => {
   });
 
   it("creates and opens a real document from the Documents add action", async () => {
-    renderWorkspace({ initialMode: "agents" });
+    renderWorkspace({ initialMode: "skills" });
     const navigation = screen.getByRole("navigation", { name: "Generate sections" });
     await screen.findByRole("textbox", { name: "Skill name" });
 
@@ -226,23 +226,23 @@ describe("GenerationWorkspace navigation", () => {
   });
 
   it("creates a blank Skill without copying the selected Skill and opens it for editing", async () => {
-    renderWorkspace({ initialMode: "agents" });
+    renderWorkspace({ initialMode: "skills" });
     const navigation = screen.getByRole("navigation", { name: "Generate sections" });
     await screen.findByRole("textbox", { name: "Skill name" });
 
     fireEvent.click(within(navigation).getByRole("button", { name: "New skill" }));
 
     await waitFor(() => expect(mocks.createAgent).toHaveBeenCalledWith({
-      name: "Untitled skill",
+      name: "New skill",
       purpose: "Create a useful result from the selected context.",
-      instructions: "",
+      instructions: "Transform only the selected text. Preserve its meaning and formatting. Return only the replacement text.",
       task: "generate",
       output: "insert",
-      surfaces: ["web"],
-      contexts: [],
+      surfaces: ["web", "extension"],
+      contexts: ["selection"],
       enabled: true,
     }));
-    expect((await screen.findByRole("textbox", { name: "Skill name" }) as HTMLInputElement).value).toBe("Untitled skill");
+    expect((await screen.findByRole("textbox", { name: "Skill name" }) as HTMLInputElement).value).toBe("New skill");
     expect(screen.getByRole("textbox", { name: "Skill prompt" })).toBeTruthy();
   });
 
@@ -260,7 +260,7 @@ describe("GenerationWorkspace navigation", () => {
   });
 
   it("keeps normal Skill autosave states quiet and uses the shared result axis", async () => {
-    renderWorkspace({ initialMode: "agents" });
+    renderWorkspace({ initialMode: "skills" });
     const name = await screen.findByRole("textbox", { name: "Skill name" });
     for (const label of ["Saved", "Saving…", "Unsaved"]) expect(screen.queryByText(label)).toBeNull();
     fireEvent.change(name, { target: { value: "Edited agent" } });
@@ -300,7 +300,7 @@ describe("GenerationWorkspace mobile completeness", () => {
   });
 
   it("shows the Skill switcher throughout the collapsed-sidebar range", async () => {
-    renderWorkspace({ initialMode: "agents" });
+    renderWorkspace({ initialMode: "skills" });
     const select = await screen.findByRole("combobox", { name: "Choose skill" });
     expect(select.className).toContain("max-[900px]:block");
     fireEvent.change(select, { target: { value: secondAgent.id } });

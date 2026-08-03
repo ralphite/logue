@@ -41,11 +41,11 @@ describe("application navigation shell", () => {
     apiMocks.searchMaterials.mockReset().mockResolvedValue({ matches: [], strategy: "local" });
     apiMocks.updateDocument.mockReset();
     window.localStorage.clear();
-    window.history.replaceState(null, "", "/?view=docs&doc=document-1");
+    window.history.replaceState(null, "", "/?view=generate&tab=documents&doc=document-1");
   });
 
   it("keeps the same ordered product navigation on desktop and mobile", () => {
-    render(<NavRail active="views" connected onChange={() => undefined} />);
+    render(<NavRail active="generate" connected onChange={() => undefined} />);
 
     const expectedLabels = ["Stream", "Projects", "Generate", "Settings"];
     const desktopShell = screen.getByTestId("primary-navigation-shell");
@@ -130,7 +130,7 @@ describe("application navigation shell", () => {
   it("collapses to an accessible icon rail without changing mobile navigation", () => {
     const onCollapsedChange = vi.fn();
     const { rerender } = render(
-      <NavRail active="views" connected collapsed={false} onCollapsedChange={onCollapsedChange} onChange={() => undefined} />,
+      <NavRail active="generate" connected collapsed={false} onCollapsedChange={onCollapsedChange} onChange={() => undefined} />,
     );
 
     const collapseButton = screen.getByRole("button", { name: "Close sidebar" });
@@ -155,7 +155,7 @@ describe("application navigation shell", () => {
     expect(onCollapsedChange).toHaveBeenCalledWith(true);
 
     rerender(
-      <NavRail active="views" connected collapsed onCollapsedChange={onCollapsedChange} onChange={() => undefined} />,
+      <NavRail active="generate" connected collapsed onCollapsedChange={onCollapsedChange} onChange={() => undefined} />,
     );
     expect(screen.getByTestId("primary-navigation-shell").getAttribute("data-collapsed")).toBe("true");
     expect(screen.getByTestId("primary-navigation-shell").className).toContain("w-14");

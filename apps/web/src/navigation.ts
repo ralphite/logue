@@ -12,7 +12,7 @@ export interface AppNavigation {
 const canonicalView: Record<Section, string> = {
   stream: "stream",
   projects: "projects",
-  views: "generate",
+  generate: "generate",
   settings: "settings",
 };
 
@@ -29,16 +29,16 @@ export function parseNavigation(search: string): AppNavigation {
       ? "projects"
       : rawView === "settings"
         ? "settings"
-        : "views";
+        : "generate";
 
   if (section === "stream") return { section, materialId: value(params, "material") };
   if (section === "projects") return { section, projectName: value(params, "project") };
-  if (section === "views") {
+  if (section === "generate") {
     const rawMode = value(params, "tab")?.toLowerCase();
     const generationMode: GenerationMode = value(params, "doc") || rawMode === "documents"
       ? "documents"
-      : rawMode === "agents"
-        ? "agents"
+      : rawMode === "skills"
+        ? "skills"
         : "new";
     return {
       section,
@@ -62,7 +62,7 @@ export function navigationURL(
     params.set("material", navigation.materialId);
   } else if (navigation.section === "projects" && navigation.projectName) {
     params.set("project", navigation.projectName);
-  } else if (navigation.section === "views") {
+  } else if (navigation.section === "generate") {
     if (navigation.documentId || (navigation.generationMode && navigation.generationMode !== "new")) params.set("tab", navigation.generationMode ?? "documents");
     if (navigation.documentId) params.set("doc", navigation.documentId);
     if (navigation.projectName) params.set("project", navigation.projectName);

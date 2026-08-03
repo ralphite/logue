@@ -129,7 +129,7 @@ export function App() {
   const openSection = useCallback((nextSection: Section) => {
     const completeNavigation = () => navigate({ section: nextSection });
     const leaveGuard = documentLeaveGuardRef.current;
-    if (section === "views" && nextSection !== "views" && leaveGuard) {
+    if (section === "generate" && nextSection !== "generate" && leaveGuard) {
       void leaveGuard().then((saved) => {
         if (saved) completeNavigation();
       });
@@ -143,11 +143,11 @@ export function App() {
   }, []);
 
   const openDocument = useCallback((id?: string, replace = false) => {
-    navigate({ section: "views", generationMode: "documents", documentId: id }, { replace });
+    navigate({ section: "generate", generationMode: "documents", documentId: id }, { replace });
   }, [navigate]);
 
   const openGenerationMode = useCallback((generationMode: GenerationMode) => {
-    navigate({ section: "views", generationMode });
+    navigate({ section: "generate", generationMode });
   }, [navigate]);
 
   const openProject = useCallback((name?: string, replace = false) => {
@@ -263,7 +263,7 @@ export function App() {
         onWidthChange={setNavigationWidth}
       />
 
-      {section === "views" ? (
+      {section === "generate" ? (
         <GenerationWorkspace
           materials={materials}
           initialMode={navigation.generationMode ?? (navigation.documentId ? "documents" : "new")}
@@ -281,7 +281,7 @@ export function App() {
           onSelectedProjectChange={openProject}
           onOpenStream={(project) => { openSection("stream"); if (project) { setQuery(project); setFilter("all"); } else { setQuery(""); setFilter("unfiled"); } }}
           onOpenMaterial={(materialId) => { setQuery(""); setFilter("all"); setMaterialMode("peek"); navigate({ section: "stream", materialId }); }}
-          onOpenResults={(project, id) => navigate({ section: "views", generationMode: "documents", projectName: project, documentId: id })}
+          onOpenResults={(project, id) => navigate({ section: "generate", generationMode: "documents", projectName: project, documentId: id })}
         />
       ) : section === "settings" ? (
         <SettingsPage status={status} />
