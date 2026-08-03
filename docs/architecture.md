@@ -5,7 +5,7 @@
 ```text
 apps/web         React 19 + TypeScript + Tailwind CSS Web App
 apps/extension   Chrome MV3 Content Script + Background Service Worker
-packages/ui      Web App / Extension 共用的 CapturePanel 与品牌组件
+packages/ui      Web App / Extension 共用的基础交互组件与品牌组件
 server           Go 本机 API、文件存储、Gemini 代理与静态 Web 服务
 ```
 
