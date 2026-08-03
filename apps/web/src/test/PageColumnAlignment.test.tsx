@@ -43,11 +43,11 @@ function expectSharedAxis(headerTestId: string, contentTestId: string, classes: 
 }
 
 describe("page column alignment", () => {
-  const sharedEditorAxis = ["w-full", "max-w-[820px]", "px-[9%]", "max-[700px]:px-5"];
+  const sharedEditorAxis = ["w-full", "max-w-[960px]", "px-8", "max-[640px]:px-5"];
 
   it("keeps the projects title and list on one responsive axis", () => {
     render(<ProjectPage {...projectProps} />);
-    expectSharedAxis("projects-header-column", "projects-content-column", sharedEditorAxis);
+    expectSharedAxis("projects-header-column", "projects-content-column", ["w-full", "max-w-[1080px]", "px-8", "max-[640px]:px-4"]);
   });
 
   it("keeps project detail controls and content on one responsive axis", async () => {
