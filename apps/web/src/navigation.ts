@@ -35,7 +35,7 @@ export function parseNavigation(search: string): AppNavigation {
   if (section === "projects") return { section, projectName: value(params, "project") };
   if (section === "views") {
     const rawMode = value(params, "tab")?.toLowerCase();
-    const generationMode: GenerationMode = value(params, "doc") || rawView === "docs" || rawMode === "documents"
+    const generationMode: GenerationMode = value(params, "doc") || rawMode === "documents"
       ? "documents"
       : rawMode === "agents"
         ? "agents"
