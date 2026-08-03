@@ -953,6 +953,10 @@ function ExtensionApp() {
         >
           <button
             className="logue-launcher logue-launcher-voice"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
             onClick={() => {
               setMode("input");
               setOpen(true);
@@ -968,6 +972,10 @@ function ExtensionApp() {
           </button>
           <button
             className="logue-launcher logue-launcher-agent"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
             onClick={() => void openAgentGeneration()}
             aria-label="用 Logue Agent 生成"
             title="用 Logue Agent 生成"
