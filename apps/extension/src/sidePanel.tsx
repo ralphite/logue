@@ -80,10 +80,9 @@ function SidePanelApp() {
   const startRecordingRef = useRef<() => void>(() => undefined);
   const recordingEventRef = useRef<(event: RecordingPanelEvent) => void>(() => undefined);
   const recordingSessionRef = useRef<RecordingSession | undefined>(undefined);
-  // This remains set through transcription, after the recording port is
-  // released, so a harmless panel-state refresh cannot collapse the active UI.
+  // This remains set through transcription so a harmless panel-state refresh
+  // cannot collapse the active UI.
   const activeCaptureScopeRef = useRef<ActivePanelCaptureScope | undefined>(undefined);
-  const recordingPortRef = useRef<chrome.runtime.Port | undefined>(undefined);
   const phaseRef = useRef<Phase>("idle");
   const generatedForTargetRef = useRef<string | undefined>(undefined);
   const pendingInsertInFlightRef = useRef(false);
@@ -325,28 +324,6 @@ function SidePanelApp() {
     const current = stateRef.current;
     if (!current) return;
     const session = { id: createRequestId(), tabId: current.tabId, intent: current.intent };
-    recordingPortRef.current?.disconnect();
-    try {
-      const port = chrome.tabs.connect(current.tabId, { name: "logue:recording-lifecycle" });
-      port.onDisconnect.addListener(() => {
-        if (recordingSessionRef.current?.id !== session.id) return;
-        recordingSessionRef.current = undefined;
-        activeCaptureScopeRef.current = undefined;
-        recordingPortRef.current = undefined;
-        stopTimer();
-        setError({
-          kind: "target",
-          message: "The page changed. Recording stopped.",
-          action: "retry",
-        });
-        setPhase("error");
-      });
-      recordingPortRef.current = port;
-    } catch (cause) {
-      setError(friendlyLocalError(cause, "target"));
-      setPhase("error");
-      return;
-    }
     recordingSessionRef.current = session;
     activeCaptureScopeRef.current = session;
     setPhase("starting");
@@ -358,8 +335,6 @@ function SidePanelApp() {
       if (recordingSessionRef.current?.id !== session.id) return;
       recordingSessionRef.current = undefined;
       activeCaptureScopeRef.current = undefined;
-      recordingPortRef.current?.disconnect();
-      recordingPortRef.current = undefined;
       setError({
         kind: "microphone",
         message: cause instanceof Error ? cause.message : "Voice capture is not available on this page.",
@@ -382,8 +357,6 @@ function SidePanelApp() {
       return;
     }
     recordingSessionRef.current = undefined;
-    recordingPortRef.current?.disconnect();
-    recordingPortRef.current = undefined;
     stopTimer();
     if (event.event === "cancelled") {
       activeCaptureScopeRef.current = undefined;
@@ -476,8 +449,6 @@ function SidePanelApp() {
     }).catch((cause: unknown) => {
       if (recordingSessionRef.current?.id !== session.id) return;
       recordingSessionRef.current = undefined;
-      recordingPortRef.current?.disconnect();
-      recordingPortRef.current = undefined;
       setError(friendlyLocalError(cause, "transcription"));
       setPhase("error");
     });
@@ -487,8 +458,6 @@ function SidePanelApp() {
     const session = recordingSessionRef.current;
     recordingSessionRef.current = undefined;
     if (session) void sendRecordingControl(session, "cancel").catch(() => undefined);
-    recordingPortRef.current?.disconnect();
-    recordingPortRef.current = undefined;
     stopTimer();
     setPhase("idle");
     setElapsed(0);
@@ -590,8 +559,6 @@ function SidePanelApp() {
         recordingSessionRef.current = undefined;
         activeCaptureScopeRef.current = undefined;
         void sendRecordingControl(activeSession, "cancel").catch(() => undefined);
-        recordingPortRef.current?.disconnect();
-        recordingPortRef.current = undefined;
         stopTimer();
       }
       if (!canInsertGeneratedText(next, generatedForTargetRef.current)) {
@@ -703,8 +670,6 @@ function SidePanelApp() {
       const activeSession = recordingSessionRef.current;
       recordingSessionRef.current = undefined;
       if (activeSession) void sendRecordingControl(activeSession, "cancel").catch(() => undefined);
-      recordingPortRef.current?.disconnect();
-      recordingPortRef.current = undefined;
       stopTimer();
       persistDraft({
         draft: draftRef.current,

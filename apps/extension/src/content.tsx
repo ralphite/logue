@@ -18,7 +18,6 @@ import type { CaptureSource, PageCaptureContext } from "./capturePrimitives";
 import {
   audioBlobFromEvent,
   createContentRecordingBridge,
-  createRecordingLifecycleRegistry,
   type ContentRecordingBridge,
   type RecordingBridgeEvent,
   type RecordingControlMessage,
@@ -585,10 +584,6 @@ function ExtensionLauncher() {
       },
     });
     recordingBridgeRef.current = recordingBridge;
-    const recordingLifecycle = createRecordingLifecycleRegistry(() => recordingBridge.dispose());
-    const onConnect = (port: chrome.runtime.Port) => {
-      recordingLifecycle.accept(port);
-    };
     const listener = (message: ContentMessage, _sender: chrome.runtime.MessageSender, sendResponse: (value: unknown) => void) => {
       const googleDocsAction = readGoogleDocsLauncherAction(message);
       if (googleDocsAction && isGoogleDocsDocumentTarget(targetRef.current)) {
@@ -635,13 +630,10 @@ function ExtensionLauncher() {
       }
       return false;
     };
-    chrome.runtime.onConnect.addListener(onConnect);
     chrome.runtime.onMessage.addListener(listener);
     void chrome.runtime.sendMessage({ type: "logue:page-context-ready" }).catch(() => undefined);
     return () => {
-      chrome.runtime.onConnect.removeListener(onConnect);
       chrome.runtime.onMessage.removeListener(listener);
-      recordingLifecycle.dispose();
       recordingBridge.dispose();
       if (recordingBridgeRef.current === recordingBridge) recordingBridgeRef.current = undefined;
     };

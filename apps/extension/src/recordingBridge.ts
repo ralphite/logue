@@ -35,50 +35,6 @@ export interface ContentRecordingBridge {
   dispose(): void;
 }
 
-export interface RecordingLifecyclePort {
-  name: string;
-  onDisconnect: {
-    addListener(listener: () => void): void;
-    removeListener?(listener: () => void): void;
-  };
-  disconnect(): void;
-}
-
-export interface RecordingLifecycleRegistry {
-  accept(port: RecordingLifecyclePort): boolean;
-  dispose(): void;
-}
-
-export function createRecordingLifecycleRegistry(onOrphaned: () => void): RecordingLifecycleRegistry {
-  const ports = new Set<RecordingLifecyclePort>();
-  const listeners = new Map<RecordingLifecyclePort, () => void>();
-
-  return {
-    accept(port) {
-      if (port.name !== "logue:recording-lifecycle") return false;
-      ports.add(port);
-      const onDisconnect = () => {
-        ports.delete(port);
-        listeners.delete(port);
-        if (ports.size === 0) onOrphaned();
-      };
-      listeners.set(port, onDisconnect);
-      port.onDisconnect.addListener(onDisconnect);
-      return true;
-    },
-    dispose() {
-      const activePorts = [...ports];
-      ports.clear();
-      for (const port of activePorts) {
-        const listener = listeners.get(port);
-        if (listener) port.onDisconnect.removeListener?.(listener);
-        port.disconnect();
-      }
-      listeners.clear();
-    },
-  };
-}
-
 async function blobToBase64(blob: Blob) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();

@@ -2,9 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   audioBlobFromEvent,
   createContentRecordingBridge,
-  createRecordingLifecycleRegistry,
   type RecordingBridgeEvent,
-  type RecordingLifecyclePort,
 } from "../recordingBridge";
 import type { AudioRecorderController, AudioRecorderInput } from "../recorder";
 
@@ -65,29 +63,5 @@ describe("content recording bridge", () => {
     expect(recorder.cancel).toHaveBeenCalled();
     expect(recorder.dispose).toHaveBeenCalled();
     expect(events.at(-1)).toEqual({ type: "logue:recording-bridge-event", event: "cancelled", sessionId: "leaving-page" });
-  });
-
-  it("cancels recording only after the final side panel lifecycle port disconnects", async () => {
-    const { bridge, recorder } = bridgeHarness();
-    const listeners = new Map<string, () => void>();
-    const port = (id: string): RecordingLifecyclePort => ({
-      name: "logue:recording-lifecycle",
-      onDisconnect: {
-        addListener: (listener) => listeners.set(id, listener),
-        removeListener: () => listeners.delete(id),
-      },
-      disconnect: vi.fn(),
-    });
-    const lifecycle = createRecordingLifecycleRegistry(() => bridge.dispose());
-    lifecycle.accept(port("first"));
-    lifecycle.accept(port("second"));
-    bridge.handle({ type: "logue:recording-control", action: "start", sessionId: "closing-panel" });
-    await Promise.resolve();
-
-    listeners.get("first")?.();
-    expect(recorder.cancel).not.toHaveBeenCalled();
-    listeners.get("second")?.();
-    expect(recorder.cancel).toHaveBeenCalledTimes(1);
-    expect(recorder.dispose).toHaveBeenCalledTimes(1);
   });
 });
