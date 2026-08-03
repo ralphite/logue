@@ -107,7 +107,15 @@ function ExtensionLauncher() {
   }, []);
 
   const restoreTargetFocus = useCallback((session?: InlineVoiceSession) => {
-    if (!session || !isEditableTargetAvailable(session.target)) return;
+    if (!session) return;
+    if (!isEditableTargetAvailable(session.target)) {
+      if (targetRef.current === session.target) {
+        targetRef.current = null;
+        targetPageHrefRef.current = "";
+        setTargetRect(undefined);
+      }
+      return;
+    }
     window.requestAnimationFrame(() => session.target.focus({ preventScroll: true }));
   }, []);
 
@@ -125,14 +133,22 @@ function ExtensionLauncher() {
   }, [restoreTargetFocus, setInlineVoicePhase]);
 
   const clearTarget = useCallback(() => {
-    cancelInlineVoice();
+    // Losing focus or having an SPA replace the editor must not cancel a live
+    // recording. Keep its last anchor visible; completion will save first and
+    // offer Copy when the original editor can no longer accept the text.
+    if (voiceSessionRef.current) {
+      selectionSnapshotRef.current = undefined;
+      setSelectionSnapshot(undefined);
+      setKeyboardActive(false);
+      return;
+    }
     targetRef.current = null;
     targetPageHrefRef.current = "";
     setTargetRect(undefined);
     selectionSnapshotRef.current = undefined;
     setSelectionSnapshot(undefined);
     setKeyboardActive(false);
-  }, [cancelInlineVoice]);
+  }, []);
 
   const refreshTarget = useCallback(() => {
     const target = targetRef.current;
@@ -385,6 +401,7 @@ function ExtensionLauncher() {
   useEffect(() => {
     const host = document.getElementById("logue-extension-host");
     const activateTarget = (candidate: EventTarget | null | undefined) => {
+      if (voiceSessionRef.current) return;
       const target = candidate ?? null;
       if (!isEditableElement(target)) {
         clearTarget();

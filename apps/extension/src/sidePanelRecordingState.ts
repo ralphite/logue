@@ -2,8 +2,8 @@ import type { CaptureIntent } from "./capturePrimitives";
 import type { CapturePhase } from "./sidePanelPresentation";
 
 /**
- * A capture belongs to its tab and intent, never to a transient page URL.
- * Same-tab context refreshes must not interrupt normal recording.
+ * A capture belongs to its tab, never to a transient URL or capture intent.
+ * Same-tab context changes must not interrupt normal recording.
  */
 export interface ActivePanelCaptureScope {
   tabId: number;
@@ -18,7 +18,7 @@ export function shouldInterruptPanelCapture(
   capture: ActivePanelCaptureScope | undefined,
   next: { tabId: number; intent: CaptureIntent },
 ) {
-  return Boolean(capture && (capture.tabId !== next.tabId || capture.intent !== next.intent));
+  return Boolean(capture && capture.tabId !== next.tabId);
 }
 
 export function shouldPreservePanelCapturePresentation(

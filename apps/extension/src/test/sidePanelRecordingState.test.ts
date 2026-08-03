@@ -16,9 +16,10 @@ describe("side panel recording state", () => {
     expect(shouldPreservePanelCapturePresentation("processing", pageCapture, { tabId: 18, intent: "page" })).toBe(true);
   });
 
-  it("still stops a capture when the user leaves its tab or flow", () => {
+  it("keeps recording through same-tab intent changes and stops only on a different tab", () => {
     expect(shouldInterruptPanelCapture(pageCapture, { tabId: 19, intent: "page" })).toBe(true);
-    expect(shouldInterruptPanelCapture(pageCapture, { tabId: 18, intent: "generate" })).toBe(true);
+    expect(shouldInterruptPanelCapture(pageCapture, { tabId: 18, intent: "generate" })).toBe(false);
+    expect(shouldPreservePanelCapturePresentation("recording", pageCapture, { tabId: 18, intent: "generate" })).toBe(true);
     expect(shouldPreservePanelCapturePresentation("error", pageCapture, { tabId: 18, intent: "page" })).toBe(false);
   });
 });
