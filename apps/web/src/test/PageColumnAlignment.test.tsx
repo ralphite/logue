@@ -78,6 +78,7 @@ describe("page column alignment", () => {
     expect(screen.queryByText("Saved")).toBeNull();
     expect(screen.queryByText("Saving…")).toBeNull();
     expect(screen.queryByText("Unsaved")).toBeNull();
+    expect(screen.getByText("Advanced").closest("details")?.hasAttribute("open")).toBe(false);
     expect(screen.getByText("Developer tools").closest("details")?.hasAttribute("open")).toBe(false);
   });
 });

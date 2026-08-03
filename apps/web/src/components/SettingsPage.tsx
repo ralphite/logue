@@ -135,8 +135,7 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
 
         <SettingsRow label="AI" border={false}>
           {!status?.ai_configured && <div className="mb-2 flex items-center gap-2 rounded-md border border-[#ead3ce] bg-[#fbefec] px-3 py-2.5 text-[14px] text-[#a04b43]"><KeyRound size={14} /> GEMINI_API_KEY is not configured</div>}
-          <div className="flex min-h-11 items-center justify-between rounded-md border border-[#deded9] px-3"><span className="text-[15px] text-[#555651]">Transcription model</span><code className="text-[14px] text-[#777873]">{status?.model || "—"}</code></div>
-          <details className="mt-2 text-[14px] text-[#999a95]"><summary className="cursor-pointer select-none rounded py-1 hover:text-[#666762]">Advanced</summary><p className="mt-1 break-words font-mono leading-5">GEMINI_API_KEY · LOGUE_TRANSCRIPTION_MODEL · LOGUE_DICTATION_SKILL · LOGUE_TRANSCRIPTION_CONTEXT_LIMIT</p></details>
+          <details className="text-[14px] text-[#999a95]"><summary className="cursor-pointer select-none rounded py-1 hover:text-[#666762]">Advanced</summary><div className="mt-2 flex min-h-11 items-center justify-between rounded-md border border-[#deded9] px-3"><span className="text-[15px] text-[#555651]">Transcription model</span><code className="text-[14px] text-[#777873]">{status?.model || "—"}</code></div><p className="mt-2 break-words font-mono leading-5">GEMINI_API_KEY · LOGUE_TRANSCRIPTION_MODEL · LOGUE_DICTATION_SKILL · LOGUE_TRANSCRIPTION_CONTEXT_LIMIT</p></details>
         </SettingsRow>
 
         <SettingsRow label="Library">
