@@ -73,6 +73,8 @@ function SidePanelApp() {
   const recordingPortRef = useRef<chrome.runtime.Port | undefined>(undefined);
   const phaseRef = useRef<Phase>("idle");
   const generatedForTargetRef = useRef<string | undefined>(undefined);
+  const panelMainRef = useRef<HTMLElement>(null);
+  const focusPanelOnHydrationRef = useRef(false);
 
   stateRef.current = state;
   draftRef.current = draft;
@@ -429,6 +431,7 @@ function SidePanelApp() {
     const hydrate = (next?: PanelCaptureState) => {
       if (!next) return;
       const previous = stateRef.current;
+      if (!previous) focusPanelOnHydrationRef.current = true;
       const activeSession = recordingSessionRef.current;
       if (activeSession && previous && (
         activeSession.tabId !== next.tabId ||
@@ -486,6 +489,12 @@ function SidePanelApp() {
   }, [refreshPageMaterials, sendRecordingControl, stopTimer]);
 
   useEffect(() => {
+    if (!state || !focusPanelOnHydrationRef.current) return;
+    focusPanelOnHydrationRef.current = false;
+    window.requestAnimationFrame(() => panelMainRef.current?.focus({ preventScroll: true }));
+  }, [state]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const action = sidePanelShortcutAction({
         key: event.key,
@@ -530,7 +539,7 @@ function SidePanelApp() {
   if (!state) return <div className="empty">Open Logue from a page to begin.</div>;
 
   return (
-    <main className="panel">
+    <main ref={panelMainRef} className="panel" tabIndex={-1}>
       <div className="panel-main">
         {presentation.showSource && <>
           <p className="eyebrow">{sourceLabel(state)}</p>
