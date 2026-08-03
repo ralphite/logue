@@ -10,7 +10,9 @@ describe("side panel initial focus", () => {
     expect(panel).toContain("const panelMainRef = useRef<HTMLElement>(null)");
     expect(panel).toContain("if (!previous) focusPanelOnHydrationRef.current = true");
     expect(panel).toContain("panelMainRef.current?.focus({ preventScroll: true })");
-    expect(view).toContain('<main ref={panelRef} className="panel" tabIndex={-1}>');
+    expect(view).toContain(
+      '<main ref={panelRef} className="panel" tabIndex={-1} data-logue-extension="off">',
+    );
   });
 
   it("does not let a panel shortcut or a copied result replay a completed insert", () => {
