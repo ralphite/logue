@@ -64,7 +64,7 @@ export function availableSourcePanelWidth(workspaceWidth: number, documentListWi
 }
 
 export function defaultSourcePanelWidth(workspaceWidth: number, maxWidth: number) {
-  return Math.min(maxWidth, 320);
+  return Math.min(maxWidth, Math.max(440, Math.round(workspaceWidth * 0.5)));
 }
 
 function escapeHTML(value: string) {
@@ -350,7 +350,7 @@ export function ViewWorkspace({
   const [workspaceWidth, setWorkspaceWidth] = useState(() => window.innerWidth);
   const sourcePanelMaxWidth = availableSourcePanelWidth(workspaceWidth, showDocumentSidebar ? documentListWidth : 0);
   const { size: sourcePanelWidth, setSize: setSourcePanelWidth } = usePersistentPanelSize({
-    storageKey: "logue.panel.sources.width.v3",
+    storageKey: "logue.panel.sources.width.v4",
     defaultSize: defaultSourcePanelWidth(workspaceWidth, sourcePanelMaxWidth),
     min: 240,
     max: sourcePanelMaxWidth,

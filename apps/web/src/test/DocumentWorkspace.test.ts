@@ -23,9 +23,9 @@ describe("document source provenance", () => {
     expect(availableSourcePanelWidth(480, 252)).toBe(240);
   });
 
-  it("defaults the sources panel to a compact, readable width", () => {
-    expect(defaultSourcePanelWidth(1920, 1919)).toBe(320);
-    expect(defaultSourcePanelWidth(900, 899)).toBe(320);
+  it("uses available desktop space for a wide sources panel", () => {
+    expect(defaultSourcePanelWidth(1920, 1919)).toBe(960);
+    expect(defaultSourcePanelWidth(900, 899)).toBe(450);
     expect(defaultSourcePanelWidth(900, 300)).toBe(300);
   });
 
