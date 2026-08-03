@@ -45,7 +45,7 @@ printf '%s %s\n' "${command_name}" "$*" >> "${LOGUE_TEST_SYSTEMCTL_LOG:?}"
 case "${command_name}" in
   show-environment|daemon-reload) exit 0 ;;
   stop) [[ ! -f "${LOGUE_TEST_SYSTEMCTL_STATE:?}/fail-stop" ]] ;;
-  is-active) exit 3 ;;
+  is-active) [[ -f "${LOGUE_TEST_SYSTEMCTL_STATE:?}/active-after-stop" ]] ;;
   is-enabled) [[ -f "${LOGUE_TEST_SYSTEMCTL_STATE:?}/enabled" ]] ;;
   enable) : > "${LOGUE_TEST_SYSTEMCTL_STATE:?}/enabled" ;;
   disable) rm -f -- "${LOGUE_TEST_SYSTEMCTL_STATE:?}/enabled" ;;
@@ -173,6 +173,20 @@ rm -f -- "${systemctl_state}/fail-stop"
 [[ "$(tr -dc '0-9' < "${pid_file}")" == "${pid_before_stop_failure}" ]] || { printf 'systemd stop failure replaced the running service\n' >&2; exit 1; }
 kill -0 "${pid_before_stop_failure}" >/dev/null 2>&1 || { printf 'systemd stop failure did not leave the prior service running\n' >&2; exit 1; }
 grep -Fq 'Could not stop the existing service safely' "${stop_failure_log}" || { printf 'systemd stop failure was not reported clearly\n' >&2; exit 1; }
+
+pid_before_active_failure="$(tr -dc '0-9' < "${pid_file}")"
+: > "${systemctl_state}/active-after-stop"
+active_failure_log="${test_root}/active-after-stop.log"
+if run_installer "file://${fixture_v2}" yes "127.0.0.1:${port}" >"${active_failure_log}" 2>&1; then
+  printf 'Installer unexpectedly switched while systemd still reported the service active\n' >&2
+  exit 1
+fi
+rm -f -- "${systemctl_state}/active-after-stop"
+[[ "$(readlink "${install_root}/current")" == "${baseline_current}" ]] || { printf 'active systemd service failure switched current\n' >&2; exit 1; }
+[[ "$(tr -dc '0-9' < "${pid_file}")" == "${pid_before_active_failure}" ]] || { printf 'active systemd service failure replaced the running service\n' >&2; exit 1; }
+kill -0 "${pid_before_active_failure}" >/dev/null 2>&1 || { printf 'active systemd service failure did not leave the prior service running\n' >&2; exit 1; }
+[[ "$(file_sha256 "${data_root}/items/installer-sentinel.txt")" == "${sentinel_before}" ]] || { printf 'active systemd service failure changed persistent data\n' >&2; exit 1; }
+grep -Fq 'Could not stop the existing service safely' "${active_failure_log}" || { printf 'active systemd service failure was not reported clearly\n' >&2; exit 1; }
 
 failure_log="${test_root}/rollback.log"
 if run_installer "file://${fixture_v2}" no "0.0.0.0:${port}" autostart >"${failure_log}" 2>&1; then
