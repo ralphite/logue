@@ -123,7 +123,7 @@ beforeEach(() => {
   mocks.createSkill.mockReset().mockResolvedValue(createdSkill);
   mocks.createDocument.mockReset().mockResolvedValue({ ...documentItem, id: "doc_new", title: "Untitled" });
   mocks.createSkillRun.mockReset().mockResolvedValue(run);
-  mocks.updateSkill.mockReset();
+  mocks.updateSkill.mockReset().mockResolvedValue({ ...skill, name: "Edited skill", revision: 2 });
   mocks.adoptSkillRun.mockReset();
   mocks.documentGuard.mockReset().mockResolvedValue(true);
 });
@@ -157,12 +157,13 @@ describe("GenerationWorkspace navigation", () => {
   });
 
   it("shows Skills as a direct workspace without a duplicate Documents switch", async () => {
-    renderWorkspace({ initialMode: "skills" });
+    const { onSelectedDocumentChange } = renderWorkspace({ initialMode: "skills" });
     const shell = screen.getByRole("complementary", { name: "Skills navigation" });
     expect(within(shell).getByRole("heading", { name: "Skills" })).toBeTruthy();
     expect(within(shell).getByRole("button", { name: "New skill" })).toBeTruthy();
     expect(within(shell).queryByRole("button", { name: "Documents" })).toBeNull();
     expect((await screen.findByRole("textbox", { name: "Skill name" }) as HTMLInputElement).value).toBe(skill.name);
+    expect(onSelectedDocumentChange).not.toHaveBeenCalled();
   });
 
   it("preserves the selected document and loaded lists across top-level workspace switches", async () => {

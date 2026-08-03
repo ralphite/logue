@@ -105,11 +105,11 @@ export function GenerationWorkspace({ materials, initialMode = "documents", init
   }, [refreshSkills, refreshDocuments]);
 
   useEffect(() => {
-    if (documentsLoading || selectedDocumentId || documents.length === 0) return;
+    if (mode !== "documents" || documentsLoading || selectedDocumentId || documents.length === 0) return;
     const firstDocumentId = documents[0].id;
     setSelectedDocumentId(firstDocumentId);
     onSelectedDocumentChange(firstDocumentId, true);
-  }, [documents, documentsLoading, onSelectedDocumentChange, selectedDocumentId]);
+  }, [documents, documentsLoading, mode, onSelectedDocumentChange, selectedDocumentId]);
 
   const registerDocumentLeaveGuard = useCallback(
     (guard?: () => Promise<boolean>) => {
@@ -304,7 +304,7 @@ export function GenerationWorkspace({ materials, initialMode = "documents", init
           onDocumentsChange={setDocuments}
         />
       ) : mode === "skills" ? (
-        <SkillEditor skills={skills} selectedSkillId={selectedSkillId} onSelect={setSelectedSkillId} onSkillsChange={setSkills} />
+        skillsLoading ? <WorkspaceEditorLoading label="Loading skills" /> : <SkillEditor skills={skills} selectedSkillId={selectedSkillId} onSelect={setSelectedSkillId} onSkillsChange={setSkills} />
       ) : selectedRun ? (
         <RunResult run={selectedRun} onRunChange={(updated) => setRuns((current) => current.map((run) => (run.id === updated.id ? updated : run)))} onOpenDocument={(id) => void openDocument(id)} onBack={() => setSelectedRunId(undefined)} />
       ) : (
@@ -319,6 +319,20 @@ export function GenerationWorkspace({ materials, initialMode = "documents", init
         />
       )}
     </div>
+  );
+}
+
+function WorkspaceEditorLoading({ label }: { label: string }) {
+  return (
+    <main className="scroll-surface min-h-0 min-w-0 flex-1 overflow-y-auto bg-white" aria-label={label} aria-busy="true">
+      <div className={`${editorColumnClass} space-y-7 pt-14`} aria-hidden="true">
+        <div className="h-10 w-56 animate-pulse rounded-md bg-[#eeeeeb] motion-reduce:animate-none" />
+        <div className="space-y-3">
+          <div className="h-4 w-14 animate-pulse rounded bg-[#eeeeeb] motion-reduce:animate-none" />
+          <div className="h-40 w-full animate-pulse rounded-md bg-[#f4f4f2] motion-reduce:animate-none" />
+        </div>
+      </div>
+    </main>
   );
 }
 
