@@ -50,6 +50,12 @@ describe("page column alignment", () => {
     expectSharedAxis("projects-header-column", "projects-content-column", ["w-full", "max-w-[1080px]", "px-8", "max-[640px]:px-4"]);
   });
 
+  it("keeps project list rows scannable and reserves overviews for project detail", async () => {
+    render(<ProjectPage {...projectProps} />);
+    await waitFor(() => expect(screen.getByText("Alpha")).toBeTruthy());
+    expect(screen.queryByText("Shared context")).toBeNull();
+  });
+
   it("keeps project detail controls and content on one responsive axis", async () => {
     render(<ProjectPage {...projectProps} initialProject="Alpha" />);
     await waitFor(() => expect(screen.getByTestId("project-detail-header-column")).toBeTruthy());
@@ -72,5 +78,6 @@ describe("page column alignment", () => {
     expect(screen.queryByText("Saved")).toBeNull();
     expect(screen.queryByText("Saving…")).toBeNull();
     expect(screen.queryByText("Unsaved")).toBeNull();
+    expect(screen.getByText("Developer tools").closest("details")?.hasAttribute("open")).toBe(false);
   });
 });

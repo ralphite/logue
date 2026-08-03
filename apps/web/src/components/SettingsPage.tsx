@@ -139,13 +139,17 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
           <details className="mt-2 text-[14px] text-[#999a95]"><summary className="cursor-pointer select-none rounded py-1 hover:text-[#666762]">Advanced</summary><p className="mt-1 break-words font-mono leading-5">GEMINI_API_KEY · LOGUE_TRANSCRIPTION_MODEL · LOGUE_DICTATION_SKILL · LOGUE_TRANSCRIPTION_CONTEXT_LIMIT</p></details>
         </SettingsRow>
 
-        <SettingsRow label="Developer API">
-          <div className="space-y-2"><button type="button" onClick={() => void copy("GET http://127.0.0.1:8787/v1/project-bundles/{projectName}")} className="flex min-h-11 w-full items-center justify-between rounded-md border border-[#deded9] px-3 py-2.5 text-left hover:bg-[#fafaf8]"><span><span className="block text-[15px] font-medium text-[#4d4e49]">Project bundle</span><code className="mt-0.5 block text-[14px] text-[#92938e]">GET /v1/project-bundles/&#123;projectName&#125;</code></span><Clipboard size={14} className="text-[#898a85]" /></button><button type="button" onClick={() => void copy("POST http://127.0.0.1:8787/v1/agent/import")} className="flex min-h-11 w-full items-center justify-between rounded-md border border-[#deded9] px-3 py-2.5 text-left hover:bg-[#fafaf8]"><span><span className="block text-[15px] font-medium text-[#4d4e49]">Import result</span><code className="mt-0.5 block text-[14px] text-[#92938e]">POST /v1/agent/import</code></span><Clipboard size={14} className="text-[#898a85]" /></button></div>
-        </SettingsRow>
-
         <SettingsRow label="Library">
           <div className="flex flex-wrap gap-2"><a href={exportWorkspaceURL()} download={`logue-export-${new Date().toISOString().slice(0, 10)}.json`} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Download size={14} /> Export</a><label className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Upload size={14} /> {restoring ? "Restoring…" : "Restore"}<input type="file" accept="application/json,.json" disabled={restoring} className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void restore(file); event.currentTarget.value = ""; }} /></label></div>
         </SettingsRow>
+
+        <details className="border-t border-[#e8e8e5] py-5">
+          <summary className="cursor-pointer select-none rounded py-1 text-[14px] font-medium text-[#777873] hover:text-[#555651]">Developer tools</summary>
+          <div className="mt-4 grid grid-cols-[200px_minmax(0,1fr)] gap-10 max-[700px]:grid-cols-1 max-[700px]:gap-3">
+            <h3 className="pt-1 text-[14px] font-semibold text-[#484945]">Developer API</h3>
+            <div className="space-y-2"><button type="button" onClick={() => void copy("GET http://127.0.0.1:8787/v1/project-bundles/{projectName}")} className="flex min-h-11 w-full items-center justify-between rounded-md border border-[#deded9] px-3 py-2.5 text-left hover:bg-[#fafaf8]"><span><span className="block text-[15px] font-medium text-[#4d4e49]">Project bundle</span><code className="mt-0.5 block text-[14px] text-[#92938e]">GET /v1/project-bundles/&#123;projectName&#125;</code></span><Clipboard size={14} className="text-[#898a85]" /></button><button type="button" onClick={() => void copy("POST http://127.0.0.1:8787/v1/agent/import")} className="flex min-h-11 w-full items-center justify-between rounded-md border border-[#deded9] px-3 py-2.5 text-left hover:bg-[#fafaf8]"><span><span className="block text-[15px] font-medium text-[#4d4e49]">Import result</span><code className="mt-0.5 block text-[14px] text-[#92938e]">POST /v1/agent/import</code></span><Clipboard size={14} className="text-[#898a85]" /></button></div>
+          </div>
+        </details>
         </fieldset>
       </div>
       {notice && <div className="fixed bottom-5 right-5 rounded-md bg-[#30312d] px-3 py-2 text-[15px] text-white shadow-lg">{notice}</div>}
