@@ -272,4 +272,17 @@ describe("application navigation shell", () => {
       expectedRevision: 1,
     });
   });
+
+  it("keeps the selected document URL across Documents and Skills navigation", async () => {
+    render(<App />);
+    await screen.findByDisplayValue("Shell test document");
+    const primaryNavigation = within(screen.getByTestId("primary-navigation-shell"));
+
+    fireEvent.click(primaryNavigation.getByRole("button", { name: "Skills" }));
+    await waitFor(() => expect(window.location.search).toBe("?view=skills"));
+    fireEvent.click(primaryNavigation.getByRole("button", { name: "Documents" }));
+
+    await waitFor(() => expect(window.location.search).toBe("?view=documents&doc=document-1"));
+    expect(await screen.findByDisplayValue("Shell test document")).toBeTruthy();
+  });
 });

@@ -98,6 +98,7 @@ export function App() {
   });
   const [expandedMaterialGroups, setExpandedMaterialGroups] = useState<Set<string>>(() => new Set());
   const documentLeaveGuardRef = useRef<(() => Promise<boolean>) | undefined>(undefined);
+  const lastDocumentIdRef = useRef(navigation.documentId);
   const section = navigation.section;
 
   const navigate = useCallback((next: AppNavigation, options?: { replace?: boolean }) => {
@@ -132,7 +133,9 @@ export function App() {
   }, [navigation.projectName, section]);
 
   const openSection = useCallback((nextSection: Section) => {
-    const completeNavigation = () => navigate({ section: nextSection });
+    const completeNavigation = () => navigate(nextSection === "documents"
+      ? { section: "documents", documentId: lastDocumentIdRef.current }
+      : { section: nextSection });
     const leaveGuard = documentLeaveGuardRef.current;
     if (section === "documents" && nextSection !== "documents" && leaveGuard) {
       void leaveGuard().then((saved) => {
@@ -148,8 +151,13 @@ export function App() {
   }, []);
 
   const openDocument = useCallback((id?: string, replace = false) => {
+    lastDocumentIdRef.current = id;
     navigate({ section: "documents", documentId: id }, { replace });
   }, [navigate]);
+
+  useEffect(() => {
+    if (navigation.documentId) lastDocumentIdRef.current = navigation.documentId;
+  }, [navigation.documentId]);
 
   const openWorkspaceSection = useCallback((workspace: WorkspaceSection) => {
     navigate({ section: workspace });
