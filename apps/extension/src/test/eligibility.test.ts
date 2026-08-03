@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { hasLogueExtensionOptOut, isLogueExtensionDisabledDocument, logueServerCandidate } from "../eligibility";
+import { hasLogueExtensionOptOut, hasNativeSelectionSkillOwner, isLogueExtensionDisabledDocument, logueServerCandidate } from "../eligibility";
 
 describe("extension page eligibility", () => {
   beforeEach(() => {
@@ -54,6 +54,20 @@ describe("extension page eligibility", () => {
 
     expect(hasLogueExtensionOptOut(document.getElementById("disabled-editor"))).toBe(true);
     expect(hasLogueExtensionOptOut(document.getElementById("enabled-editor"))).toBe(false);
+  });
+
+  it("lets a native editor own Skills without suppressing extension voice input", () => {
+    document.body.innerHTML = `
+      <main>
+        <div data-logue-selection-skills="native"><div id="native-editor" contenteditable="true"></div></div>
+        <textarea id="ordinary-editor"></textarea>
+      </main>
+    `;
+
+    const nativeEditor = document.getElementById("native-editor");
+    expect(hasNativeSelectionSkillOwner(nativeEditor)).toBe(true);
+    expect(hasLogueExtensionOptOut(nativeEditor)).toBe(false);
+    expect(hasNativeSelectionSkillOwner(document.getElementById("ordinary-editor"))).toBe(false);
   });
 
   it("offers the current origin only when the page has Logue's server marker", () => {

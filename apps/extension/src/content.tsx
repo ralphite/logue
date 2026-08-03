@@ -3,7 +3,7 @@ import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { adoptExtensionSkillRun, cancelMaterialSave, createExtensionSkillRun, getCaptureContext, getExtensionSkills, saveMaterial, transcribeAudio, type AppliedContext, type ExtensionSkill } from "./api";
 import { activeEditableElement, getEditableText, insertIntoElement, isEditableElement, isEditableTargetAvailable } from "./dom";
-import { isLogueExtensionDisabledDocument, logueServerCandidate } from "./eligibility";
+import { hasNativeSelectionSkillOwner, isLogueExtensionDisabledDocument, logueServerCandidate } from "./eligibility";
 import { clampLauncherPosition, defaultLauncherPosition, inlineVoiceControlMetrics, launcherErrorPlacement } from "./launcherPosition";
 import type { CaptureSource, PageCaptureContext } from "./capturePrimitives";
 import {
@@ -115,7 +115,10 @@ function ExtensionLauncher() {
 
   const refreshSelectionSkillTarget = useCallback(() => {
     const target = targetRef.current;
-    if (!isEditableTargetAvailable(target, targetPageHrefRef.current, window.location.href)) {
+    if (
+      !isEditableTargetAvailable(target, targetPageHrefRef.current, window.location.href) ||
+      hasNativeSelectionSkillOwner(target)
+    ) {
       selectionSnapshotRef.current = undefined;
       setSelectionSnapshot(undefined);
       return;

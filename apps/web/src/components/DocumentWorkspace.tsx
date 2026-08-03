@@ -1045,6 +1045,7 @@ export function ViewWorkspace({
               role="textbox"
               aria-multiline="true"
               aria-label="Document content"
+              data-logue-selection-skills="native"
               data-placeholder="Start writing, or add sources from the right…"
               onInput={(event) => {
                 const caretOffset = caretOffsetWithin(event.currentTarget);

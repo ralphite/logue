@@ -24,6 +24,11 @@ export function isLogueExtensionDisabledDocument(document: Document, _href: stri
   return optsOut(directive?.content ?? null);
 }
 
+/** Lets a host editor own its Skills surface while retaining Logue voice input. */
+export function hasNativeSelectionSkillOwner(element: Element | null) {
+  return Boolean(element?.closest('[data-logue-selection-skills="native"]'));
+}
+
 /** Returns the same-origin API candidate only for a page shipped by Logue. */
 export function logueServerCandidate(document: Document, href: string) {
   const marker = document.querySelector<HTMLMetaElement>('meta[name="logue-server"]');
