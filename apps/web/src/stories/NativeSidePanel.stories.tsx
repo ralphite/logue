@@ -1,0 +1,122 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
+import type { ExtensionSkill, LocalError, PageMaterial, PanelCaptureState } from "../../../extension/src/sidePanelModels";
+import { SidePanelView } from "../../../extension/src/sidePanelView";
+import "../../../extension/src/sidePanel.css";
+
+const skills: ExtensionSkill[] = [
+  {
+    id: "sk_reply",
+    name: "Draft reply",
+    purpose: "Write a concise reply from the current page.",
+    task: "generate",
+    output: "insert",
+    surfaces: ["extension"],
+    contexts: ["page", "target"],
+    enabled: true,
+  },
+];
+
+const pageMaterials: PageMaterial[] = [
+  { id: "mat_2", content: "This was added moments ago and appears first.", createdAt: "2026-08-03T03:30:00Z" },
+  { id: "mat_1", content: "A previous note connected to this page.", annotation: "Keep the original source separate from this annotation.", createdAt: "2026-08-03T03:20:00Z" },
+];
+
+const currentPage: PanelCaptureState = {
+  tabId: 1,
+  intent: "page",
+  source: { url: "https://example.com/research", title: "Research notes for a focused product decision", domain: "example.com" },
+  targetAvailable: false,
+  updatedAt: 1,
+};
+
+const pageSelection: PanelCaptureState = {
+  ...currentPage,
+  intent: "selection",
+  selectionText: "Keep the selected source intact, then add a concise voice annotation as a separate note.",
+};
+
+const currentEditor: PanelCaptureState = {
+  ...currentPage,
+  intent: "input",
+  targetAvailable: true,
+  targetText: "A draft already in the editor.",
+};
+
+const generation: PanelCaptureState = {
+  ...currentEditor,
+  intent: "generate",
+};
+
+function SidePanelStage({
+  state = currentPage,
+  initialPhase = "idle",
+  initialDraft = "",
+  initialGeneratedText = "",
+  error,
+  pendingInsert = false,
+}: {
+  state?: PanelCaptureState;
+  initialPhase?: "idle" | "starting" | "recording" | "processing" | "error";
+  initialDraft?: string;
+  initialGeneratedText?: string;
+  error?: LocalError;
+  pendingInsert?: boolean;
+}) {
+  const [phase, setPhase] = useState(initialPhase);
+  const [draft, setDraft] = useState(initialDraft);
+  const [generatedText, setGeneratedText] = useState(initialGeneratedText);
+  const [activeError, setActiveError] = useState(error);
+  const [pending, setPending] = useState(pendingInsert);
+
+  return <SidePanelView
+    state={state}
+    phase={phase}
+    draft={draft}
+    generatedText={generatedText}
+    skills={skills}
+    skillId={skills[0].id}
+    pageMaterials={pageMaterials}
+    error={activeError}
+    elapsed={7}
+    pendingInsert={pending && state ? { text: "Saved text ready to insert.", materialId: "mat_saved", sourceURL: state.source.url } : undefined}
+    insertingPending={false}
+    generating={false}
+    canRetry
+    onDraftChange={setDraft}
+    onGeneratedTextChange={setGeneratedText}
+    onSkillIdChange={() => undefined}
+    onStartRecording={() => { setActiveError(undefined); setPending(false); setPhase("starting"); }}
+    onStopRecording={() => setPhase("processing")}
+    onCancelRecording={() => setPhase("idle")}
+    onRetryTranscription={() => { setActiveError(undefined); setPhase("processing"); }}
+    onSave={() => { setDraft(""); setActiveError(undefined); }}
+    onRequestGeneration={() => undefined}
+    onReturnToPage={() => undefined}
+    onGenerate={() => setGeneratedText("A concise generated reply stays editable and is never sent automatically.")}
+    onInsertGenerated={() => setGeneratedText("")}
+    onRetryInsert={() => setPending(false)}
+    onCopyPendingInsert={() => setPending(false)}
+  />;
+}
+
+const meta = {
+  title: "Features/Extension/Native Side Panel",
+  component: SidePanelStage,
+  parameters: { layout: "fullscreen" },
+  globals: { viewport: { value: "360px-900px" } },
+} satisfies Meta<typeof SidePanelStage>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const CurrentPage: Story = { args: { state: currentPage, initialDraft: "A note about this page" } };
+export const SelectionWithHistory: Story = { args: { state: pageSelection } };
+export const StartingMicrophone: Story = { args: { state: currentEditor, initialPhase: "starting" } };
+export const Recording: Story = { args: { state: currentEditor, initialPhase: "recording" } };
+export const Transcribing: Story = { args: { state: pageSelection, initialPhase: "processing" } };
+export const TargetLost: Story = { args: { state: currentEditor, initialPhase: "error", pendingInsert: true, error: { kind: "target", message: "The original editor is no longer available. Your text is saved in Logue.", action: "copy" } } };
+export const ServiceUnavailable: Story = { args: { state: currentPage, initialPhase: "error", error: { kind: "service", message: "Start the Logue app, then try again.", action: "start-service" } } };
+export const GenerateDraft: Story = { args: { state: generation, initialDraft: "Draft a concise reply that captures the decision." } };
+export const GeneratedReply: Story = { args: { state: generation, initialGeneratedText: "A concise generated reply stays editable and is never sent automatically." } };
+export const Empty: Story = { args: { state: undefined } };

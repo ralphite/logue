@@ -1,5 +1,8 @@
 import type { MaterialKind, SourceInfo } from "@logue/ui";
 import { createRequestId } from "./requestId";
+import type { ExtensionSkill, PageMaterial } from "./sidePanelModels";
+
+export type { ExtensionSkill, PageMaterial } from "./sidePanelModels";
 
 const apiBase = "http://127.0.0.1:8787";
 
@@ -44,17 +47,6 @@ async function blobToBase64(blob: Blob) {
 
 export async function getServiceStatus() {
   return request<{ ok: boolean; ai_configured: boolean; model: string }>("status");
-}
-
-export interface ExtensionSkill {
-  id: string;
-  name: string;
-  purpose: string;
-  task: "transcribe" | "organize" | "generate";
-  output: "insert" | "material" | "qa" | "document";
-  surfaces: Array<"web" | "extension" | "background">;
-  contexts: Array<"page" | "target" | "selection" | "project" | "materials" | "personal">;
-  enabled: boolean;
 }
 
 export interface ExtensionSettings {
@@ -130,13 +122,6 @@ export interface AppliedContext {
 
 export async function getCaptureContext(pageUrl: string, project = "") {
   return request<CaptureContext>("context", { pageUrl, project });
-}
-
-export interface PageMaterial {
-  id: string;
-  content: string;
-  annotation?: string;
-  createdAt: string;
 }
 
 export async function getPageMaterials(pageUrl: string) {

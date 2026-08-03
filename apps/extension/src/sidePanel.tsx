@@ -1,5 +1,4 @@
-import { ArrowLeft, Mic, Sparkles, Square } from "lucide-react";
-import { StrictMode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   getCaptureContext,
@@ -28,23 +27,17 @@ import {
   type RecordingPanelEvent,
 } from "./recordingBridge";
 import { createRequestId } from "./requestId";
-import { capturePhasePresentation, type CapturePhase } from "./sidePanelPresentation";
-import { saveThenRefreshPageHistory, shouldLoadPageHistory, shouldShowPageHistory } from "./sidePanelPageHistory";
+import { type CapturePhase } from "./sidePanelPresentation";
+import { saveThenRefreshPageHistory, shouldLoadPageHistory } from "./sidePanelPageHistory";
 import { canInsertGeneratedText, generationTargetKey } from "./sidePanelGeneration";
-import { sidePanelShortcutAction } from "./sidePanelShortcuts";
+import { handleSidePanelShortcut } from "./sidePanelShortcuts";
+import { SidePanelView } from "./sidePanelView";
 import "./sidePanel.css";
 
 type Phase = CapturePhase;
 
 interface RuntimeResponse<T> { ok: boolean; value?: T; }
 interface RecordingSession { id: string; tabId: number; }
-
-function sourceLabel(state: PanelCaptureState) {
-  if (state.intent === "selection") return "Selection";
-  if (state.intent === "input") return "Current editor";
-  if (state.intent === "generate") return "Generate";
-  return "Current page";
-}
 
 function SidePanelApp() {
   const [state, setState] = useState<PanelCaptureState>();
@@ -532,23 +525,13 @@ function SidePanelApp() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const action = sidePanelShortcutAction({
-        key: event.key,
-        phase,
-        target: event.target,
-        isComposing: event.isComposing,
-        repeat: event.repeat,
-        altKey: event.altKey,
-        ctrlKey: event.ctrlKey,
-        metaKey: event.metaKey,
-        shiftKey: event.shiftKey,
+      handleSidePanelShortcut(event, phase, {
+        pendingInsert: Boolean(pendingInsert),
+        onRecord: startRecording,
+        onStop: stopRecording,
+        onCancel: cancelRecording,
+        onClose: () => { void chrome.runtime.sendMessage({ type: "logue:close-side-panel" }); },
       });
-      if (!action) return;
-      event.preventDefault();
-      if (action === "record" && !pendingInsert) startRecording();
-      if (action === "stop") stopRecording();
-      if (action === "cancel") cancelRecording();
-      if (action === "close") void chrome.runtime.sendMessage({ type: "logue:close-side-panel" });
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -569,94 +552,37 @@ function SidePanelApp() {
     };
   }, [persistDraft, sendRecordingControl, stopTimer]);
 
-  const sourceHref = useMemo(() => state?.source.url || undefined, [state]);
-  const presentation = capturePhasePresentation(phase);
-
-  if (!state) return <div className="empty">Open Logue from a page to begin.</div>;
-
   return (
-    <main ref={panelMainRef} className="panel" tabIndex={-1}>
-      <div className="panel-main">
-        {presentation.showSource && <>
-          <p className="eyebrow">{sourceLabel(state)}</p>
-          <h1 className="page-title">
-            {sourceHref ? <a className="source-link" href={sourceHref} target="_blank" rel="noreferrer" title={state.source.title}>{state.source.title}</a> : state.source.title}
-          </h1>
-          {state.selectionText && <blockquote className="selection">{state.selectionText}</blockquote>}
-        </>}
-
-        {presentation.status && <div className="processing" role="status"><span className="spinner" />{presentation.status}</div>}
-
-        {presentation.showEditor && (state.intent === "generate" && generatedText ? (
-          <textarea className="text-area" value={generatedText} onChange={(event) => setGeneratedText(event.target.value)} aria-label="Generated reply" />
-        ) : (
-          <textarea
-            className="text-area"
-            value={draft}
-            onChange={(event) => { setDraft(event.target.value); persistDraft({ draft: event.target.value }); }}
-            placeholder={state.intent === "generate" ? "What should Logue write?" : state.selectionText ? "Add a note…" : state.intent === "input" ? "Write or record…" : "Add a note to this page…"}
-            aria-label={state.intent === "generate" ? "Generation instruction" : state.selectionText ? "Annotation" : "Note"}
-          />
-        ))}
-
-        {presentation.showEditor && state.intent === "generate" && !generatedText && (
-          <label className="field-label generation-skill">Skill
-            <select className="field" value={skillId} onChange={(event) => setSkillId(event.target.value)}>
-              {skills.length ? skills.map((item) => <option key={item.id} value={item.id}>{item.name}</option>) : <option value="">No extension skills</option>}
-            </select>
-          </label>
-        )}
-
-        {presentation.showErrors && error && <div className="error" role="alert">{error.message}</div>}
-
-        {presentation.showActions && <div className="actions">
-          {phase === "starting" ? (
-            <button type="button" className="button secondary" onClick={cancelRecording} aria-keyshortcuts="Escape" title="Cancel (Esc)">Cancel</button>
-          ) : phase === "recording" ? (
-            <>
-              <button type="button" className="button secondary" onClick={cancelRecording} aria-keyshortcuts="Escape" title="Cancel (Esc)">Cancel</button>
-              <button type="button" className="record-button recording" onClick={stopRecording} aria-keyshortcuts="Enter" title="Stop and save (Enter)"><Square size={14} fill="currentColor" /> Stop <span className="shortcut">{elapsed}s</span></button>
-            </>
-          ) : state.intent === "generate" ? (
-            <button type="button" className="icon-button" onClick={returnToPage} aria-label="Back to page capture" title="Back to page capture"><ArrowLeft size={17} /></button>
-          ) : pendingInsert ? null : (
-            <>
-              <button type="button" className="record-button" onClick={startRecording} aria-keyshortcuts="R" title="Record — R when this sidebar is focused"><Mic size={17} /> Record</button>
-              {state.targetAvailable && <button type="button" className="icon-button" onClick={requestGeneration} aria-label="Generate reply" title="Generate reply"><Sparkles size={17} /></button>}
-            </>
-          )}
-          {!presentation.captureActive && <>
-            <span className="spacer" />
-            {state.intent !== "generate" && error && lastBlobRef.current && !pendingInsert && <button type="button" className="button secondary" onClick={() => void transcribeAndSave(lastBlobRef.current!)}>Retry</button>}
-            {state.intent !== "generate" && pendingInsert && <>
-              <button type="button" className="button secondary" onClick={() => void copyPendingInsert()}>Copy</button>
-              {state.targetAvailable && state.source.url === pendingInsert.sourceURL && <button type="button" className="button" disabled={insertingPending} onClick={() => void retryInsert()}>{insertingPending ? "Inserting…" : "Insert again"}</button>}
-            </>}
-            {state.intent === "generate" ? <button
-              type="button"
-              className="button"
-              disabled={generatedText ? false : !draft.trim() || !skillId || generating}
-              onClick={() => generatedText ? void useGeneratedText() : void runGeneration()}
-            >{generating ? "Generating…" : generatedText ? "Insert" : "Generate"}</button> : draft.trim() && !pendingInsert ? <button
-              type="button"
-              className="button"
-              onClick={() => void saveContent(draft.trim()).catch((cause) => { setError(friendlyLocalError(cause, "save")); setPhase("error"); })}
-            >Save</button> : null}
-          </>}
-        </div>}
-
-        {shouldShowPageHistory(presentation.showSavedMaterials, state.intent, pageMaterials.length) && (
-          <section className="page-materials" aria-label="Notes from this page">
-            <h2 className="page-materials-heading">On this page</h2>
-            <ol className="page-materials-list">
-              {pageMaterials.map((material) => <li key={material.id} className="page-material">
-                <p className="page-material-text">{material.annotation?.trim() || material.content}</p>
-              </li>)}
-            </ol>
-          </section>
-        )}
-      </div>
-    </main>
+    <SidePanelView
+      state={state}
+      phase={phase}
+      draft={draft}
+      generatedText={generatedText}
+      skills={skills}
+      skillId={skillId}
+      pageMaterials={pageMaterials}
+      error={error}
+      elapsed={elapsed}
+      pendingInsert={pendingInsert}
+      insertingPending={insertingPending}
+      generating={generating}
+      canRetry={Boolean(lastBlobRef.current)}
+      panelRef={panelMainRef}
+      onDraftChange={(value) => { setDraft(value); persistDraft({ draft: value }); }}
+      onGeneratedTextChange={setGeneratedText}
+      onSkillIdChange={setSkillId}
+      onStartRecording={startRecording}
+      onStopRecording={stopRecording}
+      onCancelRecording={cancelRecording}
+      onRetryTranscription={() => { if (lastBlobRef.current) void transcribeAndSave(lastBlobRef.current); }}
+      onSave={() => void saveContent(draft.trim()).catch((cause) => { setError(friendlyLocalError(cause, "save")); setPhase("error"); })}
+      onRequestGeneration={requestGeneration}
+      onReturnToPage={returnToPage}
+      onGenerate={() => void runGeneration()}
+      onInsertGenerated={() => void useGeneratedText()}
+      onRetryInsert={() => void retryInsert()}
+      onCopyPendingInsert={() => void copyPendingInsert()}
+    />
   );
 }
 
