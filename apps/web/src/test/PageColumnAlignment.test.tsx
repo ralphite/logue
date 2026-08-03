@@ -65,16 +65,11 @@ describe("page column alignment", () => {
     expect(screen.queryByText("Unsaved")).toBeNull();
   });
 
-  it("keeps the settings title on the shared page axis and the form on the editor axis", () => {
+  it("keeps the settings title and form on the shared editor axis", () => {
     render(<SettingsPage />);
-    const header = screen.getByTestId("settings-header-column");
-    const content = screen.getByTestId("settings-content-column");
-    for (const className of ["w-full", "max-w-[1080px]", "px-8", "max-[640px]:px-4"]) {
-      expect(header.className).toContain(className);
-    }
-    for (const className of sharedEditorAxis) {
-      expect(content.className).toContain(className);
-    }
+    expectSharedAxis("settings-header-column", "settings-content-column", sharedEditorAxis);
+    expect(screen.getByPlaceholderText("Keep writing concise and direct; preserve product names…").className).toContain("focus:ring-2");
+    expect(screen.getByPlaceholderText("Add a term").className).toContain("focus:ring-2");
     expect(screen.queryByText("Saved")).toBeNull();
     expect(screen.queryByText("Saving…")).toBeNull();
     expect(screen.queryByText("Unsaved")).toBeNull();

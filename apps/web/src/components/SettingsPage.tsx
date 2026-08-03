@@ -15,6 +15,8 @@ import { PageHeader } from "./ui";
 
 type SaveState = "saved" | "dirty" | "saving" | "error";
 
+const fieldFocusClass = "focus:border-[#777dd9] focus:ring-2 focus:ring-[#777dd9]/20";
+
 function SettingsRow({ label, children, border = true }: { label: string; children: ReactNode; border?: boolean }) {
   return (
     <section className={`${border ? "border-t border-[#e8e8e5]" : ""} py-7`}>
@@ -110,7 +112,7 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
 
   return (
     <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-white">
-      <PageHeader title="Settings" testId="settings-header-column" actions={saveState === "error" ? <span className="text-[14px] text-[#a84d44]">Save failed</span> : undefined} />
+      <PageHeader title="Settings" axis="editor" testId="settings-header-column" actions={saveState === "error" ? <span className="text-[14px] text-[#a84d44]">Save failed</span> : undefined} />
       <div data-testid="settings-content-column" className={`${editorColumnClass} pb-24 pt-8`}>
 
         {loadState === "loading" && <div className="space-y-2" aria-label="Loading settings">{[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse rounded-md bg-[#f3f3f0] motion-reduce:animate-none" />)}</div>}
@@ -121,12 +123,12 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
         <div className="pb-2"><h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[#30312d]">Preferences</h2></div>
 
         <SettingsRow label="Writing preferences">
-          <textarea value={settings.personal_context} onChange={(event) => update({ ...settings, personal_context: event.target.value })} placeholder="Keep writing concise and direct; preserve product names…" className="min-h-28 w-full resize-y rounded-md border border-[#deded9] px-3 py-2.5 text-[15px] leading-6 outline-none focus:border-[#aaa]" />
+          <textarea value={settings.personal_context} onChange={(event) => update({ ...settings, personal_context: event.target.value })} placeholder="Keep writing concise and direct; preserve product names…" className={`min-h-28 w-full resize-y rounded-md border border-[#deded9] px-3 py-2.5 text-[15px] leading-6 outline-none ${fieldFocusClass}`} />
         </SettingsRow>
 
         <SettingsRow label="Global terms">
           <div className="flex flex-wrap gap-1.5">{settings.glossary.map((value) => <span key={value} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[#f0f0ed] px-2.5 text-[15px] text-[#555651] max-[900px]:h-11">{value}<button type="button" onClick={() => update({ ...settings, glossary: settings.glossary.filter((item) => item !== value) })} className="inline-flex size-6 items-center justify-center rounded text-[#999a95] hover:bg-[#e4e4e0] hover:text-[#555] max-[900px]:-mr-2.5 max-[900px]:size-11" aria-label={`Remove ${value}`}><X size={12} /></button></span>)}</div>
-          <div className="mt-3 flex gap-2"><input value={term} onChange={(event) => setTerm(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addTerm(); } }} placeholder="Add a term" className="h-10 min-w-0 flex-1 rounded-md border border-[#deded9] px-3 text-[15px] outline-none focus:border-[#aaa]" /><button type="button" onClick={addTerm} className="h-10 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#62635e] hover:bg-[#f4f4f1]">Add</button></div>
+          <div className="mt-3 flex gap-2"><input value={term} onChange={(event) => setTerm(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addTerm(); } }} placeholder="Add a term" className={`h-10 min-w-0 flex-1 rounded-md border border-[#deded9] px-3 text-[15px] outline-none ${fieldFocusClass}`} /><button type="button" onClick={addTerm} className="h-10 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#62635e] hover:bg-[#f4f4f1]">Add</button></div>
         </SettingsRow>
 
         {suggestions.length > 0 && <SettingsRow label="Term suggestions"><div className="space-y-1.5">{suggestions.map((suggestion) => <div key={suggestion.term} className="flex min-h-11 items-center justify-between rounded-md border border-[#e2e2de] px-3 py-2"><span><span className="text-[15px] font-medium text-[#4d4e49]">{suggestion.term}</span><span className="ml-2 text-[14px] text-[#999a95]">{suggestion.count} uses</span></span><span className="flex gap-1"><button type="button" onClick={() => ignoreSuggestion(suggestion.term)} className="min-h-9 rounded px-2 text-[14px] text-[#8a8b86] hover:bg-[#f1f1ee]">Ignore</button><button type="button" onClick={() => acceptSuggestion(suggestion.term)} className="min-h-9 rounded bg-[#efefec] px-2 text-[14px] font-medium text-[#555651] hover:bg-[#e5e5e1]">Pin</button></span></div>)}</div></SettingsRow>}
