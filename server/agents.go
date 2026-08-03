@@ -119,12 +119,6 @@ func validateAgent(agent Agent) (Agent, error) {
 	if agent.Name == "" {
 		return Agent{}, errors.New("agent name is required")
 	}
-	if agent.Purpose == "" {
-		return Agent{}, errors.New("agent purpose is required")
-	}
-	if agent.Instructions == "" {
-		return Agent{}, errors.New("agent instructions are required")
-	}
 	if !validAgentTasks[agent.Task] {
 		return Agent{}, fmt.Errorf("unsupported agent task %q", agent.Task)
 	}

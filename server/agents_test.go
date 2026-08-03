@@ -48,6 +48,23 @@ func TestDefaultAgentsUseEnglishProductCopy(t *testing.T) {
 	}
 }
 
+func TestCustomSkillCanBeCreatedBeforeInstructionsAreWritten(t *testing.T) {
+	store, err := NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	enabled := true
+	created, err := store.CreateAgent(CreateAgentInput{
+		Name: "Untitled skill", Task: "generate", Output: "insert", Surfaces: []string{"web"}, Enabled: &enabled,
+	})
+	if err != nil {
+		t.Fatalf("create blank custom skill: %v", err)
+	}
+	if created.Purpose != "" || created.Instructions != "" {
+		t.Fatalf("blank custom skill gained unexpected copy: %#v", created)
+	}
+}
+
 func TestLegacyDefaultAgentCopyMigrationPreservesCustomizedFields(t *testing.T) {
 	root := t.TempDir()
 	store, err := NewStore(root)
