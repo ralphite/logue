@@ -21,7 +21,7 @@
 
 ## 明确功能
 
-- 仅本机 Web App/API；Extension 只访问本机 API；Gemini Key 只存在于本机后端环境。
+- Logue 仍是单用户部署，但服务与客户端可以分离：Go/Web/API 可运行在局域网 Linux 主机，MacBook Chrome Extension 与 Web App 通过防火墙分配、可能变化但用户已知的域名访问；MacBook 不需要本机启动服务。Gemini Key 仍只存在于服务端环境。
 - 内容永久保存，除非用户明确手动删除。
 - 在网页输入框中快速使用语音或文字；不是在应用内放一个孤立 textarea。
 - 选中网页文字后，可通过右键快速保存为原始资料，可无项目，也可关联项目和 Tag。
@@ -95,6 +95,8 @@
 - Web、Storybook、README、Installer、默认 Skills、Prompt、Citation、系统 fallback、Demo 和测试/无障碍文案使用英文；用户自己的中文或多语言内容不得被误删或翻译。
 - 永远使用 `main`；每个已验证批次使用小而原子的 commit，并立即 push `origin/main`。
 - Mobile 当前不是优先项，不阻塞当前桌面 Web、Extension、Storybook、legacy 清理、Release 和设计终审；现有响应式不应故意退化，但暂不投入移动端专项优化。
+- Linux 主机运行服务、MacBook Chrome/Web 通过局域网可变域名连接是最新 P0，不能与已后置的 Mobile 混为一项。Extension 必须可配置 Server URL、按具体 origin 请求权限、验证兼容 Logue 服务、在连接失败时允许 Retry/Change server，并在域名变化后无需重装即可恢复；所有 Extension API 都使用同一配置，不能有 localhost 旁路。
+- Release 与一行安装必须支持 Linux 服务端资产、安装/覆盖、自动启动、可选 systemd 用户级开机启动和显式监听地址；隔离 Linux 验收机上的既有数据可视为不存在，但真实服务主机上的 Logue 数据仍必须保护。
 
 ## 用户对产品方向的连续纠正
 

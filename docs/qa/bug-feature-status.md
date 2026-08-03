@@ -1,6 +1,6 @@
 # Logue bug 与 feature 状态
 
-更新时间：2026-08-03 02:18（America/Los_Angeles）
+更新时间：2026-08-03（America/Los_Angeles）
 
 这是用户历史 bug / feature request 的唯一滚动清单。`PASS` 表示实现和与风险相称的真实运行证据都存在；`PARTIAL` 表示核心已实现，但仍缺指定环境的最后闭环；`OPEN` 表示尚未交付；`NOT_APPLICABLE` 表示请求指向浏览器拥有且扩展无法控制的原生 UI。测试、提交、文档和截图本身不把状态升级为 `PASS`。
 
@@ -62,13 +62,15 @@
 | F19 | 所有搜索入口的语义检索、排序、解释和本地降级 | PASS | 2026-08-03 已在真实 Chrome 验证 Stream、Generate 的 Documents 列表、Document Sources（All materials）与 Generate source picker：自然语言查询按语义相关性排序并展示简短英文理由。Documents 主列表补上此前缺失的生产搜索入口，搜索期间使用共享、局部的 `Finding related…` 状态，避免空白或错误的无结果结论。独立无 Gemini 运行时副本验证 Material / Document API 返回 `strategy=local` 且仅有可解释的直接匹配。 |
 | F20 | Storybook 生产组件 inventory 与所有有意义状态 | PARTIAL | `Native Side Panel` 直接复用生产 `SidePanelView`，已覆盖 Current Page、Selection、Starting、Recording、Transcribing、Target Lost、Service Unavailable、Generate、Empty；`Pages/App Compositions` 直接运行生产 `App`，覆盖 Stream、Material Detail、Projects、Documents、Skills、Settings，以及 Stream/Documents/Skills 的 empty、loading、local-error 和 Material 的 low-confidence review。侧栏以全高无浮层视口呈现；真实 DOM 键盘回归覆盖 R、Enter、Esc 与编辑文本不抢键。仍缺完整 production component→Story→state inventory，以及其它页面有意义状态。 |
 | F21 | 清除 legacy 代码、旧路由/数据/测试/未挂载 demo | PASS | 真实 `.logue-data` 已完整备份、一次性转换为 `skills/` 与 `skill-runs/`、在 live API 与隔离导出恢复中验证后删除转换工具；旧 `/v1/agents` 返回 404。旧 demo seed、路由/字段 alias、启动修复与旧 Chrome 降级分支均已删除。 |
+| F22 | Linux 主机运行服务；MacBook Extension/Web 通过可变局域网域名连接 | OPEN | 已提升为当前 P0。实现中：Extension 统一动态 Server URL、具体 origin 权限、兼容状态验证和断线恢复；仍需 Linux release/install/systemd 支持及跨机器真实闭环。 |
 
 ## 当前未关闭队列
 
-1. **P0（Selection Skills Extension 实机闭环）**：在可重载的已安装 Chrome 扩展中，验证 textarea 与 contenteditable 选区入口、菜单、Esc、漂移拒绝和不自动提交；当前构建/单测不替代这一项。
-2. **已关闭（legacy 清理）**：旧 Prompt-only Agent schema、旧路由/未挂载 demo 与兼容分支已在一次性备份、转换、真实验证后删除。
-3. **P1（当前 Extension 核心缺口）**：完成标准 input、选区文字/语音批注、无输入框页面录音、页面历史刷新、目标丢失/断线/重试幂等与焦点防护的真实闭环。
-4. **P1（Storybook 与英文文案）**：改为生产组件 inventory、全状态覆盖，并清除 Installer/fixture/系统 copy 中的中文。
-5. **P1（全产品一致性）**：独立盲审已发现 Documents Sources 默认过宽、Settings 内容轴错位、Settings 表单焦点不清晰；先修共享布局/焦点问题，再进行两名 fresh-context 独立终审。
-6. **P1（发布）**：仅在以上核心闭环完成后，发布当前最新 `main` 并完成真实覆盖升级。
-7. **P3（移动端，用户明确后置）**：安全 LAN 配对入口与物理 iPhone 的触控、旋转、刷新、Stream / Projects / Generate / 文档编辑闭环。
+1. **P0（Linux / LAN 远程服务）**：完成 Linux 服务运行、MacBook Extension/Web 可配置可变域名、具体 origin 权限、断线恢复、Linux 安装/systemd 与跨机器真实闭环。
+2. **P0（Selection Skills Extension 实机闭环）**：在可重载的已安装 Chrome 扩展中，验证 textarea 与 contenteditable 选区入口、菜单、Esc、漂移拒绝和不自动提交；当前构建/单测不替代这一项。
+3. **已关闭（legacy 清理）**：旧 Prompt-only Agent schema、旧路由/未挂载 demo 与兼容分支已在一次性备份、转换、真实验证后删除。
+4. **P1（当前 Extension 核心缺口）**：完成标准 input、选区文字/语音批注、无输入框页面录音、页面历史刷新、目标丢失/断线/重试幂等与焦点防护的真实闭环。
+5. **P1（Storybook 与英文文案）**：改为生产组件 inventory、全状态覆盖，并清除 Installer/fixture/系统 copy 中的中文。
+6. **P1（全产品一致性）**：独立盲审已发现 Documents Sources 默认过宽、Settings 内容轴错位、Settings 表单焦点不清晰；先修共享布局/焦点问题，再进行两名 fresh-context 独立终审。
+7. **P1（发布）**：仅在以上核心闭环完成后，发布当前最新 `main` 并完成真实覆盖升级。
+8. **P3（移动端，用户明确后置）**：物理 iPhone 的触控、旋转、刷新、Stream / Projects / Generate / 文档编辑闭环；不再把桌面 LAN 服务连接错误归入此项。

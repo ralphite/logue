@@ -8,7 +8,7 @@
 
 ## 1. 最终结果
 
-把 Logue 做成一个真正高完成度、本机优先的输入、资料沉淀与生成工具：
+把 Logue 做成一个真正高完成度、单用户优先的输入、资料沉淀与生成工具：
 
 - 用户在当前网页中即可用极简语音完成输入、保存选区、添加批注和基于资料生成回复；
 - 所有主动保存的内容都形成可编辑、可追溯、可复用的资料，并保留原始音频、来源、父子关系、项目和分类依据；
@@ -16,13 +16,14 @@
 - Documents 提供 Notion 式列表、编辑、自动保存、引用和 Sources 体验；
 - 当前可复用 Prompt 能力以 `Skills` 呈现，可创建、编辑和在 Web/Extension 中使用；只有未来真正具备 trigger、tools、permissions 和 runs 的自主对象才称为 `Agents`；
 - Extension 使用 Chrome 原生 Side Panel，并与网页输入目标、选区、当前页面和本机资料形成可靠闭环；
+- Logue Web/API 可运行在局域网内的 Linux 主机上；MacBook Chrome Extension 与 Web App 可通过防火墙分配、可能变化但用户已知的域名可靠访问该服务，而不要求 MacBook 本机启动服务；
 - 产品达到 app.notion.com 与 chatgpt.com 同等级别的内在一致性、简洁性、可读性和交互完成度，同时保留跨网页输入、原始音频、来源链、项目记忆和受控写回等差异化价值。
 
 最终判断不是“功能数量够多”或“代码能运行”，而是真实任务是否极其好用、稳定、安静，继续修改的边际用户收益是否已经很低。
 
 ## 2. 当前事实与兼容边界
 
-- 当前机器是唯一需要支持的安装；当前机器上的 Logue 数据是唯一需要保护的真实数据；目前没有外部用户。
+- 当前只有一个用户，不需要多租户或历史版本兼容；受支持的实际部署可以跨两台机器：Linux 主机运行唯一的 Go/Web/数据服务，MacBook Chrome 作为客户端。当前真实数据所在的服务主机必须受保护；隔离安装验收机器可视为无既有数据。
 - 当前 schema、routes、产品名称、默认值、Citation 格式、标题格式和文件格式是唯一真相。
 - 除非用户明确要求兼容，禁止保留或新增 legacy migration、旧字段/旧路由 alias、旧文案 fallback、双格式 parser、旧 seed、兼容 fixture、兼容测试或废弃代码分支。
 - 若当前真实数据必须更新，只允许：完整备份 → 一次性转换 → 真实读取/写入验证 → 删除转换代码。不得把一次性转换永久留在启动路径。
@@ -128,6 +129,16 @@ Generate 可以产生：
 - 在任意支持编辑的网页目标（至少 textarea 与 contenteditable）中选择文字时，Extension 必须提供同一套渐进式 Skill 入口；静态网页原文不假装可直接改写，改写结果应进入当前可写目标或 Side Panel 的受控路径。
 - 选择范围、原文、所用 Skill、生成结果与写回必须保留来源关系，不能静默覆盖无关内容；宿主表单绝不自动提交。
 - 具体的菜单触发、快捷键、结果呈现与替换确认语义，必须先以真实 Notion 当前行为为依据；不得根据记忆猜测或以重型弹窗/常驻工具栏取代选区附近的轻量入口。
+
+### 4.7 Linux / LAN 服务连接
+
+- Go API 与生产 Web App 必须可在 Linux 主机上作为同源服务运行；安全默认仍只监听 loopback，局域网部署通过显式 listen address、私网/VPN 或受控反向代理启用，不能意外把无认证资料服务暴露到公网。
+- MacBook Chrome Extension 默认连接 `http://127.0.0.1:8787`，同时提供极简的 `Server settings…` 入口，可连接用户已知的任意 `http(s)` origin（含端口）。防火墙重新分配域名后，用户只需替换一次地址即可恢复全部流程。
+- 远程 Server URL 只存于该 Chrome 安装的 `chrome.storage.local`；只接受规范化的 `http(s)` origin，拒绝凭据、query、fragment 和非 Web scheme。不得保存 Gemini Key，也不得把远程地址复制进每条资料。
+- 用户点击 `Connect` 时只申请该具体 origin 的 Chrome 可选权限；拒绝权限、DNS/超时/拒绝连接、TLS 错误、错误服务或 API 版本不兼容时，不覆盖上一个可用配置，也不丢失当前草稿、选区或已完成录音。
+- 保存新地址前必须通过 `/v1/status` 验证确实是兼容的 Logue 服务；成功后安静关闭设置并重新加载当前页面上下文、页面资料、Skills 和设置。正常连接不显示 `Connected`；断开时只显示局部 `Retry` 与 `Change server`。
+- 所有 Extension API 路径，包括页面历史、右键保存、选区 Skill、录音、生成、采用与取消，都必须由 background 统一使用当前 Server URL；禁止任何 content script、Side Panel 或 helper 绕过配置直连 localhost。
+- Extension、Chrome/MV3 worker 和浏览器重启后必须恢复已选 Server URL；地址变更后下一次请求立即使用新地址，不依赖 service worker 内存缓存。
 
 ## 5. 资料、项目、自动整理与来源
 
@@ -294,6 +305,7 @@ Storybook 至少包含：
 - 安装结束自动启动服务并等待健康检查；失败时恢复此前可运行版本和服务，不留下半安装状态。
 - 安装过程明确询问是否开机自动启动；无交互环境支持显式配置且不阻塞。
 - Release 包含版本、支持平台、校验和和可复现构建证据。
+- Release 必须包含受支持的 Linux 架构资产；一行安装器可在 Linux 上安装/覆盖 Go 服务与 Web App、保留数据、自动启动，并可选择配置 systemd 用户级开机启动和显式监听地址。Extension 作为独立 Chrome 资产连接该服务。
 - README、Installer 输出、Release notes 和所有用户可见安装页面使用英文。
 - 当前 `main` 的最新已验证版本必须进入最新 Release；旧 Release 通过不能替代当前主线发布。Release 只能在本目标内所有当前桌面功能、设计终审、Storybook 状态覆盖、真实验收与数据整理均完成后进行，不能为了发布而跳过未完成需求。
 
@@ -301,14 +313,15 @@ Storybook 至少包含：
 
 当前优先顺序以用户最新纠正为准：
 
-1. 修复真实桌面 Web 与 Chrome Extension 的 P0/P1 核心流程；
-2. 完成一致、共享、极简的 Web 组件系统与真实页面；
-3. 让 Storybook 完整覆盖生产组件和所有有意义状态；
-4. 清除 legacy 代码/格式并安全一次性更新当前真实数据；
-5. 完成全产品 Notion/ChatGPT 对照与独立终审；
-6. 在以上全部完成后，发布当前最新 `main` 并真实覆盖升级。
+1. **当前 P0：完成 Linux 主机运行 + MacBook Chrome/Web 通过可变局域网域名连接的真实闭环**，包括动态 origin 权限、断线恢复与 Linux 安装/启动；
+2. 修复真实桌面 Web 与 Chrome Extension 的其余 P0/P1 核心流程；
+3. 完成一致、共享、极简的 Web 组件系统与真实页面；
+4. 让 Storybook 完整覆盖生产组件和所有有意义状态；
+5. 清除 legacy 代码/格式并安全一次性更新当前真实数据；
+6. 完成全产品 Notion/ChatGPT 对照与独立终审；
+7. 在以上全部完成后，发布当前最新 `main` 并真实覆盖升级。
 
-**Mobile、LAN 和物理手机当前延期，不是已取消，也不阻塞上述桌面目标。** 现有响应式体验不应被故意破坏；在桌面核心闭环完成或用户重新提高优先级前，不投入移动端专项优化。
+**桌面 Linux → MacBook 的 LAN/远程服务连接是当前最高优先级，不再延期。Mobile 与物理手机仍延期。** 现有响应式体验不应被故意破坏，但当前不投入移动端专项优化。
 
 ## 13. 真实验收场景
 
@@ -334,6 +347,9 @@ Storybook 至少包含：
 18. 一行 curl 在隔离环境全新安装后自动启动并健康；无需源码或构建工具。
 19. 同一命令覆盖当前安装，安全停止/替换/启动；当前数据完整不变；开机启动接受/拒绝均正确；失败可恢复。
 20. 一次性数据转换前后均有备份和真实读取验证；转换完成后代码库不保留 legacy parser/migration/fallback/test。
+21. Linux 主机显式监听私网地址或由受控反向代理提供用户已知域名；MacBook 可直接打开同源 Web App，并在 Extension 中连接该地址，完成 status、当前页面历史、右键选区保存、语音保存和 Generate/Skill API 流程。
+22. 防火墙分配的新域名替换旧域名后，`Connect` 只请求新 origin 权限并通过 Logue/API 版本验证；失败或取消保留旧配置，成功后无需重装 Extension 即恢复流程；Chrome 与 MV3 worker 重启后配置仍有效。
+23. Linux 一行安装在无既有数据机器上自动启动并通过健康检查；重复覆盖安装不会删除数据，并正确处理 systemd 用户级开机启动的接受、拒绝和非交互选择。
 
 ## 14. 明确禁止与已否定方案
 
@@ -346,6 +362,7 @@ Storybook 至少包含：
 - 禁止显示正常 `running`、`connected`、`Saved`、`Saving` 等噪音。
 - 禁止使用过小字体、过窄 panel、无理由的不同内容宽度和不一致 selected 背景来假装极简。
 - 禁止把 reusable Notion/ChatGPT screenshots 只放临时目录。
+- 禁止在 Extension 中散落固定 localhost URL、让页面代码成为任意 URL fetch 代理，或为方便而申请常驻 `<all_urls>` host permission。
 - 禁止 legacy code/data compatibility，除非用户以后明确提出。
 - 禁止用文档、测试、截图、Storybook、Build、Commit、Agent 数量或工具调用数量冒充产品完成度。
 
