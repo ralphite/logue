@@ -28,7 +28,8 @@ export function selectionSkillInvocationState({
   if (
     currentSnapshot !== invocation.snapshot ||
     currentTarget !== invocation.target ||
-    !isEditableTargetAvailable(invocation.target, invocation.pageHref, currentPageHref)
+    invocation.pageHref !== currentPageHref ||
+    !isEditableTargetAvailable(invocation.target)
   ) return "changed";
   return "current";
 }

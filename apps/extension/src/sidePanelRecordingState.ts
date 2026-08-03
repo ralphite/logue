@@ -2,11 +2,8 @@ import type { CaptureIntent } from "./capturePrimitives";
 import type { CapturePhase } from "./sidePanelPresentation";
 
 /**
- * The side panel receives harmless context refreshes while the content script
- * settles after opening. A recording belongs to the tab and capture intent,
- * not to an exact URL string: Chrome/content-script URL normalization can
- * legitimately differ during that refresh. The lifecycle port remains the
- * authority for a real document unload.
+ * A capture belongs to its tab and intent, never to a transient page URL.
+ * Same-tab context refreshes must not interrupt normal recording.
  */
 export interface ActivePanelCaptureScope {
   tabId: number;

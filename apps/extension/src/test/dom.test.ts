@@ -287,18 +287,17 @@ describe("editable integration", () => {
     expect(isEditableElement(ordinary)).toBe(true);
   });
 
-  it("invalidates a target after removal, route change, or becoming readonly", () => {
+  it("keeps a live target available across same-document route changes", () => {
     const textarea = document.createElement("textarea");
     document.body.append(textarea);
 
-    expect(isEditableTargetAvailable(textarea, "https://example.com/a", "https://example.com/a")).toBe(true);
-    expect(isEditableTargetAvailable(textarea, "https://example.com/a", "https://example.com/b")).toBe(false);
+    expect(isEditableTargetAvailable(textarea)).toBe(true);
 
     textarea.readOnly = true;
-    expect(isEditableTargetAvailable(textarea, "https://example.com/a", "https://example.com/a")).toBe(false);
+    expect(isEditableTargetAvailable(textarea)).toBe(false);
 
     textarea.readOnly = false;
     textarea.remove();
-    expect(isEditableTargetAvailable(textarea, "https://example.com/a", "https://example.com/a")).toBe(false);
+    expect(isEditableTargetAvailable(textarea)).toBe(false);
   });
 });

@@ -40,7 +40,6 @@ type ContentMessage = ContentRequestMessage | RecordingControlMessage | Recordin
 interface InlineVoiceSession {
   id: string;
   target: HTMLElement;
-  targetPageHref: string;
   source: CaptureSource;
   targetText: string;
 }
@@ -108,7 +107,7 @@ function ExtensionLauncher() {
   }, []);
 
   const restoreTargetFocus = useCallback((session?: InlineVoiceSession) => {
-    if (!session || !isEditableTargetAvailable(session.target, session.targetPageHref, window.location.href)) return;
+    if (!session || !isEditableTargetAvailable(session.target)) return;
     window.requestAnimationFrame(() => session.target.focus({ preventScroll: true }));
   }, []);
 
@@ -137,7 +136,7 @@ function ExtensionLauncher() {
 
   const refreshTarget = useCallback(() => {
     const target = targetRef.current;
-    if (!isEditableTargetAvailable(target, targetPageHrefRef.current, window.location.href)) {
+    if (!isEditableTargetAvailable(target)) {
       clearTarget();
       return;
     }
@@ -147,7 +146,7 @@ function ExtensionLauncher() {
   const refreshSelectionSkillTarget = useCallback(() => {
     const target = targetRef.current;
     if (
-      !isEditableTargetAvailable(target, targetPageHrefRef.current, window.location.href) ||
+      !isEditableTargetAvailable(target) ||
       hasNativeSelectionSkillOwner(target)
     ) {
       selectionSnapshotRef.current = undefined;
@@ -264,7 +263,7 @@ function ExtensionLauncher() {
             });
           },
           insert: (text) => voiceSessionRef.current?.id === session.id &&
-            isEditableTargetAvailable(session.target, session.targetPageHref, window.location.href) &&
+            isEditableTargetAvailable(session.target) &&
             insertIntoElement(session.target, text),
         });
         if (voiceSessionRef.current?.id !== session.id) return;
@@ -295,11 +294,10 @@ function ExtensionLauncher() {
   const startInlineVoice = useCallback(() => {
     const target = targetRef.current;
     const bridge = recordingBridgeRef.current;
-    if (!target || !bridge || !isEditableTargetAvailable(target, targetPageHrefRef.current, window.location.href)) return;
+    if (!target || !bridge || !isEditableTargetAvailable(target)) return;
     const session: InlineVoiceSession = {
       id: createRequestId(),
       target,
-      targetPageHref: targetPageHrefRef.current,
       source: pageSource(),
       targetText: getEditableText(target),
     };
@@ -409,7 +407,20 @@ function ExtensionLauncher() {
       setViewport({ width: window.innerWidth, height: window.innerHeight });
       refreshTarget();
     };
-    const onRoute = () => clearTarget();
+    const onRoute = () => {
+      // A same-document route update must not cancel an in-progress voice
+      // capture when the focused editor itself is still the same live target.
+      // Selection Skills are stricter: their old selection may not survive a
+      // route change, so close that menu until the user makes a new selection.
+      dismissSelectionSkills();
+      targetPageHrefRef.current = window.location.href;
+      const target = targetRef.current;
+      if (!isEditableTargetAvailable(target)) {
+        clearTarget();
+        return;
+      }
+      setTargetRect(target.getBoundingClientRect());
+    };
     let href = window.location.href;
     const routeTimer = window.setInterval(() => {
       if (href === window.location.href) return;
@@ -606,7 +617,7 @@ function ExtensionLauncher() {
         const target = targetRef.current;
         const inserted = Boolean(
           message.text &&
-          isEditableTargetAvailable(target, targetPageHrefRef.current, window.location.href) &&
+          isEditableTargetAvailable(target) &&
           insertIntoElement(target, message.text),
         );
         sendResponse({ ok: inserted });
@@ -614,7 +625,7 @@ function ExtensionLauncher() {
       }
       if (message?.type === "logue:get-page-context") {
         const target = targetRef.current;
-        const targetAvailable = isEditableTargetAvailable(target, targetPageHrefRef.current, window.location.href);
+        const targetAvailable = isEditableTargetAvailable(target);
         const context: PageCaptureContext = {
           source: pageSource(),
           candidateServerURL: logueServerCandidate(document, window.location.href),
@@ -682,7 +693,7 @@ function ExtensionLauncher() {
   async function applySelectionSkill(skillId: string) {
     const snapshot = selectionSnapshotRef.current;
     const target = targetRef.current;
-    if (!snapshot || !target || !isEditableTargetAvailable(target, targetPageHrefRef.current, window.location.href)) {
+    if (!snapshot || !target || !isEditableTargetAvailable(target)) {
       if (snapshot) showSelectionSkillNotice({ anchor: snapshot.anchor, message: "Selection changed — choose a skill again." });
       return;
     }

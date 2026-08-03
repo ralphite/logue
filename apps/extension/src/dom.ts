@@ -68,10 +68,8 @@ export function activeEditableElement(document: Document): HTMLElement | undefin
 
 export function isEditableTargetAvailable(
   target: HTMLElement | null,
-  focusedAtHref: string,
-  currentHref: string,
 ): target is HTMLElement {
-  return Boolean(target?.isConnected && focusedAtHref === currentHref && isEditableElement(target));
+  return Boolean(target?.isConnected && isEditableElement(target));
 }
 
 export function insertIntoElement(target: HTMLElement, text: string) {
