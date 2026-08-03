@@ -173,6 +173,23 @@ async function toggleTrackedSidePanel(tabId: number, windowId?: number) {
   return result;
 }
 
+async function closeTrackedPanel(tabId: number) {
+  try {
+    const windowId = openPanelWindowId ?? (await chrome.tabs.get(tabId)).windowId;
+    if (typeof windowId === "number") {
+      await nativeSidePanel.close({ windowId });
+    } else {
+      await nativeSidePanel.close({ tabId });
+    }
+  } catch {
+    // Chrome versions differ in their handling of window-scoped close. The
+    // tab-scoped call remains the compatible fallback.
+    await nativeSidePanel.close({ tabId }).catch(() => undefined);
+  } finally {
+    await clearPanelOpen(tabId);
+  }
+}
+
 function fallbackPageCaptureContext(tab: chrome.tabs.Tab): PageCaptureContext {
   return {
     source: sourceFromTab(tab),
@@ -577,9 +594,7 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
   // capture is page-scoped. Never carry a page's source or recorder into a
   // different tab; the user opens a fresh panel there explicitly.
   void chrome.tabs.sendMessage(previousTabId, { type: "logue:recording-dispose" }).catch(() => undefined);
-  void nativeSidePanel.close({ tabId: previousTabId })
-    .catch(() => undefined)
-    .finally(() => { void clearPanelOpen(previousTabId); });
+  void closeTrackedPanel(previousTabId);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
