@@ -2,15 +2,18 @@ import type { CaptureIntent, CaptureOrganization, CaptureSource, LocalError, Pag
 
 export type { CaptureIntent, CaptureOrganization, CaptureSource, LocalError, PageCaptureContext, PanelCaptureState, PendingInsert } from "./sidePanelModels";
 
-export function sourceFromTab(tab: Pick<chrome.tabs.Tab, "url" | "title">): CaptureSource {
-  const url = tab.url ?? "";
+export function sourceFromTab(tab: Pick<chrome.tabs.Tab, "url" | "pendingUrl" | "title">): CaptureSource {
+  const url = tab.url ?? tab.pendingUrl ?? "";
   let domain = "";
   try {
     domain = new URL(url).hostname;
   } catch {
     // Chrome pages and freshly opened tabs may not have a normal URL.
   }
-  return { url, title: tab.title || domain || "Current page", domain };
+  const title = tab.title?.trim();
+  // A generic fallback is not useful provenance. The panel derives a readable
+  // domain from a real URL and stays quiet when Chrome has neither yet.
+  return { url, title: title && title !== "Current page" ? title : domain, domain };
 }
 
 export function mergePanelCaptureState(

@@ -4,11 +4,13 @@ import type { ExtensionSkill, LocalError, PageMaterial, PanelCaptureState, Pendi
 import { capturePhasePresentation, type CapturePhase } from "./sidePanelPresentation";
 import { shouldShowPageHistory } from "./sidePanelPageHistory";
 
-function sourceLabel(state: PanelCaptureState) {
-  if (state.intent === "selection") return "Selection";
-  if (state.intent === "input") return "Current editor";
-  if (state.intent === "generate") return "Generate";
-  return "Current page";
+function sourceTitle(state: PanelCaptureState) {
+  if (state.source.title.trim()) return state.source.title;
+  try {
+    return new URL(state.source.url).hostname;
+  } catch {
+    return "";
+  }
 }
 
 function serverCandidateLabel(value: string) {
@@ -140,14 +142,15 @@ export function SidePanelView({
 
   if (!state) return <div className="empty" data-logue-extension="off">Open Logue from a page to begin.</div>;
 
-  const sourceHref = state.source.url || undefined;
+  const sourceHref = /^https?:\/\//.test(state.source.url) ? state.source.url : undefined;
+  const title = sourceTitle(state);
   const presentation = capturePhasePresentation(phase);
 
   return (
     <main ref={panelRef} className="panel" tabIndex={-1} data-logue-extension="off">
       <div className="panel-main">
         <div className="panel-topline">
-          {serverSettingsOpen ? <p className="eyebrow">Server settings</p> : presentation.showSource ? <p className="eyebrow">{sourceLabel(state)}</p> : <span />}
+          {serverSettingsOpen ? <p className="eyebrow">Server settings</p> : <span />}
           {!serverSettingsOpen && !presentation.captureActive && error?.kind !== "service" && <div ref={serverMenuRef} className="panel-options">
             <button
               ref={serverMenuTriggerRef}
@@ -192,9 +195,9 @@ export function SidePanelView({
           </div>
         </section> : <>
         {presentation.showSource && <>
-          <h1 className="page-title">
-            {sourceHref ? <a className="source-link" href={sourceHref} target="_blank" rel="noreferrer" title={state.source.title}>{state.source.title}</a> : state.source.title}
-          </h1>
+          {title && <h1 className="page-title">
+            {sourceHref ? <a className="source-link" href={sourceHref} target="_blank" rel="noreferrer" title={title}>{title}</a> : title}
+          </h1>}
           {state.selectionText && <blockquote className="selection">{state.selectionText}</blockquote>}
         </>}
 

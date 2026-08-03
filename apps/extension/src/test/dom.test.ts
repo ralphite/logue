@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { captureEditableSelection, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility } from "@logue/ui";
-import { activeEditableElement, insertIntoElement, isEditableElement, isEditableTargetAvailable } from "../dom";
+import { activeEditableElement, googleDocsEditorFrame, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "../dom";
 
 describe("editable integration", () => {
   beforeEach(() => {
@@ -19,6 +19,35 @@ describe("editable integration", () => {
     textarea.focus();
 
     expect(activeEditableElement(document)).toBe(textarea);
+  });
+
+  it("recognizes the compact Google Docs text event target without treating ordinary textareas specially", () => {
+    const docsTarget = document.createElement("textarea");
+    docsTarget.setAttribute("aria-label", "Document content");
+    const ordinary = document.createElement("textarea");
+
+    expect(isGoogleDocsDocumentTarget(docsTarget)).toBe(true);
+    expect(isGoogleDocsDocumentTarget(ordinary)).toBe(false);
+  });
+
+  it("finds the Google Docs editor iframe", () => {
+    const frame = document.createElement("iframe");
+    frame.className = "docs-texteventtarget-iframe";
+    document.body.append(frame);
+
+    expect(googleDocsEditorFrame(document)).toBe(frame);
+  });
+
+  it("treats focus inside the Google Docs event iframe as editor focus", () => {
+    const frame = document.createElement("iframe");
+    frame.className = "docs-texteventtarget-iframe";
+    document.body.append(frame);
+    const docsTarget = frame.contentDocument!.createElement("textarea");
+    docsTarget.setAttribute("aria-label", "Document content");
+    frame.contentDocument!.body.append(docsTarget);
+    docsTarget.focus();
+
+    expect(isGoogleDocsEditorFocused(document)).toBe(true);
   });
 
   it("inserts at the current selection without submitting", () => {

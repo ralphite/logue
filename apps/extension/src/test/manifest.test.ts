@@ -22,16 +22,27 @@ describe("native side panel manifest", () => {
       host_permissions?: string[];
       optional_host_permissions?: string[];
       side_panel?: { default_path?: string };
+      content_scripts?: Array<{
+        all_frames?: boolean;
+        match_about_blank?: boolean;
+      }>;
       commands?: Record<string, {
         suggested_key?: { default?: string; mac?: string };
         description?: string;
       }>;
     };
 
-    expect(manifest.permissions).toEqual(expect.arrayContaining(["sidePanel", "storage"]));
+    expect(manifest.permissions).toEqual(expect.arrayContaining(["scripting", "sidePanel", "storage"]));
     expect(manifest.host_permissions).toEqual(["http://127.0.0.1:8787/*"]);
     expect(manifest.optional_host_permissions).toEqual(["http://*/*", "https://*/*"]);
     expect(manifest.side_panel?.default_path).toBe("sidepanel.html");
+    // Google Docs keeps its writable document target in a same-origin
+    // about:blank editor frame. The inline recorder must live in that frame
+    // rather than merely seeing the outer, non-editable document shell.
+    expect(manifest.content_scripts?.[0]).toMatchObject({
+      all_frames: true,
+      match_about_blank: true,
+    });
     expect(manifest.commands?.["toggle-side-panel"]).toEqual({
       suggested_key: {
         default: "Ctrl+Shift+L",

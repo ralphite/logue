@@ -16,6 +16,15 @@ import {
 } from "../sidePanelController";
 
 describe("native side panel controller", () => {
+  it("uses page provenance instead of a generic current-page fallback", () => {
+    expect(sourceFromTab({ url: "https://docs.example.com/path", title: "" })).toMatchObject({
+      url: "https://docs.example.com/path",
+      domain: "docs.example.com",
+      title: "docs.example.com",
+    });
+    expect(sourceFromTab({ url: "", title: "" }).title).toBe("");
+  });
+
   it("keeps the original selection save action and adds a view action", () => {
     expect(selectionContextMenus).toEqual([
       { id: saveSelectionMenuId, title: "Save to Logue", contexts: ["selection"] },

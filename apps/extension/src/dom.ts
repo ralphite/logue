@@ -2,6 +2,54 @@ import { hasLogueExtensionOptOut } from "./eligibility";
 
 const supportedInputTypes = new Set(["text", "search", "email", "url", "tel"]);
 
+/**
+ * Google Docs keeps its editable text event target in a tiny same-origin
+ * about:blank frame. It is the real focused textarea even though its visual
+ * caret lives in the parent document, so it needs a launcher visibility
+ * exception rather than being mistaken for an invisible ordinary input.
+ */
+export function isGoogleDocsDocumentTarget(value: EventTarget | null) {
+  return value instanceof HTMLTextAreaElement &&
+    value.getAttribute("aria-label") === "Document content";
+}
+
+/**
+ * The Google Docs caret lives in a small event-target iframe. Its class is
+ * stable in Docs, while the textarea check keeps the lookup resilient when
+ * Docs changes incidental frame markup.
+ */
+export function googleDocsEditorFrame(document: Document) {
+  const frames = [...document.querySelectorAll<HTMLIFrameElement>("iframe")];
+  const active = document.activeElement;
+  return (active instanceof HTMLIFrameElement ? active : undefined)
+    ?? frames.find((frame) => frame.classList.contains("docs-texteventtarget-iframe"))
+    ?? frames.find((frame) => {
+      try {
+        return isGoogleDocsDocumentTarget(frame.contentDocument?.activeElement ?? null)
+          || Boolean(frame.contentDocument?.querySelector('textarea[aria-label="Document content"]'));
+      } catch {
+        return false;
+      }
+    })
+    ?? frames.find((frame) => frame.src === "about:blank");
+}
+
+/**
+ * Docs can keep keyboard focus inside its event-target frame without making
+ * that iframe the parent document's activeElement. Check the real textarea as
+ * well, so the top-frame launcher follows the actual editor focus.
+ */
+export function isGoogleDocsEditorFocused(document: Document) {
+  const frame = googleDocsEditorFrame(document);
+  if (!frame) return false;
+  if (document.activeElement === frame) return true;
+  try {
+    return isGoogleDocsDocumentTarget(frame.contentDocument?.activeElement ?? null);
+  } catch {
+    return false;
+  }
+}
+
 export function isEditableElement(value: EventTarget | null): value is HTMLElement {
   if (!(value instanceof HTMLElement)) return false;
   if (hasLogueExtensionOptOut(value)) return false;

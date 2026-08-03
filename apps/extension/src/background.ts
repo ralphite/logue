@@ -21,6 +21,7 @@ import {
 import { createRequestId } from "./requestId";
 import type { RecordingBridgeEvent, RecordingPanelEvent } from "./recordingBridge";
 import { assertLogueServerStatus, getServerURL, normalizeServerURL } from "./serverConnection";
+import { readGoogleDocsLauncherAction, readGoogleDocsLauncherEditorFrameId, readGoogleDocsLauncherState } from "./googleDocsLauncherBridge";
 
 const panelStoragePrefix = "logue:panel:";
 const activePanelStorageKey = "logue:panel:active-tab";
@@ -30,6 +31,8 @@ const activePanelStorageKey = "logue:panel:active-tab";
 const openPanelStoragePrefix = "logue:side-panel:open:";
 const openPanelTabs = new Set<number>();
 const panelStates = new Map<number, PanelCaptureState>();
+const googleDocsEditorFrameByTab = new Map<number, number>();
+const googleDocsEditorPorts = new Map<number, chrome.runtime.Port>();
 let activePanelTabId: number | undefined;
 let openPanelWindowId: number | undefined;
 
@@ -93,8 +96,42 @@ async function markPanelOpen(tabId: number, windowId?: number) {
 
 async function clearPanelOpen(tabId: number) {
   openPanelTabs.delete(tabId);
-  if (activePanelTabId === tabId) openPanelWindowId = undefined;
-  await chrome.storage.session.remove(openPanelStorageKey(tabId));
+  const keys = [openPanelStorageKey(tabId)];
+  if (activePanelTabId === tabId) {
+    activePanelTabId = undefined;
+    openPanelWindowId = undefined;
+    keys.push(activePanelStorageKey);
+  }
+  await chrome.storage.session.remove(keys);
+}
+
+async function routeGoogleDocsLauncherAction(tabId: number, message: unknown, requestedFrameId?: number) {
+  const sendToFrame = async (frameId: number) => {
+    const response = await chrome.tabs.sendMessage(tabId, message, { frameId }) as { ok?: boolean } | undefined;
+    return response?.ok === true;
+  };
+
+  const knownFrameIds = [requestedFrameId, googleDocsEditorFrameByTab.get(tabId)]
+    .filter((frameId): frameId is number => typeof frameId === "number" && frameId !== 0);
+  for (const knownFrameId of [...new Set(knownFrameIds)]) {
+    try {
+      if (await sendToFrame(knownFrameId)) return;
+    } catch {
+      // The Docs editor may recreate its event iframe. Resolve it below.
+    }
+  }
+
+  // The real Docs editor lives in a runtime-created about:blank iframe. Query
+  // Chrome for its uniquely labelled textarea instead of relying on current
+  // focus (which moves to the launcher button) or a stale frame id.
+  const frames = await chrome.scripting.executeScript({
+    target: { tabId, allFrames: true },
+    func: () => Boolean(document.querySelector('textarea[aria-label="Document content"]')),
+  });
+  const editorFrameId = frames.find((frame) => frame.frameId !== 0 && frame.result === true)?.frameId;
+  if (typeof editorFrameId !== "number") return;
+  googleDocsEditorFrameByTab.set(tabId, editorFrameId);
+  await sendToFrame(editorFrameId);
 }
 
 function stagePanelState(state: PanelCaptureState) {
@@ -526,6 +563,8 @@ void chrome.storage.session.get(null).then((session) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   panelStates.delete(tabId);
+  googleDocsEditorFrameByTab.delete(tabId);
+  googleDocsEditorPorts.delete(tabId);
   void clearPanelOpen(tabId);
   void chrome.storage.session.remove([`${panelStoragePrefix}${tabId}`, openPanelStorageKey(tabId)]);
 });
@@ -533,18 +572,85 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   if (openPanelTabs.size === 0) return;
   const previousTabId = activePanelTabId;
-  if (typeof previousTabId === "number" && previousTabId !== tabId) {
-    void chrome.tabs.sendMessage(previousTabId, { type: "logue:recording-dispose" }).catch(() => undefined);
-  }
-  void chrome.tabs.get(tabId).then(refreshPanelContextFromPage).catch(() => undefined);
+  if (typeof previousTabId !== "number" || previousTabId === tabId || !openPanelTabs.has(previousTabId)) return;
+  // A native Chrome side panel is visually shared by the window, but Logue
+  // capture is page-scoped. Never carry a page's source or recorder into a
+  // different tab; the user opens a fresh panel there explicitly.
+  void chrome.tabs.sendMessage(previousTabId, { type: "logue:recording-dispose" }).catch(() => undefined);
+  void nativeSidePanel.close({ tabId: previousTabId })
+    .catch(() => undefined)
+    .finally(() => { void clearPanelOpen(previousTabId); });
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.url) {
+    googleDocsEditorFrameByTab.delete(tabId);
+    googleDocsEditorPorts.delete(tabId);
+  }
   if (!changeInfo.url || tabId !== activePanelTabId || openPanelTabs.size === 0) return;
   void setPanelContext(tab, "page");
 });
 
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "logue:google-docs-editor") return;
+  const tabId = port.sender?.tab?.id;
+  // Only the editor frame creates this named port (the top frame has no Docs
+  // event textarea), so do not discard it based on an implementation-specific
+  // frame id reported for an inherited about:blank document.
+  if (typeof tabId !== "number") return;
+  googleDocsEditorPorts.set(tabId, port);
+  port.onDisconnect.addListener(() => {
+    if (googleDocsEditorPorts.get(tabId) === port) googleDocsEditorPorts.delete(tabId);
+  });
+});
+
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
+  const googleDocsLauncherState = readGoogleDocsLauncherState(message);
+  if (googleDocsLauncherState) {
+    const tabId = sender.tab?.id;
+    // The visible editor target is in a tiny Docs frame. Relay its state to
+    // the top-frame content script through Chrome instead of relying on the
+    // page's WindowProxy identity across isolated extension worlds.
+    if (typeof tabId === "number") {
+      if (typeof sender.frameId === "number" && sender.frameId !== 0) {
+        googleDocsEditorFrameByTab.set(tabId, sender.frameId);
+      }
+      // Docs can create the about:blank editor after the outer document's
+      // initial scripts settle. Guarantee that the top-frame launcher is
+      // mounted when that real editor first reports focus.
+      void chrome.scripting.executeScript({
+        target: { tabId, frameIds: [0] },
+        files: ["content.js"],
+      }).catch(() => undefined);
+      const relay = typeof sender.frameId === "number" && sender.frameId !== 0
+        ? { ...message, editorFrameId: sender.frameId }
+        : message;
+      void chrome.tabs.sendMessage(tabId, relay, { frameId: 0 }).catch(() => undefined);
+    }
+    return false;
+  }
+
+  const googleDocsLauncherAction = readGoogleDocsLauncherAction(message);
+  if (googleDocsLauncherAction) {
+    const tabId = sender.tab?.id;
+    // Only the top-frame extension host may issue controls. The background
+    // routes them back to the known Docs editor frame, avoiding fragile page
+    // WindowProxy identity checks across Chrome isolated worlds.
+    if (typeof tabId === "number" && sender.frameId === 0) {
+      const editorPort = googleDocsEditorPorts.get(tabId);
+      if (editorPort) {
+        editorPort.postMessage(message);
+      } else {
+        void routeGoogleDocsLauncherAction(
+          tabId,
+          message,
+          readGoogleDocsLauncherEditorFrameId(message),
+        ).catch(() => undefined);
+      }
+    }
+    return false;
+  }
+
   if (message?.type === "logue:page-context-ready") {
     const tab = sender.tab;
     if (
