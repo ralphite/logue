@@ -1,59 +1,59 @@
 # Logue
 
-Logue 是一个本机优先的跨网页输入与资料沉淀工具。浏览器 Extension 负责在当前网页输入、采集选区和追加批注；本机 Go 服务负责保存资料、维护来源关系并通过 Gemini 处理音频；React Web App 用来整理资料与项目。
+Logue is a local-first tool for capturing and organizing information across the web. The browser extension enters text on the current page, captures selections, and appends annotations. A local Go service stores content, maintains source relationships, and processes audio with Gemini. The React Web App organizes content and projects.
 
-## 安装与升级（macOS）
+## Install and upgrade (macOS)
 
-在 Terminal 运行一行命令：
+Run one command in Terminal:
 
 ```bash
 curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh | bash
 ```
 
-安装器会自动识别 Apple Silicon 或 Intel Mac，校验下载内容，安装完成后立即启动 Logue，并询问是否随登录自动启动。浏览器打开 `http://127.0.0.1:8787` 即可使用。
+The installer detects Apple Silicon or Intel Macs, verifies the download, starts Logue immediately after installation, and asks whether it should start automatically at login. Open `http://127.0.0.1:8787` in a browser to use Logue.
 
-再次运行同一条命令就是覆盖升级：安装器会停止自己管理的旧服务，再原子切换 `$HOME/.local/share/logue/current` 指向的新版本，只替换程序、Web App 和 Extension，不会覆盖位于 `$HOME/Library/Application Support/Logue` 的资料。命令行入口位于 `$HOME/.local/bin/logue`；登录时启动由 `$HOME/Library/LaunchAgents/com.ralphite.logue.plist` 管理。
+Run the same command again to upgrade in place. The installer stops the previous service it manages and atomically updates `$HOME/.local/share/logue/current` to the new release. It replaces only the program, Web App, and extension; it never overwrites content stored in `$HOME/Library/Application Support/Logue`. The command-line entry point is `$HOME/.local/bin/logue`, and login startup is managed by `$HOME/Library/LaunchAgents/com.ralphite.logue.plist`.
 
-无人值守环境可用 `LOGUE_AUTO_START=yes` 或 `LOGUE_AUTO_START=no` 明确选择；安装器在没有交互终端时默认不启用登录自动启动。安装完成后无论是否选择自动启动，当前服务都会立即运行。
+For unattended installations, set `LOGUE_AUTO_START=yes` or `LOGUE_AUTO_START=no` explicitly. Without an interactive terminal, the installer disables login startup by default. The current service starts immediately after installation regardless of this setting.
 
-Gemini API Key 只由本机服务读取，不会编译进 Web App 或 Extension。安装前可在同一 Terminal 设置：
+The Gemini API key is read only by the local service and is never compiled into the Web App or extension. Set it in the same Terminal before installation:
 
 ```bash
-export GEMINI_API_KEY="你的 API Key"
+export GEMINI_API_KEY="your API key"
 ```
 
-也兼容 `GOOGLE_GENERATIVE_AI_API_KEY`。安装器不会把 Key 写入程序、LaunchAgent、日志或仓库；本次启动的服务直接继承当前 Terminal 环境。未设置 Key 时，资料浏览和编辑仍可使用，但转写、自动整理和生成不可用。若希望登录后自动启动的服务也读取 Key，可由用户自行把 `export GEMINI_API_KEY=...` 放入 `~/.zprofile`；安装器不会替你保存密钥。
+`GOOGLE_GENERATIVE_AI_API_KEY` is also supported. The installer does not write the key to the program, LaunchAgent, logs, or repository; the service started during installation inherits the current Terminal environment. Without a key, browsing and editing content still work, but transcription, automatic organization, and generation are unavailable. To make the service started at login read the key, add `export GEMINI_API_KEY=...` to `~/.zprofile` yourself. The installer never stores the secret for you.
 
-### 安装 Chrome Extension
+### Install the Chrome extension
 
-1. 打开 `chrome://extensions`，启用右上角的“开发者模式”。
-2. 点击“加载已解压的扩展程序”。
-3. 选择 `$HOME/.local/share/logue/extension`。
+1. Open `chrome://extensions` and enable **Developer mode** in the upper-right corner.
+2. Click **Load unpacked**.
+3. Select `$HOME/.local/share/logue/extension`.
 
-升级后若 Chrome 尚未自动读取新文件，在同一页面点击 Logue 卡片上的“重新加载”；不需要重新选择目录。
+After an upgrade, if Chrome has not picked up the new files automatically, click **Reload** on the Logue card on the same page. You do not need to select the directory again.
 
-## 本地开发
+## Local development
 
 ```bash
 npm install
 npm run dev
 ```
 
-`npm run dev` 会同时启动：
+`npm run dev` starts both services:
 
-- Web App：`http://localhost:5173`
-- Go API：`http://localhost:8787`
+- Web App: `http://localhost:5173`
+- Go API: `http://localhost:8787`
 
-默认启动会保留真实的空工作区，不会自动写入示例内容。只有在明确需要演示数据时才运行 `npm run dev:demo`；不要对正在使用的真实数据目录运行该命令。
+The default development environment keeps a real, empty workspace and does not create sample content. Run `npm run dev:demo` only when you explicitly need demo data. Do not run it against a data directory that contains real content.
 
-Gemini 密钥只由 Go 服务读取。支持：
+Only the Go service reads the Gemini API key. Set either variable:
 
 ```bash
 export GEMINI_API_KEY="..."
-# 或 GOOGLE_GENERATIVE_AI_API_KEY
+# or GOOGLE_GENERATIVE_AI_API_KEY
 ```
 
-其他命令：
+Other commands:
 
 ```bash
 npm run storybook
@@ -62,16 +62,16 @@ npm test
 npm run build:extension
 ```
 
-扩展构建产物位于 `apps/extension/dist`。数据默认保存在仓库下的 `.logue-data`，可用 `LOGUE_DATA_DIR` 修改。
+The extension build output is written to `apps/extension/dist`. Development data is stored in `.logue-data` at the repository root by default; set `LOGUE_DATA_DIR` to use another location.
 
-设计文档见 [`docs`](./docs)。
+See [`docs`](./docs) for design documentation.
 
-## 发布
+## Release
 
-本地可从锁定依赖构建两个 macOS 架构的发布包：
+Build release packages for both macOS architectures locally from locked dependencies:
 
 ```bash
 bash scripts/build-release.sh v0.2.3
 ```
 
-产物位于 `dist/release`：`logue-darwin-arm64.tar.gz`、`logue-darwin-amd64.tar.gz` 和 `checksums.txt`。推送 `v*` tag 后，GitHub Actions 会重新构建并创建 Release，同时上传一行安装脚本。
+The output is written to `dist/release`: `logue-darwin-arm64.tar.gz`, `logue-darwin-amd64.tar.gz`, and `checksums.txt`. Pushing a `v*` tag triggers GitHub Actions to rebuild the packages, create a GitHub Release, and upload the one-command installer.
