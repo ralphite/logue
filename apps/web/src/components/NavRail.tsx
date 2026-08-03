@@ -127,7 +127,7 @@ export function NavRail({
         )}
       </div>
 
-      <nav id="primary-navigation" className="mt-2 min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain pr-px" aria-label="Primary navigation">
+      <nav id="primary-navigation" className="scroll-surface mt-2 min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain pr-px" aria-label="Primary navigation">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (

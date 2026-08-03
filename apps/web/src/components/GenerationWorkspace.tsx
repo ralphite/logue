@@ -259,10 +259,10 @@ export function GenerationWorkspace({ materials, initialMode = "documents", init
         {documentCreateError && <p role="alert" className="mx-3 mb-2 rounded-md bg-[#f8ece9] px-3 py-2 text-[14px] leading-4 text-[#9f4a42]">{documentCreateError}</p>}
         <div className="mx-4 border-t border-[#e2e2df]" />
         <div className="mt-1.5 min-h-0 flex-1">
-          <div hidden={listSection !== "documents"} className="h-full overflow-y-auto px-2 pb-3" aria-label="Documents list">
+          <div hidden={listSection !== "documents"} className="scroll-surface h-full overflow-y-auto px-2 pb-3" aria-label="Documents list">
             {workspaceList("documents")}
           </div>
-          <div hidden={listSection !== "skills"} className="h-full overflow-y-auto px-2 pb-3" aria-label="Skills list">
+          <div hidden={listSection !== "skills"} className="scroll-surface h-full overflow-y-auto px-2 pb-3" aria-label="Skills list">
             {workspaceList("skills")}
           </div>
         </div>
@@ -275,7 +275,7 @@ export function GenerationWorkspace({ materials, initialMode = "documents", init
       </div>
 
       {mobilePanel === "list" ? (
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-[#f7f7f5] px-3 py-3" data-testid="mobile-workspace-list" aria-label={listSection === "skills" ? "Skills list" : "Documents list"}>
+        <main className="scroll-surface min-h-0 min-w-0 flex-1 overflow-y-auto bg-[#f7f7f5] px-3 py-3" data-testid="mobile-workspace-list" aria-label={listSection === "skills" ? "Skills list" : "Documents list"}>
           {workspaceList(listSection)}
         </main>
       ) : mode === "documents" ? (
@@ -438,7 +438,7 @@ function NewGeneration({ skills, materials, initialProject, onCreated }: { skill
   }
 
   return (
-    <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-white">
+    <main className="scroll-surface min-h-0 min-w-0 flex-1 overflow-y-auto bg-white">
       <article data-testid="generation-form-content-column" className={`${editorColumnClass} pb-24 pt-10 max-[700px]:pt-7`}>
         <div className="grid grid-cols-[160px_1fr] gap-6 max-[640px]:grid-cols-1 max-[640px]:gap-2">
           <label className="pt-2 text-[15px] font-medium text-[#6e706a]" htmlFor="generation-skill">
@@ -524,7 +524,7 @@ function RunResult({ run, onRunChange, onOpenDocument, onBack }: { run: LogueSki
     window.setTimeout(() => setCopied(false), 1600);
   }
   return (
-    <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-white">
+    <main className="scroll-surface min-h-0 min-w-0 flex-1 overflow-y-auto bg-white">
       <header className="sticky top-0 z-10 border-b border-[#eeeeeb] bg-white/92 backdrop-blur">
         <div data-testid="generation-result-header-column" className={`${editorColumnClass} flex h-12 items-center justify-between`}>
           <button type="button" onClick={onBack} className="text-[15px] font-medium text-[#777873] hover:text-[#3e3f3b]">
@@ -658,7 +658,7 @@ function SkillEditor({ skills, selectedSkillId, onSelect, onSkillsChange }: { sk
   if (!draft) return <main className="flex flex-1 items-center justify-center text-[14px] text-[#999]">No skills yet</main>;
   const toggle = <T extends string>(items: T[], value: T) => (items.includes(value) ? items.filter((item) => item !== value) : [...items, value]);
   return (
-    <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-white">
+    <main className="scroll-surface min-h-0 min-w-0 flex-1 overflow-y-auto bg-white">
       <header className="sticky top-0 z-10 border-b border-[#eeeeeb] bg-white/92 backdrop-blur">
         <div data-testid="skill-editor-header-column" className={`${editorColumnClass} flex h-12 items-center justify-between gap-3`}>
           <span className="text-[14px] font-medium text-[#777873]">Skills</span>

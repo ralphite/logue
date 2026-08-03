@@ -164,7 +164,7 @@ export function ProjectPage({
 
   if (selected) {
     return (
-      <main className="min-w-0 flex-1 overflow-y-auto bg-white">
+      <main className="scroll-surface min-w-0 flex-1 overflow-y-auto bg-white">
         <ContextHeader
           testId="project-detail-header-column"
           leading={<Button variant="ghost" size="sm" onClick={() => { setSelectedName(undefined); loadedRef.current = undefined; onSelectedProjectChange(undefined); }}><ArrowLeft size={14} /> All projects</Button>}
@@ -210,7 +210,7 @@ export function ProjectPage({
 
   const unfiled = materials.filter((item) => item.projects.length === 0).length;
   return (
-    <main className="min-w-0 flex-1 overflow-y-auto bg-white">
+    <main className="scroll-surface min-w-0 flex-1 overflow-y-auto bg-white">
       <PageHeader title="Projects" testId="projects-header-column" actions={<Button variant="primary" size="sm" onClick={() => setNewProjectOpen(true)} className="max-[640px]:h-11"><Plus size={13} /> New project</Button>} />
       <div data-testid="projects-content-column" className={`${pageColumnClass} pb-16 pt-8 max-[640px]:pt-5`}>
         {!loading && !loadError && projects.length === 0 ? (

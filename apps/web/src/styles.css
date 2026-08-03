@@ -83,6 +83,12 @@ button:not(:disabled) {
   background-clip: padding-box;
 }
 
+/* Apply only to the element that owns scrolling so scrollbars never resize its layout. */
+.scroll-surface {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
 @keyframes logue-wave {
   0%,
   100% {

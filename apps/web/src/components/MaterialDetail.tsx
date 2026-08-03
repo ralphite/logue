@@ -204,7 +204,7 @@ export function MaterialDetail({
     <Root
       data-testid="material-detail-scroll"
       style={!isPage ? ({ "--material-detail-width": peekWidth ? `${peekWidth}px` : "min(620px, 46vw)" } as CSSProperties) : undefined}
-      className={isPage ? "h-screen min-w-0 flex-1 overflow-y-auto overscroll-contain bg-white" : "h-screen w-[var(--material-detail-width)] min-w-[440px] shrink-0 overflow-y-auto overscroll-contain bg-white max-[1180px]:fixed max-[1180px]:inset-y-0 max-[1180px]:right-0 max-[1180px]:z-30 max-[1180px]:border-l max-[1180px]:border-[#e1e1dd] max-[1180px]:shadow-[-18px_0_54px_rgba(31,33,28,0.11)] max-[640px]:w-full max-[640px]:min-w-0 max-[640px]:pb-16"}
+      className={isPage ? "scroll-surface h-screen min-w-0 flex-1 overflow-y-auto overscroll-contain bg-white" : "scroll-surface h-screen w-[var(--material-detail-width)] min-w-[440px] shrink-0 overflow-y-auto overscroll-contain bg-white max-[1180px]:fixed max-[1180px]:inset-y-0 max-[1180px]:right-0 max-[1180px]:z-30 max-[1180px]:border-l max-[1180px]:border-[#e1e1dd] max-[1180px]:shadow-[-18px_0_54px_rgba(31,33,28,0.11)] max-[640px]:w-full max-[640px]:min-w-0 max-[640px]:pb-16"}
     >
       <header className="sticky top-0 z-10 flex h-12 items-center justify-between border-b border-[#eeeeeb] bg-white/95 px-4 backdrop-blur-xl">
         {isPage ? <button type="button" onClick={onClose} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[15px] text-[#71726d] hover:bg-[#f1f1ee]"><ArrowLeft size={14} /> Stream</button> : <div className="flex items-center gap-2.5"><span className="text-[15px] text-[#777873]">Stream</span><span className="text-[#b7b8b3]">/</span><span className="text-[15px] text-[#4f504c]">{materialTitles[material.kind]}</span></div>}

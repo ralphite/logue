@@ -112,7 +112,7 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
   }
 
   return (
-    <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-white">
+    <main className="scroll-surface min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-white">
       <PageHeader title="Settings" axis="editor" testId="settings-header-column" actions={saveState === "error" ? <span className="text-[14px] text-[#a84d44]">Save failed</span> : undefined} />
       <div data-testid="settings-content-column" className={`${editorColumnClass} pb-24 pt-8`}>
 
