@@ -139,6 +139,7 @@ Generate 可以产生：
 - 保存新地址前必须通过 `/v1/status` 验证确实是兼容的 Logue 服务；成功后安静关闭设置并重新加载当前页面上下文、页面资料、Skills 和设置。正常连接不显示 `Connected`；断开时只显示局部 `Retry` 与 `Change server`。
 - 所有 Extension API 路径，包括页面历史、右键保存、选区 Skill、录音、生成、采用与取消，都必须由 background 统一使用当前 Server URL；禁止任何 content script、Side Panel 或 helper 绕过配置直连 localhost。
 - Extension、Chrome/MV3 worker 和浏览器重启后必须恢复已选 Server URL；地址变更后下一次请求立即使用新地址，不依赖 service worker 内存缓存。
+- Linux 服务安装器不能假装能跨机器静默安装 MacBook Chrome Extension。Release 必须另提供平台无关、带校验和、可覆盖的 Extension 客户端资产/安装命令；首次只需在 MacBook 的 `chrome://extensions` 以 `Load unpacked` 选择稳定目录，后续升级复用同一路径和现有 `chrome.storage`，只需 Reload，不得要求在 MacBook 启动本地 Go 服务。
 
 ## 5. 资料、项目、自动整理与来源
 
@@ -306,6 +307,7 @@ Storybook 至少包含：
 - 安装过程明确询问是否开机自动启动；无交互环境支持显式配置且不阻塞。
 - Release 包含版本、支持平台、校验和和可复现构建证据。
 - Release 必须包含受支持的 Linux 架构资产；一行安装器可在 Linux 上安装/覆盖 Go 服务与 Web App、保留数据、自动启动，并可选择配置 systemd 用户级开机启动和显式监听地址。Extension 作为独立 Chrome 资产连接该服务。
+- 对分离部署，README 与 Installer 输出必须明确区分 Linux 服务命令和 MacBook Extension 客户端命令；Chrome 安全模型不允许静默安装未上架扩展，因此必须提供准确的一次性 `Developer mode` → `Load unpacked` 步骤，不能声称全自动安装。
 - README、Installer 输出、Release notes 和所有用户可见安装页面使用英文。
 - 当前 `main` 的最新已验证版本必须进入最新 Release；旧 Release 通过不能替代当前主线发布。Release 只能在本目标内所有当前桌面功能、设计终审、Storybook 状态覆盖、真实验收与数据整理均完成后进行，不能为了发布而跳过未完成需求。
 
@@ -350,6 +352,7 @@ Storybook 至少包含：
 21. Linux 主机显式监听私网地址或由受控反向代理提供用户已知域名；MacBook 可直接打开同源 Web App，并在 Extension 中连接该地址，完成 status、当前页面历史、右键选区保存、语音保存和 Generate/Skill API 流程。
 22. 防火墙分配的新域名替换旧域名后，`Connect` 只请求新 origin 权限并通过 Logue/API 版本验证；失败或取消保留旧配置，成功后无需重装 Extension 即恢复流程；Chrome 与 MV3 worker 重启后配置仍有效。
 23. Linux 一行安装在无既有数据机器上自动启动并通过健康检查；重复覆盖安装不会删除数据，并正确处理 systemd 用户级开机启动的接受、拒绝和非交互选择。
+24. MacBook 不安装或启动 Go 服务，只运行独立 Extension 客户端安装命令并从稳定目录 `Load unpacked`；覆盖升级后 Server URL、草稿和其它 Chrome storage 不变，点击 Reload 即使用新版本并继续连接 Linux 服务。
 
 ## 14. 明确禁止与已否定方案
 
