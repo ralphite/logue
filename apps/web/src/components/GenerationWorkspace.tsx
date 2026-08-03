@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { adoptSkillRun, createSkill, createSkillRun, defaultSkillPurpose, getSkillRuns, getSkills, updateSkill, type LogueSkill, type LogueSkillRun, type SkillContext, type SkillOutput, type SkillSurface, type SkillTask } from "../skillApi";
 import { createDocument, getDocuments, getWorkspaceSettings, saveWorkspaceSettings, type LogueDocument } from "../api";
 import { groupIdenticalMaterials } from "../materialGroups";
-import { matchesMaterialSearchText, orderMaterialSearchResults, useMaterialSearch } from "../materialSearch";
+import { matchesMaterialSearchText, orderMaterialSearchResults, useDocumentSearch, useMaterialSearch } from "../materialSearch";
 import { ViewWorkspace } from "./DocumentWorkspace";
 import { MaterialGroupPicker } from "./MaterialGroupPicker";
 import { PanelResizer, usePersistentPanelSize } from "./PanelResizer";
+import { SearchPending } from "./SearchPending";
 import { editorColumnClass } from "./layout";
 
 export type GenerationMode = "new" | "skills" | "documents";
@@ -47,6 +48,7 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
   const [selectedDocumentId, setSelectedDocumentId] = useState(initialDocumentId);
   const [selectedSkillId, setSelectedSkillId] = useState<string>();
   const [selectedRunId, setSelectedRunId] = useState<string>();
+  const [documentQuery, setDocumentQuery] = useState("");
   const [mobilePanel, setMobilePanel] = useState<"none" | "list">("none");
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [documentsLoading, setDocumentsLoading] = useState(true);
@@ -188,15 +190,38 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
   const listSection = mode === "skills" ? "skills" : "documents";
   const activeSection = mode === "skills" ? "skills" : mode === "documents" ? "documents" : undefined;
   const selectedRun = runs.find((run) => run.id === selectedRunId);
+  const documentSearch = useDocumentSearch(documentQuery, documents);
+  const visibleDocuments = useMemo(() => {
+    if (!documentSearch.normalizedQuery) return documents;
+    if (documentSearch.result) {
+      const documentsByID = new Map(documents.map((document) => [document.id, document]));
+      return documentSearch.result.matches
+        .map((match) => documentsByID.get(match.id))
+        .filter((document): document is LogueDocument => Boolean(document));
+    }
+    return documents.filter((document) =>
+      [document.title, document.content, document.project]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(documentSearch.normalizedQuery)),
+    );
+  }, [documentSearch.normalizedQuery, documentSearch.result, documents]);
+  const documentSearchReason = useCallback((document: LogueDocument) => {
+    const match = documentSearch.matches.get(document.id);
+    return match?.match === "related" ? match.reason : "";
+  }, [documentSearch.matches]);
   const workspaceList = (section: "documents" | "skills") => (
     <WorkspaceNavigationList
       section={section}
       skills={skills}
-      documents={documents}
+      documents={section === "documents" ? visibleDocuments : documents}
       selectedSkillId={selectedSkillId}
       selectedDocumentId={selectedDocumentId}
       loading={section === "skills" ? skillsLoading : documentsLoading}
       error={section === "skills" ? skillsError : documentsError}
+      documentSearchActive={section === "documents" && Boolean(documentSearch.normalizedQuery)}
+      documentSearchPending={section === "documents" && documentSearch.pending}
+      documentSearchReason={documentSearchReason}
+      onClearDocumentSearch={() => setDocumentQuery("")}
       onSelectSkill={(id) => {
         setSelectedSkillId(id);
         setMobilePanel("none");
@@ -213,6 +238,19 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
           <h1 className="text-[14px] font-semibold text-[#555651]">Generate</h1>
         </header>
         <GenerateSectionNavigation activeSection={activeSection} creatingSkill={creatingSkill} creatingDocument={creatingDocument} onOpenDocuments={() => void openDocuments(false)} onAddDocument={() => void addDocument()} onOpenSkills={() => void openSkills(false)} onAddSkill={() => void addSkill()} />
+        {listSection === "documents" && (
+          <label className="relative mx-2.5 mb-1.5 block">
+            <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[#999a96]" />
+            <input
+              aria-label="Search documents"
+              value={documentQuery}
+              onChange={(event) => setDocumentQuery(event.target.value)}
+              placeholder="Search documents"
+              className="h-8 w-full rounded-md border border-transparent bg-[#eeeeeb] pl-8 pr-2 text-[14px] text-[#2e302b] outline-none placeholder:text-[#92938f] focus:border-[#d9d9d5] focus:bg-white"
+            />
+            {documentSearch.pending && <span className="sr-only" aria-live="polite">Searching documents</span>}
+          </label>
+        )}
         {documentCreateError && <p role="alert" className="mx-3 mb-2 rounded-md bg-[#f8ece9] px-3 py-2 text-[14px] leading-4 text-[#9f4a42]">{documentCreateError}</p>}
         <div className="mx-4 border-t border-[#e2e2df]" />
         <div className="mt-1.5 min-h-0 flex-1">
@@ -299,7 +337,7 @@ function GenerateSectionNavigation({ activeSection, creatingSkill, creatingDocum
   );
 }
 
-function WorkspaceNavigationList({ section, skills, documents, selectedSkillId, selectedDocumentId, loading, error, onSelectSkill, onSelectDocument, onRetry }: { section: "documents" | "skills"; skills: LogueSkill[]; documents: LogueDocument[]; selectedSkillId?: string; selectedDocumentId?: string; loading: boolean; error?: string; onSelectSkill: (id: string) => void; onSelectDocument: (id: string) => void; onRetry: () => void }) {
+function WorkspaceNavigationList({ section, skills, documents, selectedSkillId, selectedDocumentId, loading, error, documentSearchActive, documentSearchPending, documentSearchReason, onClearDocumentSearch, onSelectSkill, onSelectDocument, onRetry }: { section: "documents" | "skills"; skills: LogueSkill[]; documents: LogueDocument[]; selectedSkillId?: string; selectedDocumentId?: string; loading: boolean; error?: string; documentSearchActive: boolean; documentSearchPending: boolean; documentSearchReason: (document: LogueDocument) => string; onClearDocumentSearch: () => void; onSelectSkill: (id: string) => void; onSelectDocument: (id: string) => void; onRetry: () => void }) {
   if (loading)
     return (
       <div className="space-y-1 px-1 py-1" aria-label={`Loading ${section === "skills" ? "skills" : section}`}>
@@ -340,11 +378,18 @@ function WorkspaceNavigationList({ section, skills, documents, selectedSkillId, 
           <FileText size={14} className="mt-0.5 shrink-0 text-[#777a72]" />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[14px] font-medium text-[#50514d]">{document.title.trim() || "Untitled"}</span>
-            <span className="mt-0.5 block truncate text-[14px] text-[#979893]">{document.project || shortDate(document.updated_at)}</span>
+            <span className="mt-0.5 block truncate text-[14px] text-[#979893]">{documentSearchReason(document) || document.project || shortDate(document.updated_at)}</span>
           </span>
         </button>
       ))}
     </>
+  ) : documentSearchActive && documentSearchPending ? (
+    <SearchPending label="documents" className="min-h-16" />
+  ) : documentSearchActive ? (
+    <div className="px-3 py-6 text-center">
+      <p className="text-[14px] text-[#999a95]">No matching documents</p>
+      <button type="button" onClick={onClearDocumentSearch} className="mt-2 text-[14px] font-medium text-[#666762] underline underline-offset-2">Clear search</button>
+    </div>
   ) : (
     <p className="px-3 py-5 text-[14px] leading-4 text-[#999a95]">No documents yet.</p>
   );
@@ -470,7 +515,7 @@ function NewGeneration({ skills, materials, initialProject, onCreated }: { skill
                 <input aria-label="Search source materials" value={sourceQuery} onChange={(event) => setSourceQuery(event.target.value)} placeholder="Search materials" className="h-8 w-full rounded bg-[#f5f5f2] pl-8 pr-2 text-[15px] outline-none" />
               </label>
               <div className="mt-1 max-h-52 overflow-y-auto">
-                {sourceSearch.pending ? <div aria-busy="true" aria-label="Searching source materials" className="min-h-16" /> : <MaterialGroupPicker materials={visibleSources} selectedIds={sourceIds} onChange={setSourceIds} getLabel={(item) => item.content} getSearchReason={sourceSearchReason} />}
+                {sourceSearch.pending ? <SearchPending label="materials" className="min-h-16" /> : <MaterialGroupPicker materials={visibleSources} selectedIds={sourceIds} onChange={setSourceIds} getLabel={(item) => item.content} getSearchReason={sourceSearchReason} />}
               </div>
             </div>
           )}

@@ -59,7 +59,7 @@
 | F16 | 提供真实截图 | PASS | 可复用、无敏感信息的当前截图保存在 `docs/design/references/runtime/`；例如生成页 input-first 与扩展 Side Panel 页面资料流。 |
 | F17 | 每小时自动重启当前 goal 并继续最高 ROI 工作 | PASS | `logue` automation 持续唤醒本任务；只有 fresh-context 与直接证据共同支持时才能结束。 |
 | F18 | Notion 式 Selection Skills：Document 与网页编辑目标原位变换 | PARTIAL | 已真实观察 Notion 配置与选区 `Skills` 菜单；Logue Document 已在真实运行验证轻量入口、菜单、Esc/↓ 键盘操作和不越过 Sources 的定位，运行会持久化 Skill revision、选区、目标、输出与采用结果，并在来源登记失败时保留可重试动作。Extension 的 textarea/contenteditable 新入口已实现、构建和单测通过，但已安装 Chrome 扩展尚未允许重载，故不能关闭实机闭环。 |
-| F19 | 所有搜索入口的语义检索、排序、解释和本地降级 | PARTIAL | Stream、Document 与 Sources 有检索代码；尚无逐入口真实相关性、解释和降级验收，不能宣称“所有搜索”完成。 |
+| F19 | 所有搜索入口的语义检索、排序、解释和本地降级 | PASS | 2026-08-03 已在真实 Chrome 验证 Stream、Generate 的 Documents 列表、Document Sources（All materials）与 Generate source picker：自然语言查询按语义相关性排序并展示简短英文理由。Documents 主列表补上此前缺失的生产搜索入口，搜索期间使用共享、局部的 `Finding related…` 状态，避免空白或错误的无结果结论。独立无 Gemini 运行时副本验证 Material / Document API 返回 `strategy=local` 且仅有可解释的直接匹配。 |
 | F20 | Storybook 生产组件 inventory 与所有有意义状态 | OPEN | 现有 Story 数量和组织不足；遗留 demo 组件仍只为 Storybook/测试保留，缺少可审计 inventory、真实生产组件和状态覆盖。 |
 | F21 | 清除 legacy 代码、旧路由/数据/测试/未挂载 demo | PASS | 真实 `.logue-data` 已完整备份、一次性转换为 `skills/` 与 `skill-runs/`、在 live API 与隔离导出恢复中验证后删除转换工具；旧 `/v1/agents` 返回 404。旧 demo seed、路由/字段 alias、启动修复与旧 Chrome 降级分支均已删除。 |
 
@@ -68,8 +68,7 @@
 1. **P0（Selection Skills Extension 实机闭环）**：在可重载的已安装 Chrome 扩展中，验证 textarea 与 contenteditable 选区入口、菜单、Esc、漂移拒绝和不自动提交；当前构建/单测不替代这一项。
 2. **已关闭（legacy 清理）**：旧 Prompt-only Agent schema、旧路由/未挂载 demo 与兼容分支已在一次性备份、转换、真实验证后删除。
 3. **P1（当前 Extension 核心缺口）**：完成标准 input、选区文字/语音批注、无输入框页面录音、页面历史刷新、目标丢失/断线/重试幂等与焦点防护的真实闭环。
-4. **P1（搜索）**：逐个搜索入口验证语义相关性、简短依据与 local fallback。
-5. **P1（Storybook 与英文文案）**：改为生产组件 inventory、全状态覆盖，并清除 Installer/fixture/系统 copy 中的中文。
-6. **P1（全产品终审）**：用当前主要 Web/Extension 截图与项目内 Notion/ChatGPT 参照完成两名 fresh-context 独立审查，直接修复无歧义高影响问题。
-7. **P1（发布）**：仅在以上核心闭环完成后，发布当前最新 `main` 并完成真实覆盖升级。
-8. **P3（移动端，用户明确后置）**：安全 LAN 配对入口与物理 iPhone 的触控、旋转、刷新、Stream / Projects / Generate / 文档编辑闭环。
+4. **P1（Storybook 与英文文案）**：改为生产组件 inventory、全状态覆盖，并清除 Installer/fixture/系统 copy 中的中文。
+5. **P1（全产品终审）**：用当前主要 Web/Extension 截图与项目内 Notion/ChatGPT 参照完成两名 fresh-context 独立审查，直接修复无歧义高影响问题。
+6. **P1（发布）**：仅在以上核心闭环完成后，发布当前最新 `main` 并完成真实覆盖升级。
+7. **P3（移动端，用户明确后置）**：安全 LAN 配对入口与物理 iPhone 的触控、旋转、刷新、Stream / Projects / Generate / 文档编辑闭环。

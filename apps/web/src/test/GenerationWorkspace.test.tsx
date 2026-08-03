@@ -212,6 +212,23 @@ describe("GenerationWorkspace navigation", () => {
     expect(within(list).getByRole("button", { name: /Launch brief/ })).toBeTruthy();
   });
 
+  it("searches the production Documents list without replacing its shell", async () => {
+    const secondDocument = { ...documentItem, id: "doc_two", title: "Research notes", content: "Browser capture findings" };
+    mocks.getDocuments.mockResolvedValue([documentItem, secondDocument]);
+    renderWorkspace({ initialMode: "documents", initialDocumentId: documentItem.id });
+
+    const list = screen.getByRole("complementary", { name: "Generate navigation" });
+    await within(list).findByRole("button", { name: /Research notes/ });
+    const search = within(list).getByRole("textbox", { name: "Search documents" });
+
+    fireEvent.change(search, { target: { value: "research" } });
+
+    await waitFor(() => expect(within(list).queryByRole("button", { name: /Launch brief/ })).toBeNull());
+    expect(within(list).getByRole("button", { name: /Research notes/ })).toBeTruthy();
+    expect(screen.getByTestId("document-workspace")).toBeTruthy();
+    expect(mocks.getDocuments).toHaveBeenCalledTimes(1);
+  });
+
   it("creates and opens a real document from the Documents add action", async () => {
     renderWorkspace({ initialMode: "skills" });
     const navigation = screen.getByRole("navigation", { name: "Generate sections" });

@@ -25,6 +25,7 @@ import { ProjectPage } from "./components/ProjectPage";
 import { GenerationWorkspace, type GenerationMode } from "./components/GenerationWorkspace";
 import { SettingsPage } from "./components/SettingsPage";
 import { PanelResizer, usePersistentPanelSize } from "./components/PanelResizer";
+import { SearchPending } from "./components/SearchPending";
 import { Button, PageHeader } from "./components/ui";
 import { pageColumnClass } from "./components/layout";
 import { navigationURL, parseNavigation, type AppNavigation } from "./navigation";
@@ -429,7 +430,7 @@ export function App() {
                 <button type="button" onClick={() => setShowComposer(true)} className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[14px] font-medium text-white hover:bg-[#3a3b37]"><CirclePlus size={14} /> Add first material</button>
               </section>
             ) : materialSearchPending ? (
-              <div aria-busy="true" aria-label="Searching materials" className="min-h-36" />
+              <SearchPending label="materials" className="min-h-36" />
             ) : (
               <div className="flex items-center gap-2 px-3 py-5 text-[14px] text-[#8d8f89]">
                 <span>No matches</span>
