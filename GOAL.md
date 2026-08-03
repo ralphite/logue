@@ -84,6 +84,8 @@ Generate 可以产生：
 - 无选区时：展示当前页面来源/上下文；用户可直接录音，转写后保存为页面关联 Material，不能假定存在可写入网页的输入框。
 - 有当前网页输入目标时：可录音并在保存成功后插入该目标；目标消失时已保存内容不能丢失，应允许重新插入或 Copy。
 - Logue Web App 自己的真实 input、textarea 和 editor 也必须允许 Extension 使用；只能对明确的 Extension UI 子树做 opt-out，不能整站禁用。
+- Side Panel 打开或由网页 launcher 唤起后，必须将焦点可靠交给 Side Panel document 的非编辑区域，使 `R` 可立即使用；不得抢占 textarea、input、select 或 contenteditable 的编辑焦点。
+- 无选区的当前页面 Side Panel 必须在输入/录音区域下方显示关联该页面的已保存 Material；按创建时间由新到旧排序，新增、保存或插入后无需重开即可立即出现在顶部。
 
 ### 4.3 极简语音输入
 
@@ -92,6 +94,7 @@ Generate 可以产生：
 - 点击 launcher 一次即开始录音并把焦点可靠交给 Side Panel；首次点击不得因布局跳位、焦点变化或命中区改变而失效。
 - 录音态只有两个用户决策：`Stop and insert` 与 `Cancel`。
 - `Stop and insert` 自动完成转写、保存、插入；不得出现转写审阅、项目、Tag、Reference、归档设置、接受后第二次确认或自动发送。
+- 项目、Tag 与自动整理在默认录音/页面批注路径中必须后台静默处理；不得显示 `Organize`、`Automatic` 或其他解释性配置。低置信度才用简短、局部、可编辑的 review 暴露必要信息。
 - `Cancel` 在权限等待、starting、recording、transcribing、saving 及完成插入前都必须立即退出，不保存、不插入；不得因此引入转写审阅或“未采用结果”界面；界面必须有可见取消动作。
 - 必须先成功保存最终文字、原始音频、机器转写、来源和关系，再插入宿主目标。
 - 永不按 Enter、永不点击发送、永不自动 submit 宿主表单。
