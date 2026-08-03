@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { adoptAgentRun, createAgent, createAgentRun, defaultSkillPurpose, getAgentRuns, getAgents, updateAgent, type AgentContext, type AgentOutput, type AgentSurface, type AgentTask, type LogueAgent, type LogueAgentRun } from "../agentApi";
 import { createDocument, getDocuments, getWorkspaceSettings, saveWorkspaceSettings, type LogueDocument } from "../api";
 import { groupIdenticalMaterials } from "../materialGroups";
+import { matchesMaterialSearchText, orderMaterialSearchResults, useMaterialSearch } from "../materialSearch";
 import { ViewWorkspace } from "./DocumentWorkspace";
 import { MaterialGroupPicker } from "./MaterialGroupPicker";
 import { PanelResizer, usePersistentPanelSize } from "./PanelResizer";
@@ -360,13 +361,25 @@ function NewGeneration({ agents, materials, initialProject, onCreated }: { agent
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string>();
   const projects = useMemo(() => Array.from(new Set(materials.flatMap((item) => item.projects))).sort(), [materials]);
+  const sourceCandidates = useMemo(
+    () => materials.filter((item) => !project || item.projects.includes(project)),
+    [materials, project],
+  );
+  const sourceSearch = useMaterialSearch(sourceQuery, sourceCandidates);
   const visibleSources = useMemo(() => {
-    const normalized = sourceQuery.trim().toLowerCase();
-    const filtered = materials.filter((item) => (!project || item.projects.includes(project)) && (!normalized || [item.content, item.source?.title, ...item.tags].filter(Boolean).some((value) => value!.toLowerCase().includes(normalized))));
+    const filtered = !sourceSearch.normalizedQuery
+      ? sourceCandidates
+      : sourceSearch.result
+        ? orderMaterialSearchResults(sourceCandidates, sourceSearch.result)
+        : sourceCandidates.filter((item) => matchesMaterialSearchText(item, sourceSearch.normalizedQuery));
     return groupIdenticalMaterials(filtered)
       .slice(0, 30)
       .flatMap((group) => group.items);
-  }, [materials, project, sourceQuery]);
+  }, [sourceCandidates, sourceSearch.normalizedQuery, sourceSearch.result]);
+  const sourceSearchReason = useCallback((material: Material) => {
+    const match = sourceSearch.matches.get(material.id);
+    return match?.match === "related" ? match.reason : "";
+  }, [sourceSearch.matches]);
 
   useEffect(() => {
     if (!agentId && generationAgents.length) setAgentId(generationAgents.find((item) => item.id === "agt_reply")?.id ?? generationAgents[0].id);
@@ -458,10 +471,10 @@ function NewGeneration({ agents, materials, initialProject, onCreated }: { agent
             <div className="mt-3 rounded-md border border-[#e1e1dd] p-2">
               <label className="relative block">
                 <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#999]" />
-                <input value={sourceQuery} onChange={(event) => setSourceQuery(event.target.value)} placeholder="Search materials" className="h-8 w-full rounded bg-[#f5f5f2] pl-8 pr-2 text-[15px] outline-none" />
+                <input aria-label="Search source materials" value={sourceQuery} onChange={(event) => setSourceQuery(event.target.value)} placeholder="Search materials" className="h-8 w-full rounded bg-[#f5f5f2] pl-8 pr-2 text-[15px] outline-none" />
               </label>
               <div className="mt-1 max-h-52 overflow-y-auto">
-                <MaterialGroupPicker materials={visibleSources} selectedIds={sourceIds} onChange={setSourceIds} getLabel={(item) => item.content} />
+                {sourceSearch.pending ? <div aria-busy="true" aria-label="Searching source materials" className="min-h-16" /> : <MaterialGroupPicker materials={visibleSources} selectedIds={sourceIds} onChange={setSourceIds} getLabel={(item) => item.content} getSearchReason={sourceSearchReason} />}
               </div>
             </div>
           )}

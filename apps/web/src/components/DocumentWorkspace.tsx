@@ -19,6 +19,7 @@ import { type Material } from "@logue/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSerialTaskQueue } from "../documentSaveQueue";
 import { groupIdenticalMaterials } from "../materialGroups";
+import { matchesMaterialSearchText, orderMaterialSearchResults, useMaterialSearch } from "../materialSearch";
 import {
   createDocument,
   deleteDocument,
@@ -546,18 +547,22 @@ export function ViewWorkspace({
     .map((id) => materials.find((material) => material.id === id))
     .filter((material): material is Material => Boolean(material));
 
-  const availableSources = useMemo(() => {
-    const normalized = sourceQuery.trim().toLowerCase();
-    return materials.filter((material) => {
+  const sourceCandidates = useMemo(() => materials.filter((material) => {
       if (sourceIds.includes(material.id)) return false;
       if (sourceScope === "project" && project && !material.projects.includes(project)) return false;
-      if (!normalized) return true;
-      return [material.content, material.source?.title, material.source?.domain, ...material.projects]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(normalized));
-    });
-  }, [materials, project, sourceIds, sourceQuery, sourceScope]);
+      return true;
+    }), [materials, project, sourceIds, sourceScope]);
+  const sourceSearch = useMaterialSearch(sourceQuery, sourceCandidates);
+  const availableSources = useMemo(() => {
+    if (!sourceSearch.normalizedQuery) return sourceCandidates;
+    if (sourceSearch.result) return orderMaterialSearchResults(sourceCandidates, sourceSearch.result);
+    return sourceCandidates.filter((material) => matchesMaterialSearchText(material, sourceSearch.normalizedQuery));
+  }, [sourceCandidates, sourceSearch.normalizedQuery, sourceSearch.result]);
   const availableSourceGroupCount = useMemo(() => groupIdenticalMaterials(availableSources).length, [availableSources]);
+  const sourceSearchReason = useCallback((material: Material) => {
+    const match = sourceSearch.matches.get(material.id);
+    return match?.match === "related" ? match.reason : "";
+  }, [sourceSearch.matches]);
 
   function markDirty() {
     dirtyVersionRef.current += 1;
@@ -917,11 +922,11 @@ export function ViewWorkspace({
               <button type="button" disabled={!project} onClick={() => setSourceScope("project")} className={`h-7 flex-1 border-b-2 text-[14px] font-medium transition max-[900px]:h-11 ${sourceScope === "project" && project ? "border-[#777dd9] text-[#4f54ad]" : "border-transparent text-[#8a8b86] hover:text-[#555651] disabled:cursor-not-allowed disabled:opacity-45"}`}>This project</button>
               <button type="button" onClick={() => setSourceScope("all")} className={`h-7 flex-1 border-b-2 text-[14px] font-medium transition max-[900px]:h-11 ${sourceScope === "all" || !project ? "border-[#777dd9] text-[#4f54ad]" : "border-transparent text-[#8a8b86] hover:text-[#555651]"}`}>All materials</button>
             </div>
-            <label className="relative block"><Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#999a95]" /><input value={sourceQuery} onChange={(event) => setSourceQuery(event.target.value)} placeholder={sourceScope === "project" && project ? `Search ${project} materials` : "Search all materials"} className="h-8 w-full rounded-md border border-transparent bg-[#f1f1ee] pl-8 pr-2 text-[15px] outline-none transition focus:border-[#d8d8d3] focus:bg-white" /></label>
+            <label className="relative block"><Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#999a95]" /><input aria-label="Search source materials" value={sourceQuery} onChange={(event) => setSourceQuery(event.target.value)} placeholder={sourceScope === "project" && project ? `Search ${project} materials` : "Search all materials"} className="h-8 w-full rounded-md border border-transparent bg-[#f1f1ee] pl-8 pr-2 text-[15px] outline-none transition focus:border-[#d8d8d3] focus:bg-white" /></label>
             {sourceMessage && <p role="status" className="mt-2 rounded-md bg-[#fff5e9] px-2.5 py-2 text-[14px] leading-4 text-[#8c612c]">{sourceMessage}</p>}
           </div>
           {linkedSources.length > 0 && <section className="px-3 pb-3 pt-1"><div className="mb-1.5 flex items-center justify-between px-1"><p className="text-[14px] font-semibold text-[#7d7e79]">Citations</p><span className="text-[14px] text-[#a0a19c]">{countLabel(linkedSources.length, "item")}</span></div><div>{linkedSources.map((material, index) => { const excerpt = sourceExcerpt(material); const active = material.id === activeSourceId; return <div id={`linked-source-${material.id}`} key={material.id} className={`group relative border-l-2 transition ${active ? "border-[#777dd9] bg-[#f3f3fa]" : "border-transparent hover:bg-[#f4f4f1]"}`}><button type="button" onClick={() => focusSourceCitation(material.id)} title="Find citation in document" className="flex w-full items-start gap-2 px-2 py-2 pr-14 text-left"><span className={`mt-0.5 inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded px-1 text-[12px] font-semibold ${active ? "bg-[#6d73d7] text-white" : "bg-[#eeeefa] text-[#666dda]"}`}>#{index + 1}</span><span className="min-w-0"><span className="block truncate text-[15px] font-medium text-[#494a46]">{sourceLabel(material)}</span><span className="mt-0.5 block truncate text-[14px] text-[#8b8c87]">{sourceMeta(material)}</span>{excerpt && <span className={`mt-1 text-[14px] leading-4 text-[#777873] ${active ? "line-clamp-2" : "line-clamp-1"}`}>{excerpt}</span>}</span></button><button type="button" onClick={() => removeSource(material.id)} aria-label={`Remove citation ${sourceLabel(material)}`} title="Remove citation and source" className="absolute right-1 top-1 inline-flex size-6 items-center justify-center rounded text-[#9a9b96] opacity-0 transition hover:bg-[#f7e9e6] hover:text-[#a54b42] focus:opacity-100 group-hover:opacity-100 max-[900px]:opacity-100"><X size={12} /></button>{material.source?.url && <a href={material.source.url} target="_blank" rel="noreferrer" aria-label={`Open original source ${sourceLabel(material)}`} title="Open original source" className="absolute right-7 top-1 inline-flex size-6 items-center justify-center rounded text-[#9a9b96] opacity-0 transition hover:bg-[#ecece8] hover:text-[#5c5d58] focus:opacity-100 group-hover:opacity-100 max-[900px]:opacity-100"><ArrowUpRight size={12} /></a>}</div>; })}</div></section>}
-          <section className="flex-1 overflow-y-auto border-t border-[#eeeeeb] px-3 py-3"><div className="mb-1.5 flex items-center justify-between px-1"><p className="text-[14px] font-semibold text-[#7d7e79]">Materials</p><span className="text-[14px] text-[#a0a19c]">{availableSourceGroupCount === availableSources.length ? countLabel(availableSources.length, "item") : `${countLabel(availableSourceGroupCount, "group")} / ${countLabel(availableSources.length, "capture")}`}</span></div><MaterialGroupAddList materials={availableSources} onAdd={insertSourceCitation} getLabel={sourceLabel} getDescription={sourceExcerpt} getMeta={sourceMeta} /></section>
+          <section className="flex-1 overflow-y-auto border-t border-[#eeeeeb] px-3 py-3"><div className="mb-1.5 flex items-center justify-between px-1"><p className="text-[14px] font-semibold text-[#7d7e79]">Materials</p><span className="text-[14px] text-[#a0a19c]">{availableSourceGroupCount === availableSources.length ? countLabel(availableSources.length, "item") : `${countLabel(availableSourceGroupCount, "group")} / ${countLabel(availableSources.length, "capture")}`}</span></div>{sourceSearch.pending ? <div aria-busy="true" aria-label="Searching source materials" className="min-h-16" /> : <MaterialGroupAddList materials={availableSources} onAdd={insertSourceCitation} getLabel={sourceLabel} getDescription={sourceExcerpt} getMeta={sourceMeta} getSearchReason={sourceSearchReason} />}</section>
         </aside>
         </>
       )}
