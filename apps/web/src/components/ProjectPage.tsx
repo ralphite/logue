@@ -3,6 +3,7 @@ import type { Material } from "@logue/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createDocument, generateProjectOverviewDraft, getDocuments, getProjects, saveProject, type LogueDocument, type ProjectSummary } from "../api";
 import { editorColumnClass, pageColumnClass } from "./layout";
+import { Button, ContextHeader, PageHeader } from "./ui";
 
 type SaveState = "saved" | "dirty" | "saving" | "error";
 
@@ -164,12 +165,11 @@ export function ProjectPage({
   if (selected) {
     return (
       <main className="min-w-0 flex-1 overflow-y-auto bg-white">
-        <header className="sticky top-0 z-10 border-b border-[#eeeeeb] bg-white/92 backdrop-blur">
-          <div data-testid="project-detail-header-column" className={`${editorColumnClass} flex h-12 items-center justify-between`}>
-            <button type="button" onClick={() => { setSelectedName(undefined); loadedRef.current = undefined; onSelectedProjectChange(undefined); }} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[15px] text-[#71726d] hover:bg-[#f1f1ee]"><ArrowLeft size={14} /> All projects</button>
-            {saveState === "error" && <span className="text-[14px] text-[#a84d44]">Save failed</span>}
-          </div>
-        </header>
+        <ContextHeader
+          testId="project-detail-header-column"
+          leading={<Button variant="ghost" size="sm" onClick={() => { setSelectedName(undefined); loadedRef.current = undefined; onSelectedProjectChange(undefined); }}><ArrowLeft size={14} /> All projects</Button>}
+          actions={saveState === "error" ? <span className="text-[14px] text-[#a84d44]">Save failed</span> : undefined}
+        />
         <div data-testid="project-detail-content-column" className={`${editorColumnClass} pb-24 pt-14`}>
           <div className="inline-flex size-11 items-center justify-center rounded-md bg-[#f0f0ed] text-[#666762]"><FolderKanban size={21} /></div>
           <h1 className="mt-5 text-[38px] font-bold tracking-[-0.045em] text-[#242522]">{selected.name}</h1>
@@ -211,7 +211,7 @@ export function ProjectPage({
   const unfiled = materials.filter((item) => item.projects.length === 0).length;
   return (
     <main className="min-w-0 flex-1 overflow-y-auto bg-white">
-      <header className="border-b border-[#eeeeeb]"><div data-testid="projects-header-column" className={`${pageColumnClass} flex items-center justify-between py-5 max-[640px]:py-4`}><h1 className="text-[20px] font-semibold tracking-[-0.035em] text-[#20211e]">Projects</h1><button type="button" onClick={() => setNewProjectOpen(true)} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[#242522] px-3 text-[15px] font-medium text-white max-[640px]:h-11"><Plus size={13} /> New project</button></div></header>
+      <PageHeader title="Projects" testId="projects-header-column" actions={<Button variant="primary" size="sm" onClick={() => setNewProjectOpen(true)} className="max-[640px]:h-11"><Plus size={13} /> New project</Button>} />
       <div data-testid="projects-content-column" className={`${pageColumnClass} pb-16 pt-8 max-[640px]:pt-5`}>
         {!loading && !loadError && projects.length === 0 ? (
           <section className="mx-auto flex max-w-lg flex-col items-center px-6 py-20 text-center">

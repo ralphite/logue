@@ -11,6 +11,7 @@ import {
   type GlossarySuggestion,
 } from "../api";
 import { editorColumnClass } from "./layout";
+import { PageHeader } from "./ui";
 
 type SaveState = "saved" | "dirty" | "saving" | "error";
 
@@ -109,7 +110,7 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
 
   return (
     <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-white">
-      <header className="sticky top-0 z-10 border-b border-[#eeeeeb] bg-white/92 backdrop-blur"><div data-testid="settings-header-column" className={`${editorColumnClass} flex h-12 items-center justify-between`}><h1 className="text-[15px] font-medium text-[#464743]">Settings</h1>{saveState === "error" && <span className="text-[14px] text-[#a84d44]">Save failed</span>}</div></header>
+      <PageHeader title="Settings" testId="settings-header-column" actions={saveState === "error" ? <span className="text-[14px] text-[#a84d44]">Save failed</span> : undefined} />
       <div data-testid="settings-content-column" className={`${editorColumnClass} pb-24 pt-8`}>
 
         {loadState === "loading" && <div className="space-y-2" aria-label="Loading settings">{[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse rounded-md bg-[#f3f3f0] motion-reduce:animate-none" />)}</div>}

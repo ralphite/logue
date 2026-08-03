@@ -60,7 +60,8 @@ function StoryHarness(props: Partial<CapturePanelProps> & { initialPhase?: Captu
 }
 
 const meta: Meta = {
-  title: "Extension/Voice Input",
+  id: "extension-voice-input",
+  title: "Features/Extension/Voice Input",
   component: VoiceInputPanel,
   parameters: {
     layout: "centered",

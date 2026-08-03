@@ -17,6 +17,7 @@ import { ProjectPage } from "./components/ProjectPage";
 import { GenerationWorkspace, type GenerationMode } from "./components/GenerationWorkspace";
 import { SettingsPage } from "./components/SettingsPage";
 import { PanelResizer, usePersistentPanelSize } from "./components/PanelResizer";
+import { Button, PageHeader } from "./components/ui";
 import { pageColumnClass } from "./components/layout";
 import { navigationURL, parseNavigation, type AppNavigation } from "./navigation";
 import { groupIdenticalMaterials } from "./materialGroups";
@@ -283,20 +284,22 @@ export function App() {
         <SettingsPage status={status} />
       ) : (
         <main className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${materialMode === "page" ? "hidden" : ""}`}>
-          <header className="sticky top-0 z-20 border-b border-[#eeeeeb] bg-white/92 backdrop-blur-xl">
-            <div data-testid="stream-header-column" className={`${pageColumnClass} flex items-center justify-between gap-4 py-4`}>
-              <h1 className="text-[20px] font-semibold tracking-[-0.035em] text-[#20211e]">Stream</h1>
-              <button
-                type="button"
+          <PageHeader
+            title="Stream"
+            testId="stream-header-column"
+            actions={
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => setShowComposer(true)}
                 aria-label="Add material"
-                className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[#242522] px-3 text-[14px] font-medium text-white transition hover:bg-[#3a3b37] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5b64f4] max-[640px]:h-11"
+                className="max-[640px]:h-11"
               >
                 <CirclePlus size={15} />
                 <span className="max-[540px]:hidden">Add material</span>
-              </button>
-            </div>
-          </header>
+              </Button>
+            }
+          />
 
           <div data-testid="stream-content-column" className={`${pageColumnClass} pb-12 pt-7`}>
             <div className="mb-4 flex items-center gap-3 max-[720px]:flex-wrap">
