@@ -128,12 +128,20 @@ export function preserveMatchingPanelDraft(
     current.intent === next.intent &&
     current.source.url === next.source.url &&
     current.selectionText === next.selectionText;
-  if (!sameCapture) return next;
+  if (!sameCapture) {
+    // A completed insert transaction belongs to its tab. It may survive a page
+    // change within that tab so the user can return to the original editor, but
+    // it must never appear in an unrelated tab.
+    return current?.pendingInsert && current.tabId === next.tabId
+      ? { ...next, pendingInsert: current.pendingInsert }
+      : next;
+  }
   return {
     ...next,
     draft: current.draft,
     transcript: current.transcript,
     projects: current.projects,
     tags: current.tags,
+    pendingInsert: current.pendingInsert,
   };
 }

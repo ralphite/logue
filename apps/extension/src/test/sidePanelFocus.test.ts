@@ -11,4 +11,11 @@ describe("side panel initial focus", () => {
     expect(panel).toContain("panelMainRef.current?.focus({ preventScroll: true })");
     expect(panel).toContain('<main ref={panelMainRef} className="panel" tabIndex={-1}>');
   });
+
+  it("does not let a panel shortcut or a copied result replay a completed insert", () => {
+    const panel = readFileSync(resolve(process.cwd(), "src/sidePanel.tsx"), "utf8");
+
+    expect(panel).toContain('if (action === "record" && !pendingInsert) startRecording()');
+    expect(panel).toContain('persistDraft({ draft: "", transcript: "", pendingInsert: null })');
+  });
 });

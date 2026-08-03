@@ -18,6 +18,12 @@ export interface PageCaptureContext {
   targetAvailable: boolean;
 }
 
+export interface PendingInsert {
+  text: string;
+  materialId: string;
+  sourceURL: string;
+}
+
 export interface PanelCaptureState {
   tabId: number;
   intent: CaptureIntent;
@@ -29,6 +35,7 @@ export interface PanelCaptureState {
   transcript?: string;
   projects?: string[];
   tags?: string[];
+  pendingInsert?: PendingInsert;
   autoStartToken?: string;
   updatedAt: number;
 }
@@ -52,9 +59,16 @@ export function sourceFromTab(tab: Pick<chrome.tabs.Tab, "url" | "title">): Capt
 
 export function mergePanelCaptureState(
   current: PanelCaptureState,
-  patch: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">>,
+  patch: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">> & { pendingInsert?: PendingInsert | null },
 ): PanelCaptureState {
-  return { ...current, ...patch, updatedAt: Date.now() };
+  const { pendingInsert, ...rest } = patch;
+  const next = { ...current, ...rest, updatedAt: Date.now() };
+  if (pendingInsert === null) {
+    delete next.pendingInsert;
+  } else if (pendingInsert) {
+    next.pendingInsert = pendingInsert;
+  }
+  return next;
 }
 
 export function friendlyLocalError(cause: unknown, kind: LocalError["kind"]): LocalError {

@@ -19,6 +19,7 @@ import {
 import {
   friendlyLocalError,
   type LocalError,
+  type PendingInsert,
   type PanelCaptureState,
 } from "./capturePrimitives";
 import {
@@ -59,7 +60,8 @@ function SidePanelApp() {
   const [generatedText, setGeneratedText] = useState("");
   const [generationRunId, setGenerationRunId] = useState<string>();
   const [generating, setGenerating] = useState(false);
-  const [pendingInsertText, setPendingInsertText] = useState("");
+  const [pendingInsert, setPendingInsert] = useState<PendingInsert>();
+  const [insertingPending, setInsertingPending] = useState(false);
   const timerRef = useRef<number | undefined>(undefined);
   const requestIdRef = useRef(createRequestId());
   const lastBlobRef = useRef<Blob | undefined>(undefined);
@@ -73,6 +75,7 @@ function SidePanelApp() {
   const recordingPortRef = useRef<chrome.runtime.Port | undefined>(undefined);
   const phaseRef = useRef<Phase>("idle");
   const generatedForTargetRef = useRef<string | undefined>(undefined);
+  const pendingInsertInFlightRef = useRef(false);
   const panelMainRef = useRef<HTMLElement>(null);
   const focusPanelOnHydrationRef = useRef(false);
 
@@ -157,17 +160,24 @@ function SidePanelApp() {
       if (current.intent === "input") {
         const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:insert-text", text: content }) as { ok?: boolean } | undefined;
         if (!response?.ok) {
-          setPendingInsertText(content);
+          const pending: PendingInsert = {
+            text: content,
+            materialId: saved.id,
+            sourceURL: current.source.url,
+          };
+          setPendingInsert(pending);
+          persistDraft({ pendingInsert: pending });
+          requestIdRef.current = createRequestId();
           throw new Error(`target unavailable:${saved.id}`);
         }
       }
     }
-    setPendingInsertText("");
+    setPendingInsert(undefined);
     setDraft("");
     setTranscript("");
     setError(undefined);
     requestIdRef.current = createRequestId();
-    persistDraft({ draft: "", transcript: "" });
+    persistDraft({ draft: "", transcript: "", pendingInsert: null });
   }, [appliedContext, context, persistDraft, refreshPageMaterials]);
 
   const transcribeAndSave = useCallback(async (blob: Blob) => {
@@ -231,7 +241,7 @@ function SidePanelApp() {
     recordingSessionRef.current = session;
     setPhase("starting");
     setError(undefined);
-    setPendingInsertText("");
+    setPendingInsert(undefined);
     void sendRecordingControl(session, "start").then((response) => {
       if (!response?.ok) throw new Error("The page could not start voice capture.");
     }).catch((cause: unknown) => {
@@ -370,28 +380,50 @@ function SidePanelApp() {
 
   const retryInsert = useCallback(async () => {
     const current = stateRef.current;
-    if (!current || !pendingInsertText) return;
+    if (!current || !pendingInsert) return;
+    if (pendingInsertInFlightRef.current) return;
+    if (!current.targetAvailable || current.source.url !== pendingInsert.sourceURL) {
+      setError({ kind: "target", message: "Return to the original page and focus a writable editor, or copy the saved text.", action: "copy" });
+      return;
+    }
+    pendingInsertInFlightRef.current = true;
+    setInsertingPending(true);
     try {
       const response = await chrome.tabs.sendMessage(current.tabId, {
         type: "logue:insert-text",
-        text: pendingInsertText,
+        text: pendingInsert.text,
       }) as { ok?: boolean } | undefined;
       if (!response?.ok) throw new Error("The original editor is still unavailable.");
-      setPendingInsertText("");
+      setPendingInsert(undefined);
       setDraft("");
       setTranscript("");
       setError(undefined);
       setPhase("idle");
-      persistDraft({ draft: "", transcript: "" });
+      requestIdRef.current = createRequestId();
+      persistDraft({ draft: "", transcript: "", pendingInsert: null });
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "target"));
+    } finally {
+      pendingInsertInFlightRef.current = false;
+      setInsertingPending(false);
+    }
+  }, [pendingInsert, persistDraft]);
+
+  const copyPendingInsert = useCallback(async () => {
+    if (!pendingInsert) return;
+    try {
+      await navigator.clipboard.writeText(pendingInsert.text);
+      setPendingInsert(undefined);
+      setDraft("");
+      setTranscript("");
+      setError(undefined);
+      setPhase("idle");
+      requestIdRef.current = createRequestId();
+      persistDraft({ draft: "", transcript: "", pendingInsert: null });
     } catch (cause) {
       setError(friendlyLocalError(cause, "target"));
     }
-  }, [pendingInsertText, persistDraft]);
-
-  const copyPendingInsert = useCallback(async () => {
-    if (!pendingInsertText) return;
-    await navigator.clipboard.writeText(pendingInsertText);
-  }, [pendingInsertText]);
+  }, [pendingInsert, persistDraft]);
 
   const requestGeneration = useCallback(() => {
     generatedForTargetRef.current = undefined;
@@ -452,10 +484,14 @@ function SidePanelApp() {
       setState(next);
       setDraft(next.draft ?? "");
       setTranscript(next.transcript ?? "");
-      setPendingInsertText("");
+      setPendingInsert(next.pendingInsert);
       setPageMaterials([]);
       setPhase("idle");
-      setError(undefined);
+      setError(next.pendingInsert ? {
+        kind: "target",
+        message: "The original editor is no longer available. Your text is saved in Logue.",
+        action: "copy",
+      } : undefined);
       requestIdRef.current = createRequestId();
       void getCaptureContext(next.source.url)
         .then(setContext)
@@ -509,14 +545,14 @@ function SidePanelApp() {
       });
       if (!action) return;
       event.preventDefault();
-      if (action === "record") startRecording();
+      if (action === "record" && !pendingInsert) startRecording();
       if (action === "stop") stopRecording();
       if (action === "cancel") cancelRecording();
       if (action === "close") void chrome.runtime.sendMessage({ type: "logue:close-side-panel" });
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cancelRecording, phase, startRecording, stopRecording]);
+  }, [cancelRecording, pendingInsert, phase, startRecording, stopRecording]);
 
   useEffect(() => {
     return () => {
@@ -583,7 +619,7 @@ function SidePanelApp() {
             </>
           ) : state.intent === "generate" ? (
             <button type="button" className="icon-button" onClick={returnToPage} aria-label="Back to page capture" title="Back to page capture"><ArrowLeft size={17} /></button>
-          ) : pendingInsertText ? null : (
+          ) : pendingInsert ? null : (
             <>
               <button type="button" className="record-button" onClick={startRecording} aria-keyshortcuts="R" title="Record — R when this sidebar is focused"><Mic size={17} /> Record</button>
               {state.targetAvailable && <button type="button" className="icon-button" onClick={requestGeneration} aria-label="Generate reply" title="Generate reply"><Sparkles size={17} /></button>}
@@ -591,17 +627,17 @@ function SidePanelApp() {
           )}
           {!presentation.captureActive && <>
             <span className="spacer" />
-            {state.intent !== "generate" && error && lastBlobRef.current && !pendingInsertText && <button type="button" className="button secondary" onClick={() => void transcribeAndSave(lastBlobRef.current!)}>Retry</button>}
-            {state.intent !== "generate" && pendingInsertText && <>
+            {state.intent !== "generate" && error && lastBlobRef.current && !pendingInsert && <button type="button" className="button secondary" onClick={() => void transcribeAndSave(lastBlobRef.current!)}>Retry</button>}
+            {state.intent !== "generate" && pendingInsert && <>
               <button type="button" className="button secondary" onClick={() => void copyPendingInsert()}>Copy</button>
-              <button type="button" className="button" onClick={() => void retryInsert()}>Insert again</button>
+              {state.targetAvailable && state.source.url === pendingInsert.sourceURL && <button type="button" className="button" disabled={insertingPending} onClick={() => void retryInsert()}>{insertingPending ? "Inserting…" : "Insert again"}</button>}
             </>}
             {state.intent === "generate" ? <button
               type="button"
               className="button"
               disabled={generatedText ? false : !draft.trim() || !skillId || generating}
               onClick={() => generatedText ? void useGeneratedText() : void runGeneration()}
-            >{generating ? "Generating…" : generatedText ? "Insert" : "Generate"}</button> : draft.trim() && !pendingInsertText ? <button
+            >{generating ? "Generating…" : generatedText ? "Insert" : "Generate"}</button> : draft.trim() && !pendingInsert ? <button
               type="button"
               className="button"
               onClick={() => void saveContent(draft.trim()).catch((cause) => { setError(friendlyLocalError(cause, "save")); setPhase("error"); })}

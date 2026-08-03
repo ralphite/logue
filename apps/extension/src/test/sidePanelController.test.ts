@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { sourceFromTab } from "../capturePrimitives";
+import { mergePanelCaptureState, sourceFromTab } from "../capturePrimitives";
 import {
   consumePanelAutoStart,
   isOpenSelectionMenu,
@@ -123,6 +123,20 @@ describe("native side panel controller", () => {
       draft: "unfinished note", transcript: "completed transcript", projects: ["Logue"], tags: ["review"],
     });
     expect(preserveMatchingPanelDraft({ ...sameCapture, selectionText: "different" }, current).draft).toBeUndefined();
+  });
+
+  it("keeps a completed pending insert across a panel state refresh without replaying its save", () => {
+    const source = { url: "https://example.com", title: "Example", domain: "example.com" };
+    const current = {
+      tabId: 4, intent: "input" as const, source, targetAvailable: false, updatedAt: 1,
+      pendingInsert: { text: "Saved reply", materialId: "mat_1", sourceURL: source.url },
+    };
+    const { pendingInsert: _pendingInsert, ...withoutPendingInsert } = current;
+    const refreshed = { ...withoutPendingInsert, intent: "page" as const, targetAvailable: false, updatedAt: 2 };
+
+    expect(preserveMatchingPanelDraft(refreshed, current).pendingInsert).toEqual(current.pendingInsert);
+    expect(preserveMatchingPanelDraft({ ...refreshed, tabId: 5 }, current).pendingInsert).toBeUndefined();
+    expect(mergePanelCaptureState(current, { pendingInsert: null }).pendingInsert).toBeUndefined();
   });
 
   it("toggles closed on Chrome 141+ and falls back to open-only on older Chrome", async () => {

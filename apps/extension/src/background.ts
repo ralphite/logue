@@ -51,7 +51,7 @@ interface OpenPanelMessage {
 
 interface PanelStateMessage {
   type: "logue:get-panel-state" | "logue:update-panel-state" | "logue:close-side-panel" | "logue:consume-panel-autostart" | "logue:request-panel-generate" | "logue:return-panel-to-page";
-  patch?: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">>;
+  patch?: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">> & { pendingInsert?: PanelCaptureState["pendingInsert"] | null };
   token?: string;
 }
 
