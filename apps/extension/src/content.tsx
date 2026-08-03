@@ -677,7 +677,7 @@ function ExtensionLauncher() {
   const visible = Boolean(
     targetRect && position && !hasSelectionSkillMenu &&
     (document.activeElement === targetRef.current || keyboardActive || captureActive) &&
-    !isGoogleDocsEditorFrame && targetRect.width > 80 && targetRect.height > 18,
+    !isGoogleDocsEditorFrame,
   );
   const googleDocsProxyVisible = Boolean(googleDocsProxy && googleDocsPosition);
 

@@ -22,6 +22,8 @@ describe("page launcher presentation", () => {
     expect(content).not.toContain('openSidePanel("input", true)');
     expect(content).not.toContain("logue-launcher-generation");
     expect(content).not.toContain("logue-inline-live");
+    expect(content).not.toContain("targetRect.width >");
+    expect(content).not.toContain("targetRect.height >");
     expect(styles).toContain(".logue-inline-accept");
     expect(styles).toContain(".logue-inline-cancel");
     expect(styles).toContain(".logue-launcher-group.is-recording");
