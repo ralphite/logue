@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { mergePanelCaptureState, sourceFromTab } from "../capturePrimitives";
 import {
+  acceptsPassivePageContext,
   consumePanelAutoStart,
   isOpenSelectionMenu,
   isSaveSelectionMenu,
@@ -160,6 +161,14 @@ describe("native side panel controller", () => {
     expect(preserveMatchingPanelDraft(refreshed, current).pendingInsert).toEqual(current.pendingInsert);
     expect(preserveMatchingPanelDraft({ ...refreshed, tabId: 5 }, current).pendingInsert).toBeUndefined();
     expect(mergePanelCaptureState(current, { pendingInsert: null }).pendingInsert).toBeUndefined();
+  });
+
+  it("does not replace explicit capture work with a passive page update", () => {
+    expect(acceptsPassivePageContext()).toBe(true);
+    expect(acceptsPassivePageContext({ intent: "page" })).toBe(true);
+    expect(acceptsPassivePageContext({ intent: "selection" })).toBe(false);
+    expect(acceptsPassivePageContext({ intent: "input" })).toBe(false);
+    expect(acceptsPassivePageContext({ intent: "generate" })).toBe(false);
   });
 
   it("toggles the native Side Panel open and closed", async () => {

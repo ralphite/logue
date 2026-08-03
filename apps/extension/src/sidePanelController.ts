@@ -147,3 +147,11 @@ export function preserveMatchingPanelDraft(
     pendingInsert: current.pendingInsert,
   };
 }
+
+/**
+ * Passive page updates may refresh a page capture, but must not replace an
+ * explicit selection, input, or generation context while that work is active.
+ */
+export function acceptsPassivePageContext(current?: Pick<PanelCaptureState, "intent">) {
+  return !current || current.intent === "page";
+}

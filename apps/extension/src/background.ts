@@ -6,6 +6,7 @@ import {
   type PanelCaptureState,
 } from "./capturePrimitives";
 import {
+  acceptsPassivePageContext,
   consumePanelAutoStart,
   isOpenSelectionMenu,
   isSaveSelectionMenu,
@@ -348,6 +349,9 @@ async function setPanelContext(
 }
 
 async function refreshPanelContextFromPage(tab: chrome.tabs.Tab) {
+  if (typeof tab.id !== "number") return;
+  const current = await restorePanelState(tab.id);
+  if (!acceptsPassivePageContext(current)) return;
   const context = await readPageCaptureContext(tab);
   await setPanelContext(
     tab,
@@ -603,7 +607,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     googleDocsEditorPorts.delete(tabId);
   }
   if (!changeInfo.url || tabId !== activePanelTabId || openPanelTabs.size === 0) return;
-  void setPanelContext(tab, "page");
+  void refreshPanelContextFromPage(tab);
 });
 
 chrome.runtime.onConnect.addListener((port) => {
