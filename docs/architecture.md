@@ -15,6 +15,8 @@ server           Go 本机 API、文件存储、Gemini 代理与静态 Web 服�
 
 Release 同时包含 macOS/Linux 的 amd64 与 arm64 完整资产，每个资产均包含静态 Go 二进制、生产 Web App、Chrome Extension 和版本文件，并由统一的 `checksums.txt` 校验。一行安装器不依赖源码、Go 或 Node.js。
 
+另有带 checksum 的平台无关 `logue-extension.tar.gz` 与 `install-extension.sh`。Linux 只运行服务、MacBook 只作为 Chrome 客户端时，Mac 可独立安装 Extension 而不安装 Go 服务。Extension 根目录保持稳定，仅原子切换指向版本化 worker、content script 与 Side Panel 的 manifest；旧版本资产保留到 Chrome Reload，Chrome profile 中的 `chrome.storage.local` 不被安装器触碰。
+
 - 程序版本位于 `~/.local/share/logue/releases`，`current` 通过原子 symlink 切换；CLI 固定为 `~/.local/bin/logue`。
 - macOS 数据默认位于 `~/Library/Application Support/Logue`，登录启动使用 LaunchAgent。
 - Linux 数据默认位于 `${XDG_DATA_HOME:-$HOME/.local/share}/logue/data`，登录启动使用 `systemd --user` 的 `logue.service`。

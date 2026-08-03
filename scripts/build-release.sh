@@ -36,6 +36,17 @@ mkdir -p "${release_dir}"
 npm run build -w @logue/web
 npm run build -w @logue/extension
 
+extension_package_dir="$(mktemp -d "${TMPDIR:-/tmp}/logue-extension-release.XXXXXX")"
+trap 'rm -rf -- "${extension_package_dir:-}"' EXIT
+mkdir -p "${extension_package_dir}/extension"
+cp -R "${repo_dir}/apps/extension/dist/." "${extension_package_dir}/extension/"
+printf '%s\n' "${version}" > "${extension_package_dir}/VERSION"
+COPYFILE_DISABLE=1 tar --no-xattrs -C "${extension_package_dir}" -czf \
+  "${release_dir}/logue-extension.tar.gz" \
+  extension VERSION
+rm -rf -- "${extension_package_dir}"
+trap - EXIT
+
 for platform in darwin linux; do
   for arch in arm64 amd64; do
     package_dir="$(mktemp -d "${TMPDIR:-/tmp}/logue-release.XXXXXX")"

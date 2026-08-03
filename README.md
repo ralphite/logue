@@ -37,11 +37,21 @@ The installer does not write the key to the program, LaunchAgent, systemd unit, 
 
 ### Install the Chrome extension
 
+The full installer places the Extension in a stable folder:
+
 1. Open `chrome://extensions` and enable **Developer mode** in the upper-right corner.
 2. Click **Load unpacked**.
 3. Select `$HOME/.local/share/logue/extension`.
 
 After an upgrade, if Chrome has not picked up the new files automatically, click **Reload** on the Logue card on the same page. You do not need to select the directory again.
+
+If Logue runs only on a Linux server and this Mac is only the Chrome client, install the platform-independent Extension asset without installing the local service:
+
+```bash
+curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install-extension.sh | bash
+```
+
+Chrome does not allow this script to silently install an unpacked Extension. On the first install, the script prints the exact `chrome://extensions` → **Developer mode** → **Load unpacked** steps and the stable folder to select. Run the same command to upgrade, then click **Reload** on the existing Logue card; do not use **Load unpacked** again. Keeping the same folder preserves the unpacked Extension identity and its `chrome.storage.local` server setting.
 
 ## Local development
 
@@ -84,4 +94,4 @@ Build release packages for both supported operating systems and architectures lo
 bash scripts/build-release.sh v0.2.3
 ```
 
-The output is written to `dist/release`: macOS and Linux packages for amd64 and arm64, plus `checksums.txt`. Each package contains the Go service, production Web App, Chrome Extension, and version metadata. Pushing a `v*` tag triggers GitHub Actions to rebuild the packages, create a GitHub Release, and upload the one-command installer.
+The output is written to `dist/release`: macOS and Linux packages for amd64 and arm64, the platform-independent `logue-extension.tar.gz`, and `checksums.txt`. Each service package contains the Go service, production Web App, Chrome Extension, and version metadata. Pushing a `v*` tag triggers GitHub Actions to rebuild the packages, create a GitHub Release, and upload both one-command installers.

@@ -41,6 +41,7 @@ build_fixture() {
   bash "${repo_dir}/scripts/build-release.sh" "${version}" >/dev/null
   cp "${repo_dir}/dist/release/logue-darwin-arm64.tar.gz" "${destination}/"
   cp "${repo_dir}/dist/release/logue-darwin-amd64.tar.gz" "${destination}/"
+  cp "${repo_dir}/dist/release/logue-extension.tar.gz" "${destination}/"
   cp "${repo_dir}/dist/release/checksums.txt" "${destination}/"
 }
 
@@ -296,3 +297,7 @@ sentinel_after_reinstall="$(shasum -a 256 "${data_root}/items/installer-sentinel
 [[ "${sentinel_before}" == "${sentinel_after_reinstall}" ]] || { printf 'same-version reinstall changed persistent data\n' >&2; exit 1; }
 
 printf 'Installer new-install and overwrite-upgrade regression passed.\n'
+
+LOGUE_EXTENSION_TEST_FIXTURE_V1="${fixture_v1}" \
+LOGUE_EXTENSION_TEST_FIXTURE_V2="${fixture_v2}" \
+  bash "${repo_dir}/scripts/test-install-extension.sh"

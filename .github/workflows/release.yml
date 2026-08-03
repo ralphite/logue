@@ -30,6 +30,8 @@ jobs:
           generate_release_notes: true
           files: |
             install.sh
+            install-extension.sh
+            dist/release/logue-extension.tar.gz
             dist/release/logue-darwin-arm64.tar.gz
             dist/release/logue-darwin-amd64.tar.gz
             dist/release/logue-linux-arm64.tar.gz
