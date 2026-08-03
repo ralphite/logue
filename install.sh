@@ -130,7 +130,7 @@ say "准备安装 ${logue_version}"
 managed_pid=""
 previous_current=""
 previous_current_version=""
-legacy_current_backup=""
+previous_current_backup=""
 extension_manifest_backup="${extension_dir}/.manifest.previous.$$"
 cli_backup="${bin_dir}/.logue.previous.$$"
 launch_plist_backup="${launch_agents_dir}/.${launch_label}.previous.$$"
@@ -302,8 +302,8 @@ say "程序、Extension、CLI 与启动设置均已预检"
 commit_install() {
   local next_link
   if [[ -e "${current_link}" && ! -L "${current_link}" ]]; then
-    legacy_current_backup="${install_root}/.current.previous.$$"
-    mv "${current_link}" "${legacy_current_backup}" || return 1
+    previous_current_backup="${install_root}/.current.previous.$$"
+    mv "${current_link}" "${previous_current_backup}" || return 1
   fi
   next_link="${install_root}/.current.next.$$"
   ln -s "${release_dir}" "${next_link}" || return 1
@@ -355,9 +355,9 @@ rollback_install() {
     rollback_link="${install_root}/.current.rollback.$$"
     ln -s "${previous_current}" "${rollback_link}" || rollback_failed="yes"
     /bin/mv -f -h "${rollback_link}" "${current_link}" || rollback_failed="yes"
-  elif [[ -n "${legacy_current_backup}" && -e "${legacy_current_backup}" ]]; then
+  elif [[ -n "${previous_current_backup}" && -e "${previous_current_backup}" ]]; then
     rm -f -- "${current_link}" || rollback_failed="yes"
-    mv "${legacy_current_backup}" "${current_link}" || rollback_failed="yes"
+    mv "${previous_current_backup}" "${current_link}" || rollback_failed="yes"
   else
     rm -f -- "${current_link}" || rollback_failed="yes"
   fi
@@ -402,7 +402,7 @@ else
 fi
 
 rm -f -- "${extension_manifest_backup}" "${cli_backup}" "${launch_plist_backup}"
-if [[ -n "${legacy_current_backup}" && -e "${legacy_current_backup}" ]]; then rm -rf -- "${legacy_current_backup}"; fi
+if [[ -n "${previous_current_backup}" && -e "${previous_current_backup}" ]]; then rm -rf -- "${previous_current_backup}"; fi
 staged_release_dir=""
 staged_extension_assets=""
 
