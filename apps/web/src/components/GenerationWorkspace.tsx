@@ -416,12 +416,8 @@ function NewGeneration({ agents, materials, initialProject, onCreated }: { agent
 
   return (
     <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-white">
-      <article data-testid="generation-form-content-column" className={`${editorColumnClass} pb-24 pt-16 max-[700px]:pt-9`}>
-        <span className="inline-flex size-10 items-center justify-center rounded-xl bg-[#eeeeeb] text-[#61635d]">
-          <Sparkles size={19} />
-        </span>
-        <h2 className="mt-5 text-[34px] font-bold tracking-[-0.045em] text-[#242522] max-[640px]:text-[28px]">What do you want to create?</h2>
-        <div className="mt-9 grid grid-cols-[160px_1fr] gap-6 max-[640px]:grid-cols-1 max-[640px]:gap-2">
+      <article data-testid="generation-form-content-column" className={`${editorColumnClass} pb-24 pt-10 max-[700px]:pt-7`}>
+        <div className="grid grid-cols-[160px_1fr] gap-6 max-[640px]:grid-cols-1 max-[640px]:gap-2">
           <label className="pt-2 text-[15px] font-medium text-[#6e706a]" htmlFor="generation-agent">
             Skill
           </label>

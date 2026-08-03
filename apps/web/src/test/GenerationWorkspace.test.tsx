@@ -267,7 +267,7 @@ describe("GenerationWorkspace navigation", () => {
     for (const label of ["Saved", "Saving…", "Unsaved"]) expect(screen.queryByText(label)).toBeNull();
 
     renderWorkspace({ initialMode: "new" });
-    await screen.findByRole("heading", { name: "What do you want to create?" });
+    expect(screen.queryByRole("heading", { name: "What do you want to create?" })).toBeNull();
     const instruction = screen.getByLabelText("Task");
     fireEvent.change(instruction, { target: { value: run.instruction } });
     await waitFor(() => expect((screen.getByLabelText("Skill") as HTMLSelectElement).value).toBe(agent.id));
