@@ -19,7 +19,7 @@ Logue 是本机运行的项目感知输入与资料工具：用户在当前网�
 
 ## 一级对象
 
-稳定一级导航为 `Stream / Projects / Generate / Settings`。Document 是 Generate 内的持久结果类型，不再用“成果”这个模糊名称。
+稳定一级导航为 `Stream / Projects / Documents / Skills / Settings`。删除 `Generate` 聚合入口；生成保留为 Documents、Skills 与 Extension 中的动作能力，不再用“成果”这个模糊名称。
 
 ### 资料流
 

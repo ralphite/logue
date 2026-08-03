@@ -12,7 +12,7 @@
 
 - 用户在当前网页中即可用极简语音完成输入、保存选区、添加批注和基于资料生成回复；
 - 所有主动保存的内容都形成可编辑、可追溯、可复用的资料，并保留原始音频、来源、父子关系、项目和分类依据；
-- Web App 以 Notion 式安静、清晰、内容优先的方式组织 Stream、Projects、Generate 和 Settings；
+- Web App 以 Notion 式安静、清晰、内容优先的方式组织 Stream、Projects、Documents、Skills 和 Settings；
 - Documents 提供 Notion 式列表、编辑、自动保存、引用和 Sources 体验；
 - 当前可复用 Prompt 能力以 `Skills` 呈现，可创建、编辑和在 Web/Extension 中使用；只有未来真正具备 trigger、tools、permissions 和 runs 的自主对象才称为 `Agents`；
 - Extension 使用 Chrome 原生 Side Panel，并与网页输入目标、选区、当前页面和本机资料形成可靠闭环；
@@ -36,27 +36,28 @@
 
 ### 3.1 一级信息架构
 
-Web App 一级导航只使用：
+Web App 一级导航只使用以下五个等权入口：
 
 - `Stream`
 - `Projects`
-- `Generate`
+- `Documents`
+- `Skills`
 - `Settings`
 
-不得把 `View`、`Context`、`Inbox`、“成果”或其他实现术语作为一级产品功能名。
+不得保留 `Generate` 聚合入口，也不得把 `View`、`Context`、`Inbox`、“成果”或其他实现术语作为一级产品功能名。生成是 Documents、Skills 与 Extension 中的动作能力，不是一级目的地。
 
 ### 3.2 核心对象
 
 - **Material**：用户主动保存的 voice、selection、text、page note、annotation 和 derived 内容；默认永久保存，只有用户明确删除才移除。
 - **Project**：不是普通 Tag。包含可编辑背景、确认术语、关联资料、Documents 和生成结果；一条 Material 可以属于多个 Projects。
-- **Document**：一种可持续编辑的生成结果；不是 Generate 的唯一结果。
+- **Document**：一种可持续编辑的生成结果；不是生成能力的唯一结果。
 - **Skill**：当前可创建、编辑、复制、选择的可复用指令/Prompt。可用于转写、整理、短回复、QA、Document 等任务。
 - **Agent**：只保留给未来具有自主 trigger、tools、permissions、runs 和可审计行为的对象；不能把当前只有 Prompt 编辑的能力错误包装成 Agent。
 - **Source**：原始页面、选区、音频、Material 版本或其他生成输入；任何派生结果都必须可追溯到具体 Source 版本。
 
-### 3.3 Generate 的结果形态
+### 3.3 生成能力的结果形态
 
-Generate 可以产生：
+生成能力可以产生：
 
 - 可直接插入的短回复或消息；
 - QA；
@@ -128,6 +129,8 @@ Generate 可以产生：
 - 在 Logue Document 的可编辑正文中选择一段文字时，必须出现安静、可键盘操作的 Notion 式上下文菜单/输入入口；用户可直接选择已配置的 Skill，对当前选择执行变换并将结果更新到该选择位置。
 - 在任意支持编辑的网页目标（至少 textarea 与 contenteditable）中选择文字时，Extension 必须提供同一套渐进式 Skill 入口；静态网页原文不假装可直接改写，改写结果应进入当前可写目标或 Side Panel 的受控路径。
 - 选择范围、原文、所用 Skill、生成结果与写回必须保留来源关系，不能静默覆盖无关内容；宿主表单绝不自动提交。
+- 多行选择经 Skill 变换后必须按结果中的真实换行写回；textarea、contenteditable 与 Logue Document 都不能把多行结果压平成单行。
+- 选区菜单只能在当前仍存在、仍可写且与最初快照一致的选择上显示。取消选择、目标失焦、页面导航或选择漂移后必须立即关闭；任何迟到的选择事件或异步结果都不得让菜单重新出现或写回旧目标。
 - 具体的菜单触发、快捷键、结果呈现与替换确认语义，必须先以真实 Notion 当前行为为依据；不得根据记忆猜测或以重型弹窗/常驻工具栏取代选区附近的轻量入口。
 
 ### 4.7 Linux / LAN 服务连接
@@ -186,13 +189,12 @@ Generate 可以产生：
 - 不显示 `workspace` 等用户无需解释的辅助文案；必要说明进入 Tooltip 或明确的 advanced disclosure。
 - Project detail 可编辑背景、确认术语、关联 Materials、Documents 和生成结果；正常 autosave 保持安静。
 
-### 6.4 Generate / Documents / Skills
+### 6.4 Documents / Skills
 
-- Generate 左栏只保留 `Documents` 与 `Skills` 两行。
-- 点击行只切换下方对应列表；两行使用相同 row skeleton、尺寸、圆角、selected/hover/focus 背景和命中区。
-- 每行最右侧有自己的 `+`：Documents 新建 Document；Skills 新建 Skill。
-- 删除顶层 `New`、顶部通用 `+`、重复主动作和旧 `Agents` 产品名。
-- 切换 Documents/Skills 或选择不同 Document 时，列表不得整体重建、回到顶部、丢失滚动位置或明显闪动。
+- `Documents` 与 `Skills` 是独立一级工作区，不再嵌套在 `Generate` 下；主侧栏最终稳定为五个入口。
+- Documents 打开稳定的 Document 列表与编辑器；Skills 打开稳定的 Skill 列表与编辑器。二者复用同一 list/editor shell、header、row、selection、loading/error 和 resizer primitives，但不显示重复的内部顶级切换器。
+- 新建动作属于各自工作区的局部 header：Documents 新建 Document，Skills 新建 Skill；删除顶层 `New`、通用 `+`、重复主动作和旧 `Agents` 产品名。
+- 在不同一级工作区间切换或选择不同 Document/Skill 时，列表不得整体重建、回到顶部、丢失滚动位置或明显闪动。
 - Document editor、Sources panel 和列表使用共享 resizer；Sources 默认足够宽，不得在大片空白旁保持狭窄，并可占用 100% 剩余空间。
 - Document 可新建、生成、编辑、自动保存、删除、继续生成和插入 Citation。
 - Citation 正文 `[Source n]` 与 Sources 编号一一对应；点击定位、高亮、增删与删除后重编号必须稳定。
@@ -266,7 +268,7 @@ Storybook 至少包含：
 
 1. **Foundations**：color、typography、spacing、radius、shadow、icons、layout axes、motion/focus；
 2. **Base Components**：Button/IconButton、Tooltip、Input/Textarea/Select、Tag/Chip、Tabs/Segmented control、Page/Context/Pane Header、SelectableRow、PanelShell/PanelResizer、Dialog/Drawer、LocalError、Empty、Loading、Audio Player、Citation/Source、Confidence/Review；
-3. **Feature Components**：App Sidebar、Generate navigation、Stream rows/groups/filters、Project list/detail sections、Document list/editor/Sources、Skill list/editor、Material detail/record chain/organization/annotation、Extension launcher、Native Side Panel capture/generate、Settings sections；
+3. **Feature Components**：App Sidebar、Documents/Skills navigation、Stream rows/groups/filters、Project list/detail sections、Document list/editor/Sources、Skill list/editor、Material detail/record chain/organization/annotation、Extension launcher、Native Side Panel capture/generate、Settings sections；
 4. **Page Compositions**：主要页面的真实生产组合，用于检查 content axis、panel width、header alignment、overflow 和跨页面一致性。
 
 ### 9.3 状态完整性
@@ -361,7 +363,7 @@ Storybook 至少包含：
 - 禁止自动按 Enter、自动发送或自动提交宿主页面。
 - 禁止旧网页浮层和原生 Side Panel 两套长期并存。
 - 禁止把当前 Prompt-only 能力在 UI 中称为 Agents。
-- 禁止 Generate 中存在 `New`、顶部通用 `+` 和 Documents/Skills 行尾 `+` 的重复动作。
+- 禁止保留一级 `Generate`，也禁止 Documents/Skills 中存在 `New`、顶部通用 `+` 与局部新建动作的重复入口。
 - 禁止显示正常 `running`、`connected`、`Saved`、`Saving` 等噪音。
 - 禁止使用过小字体、过窄 panel、无理由的不同内容宽度和不一致 selected 背景来假装极简。
 - 禁止把 reusable Notion/ChatGPT screenshots 只放临时目录。

@@ -85,7 +85,10 @@
 - 原生 Side Panel 同时支持选区、当前页面和网页输入目标。右键保留直接保存，并增加在 Side Panel 查看；无输入框时也能录音保存页面资料。
 - Side Panel 快捷键只在自身获得焦点且用户不在编辑控件中时生效：`R` 录音、`Enter` 停止并转写、`Esc` 取消；不得抢占 IME、宿主表单或普通文本编辑。
 - 左侧栏折叠采用最新 Notion 参照：栏右侧的收起控件只在 Sidebar hover/focus-within 时出现；此前“用左上品牌图标原位替换 collapse icon”的方案已被用户否定。展开/折叠时一级图标位置仍必须稳定，折叠态仍需高质量 Tooltip。
-- Generate 当前只显示 `Documents` 和 `Skills`，各自使用行尾 `+`；不显示顶层 `New`、通用 `+` 或重复动作。
+- `Documents` 和 `Skills` 提升为一级导航，与 `Stream / Projects / Settings` 共同组成五个入口；删除 `Generate` 聚合入口。新建动作只出现在各自工作区的局部 header，不显示顶层 `New`、通用 `+` 或重复动作。
+- Selection Skill 的多行结果必须保留真实换行；选区菜单必须随当前有效选择稳定显示，并在取消选择、目标失焦、导航或选择漂移后立即关闭，迟到事件不得让它重新出现。
+- 所有 Dropdown / Context Menu 复用标准化 overlay primitive：点击外部和 `Esc` 关闭，层级一致，按可用空间自动选择方向并防止越界；触发、焦点、显示和关闭策略一致。
+- Scrollbar 只属于实际滚动区域，滚动区域预留稳定 gutter，不能因 scrollbar 出现或消失导致页面宽度跳动。
 - 切换 Document 不得重建整个列表、丢失滚动或明显闪动；Sources/Detail 等右侧 panel 默认应足够宽，并能占用全部剩余空间。
 - 音频在第一次播放前也必须显示真实时长。
 - 所有页面必须复用共享 Header、Button、Tooltip、Row、Form、Panel、Resizer、Dialog/Drawer 和状态模式；不能靠页面复制代码产生相近但不一致的 UI。

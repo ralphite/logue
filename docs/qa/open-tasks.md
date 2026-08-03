@@ -11,6 +11,10 @@
 | P0 | Linux / LAN 远程服务（F22） | IN_PROGRESS | 真实 Linux 主机的 systemd user service、防火墙分配且可能变化的域名、Mac Extension 的具体 origin 权限、Server URL 替换，以及 Chrome/MV3/Linux 重启后恢复尚未形成完整跨机闭环。 | 在真实 Linux + Mac Chrome 上完成安装、连接、地址替换、保存/读取、浏览器重启和服务重启。 |
 | P1 | Extension 核心可靠性（B03、B27、F04） | IN_PROGRESS | 标准 input 首击、选区文字/语音批注、无输入框页面录音、页面历史即时刷新、目标丢失、断线重试幂等，以及 `Cmd+Shift+L` 重开后的焦点仍缺当前 Release 的完整实测。 | 当前 Release 在真实 Chrome 覆盖以上路径；不丢资料、不重复保存/插入、不自动 submit。 |
 | P1 | Selection Skills 最终防护（F06、F18） | IN_PROGRESS | textarea/contenteditable 的实际写回已通过；仍缺 Gemini 运行中按 Esc、切换选区/目标/SPA 路由后等待迟到结果返回也绝不写回的真实 Chrome 验证。 | 当前 Release 在真实 Chrome 完成取消与漂移回归，原文保持不变，提交计数为 0。 |
+| P1 | Selection Skills 文本与菜单稳定性 | IN_PROGRESS | Skill 的多行结果会被压平成单行；选区菜单会随机不显示，取消选中后又错误出现。 | textarea、contenteditable、Document 均保留换行；菜单只跟随当前有效选区，取消选择/失焦/导航/漂移后立即关闭且不被迟到事件唤回。 |
+| P1 | 标准 Overlay / Context Menu | IN_PROGRESS | Dropdown 与更多菜单缺少统一 click-outside、Esc、焦点、层级、方向和边界防溢出行为。 | 生产共享 primitive 覆盖 pointer/keyboard/focus/collision；文档更多菜单及所有迁移菜单在真实浏览器首击、外部点击和视口边缘均正确。 |
+| P1 | 五个一级导航 | IN_PROGRESS | Documents 与 Skills 仍嵌套于 Generate；一级信息架构尚未成为 Stream / Projects / Documents / Skills / Settings。 | 删除 Generate 入口与重复内部切换，五个 icon 锚点稳定，Documents/Skills 直接进入各自 list/editor，切换不重建列表或丢滚动。 |
+| P2 | 滚动区域布局稳定 | IN_PROGRESS | 部分 scrollbar 仍属于页面而非实际滚动 pane，出现/消失时会改变可用宽度。 | 每个长列表/编辑 pane 自身滚动并预留稳定 gutter；切换长短内容时 header、panel 与正文横向位置不跳动。 |
 | P1 | 自动整理与历史资料（B06、F05） | IN_PROGRESS | 新资料分类闭环已具备；真实库仍有旧的低置信中文理由需要一次性安全整理，并重新确认人工分类不会被后台覆盖。 | 备份后一次性转换，真实读取/修改/重启验证通过，并删除转换代码。 |
 | P1 | 全产品英文（B21） | IN_PROGRESS | Web 和 Installer 的系统文案已为英文；仍需清除 Storybook、fixture、测试可见 copy 和其它正式产品表面的残余中文。用户自有内容不改写。 | 对生产 UI、Extension、Storybook 和安装器做英文扫描与真实页面抽查，无系统中文。 |
 | P1 | Storybook 生产 inventory（F20） | IN_PROGRESS | 仍缺完整的 production component → story → applicable state 映射，以及部分页面的 loading/error/offline/overflow/keyboard 状态。 | 根地址可用；每个生产组件及其有意义状态可直接查看，且复用生产组件而非复制 demo。 |
