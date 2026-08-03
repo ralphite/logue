@@ -64,7 +64,7 @@ export function availableSourcePanelWidth(workspaceWidth: number, documentListWi
 }
 
 export function defaultSourcePanelWidth(workspaceWidth: number, maxWidth: number) {
-  return Math.min(maxWidth, Math.max(440, Math.round(workspaceWidth * 0.5)));
+  return Math.min(maxWidth, 320);
 }
 
 function escapeHTML(value: string) {
