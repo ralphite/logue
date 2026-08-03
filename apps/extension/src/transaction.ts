@@ -18,7 +18,7 @@ export class VoiceInputTransactionError extends Error {
   cause: unknown;
 
   constructor(step: "transcription" | "save", cause: unknown, transcription?: VoiceTranscription) {
-    super(cause instanceof Error ? cause.message : step === "save" ? "内容尚未保存" : "转写未完成");
+    super(cause instanceof Error ? cause.message : step === "save" ? "Voice input could not be saved." : "Voice transcription could not be completed.");
     this.name = "VoiceInputTransactionError";
     this.step = step;
     this.transcription = transcription;
@@ -41,7 +41,7 @@ export async function completeVoiceInput(input: {
   }
   transcription = { ...transcription, text: transcription.text.trim() };
   if (!transcription.text) {
-    throw new VoiceInputTransactionError("transcription", new Error("没有识别到清晰语音"), transcription);
+    throw new VoiceInputTransactionError("transcription", new Error("No clear speech was detected."), transcription);
   }
 
   try {
@@ -69,7 +69,7 @@ export async function completeSelectionVoiceInput(input: {
   }
   transcription = { ...transcription, text: transcription.text.trim() };
   if (!transcription.text) {
-    throw new VoiceInputTransactionError("transcription", new Error("没有识别到清晰语音"), transcription);
+    throw new VoiceInputTransactionError("transcription", new Error("No clear speech was detected."), transcription);
   }
 
   try {

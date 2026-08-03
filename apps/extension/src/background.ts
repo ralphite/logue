@@ -33,7 +33,7 @@ void chrome.storage.session.get(openPanelStorageKey)
 
 interface ApiMessage {
   type: "logue:api";
-  action: "status" | "context" | "transcribe" | "save-material" | "save-selection" | "delete-capture" | "agents" | "settings" | "agent-run" | "adopt-agent-run";
+  action: "status" | "context" | "transcribe" | "save-material" | "cancel-material-save" | "save-selection" | "delete-capture" | "agents" | "settings" | "agent-run" | "adopt-agent-run";
   payload?: Record<string, unknown>;
 }
 
@@ -229,11 +229,16 @@ async function handleApiMessage(message: ApiMessage) {
       }),
     );
   }
+  if (message.action === "cancel-material-save") {
+    const requestId = encodeURIComponent(String(payload.requestId ?? ""));
+    return parseResponse(await fetch(`${apiBase}/v1/cancellations/${requestId}`, { method: "POST" }));
+  }
   if (message.action === "transcribe") {
     const audioBase64 = String(payload.audioBase64 ?? "");
     if (!audioBase64) throw new Error("The recording is empty.");
     const mimeType = String(payload.mimeType ?? "audio/webm");
     const form = new FormData();
+    form.append("request_id", String(payload.requestId ?? ""));
     form.append("audio", new Blob([decodeBase64(audioBase64)], { type: mimeType }), "logue-recording.webm");
     form.append("page_url", String(payload.pageUrl ?? ""));
     form.append("page_title", String(payload.pageTitle ?? ""));

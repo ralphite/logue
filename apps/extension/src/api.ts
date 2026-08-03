@@ -130,6 +130,8 @@ export async function getCaptureContext(pageUrl: string, project = "") {
 }
 
 export async function transcribeAudio(input: {
+
+  requestId?: string;
   audio: Blob;
   source: SourceInfo;
   targetText?: string;
@@ -140,6 +142,7 @@ export async function transcribeAudio(input: {
   appliedContext?: AppliedContext;
 }) {
   return request<{ capture_id: string; text: string }>("transcribe", {
+    requestId: input.requestId,
     audioBase64: await blobToBase64(input.audio),
     mimeType: input.audio.type || "audio/webm",
     pageUrl: input.source.url ?? "",
@@ -177,6 +180,10 @@ export async function saveMaterial(input: {
     transcript: input.transcript,
     applied_context: input.appliedContext,
   });
+}
+
+export async function cancelMaterialSave(requestId: string) {
+  await request<null>("cancel-material-save", { requestId });
 }
 
 export async function saveSelection(input: {

@@ -3,8 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io/fs"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -22,7 +27,7 @@ func testAPI(t *testing.T) *API {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &API{store: store, gemini: NewGeminiClient("", GeminiConfig{})}
+	return &API{store: store, gemini: NewGeminiClient("", GeminiConfig{}), cancellations: NewRequestCancellationRegistry()}
 }
 
 func postAgentImport(t *testing.T, api *API, payload map[string]any) *httptest.ResponseRecorder {
@@ -175,6 +180,93 @@ func TestCreateMaterialReturnsPendingBeforeAutomaticOrganization(t *testing.T) {
 	}
 	if len(scheduler.ids) != 1 || scheduler.ids[0] != created.ID {
 		t.Fatalf("background organization was not scheduled: %#v", scheduler.ids)
+	}
+}
+
+func TestCanceledMaterialSaveNeverLeavesAPersistedMaterial(t *testing.T) {
+	api := testAPI(t)
+	requestID := "inline-voice-cancel"
+	cancel := httptest.NewRequest(http.MethodPost, "/v1/cancellations/"+requestID, nil)
+	cancelResponse := httptest.NewRecorder()
+	api.cancelMaterialSave(cancelResponse, cancel)
+	if cancelResponse.Code != http.StatusOK {
+		t.Fatalf("unexpected cancel status %d: %s", cancelResponse.Code, cancelResponse.Body.String())
+	}
+
+	create := httptest.NewRequest(http.MethodPost, "/v1/items", bytes.NewBufferString(`{"request_id":"inline-voice-cancel","kind":"voice","content":"must not persist"}`))
+	createResponse := httptest.NewRecorder()
+	api.items(createResponse, create)
+	if createResponse.Code != http.StatusConflict {
+		t.Fatalf("expected cancelled save to fail, got %d: %s", createResponse.Code, createResponse.Body.String())
+	}
+	items, err := api.store.List()
+	if err != nil || len(items) != 0 {
+		t.Fatalf("cancelled save left materials behind: %v %#v", err, items)
+	}
+
+	created, err := api.store.Create(CreateMaterialInput{RequestID: "save-then-cancel", Kind: "voice", Content: "remove me"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lateCancel := httptest.NewRequest(http.MethodPost, "/v1/cancellations/save-then-cancel", nil)
+	lateResponse := httptest.NewRecorder()
+	api.cancelMaterialSave(lateResponse, lateCancel)
+	if lateResponse.Code != http.StatusOK {
+		t.Fatalf("unexpected late cancel status %d: %s", lateResponse.Code, lateResponse.Body.String())
+	}
+	if _, err := api.store.GetMaterial(created.ID); err == nil {
+		t.Fatal("late cancellation must remove a material saved by the same request")
+	}
+
+	captureID, err := api.store.SaveCapture([]byte("unadopted audio"), "audio/webm", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if api.cancellations.RegisterCapture("transcribing-voice-cancel", captureID) {
+		t.Fatal("fresh transcription request must not already be cancelled")
+	}
+	captureCancel := httptest.NewRequest(http.MethodPost, "/v1/cancellations/transcribing-voice-cancel", nil)
+	captureCancelResponse := httptest.NewRecorder()
+	api.cancelMaterialSave(captureCancelResponse, captureCancel)
+	if captureCancelResponse.Code != http.StatusOK {
+		t.Fatalf("unexpected transcribing cancellation status %d: %s", captureCancelResponse.Code, captureCancelResponse.Body.String())
+	}
+	if _, _, err := api.store.CapturePath(captureID); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("transcribing cancellation must remove its unadopted audio: %v", err)
+	}
+}
+
+func TestCanceledTranscriptionNeverCreatesAnAudioCapture(t *testing.T) {
+	api := testAPI(t)
+	requestID := "cancel-before-transcription"
+	api.cancellations.Cancel(requestID)
+
+	body := &bytes.Buffer{}
+	form := multipart.NewWriter(body)
+	if err := form.WriteField("request_id", requestID); err != nil {
+		t.Fatal(err)
+	}
+	audio, err := form.CreateFormFile("audio", "recording.webm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := audio.Write([]byte("audio")); err != nil {
+		t.Fatal(err)
+	}
+	if err := form.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/transcribe", body)
+	request.Header.Set("Content-Type", form.FormDataContentType())
+	response := httptest.NewRecorder()
+	api.transcribe(response, request)
+	if response.Code != http.StatusConflict {
+		t.Fatalf("expected cancelled transcription to fail, got %d: %s", response.Code, response.Body.String())
+	}
+	entries, err := os.ReadDir(filepath.Join(api.store.Root(), "audio"))
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("cancelled transcription wrote audio: %v %#v", err, entries)
 	}
 }
 

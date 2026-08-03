@@ -12,9 +12,10 @@ import (
 )
 
 type API struct {
-	store     *Store
-	gemini    *GeminiClient
-	organizer OrganizationScheduler
+	store         *Store
+	gemini        *GeminiClient
+	organizer     OrganizationScheduler
+	cancellations *RequestCancellationRegistry
 }
 
 func (api *API) scheduleOrganization(items ...Material) {
@@ -76,9 +77,18 @@ func (api *API) items(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "invalid material payload: "+err.Error())
 			return
 		}
+		if api.isMaterialSaveCanceled(input.RequestID) {
+			writeError(w, http.StatusConflict, "material save was cancelled")
+			return
+		}
 		item, err := api.store.Create(input)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if api.isMaterialSaveCanceled(input.RequestID) {
+			_ = api.store.DeleteMaterial(item.ID)
+			writeError(w, http.StatusConflict, "material save was cancelled")
 			return
 		}
 		writeJSON(w, http.StatusCreated, item)
@@ -86,6 +96,37 @@ func (api *API) items(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+func (api *API) isMaterialSaveCanceled(requestID string) bool {
+	return api.cancellations != nil && api.cancellations.IsCanceled(requestID)
+}
+
+func (api *API) cancelMaterialSave(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	requestID := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, "/v1/cancellations/"))
+	if requestID == "" || strings.Contains(requestID, "/") {
+		writeError(w, http.StatusBadRequest, "request id is required")
+		return
+	}
+	captureID := ""
+	if api.cancellations != nil {
+		captureID = api.cancellations.Cancel(requestID)
+	}
+	if captureID != "" {
+		if err := api.store.DeleteCapture(captureID); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	if err := api.store.DeleteMaterialByRequestID(requestID); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func (api *API) item(w http.ResponseWriter, r *http.Request) {
@@ -732,6 +773,11 @@ func (api *API) transcribe(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "audio request exceeds 20MB or is invalid")
 		return
 	}
+	requestID := strings.TrimSpace(r.FormValue("request_id"))
+	if api.isMaterialSaveCanceled(requestID) {
+		writeError(w, http.StatusConflict, "voice input was cancelled")
+		return
+	}
 	file, header, err := r.FormFile("audio")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "audio file is required")
@@ -764,13 +810,33 @@ func (api *API) transcribe(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if api.cancellations != nil && api.cancellations.RegisterCapture(requestID, captureID) {
+		_ = api.store.DeleteCapture(captureID)
+		writeError(w, http.StatusConflict, "voice input was cancelled")
+		return
+	}
+	if api.isMaterialSaveCanceled(requestID) {
+		_ = api.store.DeleteCapture(captureID)
+		writeError(w, http.StatusConflict, "voice input was cancelled")
+		return
+	}
 	settings, settingsErr := api.store.GetSettings()
 	if settingsErr != nil {
+		if api.isMaterialSaveCanceled(requestID) {
+			_ = api.store.DeleteCapture(captureID)
+			writeError(w, http.StatusConflict, "voice input was cancelled")
+			return
+		}
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "transcription settings are unavailable; capture remains saved", "capture_id": captureID})
 		return
 	}
 	transcriptionAgent, agentErr := api.store.GetAgent(settings.DefaultTranscriptionAgent)
 	if agentErr != nil || !transcriptionAgent.Enabled || transcriptionAgent.Task != "transcribe" {
+		if api.isMaterialSaveCanceled(requestID) {
+			_ = api.store.DeleteCapture(captureID)
+			writeError(w, http.StatusConflict, "voice input was cancelled")
+			return
+		}
 		writeJSON(w, http.StatusBadGateway, map[string]string{
 			"error":      "transcription agent is unavailable; capture remains saved",
 			"capture_id": captureID,
@@ -784,10 +850,20 @@ func (api *API) transcribe(w http.ResponseWriter, r *http.Request) {
 		Instructions: r.FormValue("instructions"),
 	}, transcriptionAgent.Instructions)
 	if err != nil {
+		if api.isMaterialSaveCanceled(requestID) {
+			_ = api.store.DeleteCapture(captureID)
+			writeError(w, http.StatusConflict, "voice input was cancelled")
+			return
+		}
 		writeJSON(w, http.StatusBadGateway, map[string]string{
 			"error":      fmt.Sprintf("transcription failed; capture remains saved: %v", err),
 			"capture_id": captureID,
 		})
+		return
+	}
+	if api.isMaterialSaveCanceled(requestID) {
+		_ = api.store.DeleteCapture(captureID)
+		writeError(w, http.StatusConflict, "voice input was cancelled")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"capture_id": captureID, "text": text})

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { saveSelection } from "../api";
+import { cancelMaterialSave, saveSelection, transcribeAudio } from "../api";
 
 describe("selection API", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -64,5 +64,37 @@ describe("selection API", () => {
 
     expect(sent).toHaveLength(2);
     expect(sent[1]).toEqual(sent[0]);
+  });
+
+  it("cancels the exact in-flight material request", async () => {
+    const sendMessage = vi.fn(async () => ({ ok: true, value: null }));
+    vi.stubGlobal("chrome", { runtime: { sendMessage } });
+
+    await cancelMaterialSave("inline-voice-request");
+
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: "logue:api",
+      action: "cancel-material-save",
+      payload: { requestId: "inline-voice-request" },
+    });
+  });
+
+  it("uses the same request id while transcribing the inline recording", async () => {
+    const sendMessage = vi.fn(async () => ({ ok: true, value: { capture_id: "cap_1", text: "Inserted text" } }));
+    vi.stubGlobal("chrome", { runtime: { sendMessage } });
+
+    await transcribeAudio({
+      requestId: "inline-voice-request",
+      audio: {
+        type: "audio/webm",
+        arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+      } as Blob,
+      source: { url: "https://example.com", title: "Example" },
+    });
+
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({
+      action: "transcribe",
+      payload: expect.objectContaining({ requestId: "inline-voice-request" }),
+    }));
   });
 });

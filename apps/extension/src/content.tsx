@@ -1,16 +1,23 @@
-import { AudioLines, Sparkles } from "lucide-react";
+import { AudioLines, Check, LoaderCircle, Square, X } from "lucide-react";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { cancelMaterialSave, getCaptureContext, saveMaterial, transcribeAudio, type AppliedContext } from "./api";
 import { getEditableText, insertIntoElement, isEditableElement, isEditableTargetAvailable } from "./dom";
 import { isLogueExtensionDisabledDocument } from "./eligibility";
-import { clampLauncherPosition, defaultLauncherPosition } from "./launcherPosition";
-import type { CaptureIntent, CaptureSource } from "./capturePrimitives";
+import { clampLauncherPosition, defaultLauncherPosition, inlineVoiceControlMetrics, launcherErrorPlacement } from "./launcherPosition";
+import type { CaptureSource } from "./capturePrimitives";
 import {
+  audioBlobFromEvent,
   createContentRecordingBridge,
   createRecordingLifecycleRegistry,
+  type ContentRecordingBridge,
+  type RecordingBridgeEvent,
   type RecordingControlMessage,
   type RecordingDisposeMessage,
 } from "./recordingBridge";
+import { isInlineVoiceShortcutTarget, recordingShortcutAction } from "./recordingShortcuts";
+import { createRequestId } from "./requestId";
+import { completeVoiceInput, VoiceInputTransactionError } from "./transaction";
 import styles from "./extension.css?inline";
 
 interface ContentRequestMessage {
@@ -19,6 +26,16 @@ interface ContentRequestMessage {
 }
 
 type ContentMessage = ContentRequestMessage | RecordingControlMessage | RecordingDisposeMessage;
+
+type InlineVoicePhase = "idle" | "starting" | "recording" | "processing" | "error";
+
+interface InlineVoiceSession {
+  id: string;
+  target: HTMLElement;
+  targetPageHref: string;
+  source: CaptureSource;
+  targetText: string;
+}
 
 function pageSource(): CaptureSource {
   return {
@@ -31,18 +48,46 @@ function pageSource(): CaptureSource {
 function ExtensionLauncher() {
   const [targetRect, setTargetRect] = useState<DOMRect>();
   const [keyboardActive, setKeyboardActive] = useState(false);
-  const [launchError, setLaunchError] = useState("");
+  const [voicePhase, setVoicePhase] = useState<InlineVoicePhase>("idle");
+  const [voiceError, setVoiceError] = useState("");
+  const [pendingCopyText, setPendingCopyText] = useState("");
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
   const targetRef = useRef<HTMLElement | null>(null);
   const targetPageHrefRef = useRef("");
+  const voicePhaseRef = useRef<InlineVoicePhase>("idle");
+  const voiceSessionRef = useRef<InlineVoiceSession | undefined>(undefined);
+  const recordingBridgeRef = useRef<ContentRecordingBridge | undefined>(undefined);
+
+  const setInlineVoicePhase = useCallback((phase: InlineVoicePhase) => {
+    voicePhaseRef.current = phase;
+    setVoicePhase(phase);
+  }, []);
+
+  const restoreTargetFocus = useCallback((session?: InlineVoiceSession) => {
+    if (!session || !isEditableTargetAvailable(session.target, session.targetPageHref, window.location.href)) return;
+    window.requestAnimationFrame(() => session.target.focus({ preventScroll: true }));
+  }, []);
+
+  const cancelInlineVoice = useCallback(() => {
+    const session = voiceSessionRef.current;
+    if (!session) return;
+    const wasProcessing = voicePhaseRef.current === "processing";
+    voiceSessionRef.current = undefined;
+    recordingBridgeRef.current?.handle({ type: "logue:recording-control", action: "cancel", sessionId: session.id });
+    if (wasProcessing) void cancelMaterialSave(session.id).catch(() => undefined);
+    setInlineVoicePhase("idle");
+    setVoiceError("");
+    setPendingCopyText("");
+    restoreTargetFocus(session);
+  }, [restoreTargetFocus, setInlineVoicePhase]);
 
   const clearTarget = useCallback(() => {
+    cancelInlineVoice();
     targetRef.current = null;
     targetPageHrefRef.current = "";
     setTargetRect(undefined);
     setKeyboardActive(false);
-    setLaunchError("");
-  }, []);
+  }, [cancelInlineVoice]);
 
   const refreshTarget = useCallback(() => {
     const target = targetRef.current;
@@ -53,20 +98,125 @@ function ExtensionLauncher() {
     setTargetRect(target.getBoundingClientRect());
   }, [clearTarget]);
 
-  const openSidePanel = useCallback((intent: CaptureIntent, autoStartRecording = false) => {
+  const finishInlineVoice = useCallback((event: RecordingBridgeEvent) => {
+    const session = voiceSessionRef.current;
+    if (!session || event.sessionId !== session.id) return;
+    if (event.event === "started") {
+      setInlineVoicePhase("recording");
+      return;
+    }
+    if (event.event === "cancelled") {
+      voiceSessionRef.current = undefined;
+      setInlineVoicePhase("idle");
+      restoreTargetFocus(session);
+      return;
+    }
+    if (event.event === "error") {
+      voiceSessionRef.current = undefined;
+      setVoiceError(event.error || "Could not start voice input.");
+      setInlineVoicePhase("error");
+      restoreTargetFocus(session);
+      return;
+    }
+    if (event.event !== "stopped") return;
+
+    setInlineVoicePhase("processing");
+    void (async () => {
+      try {
+        let appliedContext: AppliedContext | undefined;
+        const result = await completeVoiceInput({
+          transcribe: async () => {
+            const context = await getCaptureContext(session.source.url ?? "");
+            appliedContext = {
+              page_url: session.source.url,
+              page_title: session.source.title,
+              personal_context: context.personal_context || undefined,
+              glossary: context.personal_glossary,
+              recent_adopted_ids: context.recent_adopted_refs?.map((item) => item.id) ?? [],
+              recent_adopted_texts: context.recent_adopted_refs?.map((item) => item.text) ?? context.recent_adopted,
+            };
+            const transcription = await transcribeAudio({
+              requestId: session.id,
+              audio: audioBlobFromEvent(event),
+              source: session.source,
+              targetText: session.targetText,
+              projectContext: context.personal_context,
+              glossary: context.personal_glossary.join("\n"),
+              instructions: "Transcribe this as ready-to-insert text for the current input.",
+              appliedContext,
+            });
+            return { text: transcription.text, captureId: transcription.capture_id };
+          },
+          save: async (transcription) => {
+            if (voiceSessionRef.current?.id !== session.id) throw new Error("Voice input was cancelled.");
+            return saveMaterial({
+              requestId: session.id,
+              kind: "voice",
+              content: transcription.text,
+              transcript: transcription.text,
+              source: session.source,
+              projects: [],
+              captureId: transcription.captureId,
+              appliedContext,
+            });
+          },
+          insert: (text) => voiceSessionRef.current?.id === session.id &&
+            isEditableTargetAvailable(session.target, session.targetPageHref, window.location.href) &&
+            insertIntoElement(session.target, text),
+        });
+        if (voiceSessionRef.current?.id !== session.id) return;
+        voiceSessionRef.current = undefined;
+        if (result.inserted) {
+          setVoiceError("");
+          setPendingCopyText("");
+          setInlineVoicePhase("idle");
+          restoreTargetFocus(session);
+          return;
+        }
+        setPendingCopyText(result.transcription.text);
+        setVoiceError("Saved, but the original input is no longer available.");
+        setInlineVoicePhase("error");
+      } catch (cause) {
+        if (voiceSessionRef.current?.id !== session.id) return;
+        voiceSessionRef.current = undefined;
+        const message = cause instanceof VoiceInputTransactionError
+          ? cause.message
+          : cause instanceof Error ? cause.message : "Could not finish voice input.";
+        setVoiceError(message);
+        setInlineVoicePhase("error");
+        restoreTargetFocus(session);
+      }
+    })();
+  }, [restoreTargetFocus, setInlineVoicePhase]);
+
+  const startInlineVoice = useCallback(() => {
     const target = targetRef.current;
-    const selectionText = window.getSelection()?.toString().trim() || undefined;
-    setLaunchError("");
-    void chrome.runtime.sendMessage({
-      type: "logue:open-side-panel",
-      intent,
+    const bridge = recordingBridgeRef.current;
+    if (!target || !bridge || !isEditableTargetAvailable(target, targetPageHrefRef.current, window.location.href)) return;
+    const session: InlineVoiceSession = {
+      id: createRequestId(),
+      target,
+      targetPageHref: targetPageHrefRef.current,
       source: pageSource(),
-      selectionText,
-      targetText: target ? getEditableText(target) : undefined,
-      autoStartRecording,
-    }).then((response: { ok?: boolean; error?: string } | undefined) => {
-      if (!response?.ok) throw new Error(response?.error || "Logue could not connect to this page.");
-    }).catch(() => setLaunchError("Reload this page to reconnect Logue."));
+      targetText: getEditableText(target),
+    };
+    voiceSessionRef.current = session;
+    setVoiceError("");
+    setPendingCopyText("");
+    setInlineVoicePhase("starting");
+    const response = bridge.handle({ type: "logue:recording-control", action: "start", sessionId: session.id });
+    if (!response.ok) {
+      voiceSessionRef.current = undefined;
+      setVoiceError("Could not start voice input.");
+      setInlineVoicePhase("error");
+      restoreTargetFocus(session);
+    }
+  }, [restoreTargetFocus, setInlineVoicePhase]);
+
+  const stopAndInsertInlineVoice = useCallback(() => {
+    const session = voiceSessionRef.current;
+    if (!session || voicePhaseRef.current !== "recording") return;
+    recordingBridgeRef.current?.handle({ type: "logue:recording-control", action: "stop", sessionId: session.id });
   }, []);
 
   useEffect(() => {
@@ -123,7 +273,7 @@ function ExtensionLauncher() {
         event.isComposing || document.activeElement !== targetRef.current
       ) return;
       const button = document.getElementById("logue-extension-host")?.shadowRoot
-        ?.querySelector<HTMLButtonElement>('button[aria-label="Open Logue voice capture"]');
+        ?.querySelector<HTMLButtonElement>('button[aria-label="Start voice input"]');
       if (!button) return;
       event.preventDefault();
       setKeyboardActive(true);
@@ -134,9 +284,46 @@ function ExtensionLauncher() {
   }, []);
 
   useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const session = voiceSessionRef.current;
+      if (!session) return;
+      const launcherHost = document.getElementById("logue-extension-host");
+      if (!isInlineVoiceShortcutTarget({
+        target: event.target,
+        sessionTarget: session.target,
+        composedPath: event.composedPath(),
+        launcherHost,
+      })) return;
+      const action = recordingShortcutAction({
+        open: true,
+        mode: "input",
+        phase: voicePhaseRef.current,
+        key: event.key,
+        altKey: event.altKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+        isComposing: event.isComposing,
+        repeat: event.repeat,
+      });
+      if (!action) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (action === "stop-and-insert") stopAndInsertInlineVoice();
+      if (action === "cancel") cancelInlineVoice();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [cancelInlineVoice, stopAndInsertInlineVoice]);
+
+  useEffect(() => {
     const recordingBridge = createContentRecordingBridge({
-      emit: (event) => chrome.runtime.sendMessage(event),
+      emit: (event) => {
+        finishInlineVoice(event);
+        return chrome.runtime.sendMessage(event);
+      },
     });
+    recordingBridgeRef.current = recordingBridge;
     const recordingLifecycle = createRecordingLifecycleRegistry(() => recordingBridge.dispose());
     const onConnect = (port: chrome.runtime.Port) => {
       recordingLifecycle.accept(port);
@@ -180,41 +367,42 @@ function ExtensionLauncher() {
       chrome.runtime.onMessage.removeListener(listener);
       recordingLifecycle.dispose();
       recordingBridge.dispose();
+      if (recordingBridgeRef.current === recordingBridge) recordingBridgeRef.current = undefined;
     };
-  }, []);
+  }, [finishInlineVoice]);
 
-  const defaultPosition = targetRect ? defaultLauncherPosition(targetRect, viewport) : undefined;
-  const position = defaultPosition ? clampLauncherPosition(defaultPosition, viewport) : undefined;
+  const captureActive = voicePhase === "starting" || voicePhase === "recording" || voicePhase === "processing";
+  const controlMetrics = inlineVoiceControlMetrics[voicePhase];
+  const defaultPosition = targetRect ? defaultLauncherPosition(targetRect, viewport, controlMetrics.width, controlMetrics.height) : undefined;
+  const position = defaultPosition ? clampLauncherPosition(defaultPosition, viewport, controlMetrics.width, controlMetrics.height) : undefined;
+  const errorPlacement = position ? launcherErrorPlacement(position, controlMetrics.width) : { vertical: "below", horizontal: "right" };
   const visible = Boolean(
     targetRect && position &&
-    (document.activeElement === targetRef.current || keyboardActive) &&
+    (document.activeElement === targetRef.current || keyboardActive || captureActive) &&
     targetRect.width > 80 && targetRect.height > 18,
   );
 
   if (!visible) return null;
   return (
-    <div className="logue-launcher-group" style={{ top: position?.top, left: position?.left }} role="group" aria-label="Logue">
-      <button
+    <div className={`logue-launcher-group is-${voicePhase}${captureActive ? " is-capturing" : ""}`} style={{ top: position?.top, left: position?.left }} role="group" aria-label="Logue voice input">
+      {voicePhase === "recording" ? <>
+        <button type="button" className="logue-launcher logue-inline-cancel" aria-label="Cancel voice input" aria-keyshortcuts="Escape" title="Cancel (Esc)" onPointerDown={(event) => event.preventDefault()} onClick={cancelInlineVoice}><X size={17} /></button>
+        <span className="logue-inline-live" role="status" aria-label="Recording"><Square size={13} fill="currentColor" /></span>
+        <button type="button" className="logue-launcher logue-inline-accept" aria-label="Stop and insert voice input" aria-keyshortcuts="Enter" title="Stop and insert (Enter)" onPointerDown={(event) => event.preventDefault()} onClick={stopAndInsertInlineVoice}><Check size={18} strokeWidth={2.3} /></button>
+      </> : captureActive ? <>
+        <button type="button" className="logue-launcher logue-inline-cancel" aria-label="Cancel voice input" aria-keyshortcuts="Escape" title="Cancel (Esc)" onPointerDown={(event) => event.preventDefault()} onClick={cancelInlineVoice}><X size={17} /></button>
+        <span className="logue-inline-status" role="status" aria-label={voicePhase === "starting" ? "Starting microphone" : "Transcribing and inserting"}><LoaderCircle size={17} className="logue-inline-spinner" /></span>
+      </> : <button
         type="button"
         className="logue-launcher logue-launcher-voice"
-        aria-label="Open Logue voice capture"
-        title="Start voice capture"
+        aria-label="Start voice input"
+        title={voicePhase === "error" ? "Try voice input again" : "Start voice input"}
         onPointerDown={(event) => event.preventDefault()}
-        onClick={() => openSidePanel("input", true)}
+        onClick={startInlineVoice}
       >
         <AudioLines size={17} strokeWidth={2.1} />
-      </button>
-      <button
-        type="button"
-        className="logue-launcher logue-launcher-generation"
-        aria-label="Open Logue generation"
-        title="Generate with Logue"
-        onPointerDown={(event) => event.preventDefault()}
-        onClick={() => openSidePanel("generate")}
-      >
-        <Sparkles size={17} strokeWidth={1.9} />
-      </button>
-      {launchError && <div className="logue-launcher-error" role="alert">{launchError}</div>}
+      </button>}
+      {voiceError && <div className={`logue-launcher-error is-${errorPlacement.vertical} is-${errorPlacement.horizontal}`} role="alert"><span>{voiceError}</span>{pendingCopyText && <button type="button" onClick={() => void navigator.clipboard.writeText(pendingCopyText)}>Copy</button>}</div>}
     </div>
   );
 }

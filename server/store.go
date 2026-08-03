@@ -198,6 +198,20 @@ func (s *Store) findByRequestIDLocked(requestID string) (Material, bool, error) 
 	return Material{}, false, nil
 }
 
+func (s *Store) DeleteMaterialByRequestID(requestID string) error {
+	requestID = strings.TrimSpace(requestID)
+	if requestID == "" {
+		return nil
+	}
+	s.mu.RLock()
+	item, found, err := s.findByRequestIDLocked(requestID)
+	s.mu.RUnlock()
+	if err != nil || !found {
+		return err
+	}
+	return s.DeleteMaterial(item.ID)
+}
+
 func (s *Store) writeItem(item Material) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -27,6 +27,8 @@ textarea {
   display: flex;
   align-items: center;
   gap: 1px;
+  width: 46px;
+  height: 46px;
   padding: 3px;
   border: 1px solid rgba(35, 37, 31, 0.12);
   border-radius: 12px;
@@ -35,9 +37,22 @@ textarea {
   backdrop-filter: blur(12px);
 }
 
+.logue-launcher-group.is-capturing {
+  gap: 2px;
+}
+
+.logue-launcher-group.is-starting,
+.logue-launcher-group.is-processing {
+  width: 86px;
+}
+
+.logue-launcher-group.is-recording {
+  width: 126px;
+}
+
 .logue-launcher-error {
   position: absolute;
-  top: calc(100% + 8px);
+  bottom: calc(100% + 8px);
   right: 0;
   width: max-content;
   max-width: 220px;
@@ -49,6 +64,28 @@ textarea {
   color: #9b3e35;
   font-size: 12px;
   line-height: 1.4;
+}
+
+.logue-launcher-error.is-below {
+  top: calc(100% + 8px);
+  bottom: auto;
+}
+
+.logue-launcher-error.is-left {
+  left: 0;
+  right: auto;
+}
+
+.logue-launcher-error button {
+  margin-left: 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .logue-launcher {
@@ -80,27 +117,34 @@ textarea {
   color: #3f48cf;
 }
 
-.logue-launcher-generation {
-  width: 0;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-4px);
-  transition:
-    width 140ms ease,
-    opacity 100ms ease,
-    transform 140ms ease,
-    background 120ms ease,
-    color 120ms ease;
+.logue-inline-cancel { color: #6f716b; }
+.logue-inline-cancel:hover { background: #f1f1ed; color: #343631; }
+.logue-inline-live {
+  display: flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #fff0ee;
+  color: #d73e36;
+  box-shadow: inset 0 0 0 1px #ffd9d4;
+}
+.logue-inline-accept { color: #16984a; }
+.logue-inline-accept:hover { background: #ecf8ef; color: #0a7f39; }
+
+.logue-inline-status {
+  display: flex;
+  width: 38px;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  color: #d73e36;
 }
 
-.logue-launcher-group:hover .logue-launcher-generation,
-.logue-launcher-group:focus-within .logue-launcher-generation {
-  width: 38px;
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(0);
-}
+.logue-inline-spinner { animation: logue-spin 800ms linear infinite; }
+
+@keyframes logue-spin { to { transform: rotate(360deg); } }
 
 .logue-launcher:focus-visible {
   outline: 2px solid #5b64f4;
