@@ -1,6 +1,6 @@
 # Logue bug 与 feature 状态
 
-更新时间：2026-08-03 01:14（America/Los_Angeles）
+更新时间：2026-08-03 01:16（America/Los_Angeles）
 
 这是用户历史 bug / feature request 的唯一滚动清单。`PASS` 表示实现和与风险相称的真实运行证据都存在；`PARTIAL` 表示核心已实现，但仍缺指定环境的最后闭环；`OPEN` 表示尚未交付；`NOT_APPLICABLE` 表示请求指向浏览器拥有且扩展无法控制的原生 UI。测试、提交、文档和截图本身不把状态升级为 `PASS`。
 
@@ -44,11 +44,11 @@
 | F01 | Notion 式资料流、文档列表和文档编辑 | PASS | 生成长内容进入持续可编辑文档；文档列表、编辑器、来源引用和自动保存共享安静工作区。 |
 | F02 | 产品一级名称用 Stream / Projects / Generate / Settings，不用 View / Inbox / 成果 | PASS | 当前 Web 一级导航与 URL 兼容层分离，UI 只显示英文产品名。 |
 | F03 | Generate 只保留 Documents / Skills；行尾 plus 分别新建 | PASS | 无 `New`、无顶部重复 plus；点击行只更新列表，点击行尾 plus 才创建。 |
-| F04 | 极简网页语音输入：聚焦才显示、一键开始、停止并插入、取消、快捷键 | PARTIAL | 标准 textarea 已真实完成一击录音、Enter 转写/保存/单次插入、Esc 取消、关闭停麦和目标丢失恢复；真实 ChatGPT contenteditable 已验证 launcher、录音期 Cancel/Stop、Enter 和局部空音频错误，且未发送。仍缺一段非空真实语音在 ChatGPT contenteditable 中的成功插入证据。 |
+| F04 | 极简网页语音输入：聚焦才显示、一键开始、停止并插入、取消、快捷键 | PASS | 2026-08-03 在真实 ChatGPT contenteditable 与 Logue Generate 自动聚焦 textarea 分别完成非空麦克风录音 → Gemini 转写 → 保存 → 单次插入；ChatGPT Send 从未点击。录音时原位只显示 Cancel 与 Stop and insert，Enter 转写、Esc 取消；两条无敏感测试资料已在验证后精确删除。 |
 | F05 | 自动项目/Tag 整理，低置信可审阅，任何 item 可事后编辑 | PASS | Agent 分类、建议/确认、内容/项目/Tag 编辑和不可覆盖人工判断均已真实验证。 |
 | F06 | 多个可定制 Agent，用于转写、整理、短回复、QA、文档 | PASS | 系统与自建 Agent 可编辑/复制/设默认；Web 已产生可追溯的 Text、Material、QA、Document run。 |
 | F07 | Extension 中基于资料生成回复并插入、不自动发送 | PASS | 2026-08-03 在真实 ChatGPT 通过原生 Side Panel 生成 `Logue capture is ready.`，点击 Insert 后仅写入 ChatGPT 草稿，Send 未被点击；测试草稿已清除。 |
-| F08 | Logue Web App 自己也能使用 Extension | PARTIAL | 当前 `275d510` 构建已在真实 Logue Generate 自动聚焦 textarea 后显示 launcher，并验证录音/取消；仍缺该页面非空真实语音的成功转写、保存与插入证据。 |
+| F08 | Logue Web App 自己也能使用 Extension | PASS | 2026-08-03 在真实 `127.0.0.1:5173/?view=generate` 验证自动聚焦后出现单一语音入口；非空语音经 Gemini 转写后只写入 Task，未自动生成。运行时截图见 `docs/design/references/runtime/extension-inline-voice-logue-web-success-20260803.png`。 |
 | F09 | 所有关键竖向 panel 可拖拽并保持同一风格 | PASS | 至少一级导航、Generate、资料详情、文档列表和来源面板使用同一 `PanelResizer` 体系；键盘与 pointer 均支持。 |
 | F10 | 手机完整可用并可从同一局域网访问 | PARTIAL | Web/API 支持显式局域网监听，320/390/768 已覆盖 Stream、Projects、Generate、详情和底栏；公开安装为保护资料默认只监听本机。仍缺安全配对入口和一台物理 iPhone 的触控、旋转、刷新与文档编辑闭环。 |
 | F11 | React + TypeScript + Tailwind + Storybook；Go；Gemini 终端环境变量 | PASS | 架构与构建已落地；Gemini Key 只由 Go 进程读取，不进入 Web、Extension、资料、日志或 Release。 |
@@ -61,8 +61,7 @@
 
 ## 当前未关闭队列
 
-1. **P1（原生 Extension 语音成功态）**：在真实 ChatGPT contenteditable 和 Logue Web App 以非空真实语音完成转写、保存与单次插入；不得发送宿主表单。
-2. **P1（全产品设计终审）**：用当前主要 Web/Extension 截图与项目内 Notion/ChatGPT 参照完成两名 fresh-context 独立审查，直接修复无歧义的高影响问题。
-3. **P1（发布）**：在上述核心闭环与审查达到可发布质量后，完成当前最新 `main` 的新 Release 与真实覆盖升级，不能继续把旧 `v0.2.3` 当作最新主线。
-4. **P2（数据整理）**：安全处理真实库中 14 条历史中文模型分类理由；不得改资料正文、人工项目/Tag 或自建 Agent。
-5. **P3（移动端，用户明确后置）**：安全 LAN 配对入口与物理 iPhone 的触控、旋转、刷新、Stream / Projects / Generate / 文档编辑闭环。
+1. **P1（全产品设计终审）**：用当前主要 Web/Extension 截图与项目内 Notion/ChatGPT 参照完成两名 fresh-context 独立审查，直接修复无歧义的高影响问题。
+2. **P1（发布）**：在上述核心闭环与审查达到可发布质量后，完成当前最新 `main` 的新 Release 与真实覆盖升级，不能继续把旧 `v0.2.3` 当作最新主线。
+3. **P2（数据整理）**：安全处理真实库中 14 条历史中文模型分类理由；不得改资料正文、人工项目/Tag 或自建 Agent。
+4. **P3（移动端，用户明确后置）**：安全 LAN 配对入口与物理 iPhone 的触控、旋转、刷新、Stream / Projects / Generate / 文档编辑闭环。
