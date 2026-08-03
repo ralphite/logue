@@ -50,6 +50,39 @@ func TestDefaultDictationSkillForbidsSynonymPolishing(t *testing.T) {
 	}
 }
 
+func TestGenerateDocumentUsesCurrentCitationFormat(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request geminiRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		prompt := request.Contents[0].Parts[0].Text
+		for _, required := range []string{
+			"Create a concise, editable working document",
+			"exact format [Source 1]",
+			"Document title: Acceptance plan",
+			`<source id="1" material_id="mat_1">`,
+		} {
+			if !strings.Contains(prompt, required) {
+				t.Fatalf("document prompt is missing %q: %s", required, prompt)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"Supported conclusion [Source 1]"}]}}]}`))
+	}))
+	defer server.Close()
+	client := NewGeminiClient("secret", GeminiConfig{Model: "test-model"})
+	client.baseURL = server.URL
+	client.client = server.Client()
+	text, err := client.GenerateDocument(context.Background(), "Acceptance plan", "Logue", "Current overview", "Summarize decisions", []Material{{ID: "mat_1", Content: "Supported conclusion"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text != "Supported conclusion [Source 1]" {
+		t.Fatalf("unexpected generated document: %q", text)
+	}
+}
+
 func TestGeminiClassifyRequiresStrictJSONAndKnownProjects(t *testing.T) {
 	projects := []ProjectSummary{{Name: "Logue"}, {Name: "Research"}}
 	responses := []string{

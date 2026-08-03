@@ -43,19 +43,13 @@ interface DocumentSnapshot {
 }
 
 const editorTags = new Set(["P", "DIV", "H1", "H2", "H3", "UL", "OL", "LI", "BR", "BLOCKQUOTE", "STRONG", "EM", "CODE", "MARK"]);
-const legacyCitationLabel = "\u6765\u6e90";
-const legacyUntitledTitle = "\u65e0\u6807\u9898";
 
 function citationPattern(flags = "g") {
-  return new RegExp(`\\[(?:Source|${legacyCitationLabel})\\s*(\\d+)\\]`, flags);
+  return new RegExp("\\[Source (\\d+)\\]", flags);
 }
 
 function citationNumber(value?: string | null) {
-  return value?.match(new RegExp(`(?:Source|${legacyCitationLabel})\\s*(\\d+)`))?.[1];
-}
-
-function displayDocumentTitle(value: string) {
-  return value.trim() === legacyUntitledTitle ? "Untitled" : value;
+  return value?.match(/Source (\d+)/)?.[1];
 }
 
 function countLabel(count: number, singular: string) {
@@ -158,13 +152,13 @@ function toEditorHTML(value: string, title: string) {
 }
 
 export function hasCitationNumber(value: string, sourceNumber: number) {
-  return new RegExp(`\\[(?:Source|${legacyCitationLabel})\\s*${sourceNumber}\\]`).test(value);
+  return new RegExp(`\\[Source ${sourceNumber}\\]`).test(value);
 }
 
 export function renumberCitationsAfterRemoval(value: string, removedSourceNumber: number) {
   return value.replace(citationPattern(), (match, rawNumber: string) => {
     const sourceNumber = Number(rawNumber);
-    return sourceNumber > removedSourceNumber ? `[Source ${sourceNumber - 1}]` : match.replace(citationPattern(), "[Source $1]");
+    return sourceNumber > removedSourceNumber ? `[Source ${sourceNumber - 1}]` : match;
   });
 }
 
@@ -201,7 +195,7 @@ export function removeSourceCitation(value: string, sourceIds: string[], id: str
     .replace(citationPattern(), (match, rawNumber: string) => {
       const number = Number(rawNumber);
       if (number === sourceNumber) return "";
-      return number > sourceNumber ? `[Source ${number - 1}]` : match.replace(citationPattern(), "[Source $1]");
+      return number > sourceNumber ? `[Source ${number - 1}]` : match;
     })
     .replace(/<mark>\s*<\/mark>/gi, "")
     .replace(/(?:[ \t]|&nbsp;)+([\uFF0C\u3002\uFF1B\uFF1A\u3001\uFF01\uFF1F,.!?;:])/g, "$1")
@@ -411,7 +405,7 @@ export function ViewWorkspace({
       : initialProject
         ? documents.find((item) => item.project === initialProject)
         : undefined;
-    const firstUseful = documents.find((item) => !["Untitled", legacyUntitledTitle].includes(item.title.trim()) || item.content.trim());
+    const firstUseful = documents.find((item) => item.title.trim() !== "Untitled" || item.content.trim());
     const nextId = requested?.id ?? firstUseful?.id ?? documents[0]?.id;
     if (selectedId !== nextId) {
       loadedRef.current = undefined;
@@ -426,7 +420,7 @@ export function ViewWorkspace({
   useEffect(() => {
     if (!selected || loadedRef.current === selected.id) return;
     loadedRef.current = selected.id;
-    setTitle(displayDocumentTitle(selected.title));
+    setTitle(selected.title);
     setContent(selected.content);
     setProject(selected.project ?? "");
     setSourceIds(selected.source_ids ?? []);
@@ -588,7 +582,7 @@ export function ViewWorkspace({
   }
 
   async function removeCurrent() {
-    if (!selected || !window.confirm(`Delete “${displayDocumentTitle(selected.title)}”? The original linked materials will not be deleted.`)) return;
+    if (!selected || !window.confirm(`Delete “${selected.title}”? The original linked materials will not be deleted.`)) return;
     if (!(await flushCurrentDocument())) return;
     await deleteDocument(selected.id);
     revisionByDocumentRef.current.delete(selected.id);
@@ -758,7 +752,7 @@ export function ViewWorkspace({
               <button key={document.id} type="button" onClick={() => void selectDocument(document.id)} className={`group flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left max-[640px]:min-h-12 max-[640px]:px-3 ${document.id === selectedId ? "bg-[#e7e7e4] text-[#2e2f2b]" : "text-[#686965] hover:bg-[#eeeeeb]"}`}>
                 <FileText size={14} className="shrink-0 text-[#898a85]" />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[14px] font-medium">{displayDocumentTitle(document.title) || "Untitled"}</span>
+                  <span className="block truncate text-[14px] font-medium">{document.title || "Untitled"}</span>
                   {document.project && <span className="mt-0.5 block truncate text-[14px] text-[#9a9b96]">{document.project}</span>}
                 </span>
               </button>

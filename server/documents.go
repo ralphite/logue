@@ -47,7 +47,7 @@ func (s *Store) ListDocuments() ([]Document, error) {
 func (s *Store) CreateDocument(input CreateDocumentInput) (Document, error) {
 	title := strings.TrimSpace(input.Title)
 	if title == "" {
-		title = "无标题"
+		title = "Untitled"
 	}
 	id, err := makeID("doc_")
 	if err != nil {
@@ -96,7 +96,7 @@ func (s *Store) UpdateDocument(id string, input UpdateDocumentInput) (Document, 
 	if input.Title != nil {
 		document.Title = strings.TrimSpace(*input.Title)
 		if document.Title == "" {
-			document.Title = "无标题"
+			document.Title = "Untitled"
 		}
 	}
 	if input.Content != nil {
@@ -234,27 +234,10 @@ func (s *Store) SeedDemoDocuments() error {
 	if err != nil || len(documents) > 0 {
 		return err
 	}
-	items, err := s.List()
-	if err != nil {
-		return err
-	}
-	sourceIDs := func(project string, limit int) []string {
-		ids := []string{}
-		for _, item := range items {
-			if project != "" && !contains(item.Projects, project) {
-				continue
-			}
-			ids = append(ids, item.ID)
-			if len(ids) == limit {
-				break
-			}
-		}
-		return ids
-	}
 	seed := []CreateDocumentInput{
-		{Title: "Logue 产品决策", Project: "Logue", Content: "## 产品承诺\n\n表达一次，立刻使用；保存下来，以后不必重复交代。\n\n## 当前决定\n\n- 输入是入口，项目记忆是长期价值。\n- 原始资料、转写、最终采用文字和派生结果分别保存。\n- Context 不是页面，而是每次操作实际引用的来源集合。\n\n## 下一步\n\n完成跨网页输入、选区采集与带来源文档之间的闭环。", SourceIDs: sourceIDs("", 3)},
-		{Title: "Agent Harness：输入与来源设计", Project: "Agent Harness", Content: "## 目标\n\n让工具调用具备明确意图、可恢复失败和完整来源。\n\n## 设计原则\n\n1. 执行前验证参数。\n2. 可重试操作使用稳定请求 ID。\n3. 原始来源保持不可变，分析结果作为派生资料追加。", SourceIDs: sourceIDs("Agent Harness", 4)},
-		{Title: "本周采集摘要", Content: "## 尚未归项目的信号\n\n这里用于把近期资料整理成可继续编辑的工作文档。右侧来源列表保留每个结论的回溯入口。", SourceIDs: sourceIDs("", 5)},
+		{Title: "Logue product decisions", Project: "Logue", Content: "## Product promise\n\nCapture an idea once, use it immediately, and keep it available for future work.\n\n## Current decisions\n\n- Input is the entry point; project memory creates lasting value.\n- Raw material, transcripts, accepted text, and derived results remain distinct.\n- Context is the set of sources used for an action, not a separate destination.\n\n## Next step\n\nComplete the workflow across web input, selection capture, and source-backed documents."},
+		{Title: "Agent Harness input and source design", Project: "Agent Harness", Content: "## Goal\n\nGive every tool call a clear intent, recoverable failures, and traceable sources.\n\n## Design principles\n\n1. Validate parameters before execution.\n2. Use stable request IDs for retryable actions.\n3. Keep original sources immutable and append analysis as derived material."},
+		{Title: "Weekly capture summary", Content: "## Unfiled signals\n\nUse this document to turn recent captures into an editable working summary. Add sources only when the document cites them directly."},
 	}
 	for _, input := range seed {
 		if _, err := s.CreateDocument(input); err != nil {

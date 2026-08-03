@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	documentCitationPattern  = regexp.MustCompile(`\[来源\s*(\d+)\]`)
+	documentCitationPattern  = regexp.MustCompile(`\[Source (\d+)\]`)
 	emptyCitationMarkPattern = regexp.MustCompile(`(?i)<mark>\s*</mark>`)
 	citationMarkOpenPattern  = regexp.MustCompile(`(?i)<mark\b[^>]*>`)
 	citationSpacePattern     = regexp.MustCompile(`(?:[ \t]|&nbsp;)+([，。；：、！？,.!?;:])`)
@@ -54,7 +54,7 @@ func reconcileDocumentCitations(content string, sourceIDs []string, materialIDs 
 		if !ok {
 			return ""
 		}
-		return "[来源 " + strconv.Itoa(newNumber) + "]"
+		return "[Source " + strconv.Itoa(newNumber) + "]"
 	})
 	nextContent = emptyCitationMarkPattern.ReplaceAllString(nextContent, "")
 	nextContent = citationMarkOpenPattern.ReplaceAllString(nextContent, "<mark>")

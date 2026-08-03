@@ -32,9 +32,9 @@ func newAgentRunGeminiStub(t *testing.T) *agentRunGeminiStub {
 		stub.calls = append(stub.calls, prompt)
 		stub.mu.Unlock()
 
-		output := "一步完成语音输入 [来源 1]"
-		if strings.Contains(prompt, "名称：Draft document") {
-			output = "## 验收\n\n生成内容可继续编辑 [来源 2]"
+		output := "Complete voice input in one step [Source 1]"
+		if strings.Contains(prompt, "Draft document") {
+			output = "## Acceptance\n\nGenerated content remains editable [Source 2]"
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
@@ -122,7 +122,7 @@ func TestQARunWithSourcePersistsAndSuccessfulRetryIsIdempotent(t *testing.T) {
 		t.Fatalf("QA run did not persist its source snapshot: %#v", first.Sources)
 	}
 	prompt := gemini.lastPrompt()
-	for _, required := range []string{source.Content, `<source id="1" material_id="` + source.ID + `">`, "关键判断使用 [来源 n]"} {
+	for _, required := range []string{source.Content, `<source id="1" material_id="` + source.ID + `">`, "exact format [Source n]"} {
 		if !strings.Contains(prompt, required) {
 			t.Fatalf("QA prompt did not use source-backed context %q: %s", required, prompt)
 		}
@@ -205,15 +205,15 @@ func TestDocumentAgentRunCreatesTraceableDocumentAndSurvivesRestart(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	firstSource, _ := store.Create(CreateMaterialInput{Kind: "text", Content: "第一个来源：语音入口只在输入框聚焦时出现。", Projects: []string{"Logue"}})
-	secondSource, _ := store.Create(CreateMaterialInput{Kind: "text", Content: "第二个来源：生成结果必须可编辑并由用户决定是否插入。", Projects: []string{"Logue"}})
+	firstSource, _ := store.Create(CreateMaterialInput{Kind: "text", Content: "The voice control appears only while the input is focused.", Projects: []string{"Logue"}})
+	secondSource, _ := store.Create(CreateMaterialInput{Kind: "text", Content: "Generated content remains editable and is inserted only when the user chooses.", Projects: []string{"Logue"}})
 	gemini := newAgentRunGeminiStub(t)
 	api := &API{store: store, gemini: gemini.client()}
 
 	response := postAgentRun(t, api, map[string]any{
 		"request_id":  "document-persistence-proof",
 		"agent_id":    defaultDocumentAgentID,
-		"instruction": "起草 Logue 的真实验收清单",
+		"instruction": "Draft Logue's acceptance checklist",
 		"project":     "Logue",
 		"source_ids":  []string{firstSource.ID, secondSource.ID},
 	})
@@ -224,7 +224,7 @@ func TestDocumentAgentRunCreatesTraceableDocumentAndSurvivesRestart(t *testing.T
 	if run.Status != "complete" || run.DocumentID == "" || len(run.Sources) != 2 {
 		t.Fatalf("unexpected document run: %#v", run)
 	}
-	for _, required := range []string{firstSource.Content, secondSource.Content, "输出可继续编辑的简洁 Markdown 正文"} {
+	for _, required := range []string{firstSource.Content, secondSource.Content, "Return concise, editable Markdown"} {
 		if !strings.Contains(gemini.lastPrompt(), required) {
 			t.Fatalf("document prompt did not use required context %q: %s", required, gemini.lastPrompt())
 		}
@@ -233,7 +233,7 @@ func TestDocumentAgentRunCreatesTraceableDocumentAndSurvivesRestart(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if document.Title != "起草 Logue 的真实验收清单" || document.Content != "## 验收\n\n生成内容可继续编辑 [来源 1]" {
+	if document.Title != "Draft Logue's acceptance checklist" || document.Content != "## Acceptance\n\nGenerated content remains editable [Source 1]" {
 		t.Fatalf("unexpected generated document: %#v", document)
 	}
 	// The model cited source 2, so citation reconciliation keeps only that real source
@@ -305,7 +305,7 @@ func TestWorkspaceExportRestorePreservesAgentsAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, err := store.Create(CreateMaterialInput{Kind: "text", Content: "可验证来源", Projects: []string{"Logue"}})
+	source, err := store.Create(CreateMaterialInput{Kind: "text", Content: "Verifiable source", Projects: []string{"Logue"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func TestWorkspaceExportRestorePreservesAgentsAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err = store.CompleteAgentRun(run.ID, "基于来源的回答 [来源 1]", "", "")
+	run, err = store.CompleteAgentRun(run.ID, "A source-backed answer [Source 1]", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

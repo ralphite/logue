@@ -47,9 +47,54 @@ func TestDocumentRevisionRejectsStaleSaveAndPersistsNewestContent(t *testing.T) 
 	}
 }
 
+func TestDocumentsUseUntitledAsTheOnlyEmptyTitle(t *testing.T) {
+	store, err := NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := store.CreateDocument(CreateDocumentInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.Title != "Untitled" {
+		t.Fatalf("empty document title = %q, want Untitled", document.Title)
+	}
+	empty := "  "
+	updated, err := store.UpdateDocument(document.ID, UpdateDocumentInput{Title: &empty})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Title != "Untitled" {
+		t.Fatalf("cleared document title = %q, want Untitled", updated.Title)
+	}
+}
+
+func TestDemoDocumentsUseCurrentEnglishCopy(t *testing.T) {
+	store, err := NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SeedDemoDocuments(); err != nil {
+		t.Fatal(err)
+	}
+	documents, err := store.ListDocuments()
+	if err != nil {
+		t.Fatal(err)
+	}
+	titles := make(map[string]bool, len(documents))
+	for _, document := range documents {
+		titles[document.Title] = true
+	}
+	for _, title := range []string{"Logue product decisions", "Agent Harness input and source design", "Weekly capture summary"} {
+		if !titles[title] {
+			t.Fatalf("demo documents are missing %q: %#v", title, titles)
+		}
+	}
+}
+
 func TestReconcileDocumentCitationsCompactsSparseSources(t *testing.T) {
-	content, sourceIDs := reconcileDocumentCitations("结论 [来源 2]，再次引用 [来源 2]。无效 [来源 9]", []string{"mat_a", "mat_b"}, nil)
-	if content != "结论 [来源 1]，再次引用 [来源 1]。无效" {
+	content, sourceIDs := reconcileDocumentCitations("Conclusion [Source 2], cited again [Source 2]. Invalid [Source 9]", []string{"mat_a", "mat_b"}, nil)
+	if content != "Conclusion [Source 1], cited again [Source 1]. Invalid" {
 		t.Fatalf("unexpected normalized content: %q", content)
 	}
 	if len(sourceIDs) != 1 || sourceIDs[0] != "mat_b" {
@@ -72,12 +117,12 @@ func TestDocumentCitationConsistencyPersistsAcrossRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	document, err := store.CreateDocument(CreateDocumentInput{
-		Title: "Citation QA", Content: "只使用第二条 [来源 2]", SourceIDs: []string{first.ID, second.ID},
+		Title: "Citation QA", Content: "Only the second source is used [Source 2]", SourceIDs: []string{first.ID, second.ID},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if document.Content != "只使用第二条 [来源 1]" || len(document.SourceIDs) != 1 || document.SourceIDs[0] != second.ID {
+	if document.Content != "Only the second source is used [Source 1]" || len(document.SourceIDs) != 1 || document.SourceIDs[0] != second.ID {
 		t.Fatalf("create did not enforce citation consistency: %#v", document)
 	}
 
@@ -104,7 +149,7 @@ func TestReferencedMaterialCannotBeDeleted(t *testing.T) {
 		t.Fatal(err)
 	}
 	document, err := store.CreateDocument(CreateDocumentInput{
-		Title: "Protected", Content: "结论 [来源 1]", SourceIDs: []string{source.ID},
+		Title: "Protected", Content: "Conclusion [Source 1]", SourceIDs: []string{source.ID},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +157,7 @@ func TestReferencedMaterialCannotBeDeleted(t *testing.T) {
 	if err := store.DeleteMaterial(source.ID); err == nil || !strings.Contains(err.Error(), "Protected") {
 		t.Fatalf("expected a document reference error, got %v", err)
 	}
-	empty := "正文已移除引用"
+	empty := "The citation has been removed"
 	ids := []string{}
 	if _, err := store.UpdateDocument(document.ID, UpdateDocumentInput{Content: &empty, SourceIDs: &ids}); err != nil {
 		t.Fatal(err)

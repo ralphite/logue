@@ -31,6 +31,7 @@ describe("document source provenance", () => {
   it("detects only the exact linked citation", () => {
     expect(hasCitationNumber("Evidence [Source 2]", 2)).toBe(true);
     expect(hasCitationNumber("Evidence [Source 20]", 2)).toBe(false);
+    expect(hasCitationNumber("Evidence [Source2]", 2)).toBe(false);
   });
 
   it("renumbers later citations without changing earlier citations", () => {
@@ -42,12 +43,6 @@ describe("document source provenance", () => {
 
   it("drops uncited sources and compacts sparse citation numbers", () => {
     expect(reconcileDocumentCitations("Evidence [Source 2]", ["a", "b"]))
-      .toEqual({ content: "Evidence [Source 1]", sourceIds: ["b"] });
-  });
-
-  it("normalizes legacy citation labels without losing linked sources", () => {
-    const legacyLabel = "\u6765\u6e90";
-    expect(reconcileDocumentCitations(`Evidence [${legacyLabel} 2]`, ["a", "b"]))
       .toEqual({ content: "Evidence [Source 1]", sourceIds: ["b"] });
   });
 
