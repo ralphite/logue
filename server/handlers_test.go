@@ -51,13 +51,17 @@ func TestStatusIncludesBuildVersion(t *testing.T) {
 		t.Fatalf("unexpected status: %d", response.Code)
 	}
 	var payload struct {
-		Version string `json:"version"`
+		Version    string `json:"version"`
+		APIVersion int    `json:"api_version"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
 	if payload.Version != version {
 		t.Fatalf("version = %q, want %q", payload.Version, version)
+	}
+	if payload.APIVersion != 1 {
+		t.Fatalf("api_version = %d, want 1", payload.APIVersion)
 	}
 }
 

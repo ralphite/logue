@@ -34,6 +34,7 @@ describe("application navigation shell", () => {
     apiMocks.getMaterials.mockReset().mockResolvedValue([]);
     apiMocks.getStatus.mockReset().mockResolvedValue({
       ok: true,
+      api_version: 1,
       ai_configured: false,
       model: "",
       storage_root: "/tmp/logue-test",

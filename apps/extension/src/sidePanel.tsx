@@ -7,6 +7,10 @@ import {
   getPageMaterials,
   createExtensionSkillRun,
   adoptExtensionSkillRun,
+  connectServer,
+  defaultServerURL,
+  getServerURL,
+  getServiceStatus,
   saveMaterial,
   saveSelection,
   transcribeAudio,
@@ -55,6 +59,11 @@ function SidePanelApp() {
   const [generating, setGenerating] = useState(false);
   const [pendingInsert, setPendingInsert] = useState<PendingInsert>();
   const [insertingPending, setInsertingPending] = useState(false);
+  const [serverURL, setServerURL] = useState(defaultServerURL);
+  const [serverURLDraft, setServerURLDraft] = useState(defaultServerURL);
+  const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
+  const [serverConnecting, setServerConnecting] = useState(false);
+  const [serverSettingsError, setServerSettingsError] = useState<string>();
   const timerRef = useRef<number | undefined>(undefined);
   const requestIdRef = useRef(createRequestId());
   const lastBlobRef = useRef<Blob | undefined>(undefined);
@@ -113,6 +122,62 @@ function SidePanelApp() {
       // Page material history is quiet context, so a failed refresh must not obscure capture.
     }
   }, []);
+
+  const refreshServerConnection = useCallback(async (current = stateRef.current) => {
+    if (!current) return;
+    setServerConnecting(true);
+    try {
+      await getServiceStatus();
+      if (stateRef.current?.tabId !== current.tabId) return;
+      setError((active) => active?.kind === "service" ? undefined : active);
+      const captureContext = await getCaptureContext(current.source.url);
+      if (stateRef.current?.tabId === current.tabId) setContext(captureContext);
+      if (shouldLoadPageHistory(current.intent)) await refreshPageMaterials(current.source.url);
+      if (current.intent === "generate") {
+        const [available, settings] = await Promise.all([getExtensionSkills(), getExtensionSettings()]);
+        if (stateRef.current?.tabId !== current.tabId) return;
+        setSkills(available);
+        setSkillId(available.find((item) => item.id === settings.default_extension_skill)?.id ?? available[0]?.id ?? "");
+      }
+    } catch (cause) {
+      if (stateRef.current?.tabId === current.tabId && !current.pendingInsert) {
+        setError(friendlyLocalError(cause, "service"));
+      }
+    } finally {
+      setServerConnecting(false);
+    }
+  }, [refreshPageMaterials]);
+
+  const openServerSettings = useCallback(() => {
+    setServerURLDraft(serverURL);
+    setServerSettingsError(undefined);
+    setServerSettingsOpen(true);
+  }, [serverURL]);
+
+  const closeServerSettings = useCallback(() => {
+    if (serverConnecting) return;
+    setServerURLDraft(serverURL);
+    setServerSettingsError(undefined);
+    setServerSettingsOpen(false);
+  }, [serverConnecting, serverURL]);
+
+  const connectConfiguredServer = useCallback(() => {
+    if (serverConnecting) return;
+    setServerConnecting(true);
+    setServerSettingsError(undefined);
+    void connectServer(serverURLDraft).then(async (connected) => {
+      setServerURL(connected.url);
+      setServerURLDraft(connected.url);
+      setServerSettingsOpen(false);
+      setContext(undefined);
+      setPageMaterials([]);
+      setSkills([]);
+      setSkillId("");
+      await refreshServerConnection();
+    }).catch((cause: unknown) => {
+      setServerSettingsError(cause instanceof Error ? cause.message : "Could not connect to this server.");
+    }).finally(() => setServerConnecting(false));
+  }, [refreshServerConnection, serverConnecting, serverURLDraft]);
 
   const saveContent = useCallback(async (content: string, captureId?: string, rawTranscript?: string) => {
     const current = stateRef.current;
@@ -478,7 +543,12 @@ function SidePanelApp() {
       setDraft(next.draft ?? "");
       setTranscript(next.transcript ?? "");
       setPendingInsert(next.pendingInsert);
+      setContext(undefined);
       setPageMaterials([]);
+      if (next.intent === "generate") {
+        setSkills([]);
+        setSkillId("");
+      }
       setPhase("idle");
       setError(next.pendingInsert ? {
         kind: "target",
@@ -486,16 +556,7 @@ function SidePanelApp() {
         action: "copy",
       } : undefined);
       requestIdRef.current = createRequestId();
-      void getCaptureContext(next.source.url)
-        .then(setContext)
-        .catch(() => setContext(undefined));
-      if (shouldLoadPageHistory(next.intent)) void refreshPageMaterials(next.source.url);
-      if (next.intent === "generate") {
-        void Promise.all([getExtensionSkills(), getExtensionSettings()]).then(([available, settings]) => {
-          setSkills(available);
-          setSkillId(available.find((item) => item.id === settings.default_extension_skill)?.id ?? available[0]?.id ?? "");
-        }).catch((cause) => setError(friendlyLocalError(cause, "service")));
-      }
+      void refreshServerConnection(next);
       if (next.autoStartToken) {
         void chrome.runtime.sendMessage({
           type: "logue:consume-panel-autostart",
@@ -515,7 +576,14 @@ function SidePanelApp() {
     };
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
-  }, [refreshPageMaterials, sendRecordingControl, stopTimer]);
+  }, [refreshServerConnection, sendRecordingControl, stopTimer]);
+
+  useEffect(() => {
+    void getServerURL().then((value) => {
+      setServerURL(value);
+      setServerURLDraft(value);
+    });
+  }, []);
 
   useEffect(() => {
     if (!state || !focusPanelOnHydrationRef.current) return;
@@ -525,6 +593,14 @@ function SidePanelApp() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (serverSettingsOpen) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          closeServerSettings();
+        }
+        return;
+      }
       handleSidePanelShortcut(event, phase, {
         pendingInsert: Boolean(pendingInsert),
         onRecord: startRecording,
@@ -535,7 +611,7 @@ function SidePanelApp() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cancelRecording, pendingInsert, phase, startRecording, stopRecording]);
+  }, [cancelRecording, closeServerSettings, pendingInsert, phase, serverSettingsOpen, startRecording, stopRecording]);
 
   useEffect(() => {
     return () => {
@@ -567,6 +643,10 @@ function SidePanelApp() {
       insertingPending={insertingPending}
       generating={generating}
       canRetry={Boolean(lastBlobRef.current)}
+      serverURLDraft={serverURLDraft}
+      serverSettingsOpen={serverSettingsOpen}
+      serverConnecting={serverConnecting}
+      serverSettingsError={serverSettingsError}
       panelRef={panelMainRef}
       onDraftChange={(value) => { setDraft(value); persistDraft({ draft: value }); }}
       onGeneratedTextChange={setGeneratedText}
@@ -582,6 +662,11 @@ function SidePanelApp() {
       onInsertGenerated={() => void useGeneratedText()}
       onRetryInsert={() => void retryInsert()}
       onCopyPendingInsert={() => void copyPendingInsert()}
+      onServerURLDraftChange={setServerURLDraft}
+      onOpenServerSettings={openServerSettings}
+      onCloseServerSettings={closeServerSettings}
+      onConnectServer={connectConfiguredServer}
+      onRetryServer={() => void refreshServerConnection()}
     />
   );
 }

@@ -118,7 +118,7 @@ function fixtureResponse(input: RequestInfo | URL, mode: Exclude<StoryFixtureMod
   const isEmpty = mode === "empty";
   const fixtureMaterials = mode === "needs-review" ? materialsNeedingReview : materials;
   switch (url.pathname) {
-    case "/v1/status": return response({ ok: true, ai_configured: true, model: "gemini-3.6-flash", storage_root: "Storybook fixture", version: "story" });
+    case "/v1/status": return response({ ok: true, api_version: 1, ai_configured: true, model: "gemini-3.6-flash", storage_root: "Storybook fixture", version: "story" });
     case "/v1/items": return response({ items: isEmpty ? [] : fixtureMaterials });
     case "/v1/projects": return response({ projects: isEmpty ? [] : [{ name: "Research", overview: "A focused research project.", glossary: ["Logue", "source"], count: 2, created_at: "2026-08-03T03:00:00Z", updated_at: "2026-08-03T03:30:00Z" }] });
     case "/v1/docs": return response({ documents: isEmpty ? [] : documents });

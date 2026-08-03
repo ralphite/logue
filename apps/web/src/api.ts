@@ -41,6 +41,7 @@ export interface DocumentSearchResponse {
 
 export interface ServiceStatus {
   ok: boolean;
+  api_version: number;
   ai_configured: boolean;
   model: string;
   storage_root: string;

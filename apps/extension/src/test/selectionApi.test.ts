@@ -99,21 +99,25 @@ describe("selection API", () => {
   });
 
   it("loads current-page materials from the source endpoint with the newest first", async () => {
-    const fetch = vi.fn(async () => ({
+    const sendMessage = vi.fn(async () => ({
       ok: true,
-      json: async () => ({
+      value: {
         items: [
           { id: "older", content: "Earlier note", created_at: "2026-08-01T10:00:00Z" },
           { id: "newer", content: "Latest note", annotation: "Voice note", created_at: "2026-08-02T10:00:00Z" },
         ],
-      }),
+      },
     }));
-    vi.stubGlobal("fetch", fetch);
+    vi.stubGlobal("chrome", { runtime: { sendMessage } });
 
     await expect(getPageMaterials("https://example.com/current page")).resolves.toEqual([
       { id: "newer", content: "Latest note", annotation: "Voice note", createdAt: "2026-08-02T10:00:00Z" },
       { id: "older", content: "Earlier note", annotation: undefined, createdAt: "2026-08-01T10:00:00Z" },
     ]);
-    expect(fetch).toHaveBeenCalledWith("http://127.0.0.1:8787/v1/items?source_url=https%3A%2F%2Fexample.com%2Fcurrent+page");
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: "logue:api",
+      action: "page-materials",
+      payload: { pageUrl: "https://example.com/current page" },
+    });
   });
 });

@@ -43,7 +43,7 @@ export interface PanelCaptureState {
 export interface LocalError {
   kind: "microphone" | "transcription" | "save" | "target" | "service";
   message: string;
-  action: "retry" | "copy" | "start-service";
+  action: "retry" | "copy" | "change-server";
 }
 
 export interface ExtensionSkill {

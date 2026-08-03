@@ -17,7 +17,7 @@ button { cursor: pointer; }
   background: #fff;
 }
 
-.button:focus-visible, .field:focus-visible, .text-area:focus-visible, .record-button:focus-visible, .icon-button:focus-visible {
+.button:focus-visible, .field:focus-visible, .text-area:focus-visible, .record-button:focus-visible, .icon-button:focus-visible, .panel-options-menu button:focus-visible, .connection-error-actions button:focus-visible {
   outline: 2px solid #656cf0;
   outline-offset: 2px;
 }
@@ -28,6 +28,35 @@ button { cursor: pointer; }
   margin: 0 auto;
   padding: 20px 20px 32px;
 }
+
+.panel-topline { display: flex; min-height: 28px; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.panel-options { position: relative; margin: -7px -8px 0 0; }
+.panel-options-trigger { opacity: 0; transition: opacity .14s ease, background .14s ease; }
+.panel:hover .panel-options-trigger, .panel-options:focus-within .panel-options-trigger, .panel-options-trigger[aria-expanded="true"] { opacity: 1; }
+.panel-options-menu {
+  position: absolute;
+  z-index: 10;
+  top: 42px;
+  right: 0;
+  min-width: 168px;
+  border: 1px solid #dfdfda;
+  border-radius: 9px;
+  background: #fff;
+  padding: 4px;
+  box-shadow: 0 10px 28px rgb(35 36 31 / 12%);
+}
+.panel-options-menu button {
+  width: 100%;
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #4e4f4a;
+  padding: 0 9px;
+  text-align: left;
+  font-size: 14px;
+}
+.panel-options-menu button:hover { background: #f1f1ee; }
 
 .eyebrow { margin: 0 0 4px; color: #8a8b85; font-size: 13px; }
 .page-title {
@@ -83,6 +112,11 @@ button { cursor: pointer; }
   font-size: 14px;
 }
 .generation-skill { margin-top: 4px; border-top: 1px solid #ecece9; padding-top: 14px; }
+
+.server-settings { padding-top: 10px; }
+.server-settings .field { margin-top: 6px; }
+.server-settings-error { margin: 8px 0 0; color: #98433b; font-size: 13px; line-height: 1.45; }
+.server-settings-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 14px; }
 
 .actions {
   display: flex;
@@ -150,6 +184,10 @@ button { cursor: pointer; }
   font-size: 14px;
   line-height: 1.45;
 }
+.connection-error p { margin: 0; font-weight: 600; }
+.connection-error-actions { display: flex; gap: 12px; padding-top: 7px; }
+.connection-error-actions button { border: 0; background: transparent; color: #87463f; padding: 0; font-size: 13px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.connection-error-actions button:disabled { cursor: default; opacity: .55; }
 
 .empty { padding: 40px 20px; color: #777872; font-size: 14px; text-align: center; }
 

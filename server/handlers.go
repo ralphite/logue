@@ -45,7 +45,7 @@ func (api *API) status(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok": true, "ai_configured": api.gemini.Configured(),
+		"ok": true, "api_version": 1, "ai_configured": api.gemini.Configured(),
 		"model": api.gemini.Model(), "storage_root": api.store.Root(), "version": version,
 	})
 }

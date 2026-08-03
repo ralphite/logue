@@ -29,11 +29,14 @@ export function mergePanelCaptureState(
 
 export function friendlyLocalError(cause: unknown, kind: LocalError["kind"]): LocalError {
   const message = cause instanceof Error ? cause.message : String(cause ?? "");
+  if (kind === "service") {
+    return { kind: "service", message: "Can’t reach Logue.", action: "change-server" };
+  }
   if (/permission|notallowed|denied/i.test(message)) {
     return { kind: "microphone", message: "Allow microphone access, then try again.", action: "retry" };
   }
   if (/failed to fetch|network|connection|service/i.test(message)) {
-    return { kind: "service", message: "Start the Logue app, then try again.", action: "start-service" };
+    return { kind: "service", message: "Can’t reach Logue.", action: "change-server" };
   }
   if (/target|input field|editor/i.test(message)) {
     return { kind: "target", message: "The original editor is no longer available. Your text is saved in Logue.", action: "copy" };

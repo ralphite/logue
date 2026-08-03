@@ -55,6 +55,9 @@ function SidePanelStage({
   initialGeneratedText = "",
   error,
   pendingInsert = false,
+  initialServerSettingsOpen = false,
+  initialServerConnecting = false,
+  initialServerSettingsError,
 }: {
   state?: PanelCaptureState;
   initialPhase?: "idle" | "starting" | "recording" | "processing" | "error";
@@ -62,12 +65,17 @@ function SidePanelStage({
   initialGeneratedText?: string;
   error?: LocalError;
   pendingInsert?: boolean;
+  initialServerSettingsOpen?: boolean;
+  initialServerConnecting?: boolean;
+  initialServerSettingsError?: string;
 }) {
   const [phase, setPhase] = useState(initialPhase);
   const [draft, setDraft] = useState(initialDraft);
   const [generatedText, setGeneratedText] = useState(initialGeneratedText);
   const [activeError, setActiveError] = useState(error);
   const [pending, setPending] = useState(pendingInsert);
+  const [serverURLDraft, setServerURLDraft] = useState("https://logue.example.com");
+  const [serverSettingsOpen, setServerSettingsOpen] = useState(initialServerSettingsOpen);
 
   return <SidePanelView
     state={state}
@@ -83,6 +91,10 @@ function SidePanelStage({
     insertingPending={false}
     generating={false}
     canRetry
+    serverURLDraft={serverURLDraft}
+    serverSettingsOpen={serverSettingsOpen}
+    serverConnecting={initialServerConnecting}
+    serverSettingsError={initialServerSettingsError}
     onDraftChange={setDraft}
     onGeneratedTextChange={setGeneratedText}
     onSkillIdChange={() => undefined}
@@ -97,6 +109,11 @@ function SidePanelStage({
     onInsertGenerated={() => setGeneratedText("")}
     onRetryInsert={() => setPending(false)}
     onCopyPendingInsert={() => setPending(false)}
+    onServerURLDraftChange={setServerURLDraft}
+    onOpenServerSettings={() => setServerSettingsOpen(true)}
+    onCloseServerSettings={() => setServerSettingsOpen(false)}
+    onConnectServer={() => setServerSettingsOpen(false)}
+    onRetryServer={() => setActiveError(undefined)}
   />;
 }
 
@@ -116,7 +133,14 @@ export const StartingMicrophone: Story = { args: { state: currentEditor, initial
 export const Recording: Story = { args: { state: currentEditor, initialPhase: "recording" } };
 export const Transcribing: Story = { args: { state: pageSelection, initialPhase: "processing" } };
 export const TargetLost: Story = { args: { state: currentEditor, initialPhase: "error", pendingInsert: true, error: { kind: "target", message: "The original editor is no longer available. Your text is saved in Logue.", action: "copy" } } };
-export const ServiceUnavailable: Story = { args: { state: currentPage, initialPhase: "error", error: { kind: "service", message: "Start the Logue app, then try again.", action: "start-service" } } };
+export const ServiceUnavailable: Story = { args: { state: currentPage, initialPhase: "error", error: { kind: "service", message: "Can’t reach Logue.", action: "change-server" } } };
+export const ServerSettings: Story = { args: { state: currentPage, initialServerSettingsOpen: true } };
+export const ServerConnecting: Story = { args: { state: currentPage, initialServerSettingsOpen: true, initialServerConnecting: true } };
+export const ServerPermissionDenied: Story = { args: { state: currentPage, initialServerSettingsOpen: true, initialServerSettingsError: "Chrome did not allow access to this server." } };
+export const ServerInvalidURL: Story = { args: { state: currentPage, initialServerSettingsOpen: true, initialServerSettingsError: "Enter a complete http:// or https:// address." } };
+export const ServerUnreachable: Story = { args: { state: currentPage, initialServerSettingsOpen: true, initialServerSettingsError: "Can’t reach this address." } };
+export const ServerNotLogue: Story = { args: { state: currentPage, initialServerSettingsOpen: true, initialServerSettingsError: "This address is not a Logue server." } };
+export const ServerIncompatible: Story = { args: { state: currentPage, initialServerSettingsOpen: true, initialServerSettingsError: "This Logue server is not compatible with this extension." } };
 export const GenerateDraft: Story = { args: { state: generation, initialDraft: "Draft a concise reply that captures the decision." } };
 export const GeneratedReply: Story = { args: { state: generation, initialGeneratedText: "A concise generated reply stays editable and is never sent automatically." } };
 export const Empty: Story = { args: { state: undefined } };

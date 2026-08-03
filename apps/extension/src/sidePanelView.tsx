@@ -1,5 +1,5 @@
-import { ArrowLeft, Mic, Sparkles, Square } from "lucide-react";
-import type { Ref } from "react";
+import { ArrowLeft, Ellipsis, Mic, Sparkles, Square } from "lucide-react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import type { ExtensionSkill, LocalError, PageMaterial, PanelCaptureState, PendingInsert } from "./sidePanelModels";
 import { capturePhasePresentation, type CapturePhase } from "./sidePanelPresentation";
 import { shouldShowPageHistory } from "./sidePanelPageHistory";
@@ -25,6 +25,10 @@ export function SidePanelView({
   insertingPending,
   generating,
   canRetry,
+  serverURLDraft,
+  serverSettingsOpen,
+  serverConnecting,
+  serverSettingsError,
   panelRef,
   onDraftChange,
   onGeneratedTextChange,
@@ -40,6 +44,11 @@ export function SidePanelView({
   onInsertGenerated,
   onRetryInsert,
   onCopyPendingInsert,
+  onServerURLDraftChange,
+  onOpenServerSettings,
+  onCloseServerSettings,
+  onConnectServer,
+  onRetryServer,
 }: {
   state?: PanelCaptureState;
   phase: CapturePhase;
@@ -54,6 +63,10 @@ export function SidePanelView({
   insertingPending: boolean;
   generating: boolean;
   canRetry: boolean;
+  serverURLDraft: string;
+  serverSettingsOpen: boolean;
+  serverConnecting: boolean;
+  serverSettingsError?: string;
   panelRef?: Ref<HTMLElement>;
   onDraftChange: (value: string) => void;
   onGeneratedTextChange: (value: string) => void;
@@ -69,17 +82,104 @@ export function SidePanelView({
   onInsertGenerated: () => void;
   onRetryInsert: () => void;
   onCopyPendingInsert: () => void;
+  onServerURLDraftChange: (value: string) => void;
+  onOpenServerSettings: () => void;
+  onCloseServerSettings: () => void;
+  onConnectServer: () => void;
+  onRetryServer: () => void;
 }) {
-  if (!state) return <div className="empty">Open Logue from a page to begin.</div>;
+  const [serverMenuOpen, setServerMenuOpen] = useState(false);
+  const serverMenuRef = useRef<HTMLDivElement>(null);
+  const serverMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const serverMenuItemRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!serverMenuOpen) return;
+    window.requestAnimationFrame(() => serverMenuItemRef.current?.focus());
+    const dismissOnPointerDown = (event: PointerEvent) => {
+      if (!serverMenuRef.current?.contains(event.target as Node)) setServerMenuOpen(false);
+    };
+    const dismissOnFocusIn = (event: FocusEvent) => {
+      if (!serverMenuRef.current?.contains(event.target as Node)) setServerMenuOpen(false);
+    };
+    const dismissOnKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setServerMenuOpen(false);
+        serverMenuTriggerRef.current?.focus();
+      } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+        event.preventDefault();
+        event.stopPropagation();
+        serverMenuItemRef.current?.focus();
+      } else if (event.key.toLowerCase() === "r" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.stopPropagation();
+      }
+    };
+    document.addEventListener("pointerdown", dismissOnPointerDown);
+    document.addEventListener("focusin", dismissOnFocusIn);
+    document.addEventListener("keydown", dismissOnKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOnPointerDown);
+      document.removeEventListener("focusin", dismissOnFocusIn);
+      document.removeEventListener("keydown", dismissOnKeyDown);
+    };
+  }, [serverMenuOpen]);
+
+  if (!state) return <div className="empty" data-logue-extension="off">Open Logue from a page to begin.</div>;
 
   const sourceHref = state.source.url || undefined;
   const presentation = capturePhasePresentation(phase);
 
   return (
-    <main ref={panelRef} className="panel" tabIndex={-1}>
+    <main ref={panelRef} className="panel" tabIndex={-1} data-logue-extension="off">
       <div className="panel-main">
+        <div className="panel-topline">
+          {serverSettingsOpen ? <p className="eyebrow">Server settings</p> : presentation.showSource ? <p className="eyebrow">{sourceLabel(state)}</p> : <span />}
+          {!serverSettingsOpen && !presentation.captureActive && error?.kind !== "service" && <div ref={serverMenuRef} className="panel-options">
+            <button
+              ref={serverMenuTriggerRef}
+              type="button"
+              className="icon-button panel-options-trigger"
+              aria-label="More options"
+              aria-haspopup="menu"
+              aria-expanded={serverMenuOpen}
+              title="More options"
+              onClick={() => setServerMenuOpen((open) => !open)}
+            ><Ellipsis size={17} /></button>
+            {serverMenuOpen && <div className="panel-options-menu" role="menu">
+              <button ref={serverMenuItemRef} type="button" role="menuitem" onClick={() => { setServerMenuOpen(false); onOpenServerSettings(); }}>Server settings…</button>
+            </div>}
+          </div>}
+        </div>
+
+        {serverSettingsOpen ? <section className="server-settings" aria-label="Server settings">
+          <label className="field-label" htmlFor="logue-server-url">Server URL</label>
+          <input
+            id="logue-server-url"
+            className="field"
+            type="url"
+            value={serverURLDraft}
+            onChange={(event) => onServerURLDraftChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") { event.preventDefault(); onConnectServer(); }
+              if (event.key === "Escape") { event.preventDefault(); onCloseServerSettings(); }
+            }}
+            placeholder="https://logue.example.com"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            aria-invalid={Boolean(serverSettingsError)}
+            aria-describedby={serverSettingsError ? "logue-server-url-error" : undefined}
+            autoFocus
+          />
+          {serverSettingsError && <p id="logue-server-url-error" className="server-settings-error" role="alert">{serverSettingsError}</p>}
+          <div className="server-settings-actions">
+            <button type="button" className="button secondary" onClick={onCloseServerSettings} disabled={serverConnecting}>Cancel</button>
+            <button type="button" className="button" onClick={onConnectServer} disabled={serverConnecting || !serverURLDraft.trim()}>{serverConnecting ? "Connecting…" : "Connect"}</button>
+          </div>
+        </section> : <>
         {presentation.showSource && <>
-          <p className="eyebrow">{sourceLabel(state)}</p>
           <h1 className="page-title">
             {sourceHref ? <a className="source-link" href={sourceHref} target="_blank" rel="noreferrer" title={state.source.title}>{state.source.title}</a> : state.source.title}
           </h1>
@@ -88,7 +188,7 @@ export function SidePanelView({
 
         {presentation.status && <div className="processing" role="status"><span className="spinner" />{presentation.status}</div>}
 
-        {presentation.showEditor && (state.intent === "generate" && generatedText ? (
+        {presentation.showEditor && error?.kind !== "service" && (state.intent === "generate" && generatedText ? (
           <textarea className="text-area" value={generatedText} onChange={(event) => onGeneratedTextChange(event.target.value)} aria-label="Generated reply" />
         ) : (
           <textarea
@@ -100,7 +200,7 @@ export function SidePanelView({
           />
         ))}
 
-        {presentation.showEditor && state.intent === "generate" && !generatedText && (
+        {presentation.showEditor && error?.kind !== "service" && state.intent === "generate" && !generatedText && (
           <label className="field-label generation-skill">Skill
             <select className="field" value={skillId} onChange={(event) => onSkillIdChange(event.target.value)}>
               {skills.length ? skills.map((item) => <option key={item.id} value={item.id}>{item.name}</option>) : <option value="">No extension skills</option>}
@@ -108,9 +208,15 @@ export function SidePanelView({
           </label>
         )}
 
-        {presentation.showErrors && error && <div className="error" role="alert">{error.message}</div>}
+        {presentation.showErrors && error?.kind === "service" ? <div className="error connection-error" role="alert">
+          <p>Can’t reach Logue</p>
+          <div className="connection-error-actions">
+            <button type="button" onClick={onRetryServer} disabled={serverConnecting}>{serverConnecting ? "Retrying…" : "Retry"}</button>
+            <button type="button" onClick={onOpenServerSettings} disabled={serverConnecting}>Change server</button>
+          </div>
+        </div> : presentation.showErrors && error ? <div className="error" role="alert">{error.message}</div> : null}
 
-        {presentation.showActions && <div className="actions">
+        {presentation.showActions && error?.kind !== "service" && <div className="actions">
           {phase === "starting" ? (
             <button type="button" className="button secondary" onClick={onCancelRecording} aria-keyshortcuts="Escape" title="Cancel (Esc)">Cancel</button>
           ) : phase === "recording" ? (
@@ -142,7 +248,7 @@ export function SidePanelView({
           </>}
         </div>}
 
-        {shouldShowPageHistory(presentation.showSavedMaterials, state.intent, pageMaterials.length) && (
+        {error?.kind !== "service" && shouldShowPageHistory(presentation.showSavedMaterials, state.intent, pageMaterials.length) && (
           <section className="page-materials" aria-label="Notes from this page">
             <h2 className="page-materials-heading">On this page</h2>
             <ol className="page-materials-list">
@@ -150,6 +256,7 @@ export function SidePanelView({
             </ol>
           </section>
         )}
+        </>}
       </div>
     </main>
   );

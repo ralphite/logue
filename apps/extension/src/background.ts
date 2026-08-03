@@ -20,8 +20,8 @@ import {
 } from "./sidePanelController";
 import { createRequestId } from "./requestId";
 import type { RecordingBridgeEvent, RecordingPanelEvent } from "./recordingBridge";
+import { assertLogueServerStatus, getServerURL, normalizeServerURL } from "./serverConnection";
 
-const apiBase = "http://127.0.0.1:8787";
 const panelStoragePrefix = "logue:panel:";
 const activePanelStorageKey = "logue:panel:active-tab";
 // This is session-only Chrome UI state, not restored product data. Chrome can
@@ -35,7 +35,7 @@ let openPanelWindowId: number | undefined;
 
 interface ApiMessage {
   type: "logue:api";
-  action: "status" | "context" | "transcribe" | "save-material" | "cancel-material-save" | "save-selection" | "delete-capture" | "skills" | "settings" | "skill-run" | "adopt-skill-run";
+  action: "status" | "test-server" | "context" | "page-materials" | "transcribe" | "save-material" | "cancel-material-save" | "save-selection" | "delete-capture" | "skills" | "settings" | "skill-run" | "adopt-skill-run";
   payload?: Record<string, unknown>;
 }
 
@@ -323,8 +323,29 @@ function decodeBase64(value: string) {
 
 async function handleApiMessage(message: ApiMessage) {
   const payload = message.payload ?? {};
+  const apiBase = message.action === "test-server"
+    ? normalizeServerURL(String(payload.serverURL ?? ""))
+    : await getServerURL();
+  if (message.action === "test-server") {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const status = await parseResponse(await fetch(`${apiBase}/v1/status`, { signal: controller.signal }));
+      assertLogueServerStatus(status);
+      return status;
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === "AbortError") {
+        throw new Error("The connection timed out.");
+      }
+      throw cause;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
   if (message.action === "status") {
-    return parseResponse(await fetch(`${apiBase}/v1/status`));
+    const status = await parseResponse(await fetch(`${apiBase}/v1/status`));
+    assertLogueServerStatus(status);
+    return status;
   }
   if (message.action === "context") {
     const query = new URLSearchParams({ url: String(payload.pageUrl ?? ""), project: String(payload.project ?? "") });
@@ -335,6 +356,10 @@ async function handleApiMessage(message: ApiMessage) {
   }
   if (message.action === "settings") {
     return parseResponse(await fetch(`${apiBase}/v1/settings`));
+  }
+  if (message.action === "page-materials") {
+    const query = new URLSearchParams({ source_url: String(payload.pageUrl ?? "") });
+    return parseResponse(await fetch(`${apiBase}/v1/items?${query.toString()}`));
   }
   if (message.action === "skill-run") {
     return parseResponse(

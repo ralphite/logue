@@ -19,6 +19,8 @@ describe("native side panel manifest", () => {
       readFileSync(resolve(process.cwd(), "public/manifest.json"), "utf8"),
     ) as {
       permissions?: string[];
+      host_permissions?: string[];
+      optional_host_permissions?: string[];
       side_panel?: { default_path?: string };
       commands?: Record<string, {
         suggested_key?: { default?: string; mac?: string };
@@ -27,6 +29,8 @@ describe("native side panel manifest", () => {
     };
 
     expect(manifest.permissions).toEqual(expect.arrayContaining(["sidePanel", "storage"]));
+    expect(manifest.host_permissions).toEqual(["http://127.0.0.1:8787/*"]);
+    expect(manifest.optional_host_permissions).toEqual(["http://*/*", "https://*/*"]);
     expect(manifest.side_panel?.default_path).toBe("sidepanel.html");
     expect(manifest.commands?.["toggle-side-panel"]).toEqual({
       suggested_key: {

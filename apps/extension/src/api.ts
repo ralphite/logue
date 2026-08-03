@@ -1,10 +1,19 @@
 import type { MaterialKind, SourceInfo } from "@logue/ui";
 import { createRequestId } from "./requestId";
+import {
+  assertLogueServerStatus,
+  defaultServerURL,
+  getServerURL,
+  normalizeServerURL,
+  removeServerPermission,
+  removeUnusedServerPermission,
+  requestServerPermission,
+  saveServerURL,
+  type LogueServerStatus,
+} from "./serverConnection";
 import type { ExtensionSkill, PageMaterial } from "./sidePanelModels";
 
 export type { ExtensionSkill, PageMaterial } from "./sidePanelModels";
-
-const apiBase = "http://127.0.0.1:8787";
 
 interface ApiResponse<T> {
   ok: boolean;
@@ -46,7 +55,34 @@ async function blobToBase64(blob: Blob) {
 }
 
 export async function getServiceStatus() {
-  return request<{ ok: boolean; ai_configured: boolean; model: string }>("status");
+  const status = await request<LogueServerStatus>("status");
+  assertLogueServerStatus(status);
+  return status;
+}
+
+export { defaultServerURL, getServerURL };
+
+export async function connectServer(value: string) {
+  const normalized = normalizeServerURL(value);
+  await requestServerPermission(normalized);
+  let status: LogueServerStatus;
+  try {
+    status = await request<LogueServerStatus>("test-server", { serverURL: normalized });
+    assertLogueServerStatus(status);
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause ?? "");
+    const previous = await getServerURL();
+    if (previous !== normalized) await removeServerPermission(normalized);
+    if (/failed to fetch|network|timed out|connection|name not resolved/i.test(message)) {
+      throw new Error("Can’t reach this address.");
+    }
+    if (/not a Logue server|not compatible/i.test(message)) throw cause;
+    throw new Error("This address is not a Logue server.");
+  }
+  const previous = await getServerURL();
+  await saveServerURL(normalized);
+  await removeUnusedServerPermission(previous, normalized);
+  return { url: normalized, status };
 }
 
 export interface ExtensionSettings {
@@ -125,14 +161,9 @@ export async function getCaptureContext(pageUrl: string, project = "") {
 }
 
 export async function getPageMaterials(pageUrl: string) {
-  const query = new URLSearchParams({ source_url: pageUrl });
-  const response = await fetch(`${apiBase}/v1/items?${query.toString()}`);
-  if (!response.ok) {
-    throw new Error((await response.text()) || `Request failed (${response.status})`);
-  }
-  const result = await response.json() as {
+  const result = await request<{
     items?: Array<{ id: string; content: string; annotation?: string; created_at: string }>;
-  };
+  }>("page-materials", { pageUrl });
   return (result.items ?? [])
     .map((item): PageMaterial => ({
       id: item.id,
