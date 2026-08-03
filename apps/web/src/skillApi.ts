@@ -2,29 +2,28 @@ import { logueApiBase } from "./apiBase";
 
 const apiBase = logueApiBase;
 
-// The server stores Skills through the existing agent endpoint. Keep a useful
-// default in the client so creating or editing a blank Skill never depends on
-// a backend-specific empty-purpose validation rule.
+// Keep a useful default in the client so creating or editing a blank Skill
+// never depends on a backend-specific empty-purpose validation rule.
 export const defaultSkillPurpose = "Create a useful result from the selected context.";
 
 function normalizedSkillPurpose(value?: string) {
   return value?.trim() || defaultSkillPurpose;
 }
 
-export type AgentTask = "transcribe" | "organize" | "generate";
-export type AgentOutput = "insert" | "material" | "qa" | "document";
-export type AgentSurface = "web" | "extension" | "background";
-export type AgentContext = "page" | "target" | "selection" | "project" | "materials" | "personal";
+export type SkillTask = "transcribe" | "organize" | "generate";
+export type SkillOutput = "insert" | "material" | "qa" | "document";
+export type SkillSurface = "web" | "extension" | "background";
+export type SkillContext = "page" | "target" | "selection" | "project" | "materials" | "personal";
 
-export interface LogueAgent {
+export interface LogueSkill {
   id: string;
   name: string;
   purpose: string;
   instructions: string;
-  task: AgentTask;
-  output: AgentOutput;
-  surfaces: AgentSurface[];
-  contexts: AgentContext[];
+  task: SkillTask;
+  output: SkillOutput;
+  surfaces: SkillSurface[];
+  contexts: SkillContext[];
   enabled: boolean;
   system: boolean;
   revision: number;
@@ -32,7 +31,7 @@ export interface LogueAgent {
   updated_at: string;
 }
 
-export interface AgentRunSource {
+export interface SkillRunSource {
   id: string;
   content: string;
   projects: string[];
@@ -40,22 +39,22 @@ export interface AgentRunSource {
   created_at: string;
 }
 
-export interface LogueAgentRun {
+export interface LogueSkillRun {
   id: string;
   request_id?: string;
-  agent_id: string;
-  agent_revision: number;
-  agent_name: string;
-  agent_instructions: string;
-  task: AgentTask;
-  output_type: AgentOutput;
+  skill_id: string;
+  skill_revision: number;
+  skill_name: string;
+  skill_instructions: string;
+  task: SkillTask;
+  output_type: SkillOutput;
   instruction: string;
   project?: string;
   page_title?: string;
   page_url?: string;
   target_text?: string;
   selection?: string;
-  sources: AgentRunSource[];
+  sources: SkillRunSource[];
   original_output?: string;
   adopted_output?: string;
   document_id?: string;
@@ -81,20 +80,20 @@ async function parse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function getAgents() {
-  return (await parse<{ agents: LogueAgent[] }>(await fetch(`${apiBase}/v1/agents`))).agents;
+export async function getSkills() {
+  return (await parse<{ skills: LogueSkill[] }>(await fetch(`${apiBase}/v1/skills`))).skills;
 }
 
-export async function createAgent(input: Omit<LogueAgent, "id" | "system" | "revision" | "created_at" | "updated_at">) {
-  return parse<LogueAgent>(await fetch(`${apiBase}/v1/agents`, {
+export async function createSkill(input: Omit<LogueSkill, "id" | "system" | "revision" | "created_at" | "updated_at">) {
+  return parse<LogueSkill>(await fetch(`${apiBase}/v1/skills`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...input, purpose: normalizedSkillPurpose(input.purpose) }),
   }));
 }
 
-export async function updateAgent(id: string, changes: Partial<Pick<LogueAgent, "name" | "purpose" | "instructions" | "task" | "output" | "surfaces" | "contexts" | "enabled">> & { expected_revision?: number }) {
-  return parse<LogueAgent>(await fetch(`${apiBase}/v1/agents/${encodeURIComponent(id)}`, {
+export async function updateSkill(id: string, changes: Partial<Pick<LogueSkill, "name" | "purpose" | "instructions" | "task" | "output" | "surfaces" | "contexts" | "enabled">> & { expected_revision?: number }) {
+  return parse<LogueSkill>(await fetch(`${apiBase}/v1/skills/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -104,26 +103,26 @@ export async function updateAgent(id: string, changes: Partial<Pick<LogueAgent, 
   }));
 }
 
-export async function deleteAgent(id: string) {
-  const response = await fetch(`${apiBase}/v1/agents/${encodeURIComponent(id)}`, { method: "DELETE" });
+export async function deleteSkill(id: string) {
+  const response = await fetch(`${apiBase}/v1/skills/${encodeURIComponent(id)}`, { method: "DELETE" });
   if (!response.ok) throw new Error((await response.text()) || `Request failed (${response.status})`);
 }
 
-export async function getAgentRuns() {
-  return (await parse<{ runs: LogueAgentRun[] }>(await fetch(`${apiBase}/v1/agent-runs`))).runs;
+export async function getSkillRuns() {
+  return (await parse<{ runs: LogueSkillRun[] }>(await fetch(`${apiBase}/v1/skill-runs`))).runs;
 }
 
-export async function createAgentRun(input: { agent_id: string; instruction: string; project?: string; source_ids?: string[]; page_title?: string; page_url?: string; target_text?: string; selection?: string }) {
+export async function createSkillRun(input: { skill_id: string; instruction: string; project?: string; source_ids?: string[]; page_title?: string; page_url?: string; target_text?: string; selection?: string }) {
   const requestId = globalThis.crypto?.randomUUID?.() ?? `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return parse<LogueAgentRun>(await fetch(`${apiBase}/v1/agent-runs`, {
+  return parse<LogueSkillRun>(await fetch(`${apiBase}/v1/skill-runs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...input, request_id: requestId }),
   }));
 }
 
-export async function adoptAgentRun(id: string, adoptedOutput: string) {
-  return parse<LogueAgentRun>(await fetch(`${apiBase}/v1/agent-runs/${encodeURIComponent(id)}`, {
+export async function adoptSkillRun(id: string, adoptedOutput: string) {
+  return parse<LogueSkillRun>(await fetch(`${apiBase}/v1/skill-runs/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ adopted_output: adoptedOutput }),

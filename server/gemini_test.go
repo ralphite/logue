@@ -106,6 +106,9 @@ func TestGeminiClassifyRequiresStrictJSONAndKnownProjects(t *testing.T) {
 		if !strings.Contains(prompt, "reason 必须用一句简短英文") {
 			t.Fatal("classification prompt does not require an English review reason")
 		}
+		if !strings.Contains(prompt, "自动整理 Skill") || !strings.Contains(prompt, "<skill_instruction>") || strings.Contains(prompt, "自动整理 Agent") || strings.Contains(prompt, "<agent_instruction>") {
+			t.Fatalf("classification prompt did not use the Skill contract: %s", prompt)
+		}
 		for _, required := range []string{"来源页面只是出处", "known_tags 只是命名参考", "tool-use", "没有可靠匹配时返回空数组", "优先选择具体子项目", "同义标签不得重复"} {
 			if !strings.Contains(prompt, required) {
 				t.Fatalf("classification prompt is missing quality rule %q", required)

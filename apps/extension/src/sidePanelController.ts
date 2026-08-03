@@ -27,7 +27,7 @@ export function isOpenSelectionMenu(menuItemId: string | number) {
 
 export interface SidePanelChrome {
   open: (options: { tabId: number }) => Promise<void>;
-  close?: (options: { tabId: number } | { windowId: number }) => Promise<void>;
+  close: (options: { tabId: number } | { windowId: number }) => Promise<void>;
 }
 
 export async function toggleSidePanel(
@@ -36,7 +36,7 @@ export async function toggleSidePanel(
   tabId: number,
   windowId?: number,
 ) {
-  if (openTabs.has(tabId) && api.close) {
+  if (openTabs.has(tabId)) {
     try {
       // A native Side Panel is a window surface. Closing at that scope makes a
       // toolbar or command toggle reliable after the page loses focus.
@@ -61,7 +61,7 @@ export async function toggleSidePanel(
   }
   await api.open({ tabId });
   openTabs.add(tabId);
-  return openTabs.has(tabId) && api.close ? "opened" as const : "opened-fallback" as const;
+  return "opened" as const;
 }
 
 export function panelStateForTab(

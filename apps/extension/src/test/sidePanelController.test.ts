@@ -139,7 +139,7 @@ describe("native side panel controller", () => {
     expect(mergePanelCaptureState(current, { pendingInsert: null }).pendingInsert).toBeUndefined();
   });
 
-  it("toggles closed on Chrome 141+ and falls back to open-only on older Chrome", async () => {
+  it("toggles the native Side Panel open and closed", async () => {
     const open = vi.fn(async () => undefined);
     const close = vi.fn(async () => undefined);
     const openTabs = new Set<number>();
@@ -152,9 +152,6 @@ describe("native side panel controller", () => {
     await expect(toggleSidePanel({ open, close }, new Set([12]), 12, 77)).resolves.toBe("closed");
     expect(close).toHaveBeenLastCalledWith({ windowId: 77 });
 
-    const oldChromeTabs = new Set<number>([10]);
-    await expect(toggleSidePanel({ open }, oldChromeTabs, 10)).resolves.toBe("opened-fallback");
-    expect(open).toHaveBeenLastCalledWith({ tabId: 10 });
   });
 
   it("opens when a restored panel state is stale after an extension reload", async () => {

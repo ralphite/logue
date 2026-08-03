@@ -1,7 +1,7 @@
 import type { Material } from "@logue/ui";
 import { CheckCircle2, ChevronDown, Clipboard, Copy, FileText, LoaderCircle, Plus, Search, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { adoptAgentRun, createAgent, createAgentRun, defaultSkillPurpose, getAgentRuns, getAgents, updateAgent, type AgentContext, type AgentOutput, type AgentSurface, type AgentTask, type LogueAgent, type LogueAgentRun } from "../agentApi";
+import { adoptSkillRun, createSkill, createSkillRun, defaultSkillPurpose, getSkillRuns, getSkills, updateSkill, type LogueSkill, type LogueSkillRun, type SkillContext, type SkillOutput, type SkillSurface, type SkillTask } from "../skillApi";
 import { createDocument, getDocuments, getWorkspaceSettings, saveWorkspaceSettings, type LogueDocument } from "../api";
 import { groupIdenticalMaterials } from "../materialGroups";
 import { matchesMaterialSearchText, orderMaterialSearchResults, useMaterialSearch } from "../materialSearch";
@@ -12,18 +12,18 @@ import { editorColumnClass } from "./layout";
 
 export type GenerationMode = "new" | "skills" | "documents";
 
-const outputLabels: Record<AgentOutput, string> = {
+const outputLabels: Record<SkillOutput, string> = {
   insert: "Text",
   material: "Material",
   qa: "Q&A",
   document: "Document",
 };
-const surfaceLabels: Record<AgentSurface, string> = {
+const surfaceLabels: Record<SkillSurface, string> = {
   web: "Web",
   extension: "Extension",
   background: "Background",
 };
-const contextLabels: Record<AgentContext, string> = {
+const contextLabels: Record<SkillContext, string> = {
   page: "Page",
   target: "Input field",
   selection: "Selection",
@@ -41,18 +41,18 @@ function shortDate(value: string) {
 
 export function GenerationWorkspace({ materials, initialMode = "new", initialDocumentId, initialProject, onModeChange, onSelectedDocumentChange, onOpenMaterials, onLeaveGuardChange }: { materials: Material[]; initialMode?: GenerationMode; initialDocumentId?: string; initialProject?: string; onModeChange: (mode: GenerationMode) => void; onSelectedDocumentChange: (documentId?: string, replace?: boolean) => void; onOpenMaterials: () => void; onLeaveGuardChange?: (guard?: () => Promise<boolean>) => void }) {
   const [mode, setMode] = useState<GenerationMode>(initialMode);
-  const [agents, setAgents] = useState<LogueAgent[]>([]);
-  const [runs, setRuns] = useState<LogueAgentRun[]>([]);
+  const [skills, setSkills] = useState<LogueSkill[]>([]);
+  const [runs, setRuns] = useState<LogueSkillRun[]>([]);
   const [documents, setDocuments] = useState<LogueDocument[]>([]);
   const [selectedDocumentId, setSelectedDocumentId] = useState(initialDocumentId);
-  const [selectedAgentId, setSelectedAgentId] = useState<string>();
+  const [selectedSkillId, setSelectedSkillId] = useState<string>();
   const [selectedRunId, setSelectedRunId] = useState<string>();
   const [mobilePanel, setMobilePanel] = useState<"none" | "list">("none");
-  const [agentsLoading, setAgentsLoading] = useState(true);
+  const [skillsLoading, setSkillsLoading] = useState(true);
   const [documentsLoading, setDocumentsLoading] = useState(true);
-  const [agentsError, setAgentsError] = useState<string>();
+  const [skillsError, setSkillsError] = useState<string>();
   const [documentsError, setDocumentsError] = useState<string>();
-  const [creatingAgent, setCreatingAgent] = useState(false);
+  const [creatingSkill, setCreatingSkill] = useState(false);
   const [creatingDocument, setCreatingDocument] = useState(false);
   const [documentCreateError, setDocumentCreateError] = useState<string>();
   const documentLeaveGuardRef = useRef<(() => Promise<boolean>) | undefined>(undefined);
@@ -63,18 +63,18 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
     max: 360,
   });
 
-  const refreshAgents = useCallback(async () => {
-    setAgentsLoading(true);
-    setAgentsError(undefined);
+  const refreshSkills = useCallback(async () => {
+    setSkillsLoading(true);
+    setSkillsError(undefined);
     try {
-      const [nextAgents, nextRuns] = await Promise.all([getAgents(), getAgentRuns()]);
-      setAgents(nextAgents);
+      const [nextSkills, nextRuns] = await Promise.all([getSkills(), getSkillRuns()]);
+      setSkills(nextSkills);
       setRuns(nextRuns);
-      setSelectedAgentId((current) => (nextAgents.some((agent) => agent.id === current) ? current : (nextAgents.find((agent) => agent.id === "agt_reply")?.id ?? nextAgents.find((agent) => agent.task === "generate" && agent.enabled)?.id ?? nextAgents[0]?.id)));
+      setSelectedSkillId((current) => (nextSkills.some((skill) => skill.id === current) ? current : (nextSkills.find((skill) => skill.id === "sk_reply")?.id ?? nextSkills.find((skill) => skill.task === "generate" && skill.enabled)?.id ?? nextSkills[0]?.id)));
     } catch (cause) {
-      setAgentsError(cause instanceof Error ? cause.message : "Could not load skills");
+      setSkillsError(cause instanceof Error ? cause.message : "Could not load skills");
     } finally {
-      setAgentsLoading(false);
+      setSkillsLoading(false);
     }
   }, []);
 
@@ -97,9 +97,9 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
     setSelectedDocumentId(initialDocumentId);
   }, [initialDocumentId]);
   useEffect(() => {
-    void refreshAgents();
+    void refreshSkills();
     void refreshDocuments();
-  }, [refreshAgents, refreshDocuments]);
+  }, [refreshSkills, refreshDocuments]);
 
   const registerDocumentLeaveGuard = useCallback(
     (guard?: () => Promise<boolean>) => {
@@ -125,23 +125,23 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
     applyMode("documents", showList ? "list" : "none");
   }
 
-  async function openAgents(showList = false) {
+  async function openSkills(showList = false) {
     if (!(await canLeaveDocument())) return;
     applyMode("skills", showList ? "list" : "none");
   }
 
   async function startGeneration() {
     if (!(await canLeaveDocument())) return;
-    if (!agents.length) await refreshAgents();
+    if (!skills.length) await refreshSkills();
     applyMode("new");
   }
 
-  async function addAgent() {
-    if (creatingAgent || !(await canLeaveDocument())) return;
-    setCreatingAgent(true);
-    setAgentsError(undefined);
+  async function addSkill() {
+    if (creatingSkill || !(await canLeaveDocument())) return;
+    setCreatingSkill(true);
+    setSkillsError(undefined);
     try {
-      const created = await createAgent({
+      const created = await createSkill({
         name: "New skill",
         purpose: defaultSkillPurpose,
         instructions: "Transform only the selected text. Preserve its meaning and formatting. Return only the replacement text.",
@@ -151,13 +151,13 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
         contexts: ["selection"],
         enabled: true,
       });
-      setAgents((current) => [created, ...current.filter((agent) => agent.id !== created.id)]);
-      setSelectedAgentId(created.id);
+      setSkills((current) => [created, ...current.filter((skill) => skill.id !== created.id)]);
+      setSelectedSkillId(created.id);
       applyMode("skills");
     } catch (cause) {
-      setAgentsError(cause instanceof Error ? cause.message : "Could not create skill");
+      setSkillsError(cause instanceof Error ? cause.message : "Could not create skill");
     } finally {
-      setCreatingAgent(false);
+      setCreatingSkill(false);
     }
   }
 
@@ -191,18 +191,18 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
   const workspaceList = (section: "documents" | "skills") => (
     <WorkspaceNavigationList
       section={section}
-      agents={agents}
+      skills={skills}
       documents={documents}
-      selectedAgentId={selectedAgentId}
+      selectedSkillId={selectedSkillId}
       selectedDocumentId={selectedDocumentId}
-      loading={section === "skills" ? agentsLoading : documentsLoading}
-      error={section === "skills" ? agentsError : documentsError}
-      onSelectAgent={(id) => {
-        setSelectedAgentId(id);
+      loading={section === "skills" ? skillsLoading : documentsLoading}
+      error={section === "skills" ? skillsError : documentsError}
+      onSelectSkill={(id) => {
+        setSelectedSkillId(id);
         setMobilePanel("none");
       }}
       onSelectDocument={(id) => void openDocument(id)}
-      onRetry={() => void (section === "skills" ? refreshAgents() : refreshDocuments())}
+      onRetry={() => void (section === "skills" ? refreshSkills() : refreshDocuments())}
     />
   );
 
@@ -212,7 +212,7 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
         <header className="flex h-12 shrink-0 items-center px-4">
           <h1 className="text-[14px] font-semibold text-[#555651]">Generate</h1>
         </header>
-        <GenerateSectionNavigation activeSection={activeSection} creatingAgent={creatingAgent} creatingDocument={creatingDocument} onOpenDocuments={() => void openDocuments(false)} onAddDocument={() => void addDocument()} onOpenAgents={() => void openAgents(false)} onAddAgent={() => void addAgent()} />
+        <GenerateSectionNavigation activeSection={activeSection} creatingSkill={creatingSkill} creatingDocument={creatingDocument} onOpenDocuments={() => void openDocuments(false)} onAddDocument={() => void addDocument()} onOpenSkills={() => void openSkills(false)} onAddSkill={() => void addSkill()} />
         {documentCreateError && <p role="alert" className="mx-3 mb-2 rounded-md bg-[#f8ece9] px-3 py-2 text-[14px] leading-4 text-[#9f4a42]">{documentCreateError}</p>}
         <div className="mx-4 border-t border-[#e2e2df]" />
         <div className="mt-1.5 min-h-0 flex-1">
@@ -227,7 +227,7 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
       <PanelResizer label="Resize generate navigation" value={navigationWidth} min={200} max={360} defaultValue={252} onChange={setNavigationWidth} className="max-[900px]:hidden" />
 
       <div className="hidden shrink-0 border-b border-[#e7e7e4] bg-[#fafaf8] px-2 max-[900px]:block">
-        <GenerateSectionNavigation activeSection={activeSection} creatingAgent={creatingAgent} creatingDocument={creatingDocument} mobile onOpenDocuments={() => void openDocuments(true)} onAddDocument={() => void addDocument()} onOpenAgents={() => void openAgents(true)} onAddAgent={() => void addAgent()} />
+        <GenerateSectionNavigation activeSection={activeSection} creatingSkill={creatingSkill} creatingDocument={creatingDocument} mobile onOpenDocuments={() => void openDocuments(true)} onAddDocument={() => void addDocument()} onOpenSkills={() => void openSkills(true)} onAddSkill={() => void addSkill()} />
       </div>
 
       {mobilePanel === "list" ? (
@@ -246,19 +246,19 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
           onOpenMaterials={onOpenMaterials}
           onLeaveGuardChange={registerDocumentLeaveGuard}
           onOpenGenerate={() => void startGeneration()}
-          onManageAgents={() => void openAgents(false)}
+          onManageSkills={() => void openSkills(false)}
           showDocumentSidebar={false}
           documents={documents}
           documentsLoading={documentsLoading}
           onDocumentsChange={setDocuments}
         />
       ) : mode === "skills" ? (
-        <AgentEditor agents={agents} selectedAgentId={selectedAgentId} onSelect={setSelectedAgentId} onAgentsChange={setAgents} />
+        <SkillEditor skills={skills} selectedSkillId={selectedSkillId} onSelect={setSelectedSkillId} onSkillsChange={setSkills} />
       ) : selectedRun ? (
         <RunResult run={selectedRun} onRunChange={(updated) => setRuns((current) => current.map((run) => (run.id === updated.id ? updated : run)))} onOpenDocument={(id) => void openDocument(id)} onBack={() => setSelectedRunId(undefined)} />
       ) : (
         <NewGeneration
-          agents={agents}
+          skills={skills}
           materials={materials}
           initialProject={initialProject}
           onCreated={(run) => {
@@ -271,7 +271,7 @@ export function GenerationWorkspace({ materials, initialMode = "new", initialDoc
   );
 }
 
-function GenerateSectionNavigation({ activeSection, creatingAgent, creatingDocument, mobile = false, onOpenDocuments, onAddDocument, onOpenAgents, onAddAgent }: { activeSection?: "documents" | "skills"; creatingAgent: boolean; creatingDocument: boolean; mobile?: boolean; onOpenDocuments: () => void; onAddDocument: () => void; onOpenAgents: () => void; onAddAgent: () => void }) {
+function GenerateSectionNavigation({ activeSection, creatingSkill, creatingDocument, mobile = false, onOpenDocuments, onAddDocument, onOpenSkills, onAddSkill }: { activeSection?: "documents" | "skills"; creatingSkill: boolean; creatingDocument: boolean; mobile?: boolean; onOpenDocuments: () => void; onAddDocument: () => void; onOpenSkills: () => void; onAddSkill: () => void }) {
   const rowClass = (active: boolean) => `flex h-11 w-full overflow-hidden rounded-lg ${active ? "bg-[#e7e7e4]" : "hover:bg-[#ececea]"}`;
   const itemClass = (active: boolean) => `flex h-11 min-w-0 flex-1 items-center gap-2 rounded-none bg-transparent px-2.5 text-left text-[14px] font-medium focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#777873] ${active ? "text-[#353632]" : "text-[#6d6e69]"}`;
   const addClass = "inline-flex size-11 shrink-0 items-center justify-center rounded-none bg-transparent text-[#777873] hover:bg-[#dfdfdc] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#777873]";
@@ -287,19 +287,19 @@ function GenerateSectionNavigation({ activeSection, creatingAgent, creatingDocum
         </button>
       </div>
       <div className={rowClass(activeSection === "skills")}>
-        <button type="button" onClick={onOpenAgents} className={itemClass(activeSection === "skills")} aria-current={activeSection === "skills" ? "page" : undefined}>
+        <button type="button" onClick={onOpenSkills} className={itemClass(activeSection === "skills")} aria-current={activeSection === "skills" ? "page" : undefined}>
           {!mobile && <Sparkles size={14} className="shrink-0" />}
           <span className="truncate">Skills</span>
         </button>
-        <button type="button" onClick={onAddAgent} disabled={creatingAgent} className={`${addClass} disabled:cursor-wait disabled:opacity-60`} aria-label="New skill" title="New skill">
-          {creatingAgent ? <LoaderCircle size={15} className="animate-spin motion-reduce:animate-none" /> : <Plus size={15} />}
+        <button type="button" onClick={onAddSkill} disabled={creatingSkill} className={`${addClass} disabled:cursor-wait disabled:opacity-60`} aria-label="New skill" title="New skill">
+          {creatingSkill ? <LoaderCircle size={15} className="animate-spin motion-reduce:animate-none" /> : <Plus size={15} />}
         </button>
       </div>
     </nav>
   );
 }
 
-function WorkspaceNavigationList({ section, agents, documents, selectedAgentId, selectedDocumentId, loading, error, onSelectAgent, onSelectDocument, onRetry }: { section: "documents" | "skills"; agents: LogueAgent[]; documents: LogueDocument[]; selectedAgentId?: string; selectedDocumentId?: string; loading: boolean; error?: string; onSelectAgent: (id: string) => void; onSelectDocument: (id: string) => void; onRetry: () => void }) {
+function WorkspaceNavigationList({ section, skills, documents, selectedSkillId, selectedDocumentId, loading, error, onSelectSkill, onSelectDocument, onRetry }: { section: "documents" | "skills"; skills: LogueSkill[]; documents: LogueDocument[]; selectedSkillId?: string; selectedDocumentId?: string; loading: boolean; error?: string; onSelectSkill: (id: string) => void; onSelectDocument: (id: string) => void; onRetry: () => void }) {
   if (loading)
     return (
       <div className="space-y-1 px-1 py-1" aria-label={`Loading ${section === "skills" ? "skills" : section}`}>
@@ -318,15 +318,15 @@ function WorkspaceNavigationList({ section, agents, documents, selectedAgentId, 
       </div>
     );
   if (section === "skills")
-    return agents.length ? (
+    return skills.length ? (
       <>
-        {agents.map((agent) => (
-          <button key={agent.id} type="button" onClick={() => onSelectAgent(agent.id)} className={`flex min-h-11 w-full items-start gap-2 rounded-md px-2 py-2 text-left ${agent.id === selectedAgentId ? "bg-[#e7e7e4]" : "hover:bg-[#ececea]"}`}>
+        {skills.map((skill) => (
+          <button key={skill.id} type="button" onClick={() => onSelectSkill(skill.id)} className={`flex min-h-11 w-full items-start gap-2 rounded-md px-2 py-2 text-left ${skill.id === selectedSkillId ? "bg-[#e7e7e4]" : "hover:bg-[#ececea]"}`}>
             <Sparkles size={14} className="mt-0.5 shrink-0 text-[#777a72]" />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[14px] font-medium text-[#50514d]">{agent.name}</span>
+              <span className="block truncate text-[14px] font-medium text-[#50514d]">{skill.name}</span>
             </span>
-            {!agent.enabled && <span className="mt-0.5 text-[12px] text-[#aaa]">Off</span>}
+            {!skill.enabled && <span className="mt-0.5 text-[12px] text-[#aaa]">Off</span>}
           </button>
         ))}
       </>
@@ -350,9 +350,9 @@ function WorkspaceNavigationList({ section, agents, documents, selectedAgentId, 
   );
 }
 
-function NewGeneration({ agents, materials, initialProject, onCreated }: { agents: LogueAgent[]; materials: Material[]; initialProject?: string; onCreated: (run: LogueAgentRun) => void }) {
-  const generationAgents = agents.filter((agent) => agent.enabled && agent.task === "generate" && agent.surfaces.includes("web"));
-  const [agentId, setAgentId] = useState(generationAgents.find((agent) => agent.id === "agt_reply")?.id ?? generationAgents[0]?.id ?? "");
+function NewGeneration({ skills, materials, initialProject, onCreated }: { skills: LogueSkill[]; materials: Material[]; initialProject?: string; onCreated: (run: LogueSkillRun) => void }) {
+  const generationSkills = skills.filter((skill) => skill.enabled && skill.task === "generate" && skill.surfaces.includes("web"));
+  const [skillId, setSkillId] = useState(generationSkills.find((skill) => skill.id === "sk_reply")?.id ?? generationSkills[0]?.id ?? "");
   const [instruction, setInstruction] = useState("");
   const [project, setProject] = useState(initialProject ?? "");
   const [sourceIds, setSourceIds] = useState<string[]>([]);
@@ -382,8 +382,8 @@ function NewGeneration({ agents, materials, initialProject, onCreated }: { agent
   }, [sourceSearch.matches]);
 
   useEffect(() => {
-    if (!agentId && generationAgents.length) setAgentId(generationAgents.find((item) => item.id === "agt_reply")?.id ?? generationAgents[0].id);
-  }, [agentId, generationAgents]);
+    if (!skillId && generationSkills.length) setSkillId(generationSkills.find((item) => item.id === "sk_reply")?.id ?? generationSkills[0].id);
+  }, [skillId, generationSkills]);
 
   useEffect(() => {
     if (!project || sourceIds.length) return;
@@ -395,13 +395,13 @@ function NewGeneration({ agents, materials, initialProject, onCreated }: { agent
   }, [materials, project, sourceIds.length]);
 
   async function run() {
-    if (!agentId || !instruction.trim() || running) return;
+    if (!skillId || !instruction.trim() || running) return;
     setRunning(true);
     setError(undefined);
     try {
       onCreated(
-        await createAgentRun({
-          agent_id: agentId,
+        await createSkillRun({
+          skill_id: skillId,
           instruction: instruction.trim(),
           project,
           source_ids: sourceIds,
@@ -418,13 +418,13 @@ function NewGeneration({ agents, materials, initialProject, onCreated }: { agent
     <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-white">
       <article data-testid="generation-form-content-column" className={`${editorColumnClass} pb-24 pt-10 max-[700px]:pt-7`}>
         <div className="grid grid-cols-[160px_1fr] gap-6 max-[640px]:grid-cols-1 max-[640px]:gap-2">
-          <label className="pt-2 text-[15px] font-medium text-[#6e706a]" htmlFor="generation-agent">
+          <label className="pt-2 text-[15px] font-medium text-[#6e706a]" htmlFor="generation-skill">
             Skill
           </label>
           <div>
-            <select id="generation-agent" value={agentId} onChange={(event) => setAgentId(event.target.value)} className="h-10 w-full rounded-md border border-[#dcdcd8] bg-white px-3 text-[14px] font-medium text-[#41423e] outline-none focus:border-[#aaa]">
+            <select id="generation-skill" value={skillId} onChange={(event) => setSkillId(event.target.value)} className="h-10 w-full rounded-md border border-[#dcdcd8] bg-white px-3 text-[14px] font-medium text-[#41423e] outline-none focus:border-[#aaa]">
               <option value="">Choose a skill</option>
-              {generationAgents.map((item) => (
+              {generationSkills.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name} · {outputLabels[item.output]}
                 </option>
@@ -477,7 +477,7 @@ function NewGeneration({ agents, materials, initialProject, onCreated }: { agent
         </section>
         {error && <p className="mt-5 rounded-md bg-[#fbefec] px-3 py-2.5 text-[15px] leading-4 text-[#a34b42]">{error}</p>}
         <div className="mt-7 flex justify-end">
-          <button type="button" onClick={() => void run()} disabled={!agentId || !instruction.trim() || running} className="inline-flex h-10 items-center gap-2 rounded-md bg-[#242522] px-4 text-[14px] font-medium text-white hover:bg-[#383934] disabled:cursor-not-allowed disabled:bg-[#c9cac5]">
+          <button type="button" onClick={() => void run()} disabled={!skillId || !instruction.trim() || running} className="inline-flex h-10 items-center gap-2 rounded-md bg-[#242522] px-4 text-[14px] font-medium text-white hover:bg-[#383934] disabled:cursor-not-allowed disabled:bg-[#c9cac5]">
             {running ? <LoaderCircle size={14} className="animate-spin" /> : <Sparkles size={14} />}
             {running ? "Generating…" : "Generate"}
           </button>
@@ -487,14 +487,14 @@ function NewGeneration({ agents, materials, initialProject, onCreated }: { agent
   );
 }
 
-function RunResult({ run, onRunChange, onOpenDocument, onBack }: { run: LogueAgentRun; onRunChange: (run: LogueAgentRun) => void; onOpenDocument: (id: string) => void; onBack: () => void }) {
+function RunResult({ run, onRunChange, onOpenDocument, onBack }: { run: LogueSkillRun; onRunChange: (run: LogueSkillRun) => void; onOpenDocument: (id: string) => void; onBack: () => void }) {
   const [draft, setDraft] = useState(run.adopted_output || run.original_output || "");
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     setDraft(run.adopted_output || run.original_output || "");
   }, [run]);
   async function copy() {
-    const updated = await adoptAgentRun(run.id, draft);
+    const updated = await adoptSkillRun(run.id, draft);
     onRunChange(updated);
     await navigator.clipboard.writeText(draft);
     setCopied(true);
@@ -508,7 +508,7 @@ function RunResult({ run, onRunChange, onOpenDocument, onBack }: { run: LogueAge
             ← New
           </button>
           <span className="text-[14px] text-[#999a95]">
-            {run.agent_name}
+            {run.skill_name}
           </span>
         </div>
       </header>
@@ -565,9 +565,9 @@ function RunResult({ run, onRunChange, onOpenDocument, onBack }: { run: LogueAge
   );
 }
 
-function AgentEditor({ agents, selectedAgentId, onSelect, onAgentsChange }: { agents: LogueAgent[]; selectedAgentId?: string; onSelect: (id: string) => void; onAgentsChange: (agents: LogueAgent[]) => void }) {
-  const selected = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
-  const [draft, setDraft] = useState<LogueAgent | undefined>(selected);
+function SkillEditor({ skills, selectedSkillId, onSelect, onSkillsChange }: { skills: LogueSkill[]; selectedSkillId?: string; onSelect: (id: string) => void; onSkillsChange: (skills: LogueSkill[]) => void }) {
+  const selected = skills.find((skill) => skill.id === selectedSkillId) ?? skills[0];
+  const [draft, setDraft] = useState<LogueSkill | undefined>(selected);
   const [saveState, setSaveState] = useState<"saved" | "dirty" | "saving" | "error">("saved");
   const dirtyRef = useRef(false);
   useEffect(() => {
@@ -579,7 +579,7 @@ function AgentEditor({ agents, selectedAgentId, onSelect, onAgentsChange }: { ag
     if (!draft || !dirtyRef.current || saveState !== "dirty") return;
     const timer = window.setTimeout(() => {
       setSaveState("saving");
-      void updateAgent(draft.id, {
+      void updateSkill(draft.id, {
         name: draft.name,
         purpose: draft.purpose,
         instructions: draft.instructions,
@@ -593,14 +593,14 @@ function AgentEditor({ agents, selectedAgentId, onSelect, onAgentsChange }: { ag
         .then((saved) => {
           dirtyRef.current = false;
           setDraft(saved);
-          onAgentsChange(agents.map((agent) => (agent.id === saved.id ? saved : agent)));
+          onSkillsChange(skills.map((skill) => (skill.id === saved.id ? saved : skill)));
           setSaveState("saved");
         })
         .catch(() => setSaveState("error"));
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [agents, draft, onAgentsChange, saveState]);
-  function change(changes: Partial<LogueAgent>) {
+  }, [skills, draft, onSkillsChange, saveState]);
+  function change(changes: Partial<LogueSkill>) {
     if (!draft) return;
     dirtyRef.current = true;
     setDraft({ ...draft, ...changes });
@@ -613,7 +613,7 @@ function AgentEditor({ agents, selectedAgentId, onSelect, onAgentsChange }: { ag
   }
   async function duplicate() {
     if (!draft) return;
-    const copy = await createAgent({
+    const copy = await createSkill({
       name: `${draft.name} copy`,
       purpose: draft.purpose,
       instructions: draft.instructions,
@@ -623,13 +623,13 @@ function AgentEditor({ agents, selectedAgentId, onSelect, onAgentsChange }: { ag
       contexts: draft.contexts,
       enabled: true,
     });
-    onAgentsChange([...agents, copy]);
+    onSkillsChange([...skills, copy]);
     onSelect(copy.id);
   }
   async function setDefault() {
     if (!draft) return;
     const settings = await getWorkspaceSettings();
-    const changes = draft.task === "transcribe" ? { default_transcription_agent: draft.id } : draft.task === "organize" ? { default_organization_agent: draft.id } : { default_extension_agent: draft.id };
+    const changes = draft.task === "transcribe" ? { default_transcription_skill: draft.id } : draft.task === "organize" ? { default_organization_skill: draft.id } : { default_extension_skill: draft.id };
     await saveWorkspaceSettings({ ...settings, ...changes });
   }
   if (!draft) return <main className="flex flex-1 items-center justify-center text-[14px] text-[#999]">No skills yet</main>;
@@ -637,16 +637,16 @@ function AgentEditor({ agents, selectedAgentId, onSelect, onAgentsChange }: { ag
   return (
     <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-white">
       <header className="sticky top-0 z-10 border-b border-[#eeeeeb] bg-white/92 backdrop-blur">
-        <div data-testid="agent-editor-header-column" className={`${editorColumnClass} flex h-12 items-center justify-between gap-3`}>
+        <div data-testid="skill-editor-header-column" className={`${editorColumnClass} flex h-12 items-center justify-between gap-3`}>
           <span className="text-[14px] font-medium text-[#777873]">Skills</span>
           {saveState === "error" && <span className="flex items-center gap-2 text-[14px] text-[#a34b42]"><span>Save failed</span><button type="button" onClick={retrySave} className="font-medium underline underline-offset-2">Retry</button></span>}
         </div>
       </header>
-      <article data-testid="agent-editor-content-column" className={`${editorColumnClass} pb-24 pt-14 max-[700px]:pt-8`}>
+      <article data-testid="skill-editor-content-column" className={`${editorColumnClass} pb-24 pt-14 max-[700px]:pt-8`}>
         <select value={draft.id} onChange={(event) => onSelect(event.target.value)} className="mb-6 hidden h-11 w-full rounded-md border border-[#dcdcd8] bg-white px-3 text-[15px] max-[900px]:block" aria-label="Choose skill">
-          {agents.map((agent) => (
-            <option key={agent.id} value={agent.id}>
-              {agent.name}
+          {skills.map((skill) => (
+            <option key={skill.id} value={skill.id}>
+              {skill.name}
             </option>
           ))}
         </select>
@@ -665,7 +665,7 @@ function AgentEditor({ agents, selectedAgentId, onSelect, onAgentsChange }: { ag
           <div className="grid grid-cols-2 gap-2">
             <label className="space-y-1">
               <span className="block text-[14px] text-[#969792]">Purpose</span>
-              <select aria-label="Skill use" value={draft.task} onChange={(event) => change({ task: event.target.value as AgentTask })} className="h-10 w-full rounded-md border border-[#dcdcd8] bg-white px-2.5 text-[15px]">
+              <select aria-label="Skill use" value={draft.task} onChange={(event) => change({ task: event.target.value as SkillTask })} className="h-10 w-full rounded-md border border-[#dcdcd8] bg-white px-2.5 text-[15px]">
                 <option value="transcribe">Transcribe</option>
                 <option value="organize">Organize</option>
                 <option value="generate">Generate</option>
@@ -673,7 +673,7 @@ function AgentEditor({ agents, selectedAgentId, onSelect, onAgentsChange }: { ag
             </label>
             <label className="space-y-1">
               <span className="block text-[14px] text-[#969792]">Output</span>
-              <select aria-label="Output" value={draft.output} onChange={(event) => change({ output: event.target.value as AgentOutput })} className="h-10 w-full rounded-md border border-[#dcdcd8] bg-white px-2.5 text-[15px]">
+              <select aria-label="Output" value={draft.output} onChange={(event) => change({ output: event.target.value as SkillOutput })} className="h-10 w-full rounded-md border border-[#dcdcd8] bg-white px-2.5 text-[15px]">
                 <option value="insert">Text</option>
                 <option value="material">Material</option>
                 <option value="qa">Q&amp;A</option>
@@ -683,7 +683,7 @@ function AgentEditor({ agents, selectedAgentId, onSelect, onAgentsChange }: { ag
           </div>
           <span className="pt-1 text-[15px] font-medium text-[#6e706a]">Available in</span>
           <div className="flex flex-wrap gap-1.5">
-            {(Object.keys(surfaceLabels) as AgentSurface[]).map((surface) => (
+            {(Object.keys(surfaceLabels) as SkillSurface[]).map((surface) => (
               <button key={surface} type="button" onClick={() => change({ surfaces: toggle(draft.surfaces, surface) })} aria-pressed={draft.surfaces.includes(surface)} className={`h-9 rounded-md border px-2.5 text-[14px] ${draft.surfaces.includes(surface) ? "border-[#b9c4b8] bg-[#edf2eb] text-[#4f684f]" : "border-[#deded9] text-[#777873]"}`}>
                 {surfaceLabels[surface]}
               </button>
@@ -691,7 +691,7 @@ function AgentEditor({ agents, selectedAgentId, onSelect, onAgentsChange }: { ag
           </div>
           <span className="pt-1 text-[15px] font-medium text-[#6e706a]">Context</span>
           <div className="flex flex-wrap gap-1.5">
-            {(Object.keys(contextLabels) as AgentContext[]).map((context) => (
+            {(Object.keys(contextLabels) as SkillContext[]).map((context) => (
               <button key={context} type="button" onClick={() => change({ contexts: toggle(draft.contexts, context) })} aria-pressed={draft.contexts.includes(context)} className={`h-9 rounded-md border px-2.5 text-[14px] ${draft.contexts.includes(context) ? "border-[#c7c7dc] bg-[#f0f0f8] text-[#5e61a0]" : "border-[#deded9] text-[#777873]"}`}>
                 {contextLabels[context]}
               </button>

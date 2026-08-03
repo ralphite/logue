@@ -3,6 +3,7 @@ dist/
 storybook-static/
 .DS_Store
 .logue-data/
+.logue-backups/
 coverage/
 *.log
 .env

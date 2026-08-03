@@ -1,7 +1,7 @@
 import { SelectionSkillMenu, captureEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility, type EditableSelectionSnapshot, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { adoptExtensionAgentRun, cancelMaterialSave, createExtensionAgentRun, getCaptureContext, getExtensionAgents, saveMaterial, transcribeAudio, type AppliedContext, type ExtensionAgent } from "./api";
+import { adoptExtensionSkillRun, cancelMaterialSave, createExtensionSkillRun, getCaptureContext, getExtensionSkills, saveMaterial, transcribeAudio, type AppliedContext, type ExtensionSkill } from "./api";
 import { activeEditableElement, getEditableText, insertIntoElement, isEditableElement, isEditableTargetAvailable } from "./dom";
 import { isLogueExtensionDisabledDocument } from "./eligibility";
 import { clampLauncherPosition, defaultLauncherPosition, inlineVoiceControlMetrics, launcherErrorPlacement } from "./launcherPosition";
@@ -51,7 +51,7 @@ function ExtensionLauncher() {
   const [voiceError, setVoiceError] = useState("");
   const [pendingCopyText, setPendingCopyText] = useState("");
   const [selectionSnapshot, setSelectionSnapshot] = useState<EditableSelectionSnapshot>();
-  const [selectionSkills, setSelectionSkills] = useState<ExtensionAgent[]>([]);
+  const [selectionSkills, setSelectionSkills] = useState<ExtensionSkill[]>([]);
   const [selectionSkillNotice, setSelectionSkillNotice] = useState<{
     anchor: { left: number; top: number };
     message: string;
@@ -123,7 +123,7 @@ function ExtensionLauncher() {
     setSelectionSnapshot(next);
     if (!next || selectionSkillsLoadedRef.current) return;
     selectionSkillsLoadedRef.current = true;
-    void getExtensionAgents().then(setSelectionSkills).catch(() => {
+    void getExtensionSkills().then(setSelectionSkills).catch(() => {
       selectionSkillsLoadedRef.current = false;
     });
   }, []);
@@ -466,8 +466,8 @@ function ExtensionLauncher() {
       showSelectionSkillNotice({ anchor: snapshot.anchor, message: "That skill is no longer available." });
       return;
     }
-    const run = await createExtensionAgentRun({
-      agentId: skill.id,
+    const run = await createExtensionSkillRun({
+      skillId: skill.id,
       instruction: "Transform only the selected text. Return only the replacement text.",
       pageTitle: document.title,
       pageUrl: window.location.href,
@@ -480,7 +480,7 @@ function ExtensionLauncher() {
       showSelectionSkillNotice({ anchor: snapshot.anchor, message: "Selection changed — choose a skill again." });
       return;
     }
-    const history = await saveSelectionSkillHistory({ runId: run.id, replacement }, adoptExtensionAgentRun);
+    const history = await saveSelectionSkillHistory({ runId: run.id, replacement }, adoptExtensionSkillRun);
     if (history) showSelectionSkillNotice({ anchor: snapshot.anchor, message: "Applied", history });
     selectionSnapshotRef.current = undefined;
     setSelectionSnapshot(undefined);
@@ -489,7 +489,7 @@ function ExtensionLauncher() {
   async function retrySelectionSkillHistory() {
     const notice = selectionSkillNotice;
     if (!notice?.history) return;
-    const retry = await saveSelectionSkillHistory(notice.history, adoptExtensionAgentRun);
+    const retry = await saveSelectionSkillHistory(notice.history, adoptExtensionSkillRun);
     if (retry) {
       setSelectionSkillNotice({ ...notice, history: retry });
       return;

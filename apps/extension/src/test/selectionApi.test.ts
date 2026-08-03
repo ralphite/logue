@@ -13,7 +13,7 @@ describe("selection API", () => {
       requestId: "stable-request-id",
       sourceContent,
       source: { url: "https://example.com/article", title: "Article", selection: sourceContent },
-      projects: ["Agent Harness", "Logue"],
+      projects: ["Skill Harness", "Logue"],
       tags: ["research", "provenance"],
     });
 
@@ -23,7 +23,7 @@ describe("selection API", () => {
       payload: expect.objectContaining({
         request_id: "stable-request-id",
         source_content: sourceContent,
-        projects: ["Agent Harness", "Logue"],
+        projects: ["Skill Harness", "Logue"],
         tags: ["research", "provenance"],
       }),
     });

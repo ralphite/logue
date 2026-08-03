@@ -106,9 +106,9 @@ type WorkspaceSettings struct {
 	PersonalContext           string   `json:"personal_context"`
 	Glossary                  []string `json:"glossary"`
 	IgnoredTerms              []string `json:"ignored_terms"`
-	DefaultTranscriptionAgent string   `json:"default_transcription_agent"`
-	DefaultOrganizationAgent  string   `json:"default_organization_agent"`
-	DefaultExtensionAgent     string   `json:"default_extension_agent"`
+	DefaultTranscriptionSkill string   `json:"default_transcription_skill"`
+	DefaultOrganizationSkill  string   `json:"default_organization_skill"`
+	DefaultExtensionSkill     string   `json:"default_extension_skill"`
 }
 
 type GlossarySuggestion struct {
@@ -116,7 +116,7 @@ type GlossarySuggestion struct {
 	Count int    `json:"count"`
 }
 
-type AgentImportInput struct {
+type ExternalAgentImportInput struct {
 	RequestID string     `json:"request_id,omitempty"`
 	Content   string     `json:"content"`
 	Project   string     `json:"project,omitempty"`
@@ -144,8 +144,8 @@ type WorkspaceExport struct {
 	Documents     []Document        `json:"documents"`
 	Projects      []ProjectSummary  `json:"projects"`
 	Settings      WorkspaceSettings `json:"settings"`
-	Agents        []Agent           `json:"agents,omitempty"`
-	AgentRuns     []AgentRun        `json:"agent_runs,omitempty"`
+	Skills        []Skill           `json:"skills,omitempty"`
+	SkillRuns     []SkillRun        `json:"skill_runs,omitempty"`
 	Audio         []ExportedAudio   `json:"audio"`
 }
 

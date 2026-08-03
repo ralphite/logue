@@ -3,17 +3,17 @@ import { StrictMode, useCallback, useEffect, useMemo, useRef, useState } from "r
 import { createRoot } from "react-dom/client";
 import {
   getCaptureContext,
-  getExtensionAgents,
+  getExtensionSkills,
   getExtensionSettings,
   getPageMaterials,
-  createExtensionAgentRun,
-  adoptExtensionAgentRun,
+  createExtensionSkillRun,
+  adoptExtensionSkillRun,
   saveMaterial,
   saveSelection,
   transcribeAudio,
   type AppliedContext,
   type CaptureContext,
-  type ExtensionAgent,
+  type ExtensionSkill,
   type PageMaterial,
 } from "./api";
 import {
@@ -55,7 +55,7 @@ function SidePanelApp() {
   const [pageMaterials, setPageMaterials] = useState<PageMaterial[]>([]);
   const [error, setError] = useState<LocalError>();
   const [elapsed, setElapsed] = useState(0);
-  const [skills, setSkills] = useState<ExtensionAgent[]>([]);
+  const [skills, setSkills] = useState<ExtensionSkill[]>([]);
   const [skillId, setSkillId] = useState("");
   const [generatedText, setGeneratedText] = useState("");
   const [generationRunId, setGenerationRunId] = useState<string>();
@@ -301,8 +301,8 @@ function SidePanelApp() {
     setGenerating(true);
     setError(undefined);
     try {
-      const run = await createExtensionAgentRun({
-        agentId: skillId,
+      const run = await createExtensionSkillRun({
+        skillId,
         instruction: draft.trim(),
         pageTitle: current.source.title,
         pageUrl: current.source.url,
@@ -331,7 +331,7 @@ function SidePanelApp() {
       return;
     }
     try {
-      await adoptExtensionAgentRun(generationRunId, generatedText.trim());
+      await adoptExtensionSkillRun(generationRunId, generatedText.trim());
       const response = await chrome.tabs.sendMessage(current.tabId, {
         type: "logue:insert-text",
         text: generatedText.trim(),
@@ -498,9 +498,9 @@ function SidePanelApp() {
         .catch(() => setContext(undefined));
       if (shouldLoadPageHistory(next.intent)) void refreshPageMaterials(next.source.url);
       if (next.intent === "generate") {
-        void Promise.all([getExtensionAgents(), getExtensionSettings()]).then(([available, settings]) => {
+        void Promise.all([getExtensionSkills(), getExtensionSettings()]).then(([available, settings]) => {
           setSkills(available);
-          setSkillId(available.find((item) => item.id === settings.default_extension_agent)?.id ?? available[0]?.id ?? "");
+          setSkillId(available.find((item) => item.id === settings.default_extension_skill)?.id ?? available[0]?.id ?? "");
         }).catch((cause) => setError(friendlyLocalError(cause, "service")));
       }
       if (next.autoStartToken) {

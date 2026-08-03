@@ -58,7 +58,7 @@ func TestRelevantMaterialIDsDeduplicatesNormalizedContentAfterRankingAndFillsLim
 	}
 	best, err := store.Create(CreateMaterialInput{
 		Kind: "text", Content: "Logue Extension voice input stops and inserts transcription while preserving source provenance.",
-		Tags: []string{"agent", "sources"},
+		Tags: []string{"skill", "sources"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -69,7 +69,7 @@ func TestRelevantMaterialIDsDeduplicatesNormalizedContentAfterRankingAndFillsLim
 	if err != nil {
 		t.Fatal(err)
 	}
-	firstUnique, err := store.Create(CreateMaterialInput{Kind: "text", Content: "Agent source citations preserve traceability for generated replies."})
+	firstUnique, err := store.Create(CreateMaterialInput{Kind: "text", Content: "Skill source citations preserve traceability for generated replies."})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestRelevantMaterialIDsDeduplicatesNormalizedContentAfterRankingAndFillsLim
 		t.Fatal(err)
 	}
 
-	ids, err := store.RelevantMaterialIDs("Logue extension voice input agent sources provenance capture", "", 3)
+	ids, err := store.RelevantMaterialIDs("Logue extension voice input skill sources provenance capture", "", 3)
 	if err != nil {
 		t.Fatal(err)
 	}

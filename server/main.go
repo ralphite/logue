@@ -51,6 +51,10 @@ func cors(next http.Handler) http.Handler {
 func spaHandler(dist string) http.Handler {
 	files := http.FileServer(http.Dir(dist))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1" || strings.HasPrefix(r.URL.Path, "/v1/") {
+			http.NotFound(w, r)
+			return
+		}
 		path := filepath.Join(dist, filepath.Clean(r.URL.Path))
 		if info, err := os.Stat(path); err == nil && !info.IsDir() {
 			files.ServeHTTP(w, r)
@@ -80,31 +84,18 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if os.Getenv("LOGUE_SEED_DEMO") == "1" {
-		if err := store.SeedDemo(); err != nil {
-			log.Fatal(err)
-		}
-		if err := store.SeedDemoDocuments(); err != nil {
-			log.Fatal(err)
-		}
-	}
-	if repaired, repairErr := store.RepairDocumentCitations(); repairErr != nil {
-		log.Fatal(repairErr)
-	} else if repaired > 0 {
-		log.Printf("repaired citation consistency in %d document(s)", repaired)
-	}
 	contextLimit := 12000
 	if value := envFirst("LOGUE_TRANSCRIPTION_CONTEXT_LIMIT"); value != "" {
 		if parsed, parseErr := strconv.Atoi(value); parseErr == nil && parsed > 0 {
 			contextLimit = parsed
 		}
 	}
-	gemini := NewGeminiClient(envFirst("GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"), GeminiConfig{
-		Model:        envFirst("LOGUE_TRANSCRIPTION_MODEL", "GEMINI_MODEL"),
+	gemini := NewGeminiClient(envFirst("GEMINI_API_KEY"), GeminiConfig{
+		Model:        envFirst("LOGUE_TRANSCRIPTION_MODEL"),
 		Skill:        envFirst("LOGUE_DICTATION_SKILL"),
 		ContextLimit: contextLimit,
 	})
-	organizationService := NewOrganizationService(store, NewAgentOrganizationClassifier(store, gemini))
+	organizationService := NewOrganizationService(store, NewSkillOrganizationClassifier(store, gemini))
 	organizationScheduler := NewBackgroundOrganizationScheduler(organizationService)
 	if items, listErr := store.List(); listErr == nil {
 		for _, item := range items {
@@ -123,12 +114,12 @@ func main() {
 	mux.HandleFunc("/v1/projects", api.projects)
 	mux.HandleFunc("/v1/projects/", api.project)
 	mux.HandleFunc("/v1/settings", api.settings)
-	mux.HandleFunc("/v1/agents", api.agents)
-	mux.HandleFunc("/v1/agents/", api.agent)
-	mux.HandleFunc("/v1/agent-runs", api.agentRuns)
-	mux.HandleFunc("/v1/agent-runs/", api.agentRun)
+	mux.HandleFunc("/v1/skills", api.skills)
+	mux.HandleFunc("/v1/skills/", api.skill)
+	mux.HandleFunc("/v1/skill-runs", api.skillRuns)
+	mux.HandleFunc("/v1/skill-runs/", api.skillRun)
 	mux.HandleFunc("/v1/project-bundles/", api.projectBundle)
-	mux.HandleFunc("/v1/agent/import", api.agentImport)
+	mux.HandleFunc("/v1/external-agent/import", api.externalAgentImport)
 	mux.HandleFunc("/v1/export", api.exportWorkspace)
 	mux.HandleFunc("/v1/restore", api.restoreWorkspace)
 	mux.HandleFunc("/v1/context", api.captureContext)

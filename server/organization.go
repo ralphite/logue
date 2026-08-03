@@ -24,28 +24,28 @@ type MaterialClassifier interface {
 	Classify(context.Context, Material, []ProjectSummary, []string) (OrganizationDecision, error)
 }
 
-type AgentOrganizationClassifier struct {
+type SkillOrganizationClassifier struct {
 	store  *Store
 	gemini *GeminiClient
 }
 
-func NewAgentOrganizationClassifier(store *Store, gemini *GeminiClient) *AgentOrganizationClassifier {
-	return &AgentOrganizationClassifier{store: store, gemini: gemini}
+func NewSkillOrganizationClassifier(store *Store, gemini *GeminiClient) *SkillOrganizationClassifier {
+	return &SkillOrganizationClassifier{store: store, gemini: gemini}
 }
 
-func (c *AgentOrganizationClassifier) Classify(ctx context.Context, item Material, projects []ProjectSummary, tags []string) (OrganizationDecision, error) {
+func (c *SkillOrganizationClassifier) Classify(ctx context.Context, item Material, projects []ProjectSummary, tags []string) (OrganizationDecision, error) {
 	settings, err := c.store.GetSettings()
 	if err != nil {
-		return OrganizationDecision{}, fmt.Errorf("load organization agent setting: %w", err)
+		return OrganizationDecision{}, fmt.Errorf("load organization skill setting: %w", err)
 	}
-	agent, err := c.store.GetAgent(settings.DefaultOrganizationAgent)
+	skill, err := c.store.GetSkill(settings.DefaultOrganizationSkill)
 	if err != nil {
-		return OrganizationDecision{}, fmt.Errorf("load organization agent: %w", err)
+		return OrganizationDecision{}, fmt.Errorf("load organization skill: %w", err)
 	}
-	if !agent.Enabled || agent.Task != "organize" {
-		return OrganizationDecision{}, errors.New("organization agent is disabled or has the wrong task")
+	if !skill.Enabled || skill.Task != "organize" {
+		return OrganizationDecision{}, errors.New("organization skill is disabled or has the wrong task")
 	}
-	return c.gemini.ClassifyWithInstructions(ctx, item, projects, tags, agent.Instructions)
+	return c.gemini.ClassifyWithInstructions(ctx, item, projects, tags, skill.Instructions)
 }
 
 type OrganizationScheduler interface {

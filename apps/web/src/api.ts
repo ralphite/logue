@@ -72,9 +72,9 @@ export interface WorkspaceSettings {
   personal_context: string;
   glossary: string[];
   ignored_terms: string[];
-  default_transcription_agent?: string;
-  default_organization_agent?: string;
-  default_extension_agent?: string;
+  default_transcription_skill?: string;
+  default_organization_skill?: string;
+  default_extension_skill?: string;
 }
 
 export interface GlossarySuggestion {

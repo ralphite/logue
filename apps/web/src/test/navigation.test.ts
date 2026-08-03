@@ -4,7 +4,7 @@ import { navigationURL, parseNavigation } from "../navigation";
 describe("browser navigation", () => {
   it("restores every product section and its selected object", () => {
     expect(parseNavigation("?view=stream&material=material-1")).toEqual({ section: "stream", materialId: "material-1" });
-    expect(parseNavigation("?view=projects&project=Agent%20Harness")).toEqual({ section: "projects", projectName: "Agent Harness" });
+    expect(parseNavigation("?view=projects&project=Skill%20Harness")).toEqual({ section: "projects", projectName: "Skill Harness" });
     expect(parseNavigation("?view=generate&tab=documents&doc=document-1&project=Logue")).toEqual({ section: "generate", generationMode: "documents", documentId: "document-1", projectName: "Logue" });
     expect(parseNavigation("?view=settings")).toEqual({ section: "settings" });
   });

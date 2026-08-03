@@ -10,8 +10,6 @@
   "scripts": {
     "dev": "concurrently -k -n api,web -c cyan,blue \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "cd server && go run . -address 0.0.0.0:8787",
-    "dev:api:demo": "cd server && LOGUE_SEED_DEMO=1 go run . -address 0.0.0.0:8787",
-    "dev:demo": "concurrently -k -n api,web -c cyan,blue \"npm run dev:api:demo\" \"npm run dev:web\"",
     "dev:web": "npm run dev -w @logue/web",
     "build": "npm run build -w @logue/web && npm run build -w @logue/extension && cd server && go build ./...",
     "build:extension": "npm run build -w @logue/extension",

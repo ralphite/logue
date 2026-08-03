@@ -132,43 +132,6 @@ func (s *Store) materialIDsLocked() map[string]bool {
 	return ids
 }
 
-func (s *Store) RepairDocumentCitations() (int, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	entries, err := os.ReadDir(filepath.Join(s.root, "docs"))
-	if err != nil {
-		return 0, fmt.Errorf("read documents: %w", err)
-	}
-	materialIDs := s.materialIDsLocked()
-	repaired := 0
-	for _, entry := range entries {
-		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
-			continue
-		}
-		id := strings.TrimSuffix(entry.Name(), ".json")
-		document, err := s.readDocumentLocked(id)
-		if err != nil {
-			return repaired, err
-		}
-		content, sourceIDs := reconcileDocumentCitations(document.Content, document.SourceIDs, materialIDs)
-		needsRevision := document.Revision < 1
-		if content == document.Content && strings.Join(sourceIDs, "\x00") == strings.Join(document.SourceIDs, "\x00") && !needsRevision {
-			continue
-		}
-		document.Content = content
-		document.SourceIDs = sourceIDs
-		if needsRevision {
-			document.Revision = 1
-		}
-		document.UpdatedAt = time.Now().UTC()
-		if err := s.writeDocumentLocked(document); err != nil {
-			return repaired, err
-		}
-		repaired++
-	}
-	return repaired, nil
-}
-
 func (s *Store) DeleteDocument(id string) error {
 	if !validDocumentID(id) {
 		return errors.New("invalid document id")
@@ -225,24 +188,6 @@ func (s *Store) writeDocumentLocked(document Document) error {
 	}
 	if err := os.Rename(tempPath, path); err != nil {
 		return fmt.Errorf("commit document: %w", err)
-	}
-	return nil
-}
-
-func (s *Store) SeedDemoDocuments() error {
-	documents, err := s.ListDocuments()
-	if err != nil || len(documents) > 0 {
-		return err
-	}
-	seed := []CreateDocumentInput{
-		{Title: "Logue product decisions", Project: "Logue", Content: "## Product promise\n\nCapture an idea once, use it immediately, and keep it available for future work.\n\n## Current decisions\n\n- Input is the entry point; project memory creates lasting value.\n- Raw material, transcripts, accepted text, and derived results remain distinct.\n- Context is the set of sources used for an action, not a separate destination.\n\n## Next step\n\nComplete the workflow across web input, selection capture, and source-backed documents."},
-		{Title: "Agent Harness input and source design", Project: "Agent Harness", Content: "## Goal\n\nGive every tool call a clear intent, recoverable failures, and traceable sources.\n\n## Design principles\n\n1. Validate parameters before execution.\n2. Use stable request IDs for retryable actions.\n3. Keep original sources immutable and append analysis as derived material."},
-		{Title: "Weekly capture summary", Content: "## Unfiled signals\n\nUse this document to turn recent captures into an editable working summary. Add sources only when the document cites them directly."},
-	}
-	for _, input := range seed {
-		if _, err := s.CreateDocument(input); err != nil {
-			return err
-		}
 	}
 	return nil
 }

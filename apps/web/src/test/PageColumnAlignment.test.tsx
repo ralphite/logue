@@ -20,9 +20,9 @@ vi.mock("../api", async (importOriginal) => {
   };
 });
 
-vi.mock("../agentApi", () => ({
-  getAgents: vi.fn().mockResolvedValue([]),
-  getAgentRuns: vi.fn().mockResolvedValue([]),
+vi.mock("../skillApi", () => ({
+  getSkills: vi.fn().mockResolvedValue([]),
+  getSkillRuns: vi.fn().mockResolvedValue([]),
 }));
 
 const projectProps = {

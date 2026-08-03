@@ -27,29 +27,15 @@ func (s *Store) GetSettings() (WorkspaceSettings, error) {
 	}
 	settings.Glossary = normalizeStrings(settings.Glossary)
 	settings.IgnoredTerms = normalizeStrings(settings.IgnoredTerms)
-	settings = withDefaultAgentAssignments(settings)
 	return settings, nil
 }
 
 func defaultWorkspaceSettings() WorkspaceSettings {
-	return WorkspaceSettings{Glossary: []string{}, IgnoredTerms: []string{}, DefaultTranscriptionAgent: defaultTranscriptionAgentID, DefaultOrganizationAgent: defaultOrganizationAgentID, DefaultExtensionAgent: defaultReplyAgentID}
+	return WorkspaceSettings{Glossary: []string{}, IgnoredTerms: []string{}, DefaultTranscriptionSkill: defaultTranscriptionSkillID, DefaultOrganizationSkill: defaultOrganizationSkillID, DefaultExtensionSkill: defaultReplySkillID}
 }
 
-func withDefaultAgentAssignments(settings WorkspaceSettings) WorkspaceSettings {
-	if strings.TrimSpace(settings.DefaultTranscriptionAgent) == "" {
-		settings.DefaultTranscriptionAgent = defaultTranscriptionAgentID
-	}
-	if strings.TrimSpace(settings.DefaultOrganizationAgent) == "" {
-		settings.DefaultOrganizationAgent = defaultOrganizationAgentID
-	}
-	if strings.TrimSpace(settings.DefaultExtensionAgent) == "" {
-		settings.DefaultExtensionAgent = defaultReplyAgentID
-	}
-	return settings
-}
-
-func agentAvailableOn(agent Agent, surface string) bool {
-	for _, value := range agent.Surfaces {
+func skillAvailableOn(skill Skill, surface string) bool {
+	for _, value := range skill.Surfaces {
 		if value == surface {
 			return true
 		}
@@ -57,13 +43,13 @@ func agentAvailableOn(agent Agent, surface string) bool {
 	return false
 }
 
-func (s *Store) validateAgentAssignment(id, task, surface string) error {
-	agent, err := s.GetAgent(strings.TrimSpace(id))
+func (s *Store) validateSkillAssignment(id, task, surface string) error {
+	skill, err := s.GetSkill(strings.TrimSpace(id))
 	if err != nil {
 		return err
 	}
-	if !agent.Enabled || agent.Task != task || !agentAvailableOn(agent, surface) {
-		return errors.New("selected agent is not enabled for this task and surface")
+	if !skill.Enabled || skill.Task != task || !skillAvailableOn(skill, surface) {
+		return errors.New("selected skill is not enabled for this task and surface")
 	}
 	return nil
 }
@@ -79,7 +65,7 @@ func (s *Store) GlossarySuggestions() ([]GlossarySuggestion, error) {
 	for _, term := range append(append([]string{}, settings.Glossary...), settings.IgnoredTerms...) {
 		blocked[strings.ToLower(term)] = true
 	}
-	common := map[string]bool{"the": true, "this": true, "that": true, "with": true, "from": true, "only": true, "user": true, "agent": true}
+	common := map[string]bool{"the": true, "this": true, "that": true, "with": true, "from": true, "only": true, "user": true, "skill": true}
 	items, err := s.List()
 	if err != nil {
 		return nil, err
@@ -118,14 +104,13 @@ func (s *Store) GlossarySuggestions() ([]GlossarySuggestion, error) {
 func (s *Store) SaveSettings(settings WorkspaceSettings) (WorkspaceSettings, error) {
 	settings.Glossary = normalizeStrings(settings.Glossary)
 	settings.IgnoredTerms = normalizeStrings(settings.IgnoredTerms)
-	settings = withDefaultAgentAssignments(settings)
-	if err := s.validateAgentAssignment(settings.DefaultTranscriptionAgent, "transcribe", "extension"); err != nil {
+	if err := s.validateSkillAssignment(settings.DefaultTranscriptionSkill, "transcribe", "extension"); err != nil {
 		return WorkspaceSettings{}, err
 	}
-	if err := s.validateAgentAssignment(settings.DefaultOrganizationAgent, "organize", "background"); err != nil {
+	if err := s.validateSkillAssignment(settings.DefaultOrganizationSkill, "organize", "background"); err != nil {
 		return WorkspaceSettings{}, err
 	}
-	if err := s.validateAgentAssignment(settings.DefaultExtensionAgent, "generate", "extension"); err != nil {
+	if err := s.validateSkillAssignment(settings.DefaultExtensionSkill, "generate", "extension"); err != nil {
 		return WorkspaceSettings{}, err
 	}
 	s.mu.Lock()

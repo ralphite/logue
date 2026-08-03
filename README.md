@@ -22,7 +22,7 @@ The Gemini API key is read only by the local service and is never compiled into 
 export GEMINI_API_KEY="your API key"
 ```
 
-`GOOGLE_GENERATIVE_AI_API_KEY` is also supported. The installer does not write the key to the program, LaunchAgent, logs, or repository; the service started during installation inherits the current Terminal environment. Without a key, browsing and editing content still work, but transcription, automatic organization, and generation are unavailable. To make the service started at login read the key, add `export GEMINI_API_KEY=...` to `~/.zprofile` yourself. The installer never stores the secret for you.
+The installer does not write the key to the program, LaunchAgent, logs, or repository; the service started during installation inherits the current Terminal environment. Without a key, browsing and editing content still work, but transcription, automatic organization, and generation are unavailable. To make the service started at login read the key, add `export GEMINI_API_KEY=...` to `~/.zprofile` yourself. The installer never stores the secret for you.
 
 ### Install the Chrome extension
 
@@ -44,13 +44,12 @@ npm run dev
 - Web App: `http://localhost:5173`
 - Go API: `http://localhost:8787`
 
-The default development environment keeps a real, empty workspace and does not create sample content. Run `npm run dev:demo` only when you explicitly need demo data. Do not run it against a data directory that contains real content.
+The default development environment keeps a real, empty workspace and never creates sample content.
 
-Only the Go service reads the Gemini API key. Set either variable:
+Only the Go service reads the Gemini API key:
 
 ```bash
 export GEMINI_API_KEY="..."
-# or GOOGLE_GENERATIVE_AI_API_KEY
 ```
 
 Other commands:

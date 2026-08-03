@@ -336,17 +336,17 @@ func (api *API) projectBundle(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (api *API) agentImport(w http.ResponseWriter, r *http.Request) {
+func (api *API) externalAgentImport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 	defer r.Body.Close()
-	var input AgentImportInput
+	var input ExternalAgentImportInput
 	decoder := json.NewDecoder(io.LimitReader(r.Body, 4<<20))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&input); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid agent import: "+err.Error())
+		writeError(w, http.StatusBadRequest, "invalid external agent import: "+err.Error())
 		return
 	}
 	projects := []string{}
@@ -830,15 +830,15 @@ func (api *API) transcribe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "transcription settings are unavailable; capture remains saved", "capture_id": captureID})
 		return
 	}
-	transcriptionAgent, agentErr := api.store.GetAgent(settings.DefaultTranscriptionAgent)
-	if agentErr != nil || !transcriptionAgent.Enabled || transcriptionAgent.Task != "transcribe" {
+	transcriptionSkill, skillErr := api.store.GetSkill(settings.DefaultTranscriptionSkill)
+	if skillErr != nil || !transcriptionSkill.Enabled || transcriptionSkill.Task != "transcribe" {
 		if api.isMaterialSaveCanceled(requestID) {
 			_ = api.store.DeleteCapture(captureID)
 			writeError(w, http.StatusConflict, "voice input was cancelled")
 			return
 		}
 		writeJSON(w, http.StatusBadGateway, map[string]string{
-			"error":      "transcription agent is unavailable; capture remains saved",
+			"error":      "transcription skill is unavailable; capture remains saved",
 			"capture_id": captureID,
 		})
 		return
@@ -848,7 +848,7 @@ func (api *API) transcribe(w http.ResponseWriter, r *http.Request) {
 		TargetText: r.FormValue("target_text"), SelectedText: r.FormValue("selected_text"),
 		ProjectContext: r.FormValue("project_context"), Glossary: r.FormValue("glossary"),
 		Instructions: r.FormValue("instructions"),
-	}, transcriptionAgent.Instructions)
+	}, transcriptionSkill.Instructions)
 	if err != nil {
 		if api.isMaterialSaveCanceled(requestID) {
 			_ = api.store.DeleteCapture(captureID)

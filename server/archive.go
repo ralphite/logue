@@ -28,11 +28,11 @@ func (s *Store) ExportWorkspace() (WorkspaceExport, error) {
 	if err != nil {
 		return WorkspaceExport{}, err
 	}
-	agents, err := s.ListAgents()
+	skills, err := s.ListSkills()
 	if err != nil {
 		return WorkspaceExport{}, err
 	}
-	agentRuns, err := s.ListAgentRuns()
+	skillRuns, err := s.ListSkillRuns()
 	if err != nil {
 		return WorkspaceExport{}, err
 	}
@@ -54,7 +54,7 @@ func (s *Store) ExportWorkspace() (WorkspaceExport, error) {
 	return WorkspaceExport{
 		SchemaVersion: 1, ExportedAt: time.Now().UTC(), Materials: materials,
 		Documents: documents, Projects: projects, Settings: settings,
-		Agents: agents, AgentRuns: agentRuns, Audio: audio,
+		Skills: skills, SkillRuns: skillRuns, Audio: audio,
 	}, nil
 }
 
@@ -75,34 +75,34 @@ func validateExport(value WorkspaceExport) error {
 		}
 		seen[document.ID] = true
 	}
-	agents := make(map[string]Agent, len(value.Agents))
-	for _, agent := range value.Agents {
-		if !validAgentID(agent.ID) || seen[agent.ID] {
-			return errors.New("export contains an invalid or duplicate agent id")
+	skills := make(map[string]Skill, len(value.Skills))
+	for _, skill := range value.Skills {
+		if !validSkillID(skill.ID) || seen[skill.ID] {
+			return errors.New("export contains an invalid or duplicate skill id")
 		}
-		if _, err := validateAgent(agent); err != nil {
-			return fmt.Errorf("export contains an invalid agent: %w", err)
+		if _, err := validateSkill(skill); err != nil {
+			return fmt.Errorf("export contains an invalid skill: %w", err)
 		}
-		seen[agent.ID] = true
-		agents[agent.ID] = agent
+		seen[skill.ID] = true
+		skills[skill.ID] = skill
 	}
 	settings := value.Settings
 	validAssignment := func(id, task, surface string) bool {
-		agent, exists := agents[id]
-		return exists && agent.Enabled && agent.Task == task && agentAvailableOn(agent, surface)
+		skill, exists := skills[id]
+		return exists && skill.Enabled && skill.Task == task && skillAvailableOn(skill, surface)
 	}
-	if !validAssignment(settings.DefaultTranscriptionAgent, "transcribe", "extension") {
+	if !validAssignment(settings.DefaultTranscriptionSkill, "transcribe", "extension") {
 		return errors.New("export is missing its valid default transcription skill")
 	}
-	if !validAssignment(settings.DefaultOrganizationAgent, "organize", "background") {
+	if !validAssignment(settings.DefaultOrganizationSkill, "organize", "background") {
 		return errors.New("export is missing its valid default organization skill")
 	}
-	if !validAssignment(settings.DefaultExtensionAgent, "generate", "extension") {
+	if !validAssignment(settings.DefaultExtensionSkill, "generate", "extension") {
 		return errors.New("export is missing its valid default extension skill")
 	}
-	for _, run := range value.AgentRuns {
-		if !validAgentRunID(run.ID) || seen[run.ID] {
-			return errors.New("export contains an invalid or duplicate agent run id")
+	for _, run := range value.SkillRuns {
+		if !validSkillRunID(run.ID) || seen[run.ID] {
+			return errors.New("export contains an invalid or duplicate skill run id")
 		}
 		seen[run.ID] = true
 	}
@@ -127,7 +127,7 @@ func (s *Store) RestoreWorkspace(value WorkspaceExport) (string, error) {
 		return "", err
 	}
 	defer os.RemoveAll(temp)
-	for _, name := range []string{"items", "audio", "docs", "projects", "agents", "agent-runs"} {
+	for _, name := range []string{"items", "audio", "docs", "projects", "skills", "skill-runs"} {
 		if err := os.MkdirAll(filepath.Join(temp, name), 0o700); err != nil {
 			return "", err
 		}
@@ -160,13 +160,13 @@ func (s *Store) RestoreWorkspace(value WorkspaceExport) (string, error) {
 			return "", err
 		}
 	}
-	for _, agent := range value.Agents {
-		if err := writeJSONFile(filepath.Join(temp, "agents", agent.ID+".json"), agent); err != nil {
+	for _, skill := range value.Skills {
+		if err := writeJSONFile(filepath.Join(temp, "skills", skill.ID+".json"), skill); err != nil {
 			return "", err
 		}
 	}
-	for _, run := range value.AgentRuns {
-		if err := writeJSONFile(filepath.Join(temp, "agent-runs", run.ID+".json"), run); err != nil {
+	for _, run := range value.SkillRuns {
+		if err := writeJSONFile(filepath.Join(temp, "skill-runs", run.ID+".json"), run); err != nil {
 			return "", err
 		}
 	}

@@ -30,15 +30,15 @@ func testAPI(t *testing.T) *API {
 	return &API{store: store, gemini: NewGeminiClient("", GeminiConfig{}), cancellations: NewRequestCancellationRegistry()}
 }
 
-func postAgentImport(t *testing.T, api *API, payload map[string]any) *httptest.ResponseRecorder {
+func postExternalAgentImport(t *testing.T, api *API, payload map[string]any) *httptest.ResponseRecorder {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/v1/agent/import", bytes.NewReader(body))
+	request := httptest.NewRequest(http.MethodPost, "/v1/external-agent/import", bytes.NewReader(body))
 	response := httptest.NewRecorder()
-	api.agentImport(response, request)
+	api.externalAgentImport(response, request)
 	return response
 }
 
@@ -61,25 +61,25 @@ func TestStatusIncludesBuildVersion(t *testing.T) {
 	}
 }
 
-func TestAgentImportRequiresVerifiableProvenance(t *testing.T) {
+func TestExternalAgentImportRequiresVerifiableProvenance(t *testing.T) {
 	api := testAPI(t)
 	source, err := api.store.Create(CreateMaterialInput{Kind: "text", Content: "source evidence"})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if response := postAgentImport(t, api, map[string]any{"content": "result", "source_ids": []string{source.ID}}); response.Code != http.StatusBadRequest {
+	if response := postExternalAgentImport(t, api, map[string]any{"content": "result", "source_ids": []string{source.ID}}); response.Code != http.StatusBadRequest {
 		t.Fatalf("expected missing actor to fail, got %d", response.Code)
 	}
-	if response := postAgentImport(t, api, map[string]any{"content": "result", "actor": "research-agent"}); response.Code != http.StatusBadRequest {
+	if response := postExternalAgentImport(t, api, map[string]any{"content": "result", "actor": "research-agent"}); response.Code != http.StatusBadRequest {
 		t.Fatalf("expected missing source_ids to fail, got %d", response.Code)
 	}
-	if response := postAgentImport(t, api, map[string]any{"content": "result", "actor": "research-agent", "source_ids": []string{"mat_missing"}}); response.Code != http.StatusBadRequest {
+	if response := postExternalAgentImport(t, api, map[string]any{"content": "result", "actor": "research-agent", "source_ids": []string{"mat_missing"}}); response.Code != http.StatusBadRequest {
 		t.Fatalf("expected unknown source to fail, got %d", response.Code)
 	}
 
-	response := postAgentImport(t, api, map[string]any{
-		"request_id": "agent-run-1", "content": "traceable result", "actor": "research-agent", "source_ids": []string{source.ID},
+	response := postExternalAgentImport(t, api, map[string]any{
+		"request_id": "external-agent-run-1", "content": "traceable result", "actor": "research-agent", "source_ids": []string{source.ID},
 	})
 	if response.Code != http.StatusCreated {
 		t.Fatalf("expected valid import, got %d: %s", response.Code, response.Body.String())
@@ -97,7 +97,7 @@ func TestCaptureContextIncludesRecentAdoptedExpressions(t *testing.T) {
 	api := testAPI(t)
 	adopted, _ := api.store.Create(CreateMaterialInput{Kind: "voice", Content: "final adopted voice", Transcript: "raw voice", Projects: []string{"Project A"}})
 	_, _ = api.store.Create(CreateMaterialInput{Kind: "voice", Content: "other project wording", Projects: []string{"Project B"}})
-	_, _ = api.store.Create(CreateMaterialInput{Kind: "derived", Content: "agent output", Actor: "research-agent"})
+	_, _ = api.store.Create(CreateMaterialInput{Kind: "derived", Content: "external agent output", Actor: "research-agent"})
 
 	request := httptest.NewRequest(http.MethodGet, "/v1/context?project=Project%20A", nil)
 	response := httptest.NewRecorder()

@@ -230,13 +230,13 @@ export function MaterialDetail({
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <p className="text-[15px] font-semibold text-[#79551f]">Needs review</p>
                 {material.organization?.confidence !== undefined && (
-                  <span className="text-[14px] text-[#a17f49]">Agent confidence {Math.round(material.organization.confidence * 100)}%</span>
+                  <span className="text-[14px] text-[#a17f49]">Confidence {Math.round(material.organization.confidence * 100)}%</span>
                 )}
               </div>
               <p className="mt-0.5 text-[14px] leading-4 text-[#896b3c]">{material.organization?.reason || "Check whether the project and tags are correct"}</p>
               {hasOrganizationSuggestion && (
                 <div className="mt-2">
-                  <p className="text-[14px] font-medium text-[#9a7640]">Agent suggestion</p>
+                  <p className="text-[14px] font-medium text-[#9a7640]">Suggestion</p>
                   <div className="mt-1 flex flex-wrap gap-1">
                     {suggestedProjects.map((project) => <span key={`project-${project}`} className="rounded border border-[#eadbb9] bg-white/70 px-1.5 py-0.5 text-[14px] text-[#765c34]">{project}</span>)}
                     {suggestedTags.map((tag) => <span key={`tag-${tag}`} className="rounded border border-[#eadbb9] bg-white/70 px-1.5 py-0.5 text-[14px] text-[#765c34]">#{tag}</span>)}

@@ -32,13 +32,13 @@ func NewStore(root string) (*Store, error) {
 	if strings.TrimSpace(root) == "" {
 		return nil, errors.New("storage root cannot be empty")
 	}
-	for _, name := range []string{"items", "audio", "docs", "projects", "agents", "agent-runs"} {
+	for _, name := range []string{"items", "audio", "docs", "projects", "skills", "skill-runs"} {
 		if err := os.MkdirAll(filepath.Join(root, name), 0o700); err != nil {
 			return nil, fmt.Errorf("create storage directory: %w", err)
 		}
 	}
 	store := &Store{root: root}
-	if err := store.ensureDefaultAgents(); err != nil {
+	if err := store.ensureDefaultSkills(); err != nil {
 		return nil, err
 	}
 	return store, nil
@@ -646,40 +646,4 @@ func (s *Store) CapturePath(id string) (string, string, error) {
 		mimeType = "application/octet-stream"
 	}
 	return audioMatches[0], mimeType, nil
-}
-
-func (s *Store) SeedDemo() error {
-	items, err := s.List()
-	if err != nil || len(items) > 0 {
-		return err
-	}
-	seed := []CreateMaterialInput{
-		{
-			Kind:       "selection",
-			Content:    "Design tool schemas around clear intent. Validate arguments before execution, make retriable operations idempotent, and expose failures in a structured form.",
-			Annotation: "把这段作为 Agent Harness 的输入设计依据，并明确展示本次使用的 Context。",
-			Projects:   []string{"Agent Harness"}, Tags: []string{"tool-use"},
-			Source: SourceInfo{URL: "https://ai.google.dev/gemini-api/docs/function-calling", Title: "Function calling with the Gemini API", Domain: "ai.google.dev"},
-		},
-		{
-			Kind:       "voice",
-			Content:    "请补充失败时的用户处理路径；如果原输入框已经离开页面，要保留草稿并允许复制。",
-			Transcript: "请补充失败时的用户处理路径，如果原输入框已经离开页面，要保留草稿并允许复制。",
-			Projects:   []string{"Agent Harness"},
-			Source:     SourceInfo{URL: "https://docs.example.com/design-review", Title: "Design review notes", Domain: "docs.example.com"},
-		},
-		{
-			Kind:    "selection",
-			Content: "Agent 写回的结果需要保留来源、处理者及派生关系，不覆盖原始资料。",
-			Tags:    []string{"provenance"},
-			Source:  SourceInfo{URL: "https://notion.so/project-brief", Title: "Project brief", Domain: "notion.so"},
-		},
-	}
-	for _, input := range seed {
-		if _, err := s.Create(input); err != nil {
-			return err
-		}
-		time.Sleep(time.Millisecond)
-	}
-	return nil
 }

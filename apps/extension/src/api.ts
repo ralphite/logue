@@ -46,7 +46,7 @@ export async function getServiceStatus() {
   return request<{ ok: boolean; ai_configured: boolean; model: string }>("status");
 }
 
-export interface ExtensionAgent {
+export interface ExtensionSkill {
   id: string;
   name: string;
   purpose: string;
@@ -58,13 +58,13 @@ export interface ExtensionAgent {
 }
 
 export interface ExtensionSettings {
-  default_extension_agent: string;
+  default_extension_skill: string;
 }
 
-export interface ExtensionAgentRun {
+export interface ExtensionSkillRun {
   id: string;
-  agent_id: string;
-  agent_name: string;
+  skill_id: string;
+  skill_name: string;
   original_output?: string;
   adopted_output?: string;
   status: "running" | "complete" | "failed";
@@ -72,17 +72,17 @@ export interface ExtensionAgentRun {
   sources?: Array<{ id: string }>;
 }
 
-export async function getExtensionAgents() {
-  const response = await request<{ agents: ExtensionAgent[] }>("agents");
-  return response.agents.filter((agent) => agent.enabled && agent.task === "generate" && agent.surfaces.includes("extension"));
+export async function getExtensionSkills() {
+  const response = await request<{ skills: ExtensionSkill[] }>("skills");
+  return response.skills.filter((skill) => skill.enabled && skill.task === "generate" && skill.surfaces.includes("extension"));
 }
 
 export async function getExtensionSettings() {
   return request<ExtensionSettings>("settings");
 }
 
-export async function createExtensionAgentRun(input: {
-  agentId: string;
+export async function createExtensionSkillRun(input: {
+  skillId: string;
   instruction: string;
   project?: string;
   sourceIds?: string[];
@@ -91,9 +91,9 @@ export async function createExtensionAgentRun(input: {
   targetText?: string;
   selection?: string;
 }) {
-  return request<ExtensionAgentRun>("agent-run", {
+  return request<ExtensionSkillRun>("skill-run", {
     request_id: createRequestId(),
-    agent_id: input.agentId,
+    skill_id: input.skillId,
     instruction: input.instruction,
     project: input.project,
     source_ids: input.sourceIds ?? [],
@@ -104,8 +104,8 @@ export async function createExtensionAgentRun(input: {
   });
 }
 
-export async function adoptExtensionAgentRun(id: string, adoptedOutput: string) {
-  return request<ExtensionAgentRun>("adopt-agent-run", { id, adoptedOutput });
+export async function adoptExtensionSkillRun(id: string, adoptedOutput: string) {
+  return request<ExtensionSkillRun>("adopt-skill-run", { id, adoptedOutput });
 }
 
 export interface CaptureContext {

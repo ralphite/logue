@@ -69,29 +69,6 @@ func TestDocumentsUseUntitledAsTheOnlyEmptyTitle(t *testing.T) {
 	}
 }
 
-func TestDemoDocumentsUseCurrentEnglishCopy(t *testing.T) {
-	store, err := NewStore(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.SeedDemoDocuments(); err != nil {
-		t.Fatal(err)
-	}
-	documents, err := store.ListDocuments()
-	if err != nil {
-		t.Fatal(err)
-	}
-	titles := make(map[string]bool, len(documents))
-	for _, document := range documents {
-		titles[document.Title] = true
-	}
-	for _, title := range []string{"Logue product decisions", "Agent Harness input and source design", "Weekly capture summary"} {
-		if !titles[title] {
-			t.Fatalf("demo documents are missing %q: %#v", title, titles)
-		}
-	}
-}
-
 func TestReconcileDocumentCitationsCompactsSparseSources(t *testing.T) {
 	content, sourceIDs := reconcileDocumentCitations("Conclusion [Source 2], cited again [Source 2]. Invalid [Source 9]", []string{"mat_a", "mat_b"}, nil)
 	if content != "Conclusion [Source 1], cited again [Source 1]. Invalid" {

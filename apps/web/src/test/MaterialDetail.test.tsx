@@ -95,7 +95,7 @@ describe("MaterialDetail", () => {
       />,
     );
     expect(screen.getByLabelText("Needs review").textContent).toContain("Project assignment is ambiguous");
-    expect(screen.getByLabelText("Needs review").textContent).toContain("Agent confidence 58%");
+    expect(screen.getByLabelText("Needs review").textContent).toContain("Confidence 58%");
     expect(screen.getByLabelText("Needs review").textContent).toContain("#needs-review");
     unmount();
 
@@ -108,7 +108,7 @@ describe("MaterialDetail", () => {
     expect(screen.getByText("Aug 2")).toBeTruthy();
   });
 
-  it("applies an uncertain Agent suggestion only after review", async () => {
+  it("applies an uncertain suggestion only after review", async () => {
     const onUpdateOrganization = vi.fn().mockResolvedValue(undefined);
     render(
       <MaterialDetail

@@ -10,22 +10,22 @@ import (
 	"testing"
 )
 
-type agentRunGeminiStub struct {
+type skillRunGeminiStub struct {
 	server *httptest.Server
 	mu     sync.Mutex
 	calls  []string
 }
 
-func newAgentRunGeminiStub(t *testing.T) *agentRunGeminiStub {
+func newSkillRunGeminiStub(t *testing.T) *skillRunGeminiStub {
 	t.Helper()
-	stub := &agentRunGeminiStub{}
+	stub := &skillRunGeminiStub{}
 	stub.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request geminiRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatal(err)
 		}
 		if len(request.Contents) == 0 || len(request.Contents[0].Parts) == 0 {
-			t.Fatal("agent request did not include a prompt")
+			t.Fatal("skill request did not include a prompt")
 		}
 		prompt := request.Contents[0].Parts[0].Text
 		stub.mu.Lock()
@@ -47,20 +47,20 @@ func newAgentRunGeminiStub(t *testing.T) *agentRunGeminiStub {
 	return stub
 }
 
-func (s *agentRunGeminiStub) client() *GeminiClient {
+func (s *skillRunGeminiStub) client() *GeminiClient {
 	client := NewGeminiClient("test-key", GeminiConfig{Model: "test-model"})
 	client.baseURL = s.server.URL
 	client.client = s.server.Client()
 	return client
 }
 
-func (s *agentRunGeminiStub) callCount() int {
+func (s *skillRunGeminiStub) callCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.calls)
 }
 
-func (s *agentRunGeminiStub) lastPrompt() string {
+func (s *skillRunGeminiStub) lastPrompt() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.calls) == 0 {
@@ -69,23 +69,23 @@ func (s *agentRunGeminiStub) lastPrompt() string {
 	return s.calls[len(s.calls)-1]
 }
 
-func postAgentRun(t *testing.T, api *API, payload map[string]any) *httptest.ResponseRecorder {
+func postSkillRun(t *testing.T, api *API, payload map[string]any) *httptest.ResponseRecorder {
 	t.Helper()
 	body, err := json.Marshal(payload)
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := httptest.NewRequest(http.MethodPost, "/v1/agent-runs", bytes.NewReader(body))
+	request := httptest.NewRequest(http.MethodPost, "/v1/skill-runs", bytes.NewReader(body))
 	response := httptest.NewRecorder()
-	api.agentRuns(response, request)
+	api.skillRuns(response, request)
 	return response
 }
 
-func decodeAgentRunResponse(t *testing.T, response *httptest.ResponseRecorder) AgentRun {
+func decodeSkillRunResponse(t *testing.T, response *httptest.ResponseRecorder) SkillRun {
 	t.Helper()
-	var run AgentRun
+	var run SkillRun
 	if err := json.Unmarshal(response.Body.Bytes(), &run); err != nil {
-		t.Fatalf("decode agent run response: %v (%s)", err, response.Body.String())
+		t.Fatalf("decode skill run response: %v (%s)", err, response.Body.String())
 	}
 	return run
 }
@@ -100,21 +100,21 @@ func TestQARunWithSourcePersistsAndSuccessfulRetryIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gemini := newAgentRunGeminiStub(t)
+	gemini := newSkillRunGeminiStub(t)
 	api := &API{store: store, gemini: gemini.client()}
 	payload := map[string]any{
 		"request_id":  "qa-retry-after-lost-response",
-		"agent_id":    defaultQAAgentID,
+		"skill_id":    defaultQASkillID,
 		"instruction": "语音输入的核心原则是什么？",
 		"project":     "Logue",
 		"source_ids":  []string{source.ID},
 	}
 
-	firstResponse := postAgentRun(t, api, payload)
+	firstResponse := postSkillRun(t, api, payload)
 	if firstResponse.Code != http.StatusCreated {
 		t.Fatalf("first QA run status = %d: %s", firstResponse.Code, firstResponse.Body.String())
 	}
-	first := decodeAgentRunResponse(t, firstResponse)
+	first := decodeSkillRunResponse(t, firstResponse)
 	if first.Status != "complete" || first.OutputType != "qa" || first.DocumentID != "" || first.MaterialID != "" {
 		t.Fatalf("unexpected completed QA run: %#v", first)
 	}
@@ -122,6 +122,16 @@ func TestQARunWithSourcePersistsAndSuccessfulRetryIsIdempotent(t *testing.T) {
 		t.Fatalf("QA run did not persist its source snapshot: %#v", first.Sources)
 	}
 	prompt := gemini.lastPrompt()
+	for _, required := range []string{"user-defined skill", "### Skill", "<skill_instruction>"} {
+		if !strings.Contains(prompt, required) {
+			t.Fatalf("generation prompt did not use Skill terminology %q: %s", required, prompt)
+		}
+	}
+	for _, forbidden := range []string{"user-defined agent", "### Agent", "<agent_instruction>"} {
+		if strings.Contains(prompt, forbidden) {
+			t.Fatalf("generation prompt retained Agent terminology %q: %s", forbidden, prompt)
+		}
+	}
 	for _, required := range []string{source.Content, `<source id="1" material_id="` + source.ID + `">`, "exact format [Source n]"} {
 		if !strings.Contains(prompt, required) {
 			t.Fatalf("QA prompt did not use source-backed context %q: %s", required, prompt)
@@ -129,11 +139,11 @@ func TestQARunWithSourcePersistsAndSuccessfulRetryIsIdempotent(t *testing.T) {
 	}
 
 	// Simulate the client losing the successful response and retrying the same request.
-	retryResponse := postAgentRun(t, api, payload)
+	retryResponse := postSkillRun(t, api, payload)
 	if retryResponse.Code != http.StatusOK {
 		t.Fatalf("retry status = %d: %s", retryResponse.Code, retryResponse.Body.String())
 	}
-	retry := decodeAgentRunResponse(t, retryResponse)
+	retry := decodeSkillRunResponse(t, retryResponse)
 	if retry.ID != first.ID || gemini.callCount() != 1 {
 		t.Fatalf("retry generated a duplicate: first=%s retry=%s calls=%d", first.ID, retry.ID, gemini.callCount())
 	}
@@ -143,7 +153,7 @@ func TestQARunWithSourcePersistsAndSuccessfulRetryIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	persisted, err := restarted.GetAgentRun(first.ID)
+	persisted, err := restarted.GetSkillRun(first.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +162,7 @@ func TestQARunWithSourcePersistsAndSuccessfulRetryIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestAgentRunSourceAssemblyDeduplicatesSimilarMaterialsWithoutChangingThem(t *testing.T) {
+func TestSkillRunSourceAssemblyDeduplicatesSimilarMaterialsWithoutChangingThem(t *testing.T) {
 	store, err := NewStore(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -174,16 +184,16 @@ func TestAgentRunSourceAssemblyDeduplicatesSimilarMaterialsWithoutChangingThem(t
 		t.Fatal(err)
 	}
 
-	agent, err := store.GetAgent(defaultQAAgentID)
+	skill, err := store.GetSkill(defaultQASkillID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, existing, err := store.CreateAgentRun(CreateAgentRunInput{
+	run, existing, err := store.CreateSkillRun(CreateSkillRunInput{
 		RequestID:   "deduplicated-source-assembly",
-		AgentID:     agent.ID,
+		SkillID:     skill.ID,
 		Instruction: "Summarize the voice input behavior",
 		SourceIDs:   []string{first.ID, exactDuplicate.ID, nearDuplicate.ID, unique.ID},
-	}, agent)
+	}, skill)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,31 +215,31 @@ func TestSelectionSkillRunPersistsSelectionAndTargetContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent, err := store.GetAgent(defaultReplyAgentID)
+	skill, err := store.GetSkill(defaultReplySkillID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, existing, err := store.CreateAgentRun(CreateAgentRunInput{
+	run, existing, err := store.CreateSkillRun(CreateSkillRunInput{
 		RequestID:   "selection-skill-trace",
-		AgentID:     agent.ID,
+		SkillID:     skill.ID,
 		Instruction: "Transform only the selected text.",
 		PageTitle:   "Draft",
 		PageURL:     "logue://document/doc_123",
 		TargetText:  "The full draft has this sentence.",
 		Selection:   "this sentence",
-	}, agent)
+	}, skill)
 	if err != nil || existing {
 		t.Fatalf("create selection skill run: run=%#v existing=%t err=%v", run, existing, err)
 	}
 	if run.PageTitle != "Draft" || run.PageURL != "logue://document/doc_123" || run.TargetText != "The full draft has this sentence." || run.Selection != "this sentence" {
 		t.Fatalf("selection trace missing: %#v", run)
 	}
-	completed, err := store.CompleteAgentRun(run.ID, "that sentence", "", "")
+	completed, err := store.CompleteSkillRun(run.ID, "that sentence", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	replacement := "that sentence"
-	adopted, err := store.UpdateAgentRun(completed.ID, UpdateAgentRunInput{AdoptedOutput: &replacement})
+	adopted, err := store.UpdateSkillRun(completed.ID, UpdateSkillRunInput{AdoptedOutput: &replacement})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +248,7 @@ func TestSelectionSkillRunPersistsSelectionAndTargetContext(t *testing.T) {
 	}
 }
 
-func TestDocumentAgentRunCreatesTraceableDocumentAndSurvivesRestart(t *testing.T) {
+func TestDocumentSkillRunCreatesTraceableDocumentAndSurvivesRestart(t *testing.T) {
 	root := t.TempDir()
 	store, err := NewStore(root)
 	if err != nil {
@@ -246,12 +256,12 @@ func TestDocumentAgentRunCreatesTraceableDocumentAndSurvivesRestart(t *testing.T
 	}
 	firstSource, _ := store.Create(CreateMaterialInput{Kind: "text", Content: "The voice control appears only while the input is focused.", Projects: []string{"Logue"}})
 	secondSource, _ := store.Create(CreateMaterialInput{Kind: "text", Content: "Generated content remains editable and is inserted only when the user chooses.", Projects: []string{"Logue"}})
-	gemini := newAgentRunGeminiStub(t)
+	gemini := newSkillRunGeminiStub(t)
 	api := &API{store: store, gemini: gemini.client()}
 
-	response := postAgentRun(t, api, map[string]any{
+	response := postSkillRun(t, api, map[string]any{
 		"request_id":  "document-persistence-proof",
-		"agent_id":    defaultDocumentAgentID,
+		"skill_id":    defaultDocumentSkillID,
 		"instruction": "Draft Logue's acceptance checklist",
 		"project":     "Logue",
 		"source_ids":  []string{firstSource.ID, secondSource.ID},
@@ -259,7 +269,7 @@ func TestDocumentAgentRunCreatesTraceableDocumentAndSurvivesRestart(t *testing.T
 	if response.Code != http.StatusCreated {
 		t.Fatalf("document run status = %d: %s", response.Code, response.Body.String())
 	}
-	run := decodeAgentRunResponse(t, response)
+	run := decodeSkillRunResponse(t, response)
 	if run.Status != "complete" || run.DocumentID == "" || len(run.Sources) != 2 {
 		t.Fatalf("unexpected document run: %#v", run)
 	}
@@ -285,7 +295,7 @@ func TestDocumentAgentRunCreatesTraceableDocumentAndSurvivesRestart(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	persistedRun, err := restarted.GetAgentRun(run.ID)
+	persistedRun, err := restarted.GetSkillRun(run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,13 +308,13 @@ func TestDocumentAgentRunCreatesTraceableDocumentAndSurvivesRestart(t *testing.T
 	}
 }
 
-func TestCustomizedAgentRevisionSurvivesRestart(t *testing.T) {
+func TestCustomizedSkillRevisionSurvivesRestart(t *testing.T) {
 	root := t.TempDir()
 	store, err := NewStore(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := store.CreateAgent(CreateAgentInput{
+	created, err := store.CreateSkill(CreateSkillInput{
 		Name: "项目答疑", Purpose: "只回答项目资料支持的问题", Instructions: "只根据给定资料回答。",
 		Task: "generate", Output: "qa", Surfaces: []string{"web"}, Contexts: []string{"materials", "project"},
 	})
@@ -313,7 +323,7 @@ func TestCustomizedAgentRevisionSurvivesRestart(t *testing.T) {
 	}
 	name := "项目答疑（严格）"
 	expected := created.Revision
-	updated, err := store.UpdateAgent(created.ID, UpdateAgentInput{Name: &name, ExpectedRevision: &expected})
+	updated, err := store.UpdateSkill(created.ID, UpdateSkillInput{Name: &name, ExpectedRevision: &expected})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -322,22 +332,22 @@ func TestCustomizedAgentRevisionSurvivesRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	persisted, err := restarted.GetAgent(created.ID)
+	persisted, err := restarted.GetSkill(created.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if persisted.Name != name || persisted.Revision != updated.Revision || persisted.System {
-		t.Fatalf("customized agent did not survive restart: %#v", persisted)
+		t.Fatalf("customized skill did not survive restart: %#v", persisted)
 	}
 }
 
-func TestWorkspaceExportRestorePreservesAgentsAndRuns(t *testing.T) {
+func TestWorkspaceExportRestorePreservesSkillsAndRuns(t *testing.T) {
 	root := t.TempDir()
 	store, err := NewStore(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	custom, err := store.CreateAgent(CreateAgentInput{
+	custom, err := store.CreateSkill(CreateSkillInput{
 		Name: "项目答疑", Purpose: "回答项目资料问题", Instructions: "只根据资料回答。",
 		Task: "generate", Output: "qa", Surfaces: []string{"web"}, Contexts: []string{"materials", "project"},
 	})
@@ -348,13 +358,13 @@ func TestWorkspaceExportRestorePreservesAgentsAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, _, err := store.CreateAgentRun(CreateAgentRunInput{
-		RequestID: "export-agent-run", AgentID: custom.ID, Instruction: "回答问题", SourceIDs: []string{source.ID},
+	run, _, err := store.CreateSkillRun(CreateSkillRunInput{
+		RequestID: "export-skill-run", SkillID: custom.ID, Instruction: "回答问题", SourceIDs: []string{source.ID},
 	}, custom)
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err = store.CompleteAgentRun(run.ID, "A source-backed answer [Source 1]", "", "")
+	run, err = store.CompleteSkillRun(run.ID, "A source-backed answer [Source 1]", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,33 +373,33 @@ func TestWorkspaceExportRestorePreservesAgentsAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(exported.Agents) != 6 || len(exported.AgentRuns) != 1 {
-		t.Fatalf("export omitted Agent data: agents=%d runs=%d", len(exported.Agents), len(exported.AgentRuns))
+	if len(exported.Skills) != 6 || len(exported.SkillRuns) != 1 {
+		t.Fatalf("export omitted Skill data: skills=%d runs=%d", len(exported.Skills), len(exported.SkillRuns))
 	}
-	if err := store.DeleteAgentRun(run.ID); err != nil {
+	if err := store.DeleteSkillRun(run.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.DeleteAgent(custom.ID); err != nil {
+	if err := store.DeleteSkill(custom.ID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.RestoreWorkspace(exported); err != nil {
 		t.Fatal(err)
 	}
 
-	persistedAgent, err := store.GetAgent(custom.ID)
+	persistedSkill, err := store.GetSkill(custom.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	persistedRun, err := store.GetAgentRun(run.ID)
+	persistedRun, err := store.GetSkillRun(run.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if persistedAgent.Name != custom.Name || persistedRun.OriginalOutput != run.OriginalOutput || persistedRun.Sources[0].ID != source.ID {
-		t.Fatalf("restored Agent data changed: agent=%#v run=%#v", persistedAgent, persistedRun)
+	if persistedSkill.Name != custom.Name || persistedRun.OriginalOutput != run.OriginalOutput || persistedRun.Sources[0].ID != source.ID {
+		t.Fatalf("restored Skill data changed: skill=%#v run=%#v", persistedSkill, persistedRun)
 	}
 }
 
-func TestWorkspaceRestoreRejectsLegacyExportWithoutRequiredSkills(t *testing.T) {
+func TestWorkspaceRestoreRejectsExportWithoutRequiredSkills(t *testing.T) {
 	store, err := NewStore(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -398,9 +408,9 @@ func TestWorkspaceRestoreRejectsLegacyExportWithoutRequiredSkills(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	exported.Agents = nil
+	exported.Skills = nil
 
 	if _, err := store.RestoreWorkspace(exported); err == nil || !strings.Contains(err.Error(), "default transcription skill") {
-		t.Fatalf("expected incomplete legacy export to be rejected, got %v", err)
+		t.Fatalf("expected incomplete export to be rejected, got %v", err)
 	}
 }

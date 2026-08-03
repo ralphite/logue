@@ -41,11 +41,11 @@ func TestCreateWithRequestIDIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := store.Create(CreateMaterialInput{RequestID: "agent-run-42", Kind: "derived", Content: "stable result", Actor: "qa-agent"})
+	first, err := store.Create(CreateMaterialInput{RequestID: "skill-run-42", Kind: "derived", Content: "stable result", Actor: "qa-skill"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := store.Create(CreateMaterialInput{RequestID: "agent-run-42", Kind: "derived", Content: "retry payload", Actor: "qa-agent"})
+	second, err := store.Create(CreateMaterialInput{RequestID: "skill-run-42", Kind: "derived", Content: "retry payload", Actor: "qa-skill"})
 	if err != nil {
 		t.Fatal(err)
 	}

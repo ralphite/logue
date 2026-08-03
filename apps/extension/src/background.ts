@@ -35,7 +35,7 @@ let openPanelWindowId: number | undefined;
 
 interface ApiMessage {
   type: "logue:api";
-  action: "status" | "context" | "transcribe" | "save-material" | "cancel-material-save" | "save-selection" | "delete-capture" | "agents" | "settings" | "agent-run" | "adopt-agent-run";
+  action: "status" | "context" | "transcribe" | "save-material" | "cancel-material-save" | "save-selection" | "delete-capture" | "skills" | "settings" | "skill-run" | "adopt-skill-run";
   payload?: Record<string, unknown>;
 }
 
@@ -58,7 +58,7 @@ interface PanelStateMessage {
 type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage | RecordingBridgeEvent;
 
 const nativeSidePanel = chrome.sidePanel as typeof chrome.sidePanel & {
-  close?: (options: { tabId: number } | { windowId: number }) => Promise<void>;
+  close: (options: { tabId: number } | { windowId: number }) => Promise<void>;
   onOpened?: chrome.events.Event<(info: { tabId?: number; windowId?: number }) => void>;
   onClosed?: chrome.events.Event<(info: { tabId?: number; windowId?: number }) => void>;
 };
@@ -116,10 +116,6 @@ async function openPanel(tabId: number, windowId?: number) {
   const opening = nativeSidePanel.open({ tabId });
   await opening;
   await markPanelOpen(tabId, windowId);
-}
-
-function canCloseNativePanel() {
-  return typeof (nativeSidePanel as unknown as { close?: unknown }).close === "function";
 }
 
 async function toggleTrackedSidePanel(tabId: number, windowId?: number) {
@@ -211,7 +207,7 @@ async function toggleTabPanel(tab?: chrome.tabs.Tab) {
   const windowId = typeof tab?.windowId === "number" ? tab.windowId : openPanelWindowId;
   if (typeof tabId !== "number") return;
 
-  if (openPanelTabs.has(tabId) && canCloseNativePanel()) {
+  if (openPanelTabs.has(tabId)) {
     await toggleTrackedSidePanel(tabId, windowId);
     return;
   }
@@ -245,9 +241,9 @@ async function toggleTabPanel(tab?: chrome.tabs.Tab) {
     context.targetAvailable,
   )).catch(() => undefined);
   const wasOpen = (await priorOpen)[openPanelStorageKey(tabId)] === true;
-  if (wasOpen && canCloseNativePanel()) {
+  if (wasOpen) {
     try {
-      await nativeSidePanel.close!({ tabId });
+      await nativeSidePanel.close({ tabId });
       await clearPanelOpen(tabId);
       return;
     } catch {
@@ -334,25 +330,25 @@ async function handleApiMessage(message: ApiMessage) {
     const query = new URLSearchParams({ url: String(payload.pageUrl ?? ""), project: String(payload.project ?? "") });
     return parseResponse(await fetch(`${apiBase}/v1/context?${query.toString()}`));
   }
-  if (message.action === "agents") {
-    return parseResponse(await fetch(`${apiBase}/v1/agents`));
+  if (message.action === "skills") {
+    return parseResponse(await fetch(`${apiBase}/v1/skills`));
   }
   if (message.action === "settings") {
     return parseResponse(await fetch(`${apiBase}/v1/settings`));
   }
-  if (message.action === "agent-run") {
+  if (message.action === "skill-run") {
     return parseResponse(
-      await fetch(`${apiBase}/v1/agent-runs`, {
+      await fetch(`${apiBase}/v1/skill-runs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       }),
     );
   }
-  if (message.action === "adopt-agent-run") {
+  if (message.action === "adopt-skill-run") {
     const id = encodeURIComponent(String(payload.id ?? ""));
     return parseResponse(
-      await fetch(`${apiBase}/v1/agent-runs/${id}`, {
+      await fetch(`${apiBase}/v1/skill-runs/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ adopted_output: payload.adoptedOutput }),
@@ -600,7 +596,7 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
   }
 
   if (message?.type === "logue:close-side-panel") {
-    if (typeof activePanelTabId !== "number" || !nativeSidePanel.close) return false;
+    if (typeof activePanelTabId !== "number") return false;
     const closingTabId = activePanelTabId;
     void nativeSidePanel.close({ tabId: closingTabId }).then(() => openPanelTabs.delete(closingTabId)).catch(() => undefined);
     return false;

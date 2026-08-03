@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getAgents } from "../agentApi";
+import { getSkills } from "../skillApi";
 import { fromApiMaterial, getStatus } from "../api";
 import { resolveLogueApiBase } from "../apiBase";
 
@@ -29,9 +29,9 @@ describe("fromApiMaterial", () => {
     await expect(getStatus()).rejects.toThrow("Request failed (503)");
   });
 
-  it("uses an English fallback for empty Agent API errors", async () => {
+  it("uses an English fallback for empty Skill API errors", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 502 })));
-    await expect(getAgents()).rejects.toThrow("Request failed (502)");
+    await expect(getSkills()).rejects.toThrow("Request failed (502)");
   });
 });
 

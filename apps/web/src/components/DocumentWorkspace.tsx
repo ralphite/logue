@@ -28,7 +28,7 @@ import {
   updateDocument,
   type LogueDocument,
 } from "../api";
-import { adoptAgentRun, createAgentRun, getAgents, type LogueAgent } from "../agentApi";
+import { adoptSkillRun, createSkillRun, getSkills, type LogueSkill } from "../skillApi";
 import { MaterialGroupAddList, MaterialGroupPicker } from "./MaterialGroupPicker";
 import { PanelResizer, usePersistentPanelSize } from "./PanelResizer";
 import { readingColumnClass } from "./layout";
@@ -282,7 +282,7 @@ export function ViewWorkspace({
   onOpenMaterials,
   onLeaveGuardChange,
   onOpenGenerate,
-  onManageAgents,
+  onManageSkills,
   showDocumentSidebar = true,
   documents: suppliedDocuments,
   documentsLoading = false,
@@ -295,7 +295,7 @@ export function ViewWorkspace({
   onOpenMaterials: () => void;
   onLeaveGuardChange?: (guard?: () => Promise<boolean>) => void;
   onOpenGenerate?: () => void;
-  onManageAgents?: () => void;
+  onManageSkills?: () => void;
   showDocumentSidebar?: boolean;
   documents?: LogueDocument[];
   documentsLoading?: boolean;
@@ -325,7 +325,7 @@ export function ViewWorkspace({
   const [generating, setGenerating] = useState(false);
   const [generationError, setGenerationError] = useState<string>();
   const [selectionSnapshot, setSelectionSnapshot] = useState<EditableSelectionSnapshot>();
-  const [selectionSkills, setSelectionSkills] = useState<LogueAgent[]>([]);
+  const [selectionSkills, setSelectionSkills] = useState<LogueSkill[]>([]);
   const [selectionUndo, setSelectionUndo] = useState<{
     documentId: string;
     beforeContent: string;
@@ -718,7 +718,7 @@ export function ViewWorkspace({
     setSelectionSnapshot(next);
     if (!next || selectionSkillsLoadedRef.current) return;
     selectionSkillsLoadedRef.current = true;
-    void getAgents().then(setSelectionSkills).catch(() => {
+    void getSkills().then(setSelectionSkills).catch(() => {
       selectionSkillsLoadedRef.current = false;
     });
   }
@@ -747,8 +747,8 @@ export function ViewWorkspace({
       showSelectionSkillNotice({ message: "That skill is no longer available." });
       return;
     }
-    const run = await createAgentRun({
-      agent_id: skill.id,
+    const run = await createSkillRun({
+      skill_id: skill.id,
       instruction: "Transform only the selected text. Return only the replacement text.",
       project,
       page_title: title || "Untitled",
@@ -772,7 +772,7 @@ export function ViewWorkspace({
     if (selectionUndoTimerRef.current) window.clearTimeout(selectionUndoTimerRef.current);
     setSelectionUndo({ documentId: selectedDocument, beforeContent, afterContent, sourceIds: beforeSourceIds });
     selectionUndoTimerRef.current = window.setTimeout(() => setSelectionUndo(undefined), 8000);
-    const history = await saveSelectionSkillHistory({ runId: run.id, replacement }, adoptAgentRun);
+    const history = await saveSelectionSkillHistory({ runId: run.id, replacement }, adoptSkillRun);
     if (history) showSelectionSkillNotice({ message: "Applied", history });
     selectionSnapshotRef.current = undefined;
     selectionDocumentRef.current = undefined;
@@ -797,7 +797,7 @@ export function ViewWorkspace({
   async function retrySelectionSkillHistory() {
     const history = selectionSkillNotice?.history;
     if (!history) return;
-    const retry = await saveSelectionSkillHistory(history, adoptAgentRun);
+    const retry = await saveSelectionSkillHistory(history, adoptSkillRun);
     if (retry) {
       setSelectionSkillNotice({ message: "Applied", history: retry });
       return;
@@ -893,7 +893,7 @@ export function ViewWorkspace({
         <header className="flex h-12 shrink-0 items-center justify-between px-4">
           <div className="flex items-center gap-1.5 text-[14px]"><button type="button" onClick={onOpenGenerate} className="font-medium text-[#858681] hover:text-[#4e4f4b]">Generate</button><span className="text-[#b0b1ad]">/</span><h1 className="font-semibold text-[#555651]">Documents</h1></div>
           <span className="flex items-center gap-0.5">
-            {onManageAgents && <button type="button" onClick={onManageAgents} className="inline-flex size-8 items-center justify-center rounded text-[#777873] hover:bg-[#e8e8e5] hover:text-[#444541] max-[640px]:size-11" aria-label="Manage skills" title="Manage skills"><Sparkles size={14} /></button>}
+            {onManageSkills && <button type="button" onClick={onManageSkills} className="inline-flex size-8 items-center justify-center rounded text-[#777873] hover:bg-[#e8e8e5] hover:text-[#444541] max-[640px]:size-11" aria-label="Manage skills" title="Manage skills"><Sparkles size={14} /></button>}
             <button type="button" onClick={openGenerator} className="inline-flex size-8 items-center justify-center rounded text-[#777873] hover:bg-[#e8e8e5] hover:text-[#444541] max-[640px]:size-11" aria-label="Generate document from materials" title="Generate document from materials"><Sparkles size={14} /></button>
             <button type="button" onClick={() => void addDocument()} className="inline-flex size-8 items-center justify-center rounded text-[#858681] hover:bg-[#e8e8e5] hover:text-[#444541] max-[640px]:size-11" aria-label="New blank document" title="New blank document"><FilePlus2 size={14} /></button>
           </span>
