@@ -57,6 +57,15 @@ func (api *API) items(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		if sourceURL := strings.TrimSpace(r.URL.Query().Get("source_url")); sourceURL != "" {
+			matching := make([]Material, 0, len(items))
+			for _, item := range items {
+				if item.Source.URL == sourceURL || (item.AppliedContext != nil && item.AppliedContext.PageURL == sourceURL) {
+					matching = append(matching, item)
+				}
+			}
+			items = matching
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"items": items})
 	case http.MethodPost:
 		defer r.Body.Close()

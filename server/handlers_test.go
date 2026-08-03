@@ -178,6 +178,41 @@ func TestCreateMaterialReturnsPendingBeforeAutomaticOrganization(t *testing.T) {
 	}
 }
 
+func TestItemsCanFilterByExactPageSource(t *testing.T) {
+	api := testAPI(t)
+	pageURL := "https://chatgpt.com/c/current"
+	newest, err := api.store.Create(CreateMaterialInput{Kind: "voice", Content: "newest note", Source: SourceInfo{URL: pageURL}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = api.store.Create(CreateMaterialInput{Kind: "text", Content: "another page", Source: SourceInfo{URL: "https://example.com"}})
+	contextOnly, err := api.store.Create(CreateMaterialInput{
+		Kind: "derived", Content: "context-associated note", AppliedContext: &AppliedContext{PageURL: pageURL},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/items?source_url=https%3A%2F%2Fchatgpt.com%2Fc%2Fcurrent", nil)
+	response := httptest.NewRecorder()
+	api.items(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("unexpected status %d: %s", response.Code, response.Body.String())
+	}
+	var payload struct {
+		Items []Material `json:"items"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Items) != 2 {
+		t.Fatalf("expected exactly the current page records, got %#v", payload.Items)
+	}
+	if payload.Items[0].ID != contextOnly.ID || payload.Items[1].ID != newest.ID {
+		t.Fatalf("items should keep newest-first ordering: %#v", payload.Items)
+	}
+}
+
 func TestMaterialPatchDoesNotClearOmittedFields(t *testing.T) {
 	api := testAPI(t)
 	created, err := api.store.Create(CreateMaterialInput{
