@@ -36,27 +36,29 @@ mkdir -p "${release_dir}"
 npm run build -w @logue/web
 npm run build -w @logue/extension
 
-for arch in arm64 amd64; do
-  package_dir="$(mktemp -d "${TMPDIR:-/tmp}/logue-release.XXXXXX")"
-  trap 'rm -rf -- "${package_dir:-}"' EXIT
+for platform in darwin linux; do
+  for arch in arm64 amd64; do
+    package_dir="$(mktemp -d "${TMPDIR:-/tmp}/logue-release.XXXXXX")"
+    trap 'rm -rf -- "${package_dir:-}"' EXIT
 
-  mkdir -p "${package_dir}/bin" "${package_dir}/web" "${package_dir}/extension"
-  cp -R "${repo_dir}/apps/web/dist/." "${package_dir}/web/"
-  cp -R "${repo_dir}/apps/extension/dist/." "${package_dir}/extension/"
-  printf '%s\n' "${version}" > "${package_dir}/VERSION"
+    mkdir -p "${package_dir}/bin" "${package_dir}/web" "${package_dir}/extension"
+    cp -R "${repo_dir}/apps/web/dist/." "${package_dir}/web/"
+    cp -R "${repo_dir}/apps/extension/dist/." "${package_dir}/extension/"
+    printf '%s\n' "${version}" > "${package_dir}/VERSION"
 
-  (
-    cd "${repo_dir}/server"
-    CGO_ENABLED=0 GOOS=darwin GOARCH="${arch}" \
-      go build -trimpath -ldflags="-s -w -X main.version=${version}" \
-      -o "${package_dir}/bin/logue" .
-  )
+    (
+      cd "${repo_dir}/server"
+      CGO_ENABLED=0 GOOS="${platform}" GOARCH="${arch}" \
+        go build -trimpath -ldflags="-s -w -X main.version=${version}" \
+        -o "${package_dir}/bin/logue" .
+    )
 
-  tar -C "${package_dir}" -czf \
-    "${release_dir}/logue-darwin-${arch}.tar.gz" \
-    bin web extension VERSION
-  rm -rf -- "${package_dir}"
-  trap - EXIT
+    COPYFILE_DISABLE=1 tar --no-xattrs -C "${package_dir}" -czf \
+      "${release_dir}/logue-${platform}-${arch}.tar.gz" \
+      bin web extension VERSION
+    rm -rf -- "${package_dir}"
+    trap - EXIT
+  done
 done
 
 (

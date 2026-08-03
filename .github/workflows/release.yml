@@ -32,4 +32,6 @@ jobs:
             install.sh
             dist/release/logue-darwin-arm64.tar.gz
             dist/release/logue-darwin-amd64.tar.gz
+            dist/release/logue-linux-arm64.tar.gz
+            dist/release/logue-linux-amd64.tar.gz
             dist/release/checksums.txt
