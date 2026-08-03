@@ -17,6 +17,7 @@ import {
 } from "./recordingBridge";
 import { recordingShortcutAction } from "./recordingShortcuts";
 import { createRequestId } from "./requestId";
+import { selectionSkillInvocationState } from "./selectionSkillInvocation";
 import { completeVoiceInput, VoiceInputTransactionError } from "./transaction";
 import { InlineVoiceControls, type InlineVoicePhase } from "./InlineVoiceControls";
 import styles from "./extension.css?inline";
@@ -466,6 +467,11 @@ function ExtensionLauncher() {
       showSelectionSkillNotice({ anchor: snapshot.anchor, message: "That skill is no longer available." });
       return;
     }
+    const invocation = {
+      snapshot,
+      target,
+      pageHref: targetPageHrefRef.current,
+    };
     const run = await createExtensionSkillRun({
       skillId: skill.id,
       instruction: "Transform only the selected text. Return only the replacement text.",
@@ -474,6 +480,17 @@ function ExtensionLauncher() {
       targetText: getEditableText(target),
       selection: snapshot.text,
     });
+    const invocationState = selectionSkillInvocationState({
+      invocation,
+      currentSnapshot: selectionSnapshotRef.current,
+      currentTarget: targetRef.current,
+      currentPageHref: window.location.href,
+    });
+    if (invocationState === "cancelled") return;
+    if (invocationState === "changed") {
+      showSelectionSkillNotice({ anchor: snapshot.anchor, message: "Selection changed — choose a skill again." });
+      return;
+    }
     const replacement = run.original_output?.trim();
     if (!replacement) throw new Error("This skill returned no text.");
     if (!replaceSelectionIfUnchanged(snapshot, replacement)) {

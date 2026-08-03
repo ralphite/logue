@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cancelMaterialSave, getPageMaterials, saveSelection, transcribeAudio } from "../api";
+import { cancelMaterialSave, createExtensionSkillRun, getPageMaterials, saveSelection, transcribeAudio } from "../api";
 
 describe("selection API", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -25,6 +25,35 @@ describe("selection API", () => {
         source_content: sourceContent,
         projects: ["Skill Harness", "Logue"],
         tags: ["research", "provenance"],
+      }),
+    });
+  });
+
+  it("records the page, editor context, and exact selection for a Skill run", async () => {
+    const sendMessage = vi.fn(async () => ({
+      ok: true,
+      value: { id: "run_1", skill_id: "translate", skill_name: "Translate", status: "complete" },
+    }));
+    vi.stubGlobal("chrome", { runtime: { sendMessage } });
+
+    await createExtensionSkillRun({
+      skillId: "translate",
+      instruction: "Transform only the selected text. Return only the replacement text.",
+      pageTitle: "Draft reply",
+      pageUrl: "https://example.com/thread/42",
+      targetText: "Before selected words after",
+      selection: "selected words",
+    });
+
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: "logue:api",
+      action: "skill-run",
+      payload: expect.objectContaining({
+        skill_id: "translate",
+        page_title: "Draft reply",
+        page_url: "https://example.com/thread/42",
+        target_text: "Before selected words after",
+        selection: "selected words",
       }),
     });
   });

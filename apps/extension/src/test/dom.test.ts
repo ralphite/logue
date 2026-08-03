@@ -92,17 +92,66 @@ describe("editable integration", () => {
   });
 
   it("captures and replaces exactly the original textarea selection", () => {
+    const form = document.createElement("form");
     const textarea = document.createElement("textarea");
     textarea.value = "Rewrite this phrase.";
-    document.body.append(textarea);
+    form.append(textarea);
+    document.body.append(form);
     textarea.focus();
     textarea.setSelectionRange(8, 12);
+    const submit = vi.fn();
+    form.addEventListener("submit", submit);
 
     const snapshot = captureEditableSelection(textarea);
 
     expect(snapshot?.text).toBe("this");
     expect(snapshot && replaceSelectionIfUnchanged(snapshot, "that")).toBe(true);
     expect(textarea.value).toBe("Rewrite that phrase.");
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("replaces a contenteditable selection without submitting its form", () => {
+    const form = document.createElement("form");
+    const editor = document.createElement("div");
+    editor.textContent = "Rewrite this phrase.";
+    editor.setAttribute("contenteditable", "true");
+    Object.defineProperty(editor, "isContentEditable", { value: true });
+    form.append(editor);
+    document.body.append(form);
+    const range = document.createRange();
+    range.setStart(editor.firstChild!, 8);
+    range.setEnd(editor.firstChild!, 12);
+    Object.defineProperty(range, "getBoundingClientRect", { value: () => new DOMRect(0, 0, 100, 20) });
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    const submit = vi.fn();
+    form.addEventListener("submit", submit);
+
+    const snapshot = captureEditableSelection(editor);
+
+    expect(snapshot?.text).toBe("this");
+    expect(snapshot && replaceSelectionIfUnchanged(snapshot, "that")).toBe(true);
+    expect(editor.textContent).toBe("Rewrite that phrase.");
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("refuses to overwrite rich text after its captured selection changed", () => {
+    const editor = document.createElement("div");
+    editor.textContent = "Keep this safe.";
+    editor.setAttribute("contenteditable", "true");
+    Object.defineProperty(editor, "isContentEditable", { value: true });
+    document.body.append(editor);
+    const range = document.createRange();
+    range.setStart(editor.firstChild!, 5);
+    range.setEnd(editor.firstChild!, 9);
+    Object.defineProperty(range, "getBoundingClientRect", { value: () => new DOMRect(0, 0, 100, 20) });
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    const snapshot = captureEditableSelection(editor);
+    editor.firstChild!.textContent = "Keep that safe.";
+
+    expect(snapshot && replaceSelectionIfUnchanged(snapshot, "other")).toBe(false);
+    expect(editor.textContent).toBe("Keep that safe.");
   });
 
   it("refuses to overwrite a textarea after its captured selection changed", () => {
