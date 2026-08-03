@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isInlineVoiceShortcutTarget, recordingShortcutAction } from "../recordingShortcuts";
+import { recordingShortcutAction } from "../recordingShortcuts";
 
 const recording = { open: true, mode: "input", phase: "recording" };
 
@@ -22,28 +22,8 @@ describe("recording shortcuts", () => {
     expect(recordingShortcutAction({ ...recording, key: "Enter", isComposing: true })).toBeUndefined();
   });
 
-  it("only captures inline voice shortcuts from its original input or launcher", () => {
-    const originalInput = new EventTarget();
-    const otherInput = new EventTarget();
-    const launcherHost = new EventTarget();
-
-    expect(isInlineVoiceShortcutTarget({
-      target: originalInput,
-      sessionTarget: originalInput,
-      composedPath: [originalInput],
-      launcherHost,
-    })).toBe(true);
-    expect(isInlineVoiceShortcutTarget({
-      target: launcherHost,
-      sessionTarget: originalInput,
-      composedPath: [launcherHost],
-      launcherHost,
-    })).toBe(true);
-    expect(isInlineVoiceShortcutTarget({
-      target: otherInput,
-      sessionTarget: originalInput,
-      composedPath: [otherInput],
-      launcherHost,
-    })).toBe(false);
+  it("captures only while the inline recorder is active, regardless of transient browser focus", () => {
+    expect(recordingShortcutAction({ ...recording, key: "Escape" })).toBe("cancel");
+    expect(recordingShortcutAction({ ...recording, phase: "idle", key: "Escape" })).toBeUndefined();
   });
 });

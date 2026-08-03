@@ -16,7 +16,7 @@ describe("page launcher presentation", () => {
     expect(content).toContain("cancelMaterialSave(session.id)");
     expect(content).toContain("requestId: session.id");
     expect(content).toContain("projects: []");
-    expect(content).toContain("isInlineVoiceShortcutTarget");
+    expect(content).toContain("recordingShortcutAction");
     expect(content).not.toContain('openSidePanel("input", true)');
     expect(content).not.toContain("logue-launcher-generation");
     expect(content).not.toContain("logue-inline-live");

@@ -15,7 +15,7 @@ import {
   type RecordingControlMessage,
   type RecordingDisposeMessage,
 } from "./recordingBridge";
-import { isInlineVoiceShortcutTarget, recordingShortcutAction } from "./recordingShortcuts";
+import { recordingShortcutAction } from "./recordingShortcuts";
 import { createRequestId } from "./requestId";
 import { completeVoiceInput, VoiceInputTransactionError } from "./transaction";
 import styles from "./extension.css?inline";
@@ -287,13 +287,6 @@ function ExtensionLauncher() {
     const onKeyDown = (event: KeyboardEvent) => {
       const session = voiceSessionRef.current;
       if (!session) return;
-      const launcherHost = document.getElementById("logue-extension-host");
-      if (!isInlineVoiceShortcutTarget({
-        target: event.target,
-        sessionTarget: session.target,
-        composedPath: event.composedPath(),
-        launcherHost,
-      })) return;
       const action = recordingShortcutAction({
         open: true,
         mode: "input",

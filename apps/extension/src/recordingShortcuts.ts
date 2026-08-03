@@ -1,15 +1,5 @@
 export type RecordingShortcutAction = "stop-and-insert" | "cancel";
 
-export function isInlineVoiceShortcutTarget(input: {
-  target: EventTarget | null;
-  sessionTarget: EventTarget | null;
-  composedPath: EventTarget[];
-  launcherHost: EventTarget | null;
-}) {
-  return input.target === input.sessionTarget ||
-    (input.launcherHost !== null && input.composedPath.includes(input.launcherHost));
-}
-
 export function recordingShortcutAction({
   open,
   mode,
