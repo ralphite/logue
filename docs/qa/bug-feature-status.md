@@ -2,7 +2,7 @@
 
 更新时间：2026-08-03（America/Los_Angeles）
 
-这是用户历史 bug / feature request 的唯一滚动清单。`PASS` 表示实现和与风险相称的真实运行证据都存在；`PARTIAL` 表示核心已实现，但仍缺指定环境的最后闭环；`OPEN` 表示尚未交付；`NOT_APPLICABLE` 表示请求指向浏览器拥有且扩展无法控制的原生 UI。测试、提交、文档和截图本身不把状态升级为 `PASS`。
+这是历史完整状态矩阵，不再作为日常进度文件。当前只汇报未完全完成项，见 [`open-tasks.md`](./open-tasks.md)。`PASS` 表示实现和与风险相称的真实运行证据都存在；`PARTIAL` 表示核心已实现，但仍缺指定环境的最后闭环；`OPEN` 表示尚未交付；`NOT_APPLICABLE` 表示请求指向浏览器拥有且扩展无法控制的原生 UI。
 
 ## Bugs
 

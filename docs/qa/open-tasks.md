@@ -1,0 +1,26 @@
+# Logue 未完成任务
+
+更新时间：2026-08-03（America/Los_Angeles）
+
+这是唯一的日常进度文件，只记录尚未完全满足的用户结果。完成项必须立即从本文件删除，不保留 `PASS` 行；历史证据保留在 Git、Release、审查记录和 [`bug-feature-status.md`](./bug-feature-status.md) 中。
+
+状态只使用：`IN_PROGRESS`、`READY_FOR_REAL_ENV`、`DEFERRED`、`BLOCKED`。
+
+| 优先级 | 范围 | 状态 | 仍未完成的用户结果 | 完成证据要求 |
+|---|---|---|---|---|
+| P0 | Linux / LAN 远程服务（F22） | IN_PROGRESS | 真实 Linux 主机的 systemd user service、防火墙分配且可能变化的域名、Mac Extension 的具体 origin 权限、Server URL 替换，以及 Chrome/MV3/Linux 重启后恢复尚未形成完整跨机闭环。 | 在真实 Linux + Mac Chrome 上完成安装、连接、地址替换、保存/读取、浏览器重启和服务重启。 |
+| P1 | Extension 核心可靠性（B03、B27、F04） | IN_PROGRESS | 标准 input 首击、选区文字/语音批注、无输入框页面录音、页面历史即时刷新、目标丢失、断线重试幂等，以及 `Cmd+Shift+L` 重开后的焦点仍缺当前 Release 的完整实测。 | 当前 Release 在真实 Chrome 覆盖以上路径；不丢资料、不重复保存/插入、不自动 submit。 |
+| P1 | Selection Skills 最终防护（F06、F18） | IN_PROGRESS | textarea/contenteditable 的实际写回已通过；仍缺 Gemini 运行中按 Esc、切换选区/目标/SPA 路由后等待迟到结果返回也绝不写回的真实 Chrome 验证。 | 当前 Release 在真实 Chrome 完成取消与漂移回归，原文保持不变，提交计数为 0。 |
+| P1 | 自动整理与历史资料（B06、F05） | IN_PROGRESS | 新资料分类闭环已具备；真实库仍有旧的低置信中文理由需要一次性安全整理，并重新确认人工分类不会被后台覆盖。 | 备份后一次性转换，真实读取/修改/重启验证通过，并删除转换代码。 |
+| P1 | 全产品英文（B21） | IN_PROGRESS | Web 和 Installer 的系统文案已为英文；仍需清除 Storybook、fixture、测试可见 copy 和其它正式产品表面的残余中文。用户自有内容不改写。 | 对生产 UI、Extension、Storybook 和安装器做英文扫描与真实页面抽查，无系统中文。 |
+| P1 | Storybook 生产 inventory（F20） | IN_PROGRESS | 仍缺完整的 production component → story → applicable state 映射，以及部分页面的 loading/error/offline/overflow/keyboard 状态。 | 根地址可用；每个生产组件及其有意义状态可直接查看，且复用生产组件而非复制 demo。 |
+| P1 | 全产品一致性终审（F15） | IN_PROGRESS | Documents Sources 默认宽度、Settings 内容轴与焦点、Skills 编辑密度仍需最终统一；之后还缺两名 fresh-context 独立终审。 | 修复真实运行界面；两名独立审查者均无未解决 P0/P1，Notion/ChatGPT 对照达到目标。 |
+| P1 | Release 跨机验收（F13） | READY_FOR_REAL_ENV | `v0.2.4` 与独立 Extension 首装/覆盖已通过隔离验证；仍缺另一台真实 Linux/Mac 的服务安装、Chrome Load unpacked/Reload、数据保留和覆盖升级。 | 从公开 Release 在另一台机器完成首次安装和覆盖升级，真实数据不被覆盖，失败可回滚。 |
+| P3 | 手机真机（F10） | DEFERRED | 物理 iPhone 的触控、旋转、刷新和核心页面/文档编辑尚未实测；用户已明确后置。 | 物理 iPhone 完成真实 LAN 流程；不影响当前桌面 P0/P1 排序。 |
+
+## 维护规则
+
+- 日常状态回复只报告本文件中的行，不再列已完成项。
+- 测试、截图、文档、提交和 Storybook 本身不能把任务移出本文件；必须有对应真实用户流程证据。
+- 一项完全满足后直接删除该行，并在提交信息中记录关闭范围。
+- 新 Bug 或 Feature 先按用户价值合并到现有行；只有独立验收结果时才新增行，避免重复队列。

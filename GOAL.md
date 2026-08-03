@@ -387,7 +387,7 @@ Storybook 至少包含：
 - 当前 `logue` 小时级 automation 每小时唤醒本任务，重新读取本文件、真实 runtime、最新独立审查和状态 tracker；未完成时自动继续最高 ROI 工作。
 - 每次 checkpoint 先用 fresh-context、只读 `goal_supervisor` 对照本文件、真实 runtime、当前数据和最新独立审查，给出 `CONTINUE` 或 `REPLAN`。
 - 审查后继续唯一最高 ROI 的产品实现；审查本身不算产品进展。
-- 维护 `docs/qa/bug-feature-status.md`，覆盖全部历史 Bug、Feature 和审查发现，并只在真实运行证据存在时标记 `PASS`。
+- 维护 `docs/qa/open-tasks.md` 作为唯一日常进度文件，只记录未完全满足的 Bug、Feature 和审查发现；真实用户流程完成后立即删除对应行，不再汇报已完成项。`docs/qa/bug-feature-status.md` 仅保留历史证据。
 - 任一后续用户纠正与本文件冲突时，先更新本文件和 `docs/user-requirements.md`，再继续实现。
 
 ## 16. 需求事实来源顺序
