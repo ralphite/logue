@@ -59,6 +59,7 @@ function ExtensionLauncher() {
     message: string;
     history?: SelectionSkillApplyTransaction;
   }>();
+  const [focusSelectionSkillTrigger, setFocusSelectionSkillTrigger] = useState(false);
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
   const targetRef = useRef<HTMLElement | null>(null);
   const targetPageHrefRef = useRef("");
@@ -68,6 +69,7 @@ function ExtensionLauncher() {
   const selectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
   const selectionSkillsLoadedRef = useRef(false);
   const selectionNoticeTimerRef = useRef<number | undefined>(undefined);
+  const eligibleSelectionSkills = selectionSkillEligibility(selectionSkills, "extension");
 
   const setInlineVoicePhase = useCallback((phase: InlineVoicePhase) => {
     voicePhaseRef.current = phase;
@@ -341,6 +343,21 @@ function ExtensionLauncher() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.key !== "Enter" || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
+        event.isComposing || event.repeat || document.activeElement !== targetRef.current ||
+        !selectionSnapshotRef.current || !eligibleSelectionSkills.length || voiceSessionRef.current
+      ) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setFocusSelectionSkillTrigger(true);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [eligibleSelectionSkills.length]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
       const session = voiceSessionRef.current;
       if (!session) return;
       const action = recordingShortcutAction({
@@ -426,7 +443,6 @@ function ExtensionLauncher() {
   }, [finishInlineVoice]);
 
   const captureActive = voicePhase === "starting" || voicePhase === "recording" || voicePhase === "processing";
-  const eligibleSelectionSkills = selectionSkillEligibility(selectionSkills, "extension");
   const hasSelectionSkillMenu = Boolean(selectionSnapshot && eligibleSelectionSkills.length && !captureActive);
   const controlMetrics = inlineVoiceControlMetrics[voicePhase];
   const defaultPosition = targetRect ? defaultLauncherPosition(targetRect, viewport, controlMetrics.width, controlMetrics.height) : undefined;
@@ -488,7 +504,10 @@ function ExtensionLauncher() {
         anchor={selectionSnapshot.anchor}
         skills={eligibleSelectionSkills}
         onUseSkill={applySelectionSkill}
+        focusTrigger={focusSelectionSkillTrigger}
+        onFocusTriggerHandled={() => setFocusSelectionSkillTrigger(false)}
         onDismiss={() => {
+          setFocusSelectionSkillTrigger(false);
           selectionSnapshotRef.current = undefined;
           setSelectionSnapshot(undefined);
         }}
