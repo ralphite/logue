@@ -23,16 +23,31 @@ export function isOpenSelectionMenu(menuItemId: string | number) {
 
 export interface SidePanelChrome {
   open: (options: { tabId: number }) => Promise<void>;
-  close?: (options: { tabId: number }) => Promise<void>;
+  close?: (options: { tabId: number } | { windowId: number }) => Promise<void>;
+}
+
+export interface OpenSidePanelState {
+  tabId: number;
+  windowId?: number;
+}
+
+export function restoreOpenSidePanelTab(openTabs: Set<number>, stored: unknown) {
+  const state = typeof stored === "number"
+    ? { tabId: stored }
+    : stored as Partial<OpenSidePanelState> | undefined;
+  if (typeof state?.tabId !== "number") return undefined;
+  openTabs.add(state.tabId);
+  return { tabId: state.tabId, windowId: state.windowId } satisfies OpenSidePanelState;
 }
 
 export async function toggleSidePanel(
   api: SidePanelChrome,
   openTabs: Set<number>,
   tabId: number,
+  windowId?: number,
 ) {
   if (openTabs.has(tabId) && api.close) {
-    await api.close({ tabId });
+    await api.close(typeof windowId === "number" ? { windowId } : { tabId });
     openTabs.delete(tabId);
     return "closed" as const;
   }

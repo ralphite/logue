@@ -7,6 +7,7 @@ import {
   openPanelWithPreparedState,
   panelStateForTab,
   preserveMatchingPanelDraft,
+  restoreOpenSidePanelTab,
   selectionSavePayload,
   selectionContextMenus,
   sidePanelCommand,
@@ -18,9 +19,17 @@ import type { RecordingBridgeEvent, RecordingPanelEvent } from "./recordingBridg
 const apiBase = "http://127.0.0.1:8787";
 const panelStoragePrefix = "logue:panel:";
 const activePanelStorageKey = "logue:panel:active-tab";
+const openPanelStorageKey = "logue:panel:open-tab";
 const openPanelTabs = new Set<number>();
 const panelStates = new Map<number, PanelCaptureState>();
 let activePanelTabId: number | undefined;
+let openPanelWindowId: number | undefined;
+void chrome.storage.session.get(openPanelStorageKey)
+  .then((stored) => {
+    const state = restoreOpenSidePanelTab(openPanelTabs, stored[openPanelStorageKey]);
+    openPanelWindowId = state?.windowId;
+  })
+  .catch(() => undefined);
 
 interface ApiMessage {
   type: "logue:api";
@@ -46,9 +55,9 @@ interface PanelStateMessage {
 type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage | RecordingBridgeEvent;
 
 const nativeSidePanel = chrome.sidePanel as typeof chrome.sidePanel & {
-  close?: (options: { tabId: number }) => Promise<void>;
-  onOpened?: chrome.events.Event<(info: { tabId?: number }) => void>;
-  onClosed?: chrome.events.Event<(info: { tabId?: number }) => void>;
+  close?: (options: { tabId: number } | { windowId: number }) => Promise<void>;
+  onOpened?: chrome.events.Event<(info: { tabId?: number; windowId?: number }) => void>;
+  onClosed?: chrome.events.Event<(info: { tabId?: number; windowId?: number }) => void>;
 };
 
 async function persistPanelState(state: PanelCaptureState) {
@@ -90,6 +99,39 @@ function openPanel(tabId: number) {
 
 function canCloseNativePanel() {
   return typeof (nativeSidePanel as unknown as { close?: unknown }).close === "function";
+}
+
+async function toggleTrackedSidePanel(tabId: number, windowId?: number) {
+  const result = await toggleSidePanel(nativeSidePanel, openPanelTabs, tabId, windowId);
+  if (result === "closed") {
+    openPanelWindowId = undefined;
+    await chrome.storage.session.remove(openPanelStorageKey);
+  } else {
+    openPanelWindowId = windowId;
+    await chrome.storage.session.set({ [openPanelStorageKey]: { tabId, windowId } });
+  }
+  return result;
+}
+
+async function toggleTabPanel(tab?: chrome.tabs.Tab) {
+  const tabId = typeof tab?.id === "number"
+    ? tab.id
+    : openPanelTabs.values().next().value;
+  const windowId = typeof tab?.windowId === "number" ? tab.windowId : openPanelWindowId;
+  if (typeof tabId !== "number") return;
+
+  if (openPanelTabs.has(tabId) && canCloseNativePanel()) {
+    await toggleTrackedSidePanel(tabId, windowId);
+    return;
+  }
+  if (!tab || typeof tab.id !== "number") return;
+
+  const state = panelStateForTab(tab, "page", sourceFromTab(tab));
+  if (!state) return;
+  await openPanelWithPreparedState(
+    () => { stagePanelState(state); },
+    () => toggleTrackedSidePanel(tabId, windowId),
+  );
 }
 
 async function getActivePanelTabId() {
@@ -256,50 +298,47 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 chrome.action.onClicked.addListener((tab) => {
-  if (typeof tab.id !== "number") return;
-  if (openPanelTabs.has(tab.id) && canCloseNativePanel()) {
-    void toggleSidePanel(nativeSidePanel, openPanelTabs, tab.id).catch(() => undefined);
-    return;
-  }
-  const state = panelStateForTab(tab, "page", sourceFromTab(tab));
-  if (!state) return;
-  void openPanelWithPreparedState(
-    () => { stagePanelState(state); },
-    () => toggleSidePanel(nativeSidePanel, openPanelTabs, tab.id!),
-  ).catch(() => undefined);
+  void toggleTabPanel(tab).catch(() => undefined);
 });
 
 chrome.commands.onCommand.addListener((command, tab) => {
-  if (command !== sidePanelCommand || !tab || typeof tab.id !== "number") return;
-  if (openPanelTabs.has(tab.id) && canCloseNativePanel()) {
-    void toggleSidePanel(nativeSidePanel, openPanelTabs, tab.id).catch(() => undefined);
-    return;
-  }
-  const state = panelStateForTab(tab, "page", sourceFromTab(tab));
-  if (!state) return;
-  void openPanelWithPreparedState(
-    () => { stagePanelState(state); },
-    () => toggleSidePanel(nativeSidePanel, openPanelTabs, tab.id!),
-  ).catch(() => undefined);
+  if (command !== sidePanelCommand) return;
+  void toggleTabPanel(tab).catch(() => undefined);
 });
 
 nativeSidePanel.onOpened?.addListener((info) => {
+  if (typeof info.windowId === "number") openPanelWindowId = info.windowId;
   if (typeof info.tabId === "number") {
     activePanelTabId = info.tabId;
     openPanelTabs.add(info.tabId);
   }
+  const tabId = typeof info.tabId === "number" ? info.tabId : openPanelTabs.values().next().value;
+  if (typeof tabId === "number") {
+    void chrome.storage.session.set({
+      [openPanelStorageKey]: { tabId, windowId: openPanelWindowId },
+    });
+  }
 });
 
 nativeSidePanel.onClosed?.addListener((info) => {
-  if (typeof info.tabId === "number") {
-    openPanelTabs.delete(info.tabId);
-    void chrome.tabs.sendMessage(info.tabId, { type: "logue:recording-dispose" }).catch(() => undefined);
+  const closingTabs = typeof info.tabId === "number" ? [info.tabId] : [...openPanelTabs];
+  for (const tabId of closingTabs) {
+    openPanelTabs.delete(tabId);
+    void chrome.tabs.sendMessage(tabId, { type: "logue:recording-dispose" }).catch(() => undefined);
   }
+  openPanelWindowId = undefined;
+  void chrome.storage.session.remove(openPanelStorageKey);
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   panelStates.delete(tabId);
   openPanelTabs.delete(tabId);
+  void chrome.storage.session.get(openPanelStorageKey).then((stored) => {
+    const restored = stored[openPanelStorageKey] as Partial<{ tabId: number }> | number | undefined;
+    if (restored === tabId || (typeof restored === "object" && restored?.tabId === tabId)) {
+      void chrome.storage.session.remove(openPanelStorageKey);
+    }
+  });
   void chrome.storage.session.remove(`${panelStoragePrefix}${tabId}`);
 });
 

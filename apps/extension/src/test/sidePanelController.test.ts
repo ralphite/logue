@@ -9,6 +9,7 @@ import {
   openSelectionMenuId,
   panelStateForTab,
   preserveMatchingPanelDraft,
+  restoreOpenSidePanelTab,
   saveSelectionMenuId,
   selectionSavePayload,
   selectionContextMenus,
@@ -129,5 +130,20 @@ describe("native side panel controller", () => {
     const oldChromeTabs = new Set<number>([10]);
     await expect(toggleSidePanel({ open }, oldChromeTabs, 10)).resolves.toBe("opened-fallback");
     expect(open).toHaveBeenLastCalledWith({ tabId: 10 });
+  });
+
+  it("restores the open tab after a Manifest V3 worker restart", async () => {
+    const close = vi.fn(async () => undefined);
+    const open = vi.fn(async () => undefined);
+    const restartedWorkerTabs = new Set<number>();
+
+    expect(restoreOpenSidePanelTab(restartedWorkerTabs, { tabId: 12, windowId: 3 })).toEqual({
+      tabId: 12,
+      windowId: 3,
+    });
+    await expect(toggleSidePanel({ open, close }, restartedWorkerTabs, 12, 3)).resolves.toBe("closed");
+    expect(close).toHaveBeenCalledWith({ windowId: 3 });
+    expect(open).not.toHaveBeenCalled();
+    expect(restoreOpenSidePanelTab(restartedWorkerTabs, undefined)).toBeUndefined();
   });
 });
