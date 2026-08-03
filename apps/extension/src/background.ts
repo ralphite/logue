@@ -258,6 +258,11 @@ async function toggleTabPanel(tab?: chrome.tabs.Tab) {
   await opening;
 }
 
+async function toggleActiveTabPanel() {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (tab) await toggleTabPanel(tab);
+}
+
 async function getActivePanelTabId() {
   if (typeof activePanelTabId === "number") return activePanelTabId;
   const stored = (await chrome.storage.session.get(activePanelStorageKey))[activePanelStorageKey];
@@ -438,9 +443,9 @@ chrome.action.onClicked.addListener((tab) => {
   void toggleTabPanel(tab).catch(() => undefined);
 });
 
-chrome.commands.onCommand.addListener((command, tab) => {
+chrome.commands.onCommand.addListener((command) => {
   if (command !== sidePanelCommand) return;
-  void toggleTabPanel(tab).catch(() => undefined);
+  void toggleActiveTabPanel().catch(() => undefined);
 });
 
 nativeSidePanel.onOpened?.addListener((info) => {

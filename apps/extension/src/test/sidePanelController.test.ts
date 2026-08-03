@@ -136,7 +136,7 @@ describe("native side panel controller", () => {
     expect(close).toHaveBeenCalledWith({ tabId: 9 });
 
     await expect(toggleSidePanel({ open, close }, new Set([12]), 12, 77)).resolves.toBe("closed");
-    expect(close).toHaveBeenLastCalledWith({ tabId: 12 });
+    expect(close).toHaveBeenLastCalledWith({ windowId: 77 });
 
     const oldChromeTabs = new Set<number>([10]);
     await expect(toggleSidePanel({ open }, oldChromeTabs, 10)).resolves.toBe("opened-fallback");

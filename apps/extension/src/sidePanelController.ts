@@ -34,18 +34,28 @@ export async function toggleSidePanel(
   api: SidePanelChrome,
   openTabs: Set<number>,
   tabId: number,
-  _windowId?: number,
+  windowId?: number,
 ) {
   if (openTabs.has(tabId) && api.close) {
     try {
-      // Closing the tab-scoped panel is more reliable than window-scoped close
-      // when Chrome's side-panel focus has just moved away from the tab.
-      await api.close({ tabId });
+      // A native Side Panel is a window surface. Closing at that scope makes a
+      // toolbar or command toggle reliable after the page loses focus.
+      await api.close(typeof windowId === "number" ? { windowId } : { tabId });
       openTabs.delete(tabId);
       return "closed" as const;
     } catch {
-      // Chrome can retain session state across an extension reload after its native panel
-      // is already gone. Treat that state as stale and satisfy the user's toggle by opening.
+      // If a newer Chrome rejects the window-scoped form for this panel, retain
+      // the tab-scoped fallback before treating the session tracking as stale.
+      if (typeof windowId === "number") {
+        try {
+          await api.close({ tabId });
+          openTabs.delete(tabId);
+          return "closed" as const;
+        } catch {
+          // Chrome can retain session state across an extension reload after its native panel
+          // is already gone. Treat that state as stale and satisfy the user's toggle by opening.
+        }
+      }
       openTabs.delete(tabId);
     }
   }
