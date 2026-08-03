@@ -388,3 +388,19 @@ func TestWorkspaceExportRestorePreservesAgentsAndRuns(t *testing.T) {
 		t.Fatalf("restored Agent data changed: agent=%#v run=%#v", persistedAgent, persistedRun)
 	}
 }
+
+func TestWorkspaceRestoreRejectsLegacyExportWithoutRequiredSkills(t *testing.T) {
+	store, err := NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported, err := store.ExportWorkspace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	exported.Agents = nil
+
+	if _, err := store.RestoreWorkspace(exported); err == nil || !strings.Contains(err.Error(), "default transcription skill") {
+		t.Fatalf("expected incomplete legacy export to be rejected, got %v", err)
+	}
+}

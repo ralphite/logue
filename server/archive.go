@@ -75,6 +75,7 @@ func validateExport(value WorkspaceExport) error {
 		}
 		seen[document.ID] = true
 	}
+	agents := make(map[string]Agent, len(value.Agents))
 	for _, agent := range value.Agents {
 		if !validAgentID(agent.ID) || seen[agent.ID] {
 			return errors.New("export contains an invalid or duplicate agent id")
@@ -83,6 +84,21 @@ func validateExport(value WorkspaceExport) error {
 			return fmt.Errorf("export contains an invalid agent: %w", err)
 		}
 		seen[agent.ID] = true
+		agents[agent.ID] = agent
+	}
+	settings := value.Settings
+	validAssignment := func(id, task, surface string) bool {
+		agent, exists := agents[id]
+		return exists && agent.Enabled && agent.Task == task && agentAvailableOn(agent, surface)
+	}
+	if !validAssignment(settings.DefaultTranscriptionAgent, "transcribe", "extension") {
+		return errors.New("export is missing its valid default transcription skill")
+	}
+	if !validAssignment(settings.DefaultOrganizationAgent, "organize", "background") {
+		return errors.New("export is missing its valid default organization skill")
+	}
+	if !validAssignment(settings.DefaultExtensionAgent, "generate", "extension") {
+		return errors.New("export is missing its valid default extension skill")
 	}
 	for _, run := range value.AgentRuns {
 		if !validAgentRunID(run.ID) || seen[run.ID] {
@@ -144,44 +160,17 @@ func (s *Store) RestoreWorkspace(value WorkspaceExport) (string, error) {
 			return "", err
 		}
 	}
-	writtenAgents := make(map[string]Agent, len(value.Agents)+len(defaultAgents()))
 	for _, agent := range value.Agents {
 		if err := writeJSONFile(filepath.Join(temp, "agents", agent.ID+".json"), agent); err != nil {
 			return "", err
 		}
-		writtenAgents[agent.ID] = agent
-	}
-	// Schema 1 exports made before Agents were included remain restorable. Seed
-	// any missing system Agent so settings and background services are usable
-	// immediately, without requiring a process restart.
-	for _, agent := range defaultAgents() {
-		if _, exists := writtenAgents[agent.ID]; exists {
-			continue
-		}
-		if err := writeJSONFile(filepath.Join(temp, "agents", agent.ID+".json"), agent); err != nil {
-			return "", err
-		}
-		writtenAgents[agent.ID] = agent
 	}
 	for _, run := range value.AgentRuns {
 		if err := writeJSONFile(filepath.Join(temp, "agent-runs", run.ID+".json"), run); err != nil {
 			return "", err
 		}
 	}
-	settings := withDefaultAgentAssignments(value.Settings)
-	validAssignment := func(id, task, surface string) bool {
-		agent, exists := writtenAgents[id]
-		return exists && agent.Enabled && agent.Task == task && agentAvailableOn(agent, surface)
-	}
-	if !validAssignment(settings.DefaultTranscriptionAgent, "transcribe", "extension") {
-		settings.DefaultTranscriptionAgent = defaultTranscriptionAgentID
-	}
-	if !validAssignment(settings.DefaultOrganizationAgent, "organize", "background") {
-		settings.DefaultOrganizationAgent = defaultOrganizationAgentID
-	}
-	if !validAssignment(settings.DefaultExtensionAgent, "generate", "extension") {
-		settings.DefaultExtensionAgent = defaultReplyAgentID
-	}
+	settings := value.Settings
 	if err := writeJSONFile(filepath.Join(temp, "settings.json"), settings); err != nil {
 		return "", err
 	}
