@@ -1,6 +1,6 @@
 # Logue bug 与 feature 状态
 
-更新时间：2026-08-03 01:16（America/Los_Angeles）
+更新时间：2026-08-03 02:18（America/Los_Angeles）
 
 这是用户历史 bug / feature request 的唯一滚动清单。`PASS` 表示实现和与风险相称的真实运行证据都存在；`PARTIAL` 表示核心已实现，但仍缺指定环境的最后闭环；`OPEN` 表示尚未交付；`NOT_APPLICABLE` 表示请求指向浏览器拥有且扩展无法控制的原生 UI。测试、提交、文档和截图本身不把状态升级为 `PASS`。
 
@@ -10,7 +10,7 @@
 |---|---|---|---|
 | B01 | 不得出现“接受后再确认插入”的第二次确认 | PASS | 当前原生 Side Panel 已在真实 Chrome 完成“一击开始 → Enter 停止 → Gemini 转写 → 保存 → 单次插入”；成功后安静回到 Record，没有前置审阅或第二次确认。 |
 | B02 | 左栏搜索和按钮结构不稳定、导航随长列表滚走 | PASS | 一级栏无搜索；一级导航固定，内容区独立滚动；Generate 只保留稳定的 Documents / Skills 行。 |
-| B03 | Extension 面板点击跳位、首次点击无效 | PASS | 当前原生 Side Panel 在 fixture textarea 中首次点击即可 stage `Current editor` 并自动开始录音；目标替换后使用 `Insert again`，无需重新转写或重新保存。input 与真实 ChatGPT 富文本仍列入新架构回归队列。 |
+| B03 | Extension 面板点击跳位、首次点击无效 | PARTIAL | fixture textarea 首击已通过；标准 input 与当前原生 Side Panel 的真实 ChatGPT 富文本仍须复验，不能由 fixture 推导为完整 PASS。 |
 | B04 | 麦克风启动中 Esc 无法取消、无可见取消、迟到回调回写 | PASS | 真实 Chrome 已验证 Esc 立即取消且资料数不变；录音中关闭原生 Side Panel 也会立即停止麦克风。tab/session 防护忽略迟到结果。 |
 | B05 | Extension 启动器不在 Tab 顺序、无 focus 状态或快捷键提示 | PASS | Tab 可聚焦语音入口，存在 focus ring 与 `⌘⇧L` 提示；录音期 Enter 停止并插入，Esc 取消，且不抢占普通文本输入。 |
 | B06 | 自动 Tag / 项目关联机械且不相关 | PARTIAL | 当前新资料由可定制 Automatic organization Agent 做内容分类；高置信安静写入，低置信只给建议并显示理由、置信度和人工复核；无可靠匹配时允许空关联。最新真实语音已生成英文理由，但真实库仍有 14 条旧低置信资料保留历史中文模型理由，尚未安全回填。 |
@@ -42,26 +42,34 @@
 | ID | Feature / 目标 | 状态 | 当前结论与未关闭项 |
 |---|---|---|---|
 | F01 | Notion 式资料流、文档列表和文档编辑 | PASS | 生成长内容进入持续可编辑文档；文档列表、编辑器、来源引用和自动保存共享安静工作区。 |
-| F02 | 产品一级名称用 Stream / Projects / Generate / Settings，不用 View / Inbox / 成果 | PASS | 当前 Web 一级导航与 URL 兼容层分离，UI 只显示英文产品名。 |
+| F02 | 产品一级名称用 Stream / Projects / Generate / Settings，不用 View / Inbox / 成果 | PARTIAL | 可见一级 UI 已使用英文产品名；当前代码仍保留 `views` 与 `agents` 旧导航/模型别名，违反无 legacy 规则，须删除后才能 PASS。 |
 | F03 | Generate 只保留 Documents / Skills；行尾 plus 分别新建 | PASS | 无 `New`、无顶部重复 plus；点击行只更新列表，点击行尾 plus 才创建。 |
-| F04 | 极简网页语音输入：聚焦才显示、一键开始、停止并插入、取消、快捷键 | PASS | 2026-08-03 在真实 ChatGPT contenteditable 与 Logue Generate 自动聚焦 textarea 分别完成非空麦克风录音 → Gemini 转写 → 保存 → 单次插入；ChatGPT Send 从未点击。录音时原位只显示 Cancel 与 Stop and insert，Enter 转写、Esc 取消；两条无敏感测试资料已在验证后精确删除。 |
-| F05 | 自动项目/Tag 整理，低置信可审阅，任何 item 可事后编辑 | PASS | Agent 分类、建议/确认、内容/项目/Tag 编辑和不可覆盖人工判断均已真实验证。 |
-| F06 | 多个可定制 Agent，用于转写、整理、短回复、QA、文档 | PASS | 系统与自建 Agent 可编辑/复制/设默认；Web 已产生可追溯的 Text、Material、QA、Document run。 |
+| F04 | 极简网页语音输入：聚焦才显示、一键开始、停止并插入、取消、快捷键 | PARTIAL | 2026-08-03 已在真实 ChatGPT contenteditable 与 Logue textarea 完成非空录音 → Gemini → 保存 → 单次插入，且未发送；标准 input、目标丢失、断线与重试幂等尚未以当前原位架构完整闭环。 |
+| F05 | 自动项目/Tag 整理，低置信可审阅，任何 item 可事后编辑 | PARTIAL | 分类、建议/确认、内容/项目/Tag 编辑和人工判断保护已有真实证据；真实库仍有 14 条旧低置信中文理由，需安全一次性整理后才能关闭。 |
+| F06 | 多个可定制 Skills，用于转写、整理、短回复、QA、文档 | PARTIAL | 现有对象可编辑/复制/设默认并能产生可追溯 run；产品与代码仍混用 Agent 命名，且选区 Skill 变换尚未实现。 |
 | F07 | Extension 中基于资料生成回复并插入、不自动发送 | PASS | 2026-08-03 在真实 ChatGPT 通过原生 Side Panel 生成 `Logue capture is ready.`，点击 Insert 后仅写入 ChatGPT 草稿，Send 未被点击；测试草稿已清除。 |
 | F08 | Logue Web App 自己也能使用 Extension | PASS | 2026-08-03 在真实 `127.0.0.1:5173/?view=generate` 验证自动聚焦后出现单一语音入口；非空语音经 Gemini 转写后只写入 Task，未自动生成。运行时截图见 `docs/design/references/runtime/extension-inline-voice-logue-web-success-20260803.png`。 |
 | F09 | 所有关键竖向 panel 可拖拽并保持同一风格 | PASS | 至少一级导航、Generate、资料详情、文档列表和来源面板使用同一 `PanelResizer` 体系；键盘与 pointer 均支持。 |
 | F10 | 手机完整可用并可从同一局域网访问 | PARTIAL | Web/API 支持显式局域网监听，320/390/768 已覆盖 Stream、Projects、Generate、详情和底栏；公开安装为保护资料默认只监听本机。仍缺安全配对入口和一台物理 iPhone 的触控、旋转、刷新与文档编辑闭环。 |
 | F11 | React + TypeScript + Tailwind + Storybook；Go；Gemini 终端环境变量 | PASS | 架构与构建已落地；Gemini Key 只由 Go 进程读取，不进入 Web、Extension、资料、日志或 Release。 |
 | F12 | GitHub 旧仓库彻底替换、永远 main、小提交后立即 push | PASS | `ralphite/logue` 已由当前项目替换；当前分支与 upstream 均为 `main`；本轮逻辑批次均提交后立即推送。 |
-| F13 | 一行 curl 安装、覆盖升级保留数据、询问开机启动、安装后自动启动 | PASS | 公开 `v0.2.3` 安装器在停服前完成全部输入和资产预检，并把程序、Extension、CLI、LaunchAgent 作为同一事务提交。CI 对 extension / cli / autostart 三点逐项证明“候选健康后故障 → 完整恢复旧状态和旧服务”；非法自动启动配置在停服前拒绝。 |
-| F14 | 最新主线也必须进入 Release | OPEN | 当前 `main` / `origin/main` 为 `275d510`，公开 `v0.2.3` 仍为较早的 `88d10b5`；安装/升级机制已通过，但最新主线尚未发布，不能沿用旧 PASS。 |
+| F13 | 一行 curl 安装、覆盖升级保留数据、询问开机启动、安装后自动启动 | PARTIAL | 发布版安装/回滚证据存在，但当前 installer 仍有中文用户可见输出，且最新 main 尚未重新完成真实安装/覆盖升级。 |
+| F14 | 最新主线也必须进入 Release | OPEN | 当前 `main` / `origin/main` 为 `f374308`，公开 `v0.2.3` 是旧祖先；必须在所有核心闭环后发布和真实验证。 |
 | F15 | ChatGPT.com / Notion / 竞品级独立产品设计审查 | PARTIAL | 原生 Side Panel 与渐进式启动器完成可复用产品设计代理审查并达到 9.1/10 PASS；全产品最新 Web、移动和 Extension 截图仍需一次统一 Notion/ChatGPT 对照终审。 |
 | F16 | 提供真实截图 | PASS | 可复用、无敏感信息的当前截图保存在 `docs/design/references/runtime/`；例如生成页 input-first 与扩展 Side Panel 页面资料流。 |
 | F17 | 每小时自动重启当前 goal 并继续最高 ROI 工作 | PASS | `logue` automation 持续唤醒本任务；只有 fresh-context 与直接证据共同支持时才能结束。 |
+| F18 | Notion 式 Selection Skills：Document 与网页编辑目标原位变换 | PARTIAL | 已真实观察 Notion 配置与选区 `Skills` 菜单；Logue Document 已在真实运行验证轻量入口、菜单、Esc/↓ 键盘操作和不越过 Sources 的定位，运行会持久化 Skill revision、选区、目标、输出与采用结果，并在来源登记失败时保留可重试动作。Extension 的 textarea/contenteditable 新入口已实现、构建和单测通过，但已安装 Chrome 扩展尚未允许重载，故不能关闭实机闭环。 |
+| F19 | 所有搜索入口的语义检索、排序、解释和本地降级 | PARTIAL | Stream、Document 与 Sources 有检索代码；尚无逐入口真实相关性、解释和降级验收，不能宣称“所有搜索”完成。 |
+| F20 | Storybook 生产组件 inventory 与所有有意义状态 | OPEN | 现有 Story 数量和组织不足；遗留 demo 组件仍只为 Storybook/测试保留，缺少可审计 inventory、真实生产组件和状态覆盖。 |
+| F21 | 清除 legacy 代码、旧路由/数据/测试/未挂载 demo | OPEN | `views`/`agents` 别名、旧 Capture/Voice/Agent demo 和历史兼容叙述仍存在；须在备份验证后一次性清理。 |
 
 ## 当前未关闭队列
 
-1. **P1（全产品设计终审）**：用当前主要 Web/Extension 截图与项目内 Notion/ChatGPT 参照完成两名 fresh-context 独立审查，直接修复无歧义的高影响问题。
-2. **P1（发布）**：在上述核心闭环与审查达到可发布质量后，完成当前最新 `main` 的新 Release 与真实覆盖升级，不能继续把旧 `v0.2.3` 当作最新主线。
-3. **P2（数据整理）**：安全处理真实库中 14 条历史中文模型分类理由；不得改资料正文、人工项目/Tag 或自建 Agent。
-4. **P3（移动端，用户明确后置）**：安全 LAN 配对入口与物理 iPhone 的触控、旋转、刷新、Stream / Projects / Generate / 文档编辑闭环。
+1. **P0（Selection Skills Extension 实机闭环）**：在可重载的已安装 Chrome 扩展中，验证 textarea 与 contenteditable 选区入口、菜单、Esc、漂移拒绝和不自动提交；当前构建/单测不替代这一项。
+2. **P0（legacy 清理）**：安全清除旧 Agent/旧路由/未挂载 demo 与兼容分支；真实数据变更只做一次备份、验证、删除。
+3. **P1（当前 Extension 核心缺口）**：完成标准 input、选区文字/语音批注、无输入框页面录音、页面历史刷新、目标丢失/断线/重试幂等与焦点防护的真实闭环。
+4. **P1（搜索）**：逐个搜索入口验证语义相关性、简短依据与 local fallback。
+5. **P1（Storybook 与英文文案）**：改为生产组件 inventory、全状态覆盖，并清除 Installer/fixture/系统 copy 中的中文。
+6. **P1（全产品终审）**：用当前主要 Web/Extension 截图与项目内 Notion/ChatGPT 参照完成两名 fresh-context 独立审查，直接修复无歧义高影响问题。
+7. **P1（发布）**：仅在以上核心闭环完成后，发布当前最新 `main` 并完成真实覆盖升级。
+8. **P3（移动端，用户明确后置）**：安全 LAN 配对入口与物理 iPhone 的触控、旋转、刷新、Stream / Projects / Generate / 文档编辑闭环。

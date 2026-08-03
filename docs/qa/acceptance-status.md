@@ -1,4 +1,6 @@
-# Logue 当前真实验收状态
+# Logue 历史验收记录（非权威）
+
+> 本文件保留历史证据，不能作为当前完成判定或产品契约。当前唯一权威目标是 [`GOAL.md`](../../GOAL.md)，逐项当前状态是 [`bug-feature-status.md`](./bug-feature-status.md)。本文件中的旧 UI 名称、旧架构、旧 mobile 结论和旧 Release SHA 均不自动成立。
 
 更新时间：2026-08-02 19:58（America/Los_Angeles）
 
