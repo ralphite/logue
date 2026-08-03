@@ -53,8 +53,8 @@
 | F10 | 手机完整可用并可从同一局域网访问 | PARTIAL | Web/API 支持显式局域网监听，320/390/768 已覆盖 Stream、Projects、Generate、详情和底栏；公开安装为保护资料默认只监听本机。仍缺安全配对入口和一台物理 iPhone 的触控、旋转、刷新与文档编辑闭环。 |
 | F11 | React + TypeScript + Tailwind + Storybook；Go；Gemini 终端环境变量 | PASS | 架构与构建已落地；Gemini Key 只由 Go 进程读取，不进入 Web、Extension、资料、日志或 Release。 |
 | F12 | GitHub 旧仓库彻底替换、永远 main、小提交后立即 push | PASS | `ralphite/logue` 已由当前项目替换；当前分支与 upstream 均为 `main`；本轮逻辑批次均提交后立即推送。 |
-| F13 | 一行 curl 安装、覆盖升级保留数据、询问开机启动、安装后自动启动 | PARTIAL | 发布版安装/回滚证据存在，但当前 installer 仍有中文用户可见输出，且最新 main 尚未重新完成真实安装/覆盖升级。 |
-| F14 | 最新主线也必须进入 Release | OPEN | 当前 `main` / `origin/main` 为 `f374308`，公开 `v0.2.3` 是旧祖先；必须在所有核心闭环后发布和真实验证。 |
+| F13 | 一行 curl 安装、覆盖升级保留数据、询问开机启动、安装后自动启动 | PARTIAL | `3f8d7c4` 的 macOS 完整安装、覆盖升级、失败回滚、数据保留，以及 Linux 安装回归已在双平台 CI 全绿；安装器用户可见文案为英文。仍需用最终 Release 资产在独立机器完成一次真实安装与覆盖升级。 |
+| F14 | 最新主线也必须进入 Release | OPEN | 当前 `main` / `origin/main` 为 `3f8d7c4`，公开 `v0.2.3` 是旧祖先；必须在所有核心闭环后发布和真实验证。 |
 | F15 | ChatGPT.com / Notion / 竞品级独立产品设计审查 | PARTIAL | 原生 Side Panel 与渐进式启动器完成可复用产品设计代理审查并达到 9.1/10 PASS；2026-08-03 fresh-context 盲审复核真实 Web 与项目内 Notion/ChatGPT 参考后，发现 Documents Sources 默认过宽、Settings 内容轴错位、Settings 表单焦点不清晰（均 P1）和 Skills 编辑密度 P2。必须修复并再做两名独立终审。 |
 | F16 | 提供真实截图 | PASS | 可复用、无敏感信息的当前截图保存在 `docs/design/references/runtime/`；例如生成页 input-first 与扩展 Side Panel 页面资料流。 |
 | F17 | 每小时自动重启当前 goal 并继续最高 ROI 工作 | PASS | `logue` automation 持续唤醒本任务；只有 fresh-context 与直接证据共同支持时才能结束。 |
@@ -62,7 +62,7 @@
 | F19 | 所有搜索入口的语义检索、排序、解释和本地降级 | PASS | 2026-08-03 已在真实 Chrome 验证 Stream、Generate 的 Documents 列表、Document Sources（All materials）与 Generate source picker：自然语言查询按语义相关性排序并展示简短英文理由。Documents 主列表补上此前缺失的生产搜索入口，搜索期间使用共享、局部的 `Finding related…` 状态，避免空白或错误的无结果结论。独立无 Gemini 运行时副本验证 Material / Document API 返回 `strategy=local` 且仅有可解释的直接匹配。 |
 | F20 | Storybook 生产组件 inventory 与所有有意义状态 | PARTIAL | `Native Side Panel` 直接复用生产 `SidePanelView`，已覆盖 Current Page、Selection、Starting、Recording、Transcribing、Target Lost、Service Unavailable、Generate、Empty；`Pages/App Compositions` 直接运行生产 `App`，覆盖 Stream、Material Detail、Projects、Documents、Skills、Settings，以及 Stream/Documents/Skills 的 empty、loading、local-error 和 Material 的 low-confidence review。侧栏以全高无浮层视口呈现；真实 DOM 键盘回归覆盖 R、Enter、Esc 与编辑文本不抢键。仍缺完整 production component→Story→state inventory，以及其它页面有意义状态。 |
 | F21 | 清除 legacy 代码、旧路由/数据/测试/未挂载 demo | PASS | 真实 `.logue-data` 已完整备份、一次性转换为 `skills/` 与 `skill-runs/`、在 live API 与隔离导出恢复中验证后删除转换工具；旧 `/v1/agents` 返回 404。旧 demo seed、路由/字段 alias、启动修复与旧 Chrome 降级分支均已删除。 |
-| F22 | Linux 主机运行服务；MacBook Extension/Web 通过可变局域网域名连接 | PARTIAL | Extension 已统一动态 Server URL、具体 origin 权限、API 版本验证、安静断线恢复与全部 background API；Release 已构建 darwin/linux × amd64/arm64，Linux installer 已支持显式 LAN listen、数据保护、立即启动、systemd user 自启动和失败回滚。真实 Mac Chrome 已通过局域网 IP 打开同源生产 Web、确认 Extension 注入并稳定 toggle 原生 Side Panel。仍需在真实 Linux 主机验证 systemd/防火墙域名，并在重载 `50d8ec0` 后完成 Server settings 权限、地址切换和重启持久化闭环。 |
+| F22 | Linux 主机运行服务；MacBook Extension/Web 通过可变局域网域名连接 | PARTIAL | Extension 已统一动态 Server URL、具体 origin 权限、API 版本验证、安静断线恢复与全部 background API；Release 已构建 darwin/linux × amd64/arm64，Linux installer 已支持显式 LAN listen、数据保护、立即启动、systemd user 自启动和失败回滚。`a0564cc` / `3f8d7c4` 新增平台无关、带 checksum 的独立 Mac Extension 安装命令，保持稳定目录、版本化 Side Panel 资产、旧资产和 Chrome storage；首次明确 Load unpacked 与远端 Server URL，升级只要求 Reload。真实 Mac Chrome 已通过局域网 IP 打开同源生产 Web、确认 Extension 注入并稳定 toggle 原生 Side Panel。仍需在真实 Linux 主机验证 systemd/防火墙域名，并在重载当前 Extension 后完成 Server settings 权限、地址切换和 Chrome/MV3/Linux 重启持久化闭环。 |
 
 ## 当前未关闭队列
 
