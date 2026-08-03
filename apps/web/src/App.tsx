@@ -17,6 +17,7 @@ import { ProjectPage } from "./components/ProjectPage";
 import { GenerationWorkspace, type GenerationMode } from "./components/GenerationWorkspace";
 import { SettingsPage } from "./components/SettingsPage";
 import { PanelResizer, usePersistentPanelSize } from "./components/PanelResizer";
+import { pageColumnClass } from "./components/layout";
 import { navigationURL, parseNavigation, type AppNavigation } from "./navigation";
 import { groupIdenticalMaterials } from "./materialGroups";
 
@@ -33,6 +34,15 @@ function initialNavigationCollapsed() {
 }
 
 const materialIcons = { voice: Mic2, selection: FileText, text: FileText, derived: Sparkles };
+
+export function availableMaterialDetailWidth(viewportWidth: number, navigationFootprint: number) {
+  return Math.max(440, Math.floor(viewportWidth - navigationFootprint - 560));
+}
+
+export function defaultMaterialDetailWidth(viewportWidth: number, navigationFootprint: number, maxWidth: number) {
+  const workspaceWidth = Math.max(0, viewportWidth - navigationFootprint);
+  return Math.min(maxWidth, Math.max(440, Math.round(workspaceWidth * 0.5)));
+}
 
 function shortDate(value: string) {
   const date = new Date(value);
@@ -63,10 +73,10 @@ export function App() {
     max: 320,
   });
   const navigationFootprint = navigationCollapsed ? 56 : navigationWidth + 1;
-  const materialDetailMaxWidth = Math.max(440, Math.min(900, viewportWidth - navigationFootprint - 440));
+  const materialDetailMaxWidth = availableMaterialDetailWidth(viewportWidth, navigationFootprint);
   const { size: materialDetailWidth, setSize: setMaterialDetailWidth } = usePersistentPanelSize({
-    storageKey: "logue.panel.material-detail.width",
-    defaultSize: materialDetailMaxWidth,
+    storageKey: "logue.panel.material-detail.width.v3",
+    defaultSize: defaultMaterialDetailWidth(viewportWidth, navigationFootprint, materialDetailMaxWidth),
     min: 440,
     max: materialDetailMaxWidth,
   });
@@ -145,6 +155,12 @@ export function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!error) return;
+    const retry = window.setTimeout(() => void refresh(), 2500);
+    return () => window.clearTimeout(retry);
+  }, [error, refresh]);
 
   useEffect(() => {
     try {
@@ -268,16 +284,13 @@ export function App() {
       ) : (
         <main className={`min-h-0 min-w-0 flex-1 overflow-y-auto ${materialMode === "page" ? "hidden" : ""}`}>
           <header className="sticky top-0 z-20 border-b border-[#eeeeeb] bg-white/92 backdrop-blur-xl">
-            <div data-testid="stream-header-column" className="mx-auto flex w-full max-w-[1080px] items-center justify-between gap-4 px-8 py-4 max-[640px]:px-4">
-              <div>
-                <h1 className="text-[20px] font-semibold tracking-[-0.035em] text-[#20211e]">Stream</h1>
-                <p className="mt-0.5 text-[11px] text-[#858680]">A permanent record of inputs, captures, and derived work</p>
-              </div>
+            <div data-testid="stream-header-column" className={`${pageColumnClass} flex items-center justify-between gap-4 py-4`}>
+              <h1 className="text-[20px] font-semibold tracking-[-0.035em] text-[#20211e]">Stream</h1>
               <button
                 type="button"
                 onClick={() => setShowComposer(true)}
                 aria-label="Add material"
-                className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[#242522] px-3 text-[12px] font-medium text-white transition hover:bg-[#3a3b37] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5b64f4]"
+                className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[#242522] px-3 text-[14px] font-medium text-white transition hover:bg-[#3a3b37] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5b64f4] max-[640px]:h-11"
               >
                 <CirclePlus size={15} />
                 <span className="max-[540px]:hidden">Add material</span>
@@ -285,7 +298,7 @@ export function App() {
             </div>
           </header>
 
-          <div data-testid="stream-content-column" className="mx-auto w-full max-w-[1080px] px-8 pb-12 pt-7 max-[640px]:px-4">
+          <div data-testid="stream-content-column" className={`${pageColumnClass} pb-12 pt-7`}>
             <div className="mb-4 flex items-center gap-3 max-[720px]:flex-wrap">
               <label className="relative min-w-[220px] flex-1">
                 <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#969990]" />
@@ -293,7 +306,7 @@ export function App() {
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search content, sources, or projects"
-                  className="h-9 w-full rounded-md border border-[#dfdfdc] bg-white pl-9 pr-3 text-[12px] text-[#2e302b] outline-none placeholder:text-[#9b9e96] focus:border-[#aaa]"
+                  className="h-9 w-full rounded-md border border-[#dfdfdc] bg-white pl-9 pr-3 text-[14px] text-[#2e302b] outline-none placeholder:text-[#9b9e96] focus:border-[#aaa]"
                 />
               </label>
               <div className="flex rounded-md border border-[#dfdfdc] bg-white p-0.5">
@@ -305,7 +318,7 @@ export function App() {
                   <button
                     key={value}
                     onClick={() => setFilter(value)}
-                    className={`h-7 rounded px-2.5 text-[11px] font-medium transition focus-visible:outline-2 focus-visible:outline-[#5b64f4] ${filter === value ? "bg-[#efefeb] text-[#343630]" : "text-[#81857c] hover:text-[#484b45]"}`}
+                    className={`h-7 rounded px-2.5 text-[15px] font-medium transition focus-visible:outline-2 focus-visible:outline-[#5b64f4] ${filter === value ? "bg-[#efefeb] text-[#343630]" : "text-[#81857c] hover:text-[#484b45]"}`}
                     type="button"
                   >
                     {label}
@@ -315,7 +328,7 @@ export function App() {
             </div>
 
             {error && (
-              <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-[#efd2cc] bg-[#fff5f2] px-4 py-3 text-[12px] text-[#9b4b42]">
+              <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-[#efd2cc] bg-[#fff5f2] px-4 py-3 text-[14px] text-[#9b4b42]">
                 <span>{error}</span>
                 <button type="button" className="font-semibold underline underline-offset-2" onClick={() => void refresh()}>Retry</button>
               </div>
@@ -327,7 +340,7 @@ export function App() {
               </div>
             ) : materialGroups.length ? (
               <>
-                <div className="mb-1 grid grid-cols-[minmax(0,1fr)_150px_150px_70px] gap-3 border-b border-[#e8e8e5] px-3 py-2 text-[10.5px] font-medium text-[#92938e] max-[800px]:grid-cols-[minmax(0,1fr)_100px_60px] max-[480px]:grid-cols-[minmax(0,1fr)_50px]">
+                <div className="mb-1 grid grid-cols-[minmax(0,1fr)_150px_150px_70px] gap-3 border-b border-[#e8e8e5] px-3 py-2 text-[14px] font-medium text-[#92938e] max-[800px]:grid-cols-[minmax(0,1fr)_100px_60px] max-[480px]:grid-cols-[minmax(0,1fr)_50px]">
                   <span>Content</span><span className="max-[480px]:hidden">Project</span><span className="max-[800px]:hidden">Source</span><span>Date</span>
                 </div>
                 <div>
@@ -364,16 +377,16 @@ export function App() {
                         >
                           <span className="flex min-w-0 items-center gap-2.5">
                             {duplicate ? <ChevronRight size={14} className={`shrink-0 text-[#969792] transition ${expanded ? "rotate-90" : ""}`} /> : <Icon size={15} className="shrink-0 text-[#7b7c77]" />}
-                            <span className="truncate text-[12.5px] text-[#3d3e3a]">{material.content}</span>
-                            {duplicate && <span className="hidden shrink-0 rounded bg-[#eeeeea] px-1.5 py-0.5 text-[9px] font-medium text-[#777873] max-[800px]:inline-flex">{group.items.length} items</span>}
-                            {group.needsReview && <span className="hidden shrink-0 rounded bg-[#fff3d8] px-1.5 py-0.5 text-[9px] font-medium text-[#8b611d] max-[480px]:inline-flex">Review</span>}
+                            <span className="truncate text-[14px] text-[#3d3e3a]">{material.content}</span>
+                            {duplicate && <span className="hidden shrink-0 rounded bg-[#eeeeea] px-1.5 py-0.5 text-[12px] font-medium text-[#777873] max-[800px]:inline-flex">{group.items.length} items</span>}
+                            {group.needsReview && <span className="hidden shrink-0 rounded bg-[#fff3d8] px-1.5 py-0.5 text-[12px] font-medium text-[#8b611d] max-[480px]:inline-flex">Review</span>}
                           </span>
                           <span className="flex min-w-0 items-center gap-1.5 max-[480px]:hidden">
-                            <span className="truncate text-[11px] text-[#73746f]">{projectLabel}</span>
-                            {group.needsReview && <span className="shrink-0 rounded bg-[#fff3d8] px-1.5 py-0.5 text-[9px] font-medium text-[#8b611d]">Needs review</span>}
+                            <span className="truncate text-[15px] text-[#73746f]">{projectLabel}</span>
+                            {group.needsReview && <span className="shrink-0 rounded bg-[#fff3d8] px-1.5 py-0.5 text-[12px] font-medium text-[#8b611d]">Needs review</span>}
                           </span>
-                          <span className="truncate text-[11px] text-[#7f807b] max-[800px]:hidden">{duplicate ? `${group.items.length} sources` : sourceName(material)}</span>
-                          <span className="text-[10.5px] text-[#9b9c97]">{shortDate(material.createdAt)}</span>
+                          <span className="truncate text-[15px] text-[#7f807b] max-[800px]:hidden">{duplicate ? `${group.items.length} sources` : sourceName(material)}</span>
+                          <span className="text-[14px] text-[#9b9c97]">{shortDate(material.createdAt)}</span>
                         </button>
                         {duplicate && expanded && (
                           <div className="border-b border-[#e9e9e5] bg-[#fafaf8] px-3 py-1.5">
@@ -384,10 +397,10 @@ export function App() {
                                 onClick={() => { setMaterialMode("peek"); navigate({ section: "stream", materialId: instance.id }); }}
                                 className={`flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left hover:bg-[#f0f0ed] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5b64f4] ${instance.id === selectedId ? "bg-[#eeeeea]" : ""}`}
                               >
-                                <span className="w-6 shrink-0 text-right text-[9.5px] font-medium text-[#aaaba6]">{index + 1}</span>
-                                <span className="min-w-0 flex-1 truncate text-[11px] text-[#595a56]">{instance.source?.title || sourceName(instance)}</span>
-                                <span className="max-w-32 truncate text-[10px] text-[#8a8b86] max-[480px]:hidden">{instance.projects[0] || "Unfiled"}</span>
-                                <span className="shrink-0 text-[10px] text-[#a0a19c]">{shortDate(instance.createdAt)}</span>
+                                <span className="w-6 shrink-0 text-right text-[14px] font-medium text-[#aaaba6]">{index + 1}</span>
+                                <span className="min-w-0 flex-1 truncate text-[15px] text-[#595a56]">{instance.source?.title || sourceName(instance)}</span>
+                                <span className="max-w-32 truncate text-[14px] text-[#8a8b86] max-[480px]:hidden">{instance.projects[0] || "Unfiled"}</span>
+                                <span className="shrink-0 text-[14px] text-[#a0a19c]">{shortDate(instance.createdAt)}</span>
                               </button>
                             ))}
                           </div>
@@ -401,15 +414,15 @@ export function App() {
               <section className="mx-auto flex max-w-lg flex-col items-center px-6 py-20 text-center">
                 <span className="inline-flex size-10 items-center justify-center rounded-lg bg-[#f0f0ed] text-[#71736d]"><LibraryBig size={19} /></span>
                 <h2 className="mt-4 text-[16px] font-semibold tracking-[-0.02em] text-[#3f413c]">Capture your first material</h2>
-                <p className="mt-1.5 max-w-sm text-[12px] leading-5 text-[#858780]">Use Logue on any webpage to dictate or save a selection. The original, its source, and every derivative stay in one record chain.</p>
-                <button type="button" onClick={() => setShowComposer(true)} className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[12px] font-medium text-white hover:bg-[#3a3b37]"><CirclePlus size={14} /> Add first material</button>
+                <p className="mt-1.5 max-w-sm text-[14px] leading-5 text-[#858780]">Use Logue on any webpage to dictate or save a selection. The original, its source, and every derivative stay in one record chain.</p>
+                <button type="button" onClick={() => setShowComposer(true)} className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[14px] font-medium text-white hover:bg-[#3a3b37]"><CirclePlus size={14} /> Add first material</button>
               </section>
             ) : (
               <section className="rounded-2xl border border-dashed border-[#cfd1ca] bg-white/45 px-6 py-16 text-center">
                 <span className="mx-auto inline-flex size-11 items-center justify-center rounded-full bg-[#eef0ea] text-[#747970]"><Search size={19} /></span>
                 <h2 className="mt-4 text-[15px] font-semibold text-[#3f423c]">No matching materials</h2>
-                <p className="mt-1 text-[12px] text-[#858980]">Try a different search or filter.</p>
-                <button type="button" onClick={() => { setQuery(""); setFilter("all"); }} className="mt-4 h-8 rounded-md border border-[#d8d8d3] px-3 text-[11px] font-medium text-[#62635e] hover:bg-[#f4f4f1]">Clear filters</button>
+                <p className="mt-1 text-[14px] text-[#858980]">Try a different search or filter.</p>
+                <button type="button" onClick={() => { setQuery(""); setFilter("all"); }} className="mt-4 h-8 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#62635e] hover:bg-[#f4f4f1]">Clear filters</button>
               </section>
             )}
           </div>
@@ -424,7 +437,7 @@ export function App() {
             value={materialDetailWidth}
             min={440}
             max={materialDetailMaxWidth}
-            defaultValue={materialDetailMaxWidth}
+            defaultValue={defaultMaterialDetailWidth(viewportWidth, navigationFootprint, materialDetailMaxWidth)}
             edge="left"
             onChange={setMaterialDetailWidth}
             className="max-[1180px]:hidden"

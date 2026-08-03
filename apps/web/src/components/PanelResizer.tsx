@@ -33,39 +33,50 @@ export function usePersistentPanelSize({
   setSize: Dispatch<SetStateAction<number>>;
   resetSize: () => void;
 } {
-  const [size, setStoredSize] = useState(() => {
+  const customizedRef = useRef(false);
+  const [preferredSize, setPreferredSize] = useState(() => {
     try {
       const storedValue = window.localStorage.getItem(storageKey);
       const stored = storedValue === null ? Number.NaN : Number(storedValue);
-      return storedValue === null || !Number.isFinite(stored)
-        ? clampPanelSize(defaultSize, min, max)
-        : clampPanelSize(stored, min, max);
+      customizedRef.current = storedValue !== null && Number.isFinite(stored);
+      return customizedRef.current ? stored : defaultSize;
     } catch {
-      return clampPanelSize(defaultSize, min, max);
+      return defaultSize;
     }
   });
+  const size = clampPanelSize(preferredSize, min, max);
 
   const setSize = useCallback<Dispatch<SetStateAction<number>>>((next) => {
-    setStoredSize((current) => clampPanelSize(
-      typeof next === "function" ? next(current) : next,
+    customizedRef.current = true;
+    setPreferredSize((current) => clampPanelSize(
+      typeof next === "function" ? next(clampPanelSize(current, min, max)) : next,
       min,
       max,
     ));
   }, [max, min]);
 
-  const resetSize = useCallback(() => setSize(defaultSize), [defaultSize, setSize]);
-
-  useEffect(() => {
-    setStoredSize((current) => clampPanelSize(current, min, max));
-  }, [max, min]);
-
-  useEffect(() => {
+  const resetSize = useCallback(() => {
+    customizedRef.current = false;
+    setPreferredSize(defaultSize);
     try {
-      window.localStorage.setItem(storageKey, String(size));
+      window.localStorage.removeItem(storageKey);
+    } catch {
+      // Reset still works when browser storage is unavailable.
+    }
+  }, [defaultSize, storageKey]);
+
+  useEffect(() => {
+    if (!customizedRef.current) setPreferredSize(defaultSize);
+  }, [defaultSize]);
+
+  useEffect(() => {
+    if (!customizedRef.current) return;
+    try {
+      window.localStorage.setItem(storageKey, String(preferredSize));
     } catch {
       // Resizing remains available when browser storage is unavailable.
     }
-  }, [size, storageKey]);
+  }, [preferredSize, storageKey]);
 
   return { size, setSize, resetSize };
 }

@@ -12,7 +12,7 @@
 }
 
 @media (max-width: 900px) {
-  select[aria-label="Choose agent"] {
+  select[aria-label="Choose skill"] {
     display: block;
   }
 }
@@ -41,8 +41,9 @@
 html,
 body,
 #root {
-  min-height: 100%;
+  height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 body {

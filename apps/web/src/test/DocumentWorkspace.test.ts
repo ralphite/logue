@@ -1,16 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
   availableSourcePanelWidth,
+  defaultSourcePanelWidth,
   hasCitationNumber,
   reconcileDocumentCitations,
   removeSourceCitation,
   renumberCitationsAfterRemoval,
 } from "../components/DocumentWorkspace";
+import { availableMaterialDetailWidth, defaultMaterialDetailWidth } from "../App";
 
 describe("document source provenance", () => {
-  it("lets the sources panel use all space remaining after the document list", () => {
-    expect(availableSourcePanelWidth(1280, 252)).toBe(1027);
+  it("preserves a usable stream list while allowing a wide material panel", () => {
+    expect(availableMaterialDetailWidth(1920, 253)).toBe(1107);
+    expect(availableMaterialDetailWidth(1024, 253)).toBe(440);
+    expect(defaultMaterialDetailWidth(1920, 253, 1107)).toBe(834);
+  });
+
+  it("preserves a usable editor while allowing the sources panel to grow", () => {
+    expect(availableSourcePanelWidth(1280, 252)).toBe(467);
+    expect(availableSourcePanelWidth(1280, 0)).toBe(719);
     expect(availableSourcePanelWidth(480, 252)).toBe(240);
+  });
+
+  it("defaults the sources panel to half of a wide workspace", () => {
+    expect(defaultSourcePanelWidth(1920, 1919)).toBe(960);
+    expect(defaultSourcePanelWidth(900, 899)).toBe(450);
+    expect(defaultSourcePanelWidth(900, 360)).toBe(360);
   });
 
   it("detects only the exact linked citation", () => {

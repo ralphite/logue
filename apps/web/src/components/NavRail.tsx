@@ -39,7 +39,7 @@ export function MobileNav({
             type="button"
             onClick={() => onChange(item.id)}
             aria-current={selected ? "page" : undefined}
-            className={`flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-lg text-[10px] font-medium transition focus-visible:outline-2 focus-visible:outline-[#5b64f4] ${selected ? "text-[#343630]" : "text-[#858680] active:bg-[#f0f0ed]"}`}
+            className={`flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-lg text-[14px] font-medium transition focus-visible:outline-2 focus-visible:outline-[#5b64f4] ${selected ? "text-[#343630]" : "text-[#858680] active:bg-[#f0f0ed]"}`}
           >
             <span className={`inline-flex h-7 min-w-10 items-center justify-center rounded-md ${selected ? "bg-[#ececea]" : ""}`}><Icon size={17} strokeWidth={selected ? 2.2 : 1.8} /></span>
             <span>{item.label}</span>
@@ -86,38 +86,47 @@ export function NavRail({
       )}
     >
       <div className="flex h-11 items-center">
-        <Tooltip content={toggleLabel}>
-        <button
-          type="button"
-          data-testid="sidebar-brand-toggle"
-          aria-label={toggleLabel}
-          aria-expanded={!collapsed}
-          aria-controls="primary-navigation"
-          onClick={() => onCollapsedChange(!collapsed)}
-          className="group/toggle flex size-11 shrink-0 items-center justify-center rounded-lg text-[#73756f] transition hover:bg-[#ebebe8] hover:text-[#30322d] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4]"
-        >
-          <span
-            data-testid="sidebar-brand-mark"
-            className="group-hover/sidebar:hidden group-focus-visible/toggle:hidden"
-            aria-hidden="true"
-          >
-            <LogueLogo compact />
-          </span>
-          <span
-            data-testid="sidebar-toggle-icon"
-            className="hidden items-center justify-center group-hover/sidebar:flex group-focus-visible/toggle:flex"
-            aria-hidden="true"
-          >
-            {collapsed
-              ? <PanelLeftOpen size={18} strokeWidth={1.9} />
-              : <PanelLeftClose size={18} strokeWidth={1.9} />}
-          </span>
-        </button>
-        </Tooltip>
-        {!collapsed && (
-          <span className="min-w-0 flex-1 truncate pr-2 text-[17px] font-semibold tracking-[-0.035em] text-[#181916]">
-            Logue
-          </span>
+        {collapsed ? (
+          <Tooltip content="Open sidebar">
+            <button
+              type="button"
+              data-testid="sidebar-brand-toggle"
+              aria-label="Open sidebar"
+              aria-expanded="false"
+              aria-controls="primary-navigation"
+              onClick={() => onCollapsedChange(false)}
+              className="group/toggle flex size-11 shrink-0 items-center justify-center rounded-lg text-[#73756f] transition hover:bg-[#ebebe8] hover:text-[#30322d] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4]"
+            >
+              <span data-testid="sidebar-brand-mark" className="group-hover/toggle:hidden group-focus-visible/toggle:hidden" aria-hidden="true">
+                <LogueLogo compact />
+              </span>
+              <span data-testid="sidebar-toggle-icon" className="hidden items-center justify-center group-hover/toggle:flex group-focus-visible/toggle:flex" aria-hidden="true">
+                <PanelLeftOpen size={18} strokeWidth={1.9} />
+              </span>
+            </button>
+          </Tooltip>
+        ) : (
+          <>
+            <span data-testid="sidebar-brand-mark" className="flex size-11 shrink-0 items-center justify-center" aria-hidden="true">
+              <LogueLogo compact />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[17px] font-semibold tracking-[-0.035em] text-[#181916]">
+              Logue
+            </span>
+            <Tooltip content="Close sidebar">
+              <button
+                type="button"
+                data-testid="sidebar-brand-toggle"
+                aria-label="Close sidebar"
+                aria-expanded="true"
+                aria-controls="primary-navigation"
+                onClick={() => onCollapsedChange(true)}
+                className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[#73756f] opacity-0 transition hover:bg-[#ebebe8] hover:text-[#30322d] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4] group-hover/sidebar:opacity-100"
+              >
+                <PanelLeftClose data-testid="sidebar-toggle-icon" size={18} strokeWidth={1.9} aria-hidden="true" />
+              </button>
+            </Tooltip>
+          </>
         )}
       </div>
 
@@ -129,7 +138,7 @@ export function NavRail({
             <button
               onClick={() => onChange(item.id)}
               className={cn(
-                "flex h-11 w-full items-center rounded-lg text-[13px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4]",
+                "flex h-11 w-full items-center rounded-lg text-[15px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4]",
                 active === item.id
                   ? "bg-[#e9e9e6] text-[#373834]"
                   : "text-[#686965] hover:bg-[#ededeb] hover:text-[#30322d]",
@@ -156,7 +165,7 @@ export function NavRail({
           <span className="flex size-11 shrink-0 items-center justify-center">
             <span className="flex size-2 shrink-0 rounded-full bg-[#cf574c]" />
           </span>
-          <span className={cn("min-w-0 flex-1 truncate pr-2 text-[11px] font-medium text-[#74776f]", collapsed && "sr-only")}>
+          <span className={cn("min-w-0 flex-1 truncate pr-2 text-[15px] font-medium text-[#74776f]", collapsed && "sr-only")}>
             Service disconnected
           </span>
         </div>

@@ -1,10 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../App";
 import { NavRail } from "../components/NavRail";
 
 const { apiMocks, documentFixture } = vi.hoisted(() => ({
-  apiMocks: { updateDocument: vi.fn() },
+  apiMocks: { getMaterials: vi.fn(), getStatus: vi.fn(), updateDocument: vi.fn() },
   documentFixture: {
     id: "document-1",
     title: "Shell test document",
@@ -22,19 +22,21 @@ vi.mock("../api", async (importOriginal) => {
   return {
     ...actual,
     getDocuments: vi.fn().mockResolvedValue([documentFixture]),
-    getMaterials: vi.fn().mockResolvedValue([]),
-    getStatus: vi.fn().mockResolvedValue({
-      ok: true,
-      ai_configured: false,
-      model: "",
-      storage_root: "/tmp/logue-test",
-    }),
+    getMaterials: apiMocks.getMaterials,
+    getStatus: apiMocks.getStatus,
     updateDocument: apiMocks.updateDocument,
   };
 });
 
 describe("application navigation shell", () => {
   beforeEach(() => {
+    apiMocks.getMaterials.mockReset().mockResolvedValue([]);
+    apiMocks.getStatus.mockReset().mockResolvedValue({
+      ok: true,
+      ai_configured: false,
+      model: "",
+      storage_root: "/tmp/logue-test",
+    });
     apiMocks.updateDocument.mockReset();
     window.localStorage.clear();
     window.history.replaceState(null, "", "/?view=docs&doc=document-1");
@@ -80,11 +82,12 @@ describe("application navigation shell", () => {
     );
 
     const collapseButton = screen.getByRole("button", { name: "Close sidebar" });
-    expect(collapseButton.className).toContain("size-11");
+    expect(collapseButton.className).toContain("size-9");
     expect(collapseButton.getAttribute("data-testid")).toBe("sidebar-brand-toggle");
     expect(screen.getByTestId("primary-navigation-shell").className).toContain("group/sidebar");
-    expect(screen.getByTestId("sidebar-brand-mark").className).toContain("group-hover/sidebar:hidden");
-    expect(screen.getByTestId("sidebar-toggle-icon").className).toContain("group-hover/sidebar:flex");
+    expect(screen.getByTestId("sidebar-brand-mark").className).not.toContain("group-hover/sidebar:hidden");
+    expect(collapseButton.className).toContain("group-hover/sidebar:opacity-100");
+    expect(collapseButton.className).toContain("opacity-0");
     expect(within(screen.getByTestId("primary-navigation-shell")).getByText("Logue")).toBeTruthy();
     expect(screen.getAllByRole("button", { name: "Close sidebar" })).toHaveLength(1);
     expect(within(screen.getByTestId("primary-navigation-shell")).queryByText("Local service running")).toBeNull();
@@ -102,6 +105,8 @@ describe("application navigation shell", () => {
     expect(screen.getByTestId("primary-navigation-shell").getAttribute("data-collapsed")).toBe("true");
     expect(screen.getByTestId("primary-navigation-shell").className).toContain("w-14");
     expect(screen.getByRole("button", { name: "Open sidebar" }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByTestId("sidebar-brand-mark").className).toContain("group-hover/toggle:hidden");
+    expect(screen.getByTestId("sidebar-toggle-icon").className).toContain("group-hover/toggle:flex");
     const collapsedStreamIconSlot = within(screen.getByTestId("primary-navigation-shell"))
       .getByRole("button", { name: "Stream" })
       .querySelector('[data-nav-icon-slot="true"]');
@@ -117,6 +122,26 @@ describe("application navigation shell", () => {
 
     rerender(<NavRail active="stream" connected={false} onChange={() => undefined} />);
     expect(screen.getByRole("status", { name: "Service disconnected" })).toBeTruthy();
+  });
+
+  it("quietly reconnects after the local service becomes available", async () => {
+    vi.useFakeTimers();
+    try {
+      apiMocks.getMaterials.mockRejectedValueOnce(new Error("Service disconnected")).mockResolvedValue([]);
+      render(<App />);
+
+      await act(async () => { await Promise.resolve(); await Promise.resolve(); });
+      expect(screen.getByRole("status", { name: "Service disconnected" })).toBeTruthy();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2500);
+      });
+
+      expect(apiMocks.getMaterials).toHaveBeenCalledTimes(2);
+      expect(screen.queryByRole("status", { name: "Service disconnected" })).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("restores and updates the collapsed preference", async () => {
