@@ -84,14 +84,16 @@ Generate 可以产生：
 - 无选区时：展示当前页面来源/上下文；用户可直接录音，转写后保存为页面关联 Material，不能假定存在可写入网页的输入框。
 - 有当前网页输入目标时：可录音并在保存成功后插入该目标；目标消失时已保存内容不能丢失，应允许重新插入或 Copy。
 - Logue Web App 自己的真实 input、textarea 和 editor 也必须允许 Extension 使用；只能对明确的 Extension UI 子树做 opt-out，不能整站禁用。
-- Side Panel 打开或由网页 launcher 唤起后，必须将焦点可靠交给 Side Panel document 的非编辑区域，使 `R` 可立即使用；不得抢占 textarea、input、select 或 contenteditable 的编辑焦点。
+- Side Panel 由工具栏、快捷键或菜单打开后，必须将焦点可靠交给 Side Panel document 的非编辑区域，使 `R` 可立即使用；不得抢占 textarea、input、select 或 contenteditable 的编辑焦点。
 - 无选区的当前页面 Side Panel 必须在输入/录音区域下方显示关联该页面的已保存 Material；按创建时间由新到旧排序，新增、保存或插入后无需重开即可立即出现在顶部。
 
 ### 4.3 极简语音输入
 
 - 默认语音输入不能比直接键盘输入或 ChatGPT 原生语音更复杂。
 - 当某个真实网页输入目标聚焦时，只显示一个安静的语音 launcher；Generate 只能通过渐进式 disclosure 出现，不能长期与主麦克风并列制造选择负担。
-- 点击 launcher 一次即开始录音并把焦点可靠交给 Side Panel；首次点击不得因布局跳位、焦点变化或命中区改变而失效。
+- 输入目标旁的 launcher 只负责本地语音输入：点击一次即在原位开始录音，自动采用当前输入、页面与项目上下文；不得打开或 toggle Side Panel。工具栏、菜单和 `Cmd/Ctrl+Shift+L` 才负责 Side Panel。
+- 录音中 launcher 原位替换为紧凑、可访问的 `Cancel` 与 `Stop and insert` icon controls（VibeDoc 为交互参照）；`Esc` 取消，`Enter` 停止并自动转写、保存、插入。不得新增审阅态、额外 Accept 步骤或第二次确认。
+- 首次点击不得因布局跳位、焦点变化或命中区改变而失效。
 - 录音态只有两个用户决策：`Stop and insert` 与 `Cancel`。
 - `Stop and insert` 自动完成转写、保存、插入；不得出现转写审阅、项目、Tag、Reference、归档设置、接受后第二次确认或自动发送。
 - 项目、Tag 与自动整理在默认录音/页面批注路径中必须后台静默处理；不得显示 `Organize`、`Automatic` 或其他解释性配置。低置信度才用简短、局部、可编辑的 review 暴露必要信息。
