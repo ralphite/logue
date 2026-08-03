@@ -112,6 +112,17 @@ export function editableSelectionSnapshotsMatch(
 }
 
 /**
+ * A browser can retain a textarea selection after the user clicks elsewhere.
+ * Keep an explicitly dismissed selection quiet until the user makes a new one.
+ */
+export function selectionSkillDismissalStillApplies(
+  dismissed: EditableSelectionSnapshot | undefined,
+  next: EditableSelectionSnapshot | undefined,
+) {
+  return editableSelectionSnapshotsMatch(dismissed, next);
+}
+
+/**
  * Repeated browser selection events must not manufacture a new invocation.
  * Keep the existing object while the selected DOM range is logically unchanged.
  */

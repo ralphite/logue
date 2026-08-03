@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { OverlayMenu, SelectionSkillMenu, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility, type EditableSelectionSnapshot, type Material, type SelectionSkillApplyTransaction } from "@logue/ui";
+import { OverlayMenu, SelectionSkillMenu, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type Material, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSerialTaskQueue } from "../documentSaveQueue";
 import { groupIdenticalMaterials } from "../materialGroups";
@@ -360,6 +360,7 @@ export function ViewWorkspace({
   const editorRef = useRef<HTMLDivElement | null>(null);
   const editorSelectionRef = useRef<Range | undefined>(undefined);
   const selectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
+  const dismissedSelectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
   const selectionRefreshFrameRef = useRef<number | undefined>(undefined);
   const selectionDocumentRef = useRef<{ id: string; revision: number } | undefined>(undefined);
   const selectionSkillsLoadedRef = useRef(false);
@@ -715,6 +716,13 @@ export function ViewWorkspace({
     const documentID = selectedIdRef.current;
     if (!editor || !documentID) return;
     const next = captureStableEditableSelection(editor, selectionSnapshotRef.current, editor);
+    if (selectionSkillDismissalStillApplies(dismissedSelectionSnapshotRef.current, next)) {
+      selectionSnapshotRef.current = undefined;
+      selectionDocumentRef.current = undefined;
+      setSelectionSnapshot(undefined);
+      return;
+    }
+    dismissedSelectionSnapshotRef.current = undefined;
     selectionSnapshotRef.current = next;
     selectionDocumentRef.current = next ? { id: documentID, revision: revisionByDocumentRef.current.get(documentID) ?? 0 } : undefined;
     setSelectionSnapshot(next);
@@ -735,21 +743,39 @@ export function ViewWorkspace({
     });
   }, [refreshDocumentSkillSelection]);
 
+  const dismissDocumentSelectionSkills = useCallback(() => {
+    if (selectionSnapshotRef.current) {
+      dismissedSelectionSnapshotRef.current = selectionSnapshotRef.current;
+    }
+    selectionSnapshotRef.current = undefined;
+    selectionDocumentRef.current = undefined;
+    setSelectionSnapshot(undefined);
+    setFocusSelectionSkillTrigger(false);
+  }, []);
+
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor || !selectedId) return;
     const onSelectionChange = () => scheduleDocumentSkillSelectionRefresh();
+    const onPointerDownOutsideSelection = (event: PointerEvent) => {
+      const path = event.composedPath();
+      const selectionMenu = path.some((item) => item instanceof HTMLElement && item.getAttribute("aria-label") === "Selection skills");
+      if (path.includes(editor) || selectionMenu) return;
+      dismissDocumentSelectionSkills();
+    };
     document.addEventListener("selectionchange", onSelectionChange);
     editor.addEventListener("select", onSelectionChange);
+    document.addEventListener("pointerdown", onPointerDownOutsideSelection, true);
     return () => {
       document.removeEventListener("selectionchange", onSelectionChange);
       editor.removeEventListener("select", onSelectionChange);
+      document.removeEventListener("pointerdown", onPointerDownOutsideSelection, true);
       if (selectionRefreshFrameRef.current !== undefined) {
         window.cancelAnimationFrame(selectionRefreshFrameRef.current);
         selectionRefreshFrameRef.current = undefined;
       }
     };
-  }, [scheduleDocumentSkillSelectionRefresh, selectedId]);
+  }, [dismissDocumentSelectionSkills, scheduleDocumentSkillSelectionRefresh, selectedId]);
 
   const eligibleSelectionSkills = selectionSkillEligibility(selectionSkills, "web");
 
@@ -1090,10 +1116,7 @@ export function ViewWorkspace({
               focusTrigger={focusSelectionSkillTrigger}
               onFocusTriggerHandled={() => setFocusSelectionSkillTrigger(false)}
               onDismiss={() => {
-                setFocusSelectionSkillTrigger(false);
-                selectionSnapshotRef.current = undefined;
-                selectionDocumentRef.current = undefined;
-                setSelectionSnapshot(undefined);
+                dismissDocumentSelectionSkills();
               }}
             />}
             {selectionUndo?.documentId === selectedId && <div role="status" className="fixed bottom-5 left-1/2 z-30 -translate-x-1/2 rounded-md border border-[#ddddda] bg-white px-2.5 py-1.5 text-[13px] text-[#5b5c57] shadow-[0_8px_24px_rgba(20,21,18,0.12)]">

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { captureEditableSelection, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility } from "@logue/ui";
+import { captureEditableSelection, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility } from "@logue/ui";
 import { activeEditableElement, googleDocsEditorFrame, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "../dom";
 
 describe("editable integration", () => {
@@ -162,6 +162,19 @@ describe("editable integration", () => {
     expect(captureStableEditableSelection(textarea, snapshot)).toBe(snapshot);
     textarea.setSelectionRange(20, 20);
     expect(captureStableEditableSelection(textarea, snapshot)).toBeUndefined();
+  });
+
+  it("keeps an explicitly dismissed selection hidden until a new selection is made", () => {
+    const textarea = document.createElement("textarea");
+    textarea.value = "Before selected text after";
+    document.body.append(textarea);
+    textarea.focus();
+    textarea.setSelectionRange(7, 20);
+    const dismissed = captureStableEditableSelection(textarea);
+
+    expect(selectionSkillDismissalStillApplies(dismissed, captureStableEditableSelection(textarea))).toBe(true);
+    textarea.setSelectionRange(0, 6);
+    expect(selectionSkillDismissalStillApplies(dismissed, captureStableEditableSelection(textarea))).toBe(false);
   });
 
   it("replaces a contenteditable selection without submitting its form", () => {

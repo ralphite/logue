@@ -1,4 +1,4 @@
-import { SelectionSkillMenu, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillEligibility, type EditableSelectionSnapshot, type SelectionSkillApplyTransaction } from "@logue/ui";
+import { SelectionSkillMenu, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { adoptExtensionSkillRun, cancelMaterialSave, createExtensionSkillRun, getCaptureContext, getExtensionSkills, saveMaterial, transcribeAudio, type AppliedContext, type ExtensionSkill } from "./api";
@@ -97,6 +97,7 @@ function ExtensionLauncher() {
   const voiceSessionRef = useRef<InlineVoiceSession | undefined>(undefined);
   const recordingBridgeRef = useRef<ContentRecordingBridge | undefined>(undefined);
   const selectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
+  const dismissedSelectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
   const selectionRefreshFrameRef = useRef<number | undefined>(undefined);
   const selectionSkillsLoadedRef = useRef(false);
   const selectionNoticeTimerRef = useRef<number | undefined>(undefined);
@@ -155,6 +156,12 @@ function ExtensionLauncher() {
       return;
     }
     const next = captureStableEditableSelection(target, selectionSnapshotRef.current);
+    if (selectionSkillDismissalStillApplies(dismissedSelectionSnapshotRef.current, next)) {
+      selectionSnapshotRef.current = undefined;
+      setSelectionSnapshot(undefined);
+      return;
+    }
+    dismissedSelectionSnapshotRef.current = undefined;
     selectionSnapshotRef.current = next;
     setSelectionSnapshot(next);
     if (!next || selectionSkillsLoadedRef.current) return;
@@ -173,6 +180,15 @@ function ExtensionLauncher() {
       refreshSelectionSkillTarget();
     });
   }, [refreshSelectionSkillTarget]);
+
+  const dismissSelectionSkills = useCallback(() => {
+    if (selectionSnapshotRef.current) {
+      dismissedSelectionSnapshotRef.current = selectionSnapshotRef.current;
+    }
+    selectionSnapshotRef.current = undefined;
+    setSelectionSnapshot(undefined);
+    setFocusSelectionSkillTrigger(false);
+  }, []);
 
   const showSelectionSkillNotice = useCallback((notice: {
     anchor: { left: number; top: number };
@@ -411,8 +427,15 @@ function ExtensionLauncher() {
       refreshTarget();
       scheduleSelectionSkillRefresh();
     };
+    const onPointerDownOutsideSelection = (event: PointerEvent) => {
+      const target = targetRef.current;
+      const path = event.composedPath();
+      if (!target || path.includes(target) || (host && path.includes(host))) return;
+      dismissSelectionSkills();
+    };
     document.addEventListener("selectionchange", scheduleSelectionSkillRefresh);
     document.addEventListener("select", onSelectionInteraction, true);
+    document.addEventListener("pointerdown", onPointerDownOutsideSelection, true);
     document.addEventListener("pointerup", onSelectionInteraction, true);
     document.addEventListener("keyup", onSelectionInteraction, true);
     activateTarget(activeEditableElement(document));
@@ -432,6 +455,7 @@ function ExtensionLauncher() {
       document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("selectionchange", scheduleSelectionSkillRefresh);
       document.removeEventListener("select", onSelectionInteraction, true);
+      document.removeEventListener("pointerdown", onPointerDownOutsideSelection, true);
       document.removeEventListener("pointerup", onSelectionInteraction, true);
       document.removeEventListener("keyup", onSelectionInteraction, true);
       if (selectionRefreshFrameRef.current !== undefined) {
@@ -443,7 +467,7 @@ function ExtensionLauncher() {
       window.removeEventListener("hashchange", onRoute);
       window.removeEventListener("popstate", onRoute);
     };
-  }, [clearTarget, refreshTarget, scheduleSelectionSkillRefresh]);
+  }, [clearTarget, dismissSelectionSkills, refreshTarget, scheduleSelectionSkillRefresh]);
 
   useEffect(() => {
     const target = targetRef.current;
@@ -732,9 +756,7 @@ function ExtensionLauncher() {
         focusTrigger={focusSelectionSkillTrigger}
         onFocusTriggerHandled={() => setFocusSelectionSkillTrigger(false)}
         onDismiss={() => {
-          setFocusSelectionSkillTrigger(false);
-          selectionSnapshotRef.current = undefined;
-          setSelectionSnapshot(undefined);
+          dismissSelectionSkills();
         }}
       />}
       {selectionSkillNotice && <div
