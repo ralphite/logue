@@ -19,7 +19,7 @@
 | P1 | 全产品英文（B21） | IN_PROGRESS | Web 和 Installer 的系统文案已为英文；仍需清除 Storybook、fixture、测试可见 copy 和其它正式产品表面的残余中文。用户自有内容不改写。 | 对生产 UI、Extension、Storybook 和安装器做英文扫描与真实页面抽查，无系统中文。 |
 | P1 | Storybook 生产 inventory（F20） | IN_PROGRESS | 仍缺完整的 production component → story → applicable state 映射，以及部分页面的 loading/error/offline/overflow/keyboard 状态。 | 根地址可用；每个生产组件及其有意义状态可直接查看，且复用生产组件而非复制 demo。 |
 | P1 | 全产品一致性终审（F15） | IN_PROGRESS | Documents Sources 默认宽度、Settings 内容轴与焦点、Skills 编辑密度仍需最终统一；之后还缺两名 fresh-context 独立终审。 | 修复真实运行界面；两名独立审查者均无未解决 P0/P1，Notion/ChatGPT 对照达到目标。 |
-| P1 | Release 跨机验收（F13） | READY_FOR_REAL_ENV | `v0.2.4` 与独立 Extension 首装/覆盖已通过隔离验证；仍缺另一台真实 Linux/Mac 的服务安装、Chrome Load unpacked/Reload、数据保留和覆盖升级。 | 从公开 Release 在另一台机器完成首次安装和覆盖升级，真实数据不被覆盖，失败可回滚。 |
+| P1 | Release 跨机验收（F13） | READY_FOR_REAL_ENV | `v0.2.5` 的公开校验和、独立 Extension、服务首装/覆盖和数据保留已通过隔离验证；仍缺另一台真实 Linux/Mac 的服务安装、Chrome Load unpacked/Reload、数据保留和覆盖升级。 | 从公开 Release 在另一台机器完成首次安装和覆盖升级，真实数据不被覆盖，失败可回滚。 |
 | P3 | 手机真机（F10） | DEFERRED | 物理 iPhone 的触控、旋转、刷新和核心页面/文档编辑尚未实测；用户已明确后置。 | 物理 iPhone 完成真实 LAN 流程；不影响当前桌面 P0/P1 排序。 |
 
 ## 维护规则
