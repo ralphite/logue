@@ -86,7 +86,7 @@ func TestGenerateDocumentUsesCurrentCitationFormat(t *testing.T) {
 func TestGeminiClassifyRequiresStrictJSONAndKnownProjects(t *testing.T) {
 	projects := []ProjectSummary{{Name: "Logue"}, {Name: "Research"}}
 	responses := []string{
-		`{"projects":["Logue"],"tags":["语音"],"confidence":0.91,"reason":"内容与 Logue 直接相关"}`,
+		`{"projects":["Logue"],"tags":["voice"],"confidence":0.91,"reason":"The material directly describes Logue voice input."}`,
 		`{"projects":["Invented"],"tags":[],"confidence":0.9,"reason":"guess"}`,
 		"```json\n{\"projects\":[\"Logue\"],\"tags\":[],\"confidence\":0.9,\"reason\":\"guess\"}\n```",
 	}
@@ -100,16 +100,16 @@ func TestGeminiClassifyRequiresStrictJSONAndKnownProjects(t *testing.T) {
 			t.Fatalf("classification did not request JSON output: %#v", request.GenerationConfig)
 		}
 		prompt := request.Contents[0].Parts[0].Text
-		if !strings.Contains(prompt, "只能从 available_projects") {
+		if !strings.Contains(prompt, "Choose projects only from an available_projects name") {
 			t.Fatal("classification prompt is missing the project whitelist rule")
 		}
-		if !strings.Contains(prompt, "reason 必须用一句简短英文") {
+		if !strings.Contains(prompt, "reason must be one short English sentence") {
 			t.Fatal("classification prompt does not require an English review reason")
 		}
-		if !strings.Contains(prompt, "自动整理 Skill") || !strings.Contains(prompt, "<skill_instruction>") || strings.Contains(prompt, "自动整理 Agent") || strings.Contains(prompt, "<agent_instruction>") {
+		if !strings.Contains(prompt, "Automatic organization Skill") || !strings.Contains(prompt, "<skill_instruction>") || strings.Contains(prompt, "Automatic organization Agent") || strings.Contains(prompt, "<agent_instruction>") {
 			t.Fatalf("classification prompt did not use the Skill contract: %s", prompt)
 		}
-		for _, required := range []string{"来源页面只是出处", "known_tags 只是命名参考", "tool-use", "没有可靠匹配时返回空数组", "优先选择具体子项目", "同义标签不得重复"} {
+		for _, required := range []string{"provenance, never evidence", "known_tags is a naming reference", "tool-use", "Return empty arrays when there is no reliable match", "prefer the specific project", "Do not repeat synonymous tags"} {
 			if !strings.Contains(prompt, required) {
 				t.Fatalf("classification prompt is missing quality rule %q", required)
 			}
@@ -124,7 +124,7 @@ func TestGeminiClassifyRequiresStrictJSONAndKnownProjects(t *testing.T) {
 	client.baseURL = server.URL
 	client.client = server.Client()
 
-	decision, err := client.Classify(context.Background(), Material{Kind: "text", Content: "Logue voice input"}, projects, []string{"语音"})
+	decision, err := client.Classify(context.Background(), Material{Kind: "text", Content: "Logue voice input"}, projects, []string{"voice"})
 	if err != nil || len(decision.Projects) != 1 || decision.Projects[0] != "Logue" {
 		t.Fatalf("expected valid decision, got %v %#v", err, decision)
 	}
