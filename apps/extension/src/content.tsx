@@ -5,12 +5,20 @@ import { getEditableText, insertIntoElement, isEditableElement, isEditableTarget
 import { isLogueExtensionDisabledDocument } from "./eligibility";
 import { clampLauncherPosition, defaultLauncherPosition } from "./launcherPosition";
 import type { CaptureIntent, CaptureSource } from "./capturePrimitives";
+import {
+  createContentRecordingBridge,
+  createRecordingLifecycleRegistry,
+  type RecordingControlMessage,
+  type RecordingDisposeMessage,
+} from "./recordingBridge";
 import styles from "./extension.css?inline";
 
-interface ContentMessage {
+interface ContentRequestMessage {
   type: "logue:insert-text" | "logue:get-page-context";
   text?: string;
 }
+
+type ContentMessage = ContentRequestMessage | RecordingControlMessage | RecordingDisposeMessage;
 
 function pageSource(): CaptureSource {
   return {
@@ -23,6 +31,7 @@ function pageSource(): CaptureSource {
 function ExtensionLauncher() {
   const [targetRect, setTargetRect] = useState<DOMRect>();
   const [keyboardActive, setKeyboardActive] = useState(false);
+  const [launchError, setLaunchError] = useState("");
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
   const targetRef = useRef<HTMLElement | null>(null);
   const targetPageHrefRef = useRef("");
@@ -32,6 +41,7 @@ function ExtensionLauncher() {
     targetPageHrefRef.current = "";
     setTargetRect(undefined);
     setKeyboardActive(false);
+    setLaunchError("");
   }, []);
 
   const refreshTarget = useCallback(() => {
@@ -46,6 +56,7 @@ function ExtensionLauncher() {
   const openSidePanel = useCallback((intent: CaptureIntent, autoStartRecording = false) => {
     const target = targetRef.current;
     const selectionText = window.getSelection()?.toString().trim() || undefined;
+    setLaunchError("");
     void chrome.runtime.sendMessage({
       type: "logue:open-side-panel",
       intent,
@@ -53,7 +64,9 @@ function ExtensionLauncher() {
       selectionText,
       targetText: target ? getEditableText(target) : undefined,
       autoStartRecording,
-    });
+    }).then((response: { ok?: boolean; error?: string } | undefined) => {
+      if (!response?.ok) throw new Error(response?.error || "Logue could not connect to this page.");
+    }).catch(() => setLaunchError("Reload this page to reconnect Logue."));
   }, []);
 
   useEffect(() => {
@@ -121,7 +134,23 @@ function ExtensionLauncher() {
   }, []);
 
   useEffect(() => {
+    const recordingBridge = createContentRecordingBridge({
+      emit: (event) => chrome.runtime.sendMessage(event),
+    });
+    const recordingLifecycle = createRecordingLifecycleRegistry(() => recordingBridge.dispose());
+    const onConnect = (port: chrome.runtime.Port) => {
+      recordingLifecycle.accept(port);
+    };
     const listener = (message: ContentMessage, _sender: chrome.runtime.MessageSender, sendResponse: (value: unknown) => void) => {
+      if (message?.type === "logue:recording-control") {
+        sendResponse(recordingBridge.handle(message));
+        return false;
+      }
+      if (message?.type === "logue:recording-dispose") {
+        recordingBridge.dispose();
+        sendResponse({ ok: true });
+        return false;
+      }
       if (message?.type === "logue:insert-text") {
         const target = targetRef.current;
         const inserted = Boolean(
@@ -144,8 +173,14 @@ function ExtensionLauncher() {
       }
       return false;
     };
+    chrome.runtime.onConnect.addListener(onConnect);
     chrome.runtime.onMessage.addListener(listener);
-    return () => chrome.runtime.onMessage.removeListener(listener);
+    return () => {
+      chrome.runtime.onConnect.removeListener(onConnect);
+      chrome.runtime.onMessage.removeListener(listener);
+      recordingLifecycle.dispose();
+      recordingBridge.dispose();
+    };
   }, []);
 
   const defaultPosition = targetRect ? defaultLauncherPosition(targetRect, viewport) : undefined;
@@ -171,7 +206,7 @@ function ExtensionLauncher() {
       </button>
       <button
         type="button"
-        className="logue-launcher"
+        className="logue-launcher logue-launcher-generation"
         aria-label="Open Logue generation"
         title="Generate with Logue"
         onPointerDown={(event) => event.preventDefault()}
@@ -179,6 +214,7 @@ function ExtensionLauncher() {
       >
         <Sparkles size={17} strokeWidth={1.9} />
       </button>
+      {launchError && <div className="logue-launcher-error" role="alert">{launchError}</div>}
     </div>
   );
 }

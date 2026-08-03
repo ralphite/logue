@@ -35,6 +35,22 @@ textarea {
   backdrop-filter: blur(12px);
 }
 
+.logue-launcher-error {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: max-content;
+  max-width: 220px;
+  padding: 8px 10px;
+  border: 1px solid #efc9c4;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(25, 27, 23, 0.1);
+  color: #9b3e35;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .logue-launcher {
   display: flex;
   width: 38px;
@@ -62,6 +78,28 @@ textarea {
 .logue-launcher-voice:hover {
   background: #e3e6ff;
   color: #3f48cf;
+}
+
+.logue-launcher-generation {
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-4px);
+  transition:
+    width 140ms ease,
+    opacity 100ms ease,
+    transform 140ms ease,
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.logue-launcher-group:hover .logue-launcher-generation,
+.logue-launcher-group:focus-within .logue-launcher-generation {
+  width: 38px;
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
 }
 
 .logue-launcher:focus-visible {

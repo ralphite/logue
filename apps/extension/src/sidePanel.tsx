@@ -19,7 +19,11 @@ import {
   type LocalError,
   type PanelCaptureState,
 } from "./capturePrimitives";
-import { createAudioRecorder, type AudioRecorderController } from "./recorder";
+import {
+  audioBlobFromEvent,
+  type RecordingControlAction,
+  type RecordingPanelEvent,
+} from "./recordingBridge";
 import { createRequestId } from "./requestId";
 import { sidePanelShortcutAction } from "./sidePanelShortcuts";
 import "./sidePanel.css";
@@ -27,6 +31,7 @@ import "./sidePanel.css";
 type Phase = "idle" | "starting" | "recording" | "processing" | "error";
 
 interface RuntimeResponse<T> { ok: boolean; value?: T; }
+interface RecordingSession { id: string; tabId: number; }
 
 function splitTags(value: string) {
   return [...new Set(value.split(",").map((item) => item.trim().replace(/^#/, "")).filter(Boolean))];
@@ -54,7 +59,7 @@ function SidePanelApp() {
   const [generatedText, setGeneratedText] = useState("");
   const [generationRunId, setGenerationRunId] = useState<string>();
   const [generating, setGenerating] = useState(false);
-  const recorderRef = useRef<AudioRecorderController | undefined>(undefined);
+  const [pendingInsertText, setPendingInsertText] = useState("");
   const timerRef = useRef<number | undefined>(undefined);
   const requestIdRef = useRef(createRequestId());
   const lastBlobRef = useRef<Blob | undefined>(undefined);
@@ -65,6 +70,9 @@ function SidePanelApp() {
   const transcriptRef = useRef("");
   const transcribeAndSaveRef = useRef<(blob: Blob) => Promise<void>>(async () => undefined);
   const startRecordingRef = useRef<() => void>(() => undefined);
+  const recordingEventRef = useRef<(event: RecordingPanelEvent) => void>(() => undefined);
+  const recordingSessionRef = useRef<RecordingSession | undefined>(undefined);
+  const recordingPortRef = useRef<chrome.runtime.Port | undefined>(undefined);
   const phaseRef = useRef<Phase>("idle");
 
   stateRef.current = state;
@@ -81,6 +89,14 @@ function SidePanelApp() {
   const stopTimer = useCallback(() => {
     if (timerRef.current !== undefined) window.clearInterval(timerRef.current);
     timerRef.current = undefined;
+  }, []);
+
+  const sendRecordingControl = useCallback((session: RecordingSession, action: RecordingControlAction) => {
+    return chrome.tabs.sendMessage(session.tabId, {
+      type: "logue:recording-control",
+      action,
+      sessionId: session.id,
+    }) as Promise<{ ok?: boolean } | undefined>;
   }, []);
 
   const appliedContext = useCallback((captureContext: CaptureContext, projectName: string): AppliedContext => {
@@ -130,9 +146,13 @@ function SidePanelApp() {
       });
       if (current.intent === "input") {
         const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:insert-text", text: content }) as { ok?: boolean } | undefined;
-        if (!response?.ok) throw new Error(`target unavailable:${saved.id}`);
+        if (!response?.ok) {
+          setPendingInsertText(content);
+          throw new Error(`target unavailable:${saved.id}`);
+        }
       }
     }
+    setPendingInsertText("");
     setDraft("");
     setTranscript("");
     setError(undefined);
@@ -161,7 +181,8 @@ function SidePanelApp() {
         appliedContext: appliedContext(currentContext, projectRef.current),
       });
       setTranscript(result.text);
-      persistDraft({ transcript: result.text });
+      setDraft(result.text);
+      persistDraft({ draft: result.text, transcript: result.text });
       await saveContent(result.text, result.capture_id, result.text);
       setPhase("idle");
     } catch (cause) {
@@ -172,37 +193,87 @@ function SidePanelApp() {
 
   transcribeAndSaveRef.current = transcribeAndSave;
 
-  const ensureRecorder = useCallback(() => {
-    if (recorderRef.current) return recorderRef.current;
-    recorderRef.current = createAudioRecorder({
-      getStream: () => navigator.mediaDevices.getUserMedia({ audio: true }),
-      onStart: () => {
-        setPhase("recording");
-        setElapsed(0);
-        timerRef.current = window.setInterval(() => setElapsed((value) => value + 1), 1000);
-      },
-      onStop: (blob) => {
-        stopTimer();
-        lastBlobRef.current = blob;
-        void transcribeAndSaveRef.current(blob);
-      },
-      onError: (cause) => {
-        stopTimer();
-        setError(friendlyLocalError(cause, "microphone"));
-        setPhase("error");
-      },
-    });
-    return recorderRef.current;
-  }, [stopTimer, transcribeAndSave]);
-
   const startRecording = useCallback(() => {
     if (phaseRef.current === "starting" || phaseRef.current === "recording" || phaseRef.current === "processing") return;
+    const current = stateRef.current;
+    if (!current) return;
+    const session = { id: createRequestId(), tabId: current.tabId };
+    recordingPortRef.current?.disconnect();
+    try {
+      const port = chrome.tabs.connect(current.tabId, { name: "logue:recording-lifecycle" });
+      port.onDisconnect.addListener(() => {
+        if (recordingSessionRef.current?.id !== session.id) return;
+        recordingSessionRef.current = undefined;
+        recordingPortRef.current = undefined;
+        stopTimer();
+        setError({
+          kind: "target",
+          message: "The page changed. Recording stopped.",
+          action: "retry",
+        });
+        setPhase("error");
+      });
+      recordingPortRef.current = port;
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "target"));
+      setPhase("error");
+      return;
+    }
+    recordingSessionRef.current = session;
     setPhase("starting");
     setError(undefined);
-    void ensureRecorder().start();
-  }, [ensureRecorder]);
+    setPendingInsertText("");
+    void sendRecordingControl(session, "start").then((response) => {
+      if (!response?.ok) throw new Error("The page could not start voice capture.");
+    }).catch((cause: unknown) => {
+      if (recordingSessionRef.current?.id !== session.id) return;
+      recordingSessionRef.current = undefined;
+      recordingPortRef.current?.disconnect();
+      recordingPortRef.current = undefined;
+      setError({
+        kind: "microphone",
+        message: cause instanceof Error ? cause.message : "Voice capture is not available on this page.",
+        action: "retry",
+      });
+      setPhase("error");
+    });
+  }, [sendRecordingControl, stopTimer]);
 
   startRecordingRef.current = startRecording;
+
+  recordingEventRef.current = (event) => {
+    const session = recordingSessionRef.current;
+    if (!session || session.id !== event.sessionId || session.tabId !== event.tabId) return;
+    if (event.event === "started") {
+      stopTimer();
+      setPhase("recording");
+      setElapsed(0);
+      timerRef.current = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+      return;
+    }
+    recordingSessionRef.current = undefined;
+    recordingPortRef.current?.disconnect();
+    recordingPortRef.current = undefined;
+    stopTimer();
+    if (event.event === "cancelled") {
+      setPhase("idle");
+      setElapsed(0);
+      return;
+    }
+    if (event.event === "error") {
+      setError(friendlyLocalError(new Error(event.error || "Could not start recording."), "microphone"));
+      setPhase("error");
+      return;
+    }
+    try {
+      const blob = audioBlobFromEvent(event);
+      lastBlobRef.current = blob;
+      void transcribeAndSaveRef.current(blob);
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "transcription"));
+      setPhase("error");
+    }
+  };
 
   const runGeneration = useCallback(async () => {
     const current = stateRef.current;
@@ -250,20 +321,79 @@ function SidePanelApp() {
     }
   }, [generatedText, generationRunId]);
 
-  const stopRecording = useCallback(() => ensureRecorder().stop(), [ensureRecorder]);
+  const stopRecording = useCallback(() => {
+    const session = recordingSessionRef.current;
+    if (!session) return;
+    setPhase("processing");
+    stopTimer();
+    void sendRecordingControl(session, "stop").then((response) => {
+      if (!response?.ok) throw new Error("The recording is no longer active.");
+    }).catch((cause: unknown) => {
+      if (recordingSessionRef.current?.id !== session.id) return;
+      recordingSessionRef.current = undefined;
+      recordingPortRef.current?.disconnect();
+      recordingPortRef.current = undefined;
+      setError(friendlyLocalError(cause, "transcription"));
+      setPhase("error");
+    });
+  }, [sendRecordingControl, stopTimer]);
+
   const cancelRecording = useCallback(() => {
-    ensureRecorder().cancel();
+    const session = recordingSessionRef.current;
+    recordingSessionRef.current = undefined;
+    if (session) void sendRecordingControl(session, "cancel").catch(() => undefined);
+    recordingPortRef.current?.disconnect();
+    recordingPortRef.current = undefined;
     stopTimer();
     setPhase("idle");
     setElapsed(0);
-  }, [ensureRecorder, stopTimer]);
+  }, [sendRecordingControl, stopTimer]);
+
+  const retryInsert = useCallback(async () => {
+    const current = stateRef.current;
+    if (!current || !pendingInsertText) return;
+    try {
+      const response = await chrome.tabs.sendMessage(current.tabId, {
+        type: "logue:insert-text",
+        text: pendingInsertText,
+      }) as { ok?: boolean } | undefined;
+      if (!response?.ok) throw new Error("The original editor is still unavailable.");
+      setPendingInsertText("");
+      setDraft("");
+      setTranscript("");
+      setError(undefined);
+      setPhase("idle");
+      persistDraft({ draft: "", transcript: "" });
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "target"));
+    }
+  }, [pendingInsertText, persistDraft]);
+
+  const copyPendingInsert = useCallback(async () => {
+    if (!pendingInsertText) return;
+    await navigator.clipboard.writeText(pendingInsertText);
+  }, [pendingInsertText]);
 
   useEffect(() => {
     const hydrate = (next?: PanelCaptureState) => {
       if (!next) return;
+      const previous = stateRef.current;
+      const activeSession = recordingSessionRef.current;
+      if (activeSession && previous && (
+        activeSession.tabId !== next.tabId ||
+        previous.intent !== next.intent ||
+        previous.source.url !== next.source.url
+      )) {
+        recordingSessionRef.current = undefined;
+        void sendRecordingControl(activeSession, "cancel").catch(() => undefined);
+        recordingPortRef.current?.disconnect();
+        recordingPortRef.current = undefined;
+        stopTimer();
+      }
       setState(next);
       setDraft(next.draft ?? "");
       setTranscript(next.transcript ?? "");
+      setPendingInsertText("");
       setProject(next.projects?.[0] ?? "");
       setTags((next.tags ?? []).join(", "));
       setPhase("idle");
@@ -291,12 +421,13 @@ function SidePanelApp() {
       .then((response: RuntimeResponse<PanelCaptureState>) => {
         hydrate(response.value);
       });
-    const listener = (message: { type?: string; state?: PanelCaptureState }) => {
+    const listener = (message: { type?: string; state?: PanelCaptureState } | RecordingPanelEvent) => {
       if (message.type === "logue:panel-state-changed") hydrate(message.state);
+      if (message.type === "logue:recording-event" && "tabId" in message) recordingEventRef.current(message);
     };
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
-  }, []);
+  }, [sendRecordingControl, stopTimer]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -324,7 +455,11 @@ function SidePanelApp() {
 
   useEffect(() => {
     return () => {
-      recorderRef.current?.dispose();
+      const activeSession = recordingSessionRef.current;
+      recordingSessionRef.current = undefined;
+      if (activeSession) void sendRecordingControl(activeSession, "cancel").catch(() => undefined);
+      recordingPortRef.current?.disconnect();
+      recordingPortRef.current = undefined;
       stopTimer();
       persistDraft({
         draft: draftRef.current,
@@ -333,7 +468,7 @@ function SidePanelApp() {
         tags: splitTags(tagsRef.current),
       });
     };
-  }, [persistDraft, stopTimer]);
+  }, [persistDraft, sendRecordingControl, stopTimer]);
 
   const organizationCount = (project ? 1 : 0) + splitTags(tags).length;
   const sourceHref = useMemo(() => state?.source.url || undefined, [state]);
@@ -390,7 +525,7 @@ function SidePanelApp() {
         <div className="actions">
           {state.intent === "generate" ? (
             generatedText ? <button type="button" className="button secondary" onClick={() => { setGeneratedText(""); setGenerationRunId(undefined); }}>Back</button> : null
-          ) : phase === "starting" ? (
+          ) : pendingInsertText ? null : phase === "starting" ? (
             <button type="button" className="button secondary" onClick={cancelRecording} aria-keyshortcuts="Escape" title="Cancel (Esc)">Cancel</button>
           ) : phase === "recording" ? (
             <>
@@ -401,13 +536,17 @@ function SidePanelApp() {
             <button type="button" className="record-button" onClick={startRecording} disabled={phase === "processing"} aria-keyshortcuts="R" title="Record (R)"><Mic size={17} /> Record <span className="shortcut">R</span></button>
           )}
           <span className="spacer" />
-          {state.intent !== "generate" && error && lastBlobRef.current && <button type="button" className="button secondary" onClick={() => void transcribeAndSave(lastBlobRef.current!)}>Retry</button>}
+          {state.intent !== "generate" && error && lastBlobRef.current && !pendingInsertText && <button type="button" className="button secondary" onClick={() => void transcribeAndSave(lastBlobRef.current!)}>Retry</button>}
+          {state.intent !== "generate" && pendingInsertText && <>
+            <button type="button" className="button secondary" onClick={() => void copyPendingInsert()}>Copy</button>
+            <button type="button" className="button" onClick={() => void retryInsert()}>Insert again</button>
+          </>}
           {state.intent === "generate" ? <button
             type="button"
             className="button"
             disabled={generatedText ? false : !draft.trim() || !skillId || generating}
             onClick={() => generatedText ? void useGeneratedText() : void runGeneration()}
-          >{generating ? "Generating…" : generatedText ? "Insert" : "Generate"}</button> : draft.trim() ? <button
+          >{generating ? "Generating…" : generatedText ? "Insert" : "Generate"}</button> : draft.trim() && !pendingInsertText ? <button
             type="button"
             className="button"
             disabled={!draft.trim() || phase === "recording" || phase === "processing" || phase === "starting"}

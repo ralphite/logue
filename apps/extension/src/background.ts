@@ -13,6 +13,7 @@ import {
   toggleSidePanel,
 } from "./sidePanelController";
 import { createRequestId } from "./requestId";
+import type { RecordingBridgeEvent, RecordingPanelEvent } from "./recordingBridge";
 
 const apiBase = "http://127.0.0.1:8787";
 const panelStoragePrefix = "logue:panel:";
@@ -42,7 +43,7 @@ interface PanelStateMessage {
   token?: string;
 }
 
-type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage;
+type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage | RecordingBridgeEvent;
 
 const nativeSidePanel = chrome.sidePanel as typeof chrome.sidePanel & {
   close?: (options: { tabId: number }) => Promise<void>;
@@ -290,7 +291,10 @@ nativeSidePanel.onOpened?.addListener((info) => {
 });
 
 nativeSidePanel.onClosed?.addListener((info) => {
-  if (typeof info.tabId === "number") openPanelTabs.delete(info.tabId);
+  if (typeof info.tabId === "number") {
+    openPanelTabs.delete(info.tabId);
+    void chrome.tabs.sendMessage(info.tabId, { type: "logue:recording-dispose" }).catch(() => undefined);
+  }
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -301,6 +305,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   if (openPanelTabs.size === 0) return;
+  const previousTabId = activePanelTabId;
+  if (typeof previousTabId === "number" && previousTabId !== tabId) {
+    void chrome.tabs.sendMessage(previousTabId, { type: "logue:recording-dispose" }).catch(() => undefined);
+  }
   void chrome.tabs.get(tabId).then((tab) => setPanelContext(tab, "page")).catch(() => undefined);
 });
 
@@ -310,6 +318,18 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
+  if (message?.type === "logue:recording-bridge-event") {
+    if (typeof sender.tab?.id === "number") {
+      const panelEvent: RecordingPanelEvent = {
+        ...message,
+        type: "logue:recording-event",
+        tabId: sender.tab.id,
+      };
+      void chrome.runtime.sendMessage(panelEvent).catch(() => undefined);
+    }
+    return false;
+  }
+
   if (message?.type === "logue:open-side-panel") {
     const tab = sender.tab;
     if (!tab || typeof tab.id !== "number") return false;

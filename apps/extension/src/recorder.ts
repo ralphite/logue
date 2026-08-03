@@ -7,12 +7,14 @@ export interface AudioRecorderController {
   dispose(): void;
 }
 
-export function createAudioRecorder(input: {
+export interface AudioRecorderInput {
   getStream: () => Promise<MediaStream>;
   onStart: () => void;
   onStop: (blob: Blob) => void;
   onError: (cause: unknown) => void;
-}): AudioRecorderController {
+}
+
+export function createAudioRecorder(input: AudioRecorderInput): AudioRecorderController {
   let attempt = 0;
   let recorder: MediaRecorder | undefined;
   let stream: MediaStream | undefined;
