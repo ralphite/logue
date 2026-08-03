@@ -210,6 +210,12 @@ upgrade_log="${test_root}/upgrade.log"
 run_installer "file://${fixture_v2}" no "0.0.0.0:${port}" >"${upgrade_log}"
 status_v2="$(curl -fsS "http://127.0.0.1:${port}/v1/status")"
 [[ "${status_v2}" == *'"version":"v0.1.1"'* ]] || { printf 'Linux fixture v0.1.1 did not start on the explicit LAN address\n' >&2; exit 1; }
+if [[ "$(uname -s)" == "Linux" ]]; then
+  lan_host="$(hostname -I | awk '{print $1}')"
+  [[ -n "${lan_host}" ]] || { printf 'Linux runner has no non-loopback address\n' >&2; exit 1; }
+  lan_status="$(curl --noproxy '*' -fsS --max-time 5 "http://${lan_host}:${port}/v1/status")"
+  [[ "${lan_status}" == *'"version":"v0.1.1"'* ]] || { printf 'Linux fixture is not reachable through its non-loopback address\n' >&2; exit 1; }
+fi
 grep -Fq "Listen address: 0.0.0.0:${port}" "${upgrade_log}" || { printf 'Installer did not report the explicit listen address\n' >&2; exit 1; }
 [[ ! -e "${systemd_unit}" && ! -e "${systemctl_state}/enabled" ]] || { printf 'systemd user service was not disabled and removed\n' >&2; exit 1; }
 grep -Fq 'disable logue.service' "${systemctl_log}" || { printf 'systemd disable was not requested\n' >&2; exit 1; }
