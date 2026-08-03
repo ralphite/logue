@@ -16,15 +16,20 @@ export function SelectionSkillMenu({
   skills,
   onUseSkill,
   onDismiss,
+  focusTrigger = false,
+  onFocusTriggerHandled,
 }: {
   anchor: SelectionSkillMenuAnchor;
   skills: SelectionSkillOption[];
   onUseSkill: (skillId: string) => Promise<void>;
   onDismiss: () => void;
+  focusTrigger?: boolean;
+  onFocusTriggerHandled?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [runningSkillId, setRunningSkillId] = useState<string>();
   const [error, setError] = useState<string>();
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const firstMenuItemRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -37,6 +42,12 @@ export function SelectionSkillMenu({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onDismiss]);
+
+  useEffect(() => {
+    if (!focusTrigger) return;
+    triggerRef.current?.focus({ preventScroll: true });
+    onFocusTriggerHandled?.();
+  }, [focusTrigger, onFocusTriggerHandled]);
 
   async function useSkill(skillId: string) {
     setRunningSkillId(skillId);
@@ -52,7 +63,9 @@ export function SelectionSkillMenu({
     }
   }
 
-  const preserveSelection = (event: React.MouseEvent) => event.preventDefault();
+  // Pointer events fire before mouse events. Prevent their default too so a real
+  // click does not move focus out of the editable surface and collapse its range.
+  const preserveSelection = (event: React.SyntheticEvent) => event.preventDefault();
 
   if (!skills.length) return null;
 
@@ -68,9 +81,11 @@ export function SelectionSkillMenu({
       style={{ left: anchor.left, top: anchor.top }}
       role="group"
       aria-label="Selection skills"
+      onPointerDown={preserveSelection}
       onMouseDown={preserveSelection}
     >
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => { setOpen((value) => !value); setError(undefined); }}
         onKeyDown={(event) => {
@@ -81,7 +96,8 @@ export function SelectionSkillMenu({
         className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[#ddddda] bg-white px-2.5 text-[13px] font-medium text-[#555651] shadow-[0_4px_14px_rgba(20,21,18,0.12)] transition hover:bg-[#f4f4f1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5b64f4]"
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Apply a skill to this selection"
+        aria-keyshortcuts="Alt+Enter"
+        title="Apply a skill to this selection (Alt+Enter)"
       >
         <Sparkles size={14} aria-hidden="true" />
         Skills

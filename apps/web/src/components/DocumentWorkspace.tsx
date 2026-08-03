@@ -336,6 +336,7 @@ export function ViewWorkspace({
     message: string;
     history?: SelectionSkillApplyTransaction;
   }>();
+  const [focusSelectionSkillTrigger, setFocusSelectionSkillTrigger] = useState(false);
   const [mobileListOpen, setMobileListOpen] = useState(!initialDocumentId);
   const effectiveMobileListOpen = showDocumentSidebar && mobileListOpen;
   const { size: documentListWidth, setSize: setDocumentListWidth } = usePersistentPanelSize({
@@ -1012,6 +1013,11 @@ export function ViewWorkspace({
                 markDirty();
               }}
               onBlur={rememberEditorSelection}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !selectionSnapshotRef.current || !eligibleSelectionSkills.length) return;
+                event.preventDefault();
+                setFocusSelectionSkillTrigger(true);
+              }}
               onKeyUp={() => { rememberEditorSelection(); refreshDocumentSkillSelection(); }}
               onMouseUp={() => { rememberEditorSelection(); refreshDocumentSkillSelection(); }}
               onClick={(event) => {
@@ -1031,7 +1037,10 @@ export function ViewWorkspace({
               anchor={selectionSnapshot.anchor}
               skills={eligibleSelectionSkills}
               onUseSkill={applyDocumentSelectionSkill}
+              focusTrigger={focusSelectionSkillTrigger}
+              onFocusTriggerHandled={() => setFocusSelectionSkillTrigger(false)}
               onDismiss={() => {
+                setFocusSelectionSkillTrigger(false);
                 selectionSnapshotRef.current = undefined;
                 selectionDocumentRef.current = undefined;
                 setSelectionSnapshot(undefined);
