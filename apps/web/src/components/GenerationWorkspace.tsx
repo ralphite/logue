@@ -104,6 +104,13 @@ export function GenerationWorkspace({ materials, initialMode = "documents", init
     void refreshDocuments();
   }, [refreshSkills, refreshDocuments]);
 
+  useEffect(() => {
+    if (documentsLoading || selectedDocumentId || documents.length === 0) return;
+    const firstDocumentId = documents[0].id;
+    setSelectedDocumentId(firstDocumentId);
+    onSelectedDocumentChange(firstDocumentId, true);
+  }, [documents, documentsLoading, onSelectedDocumentChange, selectedDocumentId]);
+
   const registerDocumentLeaveGuard = useCallback(
     (guard?: () => Promise<boolean>) => {
       documentLeaveGuardRef.current = guard;

@@ -144,7 +144,7 @@ function renderWorkspace({ initialMode = "documents", initialDocumentId, onModeC
 
 describe("GenerationWorkspace navigation", () => {
   it("shows only the active top-level workspace and its local create action", async () => {
-    renderWorkspace();
+    const { onSelectedDocumentChange } = renderWorkspace();
     await waitFor(() => expect(mocks.getDocuments).toHaveBeenCalledTimes(1));
 
     const shell = screen.getByRole("complementary", { name: "Documents navigation" });
@@ -152,6 +152,8 @@ describe("GenerationWorkspace navigation", () => {
     expect(within(shell).getByRole("button", { name: "New document" })).toBeTruthy();
     expect(within(shell).queryByRole("button", { name: "Skills" })).toBeNull();
     expect(within(shell).queryByText("Generate")).toBeNull();
+    await waitFor(() => expect(onSelectedDocumentChange).toHaveBeenCalledWith(documentItem.id, true));
+    expect(screen.getByTestId("document-workspace").getAttribute("data-document-id")).toBe(documentItem.id);
   });
 
   it("shows Skills as a direct workspace without a duplicate Documents switch", async () => {
