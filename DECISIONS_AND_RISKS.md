@@ -79,6 +79,27 @@ feature fails.
   granted; record and cancel without editing the document. Then verify the
   in-editor action appears and its accept/cancel state works.
 
+### DR-003 — Real Docs transcription evidence
+
+- **Priority:** P0
+- **Status:** partially verified; spoken-audio insertion remains unproven
+- **Decision:** Do not add a fallback or page-change guard for an empty
+  recording. A user must be able to start, cancel, stop, and immediately try
+  again; a no-speech result is a local error, not a blocked recorder state.
+- **Evidence:** On 2026-08-03, after reloading the current unpacked extension
+  and the signed-in Docs editor, the canvas launcher changed from `Start` to
+  `Cancel` + `Stop and insert`; Stop reached `Transcribing and inserting`.
+  The automated run captured no human speech, so Gemini returned no text. The
+  error is now the product copy `Couldn't transcribe. Recording saved.` and
+  Start remains immediately available. This verifies the real Docs routing and
+  recorder lifecycle, but not a spoken-audio save and one-time insertion.
+- **Open downside:** The automated environment cannot supply a trustworthy
+  human microphone sample. Claiming full Docs insertion without one would be
+  false evidence.
+- **Next proof:** Record a short spoken phrase in the real Docs editor; verify
+  it is saved once, inserted once, and does not trigger a Docs command. The
+  separate keyboard-reachability P1 remains open.
+
 ## Resolved
 
 Move an item here only after its stated direct user-flow proof passes. Keep its
