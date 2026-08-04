@@ -1,180 +1,98 @@
-# Decisions and risks
+# 决策与风险记录
 
-This is the project's visible decision record. It exists so a design or engineering
-tradeoff never becomes a hidden constraint that the user discovers only after a
-feature fails.
+这是项目对用户可见的决策记录。它确保设计或工程取舍不会成为功能失败后才被发现的隐藏限制。
 
-## Working agreement
+## 维护约定
 
-- Create this file at the beginning of every project and link it in the initial
-  project update.
-- Before choosing an implementation that can materially affect a core workflow,
-  permissions, data, security, delivery, performance, architecture, or user
-  interaction, add a concise entry below.
-- State the user-visible downside, alternatives considered, evidence, and whether
-  the choice needs the user's decision. Do not disguise an unresolved tradeoff as
-  a completed feature.
-- Tell the user about any open **P0/P1** item or any choice that changes the
-  expected workflow before relying on it. Routine, reversible implementation
-  details do not need a separate approval.
-- When real use exposes an issue, update this file in the same work batch with
-  the evidence and the next smallest fix. Remove resolved entries only after
-  direct user-flow verification; keep the decision summary under **Resolved**.
-- Keep entries concrete. This is not a speculative risk dump: record only choices
-  with a plausible user impact or a real observed failure.
+- 每个项目开始时创建本文件，并在首次项目更新中告知用户。
+- 在选择会实质影响核心流程、权限、数据、安全、交付、性能、架构或交互的实现方案前，先在下方增加简洁记录。
+- 记录用户可见的代价、考虑过的替代方案、已有证据，以及是否需要用户决定；未解决的取舍不得伪装成已完成的功能。
+- 依赖任何尚未解决的 **P0/P1** 项或会改变预期工作流的选择前，先告知用户。日常、可逆的实现细节无需单独确认。
+- 真实使用暴露问题时，在同一工作批次更新本文件，写明证据和最小修复。只有直接用户流程验证通过后才从本文件删除；历史证据保留在 Git、Release 和 QA 记录中。
+- 保持具体。本文件不是推测性风险清单，只记录有可信用户影响或已有真实失败的事项。
 
-## Open
+## 未解决
 
-### DR-001 — Extension microphone permission surface
+### DR-001 — 扩展麦克风授权范围
 
-- **Priority:** P0
-- **Status:** implementation in progress; real Chrome verification required
-- **Decision:** Native Chrome Side Panel recording uses the extension origin, not
-  the webpage's microphone permission. In real Chrome, requesting microphone
-  access directly from the Side Panel can be dismissed without displaying the
-  browser prompt. We request the one-time permission from a small foreground
-  Logue extension page, then record in the Side Panel.
-- **Why it matters:** A page may record successfully while Logue still cannot;
-  webpage permission does not grant the extension microphone access.
-- **Tradeoff:** The first use may briefly open a normal Chrome permission page.
-  It must be a one-time browser consent, not an extra Logue confirmation, and it
-  must not block later recording.
-- **Evidence:** Reproduced in the real ChatGPT Chrome tab: Side Panel
-  `getUserMedia` returned `NotAllowedError: Permission dismissed` while the
-  extension microphone permission was still `prompt`.
-- **Next proof:** In a real Chrome page, allow the Logue extension microphone
-  prompt once, start recording, then cancel without creating test data. Repeat in
-  an actual Google Docs editor.
+- **优先级：** P0
+- **状态：** 实现中；需要真实 Chrome 验证
+- **决策：** 原生 Chrome Side Panel 的录音权限属于 Logue 扩展 origin，而不属于当前网页。首次录音由前台的 Logue 扩展页面请求一次浏览器麦克风授权，之后扩展可在任意网页上下文中录音；不为每个网页分别申请权限。
+- **为什么重要：** 网页本身即使已经能录音，Logue 扩展仍可能没有麦克风权限。
+- **用户可见代价：** 首次使用会短暂显示一次正常的 Chrome 授权页。这是一次浏览器授权，不是额外的 Logue 确认，且不得阻碍之后的录音。
+- **证据：** 在真实 ChatGPT Chrome 标签中复现：Side Panel 的 `getUserMedia` 返回 `NotAllowedError: Permission dismissed`，而扩展麦克风权限仍为 `prompt`。2026-08-04 的临时候选扩展选择 Chrome 的“访问此网站时允许”后，录音控件进入 `Cancel` / `Stop`；这里的“网站”是 Logue 扩展 origin，授权覆盖其在任意网页中的录音，不授予网页额外主机或数据权限。
+- **下一步证据：** 在真实 Chrome 页面首次允许 Logue 扩展麦克风权限后，开始录音并取消，确认零写入；再在真实 Google Docs 编辑器重复。
 
-### DR-002 — Google Docs input recording
+### DR-002 — Google Docs 输入录音
 
-- **Priority:** P0
-- **Status:** not complete
-- **Decision boundary:** Google Docs edits through a nested editor frame. Its
-  frame and the content script do not reliably inherit microphone access. The
-  extension must therefore keep recording independent of the page and must not
-  assume that a page-level input or iframe is available.
-- **User-visible requirement:** Opening Logue on a real Google Docs editor must
-  show a working Record action. The compact in-editor voice action must also be
-  discoverable and cannot silently fail because the Docs frame changes.
-- **Evidence:** Real Docs investigation showed its text event iframe is the
-  current recording origin; direct page/frame microphone capture is the fragile
-  path. Fixture-page success is explicitly not completion evidence. On
-  2026-08-03, the real Docs inline control was reproduced stuck at “Starting
-  microphone”; an initial background/offscreen route build did not fix it, and
-  a stale top-frame proxy state could show Cancel/Starting while the editor
-  frame was still idle. After a fresh unpacked-extension reload and Docs
-  refresh, a direct-frame control attempt still left the real editor at Start
-  with no recording state or local error. A subsequent direct message to that
-  freshly located `about:blank` frame was rejected by Chrome, and the control
-  now exposes the actionable local error `Could not reach the active Google
-  Docs editor.` rather than hiding it. On 2026-08-03, after reloading the
-  unpacked extension and the real signed-in Docs page for each attempt, all of
-  these still failed to reach the editor: background frame routing, DOM
-  mutation bridging, parent/child `postMessage`, and a child-frame Chrome
-  `runtime.Port` with `match_origin_as_fallback`. This is an active P0 failure,
-  not a completed fix. The native Side Panel can record on that same real Docs
-  tab, but it is not evidence that the required in-editor action works.
-- **Next proof:** Verify the actual Docs editor with the extension permission
-  granted; record and cancel without editing the document. Then verify the
-  in-editor action appears and its accept/cancel state works.
+- **优先级：** P0
+- **状态：** 未完成
+- **决策边界：** Google Docs 通过嵌套编辑器 frame 编辑。该 frame 与 content script 不能可靠继承麦克风授权，因此扩展录音必须独立于网页，不能假定页面输入框或 iframe 可用。
+- **用户可见要求：** 在真实 Google Docs 编辑器打开 Logue 必须显示可用的 `Record`。编辑器内紧凑语音动作也必须可发现，且不能因 Docs frame 变化而静默失败。
+- **证据：** 真实 Docs 调查显示其文字事件 iframe 是当时录音 origin；直接从页面/frame 采集麦克风是脆弱路径。fixture 页面成功明确不能算完成。2026-08-03，真实 Docs 的行内控件复现卡在 “Starting microphone”；初版 background/offscreen 路由没有修复，过期的顶层 frame 代理状态会显示 Cancel/Starting 而编辑器 frame 仍空闲。刷新 unpacked 扩展与 Docs 后，直接 frame 控件仍停在 Start，既无录音状态也无局部错误。随后向刚定位的 `about:blank` frame 直接发消息被 Chrome 拒绝，控件现显示可操作的局部错误 `Could not reach the active Google Docs editor.`，而不是隐藏失败。2026-08-03 每次重新加载 unpacked 扩展和已登录 Docs 页面后，background frame 路由、DOM mutation 桥接、父/子 `postMessage`、带 `match_origin_as_fallback` 的子 frame Chrome `runtime.Port` 都未能到达编辑器。这仍是活动 P0 故障，不能视为已修复；同一 Docs 标签的原生 Side Panel 能录音，也不能证明要求的行内动作有效。
+- **下一步证据：** 授予扩展权限后，在真实 Docs 编辑器录音并取消且不编辑文档；然后验证行内动作出现且开始/取消可用。
 
-### DR-003 — Real Docs transcription evidence
+### DR-003 — 真实 Docs 转写证据
 
-- **Priority:** P0
-- **Status:** partially verified; spoken-audio insertion remains unproven
-- **Decision:** Do not add a fallback or page-change guard for an empty
-  recording. A user must be able to start, cancel, stop, and immediately try
-  again; a no-speech result is a local error, not a blocked recorder state.
-- **Evidence:** On 2026-08-03, after reloading the current unpacked extension
-  and the signed-in Docs editor, the canvas launcher changed from `Start` to
-  `Cancel` + `Stop and insert`; Stop reached `Transcribing and inserting`.
-  The installed unpacked folder was first found to reference stale v0.2.8
-  assets, so the current v0.2.10 build was atomically staged under the same
-  Chrome extension identity and Docs was refreshed before repeating the run.
-  The automated run captured no human speech, so Gemini returned no text. The
-  error is now the product copy `Couldn't transcribe. Recording saved.` and
-  Start remains immediately available. This verifies the current real Docs
-  routing and recorder lifecycle, but not a spoken-audio save and one-time
-  insertion. The same current build was then verified with the real Docs
-  editor focused: `Tab` focuses the `Start voice input` control, `Enter`
-  starts recording, and `Esc` restores `Document content` without writing.
-- **Open downside:** The automated environment cannot supply a trustworthy
-  human microphone sample. Claiming full Docs insertion without one would be
-  false evidence.
-- **Next proof:** Record a short spoken phrase in the real Docs editor; verify
-  it is saved once, inserted once, and does not trigger a Docs command.
+- **优先级：** P0
+- **状态：** 已部分验证；真实人声的单次保存与插入仍未证明
+- **决策：** 不为静音录音加入 fallback 或页面变更 guard。用户必须能开始、取消、停止并立即重试；无语音结果是局部错误，不能把录音器锁死。
+- **证据：** 2026-08-03，重新加载当前 unpacked 扩展和已登录 Docs 编辑器后，canvas 启动器从 `Start` 变为 `Cancel` + `Stop and insert`，停止后进入 `Transcribing and inserting`。已安装的 unpacked 目录最初仍引用过期的 v0.2.8 资源，因此在相同 Chrome 扩展身份下原子切换到当前 v0.2.10 资源并刷新 Docs 后重试。自动化没有采集到人声，Gemini 未返回文字；产品现显示 `Couldn't transcribe. Recording saved.`，且 `Start` 可立即再次使用。这证明当前真实 Docs 路由和录音生命周期，但不证明口述内容保存与一次插入。随后，在真实 Docs 编辑器获得焦点时验证：`Tab` 聚焦 `Start voice input`，`Enter` 开始，`Esc` 回到 `Document content` 且没有写入。
+- **开放限制：** 自动化环境不能提供可信的人声麦克风样本；没有人声就声称完整 Docs 插入，会构成虚假证据。
+- **下一步证据：** 在真实 Docs 编辑器口述短句；确认仅保存一次、仅插入一次，且不触发 Docs 命令。
 
-### DR-004 — Current-build Chrome QA asset
+### DR-004 — 当前构建的 Chrome QA 资源
 
-- **Priority:** P1
-- **Status:** active until the next verified Release
-- **Decision:** For real current-code QA, the existing unpacked Extension keeps
-  its stable root and Chrome identity, while its manifest points to a copied
-  `releases/workspace-current` build. The previous v0.2.8 assets remain intact
-  beside it for rollback.
-- **Why it matters:** Reloading an unpacked Extension does not load workspace
-  files when its manifest points at an older versioned asset. Without this
-  switch, a real browser test can accidentally test a stale Release.
-- **User-visible effect:** Existing Chrome storage and permissions remain. This
-  is a local QA build, not a Release; the next verified Release must replace it
-  through the normal installer path.
+- **优先级：** P1
+- **状态：** 直到下一个经验证 Release 前有效
+- **决策：** 真实当前代码 QA 保持既有 unpacked Extension 的稳定根目录和 Chrome 身份，但 manifest 指向复制的 `releases/workspace-current` 构建。旧 v0.2.8 资源保留在相邻路径，便于回滚。
+- **为什么重要：** manifest 已指向旧版本资源时，Reload unpacked Extension 不会加载工作区文件；未切换时，真实浏览器测试可能误测陈旧 Release。
+- **用户可见影响：** 既有 Chrome 存储和权限保持不变。这是本地 QA 构建，不是 Release；下一个已验证 Release 必须经正常安装器替换。
 
-### DR-005 — Target Linux acceptance environment is not configured here
+### DR-005 — 此处未配置目标 Linux 验收环境
 
-- **Priority:** P0
-- **Status:** blocked on target environment access
-- **Decision boundary:** The Python installer and LAN/domain flow have isolated
-  evidence, but the required target Linux host, its systemd-user environment,
-  firewall-assigned domain, and a Mac Chrome endpoint are not configured in
-  this workspace. The local SSH configuration only names GitHub.
-- **Why it matters:** A temporary Ubuntu run cannot prove the target host's
-  startup, dynamic-domain reachability, or restart recovery. Treating it as a
-  completed LAN install would hide a material delivery risk.
-- **Next proof:** On the target Linux host, run the current installer, choose
-  the default `0.0.0.0` binding, connect its assigned domain from the Mac
-  Extension, then restart both the service and Chrome and repeat a save/read.
+- **优先级：** P0
+- **状态：** 被目标环境访问条件阻塞
+- **决策边界：** Python 安装器和 LAN/域名流程已有隔离环境证据，但此工作区没有所需目标 Linux 主机、其 systemd user 环境、防火墙分配域名及 Mac Chrome 端点。本地 SSH 配置仅有 GitHub。
+- **为什么重要：** 临时 Ubuntu 运行不能证明目标机启动、动态域名连通或重启恢复；将其视为已完成 LAN 安装会掩盖实际交付风险。
+- **下一步证据：** 在目标 Linux 运行当前安装器，选择默认 `0.0.0.0` 监听；从 Mac Extension 连接其分配域名；然后分别重启服务和 Chrome，并重复保存/读取。
 
-### DR-006 — Publish patch releases before the remaining P0 field acceptance
+### DR-006 — 在剩余 P0 现场验收前发布补丁
 
-- **Priority:** P0 delivery
-- **Status:** release requested; real-environment acceptance remains open
-- **Decision:** Publish the current `main` as `v0.2.11`, then the necessary
-  Side Panel patch as `v0.2.12`, as the user explicitly requested. These
-  releases do not claim that the target Linux dynamic-domain path or a spoken
-  Docs insertion has passed.
-- **Why it matters:** The installer’s `latest` endpoint will advance before
-  those two field proofs exist. A user who upgrades gains the current fixes but
-  must still treat the remote Linux and Docs spoken-audio paths as unverified.
-- **Alternative considered:** Delay publication until both P0 environment
-  checks pass. That would preserve a stricter release gate, but conflicts with
-  the user’s explicit request to publish first.
-- **Evidence:** `v0.2.12` is the latest GitHub Release and its official
-  Extension artifact was opened successfully in real Chrome. The open task
-  tracker still lists both field proofs as `READY_FOR_REAL_ENV`.
-- **User decision:** Explicitly approved in this task on 2026-08-04.
+- **优先级：** P0 交付
+- **状态：** 已按用户要求发布；真实环境验收仍未完成
+- **决策：** 用户明确要求先发布，因此将当前 `main` 发布为 `v0.2.11`，再发布必要的 Side Panel 补丁 `v0.2.12`。这些 Release 不宣称目标 Linux 动态域名路径或真实人声 Docs 插入已经通过。
+- **为什么重要：** 安装器的 `latest` 会在两项现场证据缺失时前进；升级用户获得当前修复，但远程 Linux 和 Docs 人声路径仍必须视为未验证。
+- **替代方案：** 等待两项 P0 环境检查通过后再发布。这样 Release 门槛更严格，但与用户“先发布”的明确指令冲突。
+- **证据：** `v0.2.12` 是最新 GitHub Release，官方 Extension 产物已在真实 Chrome 成功打开。未完成任务仍将两项现场证据列为 `READY_FOR_REAL_ENV`。
+- **用户决定：** 用户于 2026-08-04 在本任务中明确批准。
 
-## Resolved
+### DR-008 — Side Panel 麦克风授权窗口没有请求权限
 
-Move an item here only after its stated direct user-flow proof passes. Keep its
-decision and evidence so later work does not reintroduce the same hidden choice.
+- **优先级：** P0
+- **状态：** 已从 Release 源码复现；修复中
+- **决策：** 以显式 `mode=permission` 查询参数打开扩展自有的麦克风授权窗口，使其调用 `getUserMedia`、将结果回传 Side Panel 后关闭。
+- **用户可见影响：** Chrome 若抑制原生 Side Panel 授权提示，按 Record 会停在开始态，无法采集声音。
+- **证据：** Side Panel 打开的是 `microphone.html?token=…`，而该页面只在 `mode=permission` 时请求麦克风；行内录音器已传入该参数，是应遵循的正确路径。修正后候选已能到达授权 URL，并暴露出下方独立的版本化资源路径故障。
+- **替代方案：** 将该页面的任意 URL 都当作授权请求。这会破坏其独立的 offscreen recorder 模式，用模糊分支掩盖精确调用错误。
+- **下一步证据：** 在 Chrome 安装修正 Release，允许扩展麦克风权限，确认 Record 到达录音控件。
 
-### DR-007 — Extension opens a missing-file error in the current Chrome profile
+### DR-010 — 版本化 Extension 安装破坏麦克风授权页
 
-- **Priority:** P0
-- **Status:** resolved on 2026-08-04
-- **Decision:** Derive every Side Panel path from the loaded manifest’s
-  `side_panel.default_path`, rather than assuming a root-level `sidepanel.html`.
-  The installer atomically switches that manifest to a versioned asset
-  directory, so this keeps runtime requests in the same asset generation.
-- **Alternative considered:** Copy a second root-level Side Panel file on every
-  install. That would mask the error but split one Extension generation across
-  two independently updated asset paths.
-- **Evidence:** The reported `v0.2.11` error requested root
-  `sidepanel.html?tabId=…` even though its manifest points to a versioned path,
-  causing `ERR_FILE_NOT_FOUND`. Public `v0.2.12` was downloaded, checksum
-  verified, installed into a fresh temporary folder, and loaded in real Chrome.
-  Its Side Panel opened
-  `releases/v0.2.12-<id>/sidepanel.html?tabId=…` and rendered the normal Note
-  and Record controls, with no Chrome error document. The temporary Extension
-  was then removed; existing Chrome storage was not touched.
+- **优先级：** P0
+- **状态：** 已在真实 Chrome 复现；修复中
+- **决策：** `microphone.html` 相对正在运行的 Side Panel 或 MV3 worker 资源解析，不通过根路径 `chrome.runtime.getURL` 解析。
+- **用户可见影响：** Record 会打开 Chrome `ERR_FILE_NOT_FOUND`，导致 Side Panel 与行内语音在版本化安装升级后都无法请求麦克风权限。
+- **证据：** 真实候选 Side Panel 请求 `chrome-extension://<id>/microphone.html?mode=permission&token=…`；其 manifest 和资源目录只存在 `releases/<version>/microphone.html`。
+- **替代方案：** 每次安装复制根目录 `microphone.html`。这会重建刚从 Side Panel 移除的双代资源分裂。
+- **下一步证据：** 加载修正候选，接受 Chrome 麦克风提示，确认出现录音控件；随后取消并确认零写入。
+
+### DR-009 — 每次 Release 前的风险驱动 CUJ 门槛
+
+- **优先级：** P0 交付
+- **状态：** 已定义；首次执行待完成
+- **决策：** 创建 Release tag 前，必须通过自动化检查、产物安装，以及按改动文件选择的最小真实 Chrome 关键用户旅程。音频、插入、Docs、连接和安装器改动各有命名的必跑旅程；无关 UI 改动不会触发重新录音。
+- **用户可见影响：** 新 Release 不再把构建成功或 Side Panel 能打开单独当成“捕捉可用”的证据。
+- **替代方案：** 每个补丁跑全部历史场景。这样更慢，却不会给未改动路径带来更强证据；未完成的现场验收任务仍独立存在，不能被静默豁免。
+- **证据：** `v0.2.12` 通过了 Side Panel 资源路径，却没有通过真实 Side Panel 麦克风启动，因而发现遗漏的 `mode=permission` 查询参数。
+- **下一步证据：** 在创建麦克风补丁 Release tag 前，对候选使用已记录的 CUJ 门槛。
