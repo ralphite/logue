@@ -23,7 +23,7 @@
 
 ## 2. 当前事实与兼容边界
 
-- 当前只有一个用户，不需要多租户或历史版本兼容；受支持的实际部署可以跨两台机器：Linux 主机以系统自带的 Python 3.13 运行唯一的 API/Web/数据服务，MacBook Chrome 作为客户端。目标 Linux 不能执行本项目构建的原生二进制，也没有 Node.js；当前真实数据所在的服务主机必须受保护，隔离安装验收机器可视为无既有数据。
+- 当前只有一个用户，不需要多租户或历史版本兼容；同一个 Python 3.13 API/Web/数据服务必须可运行在 macOS 或 Linux，且支持 Linux 主机运行服务、MacBook Chrome 作为客户端的分离部署。目标机不能依赖本项目构建的原生二进制或 Node.js；当前真实数据所在的服务主机必须受保护，隔离安装验收机器可视为无既有数据。
 - 当前 schema、routes、产品名称、默认值、Citation 格式、标题格式和文件格式是唯一真相。
 - 除非用户明确要求兼容，禁止保留或新增 legacy migration、旧字段/旧路由 alias、旧文案 fallback、双格式 parser、旧 seed、兼容 fixture、兼容测试或废弃代码分支。
 - 若当前真实数据必须更新，只允许：完整备份 → 一次性转换 → 真实读取/写入验证 → 删除转换代码。不得把一次性转换永久留在启动路径。
@@ -319,7 +319,7 @@ Storybook 至少包含：
 - 安装结束自动启动服务并等待健康检查；失败时恢复此前可运行版本和服务，不留下半安装状态。
 - 安装过程明确询问是否开机自动启动；无交互环境支持显式配置且不阻塞。
 - Release 包含版本、Python 3.13 运行要求、校验和和可复现构建证据。
-- Release 只提供一个平台无关的 Python 服务包；一行安装器在 Linux 上用 `python3.13` 安装/覆盖 API 与预构建 Web App、保留数据、自动启动，并可选择配置 systemd 用户级开机启动和显式监听地址。Extension 作为独立 Chrome 资产连接该服务。
+- Release 只提供一个平台无关的 Python 服务包；一行安装器在 macOS 与 Linux 上都用 `python3.13` 安装/覆盖 API 与预构建 Web App、保留数据并立即启动，可选择配置 macOS LaunchAgent 或 Linux systemd 用户级开机启动以及显式监听地址。Extension 作为独立 Chrome 资产连接该服务。
 - 对分离部署，README 与 Installer 输出必须明确区分 Linux 服务命令和 MacBook Extension 客户端命令；Chrome 安全模型不允许静默安装未上架扩展，因此必须提供准确的一次性 `Developer mode` → `Load unpacked` 步骤，不能声称全自动安装。
 - README、Installer 输出、Release notes 和所有用户可见安装页面使用英文。
 - 当前 `main` 的最新已验证版本必须进入最新 Release；旧 Release 通过不能替代当前主线发布。Release 只能在本目标内所有当前桌面功能、设计终审、Storybook 状态覆盖、真实验收与数据整理均完成后进行，不能为了发布而跳过未完成需求。
@@ -328,7 +328,7 @@ Storybook 至少包含：
 
 当前优先顺序以用户最新纠正为准：
 
-1. **当前 P0：完成 Python 3.13-only Linux Release + MacBook Chrome/Web 通过可变局域网域名连接的真实闭环**。目标 Linux 无 Go、无 Node、不能运行本项目原生二进制；安装器下载并解压平台无关包，用 `python3.13` 启动包含预构建 Web 的服务，保留当前数据，并覆盖动态 origin 权限、断线恢复与 Linux 安装/启动；
+1. **当前 P0：完成 Python 3.13-only macOS/Linux Release + MacBook Chrome/Web 通过可变局域网域名连接的真实闭环**。目标机无 Go、无 Node、不能依赖本项目原生二进制；安装器下载并解压平台无关包，用 `python3.13` 启动包含预构建 Web 的服务，保留当前数据，并覆盖 macOS/Linux 安装启动、动态 origin 权限与断线恢复；
 2. 修复真实桌面 Web 与 Chrome Extension 的其余 P0/P1 核心流程；
 3. 完成一致、共享、极简的 Web 组件系统与真实页面；
 4. 让 Storybook 完整覆盖生产组件和所有有意义状态；
