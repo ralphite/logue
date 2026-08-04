@@ -1,7 +1,7 @@
 {
   "name": "logue",
   "private": true,
-  "version": "0.2.10",
+  "version": "0.2.11",
   "packageManager": "npm@10.9.2",
   "workspaces": [
     "apps/*",
