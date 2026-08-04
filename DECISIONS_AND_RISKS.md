@@ -63,7 +63,10 @@ feature fails.
   2026-08-03, the real Docs inline control was reproduced stuck at “Starting
   microphone”; an initial background/offscreen route build did not fix it, and
   a stale top-frame proxy state could show Cancel/Starting while the editor
-  frame was still idle. This is an active P0 failure, not a completed fix.
+  frame was still idle. After a fresh unpacked-extension reload and Docs
+  refresh, a direct-frame control attempt still left the real editor at Start
+  with no recording state or local error. This is an active P0 failure, not a
+  completed fix.
 - **Next proof:** Verify the actual Docs editor with the extension permission
   granted; record and cancel without editing the document. Then verify the
   in-editor action appears and its accept/cancel state works.
