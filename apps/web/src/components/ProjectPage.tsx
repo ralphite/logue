@@ -164,12 +164,13 @@ export function ProjectPage({
 
   if (selected) {
     return (
-      <main className="scroll-surface min-w-0 flex-1 overflow-y-auto bg-white">
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
         <ContextHeader
           testId="project-detail-header-column"
           leading={<Button variant="ghost" size="sm" onClick={() => { setSelectedName(undefined); loadedRef.current = undefined; onSelectedProjectChange(undefined); }}><ArrowLeft size={14} /> All projects</Button>}
           actions={saveState === "error" ? <span className="text-[14px] text-[#a84d44]">Save failed</span> : undefined}
         />
+        <div data-testid="project-detail-scroll-surface" className="scroll-surface min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div data-testid="project-detail-content-column" className={`${editorColumnClass} pb-24 pt-14`}>
           <div className="inline-flex size-11 items-center justify-center rounded-md bg-[#f0f0ed] text-[#666762]"><FolderKanban size={21} /></div>
           <h1 className="mt-5 text-[38px] font-bold tracking-[-0.045em] text-[#242522]">{selected.name}</h1>
@@ -204,14 +205,16 @@ export function ProjectPage({
             <div className="mt-3 flex max-w-md gap-2"><input value={term} onChange={(event) => setTerm(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addTerm(); } }} placeholder="Add a term and press Enter" className="h-9 min-w-0 flex-1 rounded-md border border-[#dfdfda] px-3 text-[14px] outline-none focus:border-[#aaa]" /><button type="button" onClick={addTerm} disabled={!term.trim()} className="h-9 rounded-md border border-[#dadad6] px-3 text-[15px] font-medium text-[#61625d] hover:bg-[#f4f4f1] disabled:opacity-40">Add</button></div>
           </section>
         </div>
+        </div>
       </main>
     );
   }
 
   const unfiled = materials.filter((item) => item.projects.length === 0).length;
   return (
-    <main className="scroll-surface min-w-0 flex-1 overflow-y-auto bg-white">
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
       <PageHeader title="Projects" testId="projects-header-column" actions={<Button variant="primary" size="sm" onClick={() => setNewProjectOpen(true)} className="max-[640px]:h-11"><Plus size={13} /> New project</Button>} />
+      <div data-testid="projects-scroll-surface" className="scroll-surface min-h-0 flex-1 overflow-y-auto overscroll-contain">
       <div data-testid="projects-content-column" className={`${pageColumnClass} pb-16 pt-8 max-[640px]:pt-5`}>
         {!loading && !loadError && projects.length === 0 ? (
           <section className="mx-auto flex max-w-lg flex-col items-center px-6 py-20 text-center">
@@ -226,6 +229,7 @@ export function ProjectPage({
           <div className="grid grid-cols-[minmax(0,1fr)_90px_90px_44px] gap-3 border-b border-[#e7e7e4] px-3 py-2 text-[14px] font-medium text-[#92938e] max-[640px]:grid-cols-[minmax(0,1fr)_64px_28px]"><span>Name</span><span>Materials</span><span className="max-[640px]:hidden">Documents</span><span /></div>
           {loading ? <div className="space-y-1 py-2" aria-label="Loading projects">{[0, 1, 2].map((item) => <div key={item} className="h-12 animate-pulse rounded-md bg-[#f3f3f0] motion-reduce:animate-none" />)}</div> : loadError ? <div className="py-10 text-center"><p className="text-[15px] text-[#a04b43]">{loadError}</p><button type="button" onClick={() => void loadWorkspace()} className="mt-3 h-8 rounded-md border border-[#d8d8d3] px-3 text-[14px] text-[#62635e] hover:bg-[#f4f4f1]">Reload</button></div> : <>{projects.map((project) => <button key={project.name} type="button" onClick={() => { loadedRef.current = undefined; setSelectedName(project.name); onSelectedProjectChange(project.name); }} className="group grid w-full grid-cols-[minmax(0,1fr)_90px_90px_44px] items-center gap-3 border-b border-[#eeeeeb] px-3 py-3 text-left hover:bg-[#f7f7f5] max-[640px]:grid-cols-[minmax(0,1fr)_64px_28px]"><span className="flex min-w-0 items-center gap-3"><span className="inline-flex size-7 shrink-0 items-center justify-center rounded bg-[#f0f0ed] text-[#676863]"><FolderKanban size={14} /></span><span className="min-w-0 truncate text-[15px] font-medium text-[#393a36]">{project.name}</span></span><span className="text-[15px] text-[#82837e]">{project.count}</span><span className="text-[15px] text-[#82837e] max-[640px]:hidden">{documents.filter((document) => document.project === project.name).length}</span><ArrowRight size={14} className="text-[#aaa] transition group-hover:translate-x-0.5" /></button>)}<button type="button" onClick={() => onOpenStream()} className="group grid w-full grid-cols-[minmax(0,1fr)_90px_90px_44px] items-center gap-3 border-b border-[#eeeeeb] px-3 py-3 text-left hover:bg-[#f7f7f5] max-[640px]:grid-cols-[minmax(0,1fr)_64px_28px]"><span className="flex min-w-0 items-center gap-3"><span className="inline-flex size-7 shrink-0 items-center justify-center rounded bg-[#f0f0ed] text-[#777873]"><Inbox size={14} /></span><span className="block text-[15px] font-medium text-[#393a36]">Unfiled</span></span><span className="text-[15px] text-[#82837e]">{unfiled}</span><span className="text-[15px] text-[#b0b1ad] max-[640px]:hidden">—</span><ArrowRight size={14} className="text-[#aaa]" /></button></>}
         </div>}
+      </div>
       </div>
       {newProjectOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#20211e]/25 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setNewProjectOpen(false); }}><form onSubmit={(event) => { event.preventDefault(); void createProject(); }} className="w-full max-w-sm rounded-xl border border-[#deded9] bg-white p-5 shadow-[0_24px_70px_rgba(20,21,18,0.2)]"><h2 className="text-[14px] font-semibold text-[#30312d]">New project</h2><input autoFocus value={newProjectName} onChange={(event) => setNewProjectName(event.target.value)} placeholder="Project name" className="mt-4 h-10 w-full rounded-md border border-[#dcdcd7] px-3 text-[14px] outline-none focus:border-[#aaa]" /><div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => setNewProjectOpen(false)} className="h-8 rounded-md px-3 text-[15px] text-[#6d6e69] hover:bg-[#f0f0ed]">Cancel</button><button type="submit" disabled={!newProjectName.trim()} className="h-8 rounded-md bg-[#242522] px-3 text-[15px] font-medium text-white disabled:bg-[#bdbdb8]">Create</button></div></form></div>}
     </main>

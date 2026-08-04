@@ -112,8 +112,9 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
   }
 
   return (
-    <main className="scroll-surface min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain bg-white">
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
       <PageHeader title="Settings" axis="editor" testId="settings-header-column" actions={saveState === "error" ? <span className="text-[14px] text-[#a84d44]">Save failed</span> : undefined} />
+      <div data-testid="settings-scroll-surface" className="scroll-surface min-h-0 flex-1 overflow-y-auto overscroll-contain">
       <div data-testid="settings-content-column" className={`${editorColumnClass} pb-24 pt-8`}>
 
         {loadState === "loading" && <div className="space-y-2" aria-label="Loading settings">{[0, 1, 2].map((item) => <div key={item} className="h-16 animate-pulse rounded-md bg-[#f3f3f0] motion-reduce:animate-none" />)}</div>}
@@ -153,6 +154,7 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
           </div>
         </details>
         </fieldset>
+      </div>
       </div>
       {notice && <div className="fixed bottom-5 right-5 rounded-md bg-[#30312d] px-3 py-2 text-[15px] text-white shadow-lg">{notice}</div>}
     </main>

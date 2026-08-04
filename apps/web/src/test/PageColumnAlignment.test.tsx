@@ -48,6 +48,8 @@ describe("page column alignment", () => {
   it("keeps the projects title and list on one responsive axis", () => {
     render(<ProjectPage {...projectProps} />);
     expectSharedAxis("projects-header-column", "projects-content-column", ["w-full", "max-w-[1080px]", "px-8", "max-[640px]:px-4"]);
+    expect(screen.getByTestId("projects-scroll-surface").className).toContain("overflow-y-auto");
+    expect(screen.getByTestId("projects-scroll-surface").contains(screen.getByTestId("projects-header-column"))).toBe(false);
   });
 
   it("keeps project list rows scannable and reserves overviews for project detail", async () => {
@@ -60,6 +62,8 @@ describe("page column alignment", () => {
     render(<ProjectPage {...projectProps} initialProject="Alpha" />);
     await waitFor(() => expect(screen.getByTestId("project-detail-header-column")).toBeTruthy());
     expectSharedAxis("project-detail-header-column", "project-detail-content-column", sharedEditorAxis);
+    expect(screen.getByTestId("project-detail-scroll-surface").className).toContain("overflow-y-auto");
+    expect(screen.getByTestId("project-detail-scroll-surface").contains(screen.getByTestId("project-detail-header-column"))).toBe(false);
     expect(screen.queryByText("Saved")).toBeNull();
     expect(screen.queryByText("Saving…")).toBeNull();
     expect(screen.queryByText("Unsaved")).toBeNull();
@@ -68,6 +72,8 @@ describe("page column alignment", () => {
   it("keeps the settings title and form on the shared editor axis", () => {
     render(<SettingsPage />);
     expectSharedAxis("settings-header-column", "settings-content-column", sharedEditorAxis);
+    expect(screen.getByTestId("settings-scroll-surface").className).toContain("overflow-y-auto");
+    expect(screen.getByTestId("settings-scroll-surface").contains(screen.getByTestId("settings-header-column"))).toBe(false);
     expect(screen.getByPlaceholderText("Keep writing concise and direct; preserve product names…").className).toContain("focus:ring-2");
     expect(screen.getByPlaceholderText("Add a term").className).toContain("focus:ring-2");
     expect(screen.queryByText("Saved")).toBeNull();

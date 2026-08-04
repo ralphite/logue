@@ -282,6 +282,8 @@ describe("GenerationWorkspace navigation", () => {
       expect(resultHeader.className).toContain(className);
       expect(resultContent.className).toContain(className);
     }
+    expect(resultContent.className).toContain("overflow-y-auto");
+    expect(resultContent.contains(resultHeader)).toBe(false);
     expect(screen.getByText("Copy", { selector: "button" })).toBeTruthy();
   });
 });
@@ -310,5 +312,7 @@ describe("GenerationWorkspace mobile completeness", () => {
       expect(editorHeader.className).toContain(className);
       expect(editorContent.className).toContain(className);
     }
+    expect(editorContent.className).toContain("overflow-y-auto");
+    expect(editorContent.contains(editorHeader)).toBe(false);
   });
 });

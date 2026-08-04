@@ -68,11 +68,14 @@ describe("MaterialDetail", () => {
   it("uses one scroll surface and keeps reading content with its actions", () => {
     renderDetail();
 
-    const scrollSurface = screen.getByTestId("material-detail-scroll");
+    const pane = screen.getByTestId("material-detail-scroll");
+    const scrollSurface = screen.getByTestId("material-detail-reading-column");
     const readingColumn = screen.getByTestId("material-detail-reading-column");
     const content = screen.getByTestId("material-detail-content");
 
     expect(scrollSurface.className).toContain("overflow-y-auto");
+    expect(pane.className).toContain("overflow-hidden");
+    expect(scrollSurface.contains(screen.getByRole("banner"))).toBe(false);
     expect(content.className).not.toContain("overflow-y-auto");
     expect(readingColumn.contains(content)).toBe(true);
     expect(readingColumn.contains(screen.getByLabelText("Add annotation"))).toBe(true);

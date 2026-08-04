@@ -545,8 +545,8 @@ function RunResult({ run, onRunChange, onOpenDocument, onBack }: { run: LogueSki
     window.setTimeout(() => setCopied(false), 1600);
   }
   return (
-    <main className="scroll-surface min-h-0 min-w-0 flex-1 overflow-y-auto bg-white">
-      <header className="sticky top-0 z-10 border-b border-[#eeeeeb] bg-white/92 backdrop-blur">
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
+      <header className="z-10 shrink-0 border-b border-[#eeeeeb] bg-white/92 backdrop-blur">
         <div data-testid="generation-result-header-column" className={`${editorColumnClass} flex h-12 items-center justify-between`}>
           <button type="button" onClick={onBack} className="text-[15px] font-medium text-[#777873] hover:text-[#3e3f3b]">
             ← New
@@ -556,7 +556,7 @@ function RunResult({ run, onRunChange, onOpenDocument, onBack }: { run: LogueSki
           </span>
         </div>
       </header>
-      <article data-testid="generation-result-content-column" className={`${editorColumnClass} pb-24 pt-14 max-[700px]:pt-9`}>
+      <article data-testid="generation-result-content-column" className={`scroll-surface min-h-0 flex-1 overflow-y-auto overscroll-contain ${editorColumnClass} pb-24 pt-14 max-[700px]:pt-9`}>
         <div className="flex items-center gap-2 text-[15px] text-[#777873]">
           <Sparkles size={14} />
           <span>{outputLabels[run.output_type]}</span>
@@ -679,14 +679,14 @@ function SkillEditor({ skills, selectedSkillId, onSelect, onSkillsChange }: { sk
   if (!draft) return <main className="flex flex-1 items-center justify-center text-[14px] text-[#999]">No skills yet</main>;
   const toggle = <T extends string>(items: T[], value: T) => (items.includes(value) ? items.filter((item) => item !== value) : [...items, value]);
   return (
-    <main className="scroll-surface min-h-0 min-w-0 flex-1 overflow-y-auto bg-white">
-      <header className="sticky top-0 z-10 border-b border-[#eeeeeb] bg-white/92 backdrop-blur">
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
+      <header className="z-10 shrink-0 border-b border-[#eeeeeb] bg-white/92 backdrop-blur">
         <div data-testid="skill-editor-header-column" className={`${editorColumnClass} flex h-12 items-center justify-between gap-3`}>
           <span className="text-[14px] font-medium text-[#777873]">Skills</span>
           {saveState === "error" && <span className="flex items-center gap-2 text-[14px] text-[#a34b42]"><span>Save failed</span><button type="button" onClick={retrySave} className="font-medium underline underline-offset-2">Retry</button></span>}
         </div>
       </header>
-      <article data-testid="skill-editor-content-column" className={`${editorColumnClass} pb-24 pt-14 max-[700px]:pt-8`}>
+      <article data-testid="skill-editor-content-column" className={`scroll-surface min-h-0 flex-1 overflow-y-auto overscroll-contain ${editorColumnClass} pb-24 pt-14 max-[700px]:pt-8`}>
         <select value={draft.id} onChange={(event) => onSelect(event.target.value)} className="mb-6 hidden h-11 w-full rounded-md border border-[#dcdcd8] bg-white px-3 text-[15px] max-[900px]:block" aria-label="Choose skill">
           {skills.map((skill) => (
             <option key={skill.id} value={skill.id}>

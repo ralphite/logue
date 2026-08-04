@@ -76,6 +76,10 @@ describe("application navigation shell", () => {
     expect(axisClasses(screen.getByTestId("stream-content-column"))).toEqual(
       axisClasses(screen.getByTestId("stream-header-column")),
     );
+    const scrollSurface = screen.getByTestId("stream-scroll-surface");
+    expect(scrollSurface.className).toContain("overflow-y-auto");
+    expect(scrollSurface.parentElement?.className).toContain("overflow-hidden");
+    expect(scrollSurface.contains(screen.getByTestId("stream-header-column"))).toBe(false);
   });
 
   it("quietly ranks a natural-language material search and explains related results", async () => {

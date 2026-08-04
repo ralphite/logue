@@ -204,14 +204,14 @@ export function MaterialDetail({
     <Root
       data-testid="material-detail-scroll"
       style={!isPage ? ({ "--material-detail-width": peekWidth ? `${peekWidth}px` : "min(620px, 46vw)" } as CSSProperties) : undefined}
-      className={isPage ? "scroll-surface h-screen min-w-0 flex-1 overflow-y-auto overscroll-contain bg-white" : "scroll-surface h-screen w-[var(--material-detail-width)] min-w-[440px] shrink-0 overflow-y-auto overscroll-contain bg-white max-[1180px]:fixed max-[1180px]:inset-y-0 max-[1180px]:right-0 max-[1180px]:z-30 max-[1180px]:border-l max-[1180px]:border-[#e1e1dd] max-[1180px]:shadow-[-18px_0_54px_rgba(31,33,28,0.11)] max-[640px]:w-full max-[640px]:min-w-0 max-[640px]:pb-16"}
+      className={isPage ? "flex h-screen min-w-0 flex-1 flex-col overflow-hidden bg-white" : "flex h-screen w-[var(--material-detail-width)] min-w-[440px] shrink-0 flex-col overflow-hidden bg-white max-[1180px]:fixed max-[1180px]:inset-y-0 max-[1180px]:right-0 max-[1180px]:z-30 max-[1180px]:border-l max-[1180px]:border-[#e1e1dd] max-[1180px]:shadow-[-18px_0_54px_rgba(31,33,28,0.11)] max-[640px]:w-full max-[640px]:min-w-0 max-[640px]:pb-16"}
     >
-      <header className="sticky top-0 z-10 flex h-12 items-center justify-between border-b border-[#eeeeeb] bg-white/95 px-4 backdrop-blur-xl">
+      <header className="z-10 flex h-12 shrink-0 items-center justify-between border-b border-[#eeeeeb] bg-white/95 px-4 backdrop-blur-xl">
         {isPage ? <button type="button" onClick={onClose} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[15px] text-[#71726d] hover:bg-[#f1f1ee]"><ArrowLeft size={14} /> Stream</button> : <div className="flex items-center gap-2.5"><span className="text-[15px] text-[#777873]">Stream</span><span className="text-[#b7b8b3]">/</span><span className="text-[15px] text-[#4f504c]">{materialTitles[material.kind]}</span></div>}
         {!isPage && <div className="flex items-center"><button onClick={onExpand} className="inline-flex size-11 items-center justify-center rounded-md text-[#858680] hover:bg-[#f1f1ee] hover:text-[#444541] focus-visible:outline-2 focus-visible:outline-[#5b64f4]" aria-label="Open full page" title="Open full page" type="button"><Maximize2 size={16} /></button><button onClick={onClose} className="inline-flex size-11 items-center justify-center rounded-md text-[#858680] hover:bg-[#f1f1ee] hover:text-[#444541] focus-visible:outline-2 focus-visible:outline-[#5b64f4]" aria-label="Close details" type="button"><X size={18} /></button></div>}
       </header>
 
-      <div data-testid="material-detail-reading-column" className={isPage ? `${readingColumnClass} pb-10 pt-14 max-[640px]:pb-5 max-[640px]:pt-9` : "px-5 pb-8 pt-8 max-[640px]:px-4 max-[640px]:pb-4"}>
+      <div data-testid="material-detail-reading-column" className={`scroll-surface min-h-0 flex-1 overflow-y-auto overscroll-contain ${isPage ? `${readingColumnClass} pb-10 pt-14 max-[640px]:pb-5 max-[640px]:pt-9` : "px-5 pb-8 pt-8 max-[640px]:px-4 max-[640px]:pb-4"}`}>
         <div data-testid="material-detail-content">
         <div className="mb-8">
           <span className={`inline-flex items-center justify-center rounded-md bg-[#f0f0ed] text-[#6e6f6a] ${isPage ? "size-11" : "size-9"}`}><Icon size={isPage ? 21 : 17} /></span>

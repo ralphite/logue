@@ -1336,8 +1336,8 @@ export function ViewWorkspace({
       </>}
 
       {selected ? (
-        <main className={`scroll-surface min-w-0 flex-1 overflow-y-auto bg-white ${effectiveMobileListOpen ? "max-[760px]:hidden" : ""}`}>
-          <header className="sticky top-0 z-10 flex h-12 items-center justify-between border-b border-[#eeeeeb] bg-white/92 px-4 backdrop-blur">
+        <main className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white ${effectiveMobileListOpen ? "max-[760px]:hidden" : ""}`}>
+          <header className="z-10 flex h-12 shrink-0 items-center justify-between border-b border-[#eeeeeb] bg-white/92 px-4 backdrop-blur">
             <div className="flex min-w-0 items-center gap-2 text-[14px] text-[#777873]">
               {showDocumentSidebar && <button type="button" onClick={() => setMobileListOpen(true)} className="hidden h-11 items-center gap-1 rounded-md px-2 text-[15px] font-medium text-[#666762] hover:bg-[#f1f1ee] max-[760px]:inline-flex"><BookOpenText size={14} /> Documents</button>}
               <span className="truncate max-[760px]:hidden">Documents</span><span className="text-[#b0b1ad] max-[760px]:hidden">/</span><span className="truncate text-[#4b4c48] max-[760px]:max-w-32">{title || "Untitled"}</span>
@@ -1362,7 +1362,7 @@ export function ViewWorkspace({
             </div>
           </header>
 
-          <article className={`${readingColumnClass} pb-28 pt-14 max-[640px]:pt-9`}>
+          <article data-testid="document-editor-scroll-surface" className={`scroll-surface min-h-0 flex-1 overflow-y-auto overscroll-contain ${readingColumnClass} pb-28 pt-14 max-[640px]:pt-9`}>
             <textarea
               ref={titleRef}
               rows={1}

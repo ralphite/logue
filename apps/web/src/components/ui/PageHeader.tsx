@@ -27,7 +27,7 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <header className="sticky top-0 z-20 shrink-0 border-b border-[#eeeeeb] bg-white/92 backdrop-blur-xl">
+    <header className="z-20 shrink-0 border-b border-[#eeeeeb] bg-white/92 backdrop-blur-xl">
       <div data-testid={testId} className={cn(axisClasses[axis], "flex h-16 items-center justify-between gap-4", className)}>
         <div className="min-w-0">
           {leading ?? (title ? <h1 className="truncate text-[20px] font-semibold tracking-[-0.035em] text-[#20211e]">{title}</h1> : null)}
@@ -52,7 +52,7 @@ export function ContextHeader({
   className?: string;
 }) {
   return (
-    <header className="sticky top-0 z-10 shrink-0 border-b border-[#eeeeeb] bg-white/92 backdrop-blur-xl">
+    <header className="z-10 shrink-0 border-b border-[#eeeeeb] bg-white/92 backdrop-blur-xl">
       <div data-testid={testId} className={cn(axisClasses[axis], "flex h-12 items-center justify-between gap-3", className)}>
         <div className="min-w-0">{leading}</div>
         {actions ? <div className="flex shrink-0 items-center gap-1.5">{actions}</div> : null}

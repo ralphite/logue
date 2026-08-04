@@ -299,7 +299,7 @@ export function App() {
       ) : section === "settings" ? (
         <SettingsPage status={status} />
       ) : (
-        <main className={`scroll-surface min-h-0 min-w-0 flex-1 overflow-y-auto bg-[var(--surface)] ${materialMode === "page" ? "hidden" : ""}`}>
+        <main className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--surface)] ${materialMode === "page" ? "hidden" : ""}`}>
           <PageHeader
             title="Stream"
             testId="stream-header-column"
@@ -317,6 +317,7 @@ export function App() {
             }
           />
 
+          <div data-testid="stream-scroll-surface" className="scroll-surface min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div data-testid="stream-content-column" className={`${pageColumnClass} pb-12 pt-7`}>
             <div className="mb-4 flex items-center gap-3 max-[720px]:flex-wrap">
               <label className="relative min-w-[220px] flex-1">
@@ -449,6 +450,7 @@ export function App() {
                 {filter !== "all" && <button type="button" onClick={() => setFilter("all")} className="font-medium text-[#686964] hover:text-[#3f413c] focus-visible:outline-2 focus-visible:outline-[#5b64f4]">Clear</button>}
               </div>
             )}
+          </div>
           </div>
         </main>
       )}
