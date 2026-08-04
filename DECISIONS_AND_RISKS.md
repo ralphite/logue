@@ -157,21 +157,29 @@ feature fails.
 ### DR-007 — Extension opens a missing-file error in the current Chrome profile
 
 - **Priority:** P0
-- **Status:** reported in real use; exact failing URL not yet observable
-- **Decision boundary:** Do not replace, reload, or move the user’s unpacked
-  Extension directory until the exact Chrome error URL identifies the missing
-  resource. Those actions could change the current extension identity and hide
-  the reproducible cause.
+- **Status:** fix verified in real Chrome; public patch release pending
+- **Decision:** Derive every Side Panel path from the loaded manifest’s
+  `side_panel.default_path`, rather than assuming a root-level `sidepanel.html`.
+  The installer atomically switches that manifest to a versioned asset
+  directory, so this keeps runtime requests in the same asset generation.
+- **Alternative considered:** Copy a second root-level Side Panel file on every
+  install. That would mask the error but split one Extension generation across
+  two independently updated asset paths.
 - **User-visible impact:** Opening Logue can show Chrome’s “Your file couldn’t
   be accessed” error instead of the Side Panel, blocking all capture workflows.
-- **Evidence:** The user reported the error on 2026-08-04. The checked stable
-  directory has the manifest-referenced QA assets, and the `v0.2.11` archive
-  has its Side Panel HTML and referenced assets; the standalone installer
-  overwrite regression also passes. The error page itself is not exposed as a
-  Chrome tab, so its `chrome-extension://…` URL is still needed.
-- **Next proof:** Capture the full error-page URL or screenshot, identify the
-  missing resource, then make the smallest fix and verify the real Side Panel
-  opens without changing Chrome storage.
+- **Evidence:** The user reported the error on 2026-08-04. An isolated official
+  `v0.2.11` installation loaded in real Chrome, then opened
+  `chrome-extension://<id>/sidepanel.html?tabId=…`, which failed with
+  `ERR_FILE_NOT_FOUND`. Its installed manifest correctly points to
+  `releases/v0.2.11-<id>/sidepanel.html`; the runtime path is the mismatch.
+- **Verification:** A corrected unpacked build was loaded in the same Chrome
+  profile and opened
+  `chrome-extension://<id>/releases/v0.2.11-fix-test-<id>/sidepanel.html?tabId=…`.
+  The normal Side Panel (Note and Record) rendered; Chrome's error document did
+  not. The temporary Extension was then removed without touching existing
+  Chrome storage.
+- **Next proof:** Publish the smallest patch release and verify that its
+  installed artifact opens the same normal Side Panel.
 
 ## Resolved
 

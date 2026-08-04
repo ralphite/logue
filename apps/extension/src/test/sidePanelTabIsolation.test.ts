@@ -9,7 +9,7 @@ describe("tab-scoped native Side Panel wiring", () => {
   it("disables the global panel and preconfigures each tab-specific path", () => {
     expect(background).toContain("disableDefaultSidePanel(nativeSidePanel)");
     expect(background).toContain("disableTabSidePanel(nativeSidePanel, tabId)");
-    expect(background).toContain("prepareTabSidePanel(nativeSidePanel, tabId)");
+    expect(background).toContain("prepareTabSidePanel(nativeSidePanel, tabId, sidePanelDocumentPath)");
     expect(background).toContain("Promise.all([chrome.storage.session.get(null), chrome.tabs.query({})])");
     expect(background).toContain("chrome.tabs.onCreated.addListener");
     expect(background).toContain("chrome.tabs.onUpdated.addListener");

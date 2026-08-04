@@ -80,14 +80,15 @@ describe("native side panel controller", () => {
 
   it("assigns every tab its own native Side Panel document", async () => {
     const setOptions = vi.fn(async () => undefined);
-    await prepareTabSidePanel({ setOptions }, 42);
-    expect(sidePanelPath(42)).toBe("sidepanel.html?tabId=42");
+    const documentPath = "releases/v0.2.12-123/sidepanel.html";
+    await prepareTabSidePanel({ setOptions }, 42, documentPath);
+    expect(sidePanelPath(42, documentPath)).toBe("releases/v0.2.12-123/sidepanel.html?tabId=42");
     expect(sidePanelTabId("?tabId=42")).toBe(42);
     expect(sidePanelTabId("?tabId=0")).toBeUndefined();
     expect(sidePanelTabId("?tabId=other")).toBeUndefined();
     expect(setOptions).toHaveBeenCalledWith({
       tabId: 42,
-      path: "sidepanel.html?tabId=42",
+      path: "releases/v0.2.12-123/sidepanel.html?tabId=42",
       enabled: true,
     });
   });

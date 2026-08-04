@@ -31,8 +31,8 @@ export interface SidePanelChrome {
   setOptions: (options: { tabId?: number; path?: string; enabled: boolean }) => Promise<void>;
 }
 
-export function sidePanelPath(tabId: number) {
-  return `sidepanel.html?tabId=${tabId}`;
+export function sidePanelPath(tabId: number, documentPath: string) {
+  return `${documentPath}?tabId=${tabId}`;
 }
 
 export function sidePanelTabId(search: string) {
@@ -40,8 +40,12 @@ export function sidePanelTabId(search: string) {
   return Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
 
-export function prepareTabSidePanel(api: Pick<SidePanelChrome, "setOptions">, tabId: number) {
-  return api.setOptions({ tabId, path: sidePanelPath(tabId), enabled: true });
+export function prepareTabSidePanel(
+  api: Pick<SidePanelChrome, "setOptions">,
+  tabId: number,
+  documentPath: string,
+) {
+  return api.setOptions({ tabId, path: sidePanelPath(tabId, documentPath), enabled: true });
 }
 
 export function disableDefaultSidePanel(api: Pick<SidePanelChrome, "setOptions">) {

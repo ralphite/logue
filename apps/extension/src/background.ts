@@ -96,6 +96,7 @@ const nativeSidePanel = chrome.sidePanel as unknown as SidePanelChrome & {
   onOpened?: chrome.events.Event<(info: { tabId?: number; windowId?: number }) => void>;
   onClosed?: chrome.events.Event<(info: { tabId?: number; windowId?: number }) => void>;
 };
+const sidePanelDocumentPath = chrome.runtime.getManifest().side_panel!.default_path;
 
 // The manifest path exists only to register the feature. Keep its global
 // instance disabled so switching to a tab that never opened Logue hides it.
@@ -714,7 +715,7 @@ nativeSidePanel.onClosed?.addListener((info) => {
 });
 
 function prepareSidePanel(tabId: number) {
-  return prepareTabSidePanel(nativeSidePanel, tabId);
+  return prepareTabSidePanel(nativeSidePanel, tabId, sidePanelDocumentPath);
 }
 
 function disableSidePanel(tabId: number) {
