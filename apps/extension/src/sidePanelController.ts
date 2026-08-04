@@ -27,38 +27,57 @@ export function isOpenSelectionMenu(menuItemId: string | number) {
 
 export interface SidePanelChrome {
   open: (options: { tabId: number }) => Promise<void>;
-  close: (options: { tabId: number } | { windowId: number }) => Promise<void>;
+  close?: (options: { tabId: number }) => Promise<void>;
+  setOptions: (options: { tabId?: number; path?: string; enabled: boolean }) => Promise<void>;
+}
+
+export function sidePanelPath(tabId: number) {
+  return `sidepanel.html?tabId=${tabId}`;
+}
+
+export function sidePanelTabId(search: string) {
+  const value = Number(new URLSearchParams(search).get("tabId"));
+  return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
+export function prepareTabSidePanel(api: Pick<SidePanelChrome, "setOptions">, tabId: number) {
+  return api.setOptions({ tabId, path: sidePanelPath(tabId), enabled: true });
+}
+
+export function disableDefaultSidePanel(api: Pick<SidePanelChrome, "setOptions">) {
+  return api.setOptions({ enabled: false });
+}
+
+export function disableTabSidePanel(api: Pick<SidePanelChrome, "setOptions">, tabId: number) {
+  return api.setOptions({ tabId, enabled: false });
+}
+
+export function panelMessageTargetsTab(
+  panelTabId: number,
+  message: { tabId?: number; state?: Pick<PanelCaptureState, "tabId"> },
+) {
+  return message.tabId === panelTabId || message.state?.tabId === panelTabId;
 }
 
 export async function toggleSidePanel(
-  api: SidePanelChrome,
+  api: Pick<SidePanelChrome, "open" | "close">,
   openTabs: Set<number>,
   tabId: number,
-  windowId?: number,
 ) {
   if (openTabs.has(tabId)) {
+    if (!api.close) return "open-only" as const;
     try {
-      // A native Side Panel is a window surface. Closing at that scope makes a
-      // toolbar or command toggle reliable after the page loses focus.
-      await api.close(typeof windowId === "number" ? { windowId } : { tabId });
+      await api.close({ tabId });
       openTabs.delete(tabId);
       return "closed" as const;
     } catch {
-      // If a newer Chrome rejects the window-scoped form for this panel, retain
-      // the tab-scoped fallback before treating the session tracking as stale.
-      if (typeof windowId === "number") {
-        try {
-          await api.close({ tabId });
-          openTabs.delete(tabId);
-          return "closed" as const;
-        } catch {
-          // Chrome can retain session state across an extension reload after its native panel
-          // is already gone. Treat that state as stale and satisfy the user's toggle by opening.
-        }
-      }
+      // Chrome can retain session state across an extension reload after its
+      // native panel is already gone. Open the requested tab instead.
       openTabs.delete(tabId);
     }
   }
+  // Every tab receives its own path during tab lifecycle events. The user
+  // gesture can now open directly, with no race against Chrome's default panel.
   await api.open({ tabId });
   openTabs.add(tabId);
   return "opened" as const;

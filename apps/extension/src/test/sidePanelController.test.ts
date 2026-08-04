@@ -3,16 +3,22 @@ import { mergePanelCaptureState, sourceFromTab } from "../capturePrimitives";
 import {
   acceptsPassivePageContext,
   consumePanelAutoStart,
+  disableDefaultSidePanel,
+  disableTabSidePanel,
   isOpenSelectionMenu,
   isSaveSelectionMenu,
   isSelectionMenu,
   openPanelWithPreparedState,
   openSelectionMenuId,
   panelStateForTab,
+  panelMessageTargetsTab,
+  prepareTabSidePanel,
   preserveMatchingPanelDraft,
   saveSelectionMenuId,
   selectionSavePayload,
   selectionContextMenus,
+  sidePanelPath,
+  sidePanelTabId,
   toggleSidePanel,
 } from "../sidePanelController";
 
@@ -70,6 +76,36 @@ describe("native side panel controller", () => {
       selectionText: "the full selected passage",
       source: { url: tab.url, title: tab.title, domain: "example.com" },
     });
+  });
+
+  it("assigns every tab its own native Side Panel document", async () => {
+    const setOptions = vi.fn(async () => undefined);
+    await prepareTabSidePanel({ setOptions }, 42);
+    expect(sidePanelPath(42)).toBe("sidepanel.html?tabId=42");
+    expect(sidePanelTabId("?tabId=42")).toBe(42);
+    expect(sidePanelTabId("?tabId=0")).toBeUndefined();
+    expect(sidePanelTabId("?tabId=other")).toBeUndefined();
+    expect(setOptions).toHaveBeenCalledWith({
+      tabId: 42,
+      path: "sidepanel.html?tabId=42",
+      enabled: true,
+    });
+  });
+
+  it("disables the manifest default and every unopened tab", async () => {
+    const setOptions = vi.fn(async () => undefined);
+    await disableDefaultSidePanel({ setOptions });
+    await disableTabSidePanel({ setOptions }, 43);
+    expect(setOptions.mock.calls).toEqual([
+      [{ enabled: false }],
+      [{ tabId: 43, enabled: false }],
+    ]);
+  });
+
+  it("routes panel broadcasts only to their owning tab", () => {
+    expect(panelMessageTargetsTab(7, { tabId: 7 })).toBe(true);
+    expect(panelMessageTargetsTab(7, { state: { tabId: 7 } })).toBe(true);
+    expect(panelMessageTargetsTab(7, { tabId: 8, state: { tabId: 8 } })).toBe(false);
   });
 
   it("creates a page capture without assuming an input target", () => {
@@ -149,6 +185,26 @@ describe("native side panel controller", () => {
     expect(preserveMatchingPanelDraft({ ...sameCapture, selectionText: "different" }, current).draft).toBeUndefined();
   });
 
+  it("preserves a tab draft across native close, disable, and reopen", () => {
+    const tabB = { id: 22, url: "https://chatgpt.com/", title: "ChatGPT" };
+    const opened = panelStateForTab(tabB, "page", sourceFromTab(tabB))!;
+    const updated = mergePanelCaptureState(opened, { draft: "TAB_B_DRAFT_KEEP" });
+
+    // Native close/disable changes Chrome UI state only; reopening reconstructs
+    // the shell and restores the same tab's session capture.
+    const reopened = preserveMatchingPanelDraft(
+      panelStateForTab(tabB, "page", sourceFromTab(tabB))!,
+      updated,
+    );
+    expect(reopened.draft).toBe("TAB_B_DRAFT_KEEP");
+
+    const tabA = { id: 21, url: "https://example.com/", title: "Example" };
+    expect(preserveMatchingPanelDraft(
+      panelStateForTab(tabA, "page", sourceFromTab(tabA))!,
+      updated,
+    ).draft).toBeUndefined();
+  });
+
   it("keeps a completed pending insert across a panel state refresh without replaying its save", () => {
     const source = { url: "https://example.com", title: "Example", domain: "example.com" };
     const current = {
@@ -181,9 +237,27 @@ describe("native side panel controller", () => {
     expect(open).toHaveBeenCalledWith({ tabId: 9 });
     expect(close).toHaveBeenCalledWith({ tabId: 9 });
 
-    await expect(toggleSidePanel({ open, close }, new Set([12]), 12, 77)).resolves.toBe("closed");
-    expect(close).toHaveBeenLastCalledWith({ windowId: 77 });
+    await expect(toggleSidePanel({ open, close }, new Set([12]), 12)).resolves.toBe("closed");
+    expect(close).toHaveBeenLastCalledWith({ tabId: 12 });
 
+  });
+
+  it("opens directly after tab lifecycle configuration", async () => {
+    const open = vi.fn(async () => undefined);
+    const openTabs = new Set<number>();
+
+    await expect(toggleSidePanel({ open }, openTabs, 14)).resolves.toBe("opened");
+    expect(open).toHaveBeenCalledWith({ tabId: 14 });
+    expect(openTabs.has(14)).toBe(true);
+  });
+
+  it("quietly degrades to open-only when Chrome has no Side Panel close API", async () => {
+    const open = vi.fn(async () => undefined);
+    const openTabs = new Set([21]);
+
+    await expect(toggleSidePanel({ open }, openTabs, 21)).resolves.toBe("open-only");
+    expect(open).not.toHaveBeenCalled();
+    expect(openTabs.has(21)).toBe(true);
   });
 
   it("opens when a restored panel state is stale after an extension reload", async () => {

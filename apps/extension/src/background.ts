@@ -152,7 +152,6 @@ async function clearPanelOpen(tabId: number) {
   openingPanelTabs.delete(tabId);
   openPanelTabs.delete(tabId);
   await chrome.storage.session.remove(openPanelStorageKey(tabId));
-  disableSidePanel(tabId);
 }
 
 function isInlineRecorderControl(message: unknown): message is InlineRecorderControlMessage {
@@ -327,14 +326,9 @@ async function restorePanelState(tabId: number) {
 }
 
 async function openPanel(tabId: number) {
-  // Keep this API invocation synchronous relative to the original user
-  // gesture. Start per-tab configuration first, but never await it before
-  // `open`: Chrome rejects opens that have crossed an async boundary.
   openingPanelTabs.add(tabId);
-  const configured = prepareSidePanel(tabId);
   try {
-    const opening = nativeSidePanel.open({ tabId });
-    await Promise.all([configured, opening]);
+    await nativeSidePanel.open({ tabId });
     await markPanelOpen(tabId);
   } catch (cause) {
     openingPanelTabs.delete(tabId);
@@ -343,8 +337,8 @@ async function openPanel(tabId: number) {
   }
 }
 
-async function toggleTrackedSidePanel(tabId: number, configured?: Promise<void>) {
-  const result = await toggleSidePanel(nativeSidePanel, openPanelTabs, tabId, configured);
+async function toggleTrackedSidePanel(tabId: number) {
+  const result = await toggleSidePanel(nativeSidePanel, openPanelTabs, tabId);
   if (result === "closed") {
     await clearPanelOpen(tabId);
   } else if (result === "opened") {
@@ -443,18 +437,12 @@ async function toggleTabPanel(tab?: chrome.tabs.Tab) {
     return;
   }
   if (!tab || typeof tab.id !== "number") return;
-  openingPanelTabs.add(tabId);
-  const configured = prepareSidePanel(tabId);
-
-  // Start reading the last native-panel state before opening, but never await it
-  // on this gesture path. `sidePanel.open` must be called synchronously from the
-  // toolbar/command event. If an MV3 worker was restarted while the panel stayed
-  // open, Chrome receives an idempotent open first and then the stored-open
-  // result closes it; a fresh panel stays open and is tracked afterwards.
+  // A native panel can outlive its MV3 worker. Do not await this lookup before
+  // opening (that would spend Chrome's user gesture), but reconcile it below
+  // so the first shortcut after a worker restart is still a real toggle.
   const priorOpen = chrome.storage.session.get(openPanelStorageKey(tabId));
-
-  // sidePanel.open must be invoked within Chrome's original user gesture. Stage a
-  // safe page state first, open immediately, then enrich it from the content script.
+  // The tab-specific path is configured by tab lifecycle events before the
+  // toolbar click or shortcut. Stage the local state, then open directly.
   const state = panelStateForTab(
     tab,
     "page",
@@ -463,7 +451,7 @@ async function toggleTabPanel(tab?: chrome.tabs.Tab) {
   if (!state) return;
   const opening = openPanelWithPreparedState(
     () => { stagePanelState(state); },
-    () => toggleTrackedSidePanel(tabId, configured),
+    () => toggleTrackedSidePanel(tabId),
   );
   void readPageCaptureContext(tab).then((context) => setPanelContext(
     tab,
@@ -476,14 +464,9 @@ async function toggleTabPanel(tab?: chrome.tabs.Tab) {
   )).catch(() => undefined);
   const wasOpen = (await priorOpen)[openPanelStorageKey(tabId)] === true;
   if (wasOpen && nativeSidePanel.close) {
-    try {
-      await nativeSidePanel.close({ tabId });
-      await clearPanelOpen(tabId);
-      return;
-    } catch {
-      // The session bit was stale (for example after Chrome restored tabs).
-      // The synchronous open above is the correct safe fallback.
-    }
+    await nativeSidePanel.close({ tabId });
+    await clearPanelOpen(tabId);
+    return;
   }
   try {
     await opening;
@@ -739,22 +722,13 @@ function disableSidePanel(tabId: number) {
 }
 
 function syncSidePanelOption(tabId: number) {
-  if (openingPanelTabs.has(tabId) || openPanelTabs.has(tabId)) {
-    void prepareSidePanel(tabId).catch(() => undefined);
-    return;
-  }
-  void chrome.storage.session.get(openPanelStorageKey(tabId)).then((stored) => {
-    if (openingPanelTabs.has(tabId) || stored[openPanelStorageKey(tabId)] === true) {
-      openPanelTabs.add(tabId);
-      void prepareSidePanel(tabId).catch(() => undefined);
-      return;
-    }
-    disableSidePanel(tabId);
-  }).catch(() => disableSidePanel(tabId));
+  // Enabled here means available for this tab; it does not make Chrome show
+  // the panel. Visibility still changes only through the explicit open action.
+  void prepareSidePanel(tabId).catch(() => undefined);
 }
 
-// Rebuild only current per-tab options after an MV3 worker restart. Tabs that
-// never opened Logue stay disabled, so Chrome has no global panel to display.
+// Rebuild every tab's dedicated path after an MV3 worker restart. The global
+// default remains disabled, so a panel is always bound to a concrete tab.
 void Promise.all([chrome.storage.session.get(null), chrome.tabs.query({})]).then(([session, tabs]) => {
   for (const [key, value] of Object.entries(session)) {
     if (value !== true || !key.startsWith(openPanelStoragePrefix)) continue;
@@ -763,8 +737,7 @@ void Promise.all([chrome.storage.session.get(null), chrome.tabs.query({})]).then
   }
   for (const tab of tabs) {
     if (typeof tab.id === "number") {
-      if (openingPanelTabs.has(tab.id) || openPanelTabs.has(tab.id)) prepareSidePanel(tab.id).catch(() => undefined);
-      else disableSidePanel(tab.id);
+      prepareSidePanel(tab.id).catch(() => undefined);
     }
     if (tab.active && typeof tab.id === "number" && typeof tab.windowId === "number") {
       activeTabByWindow.set(tab.windowId, tab.id);
@@ -774,7 +747,7 @@ void Promise.all([chrome.storage.session.get(null), chrome.tabs.query({})]).then
 }).catch(() => undefined);
 
 chrome.tabs.onCreated.addListener((tab) => {
-  if (typeof tab.id === "number") disableSidePanel(tab.id);
+  if (typeof tab.id === "number") syncSidePanelOption(tab.id);
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {

@@ -26,13 +26,13 @@ import {
   type PanelCaptureState,
 } from "./capturePrimitives";
 import {
-  audioBlobFromEvent,
-  type RecordingControlAction,
-  type RecordingPanelEvent,
-} from "./recordingBridge";
+  createAudioRecorder,
+  type AudioRecorderController,
+} from "./recorder";
 import { createRequestId } from "./requestId";
 import { type CapturePhase } from "./sidePanelPresentation";
 import { saveThenRefreshPageHistory, shouldLoadPageHistory } from "./sidePanelPageHistory";
+import { panelMessageTargetsTab, sidePanelTabId } from "./sidePanelController";
 import { canInsertGeneratedText, generationTargetKey } from "./sidePanelGeneration";
 import { handleSidePanelShortcut } from "./sidePanelShortcuts";
 import { createSidePanelFocusController, type SidePanelFocusController } from "./sidePanelFocus";
@@ -48,6 +48,35 @@ type Phase = CapturePhase;
 
 interface RuntimeResponse<T> { ok: boolean; value?: T; }
 interface RecordingSession extends ActivePanelCaptureScope { id: string; }
+interface MicrophonePermissionResult {
+  type: "logue:microphone-permission-result";
+  token: string;
+  ok: boolean;
+  error?: string;
+}
+interface PendingMicrophonePermission {
+  token: string;
+  promise: Promise<void>;
+  resolve: () => void;
+  reject: (cause: Error) => void;
+}
+interface PanelRuntimeMessage {
+  type?: string;
+  state?: PanelCaptureState;
+  tabId?: number;
+}
+
+function isMicrophonePermissionResult(message: unknown): message is MicrophonePermissionResult {
+  return Boolean(
+    message &&
+    typeof message === "object" &&
+    (message as { type?: unknown }).type === "logue:microphone-permission-result" &&
+    typeof (message as { token?: unknown }).token === "string" &&
+    typeof (message as { ok?: unknown }).ok === "boolean",
+  );
+}
+
+const panelTabId = sidePanelTabId(window.location.search);
 
 function SidePanelApp() {
   const [state, setState] = useState<PanelCaptureState>();
@@ -78,8 +107,10 @@ function SidePanelApp() {
   const transcriptRef = useRef("");
   const transcribeAndSaveRef = useRef<(blob: Blob) => Promise<void>>(async () => undefined);
   const startRecordingRef = useRef<() => void>(() => undefined);
-  const recordingEventRef = useRef<(event: RecordingPanelEvent) => void>(() => undefined);
   const recordingSessionRef = useRef<RecordingSession | undefined>(undefined);
+  const recorderRef = useRef<AudioRecorderController | undefined>(undefined);
+  const stopRequestedRef = useRef(false);
+  const microphonePermissionRequestRef = useRef<PendingMicrophonePermission | undefined>(undefined);
   // This remains set through transcription so a harmless panel-state refresh
   // cannot collapse the active UI.
   const activeCaptureScopeRef = useRef<ActivePanelCaptureScope | undefined>(undefined);
@@ -94,6 +125,7 @@ function SidePanelApp() {
     panelFocusControllerRef.current = createSidePanelFocusController({
       visibility: () => document.visibilityState,
       requestFrame: (callback) => { window.requestAnimationFrame(callback); },
+      hasFocus: () => document.hasFocus(),
       focusWindow: () => { window.focus(); },
       activeElement: () => document.activeElement,
       serverInput: () => document.getElementById("logue-server-url"),
@@ -107,7 +139,8 @@ function SidePanelApp() {
   phaseRef.current = phase;
 
   const persistDraft = useCallback((patch: Record<string, unknown>) => {
-    void chrome.runtime.sendMessage({ type: "logue:update-panel-state", patch });
+    if (typeof panelTabId !== "number") return;
+    void chrome.runtime.sendMessage({ type: "logue:update-panel-state", tabId: panelTabId, patch });
   }, []);
 
   const stopTimer = useCallback(() => {
@@ -115,12 +148,34 @@ function SidePanelApp() {
     timerRef.current = undefined;
   }, []);
 
-  const sendRecordingControl = useCallback((session: RecordingSession, action: RecordingControlAction) => {
-    return chrome.tabs.sendMessage(session.tabId, {
-      type: "logue:recording-control",
-      action,
-      sessionId: session.id,
-    }) as Promise<{ ok?: boolean } | undefined>;
+  const requestMicrophonePermission = useCallback(() => {
+    const existing = microphonePermissionRequestRef.current;
+    if (existing) return existing.promise;
+    const token = createRequestId();
+    let resolvePermission!: () => void;
+    let rejectPermission!: (cause: Error) => void;
+    const promise = new Promise<void>((resolve, reject) => {
+      resolvePermission = resolve;
+      rejectPermission = reject;
+    });
+    microphonePermissionRequestRef.current = {
+      token,
+      promise,
+      resolve: resolvePermission,
+      reject: rejectPermission,
+    };
+    void chrome.windows.create({
+      url: chrome.runtime.getURL(`microphone.html?token=${encodeURIComponent(token)}`),
+      type: "popup",
+      width: 360,
+      height: 180,
+      focused: true,
+    }).catch((cause: unknown) => {
+      if (microphonePermissionRequestRef.current?.token !== token) return;
+      microphonePermissionRequestRef.current = undefined;
+      rejectPermission(cause instanceof Error ? cause : new Error("Could not request microphone access."));
+    });
+    return promise;
   }, []);
 
   const appliedContext = useCallback((captureContext: CaptureContext): AppliedContext => {
@@ -319,6 +374,54 @@ function SidePanelApp() {
 
   transcribeAndSaveRef.current = transcribeAndSave;
 
+  const recorder = useCallback(() => {
+    if (recorderRef.current) return recorderRef.current;
+    recorderRef.current = createAudioRecorder({
+      // A Side Panel is an extension page. Recording here keeps the user
+      // gesture and requests permission for Logue itself, so capture works on
+      // every normal page instead of relying on each site's media policy.
+      getStream: async () => {
+        try {
+          return await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (cause) {
+          // Chrome currently suppresses the permission prompt from a native
+          // Side Panel. Ask once from a tiny extension-owned window, then
+          // continue recording here with the newly granted Logue permission.
+          if (!/permission|notallowed|dismissed|denied/i.test(String(cause))) throw cause;
+          await requestMicrophonePermission();
+          return navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+      },
+      onStart: () => {
+        if (!recordingSessionRef.current) return;
+        setPhase("recording");
+        setElapsed(0);
+        timerRef.current = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+      },
+      onStop: (blob) => {
+        const session = recordingSessionRef.current;
+        recordingSessionRef.current = undefined;
+        stopRequestedRef.current = false;
+        stopTimer();
+        if (!session) return;
+        lastBlobRef.current = blob;
+        void transcribeAndSaveRef.current(blob).finally(() => {
+          activeCaptureScopeRef.current = undefined;
+        });
+      },
+      onError: (cause) => {
+        if (!recordingSessionRef.current) return;
+        recordingSessionRef.current = undefined;
+        stopRequestedRef.current = false;
+        activeCaptureScopeRef.current = undefined;
+        stopTimer();
+        setError(friendlyLocalError(cause, "microphone"));
+        setPhase("error");
+      },
+    });
+    return recorderRef.current;
+  }, [requestMicrophonePermission, stopTimer]);
+
   const startRecording = useCallback(() => {
     if (phaseRef.current === "starting" || phaseRef.current === "recording" || phaseRef.current === "processing") return;
     const current = stateRef.current;
@@ -326,62 +429,14 @@ function SidePanelApp() {
     const session = { id: createRequestId(), tabId: current.tabId, intent: current.intent };
     recordingSessionRef.current = session;
     activeCaptureScopeRef.current = session;
+    stopRequestedRef.current = false;
     setPhase("starting");
     setError(undefined);
     setPendingInsert(undefined);
-    void sendRecordingControl(session, "start").then((response) => {
-      if (!response?.ok) throw new Error("The page could not start voice capture.");
-    }).catch((cause: unknown) => {
-      if (recordingSessionRef.current?.id !== session.id) return;
-      recordingSessionRef.current = undefined;
-      activeCaptureScopeRef.current = undefined;
-      setError({
-        kind: "microphone",
-        message: cause instanceof Error ? cause.message : "Voice capture is not available on this page.",
-        action: "retry",
-      });
-      setPhase("error");
-    });
-  }, [sendRecordingControl, stopTimer]);
+    void recorder().start();
+  }, [recorder]);
 
   startRecordingRef.current = startRecording;
-
-  recordingEventRef.current = (event) => {
-    const session = recordingSessionRef.current;
-    if (!session || session.id !== event.sessionId || session.tabId !== event.tabId) return;
-    if (event.event === "started") {
-      stopTimer();
-      setPhase("recording");
-      setElapsed(0);
-      timerRef.current = window.setInterval(() => setElapsed((value) => value + 1), 1000);
-      return;
-    }
-    recordingSessionRef.current = undefined;
-    stopTimer();
-    if (event.event === "cancelled") {
-      activeCaptureScopeRef.current = undefined;
-      setPhase("idle");
-      setElapsed(0);
-      return;
-    }
-    if (event.event === "error") {
-      activeCaptureScopeRef.current = undefined;
-      setError(friendlyLocalError(new Error(event.error || "Could not start recording."), "microphone"));
-      setPhase("error");
-      return;
-    }
-    try {
-      const blob = audioBlobFromEvent(event);
-      lastBlobRef.current = blob;
-      void transcribeAndSaveRef.current(blob).finally(() => {
-        activeCaptureScopeRef.current = undefined;
-      });
-    } catch (cause) {
-      activeCaptureScopeRef.current = undefined;
-      setError(friendlyLocalError(cause, "transcription"));
-      setPhase("error");
-    }
-  };
 
   const runGeneration = useCallback(async () => {
     const current = stateRef.current;
@@ -442,26 +497,22 @@ function SidePanelApp() {
   const stopRecording = useCallback(() => {
     const session = recordingSessionRef.current;
     if (!session) return;
+    stopRequestedRef.current = true;
     setPhase("processing");
     stopTimer();
-    void sendRecordingControl(session, "stop").then((response) => {
-      if (!response?.ok) throw new Error("The recording is no longer active.");
-    }).catch((cause: unknown) => {
-      if (recordingSessionRef.current?.id !== session.id) return;
-      recordingSessionRef.current = undefined;
-      setError(friendlyLocalError(cause, "transcription"));
-      setPhase("error");
-    });
-  }, [sendRecordingControl, stopTimer]);
+    recorderRef.current?.stop();
+  }, [stopTimer]);
 
   const cancelRecording = useCallback(() => {
-    const session = recordingSessionRef.current;
+    // Stop has already been accepted: let its final blob complete and save.
+    // Cancelling it here would lose a user-visible recording on tab switch.
+    if (stopRequestedRef.current) return;
     recordingSessionRef.current = undefined;
-    if (session) void sendRecordingControl(session, "cancel").catch(() => undefined);
+    recorderRef.current?.cancel();
     stopTimer();
     setPhase("idle");
     setElapsed(0);
-  }, [sendRecordingControl, stopTimer]);
+  }, [stopTimer]);
 
   const retryInsert = useCallback(async () => {
     const current = stateRef.current;
@@ -514,7 +565,8 @@ function SidePanelApp() {
     generatedForTargetRef.current = undefined;
     setGeneratedText("");
     setGenerationRunId(undefined);
-    void chrome.runtime.sendMessage({ type: "logue:request-panel-generate" })
+    if (typeof panelTabId !== "number") return;
+    void chrome.runtime.sendMessage({ type: "logue:request-panel-generate", tabId: panelTabId })
       .then((response: { ok?: boolean; error?: string } | undefined) => {
         if (!response?.ok) {
           setError({
@@ -531,7 +583,8 @@ function SidePanelApp() {
     generatedForTargetRef.current = undefined;
     setGeneratedText("");
     setGenerationRunId(undefined);
-    void chrome.runtime.sendMessage({ type: "logue:return-panel-to-page" })
+    if (typeof panelTabId !== "number") return;
+    void chrome.runtime.sendMessage({ type: "logue:return-panel-to-page", tabId: panelTabId })
       .then((response: { ok?: boolean; error?: string } | undefined) => {
         if (!response?.ok) {
           setError({
@@ -546,7 +599,7 @@ function SidePanelApp() {
 
   useEffect(() => {
     const hydrate = (next?: PanelCaptureState) => {
-      if (!next) return;
+      if (!next || next.tabId !== panelTabId) return;
       const previous = stateRef.current;
       if (!previous) focusPanelOnHydrationRef.current = true;
       const activeSession = recordingSessionRef.current;
@@ -558,7 +611,8 @@ function SidePanelApp() {
       if (activeSession && shouldInterruptPanelCapture(activeSession, next)) {
         recordingSessionRef.current = undefined;
         activeCaptureScopeRef.current = undefined;
-        void sendRecordingControl(activeSession, "cancel").catch(() => undefined);
+        stopRequestedRef.current = false;
+        recorderRef.current?.cancel();
         stopTimer();
       }
       if (!canInsertGeneratedText(next, generatedForTargetRef.current)) {
@@ -589,13 +643,15 @@ function SidePanelApp() {
       if (next.autoStartToken) {
         void chrome.runtime.sendMessage({
           type: "logue:consume-panel-autostart",
+          tabId: panelTabId,
           token: next.autoStartToken,
         }).then((response: { consumed?: boolean } | undefined) => {
           if (response?.consumed) startRecordingRef.current();
         });
       }
     };
-    void chrome.runtime.sendMessage({ type: "logue:get-panel-state" })
+    if (typeof panelTabId !== "number") return;
+    void chrome.runtime.sendMessage({ type: "logue:get-panel-state", tabId: panelTabId })
       .then((response: RuntimeResponse<PanelCaptureState>) => {
         hydrate(response.value);
       });
@@ -606,21 +662,30 @@ function SidePanelApp() {
       }
       panelFocusControllerRef.current?.request();
     };
-    const listener = (message: { type?: string; state?: PanelCaptureState; tabId?: number } | RecordingPanelEvent) => {
-      if (message.type === "logue:panel-state-changed") hydrate(message.state);
-      if (message.type === "logue:side-panel-opened" && (
-        typeof message.tabId !== "number" || message.tabId === stateRef.current?.tabId
-      )) requestPanelFocus();
-      if (
-        message.type === "logue:recording-event" &&
-        "event" in message &&
-        "sessionId" in message &&
-        "tabId" in message
-      ) recordingEventRef.current(message);
+    const listener = (message: unknown) => {
+      if (isMicrophonePermissionResult(message)) {
+        const request = microphonePermissionRequestRef.current;
+        if (request?.token === message.token) {
+          microphonePermissionRequestRef.current = undefined;
+          if (message.ok) request.resolve();
+          else request.reject(new Error(message.error || "Microphone access was not granted."));
+        }
+        return;
+      }
+      const panelMessage = message as PanelRuntimeMessage;
+      if (panelMessage.type === "logue:panel-state-changed" && panelMessageTargetsTab(panelTabId, panelMessage)) {
+        hydrate(panelMessage.state);
+      }
+      if (panelMessage.type === "logue:side-panel-opened" && panelMessage.tabId === panelTabId) {
+        requestPanelFocus();
+      }
+      if (panelMessage.type === "logue:side-panel-hidden" && panelMessage.tabId === panelTabId) {
+        cancelRecording();
+      }
     };
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
-  }, [refreshServerConnection, sendRecordingControl, stopTimer]);
+  }, [cancelRecording, refreshServerConnection, stopTimer]);
 
   useEffect(() => {
     void getServerURL().then((value) => {
@@ -658,7 +723,11 @@ function SidePanelApp() {
         onRecord: startRecording,
         onStop: stopRecording,
         onCancel: cancelRecording,
-        onClose: () => { void chrome.runtime.sendMessage({ type: "logue:close-side-panel" }); },
+        onClose: () => {
+          if (typeof panelTabId === "number") {
+            void chrome.runtime.sendMessage({ type: "logue:close-side-panel", tabId: panelTabId });
+          }
+        },
       });
     };
     window.addEventListener("keydown", onKeyDown);
@@ -667,16 +736,16 @@ function SidePanelApp() {
 
   useEffect(() => {
     return () => {
-      const activeSession = recordingSessionRef.current;
       recordingSessionRef.current = undefined;
-      if (activeSession) void sendRecordingControl(activeSession, "cancel").catch(() => undefined);
+      stopRequestedRef.current = false;
+      recorderRef.current?.dispose();
       stopTimer();
       persistDraft({
         draft: draftRef.current,
         transcript: transcriptRef.current,
       });
     };
-  }, [persistDraft, sendRecordingControl, stopTimer]);
+  }, [persistDraft, stopTimer]);
 
   return (
     <SidePanelView

@@ -1,6 +1,7 @@
 export interface SidePanelFocusEnvironment {
   visibility: () => DocumentVisibilityState;
   requestFrame: (callback: () => void) => void;
+  hasFocus: () => boolean;
   focusWindow: () => void;
   activeElement: () => Element | null;
   serverInput: () => HTMLElement | null;
@@ -16,24 +17,42 @@ export function isPanelEditable(element: Element | null): element is HTMLElement
 
 export function createSidePanelFocusController(environment: SidePanelFocusEnvironment) {
   let pending = false;
+  let scheduled = false;
+  let attempts = 0;
+  const maxAttempts = 8;
 
-  const fulfill = () => {
-    if (!pending || environment.visibility() !== "visible") return false;
-    pending = false;
+  const schedule = () => {
+    if (scheduled) return;
+    scheduled = true;
     environment.requestFrame(() => {
+      scheduled = false;
+      if (!pending || environment.visibility() !== "visible") return;
       const active = environment.activeElement();
       environment.focusWindow();
       const target = isPanelEditable(active)
         ? active
         : environment.serverInput() ?? environment.panel();
       target?.focus({ preventScroll: true });
+      attempts += 1;
+      if (environment.hasFocus()) {
+        pending = false;
+        return;
+      }
+      if (attempts < maxAttempts) schedule();
+      else pending = false;
     });
+  };
+
+  const fulfill = () => {
+    if (!pending || environment.visibility() !== "visible") return false;
+    schedule();
     return true;
   };
 
   return {
     request() {
       pending = true;
+      attempts = 0;
       return fulfill();
     },
     visibilityChanged() {

@@ -5,6 +5,7 @@ import { createSidePanelFocusController } from "../sidePanelFocus";
 
 function focusHarness(initialVisibility: DocumentVisibilityState = "visible") {
   let visibility = initialVisibility;
+  let focused = true;
   const focusWindow = vi.fn();
   const panel = document.createElement("main");
   panel.tabIndex = -1;
@@ -13,13 +14,21 @@ function focusHarness(initialVisibility: DocumentVisibilityState = "visible") {
   const controller = createSidePanelFocusController({
     visibility: () => visibility,
     requestFrame: (callback) => callback(),
+    hasFocus: () => focused,
     focusWindow,
     activeElement: () => document.activeElement,
     serverInput: () => document.getElementById("logue-server-url"),
     panel: () => panel,
   });
   document.body.append(panel);
-  return { controller, focusWindow, panel, serverInput, setVisibility: (next: DocumentVisibilityState) => { visibility = next; } };
+  return {
+    controller,
+    focusWindow,
+    panel,
+    serverInput,
+    setFocused: (next: boolean) => { focused = next; },
+    setVisibility: (next: DocumentVisibilityState) => { visibility = next; },
+  };
 }
 
 describe("side panel initial focus", () => {
@@ -31,7 +40,7 @@ describe("side panel initial focus", () => {
 
     expect(panel).toContain("const panelMainRef = useRef<HTMLElement>(null)");
     expect(panel).toContain("if (!previous) focusPanelOnHydrationRef.current = true");
-    expect(panel).toContain('message.type === "logue:side-panel-opened"');
+    expect(panel).toContain('panelMessage.type === "logue:side-panel-opened"');
     expect(panel).toContain('document.addEventListener("visibilitychange", focusWhenShown)');
     expect(panel).toContain("panelFocusControllerRef.current?.request()");
     expect(panel).toContain("panelFocusControllerRef.current?.visibilityChanged()");
@@ -79,6 +88,60 @@ describe("side panel initial focus", () => {
     settingsHarness.panel.focus();
     settingsHarness.controller.request();
     expect(document.activeElement).toBe(settingsHarness.serverInput);
+  });
+
+  it("retries a reopened native panel until Chrome transfers document focus", () => {
+    const frames: Array<() => void> = [];
+    const focusWindow = vi.fn();
+    const panel = document.createElement("main");
+    panel.tabIndex = -1;
+    document.body.append(panel);
+    let focused = false;
+    const controller = createSidePanelFocusController({
+      visibility: () => "visible",
+      requestFrame: (callback) => frames.push(callback),
+      hasFocus: () => focused,
+      focusWindow,
+      activeElement: () => document.activeElement,
+      serverInput: () => null,
+      panel: () => panel,
+    });
+
+    expect(controller.request()).toBe(true);
+    frames.shift()?.();
+    expect(controller.isPending()).toBe(true);
+    frames.shift()?.();
+    focused = true;
+    frames.shift()?.();
+
+    expect(controller.isPending()).toBe(false);
+    expect(document.activeElement).toBe(panel);
+    expect(focusWindow).toHaveBeenCalledTimes(3);
+  });
+
+  it("never replaces an active text editor while retrying focus", () => {
+    const frames: Array<() => void> = [];
+    const panel = document.createElement("main");
+    const editor = document.createElement("textarea");
+    document.body.append(panel, editor);
+    editor.focus();
+    let focused = false;
+    const controller = createSidePanelFocusController({
+      visibility: () => "visible",
+      requestFrame: (callback) => frames.push(callback),
+      hasFocus: () => focused,
+      focusWindow: () => undefined,
+      activeElement: () => document.activeElement,
+      serverInput: () => null,
+      panel: () => panel,
+    });
+
+    controller.request();
+    frames.shift()?.();
+    focused = true;
+    frames.shift()?.();
+
+    expect(document.activeElement).toBe(editor);
   });
 
   it("does not let a panel shortcut or a copied result replay a completed insert", () => {
