@@ -154,10 +154,15 @@ feature fails.
   task tracker still lists both field proofs as `READY_FOR_REAL_ENV`.
 - **User decision:** Explicitly approved in this task on 2026-08-04.
 
+## Resolved
+
+Move an item here only after its stated direct user-flow proof passes. Keep its
+decision and evidence so later work does not reintroduce the same hidden choice.
+
 ### DR-007 — Extension opens a missing-file error in the current Chrome profile
 
 - **Priority:** P0
-- **Status:** fix verified in real Chrome; public patch release pending
+- **Status:** resolved on 2026-08-04
 - **Decision:** Derive every Side Panel path from the loaded manifest’s
   `side_panel.default_path`, rather than assuming a root-level `sidepanel.html`.
   The installer atomically switches that manifest to a versioned asset
@@ -165,23 +170,11 @@ feature fails.
 - **Alternative considered:** Copy a second root-level Side Panel file on every
   install. That would mask the error but split one Extension generation across
   two independently updated asset paths.
-- **User-visible impact:** Opening Logue can show Chrome’s “Your file couldn’t
-  be accessed” error instead of the Side Panel, blocking all capture workflows.
-- **Evidence:** The user reported the error on 2026-08-04. An isolated official
-  `v0.2.11` installation loaded in real Chrome, then opened
-  `chrome-extension://<id>/sidepanel.html?tabId=…`, which failed with
-  `ERR_FILE_NOT_FOUND`. Its installed manifest correctly points to
-  `releases/v0.2.11-<id>/sidepanel.html`; the runtime path is the mismatch.
-- **Verification:** A corrected unpacked build was loaded in the same Chrome
-  profile and opened
-  `chrome-extension://<id>/releases/v0.2.11-fix-test-<id>/sidepanel.html?tabId=…`.
-  The normal Side Panel (Note and Record) rendered; Chrome's error document did
-  not. The temporary Extension was then removed without touching existing
-  Chrome storage.
-- **Next proof:** Publish the smallest patch release and verify that its
-  installed artifact opens the same normal Side Panel.
-
-## Resolved
-
-Move an item here only after its stated direct user-flow proof passes. Keep its
-decision and evidence so later work does not reintroduce the same hidden choice.
+- **Evidence:** The reported `v0.2.11` error requested root
+  `sidepanel.html?tabId=…` even though its manifest points to a versioned path,
+  causing `ERR_FILE_NOT_FOUND`. Public `v0.2.12` was downloaded, checksum
+  verified, installed into a fresh temporary folder, and loaded in real Chrome.
+  Its Side Panel opened
+  `releases/v0.2.12-<id>/sidepanel.html?tabId=…` and rendered the normal Note
+  and Record controls, with no Chrome error document. The temporary Extension
+  was then removed; existing Chrome storage was not touched.
