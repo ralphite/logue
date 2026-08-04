@@ -59,7 +59,11 @@ feature fails.
   discoverable and cannot silently fail because the Docs frame changes.
 - **Evidence:** Real Docs investigation showed its text event iframe is the
   current recording origin; direct page/frame microphone capture is the fragile
-  path. Fixture-page success is explicitly not completion evidence.
+  path. Fixture-page success is explicitly not completion evidence. On
+  2026-08-03, the real Docs inline control was reproduced stuck at “Starting
+  microphone”; an initial background/offscreen route build did not fix it, and
+  a stale top-frame proxy state could show Cancel/Starting while the editor
+  frame was still idle. This is an active P0 failure, not a completed fix.
 - **Next proof:** Verify the actual Docs editor with the extension permission
   granted; record and cancel without editing the document. Then verify the
   in-editor action appears and its accept/cancel state works.
