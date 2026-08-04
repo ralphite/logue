@@ -3,22 +3,14 @@
 set -Eeuo pipefail
 
 logue_system="$(uname -s)"
-logue_machine="$(uname -m)"
 if [[ "${LOGUE_INSTALLER_TESTING:-}" == "1" ]]; then
   logue_system="${LOGUE_INSTALLER_TEST_OS:-${logue_system}}"
-  logue_machine="${LOGUE_INSTALLER_TEST_ARCH:-${logue_machine}}"
 fi
 
 case "${logue_system}" in
   Darwin) logue_platform="darwin" ;;
   Linux) logue_platform="linux" ;;
   *) printf 'Unsupported operating system: %s\n' "${logue_system}" >&2; exit 69 ;;
-esac
-
-case "${logue_machine}" in
-  arm64|aarch64) logue_arch="arm64" ;;
-  x86_64|amd64) logue_arch="amd64" ;;
-  *) printf 'Unsupported %s architecture: %s\n' "${logue_system}" "${logue_machine}" >&2; exit 69 ;;
 esac
 
 has_interactive_terminal() {
@@ -85,7 +77,7 @@ esac
 health_url="${LOGUE_HEALTH_URL:-http://${health_host}:${address_port}/v1/status}"
 open_url="${LOGUE_OPEN_URL:-${health_url%/v1/status}}"
 asset_base_url="${LOGUE_ASSET_BASE_URL:-https://github.com/ralphite/logue/releases/latest/download}"
-asset_name="logue-${logue_platform}-${logue_arch}.tar.gz"
+asset_name="logue-python.zip"
 current_link="${install_root}/current"
 extension_dir="${install_root}/extension"
 run_dir="${install_root}/run"
@@ -184,9 +176,12 @@ esac
 
 autostart="$(choose_autostart)"
 
-for required_command in curl tar; do
+for required_command in curl python3.13; do
   command -v "${required_command}" >/dev/null 2>&1 || fail "Missing required system command: ${required_command}."
 done
+python_bin="$(command -v python3.13)"
+[[ "${python_bin}" == /* ]] || fail "python3.13 must resolve to an absolute path."
+"${python_bin}" -c 'import sys; raise SystemExit(sys.version_info[:2] != (3, 13))' || fail "Logue requires Python 3.13."
 if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
   fail "Missing required system command: sha256sum or shasum."
 fi
@@ -219,8 +214,21 @@ say "Verified"
 
 package_dir="${install_tmp}/package"
 mkdir -p "${package_dir}"
-tar -xzf "${install_tmp}/${asset_name}" -C "${package_dir}"
-[[ -x "${package_dir}/bin/logue" ]] || fail "Release is missing executable bin/logue."
+"${python_bin}" - "${install_tmp}/${asset_name}" "${package_dir}" <<'PY'
+import sys
+from pathlib import Path
+from zipfile import ZipFile
+
+archive_path = Path(sys.argv[1])
+destination = Path(sys.argv[2]).resolve()
+with ZipFile(archive_path) as archive:
+    for member in archive.infolist():
+        target = (destination / member.filename).resolve()
+        if destination not in target.parents and target != destination:
+            raise SystemExit(f"Unsafe release path: {member.filename}")
+    archive.extractall(destination)
+PY
+[[ -f "${package_dir}/python_server/logue_server.py" ]] || fail "Release is missing the Python server."
 [[ -f "${package_dir}/web/index.html" ]] || fail "Release is missing the Web App."
 [[ -f "${package_dir}/extension/manifest.json" ]] || fail "Release is missing the Chrome Extension."
 [[ -f "${package_dir}/VERSION" ]] || fail "Release is missing VERSION."
@@ -306,7 +314,8 @@ start_service() {
   nohup env \
     LOGUE_DATA_DIR="${data_root}" \
     LOGUE_WEB_DIST="${current_link}/web" \
-    "${current_link}/bin/logue" -address "${logue_address}" \
+    LOGUE_VERSION="${expected_version}" \
+    "${python_bin}" "${current_link}/python_server/logue_server.py" --address "${logue_address}" \
     >> "${log_file}" 2>&1 </dev/null &
   service_pid=$!
   printf '%s\n' "${service_pid}" > "${pid_file}" || return 1
@@ -325,25 +334,27 @@ start_service() {
 }
 
 create_launch_plist() {
-  local escaped_label escaped_binary escaped_address escaped_data escaped_web escaped_log
+  local escaped_label escaped_python escaped_server escaped_address escaped_data escaped_web escaped_log escaped_version
   escaped_label="$(xml_escape "${launch_label}")"
-  escaped_binary="$(xml_escape "${current_link}/bin/logue")"
+  escaped_python="$(xml_escape "${python_bin}")"
+  escaped_server="$(xml_escape "${current_link}/python_server/logue_server.py")"
   escaped_address="$(xml_escape "${logue_address}")"
   escaped_data="$(xml_escape "${data_root}")"
   escaped_web="$(xml_escape "${current_link}/web")"
   escaped_log="$(xml_escape "${log_file}")"
+  escaped_version="$(xml_escape "${logue_version}")"
   {
     printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>'
     printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
     printf '%s\n' '<plist version="1.0"><dict>'
     printf '  <key>Label</key><string>%s</string>\n' "${escaped_label}"
     printf '%s\n' '  <key>ProgramArguments</key><array>'
-    printf '%s\n' "    <string>/bin/zsh</string><string>-lc</string><string>exec \"\$1\" -address \"\$2\"</string><string>logue-autostart</string>"
-    printf '    <string>%s</string><string>%s</string>\n' "${escaped_binary}" "${escaped_address}"
+    printf '    <string>%s</string><string>%s</string><string>--address</string><string>%s</string>\n' "${escaped_python}" "${escaped_server}" "${escaped_address}"
     printf '%s\n' '  </array>'
     printf '%s\n' '  <key>EnvironmentVariables</key><dict>'
     printf '    <key>LOGUE_DATA_DIR</key><string>%s</string>\n' "${escaped_data}"
     printf '    <key>LOGUE_WEB_DIST</key><string>%s</string>\n' "${escaped_web}"
+    printf '    <key>LOGUE_VERSION</key><string>%s</string>\n' "${escaped_version}"
     printf '%s\n' '  </dict>'
     printf '%s\n' '  <key>RunAtLoad</key><true/>'
     printf '  <key>StandardOutPath</key><string>%s</string>\n' "${escaped_log}"
@@ -355,11 +366,13 @@ create_launch_plist() {
 }
 
 create_systemd_unit() {
-  local escaped_binary escaped_address escaped_data escaped_web
-  escaped_binary="$(systemd_escape "${current_link}/bin/logue")"
+  local escaped_python escaped_server escaped_address escaped_data escaped_web escaped_version
+  escaped_python="$(systemd_escape "${python_bin}")"
+  escaped_server="$(systemd_escape "${current_link}/python_server/logue_server.py")"
   escaped_address="$(systemd_escape "${logue_address}")"
   escaped_data="$(systemd_escape "${data_root}")"
   escaped_web="$(systemd_escape "${current_link}/web")"
+  escaped_version="$(systemd_escape "${logue_version}")"
   {
     printf '%s\n' '[Unit]'
     printf '%s\n' 'Description=Logue service'
@@ -369,7 +382,8 @@ create_systemd_unit() {
     printf '%s\n' '[Service]'
     printf 'Environment="LOGUE_DATA_DIR=%s"\n' "${escaped_data}"
     printf 'Environment="LOGUE_WEB_DIST=%s"\n' "${escaped_web}"
-    printf 'ExecStart="%s" -address "%s"\n' "${escaped_binary}" "${escaped_address}"
+    printf 'Environment="LOGUE_VERSION=%s"\n' "${escaped_version}"
+    printf 'ExecStart="%s" "%s" --address "%s"\n' "${escaped_python}" "${escaped_server}" "${escaped_address}"
     printf '%s\n' 'Restart=on-failure'
     printf '%s\n' 'RestartSec=2'
     printf '%s\n' ''
@@ -377,7 +391,7 @@ create_systemd_unit() {
     printf '%s\n' 'WantedBy=default.target'
   } > "${systemd_unit_next}" || return 1
   chmod 600 "${systemd_unit_next}" || return 1
-  grep -Fq "ExecStart=\"${escaped_binary}\" -address \"${escaped_address}\"" "${systemd_unit_next}" || return 1
+  grep -Fq "ExecStart=\"${escaped_python}\" \"${escaped_server}\" --address \"${escaped_address}\"" "${systemd_unit_next}" || return 1
 }
 
 validate_extension_html_assets() {
@@ -407,8 +421,8 @@ if [[ -L "${current_link}" ]]; then
 elif [[ -e "${current_link}" && ! -d "${current_link}" ]]; then
   fail "Existing current is neither a symlink nor a directory; stopped to avoid overwriting an unknown file."
 fi
-if [[ -x "${current_link}/bin/logue" ]]; then
-  previous_current_version="$("${current_link}/bin/logue" -version 2>/dev/null || true)"
+if [[ -f "${current_link}/python_server/logue_server.py" ]]; then
+  previous_current_version="$(tr -d '\r\n' < "${current_link}/VERSION" 2>/dev/null || true)"
 fi
 
 extension_asset_id="${logue_version}-$$"
@@ -447,7 +461,12 @@ if [[ -e "${bin_dir}/logue" || -L "${bin_dir}/logue" ]]; then
   had_cli="yes"
 fi
 cli_next="${bin_dir}/.logue.next.$$"
-ln -s "${current_link}/bin/logue" "${cli_next}"
+{
+  printf '%s\n' '#!/usr/bin/env bash'
+  printf 'export LOGUE_VERSION="$(tr -d '\''\\r\\n'\'' < %q)"\n' "${current_link}/VERSION"
+  printf 'exec %q %q "$@"\n' "${python_bin}" "${current_link}/python_server/logue_server.py"
+} > "${cli_next}"
+chmod 755 "${cli_next}"
 
 if [[ "${logue_platform}" == "darwin" ]]; then
   if [[ -d "${launch_plist}" && ! -L "${launch_plist}" ]]; then
@@ -466,7 +485,10 @@ else
     fail "systemd unit path is a directory; stopped to avoid overwriting unknown content."
   fi
   if [[ -e "${systemd_unit}" || -L "${systemd_unit}" ]]; then
-    grep -Fq "${current_link}/bin/logue" "${systemd_unit}" || fail "The existing ${systemd_unit_name} does not belong to this Logue installation; stopped to avoid overwriting it."
+    if ! grep -Fq "${current_link}/python_server/logue_server.py" "${systemd_unit}" &&
+       ! grep -Fq "${current_link}/bin/logue" "${systemd_unit}"; then
+      fail "The existing ${systemd_unit_name} does not belong to this Logue installation; stopped to avoid overwriting it."
+    fi
     /bin/cp -pP "${systemd_unit}" "${systemd_unit_backup}"
     had_systemd_unit="yes"
     if systemctl --user is-enabled "${systemd_unit_name}" >/dev/null 2>&1; then
@@ -586,9 +608,9 @@ rollback_install() {
   fi
   staged_release_dir=""
 
-  if [[ -x "${current_link}/bin/logue" ]]; then
+  if [[ -f "${current_link}/python_server/logue_server.py" ]]; then
     restored_version="${previous_current_version}"
-    [[ -n "${restored_version}" ]] || restored_version="$("${current_link}/bin/logue" -version 2>/dev/null || true)"
+    [[ -n "${restored_version}" ]] || restored_version="$(tr -d '\r\n' < "${current_link}/VERSION" 2>/dev/null || true)"
     start_service "${restored_version}" || rollback_failed="yes"
   fi
   [[ "${rollback_failed}" == "no" ]]

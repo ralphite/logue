@@ -28,7 +28,7 @@ build_fixture() {
   local version="$1" destination="$2"
   mkdir -p "${destination}"
   bash "${repo_dir}/scripts/build-release.sh" "${version}" >/dev/null
-  cp "${repo_dir}/dist/release/logue-extension.tar.gz" "${destination}/"
+  cp "${repo_dir}/dist/release/logue-python.zip" "${destination}/"
   cp "${repo_dir}/dist/release/checksums.txt" "${destination}/"
 }
 
@@ -96,9 +96,9 @@ manifest_before="$(file_sha256 "${extension_dir}/manifest.json")"
 
 bad_fixture="${test_root}/bad-release"
 mkdir -p "${bad_fixture}"
-cp "${fixture_v2}/logue-extension.tar.gz" "${bad_fixture}/"
+cp "${fixture_v2}/logue-python.zip" "${bad_fixture}/"
 cp "${fixture_v2}/checksums.txt" "${bad_fixture}/"
-printf '%s\n' 'corrupt' >> "${bad_fixture}/logue-extension.tar.gz"
+printf '%s\n' 'corrupt' >> "${bad_fixture}/logue-python.zip"
 if run_installer "file://${bad_fixture}" "${test_root}/bad-install.log"; then
   printf 'Standalone installer accepted a bad checksum\n' >&2
   exit 1

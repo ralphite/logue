@@ -1,6 +1,6 @@
 # Logue
 
-Logue is a local-first tool for capturing and organizing information across the web. The browser extension enters text on the current page, captures selections, and appends annotations. A local Go service stores content, maintains source relationships, and processes audio with Gemini. The React Web App organizes content and projects.
+Logue is a local-first tool for capturing and organizing information across the web. The browser extension enters text on the current page, captures selections, and appends annotations. A Python 3.13 service stores content, maintains source relationships, and processes audio with Gemini. The React Web App organizes content and projects.
 
 ## Install and upgrade
 
@@ -28,7 +28,7 @@ To run the service and Extension on the same Mac:
 curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh | bash
 ```
 
-The installer detects macOS or Linux and the current amd64 or arm64 architecture, verifies the release checksum, asks whether Logue should be available on the network or only this computer, starts Logue immediately, and asks whether it should start automatically when you sign in. It downloads the complete Go service, Web App, and Chrome Extension; source code, Go, Node.js, and other build tools are not required. Open `http://127.0.0.1:8787` in a browser to use Logue locally.
+The installer supports macOS and Linux, verifies the release checksum, asks whether Logue should be available on the network or only this computer, starts Logue immediately, and asks whether it should start automatically when you sign in. The single release package contains the Python service, prebuilt Web App, and prebuilt Chrome Extension. Python 3.13 is required; source code, Go, Node.js, and other build tools are not. Open `http://127.0.0.1:8787` in a browser to use Logue locally.
 
 Run the applicable command again to upgrade in place. The service installer stops the previous service it manages, verifies and stages the complete candidate, and atomically updates `$HOME/.local/share/logue/current`. It replaces only the program, Web App, extension, CLI, and startup configuration. A failed upgrade restores the previous version and service. After every Extension upgrade, open `chrome://extensions` and click **Reload** on the existing Logue card; do not use **Load unpacked** again.
 
@@ -69,11 +69,11 @@ npm run dev
 `npm run dev` starts both services:
 
 - Web App: `http://localhost:5173`
-- Go API: `http://localhost:8787`
+- Python API: `http://localhost:8787`
 
 The default development environment keeps a real, empty workspace and never creates sample content.
 
-Only the Go service reads the Gemini API key:
+Only the Python service reads the Gemini API key:
 
 ```bash
 export GEMINI_API_KEY="..."
@@ -94,10 +94,10 @@ See [`docs`](./docs) for design documentation.
 
 ## Release
 
-Build release packages for both supported operating systems and architectures locally from locked dependencies:
+Build the platform-independent Python release locally from locked dependencies:
 
 ```bash
 bash scripts/build-release.sh v0.2.3
 ```
 
-The output is written to `dist/release`: macOS and Linux packages for amd64 and arm64, the platform-independent `logue-extension.tar.gz`, and `checksums.txt`. Each service package contains the Go service, production Web App, Chrome Extension, and version metadata. Pushing a `v*` tag triggers GitHub Actions to rebuild the packages, create a GitHub Release, and upload both one-command installers.
+The output is written to `dist/release`: `logue-python.zip` and `checksums.txt`. The zip contains the Python service, production Web App, Chrome Extension, and version metadata for both macOS and Linux. Pushing a `v*` tag triggers GitHub Actions to rebuild the package, create a GitHub Release, and upload both one-command installers.

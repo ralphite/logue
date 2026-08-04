@@ -18,10 +18,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-python@v5
         with:
-          go-version: "1.26.x"
-          cache-dependency-path: server/go.mod
+          python-version: "3.13"
       - name: Build release assets
         run: bash scripts/build-release.sh "${GITHUB_REF_NAME}"
       - name: Publish GitHub release
@@ -31,9 +30,5 @@ jobs:
           files: |
             install.sh
             install-extension.sh
-            dist/release/logue-extension.tar.gz
-            dist/release/logue-darwin-arm64.tar.gz
-            dist/release/logue-darwin-amd64.tar.gz
-            dist/release/logue-linux-arm64.tar.gz
-            dist/release/logue-linux-amd64.tar.gz
+            dist/release/logue-python.zip
             dist/release/checksums.txt

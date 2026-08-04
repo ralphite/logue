@@ -5,7 +5,7 @@ set -Eeuo pipefail
 logue_home="${HOME:?HOME is required}"
 extension_dir="${LOGUE_EXTENSION_DIR:-${logue_home}/.local/share/logue/extension}"
 asset_base_url="${LOGUE_ASSET_BASE_URL:-https://github.com/ralphite/logue/releases/latest/download}"
-asset_name="logue-extension.tar.gz"
+asset_name="logue-python.zip"
 install_tmp=""
 staged_extension_assets=""
 extension_manifest_next=""
@@ -50,9 +50,12 @@ validate_extension_html_assets() {
   (( asset_count > 0 ))
 }
 
-for required_command in curl tar; do
+for required_command in curl python3.13; do
   command -v "${required_command}" >/dev/null 2>&1 || fail "Missing required system command: ${required_command}."
 done
+python_bin="$(command -v python3.13)"
+[[ "${python_bin}" == /* ]] || fail "python3.13 must resolve to an absolute path."
+"${python_bin}" -c 'import sys; raise SystemExit(sys.version_info[:2] != (3, 13))' || fail "Logue requires Python 3.13."
 if ! command -v sha256sum >/dev/null 2>&1 && ! command -v shasum >/dev/null 2>&1; then
   fail "Missing required system command: sha256sum or shasum."
 fi
@@ -75,7 +78,20 @@ say "Verified"
 
 package_dir="${install_tmp}/package"
 mkdir -p "${package_dir}"
-tar -xzf "${install_tmp}/${asset_name}" -C "${package_dir}"
+"${python_bin}" - "${install_tmp}/${asset_name}" "${package_dir}" <<'PY'
+import sys
+from pathlib import Path
+from zipfile import ZipFile
+
+archive_path = Path(sys.argv[1])
+destination = Path(sys.argv[2]).resolve()
+with ZipFile(archive_path) as archive:
+    for member in archive.infolist():
+        target = (destination / member.filename).resolve()
+        if destination not in target.parents and target != destination:
+            raise SystemExit(f"Unsafe release path: {member.filename}")
+    archive.extractall(destination)
+PY
 [[ -f "${package_dir}/extension/manifest.json" ]] || fail "Release is missing extension/manifest.json."
 [[ -f "${package_dir}/extension/background.js" && -f "${package_dir}/extension/content.js" && -f "${package_dir}/extension/sidepanel.html" ]] || fail "Release Extension assets are incomplete."
 [[ -f "${package_dir}/VERSION" ]] || fail "Release is missing VERSION."

@@ -18,7 +18,7 @@ if [[ ! "${version}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
   exit 64
 fi
 
-for command_name in npm go tar; do
+for command_name in npm python3.13; do
   if ! command -v "${command_name}" >/dev/null 2>&1; then
     echo "Required command is missing: ${command_name}" >&2
     exit 69
@@ -36,48 +36,44 @@ mkdir -p "${release_dir}"
 npm run build -w @logue/web
 npm run build -w @logue/extension
 
-extension_package_dir="$(mktemp -d "${TMPDIR:-/tmp}/logue-extension-release.XXXXXX")"
-trap 'rm -rf -- "${extension_package_dir:-}"' EXIT
-mkdir -p "${extension_package_dir}/extension"
-cp -R "${repo_dir}/apps/extension/dist/." "${extension_package_dir}/extension/"
-printf '%s\n' "${version}" > "${extension_package_dir}/VERSION"
-COPYFILE_DISABLE=1 tar --no-xattrs -C "${extension_package_dir}" -czf \
-  "${release_dir}/logue-extension.tar.gz" \
-  extension VERSION
-rm -rf -- "${extension_package_dir}"
+package_dir=""
+trap 'rm -rf -- "${package_dir:-}"' EXIT
+
+package_dir="$(mktemp -d "${TMPDIR:-/tmp}/logue-release.XXXXXX")"
+mkdir -p "${package_dir}/python_server" "${package_dir}/web" "${package_dir}/extension"
+cp -R "${repo_dir}/python_server/." "${package_dir}/python_server/"
+cp -R "${repo_dir}/apps/web/dist/." "${package_dir}/web/"
+cp -R "${repo_dir}/apps/extension/dist/." "${package_dir}/extension/"
+printf '%s\n' "${version}" > "${package_dir}/VERSION"
+
+PACKAGE_DIR="${package_dir}" RELEASE_ZIP="${release_dir}/logue-python.zip" python3.13 - <<'PY'
+import os
+from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
+
+package_dir = Path(os.environ["PACKAGE_DIR"])
+release_zip = Path(os.environ["RELEASE_ZIP"])
+with ZipFile(release_zip, "w", compression=ZIP_DEFLATED, compresslevel=9) as archive:
+    for path in sorted(package_dir.rglob("*")):
+        relative = path.relative_to(package_dir)
+        if (
+            path.is_file()
+            and "__pycache__" not in relative.parts
+            and "tests" not in relative.parts
+            and path.name != ".gitignore"
+        ):
+            archive.write(path, relative)
+PY
+rm -rf -- "${package_dir}"
+package_dir=""
 trap - EXIT
-
-for platform in darwin linux; do
-  for arch in arm64 amd64; do
-    package_dir="$(mktemp -d "${TMPDIR:-/tmp}/logue-release.XXXXXX")"
-    trap 'rm -rf -- "${package_dir:-}"' EXIT
-
-    mkdir -p "${package_dir}/bin" "${package_dir}/web" "${package_dir}/extension"
-    cp -R "${repo_dir}/apps/web/dist/." "${package_dir}/web/"
-    cp -R "${repo_dir}/apps/extension/dist/." "${package_dir}/extension/"
-    printf '%s\n' "${version}" > "${package_dir}/VERSION"
-
-    (
-      cd "${repo_dir}/server"
-      CGO_ENABLED=0 GOOS="${platform}" GOARCH="${arch}" \
-        go build -trimpath -ldflags="-s -w -X main.version=${version}" \
-        -o "${package_dir}/bin/logue" .
-    )
-
-    COPYFILE_DISABLE=1 tar --no-xattrs -C "${package_dir}" -czf \
-      "${release_dir}/logue-${platform}-${arch}.tar.gz" \
-      bin web extension VERSION
-    rm -rf -- "${package_dir}"
-    trap - EXIT
-  done
-done
 
 (
   cd "${release_dir}"
   if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum ./*.tar.gz > checksums.txt
+    sha256sum logue-python.zip > checksums.txt
   elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 ./*.tar.gz > checksums.txt
+    shasum -a 256 logue-python.zip > checksums.txt
   else
     echo "Neither sha256sum nor shasum is available." >&2
     exit 69
