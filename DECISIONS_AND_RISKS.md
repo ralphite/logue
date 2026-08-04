@@ -65,7 +65,10 @@ feature fails.
   a stale top-frame proxy state could show Cancel/Starting while the editor
   frame was still idle. After a fresh unpacked-extension reload and Docs
   refresh, a direct-frame control attempt still left the real editor at Start
-  with no recording state or local error. This is an active P0 failure, not a
+  with no recording state or local error. A subsequent direct message to that
+  freshly located `about:blank` frame was rejected by Chrome, and the control
+  now exposes the actionable local error `Could not reach the active Google
+  Docs editor.` rather than hiding it. This is an active P0 failure, not a
   completed fix.
 - **Next proof:** Verify the actual Docs editor with the extension permission
   granted; record and cancel without editing the document. Then verify the
