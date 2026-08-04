@@ -190,6 +190,11 @@ export function looksLikeMarkdown(value: string) {
   return value.includes("\n") || /(^|\s)(#{1,3}|>|[-*]|\d+\.)\s|```|\*\*[^*]+\*\*|~~[^~]+~~|\[[^\]]+\]\((?:https?:\/\/|mailto:)/m.test(value);
 }
 
+/** A Skill result may only replace the selection the user still has active. */
+export function documentSelectionSkillIsCurrent(editor: HTMLElement, snapshot: EditableSelectionSnapshot) {
+  return captureStableEditableSelection(editor, snapshot, editor) === snapshot;
+}
+
 function currentEditableBlock(editor: HTMLElement) {
   const selection = window.getSelection();
   if (!selection?.rangeCount || !selection.isCollapsed) return undefined;
@@ -709,6 +714,10 @@ export function ViewWorkspace({
   useEffect(() => () => {
     if (selectionUndoTimerRef.current) window.clearTimeout(selectionUndoTimerRef.current);
     if (selectionNoticeTimerRef.current) window.clearTimeout(selectionNoticeTimerRef.current);
+    // An in-flight Skill run can outlive this workspace during a route change.
+    // Clear its snapshot so its result cannot update an unmounted document.
+    selectionSnapshotRef.current = undefined;
+    selectionDocumentRef.current = undefined;
   }, []);
 
   useEffect(() => {
@@ -1060,26 +1069,47 @@ export function ViewWorkspace({
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor || !selectedId) return;
-    const onSelectionChange = () => scheduleDocumentSkillSelectionRefresh();
+    const isSelectionSkillControl = (event: Event) => event.composedPath().some((item) => item instanceof HTMLElement && (
+      item.getAttribute("aria-label") === "Selection skills" ||
+      item.getAttribute("aria-label") === "Choose a skill"
+    ));
+    const onSelectionChange = () => {
+      const current = selectionSnapshotRef.current;
+      // Do not wait for the next animation frame to invalidate an in-flight
+      // run: a fast response must never replace a selection the user moved.
+      if (current && !documentSelectionSkillIsCurrent(editor, current)) {
+        dismissDocumentSelectionSkills();
+      }
+      scheduleDocumentSkillSelectionRefresh();
+    };
     const onPointerDownOutsideSelection = (event: PointerEvent) => {
       const path = event.composedPath();
       // The skill choices are portalled so they are not descendants of the
       // visible trigger. Treat both surfaces as one selection control: a click
       // on a choice must apply it, not first dismiss the current selection.
-      const selectionMenu = path.some((item) => item instanceof HTMLElement && (
-        item.getAttribute("aria-label") === "Selection skills" ||
-        item.getAttribute("aria-label") === "Choose a skill"
-      ));
-      if (path.includes(editor) || selectionMenu) return;
+      if (path.includes(editor) || isSelectionSkillControl(event)) return;
       dismissDocumentSelectionSkills();
+    };
+    const onFocusInOutsideSelection = (event: FocusEvent) => {
+      if (event.composedPath().includes(editor) || isSelectionSkillControl(event)) return;
+      dismissDocumentSelectionSkills();
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && selectionSnapshotRef.current) {
+        dismissDocumentSelectionSkills();
+      }
     };
     document.addEventListener("selectionchange", onSelectionChange);
     editor.addEventListener("select", onSelectionChange);
     document.addEventListener("pointerdown", onPointerDownOutsideSelection, true);
+    document.addEventListener("focusin", onFocusInOutsideSelection, true);
+    document.addEventListener("keydown", onEscape, true);
     return () => {
       document.removeEventListener("selectionchange", onSelectionChange);
       editor.removeEventListener("select", onSelectionChange);
       document.removeEventListener("pointerdown", onPointerDownOutsideSelection, true);
+      document.removeEventListener("focusin", onFocusInOutsideSelection, true);
+      document.removeEventListener("keydown", onEscape, true);
       if (selectionRefreshFrameRef.current !== undefined) {
         window.cancelAnimationFrame(selectionRefreshFrameRef.current);
         selectionRefreshFrameRef.current = undefined;
@@ -1104,7 +1134,7 @@ export function ViewWorkspace({
     const selectedDocument = selectedIdRef.current;
     // Autosave can advance the server revision while this exact DOM selection
     // remains valid. The document identity and range snapshot are the write guard.
-    if (!snapshot || !selectionDocument || !editor || !selectedDocument || selectionDocument.id !== selectedDocument) {
+    if (!snapshot || !selectionDocument || !editor || !selectedDocument || selectionDocument.id !== selectedDocument || !documentSelectionSkillIsCurrent(editor, snapshot)) {
       showSelectionSkillNotice({ message: "Selection changed — choose a skill again." });
       return;
     }
@@ -1127,9 +1157,11 @@ export function ViewWorkspace({
     if (
       selectionSnapshotRef.current !== snapshot ||
       currentSelectionDocument.id !== selectionDocument.id ||
-      selectedIdRef.current !== selectedDocument
+      selectedIdRef.current !== selectedDocument ||
+      !documentSelectionSkillIsCurrent(editor, snapshot)
     ) {
-      showSelectionSkillNotice({ message: "Selection changed — choose a skill again." });
+      // Esc, focus loss, a new selection, or navigation intentionally makes
+      // this result stale. Keep the current document quiet and untouched.
       return;
     }
     const replacement = normalizeSelectionSkillReplacement(run.original_output);

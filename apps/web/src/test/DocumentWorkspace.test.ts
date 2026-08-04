@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   availableSourcePanelWidth,
   defaultSourcePanelWidth,
+  documentSelectionSkillIsCurrent,
   hasCitationNumber,
   looksLikeMarkdown,
   markdownShortcutForPrefix,
@@ -96,6 +97,33 @@ describe("document selection skills", () => {
     window.getSelection()?.removeAllRanges();
     window.getSelection()?.addRange(range);
     expect(captureStableEditableSelection(editor, snapshot)).toBeUndefined();
+  });
+
+  it("rejects a Skill result once the user moves the active document selection", () => {
+    const editor = document.createElement("div");
+    editor.textContent = "First selection and second selection";
+    editor.setAttribute("contenteditable", "true");
+    Object.defineProperty(editor, "isContentEditable", { value: true });
+    document.body.append(editor);
+    const text = editor.firstChild!;
+    const first = document.createRange();
+    first.setStart(text, 0);
+    first.setEnd(text, 15);
+    Object.defineProperty(first, "getBoundingClientRect", { value: () => new DOMRect(0, 0, 100, 20) });
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(first);
+    const snapshot = captureStableEditableSelection(editor);
+
+    expect(snapshot && documentSelectionSkillIsCurrent(editor, snapshot)).toBe(true);
+
+    const second = document.createRange();
+    second.setStart(text, 20);
+    second.setEnd(text, 36);
+    Object.defineProperty(second, "getBoundingClientRect", { value: () => new DOMRect(0, 0, 100, 20) });
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(second);
+
+    expect(snapshot && documentSelectionSkillIsCurrent(editor, snapshot)).toBe(false);
   });
 });
 
