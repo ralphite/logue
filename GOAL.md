@@ -208,6 +208,7 @@ Web App 一级导航只使用以下五个等权入口：
 - 在不同一级工作区间切换或选择不同 Document/Skill 时，列表不得整体重建、回到顶部、丢失滚动位置或明显闪动。
 - Document editor、Sources panel 和列表使用共享 resizer；Sources 默认足够宽，不得在大片空白旁保持狭窄，并可占用 100% 剩余空间。
 - Document 可新建、生成、编辑、自动保存、删除、继续生成和插入 Citation。
+- Document 正文必须支持 Markdown 输入与粘贴，并提供 Notion 式的标题、列表、引用、代码块和常用行内格式快捷编辑；`Command/Ctrl+Z` 与 `Shift+Command/Ctrl+Z` 必须稳定，正常自动保存保持安静，不得因格式化破坏 Citation、Sources 或 Selection Skill 写回。
 - Citation 正文 `[Source n]` 与 Sources 编号一一对应；点击定位、高亮、增删与删除后重编号必须稳定。
 - Skill 可创建、编辑、复制、选择用途和输出形态；保存失败局部可恢复，正常保存不显示 `Saved`。
 - Document 选区可直接调用 Skill 完成翻译、缩写等就地变换；选区菜单和结果替换复用 Extension 同一 Skill/来源模型，并遵循真实 Notion 已观察到的轻量交互。
@@ -351,7 +352,7 @@ Storybook 至少包含：
 7. 在 Logue Web App 自己的真实输入/编辑目标使用 Extension 录音与 Generate 插入。
 8. 自动整理对多条真实内容给出合理 Project/Tags；高置信安静完成，低置信显示理由/置信度并可修改，人工确认不被覆盖。
 9. 创建、编辑和复制多个 Skills，分别用于转写、整理、短回复、QA 和 Document；Web 与 Extension 结果可追溯。
-10. Documents 列表切换不重建或丢滚动；编辑自动保存安静；失败局部可重试；Citation 和 Sources 定位/增删稳定。
+10. Documents 列表切换不重建或丢滚动；Markdown 输入/粘贴、Undo/Redo 与编辑自动保存稳定安静；失败局部可重试；Citation 和 Sources 定位/增删稳定。
 11. Sources 与 Material detail panel 默认宽度合理，可通过共享 resizer 扩至全部剩余空间；关键内容无双滚动、遮挡或不可达。
 12. 原始音频在播放前显示时长，播放、转写、最终采用文字和来源链一致。
 13. 断开 Python 服务只显示局部可恢复错误；恢复后重试不重复保存/插入。

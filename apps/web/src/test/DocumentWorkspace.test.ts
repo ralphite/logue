@@ -3,6 +3,9 @@ import {
   availableSourcePanelWidth,
   defaultSourcePanelWidth,
   hasCitationNumber,
+  looksLikeMarkdown,
+  markdownShortcutForPrefix,
+  markdownToEditorHTML,
   reconcileDocumentCitations,
   removeSourceCitation,
   renumberCitationsAfterRemoval,
@@ -93,5 +96,40 @@ describe("document selection skills", () => {
     window.getSelection()?.removeAllRanges();
     window.getSelection()?.addRange(range);
     expect(captureStableEditableSelection(editor, snapshot)).toBeUndefined();
+  });
+});
+
+describe("document Markdown editing", () => {
+  it("renders common Markdown blocks and inline formatting", () => {
+    expect(markdownToEditorHTML([
+      "## Plan",
+      "",
+      "- First",
+      "- **Second**",
+      "",
+      "> Keep it simple",
+      "",
+      "```ts",
+      "const ready = true;",
+      "```",
+      "",
+      "Read [the source](https://example.com).",
+    ].join("\n"), "Plan")).toBe(
+      '<h2>Plan</h2><p><br></p><ul><li>First</li><li><strong>Second</strong></li></ul><p><br></p><blockquote>Keep it simple</blockquote><p><br></p><pre><code>const ready = true;</code></pre><p><br></p><p>Read <a href="https://example.com" target="_blank" rel="noreferrer">the source</a>.</p>',
+    );
+  });
+
+  it("maps Notion-style block shortcuts without adding toolbar noise", () => {
+    expect(markdownShortcutForPrefix("##")).toEqual({ command: "formatBlock", value: "H2" });
+    expect(markdownShortcutForPrefix("-")).toEqual({ command: "insertUnorderedList" });
+    expect(markdownShortcutForPrefix("1.")).toEqual({ command: "insertOrderedList" });
+    expect(markdownShortcutForPrefix("plain")).toBeUndefined();
+  });
+
+  it("recognizes rich or multiline Markdown while leaving plain text alone", () => {
+    expect(looksLikeMarkdown("# Heading")).toBe(true);
+    expect(looksLikeMarkdown("one\ntwo")).toBe(true);
+    expect(looksLikeMarkdown("Read [this](https://example.com)")).toBe(true);
+    expect(looksLikeMarkdown("ordinary sentence")).toBe(false);
   });
 });

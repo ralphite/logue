@@ -45,7 +45,13 @@ interface DocumentSnapshot {
   version: number;
 }
 
-const editorTags = new Set(["P", "DIV", "H1", "H2", "H3", "UL", "OL", "LI", "BR", "BLOCKQUOTE", "STRONG", "EM", "CODE", "MARK"]);
+interface DocumentEditorState {
+  content: string;
+  sourceIds: string[];
+  caret?: { path: number[]; offset: number };
+}
+
+const editorTags = new Set(["P", "DIV", "H1", "H2", "H3", "UL", "OL", "LI", "BR", "BLOCKQUOTE", "STRONG", "EM", "CODE", "PRE", "A", "S", "MARK"]);
 
 function citationPattern(flags = "g") {
   return new RegExp("\\[Source (\\d+)\\]", flags);
@@ -73,14 +79,16 @@ function escapeHTML(value: string) {
 
 function inlineMarkdown(value: string) {
   return escapeHTML(value)
+    .replace(/\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^)\s]+)\)/gi, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
     .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/~~([^~]+)~~/g, "<s>$1</s>")
     .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>")
     .replace(citationPattern(), "<mark>[Source $1]</mark>");
 }
 
-function markdownToEditorHTML(value: string, title: string) {
+export function markdownToEditorHTML(value: string, title: string) {
   const lines = value.split("\n");
   const html: string[] = [];
   let list: "ul" | "ol" | undefined;
@@ -89,17 +97,28 @@ function markdownToEditorHTML(value: string, title: string) {
     if (list) html.push(`</${list}>`);
     list = undefined;
   };
-  for (const line of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     const text = line.trimEnd();
     if (!text) {
       closeList();
+      if (html.length && html[html.length - 1] !== "<p><br></p>") html.push("<p><br></p>");
       continue;
     }
     if (!firstContentSeen) {
       firstContentSeen = true;
       if (text.startsWith("# ") && text.slice(2).trim() === title.trim()) continue;
     }
-    if (text.startsWith("### ")) {
+    if (text.startsWith("```")) {
+      closeList();
+      const code: string[] = [];
+      index += 1;
+      while (index < lines.length && !lines[index].trimStart().startsWith("```")) {
+        code.push(lines[index]);
+        index += 1;
+      }
+      html.push(`<pre><code>${escapeHTML(code.join("\n"))}</code></pre>`);
+    } else if (text.startsWith("### ")) {
       closeList(); html.push(`<h3>${inlineMarkdown(text.slice(4))}</h3>`);
     } else if (text.startsWith("## ")) {
       closeList(); html.push(`<h2>${inlineMarkdown(text.slice(3))}</h2>`);
@@ -132,13 +151,147 @@ function sanitizeEditorHTML(value: string) {
           child.replaceWith(document.createTextNode(child.textContent ?? ""));
           continue;
         }
+        if (child.tagName === "MARK" && !/^\[Source \d+\]$/.test(child.textContent?.trim() ?? "")) {
+          child.replaceWith(...Array.from(child.childNodes));
+          continue;
+        }
+        const link = child.tagName === "A";
+        const href = link ? child.getAttribute("href") : undefined;
         for (const attribute of Array.from(child.attributes)) child.removeAttribute(attribute.name);
+        if (link && href && /^(https?:\/\/|mailto:)/i.test(href)) {
+          child.setAttribute("href", href);
+          child.setAttribute("target", "_blank");
+          child.setAttribute("rel", "noreferrer");
+        }
       }
       clean(child);
     }
   };
   clean(template.content);
   return template.innerHTML;
+}
+
+type MarkdownBlockShortcut =
+  | { command: "formatBlock"; value: "H1" | "H2" | "H3" | "BLOCKQUOTE" | "PRE" }
+  | { command: "insertOrderedList" | "insertUnorderedList" };
+
+export function markdownShortcutForPrefix(prefix: string): MarkdownBlockShortcut | undefined {
+  if (prefix === "#") return { command: "formatBlock", value: "H1" };
+  if (prefix === "##") return { command: "formatBlock", value: "H2" };
+  if (prefix === "###") return { command: "formatBlock", value: "H3" };
+  if (prefix === ">") return { command: "formatBlock", value: "BLOCKQUOTE" };
+  if (prefix === "```") return { command: "formatBlock", value: "PRE" };
+  if (prefix === "-" || prefix === "*") return { command: "insertUnorderedList" };
+  if (prefix === "1.") return { command: "insertOrderedList" };
+  return undefined;
+}
+
+export function looksLikeMarkdown(value: string) {
+  return value.includes("\n") || /(^|\s)(#{1,3}|>|[-*]|\d+\.)\s|```|\*\*[^*]+\*\*|~~[^~]+~~|\[[^\]]+\]\((?:https?:\/\/|mailto:)/m.test(value);
+}
+
+function currentEditableBlock(editor: HTMLElement) {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount || !selection.isCollapsed) return undefined;
+  const range = selection.getRangeAt(0);
+  if (!editor.contains(range.startContainer)) return undefined;
+  const origin = range.startContainer instanceof HTMLElement ? range.startContainer : range.startContainer.parentElement;
+  const block = origin?.closest("p,div,h1,h2,h3,blockquote,li,pre");
+  if (!(block instanceof HTMLElement) || block === editor || !editor.contains(block)) return undefined;
+  return { block, range, selection };
+}
+
+function applyMarkdownBlockShortcut(editor: HTMLElement) {
+  const editable = currentEditableBlock(editor);
+  if (!editable) return false;
+  const { block, range, selection } = editable;
+  const before = range.cloneRange();
+  before.selectNodeContents(block);
+  before.setEnd(range.startContainer, range.startOffset);
+  const prefix = before.toString();
+  if (prefix !== block.textContent) return false;
+  const shortcut = markdownShortcutForPrefix(prefix);
+  if (!shortcut) return false;
+
+  let nextBlock: HTMLElement;
+  if (shortcut.command === "formatBlock") {
+    nextBlock = document.createElement(shortcut.value);
+    nextBlock.appendChild(document.createElement("br"));
+  } else {
+    const list = document.createElement(shortcut.command === "insertOrderedList" ? "ol" : "ul");
+    nextBlock = document.createElement("li");
+    nextBlock.appendChild(document.createElement("br"));
+    list.appendChild(nextBlock);
+    block.replaceWith(list);
+  }
+  if (shortcut.command === "formatBlock") block.replaceWith(nextBlock);
+  const caret = document.createRange();
+  caret.selectNodeContents(nextBlock);
+  caret.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(caret);
+  return true;
+}
+
+function applyInlineMarkdownAtCaret(editor: HTMLElement) {
+  const editable = currentEditableBlock(editor);
+  if (!editable || editable.block.tagName === "PRE") return false;
+  const { block } = editable;
+  if (Array.from(block.children).some((child) => child.tagName !== "BR")) return false;
+  const value = block.textContent ?? "";
+  const html = inlineMarkdown(value);
+  if (html === escapeHTML(value)) return false;
+  const offset = caretOffsetWithin(block);
+  block.innerHTML = html || "<br>";
+  if (offset !== undefined) restoreCaretOffset(block, Math.min(offset, block.textContent?.length ?? 0));
+  return true;
+}
+
+function insertMarkdownAtSelection(editor: HTMLElement, value: string) {
+  const selection = window.getSelection();
+  const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+  if (!selection || !range || !editor.contains(range.commonAncestorContainer)) return false;
+  const template = document.createElement("template");
+  template.innerHTML = markdownToEditorHTML(value, "");
+  const currentBlock = currentEditableBlock(editor)?.block;
+  const blockPaste = value.includes("\n") || /^(#{1,3}|>|[-*]|\d+\.|```)/m.test(value);
+  let lastNode = template.content.lastChild;
+  if (blockPaste && currentBlock) {
+    const fragment = template.content;
+    if (!currentBlock.textContent?.trim()) currentBlock.replaceWith(fragment);
+    else currentBlock.after(fragment);
+  } else {
+    const onlyParagraph = template.content.childElementCount === 1 && template.content.firstElementChild?.tagName === "P"
+      ? template.content.firstElementChild
+      : undefined;
+    const fragment = document.createDocumentFragment();
+    for (const child of Array.from((onlyParagraph ?? template.content).childNodes)) fragment.appendChild(child);
+    lastNode = fragment.lastChild;
+    range.deleteContents();
+    range.insertNode(fragment);
+  }
+  if (lastNode?.isConnected) {
+    const caret = document.createRange();
+    caret.selectNodeContents(lastNode);
+    caret.collapse(false);
+    selection.removeAllRanges();
+    selection.addRange(caret);
+  }
+  return true;
+}
+
+function insertPlainTextAtSelection(editor: HTMLElement, value: string) {
+  const selection = window.getSelection();
+  const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+  if (!selection || !range || !editor.contains(range.commonAncestorContainer)) return false;
+  const node = document.createTextNode(value);
+  range.deleteContents();
+  range.insertNode(node);
+  range.setStartAfter(node);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return true;
 }
 
 function withoutDuplicateTitle(value: string, title: string) {
@@ -241,6 +394,66 @@ function restoreCaretOffset(element: HTMLElement, offset: number) {
   const selection = window.getSelection();
   selection?.removeAllRanges();
   selection?.addRange(range);
+}
+
+function captureEditorCaret(editor: HTMLElement) {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return undefined;
+  const range = selection.getRangeAt(0);
+  if (!editor.contains(range.endContainer)) return undefined;
+  const path: number[] = [];
+  let node: Node | null = range.endContainer;
+  while (node && node !== editor) {
+    const parent: Node | null = node.parentNode;
+    if (!parent) return undefined;
+    path.unshift(Array.from(parent.childNodes).indexOf(node as ChildNode));
+    node = parent;
+  }
+  if (node !== editor) return undefined;
+  return { path, offset: range.endOffset };
+}
+
+function restoreEditorCaret(editor: HTMLElement, caret?: { path: number[]; offset: number }) {
+  if (!caret) return;
+  let node: Node = editor;
+  for (const index of caret.path) {
+    const child = node.childNodes[index];
+    if (!child) return;
+    node = child;
+  }
+  const maxOffset = node.nodeType === Node.TEXT_NODE ? (node.textContent?.length ?? 0) : node.childNodes.length;
+  const range = document.createRange();
+  range.setStart(node, Math.min(caret.offset, maxOffset));
+  range.collapse(true);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
+function unwrapNonCitationMarks(editor: HTMLElement) {
+  const selection = window.getSelection();
+  for (const mark of Array.from(editor.querySelectorAll("mark"))) {
+    if (/^\[Source \d+\]$/.test(mark.textContent?.trim() ?? "")) continue;
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+    const ownsCaret = Boolean(range && mark.contains(range.endContainer));
+    const parent = mark.parentNode;
+    if (!parent) continue;
+    const index = Array.from(parent.childNodes).indexOf(mark);
+    const children = Array.from(mark.childNodes);
+    mark.replaceWith(...children);
+    if (!ownsCaret || !selection) continue;
+    const next = document.createRange();
+    const last = children[children.length - 1];
+    if (last) {
+      next.selectNodeContents(last);
+      next.collapse(false);
+    } else {
+      next.setStart(parent, Math.max(0, index));
+      next.collapse(true);
+    }
+    selection.removeAllRanges();
+    selection.addRange(next);
+  }
 }
 
 function relativeDate(value: string) {
@@ -358,6 +571,11 @@ export function ViewWorkspace({
   const loadedRef = useRef<string | undefined>(undefined);
   const titleRef = useRef<HTMLTextAreaElement | null>(null);
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef(content);
+  const sourceIdsRef = useRef(sourceIds);
+  const editorUndoRef = useRef<DocumentEditorState[]>([]);
+  const editorRedoRef = useRef<DocumentEditorState[]>([]);
+  const pendingEditorInputRef = useRef<DocumentEditorState | undefined>(undefined);
   const editorSelectionRef = useRef<Range | undefined>(undefined);
   const selectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
   const dismissedSelectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
@@ -375,6 +593,8 @@ export function ViewWorkspace({
   const saveByVersionRef = useRef(new Map<string, Promise<boolean>>());
 
   documentsRef.current = documents;
+  contentRef.current = content;
+  sourceIdsRef.current = sourceIds;
   selectedIdRef.current = selectedId;
   latestSnapshotRef.current = selectedId ? {
     id: selectedId,
@@ -466,6 +686,8 @@ export function ViewWorkspace({
   useEffect(() => {
     if (!selected || loadedRef.current === selected.id) return;
     loadedRef.current = selected.id;
+    contentRef.current = selected.content;
+    sourceIdsRef.current = [...(selected.source_ids ?? [])];
     setTitle(selected.title);
     setContent(selected.content);
     setProject(selected.project ?? "");
@@ -479,6 +701,9 @@ export function ViewWorkspace({
     setSelectionSnapshot(undefined);
     setSelectionUndo(undefined);
     setSelectionSkillNotice(undefined);
+    editorUndoRef.current = [];
+    editorRedoRef.current = [];
+    pendingEditorInputRef.current = undefined;
   }, [selected]);
 
   useEffect(() => () => {
@@ -609,6 +834,81 @@ export function ViewWorkspace({
   function markDirty() {
     dirtyVersionRef.current += 1;
     setSaveState("dirty");
+  }
+
+  function readEditorState(editor = editorRef.current): DocumentEditorState {
+    if (!editor) return { content: contentRef.current, sourceIds: [...sourceIdsRef.current] };
+    return {
+      ...reconcileDocumentCitations(sanitizeEditorHTML(editor.innerHTML), sourceIdsRef.current),
+      caret: captureEditorCaret(editor),
+    };
+  }
+
+  function editorStatesMatch(left: DocumentEditorState, right: DocumentEditorState) {
+    return left.content === right.content && left.sourceIds.join("\0") === right.sourceIds.join("\0");
+  }
+
+  function recordEditorTransaction(before: DocumentEditorState, after: DocumentEditorState) {
+    if (editorStatesMatch(before, after)) return;
+    editorUndoRef.current = [...editorUndoRef.current.slice(-99), before];
+    editorRedoRef.current = [];
+  }
+
+  function applyEditorState(next: DocumentEditorState) {
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor.innerHTML = next.content || "<p><br></p>";
+    editor.focus();
+    restoreEditorCaret(editor, next.caret);
+    contentRef.current = next.content;
+    sourceIdsRef.current = [...next.sourceIds];
+    setContent(next.content);
+    setSourceIds(next.sourceIds);
+    setActiveSourceId((current) => current && next.sourceIds.includes(current) ? current : undefined);
+    pendingEditorInputRef.current = undefined;
+    selectionSnapshotRef.current = undefined;
+    selectionDocumentRef.current = undefined;
+    setSelectionSnapshot(undefined);
+    markDirty();
+  }
+
+  function commitEditorMutation(before: DocumentEditorState, editor = editorRef.current) {
+    if (!editor) return;
+    unwrapNonCitationMarks(editor);
+    const next = readEditorState(editor);
+    if (next.content !== editor.innerHTML) {
+      editor.innerHTML = next.content || "<p><br></p>";
+    }
+    restoreEditorCaret(editor, next.caret);
+    recordEditorTransaction(before, next);
+    contentRef.current = next.content;
+    sourceIdsRef.current = [...next.sourceIds];
+    setContent(next.content);
+    setSourceIds(next.sourceIds);
+    if (activeSourceId && !next.sourceIds.includes(activeSourceId)) setActiveSourceId(undefined);
+    pendingEditorInputRef.current = undefined;
+    selectionSnapshotRef.current = undefined;
+    selectionDocumentRef.current = undefined;
+    setSelectionSnapshot(undefined);
+    markDirty();
+  }
+
+  function undoEditor() {
+    const previous = editorUndoRef.current.pop();
+    if (!previous) return;
+    const current = readEditorState();
+    editorRedoRef.current.push(current);
+    applyEditorState(previous);
+  }
+
+  function redoEditor() {
+    const next = editorRedoRef.current.pop();
+    if (!next) return;
+    const current = readEditorState();
+    editorUndoRef.current.push(current);
+    const undoAfterApply = [...editorUndoRef.current];
+    applyEditorState(next);
+    editorUndoRef.current = undoAfterApply;
   }
 
   const flushCurrentDocument = useCallback(async () => {
@@ -836,12 +1136,16 @@ export function ViewWorkspace({
     if (!replacement) throw new Error("This skill returned no text.");
     const beforeContent = editor.innerHTML;
     const beforeSourceIds = [...sourceIds];
+    const beforeEditorState = readEditorState(editor);
     if (!replaceSelectionIfUnchanged(snapshot, replacement)) {
       showSelectionSkillNotice({ message: "Selection changed — choose a skill again." });
       return;
     }
     const next = reconcileDocumentCitations(sanitizeEditorHTML(editor.innerHTML), sourceIds);
     const afterContent = next.content;
+    recordEditorTransaction(beforeEditorState, next);
+    contentRef.current = next.content;
+    sourceIdsRef.current = [...next.sourceIds];
     setContent(next.content);
     setSourceIds(next.sourceIds);
     markDirty();
@@ -863,6 +1167,8 @@ export function ViewWorkspace({
       return;
     }
     editor.innerHTML = entry.beforeContent;
+    contentRef.current = entry.beforeContent;
+    sourceIdsRef.current = [...entry.sourceIds];
     setContent(entry.beforeContent);
     setSourceIds(entry.sourceIds);
     markDirty();
@@ -884,6 +1190,7 @@ export function ViewWorkspace({
   function insertSourceCitation(id: string) {
     if (sourceIds.includes(id) || !editorRef.current) return;
     const editor = editorRef.current;
+    const before = readEditorState(editor);
     const nextSourceIds = [...sourceIds, id];
     const sourceNumber = nextSourceIds.length;
     editor.focus();
@@ -912,6 +1219,9 @@ export function ViewWorkspace({
       restoreCaretOffset(editor, editor.textContent?.length ?? 0);
     }
     const nextContent = sanitizeEditorHTML(editor.innerHTML);
+    recordEditorTransaction(before, { content: nextContent, sourceIds: nextSourceIds });
+    contentRef.current = nextContent;
+    sourceIdsRef.current = [...nextSourceIds];
     setContent(nextContent);
     setSourceIds(nextSourceIds);
     setActiveSourceId(id);
@@ -921,9 +1231,13 @@ export function ViewWorkspace({
   }
 
   function removeSource(id: string) {
+    const before = readEditorState();
     const currentHTML = sanitizeEditorHTML(editorRef.current?.innerHTML ?? content);
     const next = removeSourceCitation(currentHTML, sourceIds, id);
     if (editorRef.current) editorRef.current.innerHTML = next.content || "<p><br></p>";
+    recordEditorTransaction(before, next);
+    contentRef.current = next.content;
+    sourceIdsRef.current = [...next.sourceIds];
     setContent(next.content);
     setSourceIds(next.sourceIds);
     setActiveSourceId((current) => current === id ? undefined : current);
@@ -1084,23 +1398,41 @@ export function ViewWorkspace({
               aria-label="Document content"
               data-logue-selection-skills="native"
               data-placeholder="Start writing, or add sources from the right…"
+              onBeforeInput={() => {
+                pendingEditorInputRef.current = readEditorState();
+              }}
               onInput={(event) => {
-                const caretOffset = caretOffsetWithin(event.currentTarget);
-                const next = reconcileDocumentCitations(sanitizeEditorHTML(event.currentTarget.innerHTML), sourceIds);
-                if (next.content !== event.currentTarget.innerHTML) {
-                  event.currentTarget.innerHTML = next.content || "<p><br></p>";
-                  if (caretOffset !== undefined) restoreCaretOffset(event.currentTarget, caretOffset);
-                }
-                setContent(next.content);
-                setSourceIds(next.sourceIds);
-                if (activeSourceId && !next.sourceIds.includes(activeSourceId)) setActiveSourceId(undefined);
-                selectionSnapshotRef.current = undefined;
-                selectionDocumentRef.current = undefined;
-                setSelectionSnapshot(undefined);
-                markDirty();
+                const before = pendingEditorInputRef.current ?? { content: contentRef.current, sourceIds: [...sourceIdsRef.current] };
+                unwrapNonCitationMarks(event.currentTarget);
+                applyInlineMarkdownAtCaret(event.currentTarget);
+                commitEditorMutation(before, event.currentTarget);
               }}
               onBlur={rememberEditorSelection}
               onKeyDown={(event) => {
+                const commandKey = event.metaKey || event.ctrlKey;
+                if (!event.altKey && commandKey && !event.nativeEvent.isComposing && (event.key.toLowerCase() === "z" || event.key.toLowerCase() === "y")) {
+                  const redo = event.key.toLowerCase() === "y" || event.shiftKey;
+                  event.preventDefault();
+                  if (redo) redoEditor();
+                  else undoEditor();
+                  return;
+                }
+                if (
+                  event.key === " " &&
+                  !event.altKey &&
+                  !event.ctrlKey &&
+                  !event.metaKey &&
+                  !event.shiftKey &&
+                  !event.repeat &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  const before = readEditorState(event.currentTarget);
+                  if (applyMarkdownBlockShortcut(event.currentTarget)) {
+                    event.preventDefault();
+                    commitEditorMutation(before, event.currentTarget);
+                    return;
+                  }
+                }
                 if (event.key !== "Enter" || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || !selectionSnapshotRef.current || !eligibleSelectionSkills.length) return;
                 event.preventDefault();
                 setFocusSelectionSkillTrigger(true);
@@ -1115,7 +1447,14 @@ export function ViewWorkspace({
               }}
               onPaste={(event) => {
                 event.preventDefault();
-                document.execCommand("insertText", false, event.clipboardData.getData("text/plain"));
+                const pasted = event.clipboardData.getData("text/plain");
+                const before = readEditorState(event.currentTarget);
+                if (looksLikeMarkdown(pasted)) {
+                  insertMarkdownAtSelection(event.currentTarget, pasted);
+                } else {
+                  insertPlainTextAtSelection(event.currentTarget, pasted);
+                }
+                commitEditorMutation(before, event.currentTarget);
               }}
               className="logue-view-editor mt-7 min-h-[62vh] w-full text-[15px] leading-[1.75] text-[#373834] outline-none"
               spellCheck
