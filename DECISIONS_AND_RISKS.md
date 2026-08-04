@@ -89,16 +89,35 @@ feature fails.
 - **Evidence:** On 2026-08-03, after reloading the current unpacked extension
   and the signed-in Docs editor, the canvas launcher changed from `Start` to
   `Cancel` + `Stop and insert`; Stop reached `Transcribing and inserting`.
+  The installed unpacked folder was first found to reference stale v0.2.8
+  assets, so the current v0.2.10 build was atomically staged under the same
+  Chrome extension identity and Docs was refreshed before repeating the run.
   The automated run captured no human speech, so Gemini returned no text. The
   error is now the product copy `Couldn't transcribe. Recording saved.` and
-  Start remains immediately available. This verifies the real Docs routing and
-  recorder lifecycle, but not a spoken-audio save and one-time insertion.
+  Start remains immediately available. This verifies the current real Docs
+  routing and recorder lifecycle, but not a spoken-audio save and one-time
+  insertion.
 - **Open downside:** The automated environment cannot supply a trustworthy
   human microphone sample. Claiming full Docs insertion without one would be
   false evidence.
 - **Next proof:** Record a short spoken phrase in the real Docs editor; verify
   it is saved once, inserted once, and does not trigger a Docs command. The
   separate keyboard-reachability P1 remains open.
+
+### DR-004 — Current-build Chrome QA asset
+
+- **Priority:** P1
+- **Status:** active until the next verified Release
+- **Decision:** For real current-code QA, the existing unpacked Extension keeps
+  its stable root and Chrome identity, while its manifest points to a copied
+  `releases/workspace-current` build. The previous v0.2.8 assets remain intact
+  beside it for rollback.
+- **Why it matters:** Reloading an unpacked Extension does not load workspace
+  files when its manifest points at an older versioned asset. Without this
+  switch, a real browser test can accidentally test a stale Release.
+- **User-visible effect:** Existing Chrome storage and permissions remain. This
+  is a local QA build, not a Release; the next verified Release must replace it
+  through the normal installer path.
 
 ## Resolved
 
