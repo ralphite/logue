@@ -72,6 +72,17 @@ describe("automatic voice input transaction", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
+  it("keeps a no-speech recording quiet and actionable", async () => {
+    await expect(completeVoiceInput({
+      transcribe: async () => { throw new Error("Gemini returned no transcription"); },
+      save: async () => ({ id: "mat_1" }),
+      insert: () => true,
+    })).rejects.toMatchObject({
+      step: "transcription",
+      message: "Couldn't transcribe. Recording saved.",
+    });
+  });
+
   it("returns the saved material when the original target disappeared", async () => {
     const result = await completeVoiceInput({
       transcribe: async () => ({ text: "已保存文字", captureId: "cap_1" }),

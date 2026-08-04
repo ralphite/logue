@@ -12,13 +12,21 @@ export interface VoiceTranscription {
   captureId: string;
 }
 
+function voiceTransactionMessage(step: "transcription" | "save", cause: unknown) {
+  const message = cause instanceof Error ? cause.message : "";
+  if (step === "transcription" && /no transcription|no clear speech|transcription failed/i.test(message)) {
+    return "Couldn't transcribe. Recording saved.";
+  }
+  return message || (step === "save" ? "Voice input could not be saved." : "Voice transcription could not be completed.");
+}
+
 export class VoiceInputTransactionError extends Error {
   step: "transcription" | "save";
   transcription?: VoiceTranscription;
   cause: unknown;
 
   constructor(step: "transcription" | "save", cause: unknown, transcription?: VoiceTranscription) {
-    super(cause instanceof Error ? cause.message : step === "save" ? "Voice input could not be saved." : "Voice transcription could not be completed.");
+    super(voiceTransactionMessage(step, cause));
     this.name = "VoiceInputTransactionError";
     this.step = step;
     this.transcription = transcription;
