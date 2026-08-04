@@ -24,7 +24,7 @@ function isEditableTarget(target: EventTarget | null | undefined) {
   return target instanceof HTMLElement && (
     target.matches("input, textarea, select") ||
     target.isContentEditable ||
-    Boolean(target.closest("[contenteditable='true']"))
+    Boolean(target.closest("[contenteditable='true'], [role='menu']"))
   );
 }
 

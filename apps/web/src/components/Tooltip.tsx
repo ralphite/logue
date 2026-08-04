@@ -34,7 +34,7 @@ export function Tooltip({
           sideOffset={8}
           collisionPadding={10}
           className={cn(
-            "z-[2147483000] flex max-w-[18rem] select-none items-center gap-2 rounded-[10px] bg-[#2d2e2b] px-2.5 py-2",
+            "z-[var(--logue-overlay-layer,40)] flex max-w-[18rem] select-none items-center gap-2 rounded-[10px] bg-[#2d2e2b] px-2.5 py-2",
             "text-[14px] font-medium leading-5 text-white shadow-[0_7px_22px_rgba(24,25,22,0.22)]",
             "data-[state=delayed-open]:animate-[tooltip-in_120ms_ease-out] data-[state=instant-open]:animate-[tooltip-in_120ms_ease-out] motion-reduce:animate-none",
           )}

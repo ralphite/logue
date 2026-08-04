@@ -16,13 +16,19 @@ describe("side panel recording shortcuts", () => {
     const textarea = document.createElement("textarea");
     const select = document.createElement("select");
     const editable = document.createElement("div");
+    const menu = document.createElement("div");
+    const menuItem = document.createElement("button");
     editable.contentEditable = "true";
     Object.defineProperty(editable, "isContentEditable", { value: true });
-    document.body.append(textarea, select, editable);
+    menu.setAttribute("role", "menu");
+    menuItem.setAttribute("role", "menuitem");
+    menu.append(menuItem);
+    document.body.append(textarea, select, editable, menu);
 
     expect(sidePanelShortcutAction({ phase: "recording", key: "Enter", target: textarea })).toBeUndefined();
     expect(sidePanelShortcutAction({ phase: "idle", key: "r", target: select })).toBeUndefined();
     expect(sidePanelShortcutAction({ phase: "idle", key: "r", target: editable })).toBeUndefined();
+    expect(sidePanelShortcutAction({ phase: "idle", key: "r", target: menuItem })).toBeUndefined();
     expect(sidePanelShortcutAction({ phase: "recording", key: "Enter", target: document.body, isComposing: true })).toBeUndefined();
     expect(sidePanelShortcutAction({ phase: "recording", key: "Enter", target: document.body, ctrlKey: true })).toBeUndefined();
     expect(sidePanelShortcutAction({ phase: "idle", key: "r", target: document.body, repeat: true })).toBeUndefined();

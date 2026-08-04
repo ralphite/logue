@@ -77,6 +77,27 @@ describe("OverlayMenu", () => {
     expect(document.activeElement).toBe(screen.getByRole("button", { name: "After" }));
   });
 
+  it("closes when Tab leaves a click-opened trigger", async () => {
+    render(<MenuDemo />);
+    const trigger = screen.getByRole("button", { name: "More" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    expect(screen.getByRole("menu", { name: "Actions" })).toBeTruthy();
+
+    fireEvent.keyDown(trigger, { key: "Tab" });
+
+    await waitFor(() => expect(screen.queryByRole("menu", { name: "Actions" })).toBeNull());
+  });
+
+  it("opens from Enter and focuses the first menu item", async () => {
+    render(<MenuDemo />);
+    const trigger = screen.getByRole("button", { name: "More" });
+
+    fireEvent.keyDown(trigger, { key: "Enter" });
+
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Rename" })));
+  });
+
   it("moves focus into an already click-opened menu with Arrow keys", async () => {
     render(<MenuDemo />);
     const trigger = screen.getByRole("button", { name: "More" });

@@ -1,5 +1,6 @@
 import { ArrowLeft, Ellipsis, Mic, Sparkles, Square } from "lucide-react";
-import { useEffect, useRef, useState, type Ref } from "react";
+import { OverlayMenu } from "@logue/ui";
+import { useState, type Ref } from "react";
 import type { ExtensionSkill, LocalError, PageMaterial, PanelCaptureState, PendingInsert } from "./sidePanelModels";
 import { capturePhasePresentation, type CapturePhase } from "./sidePanelPresentation";
 import { shouldShowPageHistory } from "./sidePanelPageHistory";
@@ -103,42 +104,6 @@ export function SidePanelView({
   onRetryServer: () => void;
 }) {
   const [serverMenuOpen, setServerMenuOpen] = useState(false);
-  const serverMenuRef = useRef<HTMLDivElement>(null);
-  const serverMenuTriggerRef = useRef<HTMLButtonElement>(null);
-  const serverMenuItemRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!serverMenuOpen) return;
-    window.requestAnimationFrame(() => serverMenuItemRef.current?.focus());
-    const dismissOnPointerDown = (event: PointerEvent) => {
-      if (!serverMenuRef.current?.contains(event.target as Node)) setServerMenuOpen(false);
-    };
-    const dismissOnFocusIn = (event: FocusEvent) => {
-      if (!serverMenuRef.current?.contains(event.target as Node)) setServerMenuOpen(false);
-    };
-    const dismissOnKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        setServerMenuOpen(false);
-        serverMenuTriggerRef.current?.focus();
-      } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
-        event.preventDefault();
-        event.stopPropagation();
-        serverMenuItemRef.current?.focus();
-      } else if (event.key.toLowerCase() === "r" && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        event.stopPropagation();
-      }
-    };
-    document.addEventListener("pointerdown", dismissOnPointerDown);
-    document.addEventListener("focusin", dismissOnFocusIn);
-    document.addEventListener("keydown", dismissOnKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", dismissOnPointerDown);
-      document.removeEventListener("focusin", dismissOnFocusIn);
-      document.removeEventListener("keydown", dismissOnKeyDown);
-    };
-  }, [serverMenuOpen]);
 
   if (!state) return <div className="empty" data-logue-extension="off">Open Logue from a page to begin.</div>;
 
@@ -151,20 +116,23 @@ export function SidePanelView({
       <div className="panel-main">
         <div className="panel-topline">
           {serverSettingsOpen ? <p className="eyebrow">Server settings</p> : <span />}
-          {!serverSettingsOpen && !presentation.captureActive && error?.kind !== "service" && <div ref={serverMenuRef} className="panel-options">
-            <button
-              ref={serverMenuTriggerRef}
-              type="button"
-              className="icon-button panel-options-trigger"
-              aria-label="More options"
-              aria-haspopup="menu"
-              aria-expanded={serverMenuOpen}
-              title="More options"
-              onClick={() => setServerMenuOpen((open) => !open)}
-            ><Ellipsis size={17} /></button>
-            {serverMenuOpen && <div className="panel-options-menu" role="menu">
-              <button ref={serverMenuItemRef} type="button" role="menuitem" onClick={() => { setServerMenuOpen(false); onOpenServerSettings(); }}>Server settings…</button>
-            </div>}
+          {!serverSettingsOpen && !presentation.captureActive && error?.kind !== "service" && <div className="panel-options">
+            <OverlayMenu
+              open={serverMenuOpen}
+              onOpenChange={setServerMenuOpen}
+              placement="bottom-end"
+              ariaLabel="More options"
+              menuClassName="panel-options-menu"
+              trigger={(props) => <button
+                {...props}
+                type="button"
+                className="icon-button panel-options-trigger"
+                aria-label="More options"
+                title="More options"
+              ><Ellipsis size={17} /></button>}
+            >
+              <button type="button" role="menuitem" onClick={() => { setServerMenuOpen(false); onOpenServerSettings(); }}>Server settings…</button>
+            </OverlayMenu>
           </div>}
         </div>
 

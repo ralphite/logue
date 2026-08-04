@@ -12,7 +12,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-export const PRODUCT_OVERLAY_LAYER = 2_147_483_000;
+/** Web menus stay below modal layer 50; extension ShadowRoots override locally. */
+export const PRODUCT_OVERLAY_LAYER = "var(--logue-overlay-layer, 40)";
 
 export type OverlayMenuPlacement = "bottom-start" | "bottom-end" | "top-start" | "top-end";
 export type OverlayMenuCloseReason = "outside" | "escape" | "tab" | "trigger";
@@ -179,21 +180,31 @@ export function OverlayMenu({
       if (path.includes(internalTriggerRef.current as EventTarget) || path.includes(menuRef.current as EventTarget)) return;
       onOpenChange(false, "outside");
     };
+    const onFocusIn = (event: FocusEvent) => {
+      const path = event.composedPath();
+      if (path.includes(internalTriggerRef.current as EventTarget) || path.includes(menuRef.current as EventTarget)) return;
+      onOpenChange(false, "outside");
+    };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
+        event.stopPropagation();
         onOpenChange(false, "escape");
         internalTriggerRef.current?.focus({ preventScroll: true });
       } else if (event.key === "Tab" && event.composedPath().includes(menuRef.current as EventTarget)) {
         event.preventDefault();
         if (internalTriggerRef.current) focusNextToTrigger(internalTriggerRef.current, menuRef.current, event.shiftKey);
         onOpenChange(false, "tab");
+      } else if (event.key === "Tab" && event.composedPath().includes(internalTriggerRef.current as EventTarget)) {
+        onOpenChange(false, "tab");
       }
     };
     ownerDocument.addEventListener("pointerdown", onPointerDown, true);
+    ownerDocument.addEventListener("focusin", onFocusIn, true);
     ownerDocument.addEventListener("keydown", onKeyDown, true);
     return () => {
       ownerDocument.removeEventListener("pointerdown", onPointerDown, true);
+      ownerDocument.removeEventListener("focusin", onFocusIn, true);
       ownerDocument.removeEventListener("keydown", onKeyDown, true);
     };
   }, [onOpenChange, open]);
@@ -234,6 +245,9 @@ export function OverlayMenu({
       } else if (event.key === "ArrowUp") {
         event.preventDefault();
         openFromKeyboard("last");
+      } else if ((event.key === "Enter" || event.key === " ") && !open) {
+        event.preventDefault();
+        openFromKeyboard("first");
       }
     },
   });

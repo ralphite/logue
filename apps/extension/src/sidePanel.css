@@ -30,14 +30,10 @@ button { cursor: pointer; }
 }
 
 .panel-topline { display: flex; min-height: 28px; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.panel-options { position: relative; margin: -7px -8px 0 0; }
+.panel-options { margin: -7px -8px 0 0; }
 .panel-options-trigger { opacity: 0; transition: opacity .14s ease, background .14s ease; }
 .panel:hover .panel-options-trigger, .panel-options:focus-within .panel-options-trigger, .panel-options-trigger[aria-expanded="true"] { opacity: 1; }
 .panel-options-menu {
-  position: absolute;
-  z-index: 10;
-  top: 42px;
-  right: 0;
   min-width: 168px;
   border: 1px solid #dfdfda;
   border-radius: 9px;
