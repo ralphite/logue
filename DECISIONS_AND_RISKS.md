@@ -135,23 +135,23 @@ feature fails.
   the default `0.0.0.0` binding, connect its assigned domain from the Mac
   Extension, then restart both the service and Chrome and repeat a save/read.
 
-### DR-006 — Publish v0.2.11 before the remaining P0 field acceptance
+### DR-006 — Publish patch releases before the remaining P0 field acceptance
 
 - **Priority:** P0 delivery
 - **Status:** release requested; real-environment acceptance remains open
-- **Decision:** Publish the current `main` as `v0.2.11` now, as the user
-  explicitly requested. The release includes the current Docs voice-reachability
-  and Side Panel fixes, but does not claim that the target Linux dynamic-domain
-  path or a spoken Docs insertion has passed.
+- **Decision:** Publish the current `main` as `v0.2.11`, then the necessary
+  Side Panel patch as `v0.2.12`, as the user explicitly requested. These
+  releases do not claim that the target Linux dynamic-domain path or a spoken
+  Docs insertion has passed.
 - **Why it matters:** The installer’s `latest` endpoint will advance before
   those two field proofs exist. A user who upgrades gains the current fixes but
   must still treat the remote Linux and Docs spoken-audio paths as unverified.
 - **Alternative considered:** Delay publication until both P0 environment
   checks pass. That would preserve a stricter release gate, but conflicts with
   the user’s explicit request to publish first.
-- **Evidence:** `v0.2.10` is the latest GitHub Release; current `main` contains
-  the Docs reachability and per-tab Side Panel fixes after that tag. The open
-  task tracker still lists both field proofs as `READY_FOR_REAL_ENV`.
+- **Evidence:** `v0.2.12` is the latest GitHub Release and its official
+  Extension artifact was opened successfully in real Chrome. The open task
+  tracker still lists both field proofs as `READY_FOR_REAL_ENV`.
 - **User decision:** Explicitly approved in this task on 2026-08-04.
 
 ## Resolved
