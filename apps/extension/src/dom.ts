@@ -2,20 +2,32 @@ import { hasLogueExtensionOptOut } from "./eligibility";
 
 const supportedInputTypes = new Set(["text", "search", "email", "url", "tel"]);
 
+export const googleDocsEditableSelector = 'div[contenteditable="true"][aria-label="Document content"], textarea[aria-label="Document content"]';
+
+export function googleDocsEditableTarget(document: Document) {
+  return document.querySelector<HTMLElement>(googleDocsEditableSelector);
+}
+
 /**
  * Google Docs keeps its editable text event target in a tiny same-origin
- * about:blank frame. It is the real focused textarea even though its visual
- * caret lives in the parent document, so it needs a launcher visibility
- * exception rather than being mistaken for an invisible ordinary input.
+ * about:blank frame. It is currently a contenteditable div, while older Docs
+ * versions use a textarea; both share the same target contract.
  */
 export function isGoogleDocsDocumentTarget(value: EventTarget | null) {
-  return value instanceof HTMLTextAreaElement &&
-    value.getAttribute("aria-label") === "Document content";
+  // The Docs text-event target crosses an about:blank frame boundary. Its DOM
+  // constructor is not guaranteed to equal this script realm's
+  // HTMLTextAreaElement, so use the shared selector instead of a cross-realm
+  // instanceof gate.
+  return Boolean(
+    value && typeof value === "object" &&
+    typeof (value as { matches?: unknown }).matches === "function" &&
+    (value as Element).matches(googleDocsEditableSelector),
+  );
 }
 
 /**
  * The Google Docs caret lives in a small event-target iframe. Its class is
- * stable in Docs, while the textarea check keeps the lookup resilient when
+ * stable in Docs, while the editable target check keeps the lookup resilient when
  * Docs changes incidental frame markup.
  */
 export function googleDocsEditorFrame(document: Document) {
@@ -26,7 +38,7 @@ export function googleDocsEditorFrame(document: Document) {
     ?? frames.find((frame) => {
       try {
         return isGoogleDocsDocumentTarget(frame.contentDocument?.activeElement ?? null)
-          || Boolean(frame.contentDocument?.querySelector('textarea[aria-label="Document content"]'));
+          || Boolean(frame.contentDocument && googleDocsEditableTarget(frame.contentDocument));
       } catch {
         return false;
       }

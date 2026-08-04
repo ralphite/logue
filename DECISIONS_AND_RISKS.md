@@ -96,13 +96,14 @@ feature fails.
   error is now the product copy `Couldn't transcribe. Recording saved.` and
   Start remains immediately available. This verifies the current real Docs
   routing and recorder lifecycle, but not a spoken-audio save and one-time
-  insertion.
+  insertion. The same current build was then verified with the real Docs
+  editor focused: `Tab` focuses the `Start voice input` control, `Enter`
+  starts recording, and `Esc` restores `Document content` without writing.
 - **Open downside:** The automated environment cannot supply a trustworthy
   human microphone sample. Claiming full Docs insertion without one would be
   false evidence.
 - **Next proof:** Record a short spoken phrase in the real Docs editor; verify
-  it is saved once, inserted once, and does not trigger a Docs command. The
-  separate keyboard-reachability P1 remains open.
+  it is saved once, inserted once, and does not trigger a Docs command.
 
 ### DR-004 — Current-build Chrome QA asset
 

@@ -9,7 +9,10 @@ export default defineConfig({
     outDir: "dist",
     emptyOutDir: false,
     rollupOptions: {
-      input: resolve(import.meta.dirname, "sidepanel.html"),
+      input: {
+        sidepanel: resolve(import.meta.dirname, "sidepanel.html"),
+        microphone: resolve(import.meta.dirname, "microphone.html"),
+      },
     },
   },
 });

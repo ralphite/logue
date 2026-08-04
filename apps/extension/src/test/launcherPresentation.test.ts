@@ -19,6 +19,8 @@ describe("page launcher presentation", () => {
     expect(content).toContain("requestId: session.id");
     expect(content).toContain("projects: []");
     expect(content).toContain("recordingShortcutAction");
+    expect(content).toContain("docsTarget && document.activeElement === docsTarget");
+    expect(content).not.toContain("logue:google-docs-focus-start");
     expect(content).not.toContain('openSidePanel("input", true)');
     expect(content).not.toContain("logue-launcher-generation");
     expect(content).not.toContain("logue-inline-live");
@@ -29,5 +31,12 @@ describe("page launcher presentation", () => {
     expect(styles).toContain(".logue-launcher-group.is-recording");
     expect(styles).toContain("width: 86px");
     expect(styles).toContain(".logue-launcher-error.is-below");
+  });
+
+  it("uses the parent Docs hostname when its text event iframe is about:blank", () => {
+    const content = readFileSync(resolve(process.cwd(), "src/content.tsx"), "utf8");
+
+    expect(content).toContain("const topPage = topLevelWindow()");
+    expect(content).toContain('topPage.location.hostname === "docs.google.com"');
   });
 });

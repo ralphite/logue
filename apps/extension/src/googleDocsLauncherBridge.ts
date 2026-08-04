@@ -15,21 +15,8 @@ export function googleDocsLauncherStateMessage(state: GoogleDocsLauncherState) {
   return { type: messageType, kind: "state" as const, state };
 }
 
-export function googleDocsLauncherActionMessage(action: GoogleDocsLauncherAction, editorFrameId?: number) {
-  return {
-    type: messageType,
-    kind: "action" as const,
-    action,
-    ...(typeof editorFrameId === "number" && editorFrameId !== 0 ? { editorFrameId } : {}),
-  };
-}
-
-export function readGoogleDocsLauncherEditorFrameId(value: unknown) {
-  if (!value || typeof value !== "object") return undefined;
-  const editorFrameId = (value as { editorFrameId?: unknown }).editorFrameId;
-  return typeof editorFrameId === "number" && Number.isInteger(editorFrameId) && editorFrameId !== 0
-    ? editorFrameId
-    : undefined;
+export function googleDocsLauncherActionMessage(action: GoogleDocsLauncherAction) {
+  return { type: messageType, kind: "action" as const, action };
 }
 
 export function readGoogleDocsLauncherState(value: unknown): GoogleDocsLauncherState | undefined {

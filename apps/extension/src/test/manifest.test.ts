@@ -25,6 +25,8 @@ describe("native side panel manifest", () => {
       content_scripts?: Array<{
         all_frames?: boolean;
         match_about_blank?: boolean;
+        match_origin_as_fallback?: boolean;
+        run_at?: string;
       }>;
       commands?: Record<string, {
         suggested_key?: { default?: string; mac?: string };
@@ -32,7 +34,7 @@ describe("native side panel manifest", () => {
       }>;
     };
 
-    expect(manifest.permissions).toEqual(expect.arrayContaining(["scripting", "sidePanel", "storage"]));
+    expect(manifest.permissions).toEqual(expect.arrayContaining(["scripting", "sidePanel", "storage", "offscreen"]));
     expect(manifest.host_permissions).toEqual(["http://127.0.0.1:8787/*"]);
     expect(manifest.optional_host_permissions).toEqual(["http://*/*", "https://*/*"]);
     expect(manifest.side_panel?.default_path).toBe("sidepanel.html");
@@ -42,6 +44,8 @@ describe("native side panel manifest", () => {
     expect(manifest.content_scripts?.[0]).toMatchObject({
       all_frames: true,
       match_about_blank: true,
+      match_origin_as_fallback: true,
+      run_at: "document_start",
     });
     expect(manifest.commands?.["toggle-side-panel"]).toEqual({
       suggested_key: {

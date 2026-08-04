@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { captureEditableSelection, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility } from "@logue/ui";
-import { activeEditableElement, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "../dom";
+import { activeEditableElement, googleDocsEditableTarget, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "../dom";
 
 describe("editable integration", () => {
   beforeEach(() => {
@@ -21,13 +21,26 @@ describe("editable integration", () => {
     expect(activeEditableElement(document)).toBe(textarea);
   });
 
-  it("recognizes the compact Google Docs text event target without treating ordinary textareas specially", () => {
+  it("recognizes current and legacy Google Docs event targets without treating ordinary textareas specially", () => {
     const docsTarget = document.createElement("textarea");
     docsTarget.setAttribute("aria-label", "Document content");
+    const currentDocsTarget = document.createElement("div");
+    currentDocsTarget.setAttribute("contenteditable", "true");
+    currentDocsTarget.setAttribute("aria-label", "Document content");
     const ordinary = document.createElement("textarea");
 
     expect(isGoogleDocsDocumentTarget(docsTarget)).toBe(true);
+    expect(isGoogleDocsDocumentTarget(currentDocsTarget)).toBe(true);
     expect(isGoogleDocsDocumentTarget(ordinary)).toBe(false);
+  });
+
+  it("finds the current contenteditable Docs target", () => {
+    const docsTarget = document.createElement("div");
+    docsTarget.setAttribute("contenteditable", "true");
+    docsTarget.setAttribute("aria-label", "Document content");
+    document.body.append(docsTarget);
+
+    expect(googleDocsEditableTarget(document)).toBe(docsTarget);
   });
 
   it("finds the Google Docs editor iframe", () => {

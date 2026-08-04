@@ -2,13 +2,12 @@ import { SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionS
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { adoptExtensionSkillRun, cancelMaterialSave, createExtensionSkillRun, getCaptureContext, getExtensionSkills, saveMaterial, transcribeAudio, type AppliedContext, type ExtensionSkill } from "./api";
-import { activeEditableElement, getEditableText, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "./dom";
+import { activeEditableElement, getEditableText, googleDocsEditableTarget, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "./dom";
 import { hasNativeSelectionSkillOwner, isLogueExtensionDisabledDocument, logueServerCandidate } from "./eligibility";
 import {
   googleDocsLauncherActionMessage,
   googleDocsLauncherStateMessage,
   readGoogleDocsLauncherAction,
-  readGoogleDocsLauncherEditorFrameId,
   readGoogleDocsLauncherState,
   type GoogleDocsLauncherAction,
   type GoogleDocsLauncherState,
@@ -17,11 +16,7 @@ import { clampLauncherPosition, defaultLauncherPosition, inlineVoiceControlMetri
 import type { CaptureSource, PageCaptureContext } from "./capturePrimitives";
 import {
   audioBlobFromEvent,
-  createContentRecordingBridge,
-  type ContentRecordingBridge,
   type RecordingBridgeEvent,
-  type RecordingControlMessage,
-  type RecordingDisposeMessage,
 } from "./recordingBridge";
 import { recordingShortcutAction } from "./recordingShortcuts";
 import { createRequestId } from "./requestId";
@@ -35,7 +30,28 @@ interface ContentRequestMessage {
   text?: string;
 }
 
-type ContentMessage = ContentRequestMessage | RecordingControlMessage | RecordingDisposeMessage;
+type InlineRecorderAction = "start" | "stop" | "cancel";
+
+interface InlineRecorderEvent extends Omit<RecordingBridgeEvent, "type"> {
+  type: "logue:inline-recorder-event";
+}
+
+function isInlineRecorderEvent(value: unknown): value is InlineRecorderEvent {
+  return Boolean(
+    value && typeof value === "object" &&
+    ["started", "stopped", "cancelled", "error"].includes(String((value as { event?: unknown }).event)) &&
+    typeof (value as { sessionId?: unknown }).sessionId === "string" &&
+    ((value as { audioBase64?: unknown }).audioBase64 === undefined || typeof (value as { audioBase64?: unknown }).audioBase64 === "string") &&
+    ((value as { mimeType?: unknown }).mimeType === undefined || typeof (value as { mimeType?: unknown }).mimeType === "string") &&
+    ((value as { error?: unknown }).error === undefined || typeof (value as { error?: unknown }).error === "string"),
+  );
+}
+
+interface RecordingDisposeMessage {
+  type: "logue:recording-dispose";
+}
+
+type ContentMessage = ContentRequestMessage | InlineRecorderEvent | RecordingDisposeMessage;
 
 interface InlineVoiceSession {
   id: string;
@@ -46,7 +62,6 @@ interface InlineVoiceSession {
 
 interface GoogleDocsProxyState extends GoogleDocsLauncherState {
   anchor: DOMRect;
-  editorFrameId?: number;
 }
 
 function topLevelWindow() {
@@ -93,7 +108,6 @@ function ExtensionLauncher() {
   const targetPageHrefRef = useRef("");
   const voicePhaseRef = useRef<InlineVoicePhase>("idle");
   const voiceSessionRef = useRef<InlineVoiceSession | undefined>(undefined);
-  const recordingBridgeRef = useRef<ContentRecordingBridge | undefined>(undefined);
   const selectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
   const dismissedSelectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
   const selectionRefreshFrameRef = useRef<number | undefined>(undefined);
@@ -104,6 +118,15 @@ function ExtensionLauncher() {
   const setInlineVoicePhase = useCallback((phase: InlineVoicePhase) => {
     voicePhaseRef.current = phase;
     setVoicePhase(phase);
+  }, []);
+
+  const sendInlineRecorderControl = useCallback(async (sessionId: string, action: InlineRecorderAction) => {
+    const response = await chrome.runtime.sendMessage({
+      type: "logue:inline-recorder-control",
+      action,
+      sessionId,
+    }) as { ok?: boolean; error?: string } | undefined;
+    if (!response?.ok) throw new Error(response?.error || "Could not start voice input.");
   }, []);
 
   const restoreTargetFocus = useCallback((session?: InlineVoiceSession) => {
@@ -124,13 +147,13 @@ function ExtensionLauncher() {
     if (!session) return;
     const wasProcessing = voicePhaseRef.current === "processing";
     voiceSessionRef.current = undefined;
-    recordingBridgeRef.current?.handle({ type: "logue:recording-control", action: "cancel", sessionId: session.id });
+    void sendInlineRecorderControl(session.id, "cancel").catch(() => undefined);
     if (wasProcessing) void cancelMaterialSave(session.id).catch(() => undefined);
     setInlineVoicePhase("idle");
     setVoiceError("");
     setPendingCopyText("");
     restoreTargetFocus(session);
-  }, [restoreTargetFocus, setInlineVoicePhase]);
+  }, [restoreTargetFocus, sendInlineRecorderControl, setInlineVoicePhase]);
 
   const clearTarget = useCallback(() => {
     // Losing focus or having an SPA replace the editor must not cancel a live
@@ -313,8 +336,7 @@ function ExtensionLauncher() {
 
   const startInlineVoice = useCallback(() => {
     const target = targetRef.current;
-    const bridge = recordingBridgeRef.current;
-    if (!target || !bridge || !isEditableTargetAvailable(target)) return;
+    if (!target || !isEditableTargetAvailable(target)) return;
     const session: InlineVoiceSession = {
       id: createRequestId(),
       target,
@@ -324,24 +346,50 @@ function ExtensionLauncher() {
     voiceSessionRef.current = session;
     setVoiceError("");
     setPendingCopyText("");
-    setInlineVoicePhase("starting");
-    const response = bridge.handle({ type: "logue:recording-control", action: "start", sessionId: session.id });
-    if (!response.ok) {
+    void sendInlineRecorderControl(session.id, "start").then(() => {
+      if (voiceSessionRef.current?.id !== session.id) return;
+      // The extension recorder has acknowledged the command. This is the
+      // first point at which the UI may truthfully show a start-in-progress
+      // state; a click alone must not manufacture one.
+      setInlineVoicePhase("starting");
+    }).catch((cause: unknown) => {
+      if (voiceSessionRef.current?.id !== session.id) return;
       voiceSessionRef.current = undefined;
-      setVoiceError("Could not start voice input.");
+      setVoiceError(cause instanceof Error ? cause.message : "Could not start voice input.");
       setInlineVoicePhase("error");
       restoreTargetFocus(session);
-    }
-  }, [restoreTargetFocus, setInlineVoicePhase]);
+    });
+  }, [restoreTargetFocus, sendInlineRecorderControl, setInlineVoicePhase]);
 
   const stopAndInsertInlineVoice = useCallback(() => {
     const session = voiceSessionRef.current;
     if (!session || voicePhaseRef.current !== "recording") return;
-    recordingBridgeRef.current?.handle({ type: "logue:recording-control", action: "stop", sessionId: session.id });
-  }, []);
+    void sendInlineRecorderControl(session.id, "stop").catch((cause: unknown) => {
+      if (voiceSessionRef.current?.id !== session.id) return;
+      voiceSessionRef.current = undefined;
+      setVoiceError(cause instanceof Error ? cause.message : "Could not stop voice input.");
+      setInlineVoicePhase("error");
+      restoreTargetFocus(session);
+    });
+  }, [restoreTargetFocus, sendInlineRecorderControl, setInlineVoicePhase]);
+
+  const controlGoogleDocsEditor = useCallback((action: GoogleDocsLauncherAction) => {
+    // Google Docs routinely replaces this hidden event iframe. Resolve the
+    // document target at the moment of the action, rather than retaining a
+    // frame-local reference from an earlier focus event.
+    const docsTarget = googleDocsEditableTarget(document);
+    if (!docsTarget || !isGoogleDocsDocumentTarget(docsTarget)) return false;
+    targetRef.current = docsTarget;
+    targetPageHrefRef.current = window.location.href;
+    setTargetRect(docsTarget.getBoundingClientRect());
+    if (action === "start") startInlineVoice();
+    if (action === "stop") stopAndInsertInlineVoice();
+    if (action === "cancel") cancelInlineVoice();
+    return true;
+  }, [cancelInlineVoice, startInlineVoice, stopAndInsertInlineVoice]);
 
   useEffect(() => {
-    const updateGoogleDocsProxy = (state: GoogleDocsLauncherState, editorFrameId?: number) => {
+    const updateGoogleDocsProxy = (state: GoogleDocsLauncherState) => {
       const frame = googleDocsEditorFrame(document);
       if (!frame) return;
       if (!state.visible) {
@@ -350,7 +398,7 @@ function ExtensionLauncher() {
       }
       if (!frame.contentWindow) return;
       const surface = googleDocsEditorSurface(document) ?? frame;
-      setGoogleDocsProxy({ ...state, anchor: surface.getBoundingClientRect(), editorFrameId });
+      setGoogleDocsProxy({ ...state, anchor: surface.getBoundingClientRect() });
     };
     const onGoogleDocsRelay = (message: unknown) => {
       // Only the top document renders the control. The background forwards a
@@ -358,35 +406,24 @@ function ExtensionLauncher() {
       if (window.top !== window) return false;
       const state = readGoogleDocsLauncherState(message);
       if (!state) return false;
-      updateGoogleDocsProxy(state, readGoogleDocsLauncherEditorFrameId(message));
+      updateGoogleDocsProxy(state);
       return false;
     };
-    const onGoogleDocsFrameMessage = (event: MessageEvent) => {
-      // Same-origin about:blank editor frames can expose a distinct
-      // WindowProxy in Chrome's isolated world. The message payload is fully
-      // validated and the actual action target always comes from the focused
-      // Docs iframe in this document.
-      if (window.top !== window) return;
-      const state = readGoogleDocsLauncherState(event.data);
-      if (state) updateGoogleDocsProxy(state, readGoogleDocsLauncherEditorFrameId(event.data));
-    };
-    window.addEventListener("message", onGoogleDocsFrameMessage);
     chrome.runtime.onMessage.addListener(onGoogleDocsRelay);
     return () => {
-      window.removeEventListener("message", onGoogleDocsFrameMessage);
       chrome.runtime.onMessage.removeListener(onGoogleDocsRelay);
     };
-  }, [cancelInlineVoice, startInlineVoice, stopAndInsertInlineVoice]);
+  }, []);
 
   useEffect(() => {
     if (window.top !== window || window.location.hostname !== "docs.google.com") return;
     const syncFocusedDocsEditor = () => {
       const frame = googleDocsEditorFrame(document);
       const isFocused = isGoogleDocsEditorFocused(document);
-      if (!frame || !frame.contentWindow || !isFocused) {
-        setGoogleDocsProxy((current) => current && !(
-          current.phase === "starting" || current.phase === "recording" || current.phase === "processing"
-        ) ? undefined : current);
+      const host = document.getElementById("logue-extension-host");
+      const launcherFocused = Boolean(host?.shadowRoot?.activeElement);
+      if (!frame || !frame.contentWindow || (!isFocused && !launcherFocused)) {
+        setGoogleDocsProxy((current) => current && current.phase === "idle" ? undefined : current);
         return;
       }
       const anchor = (googleDocsEditorSurface(document) ?? frame).getBoundingClientRect();
@@ -511,7 +548,7 @@ function ExtensionLauncher() {
     void chrome.runtime.sendMessage(googleDocsLauncherStateMessage({
       visible: Boolean(
         isDocsTarget && targetRect &&
-        (document.activeElement === target || keyboardActive || captureActive),
+        (document.activeElement === target || keyboardActive || captureActive || voicePhase === "error"),
       ),
       phase: voicePhase,
       error: voiceError,
@@ -520,7 +557,7 @@ function ExtensionLauncher() {
   }, [keyboardActive, pendingCopyText, targetRect, voiceError, voicePhase]);
 
   useEffect(() => {
-    const docsTarget = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Document content"]');
+    const docsTarget = googleDocsEditableTarget(document);
     if (!docsTarget || !isGoogleDocsDocumentTarget(docsTarget)) return;
     // The frame can finish mounting after its first focus event. Bind the
     // actual editor eagerly so a top-frame control always has a live target.
@@ -529,23 +566,7 @@ function ExtensionLauncher() {
       targetPageHrefRef.current = window.location.href;
       setTargetRect(docsTarget.getBoundingClientRect());
     }
-    // A long-lived extension port is the reliable return channel to Docs'
-    // runtime-created editor frame. Page-window messaging cannot preserve
-    // identity across its isolated extension worlds.
-    const port = chrome.runtime.connect({ name: "logue:google-docs-editor" });
-    const onMessage = (message: unknown) => {
-      const action = readGoogleDocsLauncherAction(message);
-      if (!action) return;
-      if (action === "start") startInlineVoice();
-      if (action === "stop") stopAndInsertInlineVoice();
-      if (action === "cancel") cancelInlineVoice();
-    };
-    port.onMessage.addListener(onMessage);
-    return () => {
-      port.onMessage.removeListener(onMessage);
-      port.disconnect();
-    };
-  }, [cancelInlineVoice, startInlineVoice, stopAndInsertInlineVoice, targetRect]);
+  }, [targetRect]);
 
   useEffect(() => () => {
     if (selectionNoticeTimerRef.current) window.clearTimeout(selectionNoticeTimerRef.current);
@@ -553,10 +574,26 @@ function ExtensionLauncher() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const target = targetRef.current;
       if (
         event.key !== "Tab" || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey ||
-        event.isComposing || document.activeElement !== targetRef.current
+        event.isComposing
       ) return;
+      const docsTarget = googleDocsEditableTarget(document);
+      const topPage = topLevelWindow();
+      if (
+        window.top !== window && topPage.location.hostname === "docs.google.com" &&
+        docsTarget && document.activeElement === docsTarget
+      ) {
+        const button = topPage.document.getElementById("logue-extension-host")?.shadowRoot
+          ?.querySelector<HTMLButtonElement>('button[aria-label="Start voice input"]');
+        if (!button) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        button.focus({ preventScroll: true });
+        return;
+      }
+      if (document.activeElement !== target || isGoogleDocsDocumentTarget(target)) return;
       const button = document.getElementById("logue-extension-host")?.shadowRoot
         ?.querySelector<HTMLButtonElement>('button[aria-label="Start voice input"]');
       if (!button) return;
@@ -610,42 +647,58 @@ function ExtensionLauncher() {
   }, [cancelInlineVoice, stopAndInsertInlineVoice]);
 
   useEffect(() => {
-    const recordingBridge = createContentRecordingBridge({
-      emit: (event) => {
-        finishInlineVoice(event);
-        return chrome.runtime.sendMessage(event);
-      },
-    });
-    recordingBridgeRef.current = recordingBridge;
-    const listener = (message: ContentMessage, _sender: chrome.runtime.MessageSender, sendResponse: (value: unknown) => void) => {
+    if (window.top !== window || !googleDocsProxy) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const action = recordingShortcutAction({
+        open: true,
+        mode: "input",
+        phase: googleDocsProxy.phase,
+        key: event.key,
+        altKey: event.altKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+        isComposing: event.isComposing,
+        repeat: event.repeat,
+      });
+      if (!action) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      controlGoogleDocsProxy(action === "stop-and-insert" ? "stop" : "cancel");
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [googleDocsProxy]);
+
+  useEffect(() => {
+    const listener = (message: unknown, _sender: chrome.runtime.MessageSender, sendResponse: (value: unknown) => void) => {
       const googleDocsAction = readGoogleDocsLauncherAction(message);
-      if (googleDocsAction && isGoogleDocsDocumentTarget(targetRef.current)) {
-        if (googleDocsAction === "start") startInlineVoice();
-        if (googleDocsAction === "stop") stopAndInsertInlineVoice();
-        if (googleDocsAction === "cancel") cancelInlineVoice();
+      if (googleDocsAction) {
+        sendResponse({ ok: controlGoogleDocsEditor(googleDocsAction) });
+        return false;
+      }
+      const contentMessage = message as ContentMessage;
+      if (contentMessage?.type === "logue:inline-recorder-event") {
+        finishInlineVoice({ ...contentMessage, type: "logue:recording-bridge-event" });
         sendResponse({ ok: true });
         return false;
       }
-      if (message?.type === "logue:recording-control") {
-        sendResponse(recordingBridge.handle(message));
-        return false;
-      }
-      if (message?.type === "logue:recording-dispose") {
-        recordingBridge.dispose();
+      if (contentMessage?.type === "logue:recording-dispose") {
+        cancelInlineVoice();
         sendResponse({ ok: true });
         return false;
       }
-      if (message?.type === "logue:insert-text") {
+      if (contentMessage?.type === "logue:insert-text") {
         const target = targetRef.current;
         const inserted = Boolean(
-          message.text &&
+          contentMessage.text &&
           isEditableTargetAvailable(target) &&
-          insertIntoElement(target, message.text),
+          insertIntoElement(target, contentMessage.text),
         );
         sendResponse({ ok: inserted });
         return false;
       }
-      if (message?.type === "logue:get-page-context") {
+      if (contentMessage?.type === "logue:get-page-context") {
         const target = targetRef.current;
         const targetAvailable = isEditableTargetAvailable(target);
         const context: PageCaptureContext = {
@@ -667,10 +720,8 @@ function ExtensionLauncher() {
     void chrome.runtime.sendMessage({ type: "logue:page-context-ready" }).catch(() => undefined);
     return () => {
       chrome.runtime.onMessage.removeListener(listener);
-      recordingBridge.dispose();
-      if (recordingBridgeRef.current === recordingBridge) recordingBridgeRef.current = undefined;
     };
-  }, [cancelInlineVoice, finishInlineVoice, startInlineVoice, stopAndInsertInlineVoice]);
+  }, [cancelInlineVoice, controlGoogleDocsEditor, finishInlineVoice]);
 
   const captureActive = voicePhase === "starting" || voicePhase === "recording" || voicePhase === "processing";
   const hasSelectionSkillMenu = Boolean(selectionSnapshot && eligibleSelectionSkills.length && !captureActive);
@@ -706,12 +757,19 @@ function ExtensionLauncher() {
   const googleDocsProxyVisible = Boolean(googleDocsProxy && googleDocsPosition);
 
   function controlGoogleDocsProxy(action: GoogleDocsLauncherAction) {
-    if (action === "start") {
-      setGoogleDocsProxy((current) => current && { ...current, phase: "starting", error: "", pendingCopyText: "" });
-    }
-    void chrome.runtime.sendMessage(
-      googleDocsLauncherActionMessage(action, googleDocsProxy?.editorFrameId),
-    ).catch(() => undefined);
+    const showError = () => {
+      setGoogleDocsProxy((current) => current && {
+        ...current,
+        phase: "error",
+        error: "Could not reach the active Google Docs editor.",
+        pendingCopyText: "",
+      });
+    };
+    void chrome.runtime.sendMessage(googleDocsLauncherActionMessage(action))
+      .then((response: { ok?: boolean } | undefined) => {
+        if (!response?.ok) showError();
+      })
+      .catch(showError);
   }
 
   async function applySelectionSkill(skillId: string) {

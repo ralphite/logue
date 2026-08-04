@@ -8,34 +8,43 @@ import {
 import {
   acceptsPassivePageContext,
   consumePanelAutoStart,
+  disableDefaultSidePanel,
+  disableTabSidePanel,
   isOpenSelectionMenu,
   isSaveSelectionMenu,
   isSelectionMenu,
   openPanelWithPreparedState,
+  prepareTabSidePanel,
   panelStateForTab,
   preserveMatchingPanelDraft,
   selectionSavePayload,
   selectionContextMenus,
   sidePanelCommand,
   toggleSidePanel,
+  type SidePanelChrome,
 } from "./sidePanelController";
 import { createRequestId } from "./requestId";
-import type { RecordingBridgeEvent, RecordingPanelEvent } from "./recordingBridge";
+import { googleDocsEditableSelector } from "./dom";
+import type { RecordingBridgeEvent, RecordingControlAction, RecordingPanelEvent } from "./recordingBridge";
 import { assertLogueServerStatus, getServerURL, normalizeServerURL } from "./serverConnection";
-import { readGoogleDocsLauncherAction, readGoogleDocsLauncherEditorFrameId, readGoogleDocsLauncherState } from "./googleDocsLauncherBridge";
+import {
+  readGoogleDocsLauncherAction,
+  readGoogleDocsLauncherState,
+} from "./googleDocsLauncherBridge";
 
 const panelStoragePrefix = "logue:panel:";
-const activePanelStorageKey = "logue:panel:active-tab";
 // This is session-only Chrome UI state, not restored product data. Chrome can
 // suspend a MV3 worker while its Side Panel stays visible, so a fresh worker
 // needs this one bit to keep the toolbar command behaving as a real toggle.
 const openPanelStoragePrefix = "logue:side-panel:open:";
+const activeTabStoragePrefix = "logue:active-tab:";
 const openPanelTabs = new Set<number>();
+const openingPanelTabs = new Set<number>();
 const panelStates = new Map<number, PanelCaptureState>();
-const googleDocsEditorFrameByTab = new Map<number, number>();
-const googleDocsEditorPorts = new Map<number, chrome.runtime.Port>();
-let activePanelTabId: number | undefined;
-let openPanelWindowId: number | undefined;
+const activeTabByWindow = new Map<number, number>();
+const inlineRecorderSessions = new Map<string, { tabId: number; frameId: number }>();
+let inlineRecorderDocument: Promise<void> | undefined;
+let inlineRecorderPermission: { token: string; sessionId: string } | undefined;
 
 interface ApiMessage {
   type: "logue:api";
@@ -55,6 +64,7 @@ interface OpenPanelMessage {
 
 interface PanelStateMessage {
   type: "logue:get-panel-state" | "logue:update-panel-state" | "logue:close-side-panel" | "logue:consume-panel-autostart" | "logue:request-panel-generate" | "logue:return-panel-to-page";
+  tabId?: number;
   patch?: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">> & { pendingInsert?: PanelCaptureState["pendingInsert"] | null };
   token?: string;
 }
@@ -63,31 +73,74 @@ interface PageContextReadyMessage {
   type: "logue:page-context-ready";
 }
 
-type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage | RecordingBridgeEvent | PageContextReadyMessage;
+interface InlineRecorderControlMessage {
+  type: "logue:inline-recorder-control";
+  action: RecordingControlAction;
+  sessionId: string;
+}
 
-const nativeSidePanel = chrome.sidePanel as typeof chrome.sidePanel & {
-  close: (options: { tabId: number } | { windowId: number }) => Promise<void>;
+interface ExtensionRecorderEvent extends Omit<RecordingBridgeEvent, "type"> {
+  type: "logue:extension-recorder-event";
+}
+
+interface MicrophonePermissionResult {
+  type: "logue:microphone-permission-result";
+  token: string;
+  ok: boolean;
+  error?: string;
+}
+
+type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage | RecordingBridgeEvent | PageContextReadyMessage | InlineRecorderControlMessage | ExtensionRecorderEvent | MicrophonePermissionResult;
+
+const nativeSidePanel = chrome.sidePanel as unknown as SidePanelChrome & {
   onOpened?: chrome.events.Event<(info: { tabId?: number; windowId?: number }) => void>;
   onClosed?: chrome.events.Event<(info: { tabId?: number; windowId?: number }) => void>;
 };
 
+// The manifest path exists only to register the feature. Keep its global
+// instance disabled so switching to a tab that never opened Logue hides it.
+void disableDefaultSidePanel(nativeSidePanel).catch(() => undefined);
+
 async function persistPanelState(state: PanelCaptureState) {
   panelStates.set(state.tabId, state);
-  activePanelTabId = state.tabId;
   await chrome.storage.session.set({
     [`${panelStoragePrefix}${state.tabId}`]: state,
-    [activePanelStorageKey]: state.tabId,
   });
+}
+
+function broadcastPanelState(state: PanelCaptureState) {
+  void chrome.runtime.sendMessage({
+    type: "logue:panel-state-changed",
+    tabId: state.tabId,
+    state,
+  }).catch(() => undefined);
 }
 
 function openPanelStorageKey(tabId: number) {
   return `${openPanelStoragePrefix}${tabId}`;
 }
 
-async function markPanelOpen(tabId: number, windowId?: number) {
-  activePanelTabId = tabId;
+function activeTabStorageKey(windowId: number) {
+  return `${activeTabStoragePrefix}${windowId}`;
+}
+
+function disposeTabCapture(tabId: number) {
+  const dispose = () => {
+    void chrome.tabs.sendMessage(tabId, { type: "logue:recording-dispose" }).catch(() => undefined);
+    void chrome.runtime.sendMessage({ type: "logue:side-panel-hidden", tabId }).catch(() => undefined);
+  };
+  if (openPanelTabs.has(tabId)) {
+    dispose();
+    return;
+  }
+  void chrome.storage.session.get(openPanelStorageKey(tabId)).then((stored) => {
+    if (stored[openPanelStorageKey(tabId)] === true) dispose();
+  }).catch(() => undefined);
+}
+
+async function markPanelOpen(tabId: number) {
+  openingPanelTabs.delete(tabId);
   openPanelTabs.add(tabId);
-  if (typeof windowId === "number") openPanelWindowId = windowId;
   await chrome.storage.session.set({ [openPanelStorageKey(tabId)]: true });
   // Chrome can keep the Side Panel document alive while hiding it. Reopening
   // therefore does not necessarily remount React or rehydrate state, so tell
@@ -96,54 +149,171 @@ async function markPanelOpen(tabId: number, windowId?: number) {
 }
 
 async function clearPanelOpen(tabId: number) {
+  openingPanelTabs.delete(tabId);
   openPanelTabs.delete(tabId);
-  const keys = [openPanelStorageKey(tabId)];
-  if (activePanelTabId === tabId) {
-    activePanelTabId = undefined;
-    openPanelWindowId = undefined;
-    keys.push(activePanelStorageKey);
-  }
-  await chrome.storage.session.remove(keys);
+  await chrome.storage.session.remove(openPanelStorageKey(tabId));
+  disableSidePanel(tabId);
 }
 
-async function routeGoogleDocsLauncherAction(tabId: number, message: unknown, requestedFrameId?: number) {
-  const sendToFrame = async (frameId: number) => {
-    const response = await chrome.tabs.sendMessage(tabId, message, { frameId }) as { ok?: boolean } | undefined;
-    return response?.ok === true;
-  };
+function isInlineRecorderControl(message: unknown): message is InlineRecorderControlMessage {
+  return Boolean(
+    message && typeof message === "object" &&
+    (message as { type?: unknown }).type === "logue:inline-recorder-control" &&
+    ["start", "stop", "cancel"].includes(String((message as { action?: unknown }).action)) &&
+    typeof (message as { sessionId?: unknown }).sessionId === "string",
+  );
+}
 
-  const knownFrameIds = [requestedFrameId, googleDocsEditorFrameByTab.get(tabId)]
-    .filter((frameId): frameId is number => typeof frameId === "number" && frameId !== 0);
-  for (const knownFrameId of [...new Set(knownFrameIds)]) {
-    try {
-      if (await sendToFrame(knownFrameId)) return;
-    } catch {
-      // The Docs editor may recreate its event iframe. Resolve it below.
+function isExtensionRecorderEvent(message: unknown): message is ExtensionRecorderEvent {
+  return Boolean(
+    message && typeof message === "object" &&
+    (message as { type?: unknown }).type === "logue:extension-recorder-event" &&
+    ["started", "stopped", "cancelled", "error"].includes(String((message as { event?: unknown }).event)) &&
+    typeof (message as { sessionId?: unknown }).sessionId === "string",
+  );
+}
+
+function isMicrophonePermissionResult(message: unknown): message is MicrophonePermissionResult {
+  return Boolean(
+    message && typeof message === "object" &&
+    (message as { type?: unknown }).type === "logue:microphone-permission-result" &&
+    typeof (message as { token?: unknown }).token === "string" &&
+    typeof (message as { ok?: unknown }).ok === "boolean",
+  );
+}
+
+function needsMicrophonePermission(message?: string) {
+  return /permission|notallowed|denied/i.test(message ?? "");
+}
+
+async function ensureInlineRecorderDocument() {
+  if (!inlineRecorderDocument) {
+    inlineRecorderDocument = chrome.offscreen.createDocument({
+      url: "microphone.html?mode=recorder",
+      reasons: [chrome.offscreen.Reason.USER_MEDIA],
+      justification: "Record voice input from the Logue extension on the current page.",
+    }).catch((cause: unknown) => {
+      // MV3 may restart while its single extension recorder remains alive.
+      // In that concrete case Chrome reports that the document already exists;
+      // it is the recorder we need, not a failure to surface to the user.
+      if (/single offscreen document/i.test(String(cause))) return;
+      inlineRecorderDocument = undefined;
+      throw cause;
+    });
+  }
+  return inlineRecorderDocument;
+}
+
+async function sendInlineRecorderControl(message: InlineRecorderControlMessage) {
+  await ensureInlineRecorderDocument();
+  const response = await chrome.runtime.sendMessage({
+    type: "logue:extension-recorder-control",
+    action: message.action,
+    sessionId: message.sessionId,
+  }) as { ok?: boolean } | undefined;
+  if (!response?.ok) throw new Error("Could not start voice input.");
+}
+
+function disposeInlineRecorderForTab(tabId: number) {
+  for (const [sessionId, target] of inlineRecorderSessions) {
+    if (target.tabId !== tabId) continue;
+    inlineRecorderSessions.delete(sessionId);
+    // A real document reload discards the insertion target. Stop only that
+    // concrete recorder session so a previous Docs frame cannot keep the
+    // extension microphone alive or relay stale state into the replacement.
+    void sendInlineRecorderControl({
+      type: "logue:inline-recorder-control",
+      action: "cancel",
+      sessionId,
+    }).catch(() => undefined);
+  }
+}
+
+async function requestInlineRecorderPermission(sessionId: string) {
+  if (inlineRecorderPermission) return;
+  const token = createRequestId();
+  inlineRecorderPermission = { token, sessionId };
+  try {
+    await chrome.windows.create({
+      url: chrome.runtime.getURL(`microphone.html?mode=permission&token=${encodeURIComponent(token)}`),
+      type: "popup",
+      width: 360,
+      height: 180,
+      focused: true,
+    });
+  } catch (cause) {
+    inlineRecorderPermission = undefined;
+    const target = inlineRecorderSessions.get(sessionId);
+    if (target) {
+      forwardInlineRecorderEvent({
+        type: "logue:extension-recorder-event",
+        event: "error",
+        sessionId,
+        error: cause instanceof Error ? cause.message : "Could not request microphone access.",
+      });
     }
   }
+}
 
-  // The real Docs editor lives in a runtime-created about:blank iframe. Query
-  // Chrome for its uniquely labelled textarea instead of relying on current
-  // focus (which moves to the launcher button) or a stale frame id.
+function forwardInlineRecorderEvent(event: ExtensionRecorderEvent) {
+  const target = inlineRecorderSessions.get(event.sessionId);
+  if (!target) return;
+  const message = { ...event, type: "logue:inline-recorder-event" };
+  void chrome.tabs.sendMessage(target.tabId, message, { frameId: target.frameId }).catch(() => undefined);
+  if (event.event !== "started") inlineRecorderSessions.delete(event.sessionId);
+}
+
+async function routeGoogleDocsLauncherAction(tabId: number, message: unknown) {
   const frames = await chrome.scripting.executeScript({
     target: { tabId, allFrames: true },
-    func: () => Boolean(document.querySelector('textarea[aria-label="Document content"]')),
+    func: (selector) => Boolean(document.querySelector(selector)),
+    args: [googleDocsEditableSelector],
   });
-  const editorFrameId = frames.find((frame) => frame.frameId !== 0 && frame.result === true)?.frameId;
-  if (typeof editorFrameId !== "number") return;
-  googleDocsEditorFrameByTab.set(tabId, editorFrameId);
-  await sendToFrame(editorFrameId);
+  const frameId = frames.find((frame) => frame.frameId !== 0 && frame.result === true)?.frameId;
+  if (typeof frameId !== "number") return false;
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, message, { frameId }) as { ok?: boolean } | undefined;
+    return response?.ok === true;
+  } catch {
+    return false;
+  }
 }
 
 function stagePanelState(state: PanelCaptureState) {
-  const staged = preserveMatchingPanelDraft(state, panelStates.get(state.tabId));
+  const cached = panelStates.get(state.tabId);
+  const storageKey = `${panelStoragePrefix}${state.tabId}`;
+  // A closed Side Panel may let its MV3 worker suspend. Start the session read
+  // before staging the synchronous open state so a cold reopen cannot overwrite
+  // the saved draft with an empty shell.
+  const storedState = cached ? undefined : chrome.storage.session.get(storageKey);
+  const staged = preserveMatchingPanelDraft(state, cached);
   panelStates.set(staged.tabId, staged);
-  activePanelTabId = staged.tabId;
-  void chrome.storage.session.set({
-    [`${panelStoragePrefix}${staged.tabId}`]: staged,
-    [activePanelStorageKey]: staged.tabId,
-  });
-  void chrome.runtime.sendMessage({ type: "logue:panel-state-changed", state: staged }).catch(() => undefined);
+  if (cached) {
+    void chrome.storage.session.set({ [storageKey]: staged });
+  } else {
+    void storedState?.then(async (stored) => {
+      const current = panelStates.get(staged.tabId) ?? staged;
+      const restoredFromSession = preserveMatchingPanelDraft(
+        current,
+        stored[storageKey] as PanelCaptureState | undefined,
+      );
+      // If the user already typed during the short restore window, their live
+      // values win over the older session snapshot.
+      const restored: PanelCaptureState = {
+        ...restoredFromSession,
+        ...(current.draft !== undefined ? { draft: current.draft } : {}),
+        ...(current.transcript !== undefined ? { transcript: current.transcript } : {}),
+        ...(current.projects !== undefined ? { projects: current.projects } : {}),
+        ...(current.tags !== undefined ? { tags: current.tags } : {}),
+      };
+      await persistPanelState(restored);
+      broadcastPanelState(restored);
+    }).catch(() => {
+      const current = panelStates.get(staged.tabId) ?? staged;
+      void persistPanelState(current);
+    });
+  }
+  broadcastPanelState(staged);
   return staged;
 }
 
@@ -156,38 +326,41 @@ async function restorePanelState(tabId: number) {
   return stored;
 }
 
-async function openPanel(tabId: number, windowId?: number) {
+async function openPanel(tabId: number) {
   // Keep this API invocation synchronous relative to the original user
-  // gesture. Only persist the tracking bit after Chrome accepts the open.
-  const opening = nativeSidePanel.open({ tabId });
-  await opening;
-  await markPanelOpen(tabId, windowId);
+  // gesture. Start per-tab configuration first, but never await it before
+  // `open`: Chrome rejects opens that have crossed an async boundary.
+  openingPanelTabs.add(tabId);
+  const configured = prepareSidePanel(tabId);
+  try {
+    const opening = nativeSidePanel.open({ tabId });
+    await Promise.all([configured, opening]);
+    await markPanelOpen(tabId);
+  } catch (cause) {
+    openingPanelTabs.delete(tabId);
+    disableSidePanel(tabId);
+    throw cause;
+  }
 }
 
-async function toggleTrackedSidePanel(tabId: number, windowId?: number) {
-  const result = await toggleSidePanel(nativeSidePanel, openPanelTabs, tabId, windowId);
+async function toggleTrackedSidePanel(tabId: number, configured?: Promise<void>) {
+  const result = await toggleSidePanel(nativeSidePanel, openPanelTabs, tabId, configured);
   if (result === "closed") {
     await clearPanelOpen(tabId);
-  } else {
-    await markPanelOpen(tabId, windowId);
+  } else if (result === "opened") {
+    await markPanelOpen(tabId);
   }
   return result;
 }
 
 async function closeTrackedPanel(tabId: number) {
+  if (!nativeSidePanel.close) return;
   try {
-    const windowId = openPanelWindowId ?? (await chrome.tabs.get(tabId)).windowId;
-    if (typeof windowId === "number") {
-      await nativeSidePanel.close({ windowId });
-    } else {
-      await nativeSidePanel.close({ tabId });
-    }
-  } catch {
-    // Chrome versions differ in their handling of window-scoped close. The
-    // tab-scoped call remains the compatible fallback.
-    await nativeSidePanel.close({ tabId }).catch(() => undefined);
-  } finally {
+    await nativeSidePanel.close({ tabId });
     await clearPanelOpen(tabId);
+  } catch {
+    // Leave tracking intact when Chrome rejects the close. The native panel is
+    // still open, so low-level state must not pretend otherwise.
   }
 }
 
@@ -229,9 +402,7 @@ async function readPageCaptureContext(tab: chrome.tabs.Tab): Promise<PageCapture
   }
 }
 
-async function startPanelGenerate() {
-  const tabId = await getActivePanelTabId();
-  if (typeof tabId !== "number") return false;
+async function startPanelGenerate(tabId: number) {
   const current = await restorePanelState(tabId);
   if (!current?.targetAvailable) return false;
   const next: PanelCaptureState = {
@@ -240,13 +411,11 @@ async function startPanelGenerate() {
     updatedAt: Date.now(),
   };
   await persistPanelState(next);
-  void chrome.runtime.sendMessage({ type: "logue:panel-state-changed", state: next }).catch(() => undefined);
+  broadcastPanelState(next);
   return true;
 }
 
-async function returnPanelToPage() {
-  const tabId = await getActivePanelTabId();
-  if (typeof tabId !== "number") return false;
+async function returnPanelToPage(tabId: number) {
   const tab = await chrome.tabs.get(tabId);
   const context = await readPageCaptureContext(tab);
   const next = panelStateForTab(
@@ -261,22 +430,21 @@ async function returnPanelToPage() {
   );
   if (!next) return false;
   await persistPanelState(next);
-  void chrome.runtime.sendMessage({ type: "logue:panel-state-changed", state: next }).catch(() => undefined);
+  broadcastPanelState(next);
   return true;
 }
 
 async function toggleTabPanel(tab?: chrome.tabs.Tab) {
-  const tabId = typeof tab?.id === "number"
-    ? tab.id
-    : openPanelTabs.values().next().value;
-  const windowId = typeof tab?.windowId === "number" ? tab.windowId : openPanelWindowId;
+  const tabId = tab?.id;
   if (typeof tabId !== "number") return;
 
   if (openPanelTabs.has(tabId)) {
-    await toggleTrackedSidePanel(tabId, windowId);
+    await toggleTrackedSidePanel(tabId);
     return;
   }
   if (!tab || typeof tab.id !== "number") return;
+  openingPanelTabs.add(tabId);
+  const configured = prepareSidePanel(tabId);
 
   // Start reading the last native-panel state before opening, but never await it
   // on this gesture path. `sidePanel.open` must be called synchronously from the
@@ -295,7 +463,7 @@ async function toggleTabPanel(tab?: chrome.tabs.Tab) {
   if (!state) return;
   const opening = openPanelWithPreparedState(
     () => { stagePanelState(state); },
-    () => toggleTrackedSidePanel(tabId, windowId),
+    () => toggleTrackedSidePanel(tabId, configured),
   );
   void readPageCaptureContext(tab).then((context) => setPanelContext(
     tab,
@@ -307,7 +475,7 @@ async function toggleTabPanel(tab?: chrome.tabs.Tab) {
     context.candidateServerURL,
   )).catch(() => undefined);
   const wasOpen = (await priorOpen)[openPanelStorageKey(tabId)] === true;
-  if (wasOpen) {
+  if (wasOpen && nativeSidePanel.close) {
     try {
       await nativeSidePanel.close({ tabId });
       await clearPanelOpen(tabId);
@@ -317,19 +485,13 @@ async function toggleTabPanel(tab?: chrome.tabs.Tab) {
       // The synchronous open above is the correct safe fallback.
     }
   }
-  await opening;
-}
-
-async function toggleActiveTabPanel() {
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (tab) await toggleTabPanel(tab);
-}
-
-async function getActivePanelTabId() {
-  if (typeof activePanelTabId === "number") return activePanelTabId;
-  const stored = (await chrome.storage.session.get(activePanelStorageKey))[activePanelStorageKey];
-  if (typeof stored === "number") activePanelTabId = stored;
-  return activePanelTabId;
+  try {
+    await opening;
+  } catch (cause) {
+    openingPanelTabs.delete(tabId);
+    disableSidePanel(tabId);
+    throw cause;
+  }
 }
 
 async function setPanelContext(
@@ -345,7 +507,7 @@ async function setPanelContext(
   if (!state) return;
   const merged = preserveMatchingPanelDraft(state, await restorePanelState(state.tabId));
   await persistPanelState(merged);
-  void chrome.runtime.sendMessage({ type: "logue:panel-state-changed", state: merged }).catch(() => undefined);
+  broadcastPanelState(merged);
 }
 
 async function refreshPanelContextFromPage(tab: chrome.tabs.Tab) {
@@ -512,17 +674,16 @@ async function handleApiMessage(message: ApiMessage) {
   throw new Error("Unknown Logue API action.");
 }
 
-chrome.runtime.onInstalled.addListener((details) => {
+chrome.runtime.onInstalled.addListener(() => {
+  void disableDefaultSidePanel(nativeSidePanel).catch(() => undefined);
   chrome.contextMenus.removeAll(() => {
     selectionContextMenus.forEach((item) => chrome.contextMenus.create(item));
   });
-  if (details.reason === "update") {
-    void chrome.storage.session.get(null).then((session) => {
-      const staleOpenKeys = Object.keys(session).filter((key) => key.startsWith(openPanelStoragePrefix));
-      if (staleOpenKeys.length) return chrome.storage.session.remove(staleOpenKeys);
-      return undefined;
-    }).catch(() => undefined);
-  }
+  void chrome.tabs.query({}).then((tabs) => {
+    for (const tab of tabs) {
+      if (typeof tab.id === "number") syncSidePanelOption(tab.id);
+    }
+  }).catch(() => undefined);
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -551,14 +712,12 @@ chrome.commands.onCommand.addListener((command, tab) => {
   if (command !== sidePanelCommand) return;
   if (tab) {
     void toggleTabPanel(tab).catch(() => undefined);
-    return;
   }
-  void toggleActiveTabPanel().catch(() => undefined);
 });
 
 nativeSidePanel.onOpened?.addListener((info) => {
   if (typeof info.tabId === "number") {
-    void markPanelOpen(info.tabId, info.windowId);
+    void markPanelOpen(info.tabId);
   }
 });
 
@@ -567,115 +726,174 @@ nativeSidePanel.onClosed?.addListener((info) => {
   for (const tabId of closingTabs) {
     void clearPanelOpen(tabId);
     void chrome.tabs.sendMessage(tabId, { type: "logue:recording-dispose" }).catch(() => undefined);
+    void chrome.runtime.sendMessage({ type: "logue:side-panel-hidden", tabId }).catch(() => undefined);
   }
-  openPanelWindowId = undefined;
 });
 
-// MV3 workers can be suspended while Chrome keeps the native Side Panel open.
-// Rehydrate its ephemeral tracking in the background, never on the user-gesture
-// path that is required for `sidePanel.open`.
-void chrome.storage.session.get(null).then((session) => {
+function prepareSidePanel(tabId: number) {
+  return prepareTabSidePanel(nativeSidePanel, tabId);
+}
+
+function disableSidePanel(tabId: number) {
+  void disableTabSidePanel(nativeSidePanel, tabId).catch(() => undefined);
+}
+
+function syncSidePanelOption(tabId: number) {
+  if (openingPanelTabs.has(tabId) || openPanelTabs.has(tabId)) {
+    void prepareSidePanel(tabId).catch(() => undefined);
+    return;
+  }
+  void chrome.storage.session.get(openPanelStorageKey(tabId)).then((stored) => {
+    if (openingPanelTabs.has(tabId) || stored[openPanelStorageKey(tabId)] === true) {
+      openPanelTabs.add(tabId);
+      void prepareSidePanel(tabId).catch(() => undefined);
+      return;
+    }
+    disableSidePanel(tabId);
+  }).catch(() => disableSidePanel(tabId));
+}
+
+// Rebuild only current per-tab options after an MV3 worker restart. Tabs that
+// never opened Logue stay disabled, so Chrome has no global panel to display.
+void Promise.all([chrome.storage.session.get(null), chrome.tabs.query({})]).then(([session, tabs]) => {
   for (const [key, value] of Object.entries(session)) {
     if (value !== true || !key.startsWith(openPanelStoragePrefix)) continue;
     const tabId = Number(key.slice(openPanelStoragePrefix.length));
     if (Number.isInteger(tabId)) openPanelTabs.add(tabId);
   }
+  for (const tab of tabs) {
+    if (typeof tab.id === "number") {
+      if (openingPanelTabs.has(tab.id) || openPanelTabs.has(tab.id)) prepareSidePanel(tab.id).catch(() => undefined);
+      else disableSidePanel(tab.id);
+    }
+    if (tab.active && typeof tab.id === "number" && typeof tab.windowId === "number") {
+      activeTabByWindow.set(tab.windowId, tab.id);
+      void chrome.storage.session.set({ [activeTabStorageKey(tab.windowId)]: tab.id });
+    }
+  }
 }).catch(() => undefined);
 
-chrome.tabs.onRemoved.addListener((tabId) => {
-  panelStates.delete(tabId);
-  googleDocsEditorFrameByTab.delete(tabId);
-  googleDocsEditorPorts.delete(tabId);
-  void clearPanelOpen(tabId);
-  void chrome.storage.session.remove([`${panelStoragePrefix}${tabId}`, openPanelStorageKey(tabId)]);
+chrome.tabs.onCreated.addListener((tab) => {
+  if (typeof tab.id === "number") disableSidePanel(tab.id);
 });
 
-chrome.tabs.onActivated.addListener(({ tabId }) => {
-  if (openPanelTabs.size === 0) return;
-  const previousTabId = activePanelTabId;
-  if (typeof previousTabId !== "number" || previousTabId === tabId || !openPanelTabs.has(previousTabId)) return;
-  // A native Chrome side panel is visually shared by the window, but Logue
-  // capture is page-scoped. Never carry a page's source or recorder into a
-  // different tab; the user opens a fresh panel there explicitly.
-  void chrome.tabs.sendMessage(previousTabId, { type: "logue:recording-dispose" }).catch(() => undefined);
-  void closeTrackedPanel(previousTabId);
+chrome.tabs.onRemoved.addListener((tabId) => {
+  disposeInlineRecorderForTab(tabId);
+  panelStates.delete(tabId);
+  void clearPanelOpen(tabId);
+  void chrome.storage.session.remove([`${panelStoragePrefix}${tabId}`, openPanelStorageKey(tabId)]);
+  for (const [windowId, activeTabId] of activeTabByWindow) {
+    if (activeTabId === tabId) {
+      activeTabByWindow.delete(windowId);
+      void chrome.storage.session.remove(activeTabStorageKey(windowId));
+    }
+  }
+});
+
+chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
+  const previousTabId = activeTabByWindow.get(windowId);
+  const storedPrevious = typeof previousTabId === "number"
+    ? undefined
+    : chrome.storage.session.get(activeTabStorageKey(windowId));
+  activeTabByWindow.set(windowId, tabId);
+  void chrome.storage.session.set({ [activeTabStorageKey(windowId)]: tabId });
+  syncSidePanelOption(tabId);
+  // Chrome hides a tab-scoped panel when its page loses activation. Dispose
+  // only that tab's recorder; its draft remains in session storage for return.
+  if (typeof previousTabId === "number" && previousTabId !== tabId) {
+    disposeTabCapture(previousTabId);
+    return;
+  }
+  void storedPrevious?.then((stored) => {
+    const restoredTabId = stored[activeTabStorageKey(windowId)];
+    if (typeof restoredTabId === "number" && restoredTabId !== tabId) disposeTabCapture(restoredTabId);
+  }).catch(() => undefined);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.url) {
-    googleDocsEditorFrameByTab.delete(tabId);
-    googleDocsEditorPorts.delete(tabId);
-  }
-  if (!changeInfo.url || tabId !== activePanelTabId || openPanelTabs.size === 0) return;
+  if (changeInfo.status === "loading") disposeInlineRecorderForTab(tabId);
+  if (changeInfo.status || changeInfo.url) syncSidePanelOption(tabId);
+  if (!changeInfo.url || !openPanelTabs.has(tabId)) return;
   void refreshPanelContextFromPage(tab);
 });
 
-chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== "logue:google-docs-editor") return;
-  const tabId = port.sender?.tab?.id;
-  // Only the editor frame creates this named port (the top frame has no Docs
-  // event textarea), so do not discard it based on an implementation-specific
-  // frame id reported for an inherited about:blank document.
-  if (typeof tabId !== "number") return;
-  googleDocsEditorPorts.set(tabId, port);
-  port.onDisconnect.addListener(() => {
-    if (googleDocsEditorPorts.get(tabId) === port) googleDocsEditorPorts.delete(tabId);
-  });
-});
-
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
-  const googleDocsLauncherState = readGoogleDocsLauncherState(message);
-  if (googleDocsLauncherState) {
+  const googleDocsAction = readGoogleDocsLauncherAction(message);
+  if (googleDocsAction && sender.frameId === 0) {
     const tabId = sender.tab?.id;
-    // The visible editor target is in a tiny Docs frame. Relay its state to
-    // the top-frame content script through Chrome instead of relying on the
-    // page's WindowProxy identity across isolated extension worlds.
-    if (typeof tabId === "number") {
-      if (typeof sender.frameId === "number" && sender.frameId !== 0) {
-        googleDocsEditorFrameByTab.set(tabId, sender.frameId);
-      }
-      // Docs can create the about:blank editor after the outer document's
-      // initial scripts settle. Guarantee that the top-frame launcher is
-      // mounted when that real editor first reports focus.
-      void chrome.scripting.executeScript({
-        target: { tabId, frameIds: [0] },
-        files: ["content.js"],
-      }).catch(() => undefined);
-      const relay = typeof sender.frameId === "number" && sender.frameId !== 0
-        ? { ...message, editorFrameId: sender.frameId }
-        : message;
-      void chrome.tabs.sendMessage(tabId, relay, { frameId: 0 }).catch(() => undefined);
+    if (typeof tabId !== "number") {
+      sendResponse({ ok: false });
+      return false;
     }
+    void routeGoogleDocsLauncherAction(tabId, message).then((ok) => sendResponse({ ok })).catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (isInlineRecorderControl(message)) {
+    const tabId = sender.tab?.id;
+    if (typeof tabId !== "number") {
+      sendResponse({ ok: false, error: "Voice input needs an active webpage." });
+      return false;
+    }
+    const frameId = typeof sender.frameId === "number" ? sender.frameId : 0;
+    if (message.action === "start") inlineRecorderSessions.set(message.sessionId, { tabId, frameId });
+    if (message.action === "cancel") inlineRecorderSessions.delete(message.sessionId);
+    void sendInlineRecorderControl(message).then(() => sendResponse({ ok: true })).catch((cause: unknown) => {
+      inlineRecorderSessions.delete(message.sessionId);
+      sendResponse({ ok: false, error: cause instanceof Error ? cause.message : "Could not start voice input." });
+    });
+    return true;
+  }
+
+  if (isExtensionRecorderEvent(message)) {
+    if (message.event === "error" && needsMicrophonePermission(message.error)) {
+      void requestInlineRecorderPermission(message.sessionId);
+      return false;
+    }
+    forwardInlineRecorderEvent(message);
     return false;
   }
 
-  const googleDocsLauncherAction = readGoogleDocsLauncherAction(message);
-  if (googleDocsLauncherAction) {
-    const tabId = sender.tab?.id;
-    // Only the top-frame extension host may issue controls. The background
-    // routes them back to the known Docs editor frame, avoiding fragile page
-    // WindowProxy identity checks across Chrome isolated worlds.
-    if (typeof tabId === "number" && sender.frameId === 0) {
-      const editorPort = googleDocsEditorPorts.get(tabId);
-      if (editorPort) {
-        editorPort.postMessage(message);
-      } else {
-        void routeGoogleDocsLauncherAction(
-          tabId,
-          message,
-          readGoogleDocsLauncherEditorFrameId(message),
-        ).catch(() => undefined);
-      }
+  if (isMicrophonePermissionResult(message)) {
+    const pending = inlineRecorderPermission;
+    if (!pending || pending.token !== message.token) return false;
+    inlineRecorderPermission = undefined;
+    const target = inlineRecorderSessions.get(pending.sessionId);
+    if (!target) return false;
+    if (message.ok) {
+      void sendInlineRecorderControl({
+        type: "logue:inline-recorder-control",
+        action: "start",
+        sessionId: pending.sessionId,
+      }).catch((cause: unknown) => forwardInlineRecorderEvent({
+        type: "logue:extension-recorder-event",
+        event: "error",
+        sessionId: pending.sessionId,
+        error: cause instanceof Error ? cause.message : "Could not start voice input.",
+      }));
+      return false;
     }
+    forwardInlineRecorderEvent({
+      type: "logue:extension-recorder-event",
+      event: "error",
+      sessionId: pending.sessionId,
+      error: message.error || "Microphone access was not granted.",
+    });
+    return false;
+  }
+
+  const googleDocsState = readGoogleDocsLauncherState(message);
+  if (googleDocsState && sender.frameId !== 0 && typeof sender.tab?.id === "number") {
+    void chrome.tabs.sendMessage(sender.tab.id, message, { frameId: 0 }).catch(() => undefined);
     return false;
   }
 
   if (message?.type === "logue:page-context-ready") {
     const tab = sender.tab;
-    if (
-      tab && typeof tab.id === "number" &&
-      tab.id === activePanelTabId && openPanelTabs.size > 0
-    ) {
+    if (tab && typeof tab.id === "number") {
+      syncSidePanelOption(tab.id);
+    }
+    if (tab && typeof tab.id === "number" && openPanelTabs.has(tab.id)) {
       void refreshPanelContextFromPage(tab).catch(() => undefined);
     }
     return false;
@@ -717,18 +935,17 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
   }
 
   if (message?.type === "logue:get-panel-state") {
-    void getActivePanelTabId().then((tabId) => {
-      if (typeof tabId !== "number") {
-        sendResponse({ ok: true, value: undefined });
-        return;
-      }
-      void restorePanelState(tabId).then((value) => sendResponse({ ok: true, value }));
-    });
+    if (typeof message.tabId !== "number") {
+      sendResponse({ ok: true, value: undefined });
+      return false;
+    }
+    void restorePanelState(message.tabId).then((value) => sendResponse({ ok: true, value }));
     return true;
   }
 
   if (message?.type === "logue:request-panel-generate") {
-    void startPanelGenerate().then((started) => {
+    if (typeof message.tabId !== "number") return false;
+    void startPanelGenerate(message.tabId).then((started) => {
       if (!started) {
         sendResponse({ ok: false, error: "Open Logue from a page first." });
         return;
@@ -742,7 +959,8 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
   }
 
   if (message?.type === "logue:return-panel-to-page") {
-    void returnPanelToPage().then((returned) => {
+    if (typeof message.tabId !== "number") return false;
+    void returnPanelToPage(message.tabId).then((returned) => {
       sendResponse(returned ? { ok: true } : { ok: false, error: "Could not return to this page." });
     }).catch((error: unknown) => sendResponse({
       ok: false,
@@ -752,20 +970,22 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
   }
 
   if (message?.type === "logue:update-panel-state") {
-    if (typeof activePanelTabId !== "number") return false;
-    void restorePanelState(activePanelTabId).then((current) => {
-      if (current && message.patch) void persistPanelState(mergePanelCaptureState(current, message.patch));
-    });
-    return false;
+    if (typeof message.tabId !== "number") return false;
+    void restorePanelState(message.tabId).then((current) => {
+      if (current && message.patch) return persistPanelState(mergePanelCaptureState(current, message.patch));
+      return undefined;
+    }).then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+    return true;
   }
 
   if (message?.type === "logue:consume-panel-autostart") {
-    void getActivePanelTabId().then(async (tabId) => {
-      if (typeof tabId !== "number" || !message.token) {
+    if (typeof message.tabId !== "number") return false;
+    void Promise.resolve().then(async () => {
+      if (!message.token) {
         sendResponse({ ok: true, consumed: false });
         return;
       }
-      const current = await restorePanelState(tabId);
+      const current = await restorePanelState(message.tabId!);
       if (!current) {
         sendResponse({ ok: true, consumed: false });
         return;
@@ -782,9 +1002,8 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
   }
 
   if (message?.type === "logue:close-side-panel") {
-    if (typeof activePanelTabId !== "number") return false;
-    const closingTabId = activePanelTabId;
-    void nativeSidePanel.close({ tabId: closingTabId }).then(() => openPanelTabs.delete(closingTabId)).catch(() => undefined);
+    if (typeof message.tabId !== "number" || !nativeSidePanel.close) return false;
+    void closeTrackedPanel(message.tabId);
     return false;
   }
 

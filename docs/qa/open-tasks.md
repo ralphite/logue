@@ -9,7 +9,7 @@
 | 优先级 | 范围 | 状态 | 仍未完成的用户结果 | 完成证据要求 |
 |---|---|---|---|---|
 | P0 | Linux / LAN 远程服务（F22） | READY_FOR_REAL_ENV | Disposable Ubuntu Python 服务经随机 HTTPS 域名，已在真实 Mac Chrome 完成逐域名授权、地址替换、双行资料保存、Web/Side Panel 读回及页面 Reload 持久化；安装器也已提供 `0.0.0.0` / `127.0.0.1` 选择并默认前者。仍缺目标 Linux 的真实 systemd user service、防火墙分配且可能变化的内部域名、完整 Chrome 重启与 Linux 服务重启恢复。 | 在目标 Linux + Mac Chrome 完成真实 systemd 安装、动态内部域名连接、浏览器完整重启和服务重启。 |
-| P0 | Google Docs 行内语音（F25） | READY_FOR_REAL_ENV | 已将当前 `v0.2.10` 构建装入既有 unpacked Extension 身份，并在真实 Docs canvas 进入 Start → Cancel/Stop → Transcribing；自动化采集没有人声，Gemini 因此没有返回文字。仍缺真实口述后的单次保存与单次插入证明；启动器键盘可达性也是独立 P1。 | 用真实口述短句完成保存一次、插入一次、不触发 Docs 命令；Esc 取消保持零写入。 |
+| P0 | Google Docs 行内语音（F25） | READY_FOR_REAL_ENV | 已将当前 `v0.2.10` 构建装入既有 unpacked Extension 身份，并在真实 Docs canvas 进入 Start → Cancel/Stop → Transcribing；Docs 编辑器聚焦后 `Tab` 聚焦启动器、`Enter` 开始、`Esc` 取消并回到编辑器，取消未写入内容。自动化采集没有人声，Gemini 因此没有返回文字。仍缺真实口述后的单次保存与单次插入证明。 | 用真实口述短句完成保存一次、插入一次、不触发 Docs 命令；Esc 取消保持零写入。 |
 | P1 | Extension 核心可靠性（B03、B27、F04） | IN_PROGRESS | 标准 input 首击、选区文字/语音批注、无输入框页面录音、页面历史即时刷新、目标丢失、断线重试幂等，以及 `Cmd+Shift+L` 重开后的焦点仍缺当前 Release 的完整实测。 | 当前 Release 在真实 Chrome 覆盖以上路径；不丢资料、不重复保存/插入、不自动 submit。 |
 | P1 | Selection Skills 最终防护（F06、F18） | IN_PROGRESS | Document 与当前 unpacked Extension 的 textarea/contenteditable 已真实通过菜单稳定、外部关闭、重新选择及多行写回；仍缺 Gemini 运行中按 Esc、切换选区/目标/SPA 路由后等待迟到结果返回也绝不写回的真实 Chrome 验证。 | 当前 Release 在真实 Chrome 完成取消与漂移回归，原文保持不变，菜单不被迟到事件唤回，提交计数为 0。 |
 | P1 | 自动整理与历史资料（B06、F05） | IN_PROGRESS | 新资料分类闭环已具备；真实库仍有旧的低置信中文理由需要一次性安全整理，并重新确认人工分类不会被后台覆盖。 | 备份后一次性转换，真实读取/修改/重启验证通过，并删除转换代码。 |
