@@ -64,10 +64,6 @@ run_installer() {
   local base_url="$1" autostart="$2" address="$3" fail_at="${4:-}"
   local runtime_path
   runtime_path="${fake_bin}:/usr/bin:/bin"
-  if PATH="${runtime_path}" command -v node >/dev/null 2>&1 || PATH="${runtime_path}" command -v go >/dev/null 2>&1; then
-    printf 'runtime PATH unexpectedly exposes Node.js or Go\n' >&2
-    exit 1
-  fi
   HOME="${test_home}" \
   PATH="${runtime_path}" \
   LOGUE_INSTALLER_TESTING=1 \
@@ -85,6 +81,11 @@ run_installer() {
   LOGUE_TEST_SYSTEMCTL_LOG="${test_root}/systemctl.log" \
   /bin/bash "${repo_dir}/install.sh"
 }
+
+if grep -Eq '(^|[^[:alnum:]_])(node|npm|go)([^[:alnum:]_]|$)' "${repo_dir}/install.sh"; then
+  printf 'installer invokes a build-time runtime instead of Python 3.13\n' >&2
+  exit 1
+fi
 
 status_version() {
   curl -fsS "http://127.0.0.1:${port}/v1/status" | grep -Fq "\"version\":\"$1\""
