@@ -120,6 +120,21 @@ feature fails.
   is a local QA build, not a Release; the next verified Release must replace it
   through the normal installer path.
 
+### DR-005 — Target Linux acceptance environment is not configured here
+
+- **Priority:** P0
+- **Status:** blocked on target environment access
+- **Decision boundary:** The Python installer and LAN/domain flow have isolated
+  evidence, but the required target Linux host, its systemd-user environment,
+  firewall-assigned domain, and a Mac Chrome endpoint are not configured in
+  this workspace. The local SSH configuration only names GitHub.
+- **Why it matters:** A temporary Ubuntu run cannot prove the target host's
+  startup, dynamic-domain reachability, or restart recovery. Treating it as a
+  completed LAN install would hide a material delivery risk.
+- **Next proof:** On the target Linux host, run the current installer, choose
+  the default `0.0.0.0` binding, connect its assigned domain from the Mac
+  Extension, then restart both the service and Chrome and repeat a save/read.
+
 ## Resolved
 
 Move an item here only after its stated direct user-flow proof passes. Keep its
