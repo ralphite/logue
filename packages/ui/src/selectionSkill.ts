@@ -147,6 +147,12 @@ export async function saveSelectionSkillHistory(
   }
 }
 
+export function normalizeSelectionSkillReplacement(value: string | undefined) {
+  if (value === undefined) return undefined;
+  const normalized = value.replace(/\r\n?/g, "\n");
+  return normalized.trim() ? normalized : undefined;
+}
+
 export function selectionSnapshotStillMatches(snapshot: EditableSelectionSnapshot) {
   if (!snapshot.target.isConnected) return false;
   if (snapshot.kind === "input") {

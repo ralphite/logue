@@ -1,4 +1,4 @@
-import { SelectionSkillMenu, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type SelectionSkillApplyTransaction } from "@logue/ui";
+import { SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { adoptExtensionSkillRun, cancelMaterialSave, createExtensionSkillRun, getCaptureContext, getExtensionSkills, saveMaterial, transcribeAudio, type AppliedContext, type ExtensionSkill } from "./api";
@@ -175,7 +175,7 @@ function ExtensionLauncher() {
       setSelectionSnapshot(undefined);
       return;
     }
-    dismissedSelectionSnapshotRef.current = undefined;
+    if (next) dismissedSelectionSnapshotRef.current = undefined;
     selectionSnapshotRef.current = next;
     setSelectionSnapshot(next);
     if (!next || selectionSkillsLoadedRef.current) return;
@@ -196,6 +196,10 @@ function ExtensionLauncher() {
   }, [refreshSelectionSkillTarget]);
 
   const dismissSelectionSkills = useCallback(() => {
+    if (selectionRefreshFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(selectionRefreshFrameRef.current);
+      selectionRefreshFrameRef.current = undefined;
+    }
     if (selectionSnapshotRef.current) {
       dismissedSelectionSnapshotRef.current = selectionSnapshotRef.current;
     }
@@ -743,7 +747,7 @@ function ExtensionLauncher() {
       showSelectionSkillNotice({ anchor: snapshot.anchor, message: "Selection changed — choose a skill again." });
       return;
     }
-    const replacement = run.original_output?.trim();
+    const replacement = normalizeSelectionSkillReplacement(run.original_output);
     if (!replacement) throw new Error("This skill returned no text.");
     if (!replaceSelectionIfUnchanged(snapshot, replacement)) {
       showSelectionSkillNotice({ anchor: snapshot.anchor, message: "Selection changed — choose a skill again." });

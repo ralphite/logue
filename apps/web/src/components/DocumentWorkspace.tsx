@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { OverlayMenu, SelectionSkillMenu, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type Material, type SelectionSkillApplyTransaction } from "@logue/ui";
+import { OverlayMenu, SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type Material, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSerialTaskQueue } from "../documentSaveQueue";
 import { groupIdenticalMaterials } from "../materialGroups";
@@ -362,7 +362,7 @@ export function ViewWorkspace({
   const selectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
   const dismissedSelectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
   const selectionRefreshFrameRef = useRef<number | undefined>(undefined);
-  const selectionDocumentRef = useRef<{ id: string; revision: number } | undefined>(undefined);
+  const selectionDocumentRef = useRef<{ id: string } | undefined>(undefined);
   const selectionSkillsLoadedRef = useRef(false);
   const selectionUndoTimerRef = useRef<number | undefined>(undefined);
   const selectionNoticeTimerRef = useRef<number | undefined>(undefined);
@@ -722,9 +722,9 @@ export function ViewWorkspace({
       setSelectionSnapshot(undefined);
       return;
     }
-    dismissedSelectionSnapshotRef.current = undefined;
+    if (next) dismissedSelectionSnapshotRef.current = undefined;
     selectionSnapshotRef.current = next;
-    selectionDocumentRef.current = next ? { id: documentID, revision: revisionByDocumentRef.current.get(documentID) ?? 0 } : undefined;
+    selectionDocumentRef.current = next ? { id: documentID } : undefined;
     setSelectionSnapshot(next);
     if (!next || selectionSkillsLoadedRef.current) return;
     selectionSkillsLoadedRef.current = true;
@@ -744,6 +744,10 @@ export function ViewWorkspace({
   }, [refreshDocumentSkillSelection]);
 
   const dismissDocumentSelectionSkills = useCallback(() => {
+    if (selectionRefreshFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(selectionRefreshFrameRef.current);
+      selectionRefreshFrameRef.current = undefined;
+    }
     if (selectionSnapshotRef.current) {
       dismissedSelectionSnapshotRef.current = selectionSnapshotRef.current;
     }
@@ -798,7 +802,9 @@ export function ViewWorkspace({
     const selectionDocument = selectionDocumentRef.current;
     const editor = editorRef.current;
     const selectedDocument = selectedIdRef.current;
-    if (!snapshot || !selectionDocument || !editor || !selectedDocument || selectionDocument.id !== selectedDocument || selectionDocument.revision !== (revisionByDocumentRef.current.get(selectedDocument) ?? 0)) {
+    // Autosave can advance the server revision while this exact DOM selection
+    // remains valid. The document identity and range snapshot are the write guard.
+    if (!snapshot || !selectionDocument || !editor || !selectedDocument || selectionDocument.id !== selectedDocument) {
       showSelectionSkillNotice({ message: "Selection changed — choose a skill again." });
       return;
     }
@@ -821,13 +827,12 @@ export function ViewWorkspace({
     if (
       selectionSnapshotRef.current !== snapshot ||
       currentSelectionDocument.id !== selectionDocument.id ||
-      currentSelectionDocument.revision !== selectionDocument.revision ||
       selectedIdRef.current !== selectedDocument
     ) {
       showSelectionSkillNotice({ message: "Selection changed — choose a skill again." });
       return;
     }
-    const replacement = run.original_output?.trim();
+    const replacement = normalizeSelectionSkillReplacement(run.original_output);
     if (!replacement) throw new Error("This skill returned no text.");
     const beforeContent = editor.innerHTML;
     const beforeSourceIds = [...sourceIds];

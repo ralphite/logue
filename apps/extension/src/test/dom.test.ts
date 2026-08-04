@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { captureEditableSelection, captureStableEditableSelection, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility } from "@logue/ui";
+import { captureEditableSelection, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility } from "@logue/ui";
 import { activeEditableElement, googleDocsEditorFrame, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "../dom";
 
 describe("editable integration", () => {
@@ -149,6 +149,12 @@ describe("editable integration", () => {
 
     expect(snapshot && replaceSelectionIfUnchanged(snapshot, "first line\nsecond line\nthird line")).toBe(true);
     expect(textarea.value).toBe("Before first line\nsecond line\nthird line after");
+  });
+
+  it("keeps meaningful outer line breaks from a skill result", () => {
+    expect(normalizeSelectionSkillReplacement("\r\nfirst\r\nsecond\r\n"))
+      .toBe("\nfirst\nsecond\n");
+    expect(normalizeSelectionSkillReplacement(" \n ")).toBeUndefined();
   });
 
   it("keeps a stable snapshot until the textarea selection is cleared", () => {
