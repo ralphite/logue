@@ -566,8 +566,8 @@ func (api *API) projectOverviewDraft(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "project has no materials")
 		return
 	}
-	draft, err := api.gemini.GenerateDocument(r.Context(), name+" 概览更新草稿", name, project.Overview,
-		"根据新资料起草一份简洁的项目概览更新。只保留以后输入真正需要的背景、已确认决定、约束和当前目标；保留行内来源引用；不要把建议冒充成已确认事实。", sources)
+	draft, err := api.gemini.GenerateDocument(r.Context(), name+" overview update draft", name, project.Overview,
+		"Draft a concise project overview update from the new materials. Keep only context, confirmed decisions, constraints, and current goals that future input needs. Preserve inline source citations, and never present suggestions as confirmed facts.", sources)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
@@ -655,11 +655,7 @@ func (api *API) generateDocument(w http.ResponseWriter, r *http.Request) {
 	}
 	title := strings.TrimSpace(input.Title)
 	if title == "" {
-		if input.Project != "" {
-			title = input.Project + " 文档"
-		} else {
-			title = "新建文档"
-		}
+		title = "Untitled"
 	}
 	content, err := api.gemini.GenerateDocument(r.Context(), title, input.Project, overview, input.Instruction, sources)
 	if err != nil {
@@ -668,7 +664,7 @@ func (api *API) generateDocument(w http.ResponseWriter, r *http.Request) {
 	}
 	content, usedSourceIDs := reconcileDocumentCitations(content, selectedSourceIDs, nil)
 	if len(usedSourceIDs) == 0 {
-		writeError(w, http.StatusBadGateway, "Gemini 未返回可追溯的来源引用，请重试")
+		writeError(w, http.StatusBadGateway, "Gemini returned no traceable source citations. Try again.")
 		return
 	}
 	document, err := api.store.CreateDocument(CreateDocumentInput{
@@ -710,7 +706,7 @@ func (api *API) document(w http.ResponseWriter, r *http.Request) {
 		}
 		document, err := api.store.UpdateDocument(id, input)
 		if errors.Is(err, errDocumentRevisionConflict) {
-			writeError(w, http.StatusConflict, "文档已在其他位置更新，请重新载入后继续")
+			writeError(w, http.StatusConflict, "This document changed elsewhere. Reload it before continuing.")
 			return
 		}
 		if errors.Is(err, fs.ErrNotExist) {

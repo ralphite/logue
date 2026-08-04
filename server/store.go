@@ -410,7 +410,7 @@ func (s *Store) DeleteMaterial(id string) error {
 		}
 		var document Document
 		if json.Unmarshal(data, &document) == nil && contains(document.SourceIDs, id) {
-			return fmt.Errorf("资料仍被文档“%s”引用，请先从文档中移除引用", document.Title)
+			return fmt.Errorf("material is still cited by document %q; remove the citation first", document.Title)
 		}
 	}
 	path := filepath.Join(s.root, "items", id+".json")
