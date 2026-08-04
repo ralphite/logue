@@ -8,7 +8,7 @@
 
 | 优先级 | 范围 | 状态 | 仍未完成的用户结果 | 完成证据要求 |
 |---|---|---|---|---|
-| P0 | Linux / LAN 远程服务（F22） | READY_FOR_REAL_ENV | 打开 Logue Web App 后的明确 host 一键授权已在真实 Mac Chrome + 非回环地址通过，安装器也已提供 `0.0.0.0` / `127.0.0.1` 选择并默认前者；仍缺另一台真实 Linux systemd user service、防火墙分配且可能变化的域名、跨机保存/读取、Chrome/MV3/Linux 重启恢复闭环。 | 在真实 Linux + Mac Chrome 完成连接、地址替换、保存/读取、浏览器重启和服务重启。 |
+| P0 | Linux / LAN 远程服务（F22） | READY_FOR_REAL_ENV | Disposable Ubuntu Python 服务经随机 HTTPS 域名，已在真实 Mac Chrome 完成逐域名授权、地址替换、双行资料保存、Web/Side Panel 读回及页面 Reload 持久化；安装器也已提供 `0.0.0.0` / `127.0.0.1` 选择并默认前者。仍缺目标 Linux 的真实 systemd user service、防火墙分配且可能变化的内部域名、完整 Chrome 重启与 Linux 服务重启恢复。 | 在目标 Linux + Mac Chrome 完成真实 systemd 安装、动态内部域名连接、浏览器完整重启和服务重启。 |
 | P1 | Extension 核心可靠性（B03、B27、F04） | IN_PROGRESS | 标准 input 首击、选区文字/语音批注、无输入框页面录音、页面历史即时刷新、目标丢失、断线重试幂等，以及 `Cmd+Shift+L` 重开后的焦点仍缺当前 Release 的完整实测。 | 当前 Release 在真实 Chrome 覆盖以上路径；不丢资料、不重复保存/插入、不自动 submit。 |
 | P1 | Selection Skills 最终防护（F06、F18） | IN_PROGRESS | Document 与当前 unpacked Extension 的 textarea/contenteditable 已真实通过菜单稳定、外部关闭、重新选择及多行写回；仍缺 Gemini 运行中按 Esc、切换选区/目标/SPA 路由后等待迟到结果返回也绝不写回的真实 Chrome 验证。 | 当前 Release 在真实 Chrome 完成取消与漂移回归，原文保持不变，菜单不被迟到事件唤回，提交计数为 0。 |
 | P2 | 滚动区域布局稳定 | IN_PROGRESS | 部分 scrollbar 仍属于页面而非实际滚动 pane，出现/消失时会改变可用宽度。 | 每个长列表/编辑 pane 自身滚动并预留稳定 gutter；切换长短内容时 header、panel 与正文横向位置不跳动。 |
