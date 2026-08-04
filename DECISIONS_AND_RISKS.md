@@ -154,6 +154,25 @@ feature fails.
   task tracker still lists both field proofs as `READY_FOR_REAL_ENV`.
 - **User decision:** Explicitly approved in this task on 2026-08-04.
 
+### DR-007 — Extension opens a missing-file error in the current Chrome profile
+
+- **Priority:** P0
+- **Status:** reported in real use; exact failing URL not yet observable
+- **Decision boundary:** Do not replace, reload, or move the user’s unpacked
+  Extension directory until the exact Chrome error URL identifies the missing
+  resource. Those actions could change the current extension identity and hide
+  the reproducible cause.
+- **User-visible impact:** Opening Logue can show Chrome’s “Your file couldn’t
+  be accessed” error instead of the Side Panel, blocking all capture workflows.
+- **Evidence:** The user reported the error on 2026-08-04. The checked stable
+  directory has the manifest-referenced QA assets, and the `v0.2.11` archive
+  has its Side Panel HTML and referenced assets; the standalone installer
+  overwrite regression also passes. The error page itself is not exposed as a
+  Chrome tab, so its `chrome-extension://…` URL is still needed.
+- **Next proof:** Capture the full error-page URL or screenshot, identify the
+  missing resource, then make the smallest fix and verify the real Side Panel
+  opens without changing Chrome storage.
+
 ## Resolved
 
 Move an item here only after its stated direct user-flow proof passes. Keep its
