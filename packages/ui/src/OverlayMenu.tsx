@@ -237,7 +237,10 @@ export function OverlayMenu({
     "aria-controls": open ? menuId : undefined,
     "aria-expanded": open,
     "aria-haspopup": "menu",
-    onClick: () => onOpenChange(!open, "trigger"),
+    onClick: () => {
+      if (!open) focusAfterOpenRef.current = "first";
+      onOpenChange(!open, "trigger");
+    },
     onKeyDown: (event) => {
       if (event.key === "ArrowDown") {
         event.preventDefault();
