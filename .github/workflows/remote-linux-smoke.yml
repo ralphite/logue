@@ -77,24 +77,21 @@ jobs:
           "${cloudflared}" version
 
       - name: Open the temporary remote QA URL
+        id: tunnel
         shell: bash
         run: |
           set -Eeuo pipefail
           cloudflared="${RUNNER_TEMP}/cloudflared"
           tunnel_log="${RUNNER_TEMP}/cloudflared.log"
-          service_pid_file="${LOGUE_QA_INSTALL_ROOT}/run/logue.pid"
+          remote_url_file="${RUNNER_TEMP}/logue-remote-url.txt"
           cloudflared_pid=""
 
-          cleanup() {
+          cleanup_on_error() {
             if [[ -n "${cloudflared_pid}" ]]; then
               kill "${cloudflared_pid}" >/dev/null 2>&1 || true
             fi
-            if [[ -f "${service_pid_file}" ]]; then
-              service_pid="$(tr -dc '0-9' < "${service_pid_file}")"
-              [[ -n "${service_pid}" ]] && kill "${service_pid}" >/dev/null 2>&1 || true
-            fi
           }
-          trap cleanup EXIT INT TERM
+          trap cleanup_on_error ERR
 
           "${cloudflared}" tunnel --no-autoupdate --url http://127.0.0.1:8787 \
             >"${tunnel_log}" 2>&1 &
@@ -116,6 +113,10 @@ jobs:
             exit 1
           }
           curl -fsS --retry 12 --retry-delay 1 "${remote_url}/v1/status" | grep -Fq '"ok":true'
+          printf '%s\n' "${remote_url}" > "${remote_url_file}"
+          echo "LOGUE_QA_TUNNEL_PID=${cloudflared_pid}" >> "${GITHUB_ENV}"
+          echo "LOGUE_QA_REMOTE_URL=${remote_url}" >> "${GITHUB_ENV}"
+          echo "remote_url=${remote_url}" >> "${GITHUB_OUTPUT}"
 
           {
             echo "## Logue remote Linux QA"
@@ -133,4 +134,32 @@ jobs:
           echo "::notice title=Logue remote Linux QA::${remote_url}"
           echo "Temporary QA URL: ${remote_url}"
           echo "WARNING: empty QA data only; do not add real or sensitive data."
+          trap - ERR
+
+      - name: Publish the temporary URL
+        uses: actions/upload-artifact@v4
+        with:
+          name: logue-remote-linux-url-${{ github.run_id }}
+          path: ${{ runner.temp }}/logue-remote-url.txt
+          retention-days: 1
+
+      - name: Hold the disposable environment
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl -fsS --retry 5 --retry-delay 1 "${LOGUE_QA_REMOTE_URL}/v1/status" | grep -Fq '"ok":true'
           sleep "${{ inputs.hold_minutes }}m"
+
+      - name: Stop the disposable environment
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -n "${LOGUE_QA_TUNNEL_PID:-}" ]]; then
+            kill "${LOGUE_QA_TUNNEL_PID}" >/dev/null 2>&1 || true
+          fi
+          service_pid_file="${LOGUE_QA_INSTALL_ROOT}/run/logue.pid"
+          if [[ -f "${service_pid_file}" ]]; then
+            service_pid="$(tr -dc '0-9' < "${service_pid_file}")"
+            [[ -n "${service_pid}" ]] && kill "${service_pid}" >/dev/null 2>&1 || true
+          fi
