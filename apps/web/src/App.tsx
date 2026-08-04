@@ -299,7 +299,7 @@ export function App() {
       ) : section === "settings" ? (
         <SettingsPage status={status} />
       ) : (
-        <main className={`scroll-surface min-h-0 min-w-0 flex-1 overflow-y-auto ${materialMode === "page" ? "hidden" : ""}`}>
+        <main className={`scroll-surface min-h-0 min-w-0 flex-1 overflow-y-auto bg-[var(--surface)] ${materialMode === "page" ? "hidden" : ""}`}>
           <PageHeader
             title="Stream"
             testId="stream-header-column"
