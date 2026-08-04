@@ -35,6 +35,15 @@ export function googleDocsEditorFrame(document: Document) {
 }
 
 /**
+ * The hidden text-event iframe handles keyboard input, but it is not a visual
+ * anchor. Keep the launcher inside the visible Docs editor surface instead.
+ */
+export function googleDocsEditorSurface(document: Document) {
+  return document.querySelector<HTMLElement>(".kix-appview-editor")
+    ?? googleDocsEditorFrame(document);
+}
+
+/**
  * Docs can keep keyboard focus inside its event-target frame without making
  * that iframe the parent document's activeElement. Check the real textarea as
  * well, so the top-frame launcher follows the actual editor focus.

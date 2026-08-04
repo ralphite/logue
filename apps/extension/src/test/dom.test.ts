@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { captureEditableSelection, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility } from "@logue/ui";
-import { activeEditableElement, googleDocsEditorFrame, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "../dom";
+import { activeEditableElement, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "../dom";
 
 describe("editable integration", () => {
   beforeEach(() => {
@@ -36,6 +36,16 @@ describe("editable integration", () => {
     document.body.append(frame);
 
     expect(googleDocsEditorFrame(document)).toBe(frame);
+  });
+
+  it("uses the visible Google Docs editor as the launcher surface", () => {
+    const frame = document.createElement("iframe");
+    frame.className = "docs-texteventtarget-iframe";
+    const editor = document.createElement("div");
+    editor.className = "kix-appview-editor";
+    document.body.append(frame, editor);
+
+    expect(googleDocsEditorSurface(document)).toBe(editor);
   });
 
   it("treats focus inside the Google Docs event iframe as editor focus", () => {

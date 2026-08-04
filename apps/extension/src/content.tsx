@@ -2,7 +2,7 @@ import { SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionS
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { adoptExtensionSkillRun, cancelMaterialSave, createExtensionSkillRun, getCaptureContext, getExtensionSkills, saveMaterial, transcribeAudio, type AppliedContext, type ExtensionSkill } from "./api";
-import { activeEditableElement, getEditableText, googleDocsEditorFrame, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "./dom";
+import { activeEditableElement, getEditableText, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "./dom";
 import { hasNativeSelectionSkillOwner, isLogueExtensionDisabledDocument, logueServerCandidate } from "./eligibility";
 import {
   googleDocsLauncherActionMessage,
@@ -349,7 +349,8 @@ function ExtensionLauncher() {
         return;
       }
       if (!frame.contentWindow) return;
-      setGoogleDocsProxy({ ...state, anchor: frame.getBoundingClientRect(), editorFrameId });
+      const surface = googleDocsEditorSurface(document) ?? frame;
+      setGoogleDocsProxy({ ...state, anchor: surface.getBoundingClientRect(), editorFrameId });
     };
     const onGoogleDocsRelay = (message: unknown) => {
       // Only the top document renders the control. The background forwards a
@@ -388,7 +389,7 @@ function ExtensionLauncher() {
         ) ? undefined : current);
         return;
       }
-      const anchor = frame.getBoundingClientRect();
+      const anchor = (googleDocsEditorSurface(document) ?? frame).getBoundingClientRect();
       setGoogleDocsProxy((current) => {
         if (
           current && current.anchor.left === anchor.left && current.anchor.top === anchor.top &&
@@ -678,11 +679,13 @@ function ExtensionLauncher() {
   const position = defaultPosition ? clampLauncherPosition(defaultPosition, viewport, controlMetrics.width, controlMetrics.height) : undefined;
   const googleDocsMetrics = googleDocsProxy ? inlineVoiceControlMetrics[googleDocsProxy.phase] : undefined;
   const googleDocsPosition = googleDocsProxy && googleDocsMetrics
-    // The Docs editor iframe is a tiny hidden event target. Aligning the host
-    // control over it lets the iframe intercept clicks, so place the control
-    // immediately beside the real caret target instead.
+    // The Docs text-event iframe is hidden outside the viewport. Keep the
+    // control inside the visible editor surface instead of the toolbar.
     ? clampLauncherPosition(
-      { left: googleDocsProxy.anchor.right + 8, top: googleDocsProxy.anchor.top - 4 },
+      {
+        left: googleDocsProxy.anchor.right - googleDocsMetrics.width - 16,
+        top: googleDocsProxy.anchor.top + 16,
+      },
       viewport,
       googleDocsMetrics.width,
       googleDocsMetrics.height,
