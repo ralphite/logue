@@ -23,7 +23,7 @@
 
 ## 2. 当前事实与兼容边界
 
-- 当前只有一个用户，不需要多租户或历史版本兼容；受支持的实际部署可以跨两台机器：Linux 主机运行唯一的 Go/Web/数据服务，MacBook Chrome 作为客户端。当前真实数据所在的服务主机必须受保护；隔离安装验收机器可视为无既有数据。
+- 当前只有一个用户，不需要多租户或历史版本兼容；受支持的实际部署可以跨两台机器：Linux 主机以系统自带的 Python 3.13 运行唯一的 API/Web/数据服务，MacBook Chrome 作为客户端。目标 Linux 不能执行本项目构建的原生二进制，也没有 Node.js；当前真实数据所在的服务主机必须受保护，隔离安装验收机器可视为无既有数据。
 - 当前 schema、routes、产品名称、默认值、Citation 格式、标题格式和文件格式是唯一真相。
 - 除非用户明确要求兼容，禁止保留或新增 legacy migration、旧字段/旧路由 alias、旧文案 fallback、双格式 parser、旧 seed、兼容 fixture、兼容测试或废弃代码分支。
 - 若当前真实数据必须更新，只允许：完整备份 → 一次性转换 → 真实读取/写入验证 → 删除转换代码。不得把一次性转换永久留在启动路径。
@@ -144,7 +144,7 @@ Web App 一级导航只使用以下五个等权入口：
 
 ### 4.7 Linux / LAN 服务连接
 
-- Go API 与生产 Web App 必须可在 Linux 主机上作为同源服务运行。交互式安装时明确让用户选择监听 `0.0.0.0` 或 `127.0.0.1`，默认选择 `0.0.0.0`；同时必须明确提示 Logue 当前没有公网认证，只应由防火墙限制在可信局域网/VPN 或置于受控反向代理之后。
+- Python 3.13 API 与生产 Web App 必须可在 Linux 主机上作为同源服务运行；Release 必须包含已构建的 Web 与 Extension，目标机不得需要 Go、Node.js、npm、pip 或本项目构建的原生二进制。交互式安装时明确让用户选择监听 `0.0.0.0` 或 `127.0.0.1`，默认选择 `0.0.0.0`；同时必须明确提示 Logue 当前没有公网认证，只应由防火墙限制在可信局域网/VPN 或置于受控反向代理之后。
 - MacBook Chrome Extension 默认连接 `http://127.0.0.1:8787`，同时提供极简的 `Server settings…` 入口，可连接用户已知的任意 `http(s)` origin（含端口）。防火墙重新分配域名后，用户只需替换一次地址即可恢复全部流程。
 - 当用户已经在 Mac Chrome 打开 Linux 主机同源托管的 Logue Web App，而 Extension 当前 Server 不可达时，Extension 必须只依据 Logue 产品 marker 将该页面 origin 作为候选，并提供一次点击、显示精确 host 的连接动作；普通网页不得出现这一授权入口，候选仍须通过精确 origin 权限和 `/v1/status` 兼容性验证后才保存。
 - 远程 Server URL 只存于该 Chrome 安装的 `chrome.storage.local`；只接受规范化的 `http(s)` origin，拒绝凭据、query、fragment 和非 Web scheme。不得保存 Gemini Key，也不得把远程地址复制进每条资料。
@@ -152,7 +152,8 @@ Web App 一级导航只使用以下五个等权入口：
 - 保存新地址前必须通过 `/v1/status` 验证确实是兼容的 Logue 服务；成功后安静关闭设置并重新加载当前页面上下文、页面资料、Skills 和设置。正常连接不显示 `Connected`；断开时只显示局部 `Retry` 与 `Change server`。
 - 所有 Extension API 路径，包括页面历史、右键保存、选区 Skill、录音、生成、采用与取消，都必须由 background 统一使用当前 Server URL；禁止任何 content script、Side Panel 或 helper 绕过配置直连 localhost。
 - Extension、Chrome/MV3 worker 和浏览器重启后必须恢复已选 Server URL；地址变更后下一次请求立即使用新地址，不依赖 service worker 内存缓存。
-- Linux 服务安装器不能假装能跨机器静默安装 MacBook Chrome Extension。Release 必须另提供平台无关、带校验和、可覆盖的 Extension 客户端资产/安装命令；首次只需在 MacBook 的 `chrome://extensions` 以 `Load unpacked` 选择稳定目录，后续升级复用同一路径和现有 `chrome.storage`，只需 Reload，不得要求在 MacBook 启动本地 Go 服务。
+- Linux 服务安装器不能假装能跨机器静默安装 MacBook Chrome Extension。Release 必须另提供平台无关、带校验和、可覆盖的 Extension 客户端资产/安装命令；首次只需在 MacBook 的 `chrome://extensions` 以 `Load unpacked` 选择稳定目录，后续升级复用同一路径和现有 `chrome.storage`，只需 Reload，不得要求在 MacBook 启动本地服务。
+- Google Docs 是 Extension 的必验宿主：真实 `docs.google.com` 文档编辑器获得焦点时，语音 launcher 必须显示在可见编辑画布内而不是浏览器/Docs 工具栏；点击后能录音，`Enter` 停止并插入，`Esc` 取消，且不触发文档提交或其它宿主动作。
 
 ## 5. 资料、项目、自动整理与来源
 
@@ -299,9 +300,9 @@ Storybook 至少包含：
 
 ## 10. 工程质量规则
 
-- Web App：React + TypeScript + Tailwind CSS；本机 API/数据层：Go；组件系统：Storybook；AI：Gemini。
-- Gemini API Key 只从本机 Go 进程的终端环境变量读取，不得进入 Web、Extension storage、数据文件、日志、GitHub 或 Release。
-- 转写模型、默认处理 Skill 与上下文上限必须可由本机 Go 进程环境变量配置；配置与日志不得泄露 Gemini Key 或用户资料。
+- Web App：React + TypeScript + Tailwind CSS；服务与数据层：Python 3.13 标准库；组件系统：Storybook；AI：Gemini。
+- Gemini API Key 只从 Python 服务进程的环境变量读取，不得进入 Web、Extension storage、数据文件、日志、GitHub 或 Release。
+- 转写模型、默认处理 Skill 与上下文上限必须可由 Python 服务进程环境变量配置；配置与日志不得泄露 Gemini Key 或用户资料。
 - 默认 Prompt、Skills、分类理由、demo 和系统生成文案使用英文；不得把用户自己的中文资料或多语言转写误删、误翻译。
 - 前端遵守单一职责、清晰状态所有权、共享 primitives、稳定 key、最小重渲染边界和可测试交互；不得用复制粘贴页面结构修 Bug。
 - 列表选择应更新必要区域而非重挂整个列表；保持 scroll 和 local UI state。
@@ -317,8 +318,8 @@ Storybook 至少包含：
 - 同一命令支持全新安装和覆盖升级：识别并停止当前服务，完整预检候选资产，原子替换程序/Web/Extension/CLI，绝不覆盖当前用户数据。
 - 安装结束自动启动服务并等待健康检查；失败时恢复此前可运行版本和服务，不留下半安装状态。
 - 安装过程明确询问是否开机自动启动；无交互环境支持显式配置且不阻塞。
-- Release 包含版本、支持平台、校验和和可复现构建证据。
-- Release 必须包含受支持的 Linux 架构资产；一行安装器可在 Linux 上安装/覆盖 Go 服务与 Web App、保留数据、自动启动，并可选择配置 systemd 用户级开机启动和显式监听地址。Extension 作为独立 Chrome 资产连接该服务。
+- Release 包含版本、Python 3.13 运行要求、校验和和可复现构建证据。
+- Release 只提供一个平台无关的 Python 服务包；一行安装器在 Linux 上用 `python3.13` 安装/覆盖 API 与预构建 Web App、保留数据、自动启动，并可选择配置 systemd 用户级开机启动和显式监听地址。Extension 作为独立 Chrome 资产连接该服务。
 - 对分离部署，README 与 Installer 输出必须明确区分 Linux 服务命令和 MacBook Extension 客户端命令；Chrome 安全模型不允许静默安装未上架扩展，因此必须提供准确的一次性 `Developer mode` → `Load unpacked` 步骤，不能声称全自动安装。
 - README、Installer 输出、Release notes 和所有用户可见安装页面使用英文。
 - 当前 `main` 的最新已验证版本必须进入最新 Release；旧 Release 通过不能替代当前主线发布。Release 只能在本目标内所有当前桌面功能、设计终审、Storybook 状态覆盖、真实验收与数据整理均完成后进行，不能为了发布而跳过未完成需求。
@@ -327,7 +328,7 @@ Storybook 至少包含：
 
 当前优先顺序以用户最新纠正为准：
 
-1. **当前 P0：完成 Linux 主机运行 + MacBook Chrome/Web 通过可变局域网域名连接的真实闭环**，包括动态 origin 权限、断线恢复与 Linux 安装/启动；
+1. **当前 P0：完成 Python 3.13-only Linux Release + MacBook Chrome/Web 通过可变局域网域名连接的真实闭环**。目标 Linux 无 Go、无 Node、不能运行本项目原生二进制；安装器下载并解压平台无关包，用 `python3.13` 启动包含预构建 Web 的服务，保留当前数据，并覆盖动态 origin 权限、断线恢复与 Linux 安装/启动；
 2. 修复真实桌面 Web 与 Chrome Extension 的其余 P0/P1 核心流程；
 3. 完成一致、共享、极简的 Web 组件系统与真实页面；
 4. 让 Storybook 完整覆盖生产组件和所有有意义状态；
@@ -353,9 +354,9 @@ Storybook 至少包含：
 10. Documents 列表切换不重建或丢滚动；编辑自动保存安静；失败局部可重试；Citation 和 Sources 定位/增删稳定。
 11. Sources 与 Material detail panel 默认宽度合理，可通过共享 resizer 扩至全部剩余空间；关键内容无双滚动、遮挡或不可达。
 12. 原始音频在播放前显示时长，播放、转写、最终采用文字和来源链一致。
-13. 断开 Go 服务只显示局部可恢复错误；恢复后重试不重复保存/插入。
+13. 断开 Python 服务只显示局部可恢复错误；恢复后重试不重复保存/插入。
 14. 刷新、服务重启和浏览器重启后，当前真实 Materials、Audio、Projects、Tags、Skills、Documents、Sources、Settings 仍在。
-15. Gemini Key 只在 Go 进程环境；真实中英文、中英混合、长句和项目术语转写达到 `../prototypes/vibedoc` 同源质量门槛。
+15. Gemini Key 只在 Python 服务进程环境；真实中英文、中英混合、长句和项目术语转写达到 `../prototypes/vibedoc` 同源质量门槛。
 16. Storybook 根 URL 和稳定 deep links 在真实浏览器显示内容；production component inventory 与所有有意义状态无未解释缺口。
 17. 用项目内保存的真实 Notion/ChatGPT 对照截图审查 Logue 全部主要页面；无未解决 P0/P1 一致性、简洁性、宽度、层级和交互问题。
 18. 一行 curl 在隔离环境全新安装后自动启动并健康；无需源码或构建工具。
@@ -364,7 +365,8 @@ Storybook 至少包含：
 21. Linux 主机显式监听私网地址或由受控反向代理提供用户已知域名；MacBook 可直接打开同源 Web App，并在 Extension 中连接该地址，完成 status、当前页面历史、右键选区保存、语音保存和 Generate/Skill API 流程。
 22. 防火墙分配的新域名替换旧域名后，`Connect` 只请求新 origin 权限并通过 Logue/API 版本验证；失败或取消保留旧配置，成功后无需重装 Extension 即恢复流程；Chrome 与 MV3 worker 重启后配置仍有效。
 23. Linux 一行安装在无既有数据机器上自动启动并通过健康检查；重复覆盖安装不会删除数据，并正确处理 systemd 用户级开机启动的接受、拒绝和非交互选择。
-24. MacBook 不安装或启动 Go 服务，只运行独立 Extension 客户端安装命令并从稳定目录 `Load unpacked`；覆盖升级后 Server URL、草稿和其它 Chrome storage 不变，点击 Reload 即使用新版本并继续连接 Linux 服务。
+24. MacBook 不安装或启动服务，只运行独立 Extension 客户端安装命令并从稳定目录 `Load unpacked`；覆盖升级后 Server URL、草稿和其它 Chrome storage 不变，点击 Reload 即使用新版本并继续连接 Linux 服务。
+25. 在真实 Google Docs 文档编辑区内看到 launcher，完成点击录音、`Enter` 停止并插入、`Esc` 取消的闭环；隐藏事件 iframe 只承担输入桥接，不能把 launcher 错误夹到 Docs 顶部工具栏。
 
 ## 14. 明确禁止与已否定方案
 
