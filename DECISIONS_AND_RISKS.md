@@ -68,8 +68,13 @@ feature fails.
   with no recording state or local error. A subsequent direct message to that
   freshly located `about:blank` frame was rejected by Chrome, and the control
   now exposes the actionable local error `Could not reach the active Google
-  Docs editor.` rather than hiding it. This is an active P0 failure, not a
-  completed fix.
+  Docs editor.` rather than hiding it. On 2026-08-03, after reloading the
+  unpacked extension and the real signed-in Docs page for each attempt, all of
+  these still failed to reach the editor: background frame routing, DOM
+  mutation bridging, parent/child `postMessage`, and a child-frame Chrome
+  `runtime.Port` with `match_origin_as_fallback`. This is an active P0 failure,
+  not a completed fix. The native Side Panel can record on that same real Docs
+  tab, but it is not evidence that the required in-editor action works.
 - **Next proof:** Verify the actual Docs editor with the extension permission
   granted; record and cancel without editing the document. Then verify the
   in-editor action appears and its accept/cancel state works.
