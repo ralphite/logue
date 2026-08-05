@@ -45,7 +45,7 @@ function ProjectSources({ projectId, onClose }: { projectId: string; onClose: ()
   );
 }
 
-export function ProjectWorkspace({ onRouteChange, onProjectChange }: { onRouteChange: (route: V2PrimaryRoute) => void; onProjectChange: (projectId: string) => void }) {
+export function ProjectWorkspace({ onRouteChange, onProjectChange, onOpenContext }: { onRouteChange: (route: V2PrimaryRoute) => void; onProjectChange: (projectId: string) => void; onOpenContext?: () => void }) {
   const { state, dispatch } = useMockSession();
   const [inspectorOpen, setInspectorOpen] = useState(() => window.innerWidth >= 980);
   const [request, setRequest] = useState("");
@@ -94,7 +94,7 @@ export function ProjectWorkspace({ onRouteChange, onProjectChange }: { onRouteCh
           </div>
           <div className="v2-context-summary">
             <span>{projectSourceCount} project sources · {citations.length ? `${citations.length} citations in this revision` : "no draft yet"}</span>
-            <button className="v2-source-excerpt-toggle" type="button" onClick={() => setInspectorOpen(true)}>Review context</button>
+            <button className="v2-source-excerpt-toggle" type="button" onClick={() => onOpenContext ? onOpenContext() : setInspectorOpen(true)}>Review context</button>
           </div>
         </article>
       </div>
