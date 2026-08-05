@@ -162,6 +162,27 @@ jobs:
           curl -fsS --retry 5 --retry-delay 1 "${LOGUE_QA_REMOTE_URL}/v1/status" | grep -Fq '"ok":true'
           sleep "${{ inputs.hold_minutes }}m"
 
+      - name: Write temporary capture manifest
+        if: always()
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          manifest="${RUNNER_TEMP}/logue-capture-manifest.txt"
+          audio_dir="${LOGUE_QA_DATA_ROOT}/audio"
+          if [[ -d "${audio_dir}" ]]; then
+            find "${audio_dir}" -maxdepth 1 -type f -print0 | sort -z | xargs -0 -r sha256sum | sed "s#${audio_dir}/##" > "${manifest}"
+          else
+            : > "${manifest}"
+          fi
+
+      - name: Publish temporary capture manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logue-remote-captures-${{ github.run_id }}
+          path: ${{ runner.temp }}/logue-capture-manifest.txt
+          retention-days: 1
+
       - name: Stop the disposable environment
         if: always()
         shell: bash
