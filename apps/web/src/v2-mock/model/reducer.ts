@@ -144,7 +144,7 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
       if (!tab || !pageId || !domain.pages[pageId]) return state;
       return { ...state, surface: { ...state.surface, activeTabId: tab.id, recording: { kind: "voice-comment", tabId: tab.id, pageId } } };
     }
-    case "stop-voice-comment": {
+    case "accept-voice-comment": {
       const recording = state.surface.recording;
       if (!recording || recording.kind !== "voice-comment") return state;
       const [sourceId, nextDomain] = nextId(domain, "you-comment");
@@ -170,18 +170,11 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
           { id: `${sourceId}-candidate`, kind: "candidate", content: candidate, createdAt: now, runId: transformation?.run.id ?? transcription?.run.id },
         ],
       };
+      const withComment = { ...afterSkills, sources: { ...afterSkills.sources, [sourceId]: source } };
       return {
-        domain: { ...afterSkills, sources: { ...afterSkills.sources, [sourceId]: source } },
+        domain: saveCommentBundle(withComment, sourceId, recording.tabId, recording.pageId),
         surface: { ...state.surface, recording: null, selectedSourceId: sourceId },
       };
-    }
-    case "edit-voice-comment": {
-      const source = domain.sources[event.sourceId];
-      if (!source || source.origin !== "you" || source.title !== "Voice comment" || source.commentsOnSourceId) return state;
-      const candidateIndex = source.revisions.findIndex((revision) => revision.kind === "candidate");
-      if (candidateIndex < 0) return state;
-      const revisions = source.revisions.map((revision, index) => index === candidateIndex ? { ...revision, content: event.content } : revision);
-      return { ...state, domain: { ...domain, sources: { ...domain.sources, [source.id]: { ...source, revisions } } } };
     }
     case "start-voice-write": {
       const tab = domain.tabs[event.tabId];
@@ -297,8 +290,6 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
         },
       };
     }
-    case "save-comment-bundle":
-      return { ...state, domain: saveCommentBundle(domain, event.commentSourceId, event.tabId, event.pageId, event.projectId) };
     case "save-text-comment": {
       const tab = domain.tabs[event.tabId];
       const pageId = event.pageId ?? tab?.pageId;

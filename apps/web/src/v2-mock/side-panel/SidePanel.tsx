@@ -71,8 +71,8 @@ export function SidePanel({ mode = "page" }: { mode?: SidePanelMode }) {
           </>}
         </div>
         {!showDraft && <footer className="v2-panel-footer">
-          {voiceRecording ? <div className="v2-panel-composer"><span className="v2-quiet-pill" aria-live="polite">Recording 0:08</span><div style={{ flex: 1 }} /><Button size="sm" variant="primary" onClick={() => { dispatch({ type: "start-voice-comment", tabId: tab.id, pageId: page.id }); dispatch({ type: "stop-voice-comment", transcript: "This finding changes how quickly the project should surface evidence." }); setVoiceRecording(false); }}>Stop</Button><Button size="sm" onClick={() => setVoiceRecording(false)}>Cancel</Button></div> : <CommentComposer onSave={saveText} onVoice={() => setVoiceRecording(true)} />}
-          <div className="v2-inline-actions" style={{ marginTop: 8 }}><Button size="sm"><Sparkles aria-hidden="true" size={14} />Ask or draft</Button><Button size="sm" onClick={() => setVoiceRecording(true)}><Mic aria-hidden="true" size={14} />Voice comment</Button></div>
+          {voiceRecording ? <div className="v2-panel-composer"><span className="v2-quiet-pill" aria-live="polite">Recording 0:08</span><div style={{ flex: 1 }} /><Button size="sm" variant="primary" onClick={() => { dispatch({ type: "accept-voice-comment", transcript: "This finding changes how quickly the project should surface evidence." }); setVoiceRecording(false); }}>Accept</Button><Button size="sm" onClick={() => { dispatch({ type: "cancel-recording" }); setVoiceRecording(false); }}>Cancel</Button></div> : <CommentComposer onSave={saveText} onVoice={() => { dispatch({ type: "start-voice-comment", tabId: tab.id, pageId: page.id }); setVoiceRecording(true); }} />}
+          <div className="v2-inline-actions" style={{ marginTop: 8 }}><Button size="sm"><Sparkles aria-hidden="true" size={14} />Ask or draft</Button><Button size="sm" onClick={() => { dispatch({ type: "start-voice-comment", tabId: tab.id, pageId: page.id }); setVoiceRecording(true); }}><Mic aria-hidden="true" size={14} />Voice comment</Button></div>
         </footer>}
       </aside>
     </div>

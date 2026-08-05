@@ -5,34 +5,57 @@ import { reduceMockSession } from "../v2-mock/model/reducer";
 import { getCandidateCitations, getCommentBundle, getProjectMembership, getProjectSources, resolveSkill } from "../v2-mock/model/selectors";
 
 describe("V2 mock model", () => {
-  it("keeps a stopped voice comment as a saved-only You source before linking", () => {
-    let state = createCanonicalScenario();
-    state = reduceMockSession(state, { type: "select-article", tabId: "research-tab", pageId: "article-a" });
+  it("accepts a voice comment as one durable bundle in the active Project", () => {
+    let state = createStorySeed("journey-start");
     state = reduceMockSession(state, { type: "start-voice-comment", tabId: "research-tab" });
-    state = reduceMockSession(state, { type: "stop-voice-comment", transcript: "This matters for field work." });
+    state = reduceMockSession(state, { type: "accept-voice-comment", transcript: "This matters for field work." });
 
     const comment = state.domain.sources["you-comment-100"];
-    expect(comment).toMatchObject({ origin: "you", status: "saved", pageId: "article-a" });
+    expect(comment).toMatchObject({ origin: "you", status: "saved", pageId: "article-a", commentsOnSourceId: "web-a" });
     expect(comment.audio).toBeDefined();
-    expect(comment.commentsOnSourceId).toBeUndefined();
-    expect(getProjectMembership(state.domain, "project-a", comment.id)).toBeUndefined();
+    expect(comment.revisions.map((revision) => revision.kind)).toEqual(["raw", "normalized", "candidate"]);
+    expect(getProjectMembership(state.domain, "project-a", "web-a")?.state).toBe("added");
+    expect(getProjectMembership(state.domain, "project-a", comment.id)).toMatchObject({ state: "added", reason: "tab-authorized" });
+    expect(state.surface.recording).toBeNull();
   });
 
-  it("creates a Web/You comment bundle, reuses page evidence, and applies tab membership to both", () => {
-    let state = createCanonicalScenario();
-    state = reduceMockSession(state, { type: "set-tab-project", tabId: "research-tab", projectId: "project-a" });
-    state = reduceMockSession(state, { type: "select-article", tabId: "research-tab", pageId: "article-a" });
+  it("keeps an accepted bundle saved only when the tab has no Project", () => {
+    let state = createStorySeed("journey-start");
+    state = reduceMockSession(state, { type: "set-tab-project", tabId: "research-tab", projectId: null });
     state = reduceMockSession(state, { type: "start-voice-comment", tabId: "research-tab" });
-    state = reduceMockSession(state, { type: "stop-voice-comment", transcript: "Keep this evidence close to the reply." });
-    state = reduceMockSession(state, { type: "edit-voice-comment", sourceId: "you-comment-100", content: "Keep this evidence close to the product decision." });
-    state = reduceMockSession(state, { type: "save-comment-bundle", tabId: "research-tab", commentSourceId: "you-comment-100" });
+    state = reduceMockSession(state, { type: "accept-voice-comment", transcript: "Keep this evidence close to the product decision." });
 
     const bundle = getCommentBundle(state.domain, "you-comment-100");
     expect(bundle?.web?.id).toBe("web-a");
     expect(bundle?.comment.commentsOnSourceId).toBe("web-a");
     expect(bundle?.comment.revisions.at(-1)?.content).toBe("Keep this evidence close to the product decision.");
-    expect(getProjectMembership(state.domain, "project-a", "web-a")?.state).toBe("added");
-    expect(getProjectMembership(state.domain, "project-a", "you-comment-100")).toMatchObject({ state: "added", reason: "tab-authorized" });
+    expect(Object.values(state.domain.memberships).filter((membership) => membership.sourceId === "web-a" || membership.sourceId === "you-comment-100")).toHaveLength(0);
+  });
+
+  it("cancels without durable writes and ignores a duplicate Accept", () => {
+    let state = createStorySeed("journey-start");
+    const beforeCancel = {
+      sources: Object.keys(state.domain.sources).length,
+      runs: Object.keys(state.domain.runs).length,
+      memberships: Object.keys(state.domain.memberships).length,
+    };
+    state = reduceMockSession(state, { type: "start-voice-comment", tabId: "research-tab" });
+    state = reduceMockSession(state, { type: "cancel-recording" });
+    expect(Object.keys(state.domain.sources)).toHaveLength(beforeCancel.sources);
+    expect(Object.keys(state.domain.runs)).toHaveLength(beforeCancel.runs);
+    expect(Object.keys(state.domain.memberships)).toHaveLength(beforeCancel.memberships);
+
+    state = reduceMockSession(state, { type: "start-voice-comment", tabId: "research-tab" });
+    state = reduceMockSession(state, { type: "accept-voice-comment", transcript: "Accept this once." });
+    const afterAccept = {
+      sources: Object.keys(state.domain.sources).length,
+      runs: Object.keys(state.domain.runs).length,
+      memberships: Object.keys(state.domain.memberships).length,
+    };
+    state = reduceMockSession(state, { type: "accept-voice-comment", transcript: "Accept this twice." });
+    expect(Object.keys(state.domain.sources)).toHaveLength(afterAccept.sources);
+    expect(Object.keys(state.domain.runs)).toHaveLength(afterAccept.runs);
+    expect(Object.keys(state.domain.memberships)).toHaveLength(afterAccept.memberships);
   });
 
   it("keeps tab Project when navigating and adds a text comment bundle to that Project", () => {

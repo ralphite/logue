@@ -1,7 +1,7 @@
 import { createCanonicalScenario } from "./canonicalScenario";
 import type { MockSessionState } from "../model/types";
 
-export type StorySeedName = "canonical" | "journey-start" | "unlinked-voice-comment" | "target-lost" | "provider-needs-attention";
+export type StorySeedName = "canonical" | "journey-start" | "target-lost" | "provider-needs-attention";
 
 /** Each call starts from a private deep copy, including all normalized records. */
 export function createStorySeed(name: StorySeedName = "canonical"): MockSessionState {
@@ -26,11 +26,6 @@ export function createStorySeed(name: StorySeedName = "canonical"): MockSessionS
       state.surface.activeCandidateId = null;
       state.surface.commandActivityId = null;
       state.surface.openCitationSourceId = null;
-      return state;
-    case "unlinked-voice-comment":
-      state.domain.tabs["research-tab"].pageId = "article-a";
-      state.surface.selectedSourceId = null;
-      state.surface.recording = { kind: "voice-comment", tabId: "research-tab", pageId: "article-a" };
       return state;
     case "target-lost":
       state.domain.targetSessions["email-target"].isValid = false;

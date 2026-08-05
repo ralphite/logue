@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ExtensionSurface } from "../../v2-mock/extension/ExtensionSurface";
-import { createCanonicalScenario } from "../../v2-mock/fixtures/canonicalScenario";
+import { createStorySeed } from "../../v2-mock/fixtures/storySeeds";
 import { reduceMockSession } from "../../v2-mock/model/reducer";
 import "../../v2-mock/styles/surfaces.css";
 
@@ -16,12 +16,29 @@ type Story = StoryObj<typeof meta>;
 export const CanonicalRoundTrip: Story = { args: { seed: "journey-start" } };
 export const SourcedCommandWithSkills: Story = { args: { seed: "canonical" } };
 export const TargetLost: Story = { args: { seed: "target-lost" } };
-export const UnlinkedVoiceComment: Story = {
+export const VoiceCommentRecording: Story = {
   render: () => {
-    let state = createCanonicalScenario();
-    state = reduceMockSession(state, { type: "select-article", tabId: "research-tab", pageId: "article-a" });
+    let state = createStorySeed("journey-start");
     state = reduceMockSession(state, { type: "start-voice-comment", tabId: "research-tab" });
-    state = reduceMockSession(state, { type: "stop-voice-comment", transcript: "This is the evidence we should carry into the decision." });
+    return <ExtensionSurface initialState={state} />;
+  },
+};
+
+export const VoiceCommentInProject: Story = {
+  render: () => {
+    let state = createStorySeed("journey-start");
+    state = reduceMockSession(state, { type: "start-voice-comment", tabId: "research-tab" });
+    state = reduceMockSession(state, { type: "accept-voice-comment", transcript: "This is the evidence we should carry into the decision." });
+    return <ExtensionSurface initialState={state} />;
+  },
+};
+
+export const VoiceCommentSavedOnly: Story = {
+  render: () => {
+    let state = createStorySeed("journey-start");
+    state = reduceMockSession(state, { type: "set-tab-project", tabId: "research-tab", projectId: null });
+    state = reduceMockSession(state, { type: "start-voice-comment", tabId: "research-tab" });
+    state = reduceMockSession(state, { type: "accept-voice-comment", transcript: "Keep this with the page even before it belongs to a project." });
     return <ExtensionSurface initialState={state} />;
   },
 };

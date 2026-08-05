@@ -1,4 +1,4 @@
-import { Copy, ExternalLink, Mic, MessageSquarePlus, Send, Square, Undo2, WandSparkles, X } from "lucide-react";
+import { Copy, ExternalLink, Mic, Send, Square, Undo2, WandSparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { SourceBundleView } from "../primitives/SourceBundleView";
 import { createStorySeed, type StorySeedName } from "../fixtures/storySeeds";
@@ -6,6 +6,7 @@ import { getCandidateCitations, getProjectSources } from "../model/selectors";
 import { useMockSession, MockSessionProvider } from "../runtime/MockSessionProvider";
 import type { Id, MockSessionState, Source } from "../model/types";
 import { LogueWebApp } from "../web/LogueWebApp";
+import { SelectionVoiceCommentControl } from "./SelectionVoiceCommentControl";
 
 const frameStyle: CSSProperties = { width: "min(1180px, 100%)", margin: "0 auto", overflow: "hidden", border: "1px solid var(--v2-line)", borderRadius: 12, background: "var(--v2-canvas)", boxShadow: "0 18px 52px rgba(35, 36, 32, .10)" };
 const pageStyle: CSSProperties = { minWidth: 0, display: "flex", flexDirection: "column" };
@@ -27,8 +28,7 @@ function ExtensionSurfaceContent() {
   const target = surface.selectedTargetSessionId ? domain.targetSessions[surface.selectedTargetSessionId] : undefined;
   const project = tab.activeProjectId ? domain.projects[tab.activeProjectId] : undefined;
   const [hostView, setHostView] = useState<"article" | "email">("article");
-  const initialSelectedSource = surface.selectedSourceId ? domain.sources[surface.selectedSourceId] : undefined;
-  const [commentMode, setCommentMode] = useState<"none" | "text" | "voice">(initialSelectedSource?.origin === "you" && !initialSelectedSource.commentsOnSourceId ? "voice" : "none");
+  const [commentMode, setCommentMode] = useState<"none" | "text">("none");
   const [textComment, setTextComment] = useState("");
   const [insertedVoiceWriteSourceId, setInsertedVoiceWriteSourceId] = useState<Id | null>(null);
   const [voiceWriteClosed, setVoiceWriteClosed] = useState(false);
@@ -44,7 +44,7 @@ function ExtensionSurfaceContent() {
   useEffect(() => setEmailValue(target?.value ?? ""), [target?.value]);
 
   const commentSource = surface.selectedSourceId ? domain.sources[surface.selectedSourceId] : undefined;
-  const pendingVoiceComment = commentSource?.origin === "you" && !commentSource.commentsOnSourceId ? commentSource : undefined;
+  const isVoiceCommentRecording = surface.recording?.kind === "voice-comment" && surface.recording.pageId === page.id;
   const voiceWriteSource = commentSource?.origin === "you" && commentSource.title === "Voice write" ? commentSource : undefined;
   const voiceWriteCandidate = voiceWriteSource?.revisions.filter((revision) => revision.kind === "candidate").at(-1);
   const voiceWriteMembership = voiceWriteSource && project ? domain.memberships[`${project.id}:${voiceWriteSource.id}`] : undefined;
@@ -56,17 +56,10 @@ function ExtensionSurfaceContent() {
 
   function startVoiceComment() {
     dispatch({ type: "start-voice-comment", tabId: tab.id, pageId: page.id });
-    setCommentMode("voice");
   }
 
-  function stopVoiceComment() {
-    dispatch({ type: "stop-voice-comment", transcript: "This is the evidence we should carry into the decision." });
-  }
-
-  function saveVoiceComment() {
-    if (!pendingVoiceComment) return;
-    dispatch({ type: "save-comment-bundle", commentSourceId: pendingVoiceComment.id, tabId: tab.id, pageId: page.id });
-    setCommentMode("none");
+  function acceptVoiceComment() {
+    dispatch({ type: "accept-voice-comment", transcript: "This is the evidence we should carry into the decision." });
   }
 
   function saveTextComment() {
@@ -137,21 +130,21 @@ function ExtensionSurfaceContent() {
             </div>
 
             {commentMode === "none" ? (
-              <button type="button" style={{ ...mutedButtonStyle, marginTop: 18 }} onClick={() => setCommentMode("text")}><span style={iconTextStyle}><MessageSquarePlus aria-hidden="true" size={15} />Add comment</span></button>
+              <SelectionVoiceCommentControl
+                isRecording={isVoiceCommentRecording}
+                onStart={startVoiceComment}
+                onAccept={acceptVoiceComment}
+                onCancel={() => dispatch({ type: "cancel-recording" })}
+                onTextComment={() => setCommentMode("text")}
+              />
             ) : null}
             {commentMode === "text" ? (
               <section style={{ maxWidth: 680, marginTop: 22, border: "1px solid var(--v2-line-strong)", borderRadius: 10, padding: 12, background: "var(--v2-surface)" }} aria-label="Comment on selected text">
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 10, color: "var(--v2-muted)", fontSize: 13 }}><span>Comment on selected text</span><button type="button" style={buttonStyle} aria-label="Close comment" onClick={() => setCommentMode("none")}><X aria-hidden="true" size={15} /></button></div>
                 <textarea value={textComment} onChange={(event) => setTextComment(event.target.value)} placeholder="Add your thought" style={{ width: "100%", minHeight: 82, resize: "vertical", border: 0, outline: 0, color: "var(--v2-ink)", background: "transparent", lineHeight: 1.55 }} />
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                  <button type="button" style={buttonStyle} onClick={startVoiceComment}><span style={iconTextStyle}><Mic aria-hidden="true" size={15} />Voice</span></button>
-                  <button type="button" style={primaryStyle} onClick={saveTextComment} disabled={!textComment.trim()}>Save</button>
+                <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12 }}>
+                  <button type="button" style={primaryStyle} onClick={saveTextComment} disabled={!textComment.trim()}>Add comment</button>
                 </div>
-              </section>
-            ) : null}
-            {commentMode === "voice" ? (
-              <section style={{ maxWidth: 680, marginTop: 22, border: "1px solid var(--v2-line-strong)", borderRadius: 10, padding: 14, background: "var(--v2-surface)" }} aria-label="Voice comment">
-                {!pendingVoiceComment ? <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}><span style={{ color: "var(--v2-ink-soft)" }}><Mic aria-hidden="true" size={15} /> Recording comment</span><button type="button" style={primaryStyle} onClick={stopVoiceComment}><span style={iconTextStyle}><Square aria-hidden="true" size={13} />Stop</span></button></div> : <><textarea aria-label="Voice comment transcript" value={sourceContent(pendingVoiceComment)} onChange={(event) => dispatch({ type: "edit-voice-comment", sourceId: pendingVoiceComment.id, content: event.target.value })} style={{ width: "100%", minHeight: 72, resize: "vertical", border: 0, outline: 0, color: "var(--v2-ink)", background: "transparent", lineHeight: 1.55 }} /><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><button type="button" style={buttonStyle} onClick={() => setCommentMode("none")}>Close</button><button type="button" style={primaryStyle} onClick={saveVoiceComment}>Link comment</button></div></>}
               </section>
             ) : null}
 
@@ -206,7 +199,9 @@ function ExtensionSurfaceContent() {
             <div className="v2-source-list" aria-label="Comments on this tab">
               {commentBundles.map((comment, index) => {
                 const web = comment.commentsOnSourceId ? domain.sources[comment.commentsOnSourceId] : undefined;
-                return <SourceBundleView key={comment.id} citation={index + 1} title={web?.title ?? "Saved page"} excerpt={sourceContent(web)} comment={sourceContent(comment)} active={surface.openCitationSourceId === comment.id || surface.openCitationSourceId === web?.id} onSelect={() => dispatch({ type: "open-citation", sourceId: comment.id })} onOpenSnapshot={() => web && dispatch({ type: "open-citation", sourceId: web.id })} />;
+                const membership = Object.values(domain.memberships).find((item) => item.sourceId === comment.id && item.state === "added");
+                const membershipProject = membership ? domain.projects[membership.projectId] : undefined;
+                return <SourceBundleView key={comment.id} citation={index + 1} title={web?.title ?? "Saved page"} excerpt={sourceContent(web)} comment={sourceContent(comment)} meta={membershipProject ? `Added to ${membershipProject.name}` : "Saved only"} active={surface.openCitationSourceId === comment.id || surface.openCitationSourceId === web?.id} onSelect={() => dispatch({ type: "open-citation", sourceId: comment.id })} onOpenSnapshot={() => web && dispatch({ type: "open-citation", sourceId: web.id })} />;
               })}
             </div>
           </div>

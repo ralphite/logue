@@ -2049,6 +2049,57 @@
   min-height: 720px;
 }
 
+.v2-selection-comment-control {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  border: 1px solid var(--v2-line);
+  border-radius: 8px;
+  background: var(--v2-surface);
+  padding: 3px;
+  box-shadow: 0 7px 20px rgba(35, 36, 32, 0.12);
+}
+
+.v2-selection-comment-control[data-recording] {
+  gap: 6px;
+  padding-left: 10px;
+}
+
+.v2-selection-comment-control kbd {
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  opacity: 0.72;
+}
+
+.v2-recording-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-right: 2px;
+  color: var(--v2-ink-soft);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.v2-recording-status > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--v2-danger);
+  animation: v2-recording-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes v2-recording-pulse {
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v2-recording-status > span { animation: none; }
+}
+
 @media (max-width: 980px) {
   .v2-extension-frame {
     grid-template-columns: minmax(0, 1fr) 360px;
