@@ -5,6 +5,7 @@ set -Eeuo pipefail
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 test_root="$(mktemp -d /tmp/logue-extension-installer-test.XXXXXX)"
 test_home="${test_root}/home"
+python_bin="$(command -v python3.13)"
 extension_dir="${test_home}/.local/share/logue/extension"
 fixture_v1="${LOGUE_EXTENSION_TEST_FIXTURE_V1:-${test_root}/release-v1}"
 fixture_v2="${LOGUE_EXTENSION_TEST_FIXTURE_V2:-${test_root}/release-v2}"
@@ -41,15 +42,16 @@ run_installer() {
 }
 
 assert_installed_extension() {
-  local version="$1" manifest worker content sidepanel html_file html_dir asset_ref asset_count=0
+  local version="$1" manifest worker content sidepanel microphone html_file html_dir asset_ref asset_count=0
   manifest="${extension_dir}/manifest.json"
   worker="$(sed -n 's/.*"service_worker": "\([^"]*\)".*/\1/p' "${manifest}")"
   content="$(sed -n 's/.*"js": \["\([^"]*\)"\].*/\1/p' "${manifest}")"
   sidepanel="$(sed -n 's/.*"default_path": "\([^"]*\)".*/\1/p' "${manifest}")"
+  microphone="${sidepanel%/sidepanel.html}/microphone.html"
   [[ "${worker}" == releases/${version}-*/background.js ]] || { printf '%s standalone worker is not versioned\n' "${version}" >&2; exit 1; }
   [[ "${content}" == releases/${version}-*/content.js ]] || { printf '%s standalone content script is not versioned\n' "${version}" >&2; exit 1; }
   [[ "${sidepanel}" == releases/${version}-*/sidepanel.html ]] || { printf '%s standalone Side Panel is not versioned\n' "${version}" >&2; exit 1; }
-  [[ -f "${extension_dir}/${worker}" && -f "${extension_dir}/${content}" && -f "${extension_dir}/${sidepanel}" ]] || { printf '%s standalone Extension assets are incomplete\n' "${version}" >&2; exit 1; }
+  [[ -f "${extension_dir}/${worker}" && -f "${extension_dir}/${content}" && -f "${extension_dir}/${sidepanel}" && -f "${extension_dir}/${microphone}" ]] || { printf '%s standalone Extension assets are incomplete\n' "${version}" >&2; exit 1; }
   html_file="${extension_dir}/${sidepanel}"
   html_dir="$(dirname "${html_file}")"
   while IFS= read -r asset_ref; do
@@ -63,6 +65,20 @@ assert_installed_extension() {
     [[ -f "${html_dir}/${asset_ref}" ]] || { printf 'Standalone Side Panel asset is missing: %s\n' "${asset_ref}" >&2; exit 1; }
   done < <(grep -Eo '(src|href)="[^"]+"' "${html_file}" | sed -e 's/^[^=]*="//' -e 's/"$//')
   (( asset_count > 0 )) || { printf 'Standalone Side Panel HTML has no asset references\n' >&2; exit 1; }
+  html_file="${extension_dir}/${microphone}"
+  html_dir="$(dirname "${html_file}")"
+  asset_count=0
+  while IFS= read -r asset_ref; do
+    asset_count=$((asset_count + 1))
+    case "${asset_ref}" in
+      ./*) ;;
+      *) printf 'Standalone microphone asset is not relative: %s\n' "${asset_ref}" >&2; exit 1 ;;
+    esac
+    asset_ref="${asset_ref%%\#*}"
+    asset_ref="${asset_ref%%\?*}"
+    [[ -f "${html_dir}/${asset_ref}" ]] || { printf 'Standalone microphone asset is missing: %s\n' "${asset_ref}" >&2; exit 1; }
+  done < <(grep -Eo '(src|href)="[^"]+"' "${html_file}" | sed -e 's/^[^=]*="//' -e 's/"$//')
+  (( asset_count > 0 )) || { printf 'Standalone microphone HTML has no asset references\n' >&2; exit 1; }
   installed_worker="${worker}"
   installed_content="${content}"
   installed_sidepanel="${sidepanel}"
@@ -104,6 +120,27 @@ if run_installer "file://${bad_fixture}" "${test_root}/bad-install.log"; then
   exit 1
 fi
 [[ "$(file_sha256 "${extension_dir}/manifest.json")" == "${manifest_before}" ]] || { printf 'Bad standalone upgrade changed the active manifest\n' >&2; exit 1; }
+
+missing_microphone_fixture="${test_root}/missing-microphone-release"
+mkdir -p "${missing_microphone_fixture}"
+"${python_bin}" - "${fixture_v2}/logue-python.zip" "${missing_microphone_fixture}/logue-python.zip" <<'PY'
+import sys
+from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
+
+source, destination = map(Path, sys.argv[1:])
+with ZipFile(source) as archive, ZipFile(destination, "w", compression=ZIP_DEFLATED, compresslevel=9) as output:
+    for member in archive.infolist():
+        if member.filename == "extension/microphone.html":
+            continue
+        output.writestr(member, archive.read(member.filename))
+PY
+(cd "${missing_microphone_fixture}" && sha256sum logue-python.zip > checksums.txt)
+if run_installer "file://${missing_microphone_fixture}" "${test_root}/missing-microphone.log"; then
+  printf 'Standalone installer accepted a release without microphone.html\n' >&2
+  exit 1
+fi
+[[ "$(file_sha256 "${extension_dir}/manifest.json")" == "${manifest_before}" ]] || { printf 'Missing microphone page changed the active manifest\n' >&2; exit 1; }
 
 upgrade_log="${test_root}/upgrade.log"
 run_installer "file://${fixture_v2}" "${upgrade_log}"

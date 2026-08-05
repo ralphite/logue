@@ -10,6 +10,7 @@ fixture_v2="${test_root}/release-v2"
 fake_bin="${test_root}/bin"
 install_root="${test_home}/.local/share/logue"
 data_root="${install_root}/data"
+extension_dir="${test_home}/.local/share/logue/extension"
 bin_dir="${test_home}/.local/bin"
 systemd_dir="${test_home}/.config/systemd/user"
 systemd_unit="${systemd_dir}/logue.service"
@@ -58,6 +59,24 @@ build_fixture() {
     printf 'release does not contain prebuilt Web and Extension assets\n' >&2
     exit 1
   }
+}
+
+build_missing_microphone_fixture() {
+  local source_dir="$1" destination="$2"
+  mkdir -p "${destination}"
+  "${python_bin}" - "${source_dir}/logue-python.zip" "${destination}/logue-python.zip" <<'PY'
+import sys
+from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
+
+source, destination = map(Path, sys.argv[1:])
+with ZipFile(source) as archive, ZipFile(destination, "w", compression=ZIP_DEFLATED, compresslevel=9) as output:
+    for member in archive.infolist():
+        if member.filename == "extension/microphone.html":
+            continue
+        output.writestr(member, archive.read(member.filename))
+PY
+  (cd "${destination}" && sha256sum logue-python.zip > checksums.txt)
 }
 
 run_installer() {
@@ -116,6 +135,15 @@ mkdir -p "${data_root}/items"
 printf '%s\n' 'preserve-linux-data' > "${data_root}/items/installer-sentinel.txt"
 sentinel_before="$(sha256sum "${data_root}/items/installer-sentinel.txt" | awk '{print $1}')"
 build_fixture v0.1.1 "${fixture_v2}"
+manifest_before="$(sha256sum "${extension_dir}/manifest.json" | awk '{print $1}')"
+missing_microphone_fixture="${test_root}/missing-microphone-release"
+build_missing_microphone_fixture "${fixture_v2}" "${missing_microphone_fixture}"
+if run_installer "file://${missing_microphone_fixture}" no "0.0.0.0:${port}" >"${test_root}/missing-microphone.log" 2>&1; then
+  printf 'Linux installer accepted a release without microphone.html\n' >&2
+  exit 1
+fi
+status_version v0.1.0 || { printf 'Missing microphone upgrade changed the active service\n' >&2; exit 1; }
+[[ "$(sha256sum "${extension_dir}/manifest.json" | awk '{print $1}')" == "${manifest_before}" ]] || { printf 'Missing microphone upgrade changed the active manifest\n' >&2; exit 1; }
 run_installer "file://${fixture_v2}" no "0.0.0.0:${port}" >"${test_root}/upgrade.log"
 status_version v0.1.1 || { printf 'Python upgrade did not start\n' >&2; exit 1; }
 sentinel_after="$(sha256sum "${data_root}/items/installer-sentinel.txt" | awk '{print $1}')"

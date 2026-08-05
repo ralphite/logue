@@ -93,11 +93,12 @@ with ZipFile(archive_path) as archive:
     archive.extractall(destination)
 PY
 [[ -f "${package_dir}/extension/manifest.json" ]] || fail "Release is missing extension/manifest.json."
-[[ -f "${package_dir}/extension/background.js" && -f "${package_dir}/extension/content.js" && -f "${package_dir}/extension/sidepanel.html" ]] || fail "Release Extension assets are incomplete."
+[[ -f "${package_dir}/extension/background.js" && -f "${package_dir}/extension/content.js" && -f "${package_dir}/extension/sidepanel.html" && -f "${package_dir}/extension/microphone.html" ]] || fail "Release Extension assets are incomplete."
 [[ -f "${package_dir}/VERSION" ]] || fail "Release is missing VERSION."
 logue_version="$(tr -d '\r\n' < "${package_dir}/VERSION")"
 [[ "${logue_version}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || fail "Invalid release version: ${logue_version}."
 validate_extension_html_assets "${package_dir}/extension/sidepanel.html" || fail "Release Side Panel references missing or non-relative assets."
+validate_extension_html_assets "${package_dir}/extension/microphone.html" || fail "Release microphone permission page references missing or non-relative assets."
 
 step "2/3  Stage and switch atomically"
 extension_asset_id="${logue_version}-$$"
@@ -121,6 +122,8 @@ grep -Fq "\"service_worker\": \"releases/${extension_asset_id}/background.js\"" 
 grep -Fq "\"js\": [\"releases/${extension_asset_id}/content.js\"]" "${extension_manifest_next}" || fail "Staged manifest is missing the versioned content script."
 grep -Fq "\"default_path\": \"releases/${extension_asset_id}/sidepanel.html\"" "${extension_manifest_next}" || fail "Staged manifest is missing the versioned Side Panel."
 validate_extension_html_assets "${staged_extension_assets}/sidepanel.html" || fail "Staged Side Panel references missing or non-versioned assets."
+[[ -f "${staged_extension_assets}/microphone.html" ]] || fail "Staged Extension is missing the microphone permission page."
+validate_extension_html_assets "${staged_extension_assets}/microphone.html" || fail "Staged microphone permission page references missing or non-versioned assets."
 
 if [[ -d "${extension_dir}/manifest.json" && ! -L "${extension_dir}/manifest.json" ]]; then
   fail "Extension manifest path is a directory; stopped to avoid overwriting unknown content."

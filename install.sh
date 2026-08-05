@@ -231,6 +231,7 @@ PY
 [[ -f "${package_dir}/python_server/logue_server.py" ]] || fail "Release is missing the Python server."
 [[ -f "${package_dir}/web/index.html" ]] || fail "Release is missing the Web App."
 [[ -f "${package_dir}/extension/manifest.json" ]] || fail "Release is missing the Chrome Extension."
+[[ -f "${package_dir}/extension/background.js" && -f "${package_dir}/extension/content.js" && -f "${package_dir}/extension/sidepanel.html" && -f "${package_dir}/extension/microphone.html" ]] || fail "Release Extension assets are incomplete."
 [[ -f "${package_dir}/VERSION" ]] || fail "Release is missing VERSION."
 logue_version="$(tr -d '\r\n' < "${package_dir}/VERSION")"
 [[ "${logue_version}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || fail "Invalid release version: ${logue_version}."
@@ -442,8 +443,9 @@ sed \
 grep -Fq "\"service_worker\": \"releases/${extension_asset_id}/background.js\"" "${extension_manifest_next}" || fail "Extension manifest is missing a versioned worker; the existing installation was not changed."
 grep -Fq "\"js\": [\"releases/${extension_asset_id}/content.js\"]" "${extension_manifest_next}" || fail "Extension manifest is missing a versioned content script; the existing installation was not changed."
 grep -Fq "\"default_path\": \"releases/${extension_asset_id}/sidepanel.html\"" "${extension_manifest_next}" || fail "Extension manifest is missing a versioned Side Panel; the existing installation was not changed."
-[[ -f "${staged_extension_assets}/background.js" && -f "${staged_extension_assets}/content.js" && -f "${staged_extension_assets}/sidepanel.html" ]] || fail "Extension assets are incomplete; the existing installation was not changed."
+[[ -f "${staged_extension_assets}/background.js" && -f "${staged_extension_assets}/content.js" && -f "${staged_extension_assets}/sidepanel.html" && -f "${staged_extension_assets}/microphone.html" ]] || fail "Extension assets are incomplete; the existing installation was not changed."
 validate_extension_html_assets "${staged_extension_assets}/sidepanel.html" || fail "Extension Side Panel references missing or non-versioned assets; the existing installation was not changed."
+validate_extension_html_assets "${staged_extension_assets}/microphone.html" || fail "Extension microphone permission page references missing or non-versioned assets; the existing installation was not changed."
 
 if [[ -d "${extension_dir}/manifest.json" && ! -L "${extension_dir}/manifest.json" ]]; then
   fail "Extension manifest path is a directory; stopped to avoid overwriting unknown content."
