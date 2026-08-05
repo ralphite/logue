@@ -32,7 +32,7 @@ import {
 import { createRequestId } from "./requestId";
 import { type CapturePhase } from "./sidePanelPresentation";
 import { saveThenRefreshPageHistory, shouldLoadPageHistory } from "./sidePanelPageHistory";
-import { panelMessageTargetsTab, sidePanelTabId } from "./sidePanelController";
+import { panelMessageTargetsTab, sidePanelTabId, siblingExtensionDocumentPath } from "./sidePanelController";
 import { canInsertGeneratedText, generationTargetKey } from "./sidePanelGeneration";
 import { handleSidePanelShortcut } from "./sidePanelShortcuts";
 import { createSidePanelFocusController, type SidePanelFocusController } from "./sidePanelFocus";
@@ -77,6 +77,10 @@ function isMicrophonePermissionResult(message: unknown): message is MicrophonePe
 }
 
 const panelTabId = sidePanelTabId(window.location.search);
+const microphonePermissionPath = siblingExtensionDocumentPath(
+  chrome.runtime.getManifest().side_panel!.default_path,
+  "microphone.html",
+);
 
 function SidePanelApp() {
   const [state, setState] = useState<PanelCaptureState>();
@@ -165,7 +169,7 @@ function SidePanelApp() {
       reject: rejectPermission,
     };
     void chrome.windows.create({
-      url: chrome.runtime.getURL(`microphone.html?token=${encodeURIComponent(token)}`),
+      url: chrome.runtime.getURL(`${microphonePermissionPath}?mode=permission&token=${encodeURIComponent(token)}`),
       type: "popup",
       width: 360,
       height: 180,

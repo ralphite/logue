@@ -35,6 +35,10 @@ export function sidePanelPath(tabId: number, documentPath: string) {
   return `${documentPath}?tabId=${tabId}`;
 }
 
+export function siblingExtensionDocumentPath(documentPath: string, siblingName: string) {
+  return `${documentPath.slice(0, documentPath.lastIndexOf("/") + 1)}${siblingName}`;
+}
+
 export function sidePanelTabId(search: string) {
   const value = Number(new URLSearchParams(search).get("tabId"));
   return Number.isSafeInteger(value) && value > 0 ? value : undefined;

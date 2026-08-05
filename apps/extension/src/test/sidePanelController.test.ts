@@ -19,6 +19,7 @@ import {
   selectionContextMenus,
   sidePanelPath,
   sidePanelTabId,
+  siblingExtensionDocumentPath,
   toggleSidePanel,
 } from "../sidePanelController";
 
@@ -91,6 +92,10 @@ describe("native side panel controller", () => {
       path: "releases/v0.2.12-123/sidepanel.html?tabId=42",
       enabled: true,
     });
+    expect(siblingExtensionDocumentPath(documentPath, "microphone.html")).toBe(
+      "releases/v0.2.12-123/microphone.html",
+    );
+    expect(siblingExtensionDocumentPath("sidepanel.html", "microphone.html")).toBe("microphone.html");
   });
 
   it("disables the manifest default and every unopened tab", async () => {

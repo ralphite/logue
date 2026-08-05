@@ -20,6 +20,7 @@ import {
   selectionSavePayload,
   selectionContextMenus,
   sidePanelCommand,
+  siblingExtensionDocumentPath,
   toggleSidePanel,
   type SidePanelChrome,
 } from "./sidePanelController";
@@ -97,6 +98,7 @@ const nativeSidePanel = chrome.sidePanel as unknown as SidePanelChrome & {
   onClosed?: chrome.events.Event<(info: { tabId?: number; windowId?: number }) => void>;
 };
 const sidePanelDocumentPath = chrome.runtime.getManifest().side_panel!.default_path;
+const microphoneDocumentPath = siblingExtensionDocumentPath(sidePanelDocumentPath, "microphone.html");
 
 // The manifest path exists only to register the feature. Keep its global
 // instance disabled so switching to a tab that never opened Logue hides it.
@@ -189,7 +191,7 @@ function needsMicrophonePermission(message?: string) {
 async function ensureInlineRecorderDocument() {
   if (!inlineRecorderDocument) {
     inlineRecorderDocument = chrome.offscreen.createDocument({
-      url: "microphone.html?mode=recorder",
+      url: `${microphoneDocumentPath}?mode=recorder`,
       reasons: [chrome.offscreen.Reason.USER_MEDIA],
       justification: "Record voice input from the Logue extension on the current page.",
     }).catch((cause: unknown) => {
@@ -235,7 +237,7 @@ async function requestInlineRecorderPermission(sessionId: string) {
   inlineRecorderPermission = { token, sessionId };
   try {
     await chrome.windows.create({
-      url: chrome.runtime.getURL(`microphone.html?mode=permission&token=${encodeURIComponent(token)}`),
+      url: chrome.runtime.getURL(`${microphoneDocumentPath}?mode=permission&token=${encodeURIComponent(token)}`),
       type: "popup",
       width: 360,
       height: 180,
