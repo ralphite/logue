@@ -25,6 +25,7 @@
 
 | 类别 | 代表产品与已验证能力 | 已占据的位置 | LOGUE.ai 不应重复的方向 |
 | --- | --- | --- | --- |
+| AI 浏览器与浏览器内置助手 | [ChatGPT 内置浏览器](https://help.openai.com/en/articles/20001277-using-the-built-in-browser-in-the-chatgpt-desktop-app) 可在桌面产品内跨 tabs 使用网页；[Dia](https://www.diabrowser.com/getting-started) 使用页面、tabs、history 和连接工具的 Context；[Perplexity Comet](https://www.perplexity.ai/help-center/en/articles/13531023-managing-comet-assistant-permissions) 以 Side Panel 读取或控制浏览器；[Gemini in Chrome](https://blog.google/products-and-platforms/products/chrome/gemini-3-auto-browse/) 在 Chrome Side Panel 跨 tabs 总结并执行多步任务 | 原生取得页面/tab/输入目标，低切换地理解、生成和行动 | 用“在浏览器现场调用 AI、跨 tab 总结或原位行动”作为独特定位 |
 | 大平台的 Work Graph | [Microsoft 365 Copilot](https://learn.microsoft.com/en-us/microsoft-365/copilot/microsoft-365-copilot-overview) 以 Microsoft Graph 中用户有权访问的邮件、聊天、文档和会议作为 Context；[Atlassian Rovo](https://www.atlassian.com/software/rovo/features) 用 Teamwork Graph 连接 Atlassian 和第三方 SaaS | 组织数据上的搜索、问答、生成和 Agent | 再做一个连接器驱动的企业搜索入口 |
 | 协作入口中的企业搜索 | [Slack Enterprise Search](https://slack.com/features/enterprise-search) 在 Slack 内查询对话、文件和第三方应用，并按权限返回结果；[Glean Knowledge Graph](https://docs.glean.com/security/knowledge-graph) 连接内容、人员与活动 | 在员工已经工作的入口统一检索公司知识 | 只把已有文档与聊天索引后提供 Chat |
 | 开源企业 AI / RAG | [Onyx](https://github.com/onyx-dot-app/onyx) 提供 50+ connectors、RAG、Agent、Voice、self-hosting；Community Edition 为 MIT | 自托管的企业搜索与 AI 应用层 | 用“开源、可自托管、有 RAG”本身作为差异化 |
@@ -39,6 +40,7 @@
 2. 个人知识工具大多优化保存、写作、组织和找回，但通常没有把私人工作记录晋升为受治理团队知识的清晰产品模型。
 3. 原始活动捕获产品解决“没有记录”，却不等于解决了“什么值得相信、共享和复用”。
 4. 开源、自托管、RAG、Voice 和 Agent 都已经分别存在；它们是策略或能力，不足以单独构成定位。
+5. AI 浏览器直接拥有页面、tab 和输入目标，是对 LOGUE.ai round trip 最强的平台威胁；LOGUE.ai 只能通过 owner-controlled Host、主动判断 + 精确 evidence、可迁移 Project Context 和 adopted lineage 保持独立价值，不能依赖“浏览器内 AI”本身。
 
 ### 2.2 候选竞争空位
 

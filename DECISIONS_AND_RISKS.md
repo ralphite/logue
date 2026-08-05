@@ -13,17 +13,51 @@
 
 ## 未解决
 
+### DR-035 — V2 产品定义必须先于 UI，并废止当前 mock 的产品依据
+
+- **优先级：** 产品基础 / P0
+- **状态：** 扩大审查与合同修正已完成；用户已授权据此重建 mock；不构成生产实现授权
+- **决定：** 当前 Storybook mock 与《Logue V2 mock — 验收与独立复审》降级为历史探索，不能继续作为产品合同或 UI 依据。先把唯一 V2 产品设计稿重写为完整的产品定义，明确定位、目标用户、目标与非目标、核心对象、Context 规则、功能契约、状态、失败恢复、端到端旅程和验证标准；用户审阅后才能重新设计 mock。
+- **用户可见影响：** 后续 UI 不再沿用缺乏产品依据的 Work 命名、导航、设置结构或交互状态。任何界面必须能追溯到已确认的用户结果和产品规则，而不是从现有 Storybook 反推需求。
+- **替代方案：** 在旧稿末尾继续追加补丁，或只补几张功能清单。前者会继续混合定位、内部模型、mock 决策与未来团队愿景；后者仍无法定义用户何时、为何以及如何完成任务。
+- **已有证据：** 用户明确指出当前文档过于高层、由此生成的 mock 没有用处；对现有文档审计也发现 Project/Work、Topic、Project Context、转写 Context、自动分类和采用状态都缺少可执行定义。扩大审查后，fresh-context 战略红队最初给出 `BLOCK`（2 个定位 P1），产品合同红队最初给出 `BLOCK`（3 个对象/表面 P0），Claude Code Fable 5 Max 给出有条件 `PASS 8.2/10`（5 个 P1）。修订补齐能力层级、Source topology、Command owner、首次模型、tab 归类、AI browser 压力、Run 生命周期与旧决策边界；战略红队和产品合同红队最终均为 `PASS`、无 P0/P1。Claude 的第一轮完整意见已逐项修正；第二次 Fable 5 Max 复跑因本机额度耗尽未完成，不能伪称二次 PASS。
+- **开放问题：** 用户仍可在 mock 过程中修改产品判断；任何改变核心 Journey、对象或 Context 边界的新想法必须先改本文和本记录，再同步 UI。
+
+### DR-036 — 完整产品范围服从一条主价值链，而不是缩减为单功能产品
+
+- **优先级：** 产品基础 / P0
+- **状态：** 用户已确认范围原则；已写入 V2 产品定义，等待用户审阅具体层级
+- **用户决定：** Logue 可以完整覆盖听写、PKM、AI Workspace 与编辑器，不因竞品拥挤而删除这些能力；同时必须保持清晰焦点。
+- **产品层级：** 听写与现场 Capture 是入口；有来源的 Project Context 是积累；AI Workspace 与 Document editor 是产出；从现场判断到原位采用的可核验 round trip 是唯一产品身份和差异化主轴。
+- **用户可见影响：** 完整 mock suite 仍需覆盖所有已定义能力，但首页、首次 Journey、导航与对外定位不得把四个类别并列呈现。功能是否存在与是否承担产品定位是两件事。
+- **替代方案：** 删除 Universal Voice Write、Document editor 或 Project transcription 以追求狭窄 MVP。该方案违背用户确认的整体 V2 方向，也会切断 Voice / Context / Output 的长期闭环。
+- **已有证据：** 竞品红队正确指出单项能力已被占据，但用户明确接受较宽产品范围；因此审查问题从“是否删除范围”改为“是否有唯一价值链、对象边界和能力层级”。
+- **开放问题：** 首个行为型用户、唯一 adoption outcome 与四层能力 hierarchy 仍需在修订稿和用户研究中验证。
+
+### DR-037 — V2 mock 从规范化共享状态与三个真实表面重建
+
+- **优先级：** V2 mock / P0
+- **状态：** 用户已授权实施；旧 mock 已删除；实施前 designer gate 已通过修订方向，正在实现
+- **决定：** 新 mock 不复用被否决的 `V2ProductExperience` Story、`.v2-*` CSS、Work IA 或单一巨型 Scenario。新实现使用独立 `v2-mock/` 目录、规范化 DomainState、独立 SurfaceState、纯 reducer/语义事件和每 Story 新 seed；Extension、同 tab Side Panel、Web App 是三个真实组件，共享同一领域状态但不并排拼成总览。Web App 一级入口保持 `Projects / Library / Settings`；Documents 属于 Project，Skills 通过上下文动作和 Settings 配置完整呈现，不为能力清单增加一级导航。
+- **现有模式：** 只复用已验证的技术原语，例如 Button/IconButton、Tooltip、PanelResizer、OverlayMenu、RecordingAudioPlayer、Lucide icon library 与 reduced-motion/focus 合同；不继承 V1 NavRail、Material/Work types、`Stop and insert`、旧页面轴数值或旧配色。
+- **首批用户可见结果：** 一个连续、可操作的 canonical Story 依次完成文章 A Voice Comment、文章 B Text Comment、Project evidence 核验、邮件输入目标 Voice Command、Side Panel sourced Draft、citation、Insert 与 Undo。主屏保持一个阅读/编辑轴和一个当前主动作；复杂能力放入独立 Stories，不堆进主屏。
+- **视觉方向：** 以 2026-08-05 实际捕获的 Notion 页面与 ChatGPT 首页为层级、阅读轴、输入节奏和克制程度基准。实施前 `logue_product_designer` 从三份 ImageGen 方向中选择 `Project Canvas` 作为 Web 主目标，保存于 `docs/design/references/logue-v2-project-canvas-target.png`；实现时必须移除其一级 Skills、正常保存噪音与无 target 时的 Insert，补齐 Project 默认态，并让 Sources inspector 可折叠、可调宽、渐进展开。Extension 与 Side Panel 不继承该 Web 布局，只共享视觉 token 与对象语义。
+- **数据与风险：** Stop 后永久保存、Project membership、Insert/Adopt 必须是独立状态；Transcription Profile 不得冒充 Project Generation Context；Web/You/AI 同时用图标与文字区分；target lost、offline pending、未采用 Run 和删除 dependency 必须有可恢复终态。每个 Story 使用独立 seed，避免交互污染其他 Story。
+- **替代方案：** 在旧单文件 mock 上继续补功能，或先做静态总览再补交互。前者继承错误对象与 IA，后者不能证明真实 Journey，均拒绝。
+- **已有证据：** 权威产品定义第 11–14、19 节；真实 Notion/ChatGPT 截图；旧 mock 运行截图；独立代码架构审查确认稳定原语可复用但旧 V2 产品组件必须整体弃用。
+- **完成证据：** Storybook 真实运行中完成 canonical journey；独立 Stories 覆盖全部合同矩阵；代表性 viewport、键盘/焦点、a11y、console、reload 通过；多位独立 designer、Claude Code Fable 5 Max 与 final goal_supervisor 无 P0/P1。
+
 ### DR-020 — LOGUE.ai 产品定位验证门
 
 - **优先级：** 产品基础 / P0
-- **状态：** 用户已确认收窄后的定位与首个用户；当前继续 V2 整体设计迭代，不定义 MVP、不开始实现
+- **状态：** 收窄后的定位与首个用户已确认；详细 V2 产品定义已重写并获 mock 授权；不定义生产 MVP
 - **研究前定位：** LOGUE.ai 是以 Voice 为第一交互方式、以 Log/Source 为个人信息底座、由 AI/Skills 完成处理、自动组织、分析和生成的个人工作系统。
 - **研究结论：** Voice / Log / AI 应保留为产品原则，但不能承担市场定位。任意输入框听写、选区命令、自定义 prompt、自动组织和基于个人内容生成已分别被 Wispr Flow、Superwhisper、Willow、Voicenotes、Mem、Tana、Readwise、Notion 等覆盖。
 - **确认定位：** 面向跨网页研究和写作的个人知识工作者；首个闭环为“当前网页/精确选区的语音或文字判断 → 带来源的 Log → 显式或自动 Project classification → 在当前输入位置基于 Sources 生成并插入”。短句为“说一次，记住来源，用回当前工作”。
-- **用户可见影响：** 当前 IA 方向建议 `Log / Projects / Settings`；Skills 作为上下文动作和高级配置；Topic、Source、Page、Run 不各自建立一级入口。这些仍可随用户后续想法继续迭代，不构成 MVP 或实现冻结。
+- **用户可见影响：** 新产品定义建议以 `Projects / Library / Settings` 为 Web App 一级入口；Project 是意图与 Context 边界，Library 负责所有永久私存内容的浏览与管理，Global Find 打开 Library 结果；Skills 作为上下文动作和配置。该 IA 等待用户确认，不构成 UI 或实现冻结。
 - **主要风险：** 若 round trip 不能明显优于 `Wispr + Readwise + ChatGPT` 的手工组合，产品仍会被理解为功能更少的 dictation/PKM 工具；来源 lineage 可以累积防御，但只有在当前工作位置真实节省返工时才产生用户价值。
 - **证据：** `docs/design/research/logue-ai-competitive-positioning-2026-08-04.md`、`docs/design/reviews/logue-ai-positioning-independent-review-2026-08-04.md`，以及 ChatGPT.com 独立会话 `https://chatgpt.com/c/6a72c769-02d8-83e8-9f9c-9978c94e5a41`。修订稿经 `logue_product_designer` 最终复审为 `PASS — 9.3/10`。
-- **用户决定：** 已确认收窄后的 wedge、研究/写作密集的首个用户与 DR-021；明确取消“首轮只证明一个 active Project”的当前范围讨论。现在只保存并迭代 V2 整体设计，等待更多想法，不实施。
+- **用户决定：** 已确认收窄后的 wedge、研究/写作密集的首个用户与 DR-021；明确取消“首轮只证明一个 active Project”的当前范围讨论。详细对象、Context、Voice、Library、Document 与 local-first 合同属于本次设计建议，仍等待用户审阅；不实施。
 
 ### DR-022 — V1 与 V2 的文档和产品边界
 
@@ -48,15 +82,19 @@
 - **开放问题：** Knowledge 何时成为个人 V2 的显式对象；团队 endorsement、负责人和 freshness 治理何时出现；团队内容主要留在 LOGUE.ai 还是写回现有工具；雇主 Workspace 与真正私人空间的所有权边界；开源范围、许可证和托管模式。
 - **实施边界：** 现在只更新产品设计语义，明确延后 Team 导航、自动发布、复杂权限、审批、企业连接器和治理后台；不构成实现授权。
 
-### DR-021 — Voice Write 与持久 Project Memory 的边界
+### DR-021 — Voice Write 与持久 Project Context 的边界
 
 - **优先级：** 产品基础 / P0
 - **状态：** 用户已确认设计边界；当前不实施
-- **决定：** 所有 Voice Write、Capture、Comment 和其他用户输入都形成 Source，并永久保存到私人 Log，直到用户明确删除。永久保存不等于进入 Project Memory。
-- **Project Memory 路径：** 用户可以显式选择一个或多个 Projects；系统也可以自动分类。高相关、重要且构成新信息或关键补充的 Source 可自动加入；低置信度只建议；无关、低价值或重复内容保持 Log-only，重复项关联已有 Source 而不放大 Context 权重。
-- **信任边界：** 用户显式加入、排除和纠正永久优先于自动分类，后台不得覆盖。Project Memory 是供 Project AI 使用的受控 Context，而不是另一份存储副本。
-- **用户可见影响：** Voice Write 主流程仍保持零额外选择和先保存后插入；用户之后可以找回任何输入。系统通过 Project classification 防止永久 Log 的噪音直接污染 Project 产出。
+- **决定：** 所有完成或明确 Stop/Save 的 Voice Write、Capture、Comment 和其他用户输入都形成 Source，并永久保存到私人 Library，直到用户明确删除。永久保存不等于进入 Project Context；Recording 中 Cancel 仍是明确放弃未完成输入。
+- **Project Context 路径：** 用户可以显式选择一个或多个 Projects。只有 Page/Selection Capture、Web Clip 和完成 Save 的 Page/Selection Comment，在用户已显式授权 tab active Project 时可以默认加入；Text Note 与其他 Saved content 可显式加入或仅 Suggest。Voice Write 即使使用 Project Transcription Profile 也只能 Suggest，不能自动加入。Voice Command、Ask/Draft prompt 等 Activity 永不自动进入，只有用户 Pin/Save 后才有资格。高相关但没有显式授权的 Source 只建议；无关、低价值或重复内容保持 Saved-only，重复项关联已有 Source 而不放大 Context 权重。
+- **信任边界：** 用户显式加入、排除和纠正永久优先于自动分类，后台不得覆盖。Project Context 是供 Project AI 使用的受控计算结果，而不是另一份存储副本。
+- **用户可见影响：** Voice Write 主流程仍保持零额外选择和先保存后插入；用户之后可以找回任何输入。系统通过 Source subtype 资格、显式 tab 授权和 Project classification 防止永久 Library 的噪音直接污染 Project 产出。
 - **替代方案：** 普通 Voice Write 仅短期/本地保留。该方案已被用户明确否定，不得作为默认行为。
+
+## V1 运行历史（不是 V2 产品权威）
+
+DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它们仍可约束 V1 修复和数据安全，但不得决定 V2 的 IA、对象名称、Voice 状态或产品表面；发生冲突时以 DR-020 至 DR-036 和 V2 唯一产品定义为准。
 
 ### DR-001 — 扩展麦克风授权范围
 
@@ -188,6 +226,7 @@
 
 - **优先级：** 产品方向
 - **状态：** 已完成产品/UX 设计与三位 designer 独立 review；规范已同步，尚未按完整工作流验收
+- **V2 边界：** 已被 DR-022、DR-035 与 DR-036 取代；`Stream / Projects / Documents / Skills / Settings` 只描述 V1，不得用于 V2 mock。
 - **决策：** 截图中的候选不各自建立入口或一级页面。四个价值步骤为“捕获 → 组织 → 找回 → 产出”，收敛成三个闭环：`Capture anywhere → safe save → quiet organization → On this page`、`Find / Ask → verify sources → draft → edit`、`Select → Skill → replace → Undo`。`Universal Capture` 与 LAN 连接是捕获可靠性门槛；`Ask my work` 是 Stream/Documents 的自然语言搜索能力；不新增 Inbox；当前页面记忆只在 Extension 的 `On this page` 中渐进显示。一级导航保持 `Stream / Projects / Documents / Skills / Settings`。
 - **用户可见影响：** 用户不需要学习 Chat 首页、Ask 页面、Inbox、Daily 或 Agents 等新心智模型；同一份资料可以从捕获一路被找回、纠正组织、加入文档或通过 Skill 复用。正常后台成功仍保持安静。
 - **明确推迟：** Daily resurfacing 与可配置 Agents。前者尚无证据证明通知或每日列表比按任务找回更有价值；后者只有 Prompt 能力时必须继续叫 `Skills`，直到真实存在触发器、工具、权限与运行记录。
@@ -220,8 +259,124 @@
 
 - **优先级：** P1
 - **状态：** 真实 Chrome 首次授权/取消已通过；真实人声保存仍待验证
+- **V2 边界：** 一次授权的浏览器事实可复用；`Stop and insert` 只描述 V1，已被 V2 的 `Stop → save audio → transcribe → candidate → explicit Insert` 取代。
 - **决策：** 首次录音由扩展自己的授权小窗口提供明确的 `Allow microphone` 按钮；用户点击后才调用 `getUserMedia`。授权归属 Logue Extension，不归属当前网页，因此一次授权适用于扩展支持的所有网页。
 - **用户可见影响：** 首次使用多一次清晰、一次性的授权点击；之后网页录音不再逐站点请求权限。正常录音、保存、插入路径不增加检查或步骤。
 - **已有证据：** 旧稳定安装在真实 Google 页面点击录音后会停在 `Requesting access…`，实现没有可见用户手势。当前稳定安装在新的独立 Google 页面点击 `Start voice input` 后，Chrome 显示 Logue 的麦克风权限提示；选择允许后 launcher 进入 `Cancel` / `Stop and insert`，Cancel 回到 `Start voice input` 且焦点回到网页 Search。真实 Logue Stream 页面还验证 `Cmd+Shift+L` 将焦点交给 Side Panel 的非编辑容器，`R` 在无网页输入目标时进入 `Cancel` / `Stop`，`Esc` 回到 Record。服务 `/v1/items` 每次前后都为同两条既有资料，确认取消零写入。
 - **替代方案：** 改用每个网页的麦克风权限，或继续自动请求。前者会产生逐站点权限摩擦并受页面策略影响；后者已在真实稳定安装中失败。
 - **下一步证据：** 当前稳定安装中，用真实人声 Stop 后恰好保存一条带原始音频的 Material，并按 C2/C4 验证插入路径。
+
+### DR-024 — V2 mock 采用跨端工作闭环，不把永久记录作为用户入口
+
+> **DR-024 至 DR-034 已统一被 DR-035 暂停。** 下方内容只保留为历史探索，不代表已确认产品合同；其中的 Work 命名、IA、Stop/Insert、面板尺寸、Settings 与 PASS 状态均不得用于后续 UI，除非新版产品定义重新给出依据。
+
+- **优先级：** 产品设计 / P0
+- **状态：** 已在 Storybook 连续验证；待用户确认后提交
+- **决定：** V2 mock 必须同时呈现 Chrome Extension 与 Web App。Extension 承担“任意输入框 Voice Write、网页/选区留下文字或语音判断、原地使用 Actions”的现场交互；Web App 承担“持续推进一件工作、查看相关证据与自己的判断、基于这些内容继续写作或提问”的长期交互。两端由同一条“当前工作”连续起来，不能做成彼此独立的产品截图。
+- **用户可见影响：** 产品名为 `Logue`，官网为 `logue.ai`；它是 local-first 产品。产品不再把 `Log`、`Material`、`Stream` 或技术性的永久存储作为默认入口或导航名称。保存、分类和来源链只在需要核验时才出现。
+- **交互边界：** 主 mock 必须可完成 `网页选区 → 文字/语音留下判断 → 保留来源并加入当前工作 → 打开 Web App → 使用该判断及来源继续起草 → 在任意输入框 Voice Write / 原地采用`。语音录制、转写、自动归类和正常保存保持安静；不自动提交宿主页面、不自动共享、不把私人记录自动变为团队内容。
+- **本次设计选择：** 不再制作总览拼贴屏。每个 Story 只呈现一个真实产品表面，并从同一份 fixture 构建；`CrossSurfaceWorkLoop` 在一个连续场景内共享同一个 Work、选区、Thought、Evidence 和 Draft，从捕获走到回插。独立 Story 保持可复现的固定初始态，不让先前操作污染关键界面。Web 使用 `Current work / Find / Settings`，永久保存是内部承诺而非导航对象。视觉只采用 Notion 的阅读内容轴和 ChatGPT 的单一主输入节奏；Evidence drawer 默认关闭。
+- **本地产品边界：** 当前不设计用户帐户、登录、profile、套餐、`Personal` 标识、Workspace switcher 或成员列表。导航只呈现当前真实 Work、Find 与 Settings；未实现多 Work 数据时不摆放点击后仍打开同一内容的假 Work 行，也不得用新建动作清除已保存的私人输入。
+- **替代方案：** 仅制作浏览器侧栏会把 LOGUE.ai 误呈现为 annotation extension；仅制作 Web App 会把它误呈现为又一个 AI workspace。保留 `Log` 作为一级入口则与用户明确提出的“技术化、非产品心智”冲突。
+- **已有证据：** 用户在本轮明确要求“Extension 和 Web App 都需要”；竞品研究显示单一 Voice、阅读标注或知识工作区都不足以差异化，价值必须来自现场捕获到原位复用的跨端闭环。视觉目标为 2026-08-05 的浏览器内陪伴方向。
+- **开放问题：** 各表面的真实完成态和视觉密度必须在 Storybook 浏览器验证后，由 ChatGPT、Claude 网页版、Claude Code 与独立设计审查交叉复核；不得将被否决 mock 的任何布局或文案作为后续实现约束。
+
+### DR-025 — Voice 停止即保留；派生产出不冒充用户原话
+
+- **优先级：** V2 mock / P0
+- **状态：** 已在 Storybook 连续验证；待用户确认后提交
+- **决定：** Voice Write 与语音 Comment 在停止时立即保留私人的原话与转换版本；插入当前页面、加入 Work、接受分类均是后续显式动作。Web 原文、用户判断和 Action/Draft 等 AI 派生产出在 mock 中始终保留各自的 `Web / You / AI` 来源标识；引用与回插读取实际所属 Work，而不是一个固定示例名称。
+- **用户可见影响：** 用户停止录音后即使不继续保存 Comment，仍可在 Find 找回原话及转换版本；目标丢失时可复制或找回，正常页面不会自动提交。采用 AI Action 生成的文字不会被误称为用户自己的判断。
+- **替代方案：** 把录音仅保留在未保存 textarea 中，或为了简化展示把所有内容归为 `You`。前者会丢失用户输入，后者会污染 Project Context 的证据可信度。
+- **已有证据：** V2 规范要求 Voice 停止后先永久保存、原始版本不被转换覆盖；独立 runtime 审查实证当前 Action → Thought → Evidence 的来源标识错误，且跨 Work 回插错误使用固定 `Mobile research` 名称。
+- **开放问题：** 真实录音/模型版本还需决定 dictation 与 command 的独立快捷键；本 mock 先验证保存、来源链、显式采用和键盘恢复语义。
+
+### DR-026 — V2 mock 必须可操作地覆盖 Project 分类与语音驱动的 Work 交互
+
+- **优先级：** V2 mock / P0
+- **状态：** 已在 Storybook 连续验证；待用户确认后提交
+- **决定：** 不把“自动分类”或“可用语音与 Project 交互”留为设置文案。一个保存的 Source 必须能在 mock 中显式加入多个 Work、保持 Log-only、接受或拒绝低置信度建议，并展示自动加入与重复关联这两种不同结果；Work 的 Ask/Draft 输入必须同时可用键盘或语音提出请求。高级 Skills 至少分别覆盖 transcription、transformation、page/selection、organization 与 generation。
+- **用户可见影响：** 用户能区分“永久保存”“进入哪个 Work”“只是建议”“重复关联”四件不同的事，也能在当前 Work 通过语音形成请求，而无需回到一个独立聊天产品。
+- **替代方案：** 只保留单 Work 保存、预置的 Suggest 状态，或把其余分类/语音交互写在说明中。它们无法证明 V2 的完整能力，且会使后续视觉 review 审查一个不完整产品。
+- **已有证据：** V2 规范第 10 节已将多 Project、自动分类四种结果、Project 内 voice/text Find/Ask/Draft、可定制五类 Skills 定为能力基线；用户最新明确要求先完整功能、再 Journey、UX 和 UI。
+- **开放问题：** 真实分类置信度、重复检测和语音命令模型不在 mock 阶段决定；mock 只定义用户可见的结果、纠正和恢复行为。
+
+### DR-027 — 来源核验只显示已发生的派生结果，并保持可用键盘退出
+
+- **优先级：** V2 mock / UX
+- **状态：** 已在 Storybook 连续验证；待用户确认后提交
+- **决定：** Evidence 默认只呈现已保存的网页、Comment、原始语音与转写；只有用户在当前 Work 真实生成 Draft 后，才显示派生产出和编辑版。每个 Source 保留可见捕获时间。新 Work 与 Advanced Skills 的弹窗必须在打开时落到实际输入控件，并支持 `Esc` 关闭。
+- **用户可见影响：** 用户不会把尚未发生的 AI 结果误认为事实或证据；也能用键盘在轻量配置与新建 Work 流程中稳定开始和退出。
+- **替代方案：** 用预置 Draft 填充 Evidence 或只依赖鼠标关闭弹窗。前者破坏来源可信度，后者让高频桌面流程不完整。
+- **已有证据：** 独立 V2 复审已复现“生成前 Evidence 预先显示 AI Draft”；修正已在浏览器验证。其同轮审查还发现 Advanced Skills dialog 的焦点留在背景触发器，且无可验证的 `Esc` 路径。
+- **开放问题：** 完整 focus trap 留待真实复杂弹窗出现后再抽象；本 mock 先提供当前流程需要的可达初始焦点与键盘退出。
+
+### DR-028 — Evidence 是可调整的阅读面板，不挤压或伪装成独立页面
+
+- **优先级：** V2 mock / UX
+- **状态：** 已在 Storybook 连续验证；待用户确认后提交
+- **决定：** 桌面 Work 的 Evidence inspector 打开后使用既有共享 PanelResizer，默认 480px、可在 320–640px 调整、双击恢复默认值；窄宽度沿用现有覆盖式 drawer，避免内容轴被挤压到不可读。
+- **用户可见影响：** 用户能在核验长原文/语音转写时给来源足够宽度，也能优先保持 Work 的阅读与起草空间；不需要跳到一个独立来源页。
+- **替代方案：** 固定 480px 或新增 Evidence 页面。前者违背桌面侧栏的既有可调规则，后者切断 “Draft ↔ citation ↔ evidence” 的连续阅读。
+- **已有证据：** 当前 V2 capture、Work 和 Evidence 的浏览器审计确认来源链正确，但 Evidence 面板无可见 resizer；项目已有经过测试的共享 PanelResizer，并规定桌面侧栏需遵守可调尺寸规则。
+- **开放问题：** 最佳默认宽度与上下限在真实多语言、长 URL/转写文本中再校准；mock 先给出当前证据阅读可用的 320–640px 范围。
+
+### DR-029 — 私有性、回插范围和目标丢失必须在关键时刻说清楚
+
+- **优先级：** V2 mock / P1
+- **状态：** 已在 Storybook 连续验证；待用户确认后提交
+- **决定：** 每个进入 Work 的用户 Source 与 Evidence inspector 都以低干扰的 `Private · on this device` 明示其本地私有边界；Draft 回插完成后，原输入框旁必须显示该次插入来自哪个 Work，且 `Undo` 只撤销那一次插入。目标输入框消失时不得说“原始输入不存在”，而明确说明“目标页面已变化，内容已私密保存”。
+- **用户可见影响：** 用户在最容易误解的三个时刻——决定把判断纳入 Work、将生成内容放回原页面、网页目标失效——仍能分清数据是否保留、刚发生了什么，以及 Undo 的作用范围。
+- **替代方案：** 仅在设置页声明 local-first，或把插入结果标成富文本内联高亮。前者无法在高风险操作时建立信任；后者不适用于任意原生 textarea/contenteditable，反而会暗示不可保证的宿主能力。
+- **已有证据：** Claude Fable 5 Max 对五张关键 mock 截图的独立审查没有发现 P0，但将这三项列为 P1：目标丢失文案歧义、插入范围无从辨认、local-first 私有边界不连续可见。
+- **开放问题：** 真实 extension 对不同宿主编辑器能否精确标记插入 range，要在实际集成阶段按宿主能力决定；mock 先承诺可验证的来源和 Undo 范围，不承诺跨站富文本装饰。
+
+### DR-030 — Evidence 只放来源；派生内容进入可读的转换历史
+
+- **优先级：** V2 mock / P1
+- **状态：** 已在 Storybook 连续验证；待用户确认后提交
+- **决定：** Evidence inspector 保持以原网页、用户 Comment、原始录音与转写为核心的 `Sources`；AI Draft、用户编辑版等派生产出移入按因果顺序呈现的 `Transformation history`。录音不再用一段文本冒充“Original voice”，而显示可操作的录音项、时长、原话转写和清理后的版本。Capture 在保存前以可展开、非阻塞的差异说明展示“轻度清理、原文保留”。
+- **用户可见影响：** 用户可以迅速判断什么是外部/个人证据、什么是 AI 或自己后续加工的结果，并在保存前检查语音清理有没有改变含义，而无需多一次确认。
+- **替代方案：** 把所有内容继续放在 Evidence 下，或为了简洁隐藏原始录音和转换。前者将证据与结论混淆；后者违背用户对永久 Source 和可控 transformation 的核心要求。
+- **已有证据：** ChatGPT 对五张关键 mock 截图的独立审查列为 P1：Evidence 与 lineage 混层、语音原件用文本假称、保存前清理不可核验；Claude 同时指出 Skills 的实际适用范围与保存语义不够可预测。
+- **开放问题：** 真正的音频播放、模型版本与可对照的字符级 diff 留待实现阶段；mock 先定义其用户可见状态、因果顺序和不改变原文的承诺。
+
+### DR-031 — Skills 必须按触发点解释，保存与恢复默认值都可见
+
+- **优先级：** V2 mock / P1
+- **状态：** 已在 Storybook 连续验证；待用户确认后提交
+- **决定：** 五类 Skills 各自明确只在其触发点运行：语音停止后、用户显式 Action、页面/选区 Action、Work 分类建议、Work Ask/Draft。它们不在同一次 Draft 中隐式叠加；配置页提供 `Save defaults` 和 `Reset defaults`。
+- **用户可见影响：** 用户能预测哪条设置会影响哪次动作，知道保存默认值会发生什么，并能恢复到安全起点。
+- **替代方案：** 保留只有五个文本框和 `Done` 的通用配置。它虽然更短，但把 V2 最重要的“用户可定制 transformation”变成不可解释的全局魔法。
+- **已有证据：** ChatGPT 将适用范围、优先级和 `Done` 的语义列为 P1；Claude 将 `Reset to default` 与 `Save defaults` 列为 P2，和该问题一致。
+- **开放问题：** 同一类 Skill 的多版本、优先级以及项目局部覆盖还不属于本 mock 的范围；当前只避免五个类别互相重叠。
+
+### DR-032 — Inline Voice Write 在停止时只保存，绝不隐式写入宿主输入框
+
+- **优先级：** V2 mock / P0
+- **状态：** 已在 Storybook 连续验证；待用户确认后提交
+- **决定：** Inline Voice Write 的 `Stop` 只创建永久私有的原始录音、转写和采用版，留在“已保存、待采用”状态；只有后续显式 `Insert` 才写入原宿主字段，`Undo` 只移除那一次写入。用户可在该状态把语音记录加入当前 Work，或不归入任何 Work；两种情况都可从 Find 找回。若目标字段消失，恢复界面只针对一条实际已保存的语音记录。
+- **用户可见影响：** 用户停止说话后不再担心文字已经悄悄写进邮件、聊天或文档；他们能先审查、归入 Work 或直接离开，仍保有原音、转换版和日后找回入口。
+- **替代方案：** 使用 `Stop and insert` 的单一按钮，或仅把停止结果临时留在输入框。前者违反“显式采用、绝不自动写入”的核心承诺；后者在目标丢失或用户转场时丢失永久 Source。
+- **已有证据：** Goal Governor 的独立 checkpoint 已实测 Capture → Work → Draft → Insert/Undo 闭环，但发现 Inline Voice Write 仍在停止时立即插入，且默认 Find 抽屉写为 `Not added to a Work`，无法证明保存后可选归入 Work 的第三条合同旅程。
+- **开放问题：** 真实宿主输入框的精确插入和失效侦测由 extension 运行时决定；mock 先定义不可变的保存顺序、用户可见状态和恢复动作。
+
+### DR-033 — V2 本地设置与原始录音必须可核验，而不引入帐户模型
+
+- **优先级：** V2 mock / P1
+- **状态：** 已在 Storybook 连续验证；待用户确认后提交
+- **决定：** Settings 保留为本机偏好，不出现帐户、成员或云端 workspace；除 Voice & Actions 外，提供 Privacy & Storage、Extension & Voice、Export & Backup 三条可操作的本地路径。所有 Voice Source 的 Evidence 使用同一录音行，显示播放/暂停、时长、捕获时间和宿主页面链接，再展示转写与采用版。
+- **用户可见影响：** 用户可以核验原话来自何时、何页，并管理这台设备上的隐私、扩展和可移出的副本，而不会被误导为需要登录或已上传到云端。
+- **替代方案：** 把本地操作藏在空泛的“Voice & Actions”页，或只以“Original recording kept”文字表示原音。前者遗漏关键本地控制面；后者无法验证语音 Source 的可信度。
+- **已有证据：** 最终独立产品设计复审复现两项 P1：Settings 只有 Voice & Actions，且 Voice Write → Stop → Add to Work → View saved 无法核验录音时长、时间和来源页。
+- **开放问题：** 真实导出格式、备份目标和语音服务供应商在实现阶段由本机运行时决定；mock 只定义可发现、可触发的本地操作与不使用帐户的边界。
+
+### DR-034 — 本地 Settings 的每个动作必须有可完成终态
+
+- **优先级：** V2 mock / P1
+- **状态：** 已在 Storybook 连续验证；待用户确认后提交
+- **决定：** Settings 的 storage、extension、backup、export 不以 toast 或静态状态冒充完成；每个入口打开同一轻量本地操作面板，用户可完成一个明确动作并看到终态。Export 先选择范围与是否保留原录音，再准备副本并触发下载；其余动作分别以“已打开本机资料夹 / 已打开浏览器扩展 / 已创建本机备份”收束。
+- **用户可见影响：** 用户不会点击后停在“ready to choose”之类没有下一步的页面；本地能力仍不需要帐户、云端或虚构 workspace。
+- **替代方案：** 继续只显示状态文案，或为四项操作各做独立设置页面。前者是死路；后者对低频本地操作过重，并破坏 Settings 的安静阅读轴。
+- **已有证据：** 冻结后的独立产品设计复审复现 `Settings → Export & Backup → Prepare export` 仅改变提示文本，没有选择、下载或终态，判为 P1。
+- **开放问题：** 真实 Finder、浏览器扩展页、压缩包格式与下载写入在实现阶段连接本机系统；mock 先固定用户可见的范围选择、确认与完成语义。
