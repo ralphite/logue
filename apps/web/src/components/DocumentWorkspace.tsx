@@ -567,6 +567,8 @@ export function ViewWorkspace({
     max: 360,
   });
   const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const generatorTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const restoreGeneratorFocusRef = useRef(false);
   const [workspaceWidth, setWorkspaceWidth] = useState(() => window.innerWidth);
   const sourcePanelMaxWidth = availableSourcePanelWidth(workspaceWidth, showDocumentSidebar ? documentListWidth : 0);
   const { size: sourcePanelWidth, setSize: setSourcePanelWidth } = usePersistentPanelSize({
@@ -598,6 +600,12 @@ export function ViewWorkspace({
   const revisionByDocumentRef = useRef(new Map<string, number>());
   const saveQueueRef = useRef(createSerialTaskQueue());
   const saveByVersionRef = useRef(new Map<string, Promise<boolean>>());
+
+  useEffect(() => {
+    if (generatorOpen || !restoreGeneratorFocusRef.current) return;
+    restoreGeneratorFocusRef.current = false;
+    generatorTriggerRef.current?.focus();
+  }, [generatorOpen]);
 
   documentsRef.current = documents;
   contentRef.current = content;
@@ -977,11 +985,18 @@ export function ViewWorkspace({
   }
 
   function openGenerator() {
+    generatorTriggerRef.current = document.activeElement instanceof HTMLButtonElement ? document.activeElement : null;
     setGenerationTitle("");
     setGenerationProject(project);
     setGenerationSourceIds(sourceIds.length ? sourceIds : groupIdenticalMaterials(materials).slice(0, 3).map((group) => group.representative.id));
     setGenerationError(undefined);
     setGeneratorOpen(true);
+  }
+
+  function closeGenerator() {
+    if (generating) return;
+    restoreGeneratorFocusRef.current = true;
+    setGeneratorOpen(false);
   }
 
   async function runGeneration() {
@@ -1554,11 +1569,11 @@ export function ViewWorkspace({
       )}
 
       {generatorOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#20211e]/25 p-4 backdrop-blur-[1px]" onMouseDown={(event) => { if (event.currentTarget === event.target && !generating) setGeneratorOpen(false); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="generate-document-title" className="flex max-h-[82vh] w-full max-w-[620px] flex-col overflow-hidden rounded-xl border border-[#deded9] bg-white shadow-[0_24px_80px_rgba(20,21,18,0.22)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#20211e]/25 p-4 backdrop-blur-[1px]" onMouseDown={(event) => { if (event.currentTarget === event.target) closeGenerator(); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="generate-document-title" onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeGenerator(); } }} className="flex max-h-[82vh] w-full max-w-[620px] flex-col overflow-hidden rounded-xl border border-[#deded9] bg-white shadow-[0_24px_80px_rgba(20,21,18,0.22)]">
             <header className="flex items-center justify-between border-b border-[#e8e8e5] px-5 py-4">
               <div className="flex items-center gap-2.5"><span className="inline-flex size-8 items-center justify-center rounded-md bg-[#eeece8] text-[#5e605a]"><Sparkles size={15} /></span><div><h2 id="generate-document-title" className="text-[14px] font-semibold text-[#30312d]">Generate document</h2><p className="mt-0.5 text-[14px] text-[#8b8c87]">Create an editable draft that preserves source citations.</p></div></div>
-              <button type="button" disabled={generating} onClick={() => setGeneratorOpen(false)} className="inline-flex size-8 items-center justify-center rounded-md text-[#888984] hover:bg-[#f0f0ed] max-[640px]:size-11" aria-label="Close"><X size={16} /></button>
+              <button type="button" disabled={generating} onClick={closeGenerator} className="inline-flex size-8 items-center justify-center rounded-md text-[#888984] hover:bg-[#f0f0ed] max-[640px]:size-11" aria-label="Close"><X size={16} /></button>
             </header>
             <div className="grid min-h-0 flex-1 grid-cols-[1fr_230px] max-[620px]:grid-cols-1">
               <div className="space-y-4 overflow-y-auto p-5">
@@ -1572,7 +1587,7 @@ export function ViewWorkspace({
                 <div className="h-full overflow-y-auto pb-6"><MaterialGroupPicker materials={materials} selectedIds={generationSourceIds} onChange={setGenerationSourceIds} getLabel={sourceLabel} getDescription={sourceExcerpt} getMeta={sourceMeta} /></div>
               </div>
             </div>
-            <footer className="flex items-center justify-between gap-3 border-t border-[#e8e8e5] bg-[#fcfcfa] px-5 py-3.5"><p className="min-w-0 text-[14px] text-[#999a95]">Gemini receives only the selected materials and project overview.</p><div className="flex shrink-0 gap-2"><button type="button" disabled={generating} onClick={() => setGeneratorOpen(false)} className="h-8 whitespace-nowrap rounded-md px-3 text-[15px] font-medium text-[#6f706b] hover:bg-[#eeeeeb]">Cancel</button><button type="button" disabled={!generationSourceIds.length || generating} onClick={() => void runGeneration()} className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md bg-[#242522] px-3 text-[15px] font-medium text-white hover:bg-[#393a36] disabled:cursor-not-allowed disabled:bg-[#bdbdb8]">{generating ? <LoaderCircle size={13} className="animate-spin" /> : <Sparkles size={13} />}{generating ? "Generating…" : "Generate document"}</button></div></footer>
+            <footer className="flex items-center justify-between gap-3 border-t border-[#e8e8e5] bg-[#fcfcfa] px-5 py-3.5"><p className="min-w-0 text-[14px] text-[#999a95]">Gemini receives only the selected materials and project overview.</p><div className="flex shrink-0 gap-2"><button type="button" disabled={generating} onClick={closeGenerator} className="h-8 whitespace-nowrap rounded-md px-3 text-[15px] font-medium text-[#6f706b] hover:bg-[#eeeeeb]">Cancel</button><button type="button" disabled={!generationSourceIds.length || generating} onClick={() => void runGeneration()} className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md bg-[#242522] px-3 text-[15px] font-medium text-white hover:bg-[#393a36] disabled:cursor-not-allowed disabled:bg-[#bdbdb8]">{generating ? <LoaderCircle size={13} className="animate-spin" /> : <Sparkles size={13} />}{generating ? "Generating…" : "Generate document"}</button></div></footer>
           </section>
         </div>
       )}
