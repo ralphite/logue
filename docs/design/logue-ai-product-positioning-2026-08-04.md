@@ -1,7 +1,7 @@
 # LOGUE.ai 总体产品定位
 
 日期：2026-08-04
-状态：已完成竞品研究与第一轮独立审查；已收窄，等待用户确认；不得作为实现授权
+状态：定位、首个用户与持久 Log 边界已获用户确认；首轮 MVP 验证范围待最终确认；不得作为实现授权
 
 ## 1. 结论
 
@@ -51,17 +51,17 @@ LOGUE.ai 不应以“另一个语音输入工具”“second brain”“个人 O
 
 ### Log
 
-Log 是用户主动捕获的工作记忆，而不是无差别活动监控。以下列表按推荐但尚未确认的 `Voice Write / Capture` 语义描述：
+Log 是所有用户主动输入的永久记录：
 
 - Page Comment
 - Selection + text/voice Comment
 - Text Note
 - Web selection / Web clip
-- 用户明确保留的 Voice Write
+- Voice Write
 - Skill result / adopted output
 - 未来 Screenshot、Image、PDF/File
 
-原始页面、选区、URL、时间、用户 Comment 和后续产出保留关联；转换不覆盖原始证据。
+所有 Voice Write、Capture、Comment 和其他用户输入都形成 Source，并永久保存在私人 Log 中，直到用户明确删除。原始页面、选区、URL、时间、用户 Comment 和后续产出保留关联；转换不覆盖原始证据。
 
 ### AI
 
@@ -76,36 +76,47 @@ AI 作用于用户自己的 Log 和 Project evidence：
 
 重要结果必须能回到具体 Source；正常后台处理保持安静。
 
-## 4. 推荐但尚未确认的两种语音语义
+## 4. 永久 Log 与 Project Memory 的边界
 
-竞品研究暴露了一个必须由用户确认的产品决定：普通听写是否默认永久进入 Log。当前用户事实仍是“所有主动语音输入形成 Source、永久保存直到删除”；下述方案只有在用户明确批准后才会替代该要求。
+用户已经确认：**永久保存与进入 Project Memory 是两个不同决定。**
 
 ### Voice Write
 
 `Focus editable target → Record → clean transcript → Insert`
 
 - 目标是替代键盘，默认不增加分类或保存决定。
+- 停止后先永久保存为私人 Log Source，再插入当前目标。
 - 永不自动提交宿主表单。
-- 建议仅保留短期、本地可恢复记录；用户可明确 `Keep in Log`。
+- 永久保存本身不等于进入 Project Memory；只有显式选择或分类结果才能让它进入。
 
 ### Capture / Comment
 
-`Page or selection → voice/text Comment → Save source → confirm Project`
+`Page or selection → voice/text Comment → Save source → explicit/automatic Project classification`
 
 - 明确建立持久 Source。
 - 保留原页面/精确选区及用户判断。
-- 进入 Project Memory，并用于后续找回和生成。
+- 可以由用户显式加入 Project Memory，也可以交给自动分类。
 
-这样避免把临时回复、敏感输入和低价值草稿永久索引。若用户选择所有听写永久保留，也应至少默认不进入 Project Context，并提供按应用/Project 的保留规则。
+### Project Memory classification
+
+每个永久 Source 都经过分类，但分类不改变其 Log 保存状态：
+
+- **Explicit**：用户选择一个或多个 Projects，立即进入对应 Project Memory。
+- **Auto include**：系统判断与某 Project 高相关、重要，并提供新信息或关键补充时，可安静加入。
+- **Suggest**：相关但置信度不足时，只建议用户确认。
+- **Log only**：无关、低价值、临时或重复内容继续永久保存在 Log，但不进入 Project Memory。
+- **Duplicate link**：重复内容关联到已有 Source，不重复放大其在 Context 中的权重。
+
+用户显式选择、排除和纠正永久优先于自动分类；后台不得再次覆盖。Project Memory 是可用于 Project AI 的受控 Context，不是另一份存储副本。
 
 ## 5. 唯一核心循环
 
-`Voice/text Comment on page or selection → quiet Log → confirm one Project → ask or draft from saved evidence → copy/insert in current editor`
+`Any user input → permanent Source in Log → explicit or automatic Project classification → ask/draft from Project evidence → copy/insert in current editor`
 
 用户只需理解：
 
-1. 在现场说或保存一次。
-2. Logue 记住内容和来源。
+1. 在现场说、写或保存一次，Logue 永久记住内容和来源。
+2. 用户或系统决定它是否值得进入某个 Project Memory。
 3. 需要时在当前工作中直接用回来。
 
 长期内部循环仍为：
@@ -139,7 +150,7 @@ UI 只需显示轻量的 `Web / You / AI` 标识；底层保留父子链、实�
 
 一级工作区只保留：
 
-1. **Log**：最近主动捕获、来源、Comments、搜索和低置信度待确认。
+1. **Log**：全部永久 Sources、搜索、分类状态和低置信度待确认。
 2. **Projects**：Project Memory、Sources、已确认知识、找回与产出。
 3. **Settings**：Voice、Privacy、Skills、Extension/server、Export/backup。
 
@@ -183,26 +194,26 @@ Skill revision、实际 Context、raw output 和 adopted result 由系统记录�
 
 ## 10. 最窄但完整的 MVP
 
-只验证一个活跃 Project 的完整 round trip。
+“先证明一个 Project”只是一条首轮验收场景，不是产品或数据模型只支持一个 Project。产品仍允许创建、选择和切换多个 Projects，一条 Source 也可属于多个 Projects；首轮只要求用一个 active Project 把端到端价值证明清楚，避免同时用复杂多项目管理掩盖闭环问题。
 
 必须有：
 
-1. 常见网页编辑目标中的 Voice Write。
+1. 常见网页编辑目标中的 Voice Write，并在插入前永久保存为 Source。
 2. 对当前页面或精确选区添加语音/文字 Comment。
 3. 保存 URL、页面标题、选区、时间、Comment 和必要的原始录音。
-4. 捕获后建议一个 Project，由用户轻量确认或修正。
+4. 用户可显式加入一个或多个 Projects；自动分类能区分高相关重要补充、低置信度建议、重复和 Log-only 内容。
 5. 在该 Project 内用语音或文字 Find / Ask / Draft。
 6. 每个关键结论显示直接 Sources，可打开原文。
 7. 结果可 Copy/Insert；永不自动提交；Cancel、Undo 和纠正可靠。
 8. 一个简单 custom transformation，用于验证 Skills 需求。
 
-Project 是用户意图和 Context 权限边界：有明确 active Project 时可直接加入；没有 active Project 时只能建议。用户修正永久优先于后台分类。
+Project 是用户意图和 Context 权限边界：有明确 active Project 或高置信度分类时可自动加入；低置信度只建议。用户修正永久优先于后台分类。
 
 明确推迟：
 
 - 全局通用 Voice Command。
 - 完整自定义 transcription pipeline 和 Skill editor。
-- 自动写入 Project、显式 Topic 管理和复杂关系发现。
+- 自动分类的高级配置、显式 Topic 管理和复杂关系发现；基础 Project auto-include / suggest 属于 MVP。
 - Derived Source / Run 用户界面和完整 Page editor。
 - Screenshot/Image/PDF/File、会议录音、Daily、Agents、marketplace。
 - 多用户协作、企业权限与全量 ambient recording。
@@ -242,7 +253,7 @@ Project 是用户意图和 Context 权限边界：有明确 active Project 时�
 
 ## 13. 当前待用户确认
 
-1. 是否同意把市场定位收窄为“网页现场判断 → 带来源 Project Memory → 原位产出”。
-2. 是否同意首个用户按行为聚焦于研究/写作密集的个人知识工作者。
-3. 是否接受 `Voice Write` 与 `Capture / Comment` 两种语义，特别是普通听写不默认永久进入 Project Memory。
-4. 是否同意先只证明一个 Project 的完整闭环，长期能力保留但不同时进入 MVP。
+1. **已确认：** 市场定位收窄为“网页现场判断 → 带来源 Project Memory → 原位产出”。
+2. **已确认：** 首个用户按行为聚焦于研究/写作密集的个人知识工作者。
+3. **已确认：** 所有用户输入永久进入私人 Log；通过显式选择或自动分类决定是否进入 Project Memory。
+4. **待确认：** 是否同意首轮验收只用一个 active Project 证明完整闭环；这不限制产品支持多个 Projects，也不删除长期能力。

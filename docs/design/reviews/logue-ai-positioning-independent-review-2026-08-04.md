@@ -38,12 +38,12 @@
 - 用户原始愿景是所有主动输入都可成为 Source。
 - 两位 agents 独立指出，任意输入框包含敏感内容、临时回复和低价值草稿；默认永久索引会带来隐私恐惧与知识污染。
 
-裁决：这是未解决的用户决定。推荐区分：
+第一轮裁决曾建议区分：
 
 - `Voice Write`：默认只插入，短期/本地可恢复，可显式 Keep。
 - `Capture / Comment`：明确形成持久 Source 并进入 Project Memory。
 
-即使最终选择永久保存所有 dictation，也应默认不把它们纳入 Project Context，并允许按应用/Project 控制 retention。
+用户随后明确决定：所有 Voice Write、Capture、Comment 和其他用户输入都永久成为私人 Log Source；是否进入 Project Memory 由用户显式选择或系统自动分类。无关、低价值或重复内容保持 Log-only，避免永久 Log 直接污染 Project Context。该用户决定覆盖第一轮短期保留建议。
 
 ### Moat 是 lineage 还是 cross-app workflow
 

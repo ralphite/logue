@@ -94,9 +94,9 @@
 
 必须有：
 
-- `Write`：任意输入框语音输入。研究建议默认不进入长期 Log，但该建议待用户确认；确认前沿用“所有主动 Voice Write 永久形成 Source”的现行要求。
+- `Write`：任意输入框语音输入，并在插入前永久保存为私人 Log Source；用户后续可以找回。竞品研究曾建议短期保留，该方案已被用户否定。
 - `Capture / Comment`：明确保存当前页面或精确选区，并添加语音/文字 Comment。
-- 一个 Project；保存后给 Project 建议，但由用户确认。
+- 支持多个 Projects；首轮以一个 active Project 验证完整闭环。用户可显式加入，系统也可按相关性、重要性、新信息、补充价值、重复性和噪音自动分类。
 - 原始页面/选区、Comment、时间和 URL 可回看。
 - 在 Side Panel 中对该 Project 找回或起草，答案附具体 Sources。
 - 结果可 Copy/Insert；取消、Undo 和来源展开可靠。
@@ -106,7 +106,7 @@
 
 - 全局 Voice command。
 - 完整 Skill 编辑器和复杂 transcription pipeline。
-- 自动 Project 写入与 Topic 管理界面。
+- 自动分类的高级配置与 Topic 管理界面；基础 Project auto-include / suggest 属于 MVP。
 - Related/duplicate/complementary discovery UI。
 - Derived Source、Run、Page 作为用户可见一级对象。
 - Screenshot/Image/PDF/File、会议、Daily、Agents、marketplace、多用户协作。
