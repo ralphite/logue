@@ -103,11 +103,13 @@ export interface Activity {
   projectId: Id | null;
   targetSessionId?: Id;
   transcript: string;
+  inputMode?: "voice" | "text";
   parsedIntent?: { action: "draft-reply"; projectId: Id; output: "current-target" };
 }
 
 export interface Citation {
   sourceId: Id;
+  revisionId: Id;
   label: string;
   excerpt: string;
 }
@@ -120,6 +122,8 @@ export interface Candidate {
   citations: Citation[];
   status: CandidateStatus;
   adoption?: "replace" | "copy" | "insert" | "keep" | "document";
+  adoptionTargetSessionId?: Id;
+  adoptionUndone?: boolean;
 }
 
 export interface Run {
@@ -127,13 +131,16 @@ export interface Run {
   activityId: Id | null;
   projectId: Id | null;
   status: RunStatus;
-  actualContextSourceIds: Id[];
+  actualContext: Array<{ sourceId: Id; revisionId: Id }>;
   candidateId?: Id;
   skillId?: Id;
   skillRevisionId?: Id;
   skillResolution?: SkillResolutionSource;
   inputScope?: SkillInputScope;
   input?: string;
+  targetSessionId?: Id;
+  idempotencyKey?: string;
+  failureReason?: "no-project-context" | "model-not-ready" | "source-revision-missing";
 }
 
 export interface Skill {
@@ -238,6 +245,7 @@ export interface SurfaceState {
     | null;
   commandActivityId: Id | null;
   openCitationSourceId: Id | null;
+  openCitationRevisionId: Id | null;
 }
 
 export interface MockSessionState {

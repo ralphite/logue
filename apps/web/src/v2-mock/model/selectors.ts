@@ -75,12 +75,13 @@ export function getCommentBundle(domain: DomainState, commentSourceId: Id): { co
   return { comment, web: comment.commentsOnSourceId ? domain.sources[comment.commentsOnSourceId] : undefined };
 }
 
-export function getCandidateCitations(domain: DomainState, candidateId: Id): Array<{ source: Source; excerpt: string; label: string }> {
+export function getCandidateCitations(domain: DomainState, candidateId: Id): Array<{ source: Source; revision: Source["revisions"][number]; excerpt: string; label: string }> {
   const candidate = domain.candidates[candidateId];
   if (!candidate) return [];
   return candidate.citations.flatMap((citation) => {
     const source = domain.sources[citation.sourceId];
-    return source ? [{ source, excerpt: citation.excerpt, label: citation.label }] : [];
+    const revision = source?.revisions.find((item) => item.id === citation.revisionId);
+    return source && revision ? [{ source, revision, excerpt: citation.excerpt, label: citation.label }] : [];
   });
 }
 

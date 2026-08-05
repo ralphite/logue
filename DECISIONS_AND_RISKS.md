@@ -422,3 +422,14 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 把 built-in / global / custom / Project-specific 做成四份重复 Skill，或先点 `Run Skill` 再选再运行。前者会产生不清楚的所有权和同步语义；后者把配置模型暴露给高频动作。
 - **已有证据：** 三路独立完整性审查曾发现原 mock 没有 Skill domain、revision、Global/Project binding 或真实管理，Selection `Run Skill` 实际硬编码 Explain，`Save` 与 Settings `Edit` 为静态控件。随后已用统一、revision-aware executor 连接 Selection、Voice、Organization、Ask/Draft，并验证配置会改变输出、运行记录精确 revision、失效 binding 自动清理、局部错误保留当前工作。2026-08-05 两轮 fresh post-gate 均为 GO/PASS 9.1/10，无 P0/P1。
 - **开放问题：** Project-local Customize 仍是后续独立旅程，不影响本条共享执行合同已关闭。
+
+### DR-042 — Command 一次提交直接产生可恢复的 sourced Draft
+
+- **优先级：** V2 产品 / P0
+- **状态：** 已关闭；J1 canonical 达到 WORKING
+- **决定：** Command Launcher 从明确入口直接进入 `Listening`，同时显示 Project 与真实输入目标；保留一个可编辑 live transcript 和一个具体主动作。`Enter` 结束录音并一次提交、`Shift+Enter` 换行、`Esc` 丢弃未提交录音并恢复目标焦点。提交后解析、选择 Generation Skill、冻结同 Project `added` 的全部 Web/You Source revisions、生成 Candidate 都属于同一个幂等事务，不再显示 `Parse command`、解析摘要或 `Generate draft`。成功后直接关闭 launcher，并在同 tab Side Panel 打开带引用的可编辑 Draft。引用必须指向本次 Run 冻结的 revision；正常解析、运行、保存成功保持安静。
+- **持久与恢复边界：** Voice Submit 创建含音频/转写的永久 Activity Source、Activity 与 Run；prompt 不自动进入 Project Context。无可用 Project Sources 或模型未 Ready 时保留 failed Run 和 Activity，不创建 Candidate，launcher 留在原位显示局部错误；Retry 创建新 Run 并重新核验 provider、冻结 Context 与 revision，不能把仍失败的请求伪造成 Candidate。Insert/Copy 才物化带 runId 的 adopted AI Source；Insert 必须幂等且 Undo 只恢复宿主目标，同时在 Candidate 保留 target 与 undone lineage。target 在生成后丢失时禁止 Insert，Candidate 保留并提供真实 Copy 与 Open in Logue；Copy 失败不得显示假成功。
+- **用户可见影响：** 用户从 Command 到带来源 Draft 只需一次提交；仍能核验来源、编辑、Insert、Undo，并在目标页面变化时恢复结果，而不需要理解解析器、Run 或模型阶段。
+- **替代方案：** 保留 `Parse → Generate` 两次确认，或生成后自动写入宿主。前者把系统内部阶段转嫁给高频用户；后者违反显式采用、不得自动提交和可恢复原则。
+- **已有证据：** Goal Supervisor 将 J1 的 `Parse command → Generate draft` 判为最高 ROI 缺口。2026-08-05 fresh `logue_product_designer` 预审 BLOCK 5.5/10；独立完整性 gate 随后发现 Retry 假成功、Context 越界、Text-only Command、焦点与静态 lineage 五个 P1，均已修复。真实 Chrome 已复跑双 Comment bundles、Listening → 一次 Enter、冻结 citation、编辑/Insert/Undo、target lost、无 Context Retry、Esc 焦点恢复与 Web Project lineage；22 个测试文件 139 项、typecheck 与 build 通过。fresh post-gate 为 GO/PASS 9.1/10，无 P0/P1。
+- **开放问题：** `copy-candidate` 尚未与 Insert 共用 frozen-lineage preflight；当前 mock 没有删除 revision 的入口，canonical 引用可信，因此 fresh post-gate 将其评为不阻断的 P2。后续在加入 revision 删除/失配状态时抽取共享 evidence validator。真实异步 Running 取消、clarification 与 parse error 仍属于独立错误矩阵；本批只关闭 canonical 正常路径、无 Context 失败、target-lost 恢复和 adopted lineage，不混入 Voice Write、Project Customize、Guided Demo、视觉优化或 J7–J9。

@@ -50,7 +50,7 @@ export function SidePanel({ mode = "page" }: { mode?: SidePanelMode }) {
                 candidate={candidate}
                 target={mode === "target-lost" ? { ...target!, isValid: false } : target}
                 onChange={(content) => dispatch({ type: "edit-candidate", candidateId: candidate.id, content })}
-                onCitation={(sourceId) => dispatch({ type: "open-citation", sourceId })}
+                onCitation={(sourceId, revisionId) => dispatch({ type: "open-citation", sourceId, revisionId })}
                 onInsert={() => target && dispatch({ type: "insert-candidate", candidateId: candidate.id, targetSessionId: target.id })}
                 onUndo={() => target && dispatch({ type: "undo-target", targetSessionId: target.id })}
               /> : <div className="v2-recovery-card"><OriginLabel origin="ai" detail="Generation" /><p>No Candidate was created. Your command and actual context are still in Activity.</p><Button size="sm" style={{ marginTop: 12 }}>Open model settings</Button></div>}

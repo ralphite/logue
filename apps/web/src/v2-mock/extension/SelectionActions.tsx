@@ -152,7 +152,7 @@ export function SelectionActions({ scope = "selection", initialMoreOpen = false,
           {candidate.status === "ready" ? <Button size="sm" onClick={() => dispatch({ type: "dismiss-skill-candidate", candidateId: candidate.id })}>Cancel</Button> : <span className="v2-local-ready"><Check aria-hidden="true" size={14} />Applied</span>}
         </div>
         {copyError ? <p className="v2-local-error" role="alert">{copyError}</p> : null}
-        <details className="v2-skill-run-details"><summary>Details</summary><p>{skill.name} · revision {revision?.version ?? "—"} · {activeRun?.skillResolution ?? "system"} · {activeRun?.actualContextSourceIds.length ?? 0} context source{activeRun?.actualContextSourceIds.length === 1 ? "" : "s"}</p></details>
+        <details className="v2-skill-run-details"><summary>Details</summary><p>{skill.name} · revision {revision?.version ?? "—"} · {activeRun?.skillResolution ?? "system"} · {activeRun?.actualContext.length ?? 0} context source{activeRun?.actualContext.length === 1 ? "" : "s"}</p></details>
       </aside> : null}
     </div>
   );

@@ -1,5 +1,5 @@
 import { Copy, ExternalLink, Mic, Send, Square, Undo2, WandSparkles, X } from "lucide-react";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { SourceBundleView } from "../primitives/SourceBundleView";
 import { createStorySeed, type StorySeedName } from "../fixtures/storySeeds";
 import { getCandidateCitations, getProjectSources } from "../model/selectors";
@@ -35,11 +35,14 @@ function ExtensionSurfaceContent() {
   const [voiceProfileId, setVoiceProfileId] = useState<"project-a" | "global" | "one-shot">(tab.activeProjectId === "project-a" ? "project-a" : "global");
   const [emailValue, setEmailValue] = useState(target?.value ?? "Hi Maya,");
   const [commandOpen, setCommandOpen] = useState(false);
+  const [commandCapturing, setCommandCapturing] = useState(false);
   const [commandText, setCommandText] = useState("Using Mobile research, draft a reply");
   const [commandError, setCommandError] = useState<string | null>(null);
-  const [runId, setRunId] = useState<Id | null>(null);
+  const [commandSubmissionNumber, setCommandSubmissionNumber] = useState(0);
   const [copiedCandidateId, setCopiedCandidateId] = useState<Id | null>(null);
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [logueRoute, setLogueRoute] = useState<"projects" | "library" | "activity" | null>(null);
+  const emailTargetRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => setEmailValue(target?.value ?? ""), [target?.value]);
 
@@ -53,6 +56,9 @@ function ExtensionSurfaceContent() {
   const candidate = candidateId ? domain.candidates[candidateId] : undefined;
   const citationRows = candidateId ? getCandidateCitations(domain, candidateId) : [];
   const citationSource = surface.openCitationSourceId ? domain.sources[surface.openCitationSourceId] : undefined;
+  const citationRevision = citationSource && surface.openCitationRevisionId
+    ? citationSource.revisions.find((revision) => revision.id === surface.openCitationRevisionId)
+    : citationSource?.revisions.at(-1);
 
   function startVoiceComment() {
     dispatch({ type: "start-voice-comment", tabId: tab.id, pageId: page.id });
@@ -69,29 +75,39 @@ function ExtensionSurfaceContent() {
     setCommentMode("none");
   }
 
-  function parseCommand() {
-    if (!project || !target?.isValid) return;
-    dispatch({ type: "parse-command", transcript: commandText, projectId: project.id, targetSessionId: target.id });
-  }
-
-  function runCommand() {
-    const activityId = surface.commandActivityId;
-    if (!activityId || !project) return;
-    const contextSourceIds = getProjectSources(domain, project.id).map((source) => source.id).slice(0, 4);
+  function submitCommand() {
+    if (!project || !target?.isValid || !commandText.trim()) return;
+    const contextSourceIds = getProjectSources(domain, project.id).filter((source) => source.status !== "activity" && (source.origin === "web" || source.origin === "you")).map((source) => source.id);
+    dispatch({ type: "submit-command", transcript: commandText, inputMode: commandCapturing ? "voice" : "text", projectId: project.id, targetSessionId: target.id, contextSourceIds, idempotencyKey: `${target.id}:command:${commandSubmissionNumber}` });
+    setCommandCapturing(false);
+    if (domain.host.providers.ai.status !== "ready") {
+      setCommandError("Generation needs attention. Configure the AI provider in Logue Settings, then try again.");
+      return;
+    }
     if (!contextSourceIds.length) {
       setCommandError(`${project.name} has no Project Sources yet. Add evidence before drafting.`);
       return;
     }
     setCommandError(null);
-    const nextRunId = `run-${domain.nextId}`;
-    dispatch({ type: "execute-command", activityId, contextSourceIds });
-    dispatch({
-      type: "generate-sourced-draft",
-      runId: nextRunId,
-      citations: contextSourceIds.slice(0, 2).map((sourceId, index) => ({ sourceId, label: index === 0 ? "Article A" : "Your thought", excerpt: sourceContent(domain.sources[sourceId]) })),
-    });
-    setRunId(nextRunId);
     setCommandOpen(false);
+  }
+
+  function closeCommand() {
+    setCommandCapturing(false);
+    setCommandOpen(false);
+    emailTargetRef.current?.focus();
+  }
+
+  async function copyCandidate(candidateToCopy: NonNullable<typeof candidate>) {
+    setCopyError(null);
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(candidateToCopy.content);
+      dispatch({ type: "copy-candidate", candidateId: candidateToCopy.id });
+      setCopiedCandidateId(candidateToCopy.id);
+    } catch {
+      setCopyError("Couldn’t copy. Your draft is still here—try again or open it in Logue.");
+    }
   }
 
   const voiceProfileLabel = voiceProfileId === "project-a" ? "Mobile research profile" : voiceProfileId === "one-shot" ? "One-time topic vocabulary" : "Global voice profile";
@@ -152,20 +168,18 @@ function ExtensionSurfaceContent() {
             {hostView === "email" ? <section style={{ maxWidth: 680, margin: "0 auto" }} aria-label="Email input target">
               <p style={{ margin: "0 0 12px", color: "var(--v2-muted)", fontSize: 13 }}>To: Maya</p>
               <h1 style={{ margin: "0 0 26px", color: "var(--v2-ink)", fontSize: 32, lineHeight: 1.16, letterSpacing: "-.04em" }}>Reply to Maya</h1>
-              <textarea aria-label="Email reply" value={emailValue} disabled={!target?.isValid} onChange={(event) => setEmailValue(event.target.value)} placeholder={target?.isValid ? "Write a reply" : "Original input is no longer available"} style={{ width: "100%", minHeight: 104, resize: "vertical", border: "1px solid var(--v2-line-strong)", borderRadius: 10, outline: 0, background: target?.isValid ? "var(--v2-surface)" : "var(--v2-surface-muted)", color: "var(--v2-ink)", padding: 13, lineHeight: 1.55 }} />
+              <textarea ref={emailTargetRef} aria-label="Email reply" value={emailValue} disabled={!target?.isValid} onChange={(event) => setEmailValue(event.target.value)} placeholder={target?.isValid ? "Write a reply" : "Original input is no longer available"} style={{ width: "100%", minHeight: 104, resize: "vertical", border: "1px solid var(--v2-line-strong)", borderRadius: 10, outline: 0, background: target?.isValid ? "var(--v2-surface)" : "var(--v2-surface-muted)", color: "var(--v2-ink)", padding: 13, lineHeight: 1.55 }} />
               {target?.isValid ? <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginTop: 10 }}>
                 {surface.recording?.kind !== "voice-write" ? <><select aria-label="Transcription profile" value={voiceProfileId} onChange={(event) => setVoiceProfileId(event.target.value as typeof voiceProfileId)} style={{ border: "1px solid var(--v2-line)", borderRadius: 6, background: "var(--v2-surface)", color: "var(--v2-ink)", padding: "7px 8px" }}><option value="project-a">Mobile research profile</option><option value="global">Global voice profile</option><option value="one-shot">One-time topic vocabulary</option></select><button type="button" style={mutedButtonStyle} onClick={() => { setVoiceWriteClosed(false); dispatch({ type: "start-voice-write", tabId: tab.id, targetSessionId: target.id, pageId: page.id }); }}><span style={iconTextStyle}><Mic aria-hidden="true" size={15} />Voice write</span></button></> : null}
                 {surface.recording?.kind === "voice-write" ? <><span role="status" style={{ color: "var(--v2-ink-soft)", fontSize: 13 }}>Recording · {voiceProfileLabel}</span><button type="button" style={primaryStyle} onClick={() => dispatch({ type: "stop-voice-write", transcript: "Thanks — I’ll keep the evidence connected to the decision.", transcriptionProfileId: voiceProfileId })}><span style={iconTextStyle}><Square aria-hidden="true" size={13} />Stop and review</span></button><button type="button" style={buttonStyle} onClick={() => dispatch({ type: "cancel-recording" })}>Cancel</button></> : null}
-                {surface.recording?.kind !== "voice-write" ? <button type="button" style={mutedButtonStyle} onClick={() => setCommandOpen((open) => !open)}><span style={iconTextStyle}><WandSparkles aria-hidden="true" size={15} />Command</span></button> : null}
+                {surface.recording?.kind !== "voice-write" ? <button type="button" style={mutedButtonStyle} onClick={() => { if (commandOpen) closeCommand(); else { setCommandSubmissionNumber((value) => value + 1); setCommandCapturing(true); setCommandError(null); setCommandOpen(true); } }}><span style={iconTextStyle}><WandSparkles aria-hidden="true" size={15} />Command</span></button> : null}
               </div> : <p style={{ margin: "10px 0 0", color: "var(--v2-muted)", fontSize: 13 }}>This input is no longer available. Your draft can still be copied from the panel.</p>}
-              {commandOpen ? <section style={{ position: "relative", marginTop: 12, border: "1px solid var(--v2-line-strong)", borderRadius: 10, background: "var(--v2-surface)", padding: 12 }} aria-label="Voice Command launcher">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}><strong style={{ fontSize: 14 }}>Voice Command</strong><button type="button" style={buttonStyle} onClick={() => setCommandOpen(false)} aria-label="Close command"><X aria-hidden="true" size={15} /></button></div>
-                <textarea aria-label="Voice command" value={commandText} onChange={(event) => setCommandText(event.target.value)} style={{ width: "100%", minHeight: 62, resize: "vertical", border: "1px solid var(--v2-line-strong)", borderRadius: 8, padding: 9, outline: 0 }} />
-                {surface.commandActivityId ? <div style={{ marginTop: 8, color: "var(--v2-ink-soft)", fontSize: 13 }}>Draft reply · {project?.name ?? "Choose a project"} · Email</div> : null}
-                {!surface.commandActivityId ? <button type="button" style={{ ...primaryStyle, marginTop: 10 }} onClick={parseCommand} disabled={!project || !target?.isValid}>Parse command</button> : null}
-                {surface.commandActivityId && !runId ? <button type="button" style={{ ...primaryStyle, marginTop: 10 }} onClick={runCommand}>Generate draft</button> : null}
+              {commandOpen ? <form style={{ position: "relative", marginTop: 12, border: "1px solid var(--v2-line-strong)", borderRadius: 10, background: "var(--v2-surface)", padding: 12 }} aria-label="Voice Command launcher" onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); submitCommand(); }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}><div><strong style={{ fontSize: 14 }}>Voice Command</strong>{commandCapturing ? <div id="voice-command-status" role="status" style={{ marginTop: 3, color: "var(--v2-muted)", fontSize: 12 }}><span style={iconTextStyle}><Mic aria-hidden="true" size={13} />Listening · {project?.name ?? "No project"} → {target?.label ?? "Current input"}</span></div> : null}</div><button type="button" style={buttonStyle} onClick={closeCommand} aria-label="Close command"><X aria-hidden="true" size={15} /></button></div>
+                <textarea autoFocus aria-label="Voice command" aria-describedby={commandCapturing ? "voice-command-status" : undefined} value={commandText} onChange={(event) => setCommandText(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeCommand(); } else if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); submitCommand(); } }} style={{ width: "100%", minHeight: 62, resize: "vertical", border: "1px solid var(--v2-line-strong)", borderRadius: 8, padding: 9, outline: 0 }} />
+                <button type="submit" aria-keyshortcuts="Enter" title="Draft reply (Enter)" style={{ ...primaryStyle, marginTop: 10 }} disabled={!project || !target?.isValid || !commandText.trim()}>Draft reply</button>
                 {commandError ? <p role="alert" style={{ margin: "9px 0 0", color: "var(--v2-danger)", fontSize: 12 }}>{commandError}</p> : null}
-              </section> : null}
+              </form> : null}
               {voiceWriteSource && voiceWriteCandidate && target?.isValid && !voiceWriteClosed ? <section style={{ marginTop: 12, border: "1px solid var(--v2-accent-line)", borderRadius: 9, padding: 10, background: "var(--v2-surface)" }} aria-label="Saved voice write"><div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 8, color: "var(--v2-muted)", fontSize: 12 }}><span>Saved to Library · {voiceWriteCandidate.transcriptionProfileId === "project-a" ? "Mobile research profile" : voiceWriteCandidate.transcriptionProfileId === "one-shot" ? "One-time vocabulary" : "Global voice profile"}</span><span>{voiceWriteSource.revisions.filter((revision) => revision.kind === "candidate").length} transcript version{voiceWriteSource.revisions.filter((revision) => revision.kind === "candidate").length === 1 ? "" : "s"}</span></div><textarea aria-label="Voice write candidate" value={voiceWriteCandidate.content} onChange={(event) => dispatch({ type: "edit-voice-write", sourceId: voiceWriteSource.id, content: event.target.value })} style={{ width: "100%", minHeight: 60, resize: "vertical", border: 0, outline: 0, background: "transparent", color: "var(--v2-ink)", lineHeight: 1.55 }} /><div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 8 }}><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}><button type="button" style={buttonStyle} onClick={() => dispatch({ type: "retranscribe-voice-write", sourceId: voiceWriteSource.id, transcriptionProfileId: voiceProfileId, transcript: voiceProfileId === "project-a" ? "Thanks — keep the field evidence connected to the decision." : voiceProfileId === "one-shot" ? "Thanks — keep the field evidence connected to the decision memo." : "Thanks — I’ll keep the evidence connected to the decision." })}>Re-transcribe with {voiceProfileLabel}</button><button type="button" style={buttonStyle} onClick={() => setLogueRoute("library")}>Open in Library</button><button type="button" style={buttonStyle} onClick={() => setVoiceWriteClosed(true)}>Close</button></div><button type="button" style={primaryStyle} onClick={() => { dispatch({ type: "insert-voice-write", sourceId: voiceWriteSource.id, targetSessionId: target.id }); setInsertedVoiceWriteSourceId(voiceWriteSource.id); }}>Insert</button></div>{voiceWriteMembership?.state === "suggested" ? <div className="v2-recovery-card" style={{ marginTop: 10 }}><p style={{ margin: 0 }}>Suggested for {project?.name}. This voice write is saved, but not in Project Context.</p><div style={{ display: "flex", gap: 6, marginTop: 8 }}><button type="button" style={mutedButtonStyle} onClick={() => project && dispatch({ type: "set-source-membership", sourceId: voiceWriteSource.id, projectId: project.id, state: "added" })}>Add to project</button><button type="button" style={buttonStyle} onClick={() => project && dispatch({ type: "set-source-membership", sourceId: voiceWriteSource.id, projectId: project.id, state: "saved-only" })}>Keep saved only</button></div></div> : null}</section> : null}
               {voiceWriteSource && voiceWriteClosed ? <div className="v2-recovery-card" style={{ marginTop: 12 }}><p style={{ margin: 0 }}>Voice write saved. Closing the review did not remove it.</p><button type="button" style={{ ...buttonStyle, marginTop: 8 }} onClick={() => setLogueRoute("library")}>Find in Library</button></div> : null}
               {insertedVoiceWriteSourceId === voiceWriteSource?.id && target ? <button type="button" style={{ ...buttonStyle, marginTop: 8 }} onClick={() => { dispatch({ type: "undo-target", targetSessionId: target.id }); setInsertedVoiceWriteSourceId(null); }}><span style={iconTextStyle}><Undo2 aria-hidden="true" size={14} />Undo</span></button> : null}
@@ -188,13 +202,13 @@ function ExtensionSurfaceContent() {
             {candidate ? <section style={{ marginBottom: 24 }} aria-label="Sourced draft preview">
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}><strong style={{ fontSize: 14 }}>Draft reply</strong><span style={{ color: "var(--v2-muted)", fontSize: 12 }}>{candidate.contextSourceIds.length} used · {citationRows.length} cited</span></div>
               <textarea aria-label="Draft reply" value={candidate.content} onChange={(event) => dispatch({ type: "edit-candidate", candidateId: candidate.id, content: event.target.value })} disabled={candidate.status !== "ready"} style={{ width: "100%", minHeight: 122, marginTop: 10, resize: "vertical", border: "1px solid var(--v2-line-strong)", borderRadius: 8, padding: 10, outline: 0, color: "var(--v2-ink)", lineHeight: 1.55 }} />
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10 }}>{citationRows.map((citation, index) => <button key={citation.source.id} type="button" className="v2-citation" aria-label={`Open citation ${index + 1}: ${citation.label}`} aria-pressed={surface.openCitationSourceId === citation.source.id} onClick={() => dispatch({ type: "open-citation", sourceId: citation.source.id })}>{index + 1}</button>)}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10 }}>{citationRows.map((citation, index) => <button key={`${citation.source.id}:${citation.revision.id}`} type="button" className="v2-citation" aria-label={`Open citation ${index + 1}: ${citation.label}`} aria-pressed={surface.openCitationSourceId === citation.source.id && surface.openCitationRevisionId === citation.revision.id} onClick={() => dispatch({ type: "open-citation", sourceId: citation.source.id, revisionId: citation.revision.id })}>{index + 1}</button>)}</div>
               {target?.isValid && !target.lastInsertion && candidate.status !== "dismissed" ? <button type="button" style={{ ...primaryStyle, width: "100%", justifyContent: "center", marginTop: 12 }} onClick={() => dispatch({ type: "insert-candidate", candidateId: candidate.id, targetSessionId: target.id })}>{candidate.status === "adopted" ? "Insert again" : "Insert"}</button> : null}
-              {!target?.isValid ? <><p style={{ margin: "10px 0 0", color: "var(--v2-muted)", fontSize: 12, lineHeight: 1.45 }}>The page changed. Your draft is saved—copy it anywhere or continue in Logue.</p><div style={{ display: "flex", gap: 8, marginTop: 10 }}><button type="button" style={{ ...mutedButtonStyle, flex: 1, justifyContent: "center" }} onClick={() => { void navigator.clipboard?.writeText(candidate.content).catch(() => undefined); setCopiedCandidateId(candidate.id); }}><span style={iconTextStyle}><Copy aria-hidden="true" size={14} />{copiedCandidateId === candidate.id ? "Copied" : "Copy draft"}</span></button><button type="button" style={{ ...mutedButtonStyle, flex: 1, justifyContent: "center" }} onClick={() => setLogueRoute("activity")}>Open in Logue</button></div></> : null}
+              {!target?.isValid ? <><p style={{ margin: "10px 0 0", color: "var(--v2-muted)", fontSize: 12, lineHeight: 1.45 }}>The page changed. Your draft is saved—copy it anywhere or continue in Logue.</p><div style={{ display: "flex", gap: 8, marginTop: 10 }}><button type="button" style={{ ...mutedButtonStyle, flex: 1, justifyContent: "center" }} onClick={() => void copyCandidate(candidate)}><span style={iconTextStyle}><Copy aria-hidden="true" size={14} />{copiedCandidateId === candidate.id ? "Copied" : "Copy draft"}</span></button><button type="button" style={{ ...mutedButtonStyle, flex: 1, justifyContent: "center" }} onClick={() => setLogueRoute("activity")}>Open in Logue</button></div>{copyError ? <p role="alert" style={{ margin: "8px 0 0", color: "var(--v2-danger)", fontSize: 12 }}>{copyError}</p> : null}</> : null}
               {target?.lastInsertion?.candidateId === candidate.id ? <button type="button" style={{ ...buttonStyle, marginTop: 8 }} onClick={() => dispatch({ type: "undo-target", targetSessionId: target.id })}><span style={iconTextStyle}><Undo2 aria-hidden="true" size={14} />Undo</span></button> : null}
             </section> : null}
 
-            {citationSource ? <section style={{ marginBottom: 22, borderTop: "1px solid var(--v2-line)", paddingTop: 16 }} aria-label="Citation source"><div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><strong style={{ fontSize: 14 }}>{citationSource.title}</strong><button type="button" style={buttonStyle} aria-label="Close citation" onClick={() => dispatch({ type: "close-citation" })}><X aria-hidden="true" size={15} /></button></div><p style={{ margin: "9px 0", color: "var(--v2-ink-soft)", fontSize: 13, lineHeight: 1.55 }}>{sourceContent(citationSource)}</p><button type="button" style={buttonStyle} onClick={() => { if (citationSource.pageId) { dispatch({ type: "select-article", tabId: tab.id, pageId: citationSource.pageId }); setHostView("article"); } }}><span style={iconTextStyle}><ExternalLink aria-hidden="true" size={14} />Open snapshot</span></button></section> : null}
+            {citationSource && citationRevision ? <section style={{ marginBottom: 22, borderTop: "1px solid var(--v2-line)", paddingTop: 16 }} aria-label="Citation source"><div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><strong style={{ fontSize: 14 }}>{citationSource.title}</strong><button type="button" style={buttonStyle} aria-label="Close citation" onClick={() => dispatch({ type: "close-citation" })}><X aria-hidden="true" size={15} /></button></div><p style={{ margin: "9px 0", color: "var(--v2-ink-soft)", fontSize: 13, lineHeight: 1.55 }}>{citationRevision.content}</p><button type="button" style={buttonStyle} onClick={() => { if (citationSource.pageId) { dispatch({ type: "select-article", tabId: tab.id, pageId: citationSource.pageId }); setHostView("article"); } }}><span style={iconTextStyle}><ExternalLink aria-hidden="true" size={14} />Open snapshot</span></button></section> : null}
 
             <div className="v2-source-list" aria-label="Comments on this tab">
               {commentBundles.map((comment, index) => {

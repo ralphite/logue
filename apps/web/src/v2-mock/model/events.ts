@@ -14,9 +14,7 @@ export type MockEvent =
   | { type: "set-source-membership"; sourceId: Id; projectId: Id; state: "added" | "excluded" | "removed" | "saved-only" }
   | { type: "save-text-comment"; tabId: Id; text: string; pageId?: Id; projectId?: Id | null }
   | { type: "open-email-target"; targetSessionId: Id }
-  | { type: "parse-command"; transcript: string; projectId: Id; targetSessionId: Id }
-  | { type: "execute-command"; activityId: Id; contextSourceIds: Id[] }
-  | { type: "generate-sourced-draft"; runId: Id; citations: Array<{ sourceId: Id; label: string; excerpt: string }> }
+  | { type: "submit-command"; transcript: string; inputMode: "voice" | "text"; projectId: Id; targetSessionId: Id; contextSourceIds: Id[]; idempotencyKey: string }
   | { type: "restore-run"; runId: Id }
   | { type: "retry-run"; runId: Id }
   | { type: "delete-run"; runId: Id }
@@ -35,6 +33,7 @@ export type MockEvent =
   | { type: "reset-project-skill-binding"; projectId: Id; category: SkillCategory }
   | { type: "edit-candidate"; candidateId: Id; content: string }
   | { type: "insert-candidate"; candidateId: Id; targetSessionId: Id }
+  | { type: "copy-candidate"; candidateId: Id }
   | { type: "undo-target"; targetSessionId: Id }
-  | { type: "open-citation"; sourceId: Id }
+  | { type: "open-citation"; sourceId: Id; revisionId?: Id }
   | { type: "close-citation" };

@@ -71,34 +71,99 @@ describe("V2 mock model", () => {
 
   it("records actual draft inputs and resolves citations to the specific sources", () => {
     let state = createCanonicalScenario();
+    const initialActivityCount = Object.values(state.domain.activities).length;
+    const initialRunCount = Object.values(state.domain.runs).length;
     state = reduceMockSession(state, { type: "open-email-target", targetSessionId: "email-target" });
-    state = reduceMockSession(state, { type: "parse-command", transcript: "Using Mobile research, draft a reply", projectId: "project-a", targetSessionId: "email-target" });
-    state = reduceMockSession(state, { type: "execute-command", activityId: "activity-record-101", contextSourceIds: ["web-a", "you-b", "missing-source"] });
-    state = reduceMockSession(state, {
-      type: "generate-sourced-draft", runId: "run-102",
-      citations: [
-        { sourceId: "web-a", label: "Article A", excerpt: "offline capture" },
-        { sourceId: "you-b", label: "Your thought", excerpt: "decision framing" },
-        { sourceId: "web-b", label: "Not used", excerpt: "not included" },
-      ],
-    });
+    const event = { type: "submit-command" as const, transcript: "Using Mobile research, draft a reply", inputMode: "voice" as const, projectId: "project-a", targetSessionId: "email-target", contextSourceIds: ["web-a", "you-b", "missing-source"], idempotencyKey: "email-target:command:1" };
+    state = reduceMockSession(state, event);
+    state = reduceMockSession(state, event);
 
-    expect(state.domain.runs["run-102"]).toMatchObject({ actualContextSourceIds: ["web-a", "you-b"], skillId: "skill-draft-reply", skillRevisionId: "skill-draft-reply-r2", skillResolution: "global", inputScope: "project-sources" });
+    expect(Object.values(state.domain.activities)).toHaveLength(initialActivityCount + 1);
+    expect(Object.values(state.domain.runs)).toHaveLength(initialRunCount + 1);
+    expect(state.domain.runs["run-102"]).toMatchObject({ actualContext: [{ sourceId: "web-a", revisionId: "web-a-raw" }, { sourceId: "you-b", revisionId: "you-b-raw" }], targetSessionId: "email-target", idempotencyKey: "email-target:command:1", skillId: "skill-draft-reply", skillRevisionId: "skill-draft-reply-r2", skillResolution: "global", inputScope: "project-sources" });
     expect(state.domain.candidates["candidate-103"].content).toContain("offline capture");
+    expect(state.domain.sources["activity-100"].audio).toEqual({ id: "activity-100-audio", durationSeconds: 7 });
+    expect(state.domain.activities["activity-record-101"].inputMode).toBe("voice");
     expect(getCandidateCitations(state.domain, "candidate-103").map((citation) => citation.source.id)).toEqual(["web-a", "you-b"]);
+    expect(getCandidateCitations(state.domain, "candidate-103").map((citation) => citation.revision.id)).toEqual(["web-a-raw", "you-b-raw"]);
+  });
+
+  it("keeps one failed Activity/Run when a Command has no Project Sources", () => {
+    let state = createStorySeed("journey-start");
+    const event = { type: "submit-command" as const, transcript: "Using Mobile research, draft a reply", inputMode: "voice" as const, projectId: "project-a", targetSessionId: "email-target", contextSourceIds: [], idempotencyKey: "email-target:command:empty" };
+    state = reduceMockSession(state, event);
+    state = reduceMockSession(state, event);
+
+    expect(Object.values(state.domain.activities)).toHaveLength(1);
+    expect(Object.values(state.domain.runs)).toHaveLength(1);
+    expect(Object.values(state.domain.candidates)).toHaveLength(0);
+    expect(state.domain.runs["run-102"]).toMatchObject({ status: "failed", failureReason: "no-project-context", idempotencyKey: "email-target:command:empty", actualContext: [] });
+    expect(state.domain.sources["activity-100"]).toMatchObject({ origin: "you", status: "activity", activityKind: "voice-command" });
+
+    state = reduceMockSession(state, { type: "retry-run", runId: "run-102" });
+    expect(state.domain.runs["run-103"]).toMatchObject({ status: "failed", failureReason: "no-project-context", candidateId: undefined });
+    expect(Object.values(state.domain.candidates)).toHaveLength(0);
+  });
+
+  it("keeps a failed Activity/Run without a new Candidate when the model is not ready", () => {
+    let state = createCanonicalScenario();
+    state.domain.host.providers.ai.status = "needs-attention";
+    state = reduceMockSession(state, { type: "submit-command", transcript: "Draft a reply", inputMode: "text", projectId: "project-a", targetSessionId: "email-target", contextSourceIds: ["web-a", "you-a"], idempotencyKey: "email-target:command:model-not-ready" });
+
+    expect(state.domain.runs["run-102"]).toMatchObject({ status: "failed", failureReason: "model-not-ready", actualContext: [{ sourceId: "web-a", revisionId: "web-a-raw" }, { sourceId: "you-a", revisionId: "you-a-candidate" }] });
+    expect(state.domain.candidates["candidate-103"]).toBeUndefined();
+    expect(state.domain.activities["activity-record-101"]).toMatchObject({ transcript: "Draft a reply", projectId: "project-a", targetSessionId: "email-target" });
+
+    state.domain.host.providers.ai.status = "ready";
+    state = reduceMockSession(state, { type: "retry-run", runId: "run-102" });
+    expect(state.domain.runs["run-103"]).toMatchObject({ status: "succeeded", failureReason: undefined, candidateId: "candidate-104" });
+    expect(state.domain.candidates["candidate-104"]).toBeTruthy();
+  });
+
+  it("rejects Context that is outside the Project or is not a Web/You Source", () => {
+    let state = createCanonicalScenario();
+    state = reduceMockSession(state, { type: "insert-candidate", candidateId: "candidate-existing", targetSessionId: "email-target" });
+    state.domain.memberships["project-a:you-b"].state = "removed";
+    state.domain.memberships["project-a:ai-candidate-existing"] = { id: "project-a:ai-candidate-existing", projectId: "project-a", sourceId: "ai-candidate-existing", state: "added", reason: "user-selected" };
+    state = reduceMockSession(state, { type: "submit-command", transcript: "Draft a reply", inputMode: "voice", projectId: "project-a", targetSessionId: "email-target", contextSourceIds: ["web-a", "you-b", "ai-candidate-existing"], idempotencyKey: "filtered-context" });
+
+    expect(state.domain.runs["run-102"].actualContext).toEqual([{ sourceId: "web-a", revisionId: "web-a-raw" }]);
+  });
+
+  it("does not persist a Command when its target is already lost", () => {
+    let state = createStorySeed("journey-start");
+    state.domain.targetSessions["email-target"].isValid = false;
+    state = reduceMockSession(state, { type: "submit-command", transcript: "Draft a reply", inputMode: "voice", projectId: "project-a", targetSessionId: "email-target", contextSourceIds: ["web-a"], idempotencyKey: "lost-target" });
+
+    expect(Object.values(state.domain.activities)).toHaveLength(0);
+    expect(Object.values(state.domain.runs)).toHaveLength(0);
+    expect(Object.values(state.domain.candidates)).toHaveLength(0);
   });
 
   it("materializes AI only on Insert and Undo changes only the host target", () => {
     let state = createCanonicalScenario();
     state = reduceMockSession(state, { type: "edit-candidate", candidateId: "candidate-existing", content: "Edited sourced reply." });
     state = reduceMockSession(state, { type: "insert-candidate", candidateId: "candidate-existing", targetSessionId: "email-target" });
+    state = reduceMockSession(state, { type: "insert-candidate", candidateId: "candidate-existing", targetSessionId: "email-target" });
     const afterInsert = state;
     state = reduceMockSession(state, { type: "undo-target", targetSessionId: "email-target" });
 
     expect(afterInsert.domain.sources["ai-candidate-existing"]).toMatchObject({ origin: "ai", parentSourceIds: ["web-a", "you-a", "web-b", "you-b"] });
+    expect(afterInsert.domain.targetSessions["email-target"].value.match(/Edited sourced reply\./g)).toHaveLength(1);
+    expect(afterInsert.domain.candidates["candidate-existing"]).toMatchObject({ status: "adopted", adoption: "insert" });
+    expect(afterInsert.domain.sources["ai-candidate-existing"].revisions[0].runId).toBe("run-existing");
     expect(state.domain.candidates["candidate-existing"].status).toBe("adopted");
+    expect(state.domain.candidates["candidate-existing"]).toMatchObject({ adoptionTargetSessionId: "email-target", adoptionUndone: true });
     expect(state.domain.targetSessions["email-target"].value).toBe("Hi Maya,");
     expect(state.domain.sources["ai-candidate-existing"]).toEqual(afterInsert.domain.sources["ai-candidate-existing"]);
+  });
+
+  it("materializes an adopted AI Source only after a successful Copy", () => {
+    let state = createCanonicalScenario();
+    state = reduceMockSession(state, { type: "copy-candidate", candidateId: "candidate-existing" });
+
+    expect(state.domain.sources["ai-candidate-existing"]).toMatchObject({ origin: "ai", parentSourceIds: ["web-a", "you-a", "web-b", "you-b"] });
+    expect(state.domain.candidates["candidate-existing"]).toMatchObject({ status: "adopted", adoption: "copy" });
   });
 
   it("persists Voice Write on Stop and keeps the adopted revision after target Undo", () => {
@@ -185,7 +250,7 @@ describe("V2 mock model", () => {
       activityId: null,
       projectId: "project-a",
       status: "succeeded",
-      actualContextSourceIds: ["web-b"],
+      actualContext: [{ sourceId: "web-b", revisionId: "web-b-raw" }],
       candidateId: "candidate-101",
       skillId: "skill-translate-zh",
       skillRevisionId: "skill-translate-zh-r1",
@@ -268,7 +333,7 @@ describe("V2 mock model", () => {
     state = reduceMockSession(state, { type: "set-global-skill-binding", category: "generation", skillId: "skill-100" });
     state = reduceMockSession(state, { type: "run-skill", category: "generation", inputScope: "project-sources", input: "Draft recommendations", projectId: "project-b", contextSourceIds: ["web-a"] });
 
-    expect(state.domain.runs["run-102"]).toMatchObject({ skillId: "skill-100", skillRevisionId: "skill-revision-101", skillResolution: "global", actualContextSourceIds: ["web-a"] });
+    expect(state.domain.runs["run-102"]).toMatchObject({ skillId: "skill-100", skillRevisionId: "skill-revision-101", skillResolution: "global", actualContext: [{ sourceId: "web-a", revisionId: "web-a-raw" }] });
     expect(state.domain.candidates["candidate-103"].content.split("\n")).toHaveLength(3);
 
     state = reduceMockSession(state, { type: "revise-my-skill", skillId: "skill-100", name: "Recommendations", description: "Turn evidence into recommendations.", instruction: "Write five recommendations.", allowedInputScopes: ["project-sources"], outputFormat: "markdown", languageTone: "Concise and grounded.", projectContext: "required", resultBehavior: "insert-copy-or-document" });
@@ -285,7 +350,7 @@ describe("V2 mock model", () => {
 
     expect(state.domain.runs["run-101"]).toMatchObject({ skillId: "skill-field-voice", skillRevisionId: "skill-field-voice-r1", skillResolution: "project", inputScope: "voice-write" });
     expect(state.domain.runs["run-103"]).toMatchObject({ skillId: "skill-clean-voice", skillResolution: "global", inputScope: "voice-write" });
-    expect(state.domain.runs["run-105"]).toMatchObject({ skillId: "skill-organize", skillResolution: "global", inputScope: "project-sources", actualContextSourceIds: ["you-write-100"] });
+    expect(state.domain.runs["run-105"]).toMatchObject({ skillId: "skill-organize", skillResolution: "global", inputScope: "project-sources", actualContext: [{ sourceId: "you-write-100", revisionId: "you-write-100-candidate" }] });
     expect(state.domain.memberships["project-a:you-write-100"]).toMatchObject({ state: "suggested", runId: "run-105" });
     expect(state.domain.sources["you-write-100"].revisions.at(-1)).toMatchObject({ kind: "candidate", runId: "run-103" });
   });

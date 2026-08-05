@@ -103,15 +103,15 @@ const canonicalScenario: MockSessionState = {
       "activity-cancelled": { id: "activity-cancelled", sourceId: "activity-cancelled-source", projectId: "project-a", transcript: "Compare offline capture with evidence review behavior.", parsedIntent: { action: "draft-reply", projectId: "project-a", output: "current-target" } },
     },
     runs: {
-      "run-existing": { id: "run-existing", activityId: "activity-record-existing", projectId: "project-a", status: "succeeded", actualContextSourceIds: ["web-a", "you-a", "web-b", "you-b"], candidateId: "candidate-existing" },
-      "run-cancelled": { id: "run-cancelled", activityId: "activity-cancelled", projectId: "project-a", status: "cancelled", actualContextSourceIds: ["web-a", "you-a"] },
+      "run-existing": { id: "run-existing", activityId: "activity-record-existing", projectId: "project-a", status: "succeeded", actualContext: [{ sourceId: "web-a", revisionId: "web-a-raw" }, { sourceId: "you-a", revisionId: "you-a-candidate" }, { sourceId: "web-b", revisionId: "web-b-raw" }, { sourceId: "you-b", revisionId: "you-b-raw" }], candidateId: "candidate-existing", targetSessionId: "email-target" },
+      "run-cancelled": { id: "run-cancelled", activityId: "activity-cancelled", projectId: "project-a", status: "cancelled", actualContext: [{ sourceId: "web-a", revisionId: "web-a-raw" }, { sourceId: "you-a", revisionId: "you-a-candidate" }] },
     },
     candidates: {
       "candidate-existing": {
-        id: "candidate-existing", runId: "run-existing", status: "ready", content: "A draft that has not yet been adopted.", contextSourceIds: ["web-a", "you-a", "web-b", "you-b"],
+        id: "candidate-existing", runId: "run-existing", status: "ready", content: "Hi Maya — the field notes support offline capture, with source review kept close to the draft.", contextSourceIds: ["web-a", "you-a", "web-b", "you-b"],
         citations: [
-          { sourceId: "web-a", label: "Article A", excerpt: "clear preference for offline capture" },
-          { sourceId: "you-b", label: "Your thought", excerpt: "evidence review feel immediate" },
+          { sourceId: "web-a", revisionId: "web-a-raw", label: "Article A", excerpt: "clear preference for offline capture" },
+          { sourceId: "you-b", revisionId: "you-b-raw", label: "Your thought", excerpt: "evidence review feel immediate" },
         ],
       },
     },
@@ -165,7 +165,7 @@ const canonicalScenario: MockSessionState = {
     },
     nextId: 100,
   },
-  surface: { activeTabId: "research-tab", selectedSourceId: "you-b", selectedTargetSessionId: "email-target", activeCandidateId: "candidate-existing", recording: null, commandActivityId: "activity-record-existing", openCitationSourceId: null },
+  surface: { activeTabId: "research-tab", selectedSourceId: "you-b", selectedTargetSessionId: "email-target", activeCandidateId: "candidate-existing", recording: null, commandActivityId: "activity-record-existing", openCitationSourceId: null, openCitationRevisionId: null },
 };
 
 function deepCopy<T>(value: T): T {

@@ -26,6 +26,7 @@ export function createStorySeed(name: StorySeedName = "canonical"): MockSessionS
       state.surface.activeCandidateId = null;
       state.surface.commandActivityId = null;
       state.surface.openCitationSourceId = null;
+      state.surface.openCitationRevisionId = null;
       return state;
     case "target-lost":
       state.domain.targetSessions["email-target"].isValid = false;
