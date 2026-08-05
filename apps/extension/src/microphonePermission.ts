@@ -4,6 +4,7 @@ const parameters = new URLSearchParams(window.location.search);
 const token = parameters.get("token") ?? "";
 const isPermissionRequest = parameters.get("mode") === "permission";
 const statusElement = document.getElementById("status");
+const allowButton = document.getElementById("allow") as HTMLButtonElement | null;
 
 interface ExtensionRecorderControl {
   type: "logue:extension-recorder-control";
@@ -25,15 +26,20 @@ async function completePermission(ok: boolean, error?: string) {
 }
 
 if (isPermissionRequest) {
-  void navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
-    stream.getTracks().forEach((track) => track.stop());
-    return completePermission(true).then(() => window.close());
-  }).catch((cause: unknown) => {
-    const message = cause instanceof Error ? cause.message : "Microphone access was not granted.";
-    if (statusElement) statusElement.textContent = message;
-    void completePermission(false, message);
+  allowButton?.addEventListener("click", () => {
+    allowButton.disabled = true;
+    if (statusElement) statusElement.textContent = "Requesting access…";
+    void navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+      stream.getTracks().forEach((track) => track.stop());
+      return completePermission(true).then(() => window.close());
+    }).catch((cause: unknown) => {
+      const message = cause instanceof Error ? cause.message : "Microphone access was not granted.";
+      if (statusElement) statusElement.textContent = message;
+      void completePermission(false, message);
+    });
   });
 } else {
+  allowButton?.remove();
   const recorder = createContentRecordingBridge({
     emit: (event: RecordingBridgeEvent) => chrome.runtime.sendMessage({
       ...event,
