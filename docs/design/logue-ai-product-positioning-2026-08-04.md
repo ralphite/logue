@@ -650,8 +650,8 @@ Voice Command 必须：
 
 - 通过独立 shortcut 或明确 Command mode 进入；
 - 始终显示作用对象，例如 Selection、Page、Project 和 current input target；
-- 在执行前解析为可读的 Action + Scope + Project + Output target；
-- 允许直接编辑 parsed intent；缺少 Project、作用对象或输出目标时就地补齐；
+- 完整、低风险的单步 intent 静默解析，并由一次 `Enter` 直接执行，不把 Parse 与 Generate 暴露为两次确认；
+- 只有缺少或冲突的 Project、作用对象或输出目标才渐进披露可读字段，让用户就地补齐或编辑；
 - Enter 执行，Esc 取消并把焦点还给原目标；
 - 高影响动作先预览；
 - 生成/改写后显式 Replace、Insert、Save 或 Copy；
@@ -659,7 +659,9 @@ Voice Command 必须：
 
 轻量局部结果可在 Command Launcher 内预览；需要多来源引用或较长 Draft 时，Launcher 把结果交给同一 tab 的 Side Panel preview，target session 保持不变。状态为：
 
-Idle → Recording → Parsed intent → Ready / Needs clarification → Running → Preview → Adopted
+Idle → Recording / Editing → Submit → Running → Preview → Adopted
+
+只有不完整或冲突的请求进入 `Needs clarification → Editing → Submit`；简单请求不经过额外确认。
 
 解析失败时保留录音和 Activity Source，显示 “Couldn’t understand the action”，允许 Retry transcription、Edit intent 或 Switch to Voice Write；绝不执行猜测动作。
 
@@ -1174,7 +1176,7 @@ Anchored → Page changed → Re-anchored / Snapshot only
 | 动作 | 明确入口 | Stop / Enter | Cancel / Esc | 持久终态 |
 | --- | --- | --- | --- | --- |
 | Voice Write | Inline mic / Voice Write shortcut | Stop 保存 audio；Enter Insert Candidate | Recording 中 Cancel 删除未完成录音；Candidate 中 Esc 只关闭 | You Source；Insert 后有 Adopted revision |
-| Voice Command | Command shortcut / explicit mode switch | Stop 解析 intent；Enter 执行 | Esc 不执行并恢复原焦点 | You Activity + Run；采用后才有 AI Source/Document revision |
+| Voice Command | Command shortcut / explicit mode switch，并直接进入 Recording | Enter/Stop 结束录音并一次提交；简单 intent 静默解析 | Esc 丢弃未提交录音并恢复原焦点 | You Activity（含音频/转写）+ Run；采用后才有 AI Source/Document revision |
 | Voice Comment | 选区旁 Inline mic；Side Panel 提供高级 composer | 默认 `Accept / Enter` 同时 Stop、保存并建立 bundle；高级 review path 可先 Stop 再编辑 | Recording 中 `Cancel / Esc` 删除未完成录音；高级 review 中 Esc 只关闭并保留 Unlinked comment | 默认 Accept 后直接得到 Web + You bundle；无 active Project 时 Saved only |
 | Text Comment | Comment action 后 textarea | Save 建立 bundle | Esc 关闭且不保存未提交文字 | Web Source + You Comment Source |
 | Page/Selection Action | Selection menu / Side Panel | Preview 后 Replace/Insert/Copy/Save | Esc 关闭 Candidate，不改原文 | Run；采用后 AI Source 或 target revision |

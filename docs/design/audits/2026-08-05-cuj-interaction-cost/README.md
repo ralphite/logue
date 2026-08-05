@@ -1,7 +1,7 @@
 # Logue V2 功能完整性与交互成本审计
 
 日期：2026-08-05
-结论：**进行中 — J3 Selection Voice Comment 与 J5 Page/Selection Skill 已达到 WORKING；J1、J2、J4、J6–J9 仍未达到完整性门槛。**
+结论：**进行中 — J1 sourced round trip、J3 Selection Voice Comment 与 J5 Page/Selection Skill 已达到 WORKING；J2、J4、J6–J9 仍未达到完整性门槛。**
 
 本轮只判断功能、持久终态与默认路径，不以 Story 数、截图、静态说明或视觉完成度替代产品完成度。审计由主产品检查、两名独立只读 agent 与浏览器实证共同完成。
 
@@ -9,12 +9,12 @@
 
 | Journey | 状态 | 主要缺口 |
 | --- | --- | --- |
-| J1 首次 sourced round trip | PARTIAL | Voice Comment 激活已原子化；Command 仍暴露 Parse / Generate 内部步骤，Guided Journey 教授旧模型 |
+| J1 首次 sourced round trip | WORKING | Article A Voice Comment + Article B Text Comment → 一击 Voice Command → 冻结引用 Draft → 编辑/Insert/Undo → 真实跨表面 lineage；target lost 与失败 Retry 不假成功 |
 | J2 Voice Write | PARTIAL | 默认路径被 Profile、Stop/review、版本和分类阻断；跨表面持久终态不完整 |
 | J3 Selection Voice Comment | WORKING | 选区旁直接 `Mic → Accept`；Enter/Esc；active Project / Saved only；原子 bundle；跨 Side Panel/Web Project 重开 |
 | J4 Project transcription context | PARTIAL | Profile、Vocabulary、Edit、Review、Re-transcribe 多为静态或无共享持久对象 |
 | J5 Page/Selection Skill | WORKING | pinned/recent/Project default 一击运行；Copy/Replace/Cancel/Undo；Run 固化 revision、解析来源与实际 Context |
-| J6 Ask / Draft / Insert | PARTIAL | 暴露 Parse/Generate；Copy、Save document 与部分 Side Panel 入口无终态 |
+| J6 Ask / Draft / Insert | PARTIAL | canonical Extension Command 已闭环；Web Ask/Draft 的 Copy、Save document 与部分 Side Panel 入口仍无终态 |
 | J7 Classification correction | PARTIAL | Web correction 已可操作；Side Panel、Change Project 与 learned rule 不完整 |
 | J8 Find / recovery | PARTIAL | 可搜索并打开 Source；semantic match、why、filters、加入 Draft/Project 不完整 |
 | J9 Export / Backup / Delete | STATIC | 没有真实范围、预览、download、dependency summary 或确认终态 |
@@ -32,7 +32,7 @@
 | Voice Comment | WORKING | transcription + transformation 静默解析并留 Run；`Mic → Accept` 原子写入；Cancel/Esc 无残留；bundle 可跨表面重开 |
 | Voice Write | PARTIAL | transcription + transformation 已静默解析并留 Run；默认 Profile、Stop/review、版本与分类旅程仍待收敛 |
 | Organization | PARTIAL | 捕获后产生带 Skill Run 的可纠正 suggestion；Side Panel correction 仍未完整连接 |
-| Ask/Draft | PARTIAL | Generation Skill 已决定 Run 与 cited Candidate；仍需收敛默认 Command 旅程和完整终态 |
+| Ask/Draft | PARTIAL | Generation Skill 与 Extension Command 已决定 Run、冻结 Context 与 cited Candidate；Web Ask/Draft 和 Save document 终态仍未闭环 |
 | Settings management | PARTIAL | Built-ins、My、Global、Project inherit/bind/reset 已工作；Project-local Customize 尚缺 |
 
 ## 问题实证（修复前）
@@ -86,4 +86,13 @@ J5 现为 `WORKING`。Skills 整体仍为 `PARTIAL`：下一批必须完成 Proj
 - Side Panel 与 Web Project 从同一共享 domain state 重开相同 bundle；旧 Stop/Edit/Link/Unlinked 中间态已删除；
 - 真实 Chrome 四条旅程与独立完整性审查均通过；最终设计 gate 为 GO/PASS 9.2/10，无 P0/P1。
 
-J3 与 J5 现为 `WORKING`。下一批仍应一次只关闭一个最高价值旅程，不能用 Guided Demo 或视觉优化代替剩余完整性。
+2026-08-05 第四批完成 J1 canonical sourced round trip：
+
+- Article A Voice Comment 与 Article B Text Comment 形成同一 Project 的两组 Web + You bundles；
+- Command 进入 `Listening`，显示 Project 与真实输入目标；`Enter` 一次提交，`Shift+Enter` 换行，`Esc` 隔离宿主并恢复目标焦点；
+- Submit 永久保存含音频/转写的 Activity Source 与 Activity/Run，只接受同 Project `added` 的 Web/You Sources，并冻结 Source 与 Skill revisions；
+- 成功后直接在同 tab Side Panel 打开可编辑 cited Candidate；Insert 幂等，Undo 精确恢复宿主但保留 AI Source、Run 与真实 lineage；
+- target lost 只提供 Copy / Open in Logue；clipboard 失败、无 Context、模型未 Ready 及失败 Retry 都不制造 Candidate 或假成功；
+- 真实 Chrome 已复跑正常路径、缺 Context Retry、target lost、焦点恢复与跨 Web Project lineage；全量 22 个测试文件 139 项、typecheck、build 通过；fresh post-gate 为 GO/PASS，无 P0/P1。
+
+J1、J3 与 J5 现为 `WORKING`。下一批仍应一次只关闭一个最高价值旅程，不能用 Guided Demo 或视觉优化代替剩余完整性。
