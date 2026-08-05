@@ -112,7 +112,19 @@ jobs:
             echo "Cloudflare did not provide a temporary URL." >&2
             exit 1
           }
-          curl -fsS --retry 12 --retry-delay 1 "${remote_url}/v1/status" | grep -Fq '"ok":true'
+          remote_ready=false
+          for _ in $(seq 1 60); do
+            if curl -fsS --connect-timeout 5 "${remote_url}/v1/status" | grep -Fq '"ok":true'; then
+              remote_ready=true
+              break
+            fi
+            sleep 1
+          done
+          [[ "${remote_ready}" == true ]] || {
+            cat "${tunnel_log}" >&2
+            echo "Cloudflare URL did not become reachable." >&2
+            exit 1
+          }
           printf '%s\n' "${remote_url}" > "${remote_url_file}"
           echo "LOGUE_QA_TUNNEL_PID=${cloudflared_pid}" >> "${GITHUB_ENV}"
           echo "LOGUE_QA_REMOTE_URL=${remote_url}" >> "${GITHUB_ENV}"
