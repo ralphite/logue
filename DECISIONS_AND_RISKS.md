@@ -154,12 +154,12 @@
 ### DR-016 — Selection Skill 的 Esc 取消
 
 - **优先级：** P1
-- **状态：** 当前构建已在真实 Chrome 修正；尚未纳入 Release
+- **状态：** 稳定安装的 Esc 路径已在真实 Chrome 通过；目标/SPA 漂移仍待验收
 - **决策：** 当选区 Skill 菜单打开或 Gemini 正在返回时，`Esc` 立即清除当前选区调用快照；请求可以完成，但不得改写宿主输入或重新打开菜单。
 - **用户可见影响：** 此前在真实 Chrome 的 Google 输入框中，点击 `Draft reply` 后立即按 `Esc` 仍会被迟到结果替换选中内容。该输入没有提交，但违背了用户的取消意图。
 - **替代方案：** 在结果返回时再询问是否采用，或取消服务器请求。前者为正常流程增加第二次确认；后者无法可靠中断已经发出的 Gemini 请求，且不能单独保证迟到结果不写回。
-- **证据：** 2026-08-04，真实 Mac Chrome 的 Google 顶层输入框中，选择 `clear meeting follow-up` → `Draft reply` → 立即 `Esc`；等待隔离 Gemini 服务返回后，输入仍为 `Please turn this into a clear meeting follow-up.`，Skill 菜单没有重开，页面仍为 `google.com/`，新产生的临时 run 没有 `adopted_output`。
-- **下一步证据：** 当前 Release 在真实 Chrome 复测同一路径，并覆盖选区/目标切换与 SPA 路由后的迟到结果。
+- **证据：** 2026-08-04，稳定安装的真实 Mac Chrome 独立 Google 输入框中，选择 `Please turn this into a clear meeting follow-up.` → `Draft reply` → 立即 `Esc`；等待 8 秒后输入仍为原文、Skill 菜单没有重开，Google 未提交搜索。对应 run 已完成但 `adopted_output` 为 null，证明迟到结果未写回。
+- **下一步证据：** 在同一稳定安装真实覆盖选区/目标切换与 SPA 路由后的迟到结果。
 
 ### DR-017 — 将当前 HEAD 原子安装到 Mac 的稳定 Extension 目录
 
