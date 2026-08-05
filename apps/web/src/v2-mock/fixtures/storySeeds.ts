@@ -12,7 +12,10 @@ export function createStorySeed(name: StorySeedName = "canonical"): MockSessionS
       delete state.domain.sources["you-a"];
       delete state.domain.sources["you-b"];
       delete state.domain.sources["activity-existing"];
+      delete state.domain.sources["activity-cancelled-source"];
       delete state.domain.sources["ai-adopted"];
+      delete state.domain.sources["you-suggested"];
+      delete state.domain.sources["you-auto"];
       state.domain.memberships = {};
       state.domain.activities = {};
       state.domain.runs = {};

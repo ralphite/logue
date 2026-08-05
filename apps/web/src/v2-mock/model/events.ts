@@ -12,13 +12,16 @@ export type MockEvent =
   | { type: "retranscribe-voice-write"; sourceId: Id; transcript: string; transcriptionProfileId: string }
   | { type: "edit-voice-write"; sourceId: Id; content: string }
   | { type: "insert-voice-write"; sourceId: Id; targetSessionId: Id }
-  | { type: "set-source-membership"; sourceId: Id; projectId: Id; state: "added" | "excluded" | "saved-only" }
+  | { type: "set-source-membership"; sourceId: Id; projectId: Id; state: "added" | "excluded" | "removed" | "saved-only" }
   | { type: "save-comment-bundle"; commentSourceId: Id; tabId: Id; pageId?: Id; projectId?: Id | null }
   | { type: "save-text-comment"; tabId: Id; text: string; pageId?: Id; projectId?: Id | null }
   | { type: "open-email-target"; targetSessionId: Id }
   | { type: "parse-command"; transcript: string; projectId: Id; targetSessionId: Id }
   | { type: "execute-command"; activityId: Id; contextSourceIds: Id[] }
   | { type: "generate-sourced-draft"; runId: Id; content: string; citations: Array<{ sourceId: Id; label: string; excerpt: string }> }
+  | { type: "restore-run"; runId: Id }
+  | { type: "retry-run"; runId: Id }
+  | { type: "delete-run"; runId: Id }
   | { type: "edit-candidate"; candidateId: Id; content: string }
   | { type: "insert-candidate"; candidateId: Id; targetSessionId: Id }
   | { type: "undo-target"; targetSessionId: Id }

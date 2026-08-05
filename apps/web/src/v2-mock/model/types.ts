@@ -6,7 +6,7 @@ export type Id = string;
 
 export type SourceOrigin = "web" | "you" | "ai";
 export type SourceStatus = "saved" | "activity";
-export type MembershipState = "saved-only" | "added" | "suggested" | "excluded" | "duplicate-linked";
+export type MembershipState = "saved-only" | "added" | "suggested" | "excluded" | "removed" | "duplicate-linked";
 export type RunStatus = "running" | "succeeded" | "failed" | "cancelled";
 export type CandidateStatus = "ready" | "adopted" | "dismissed";
 
@@ -58,7 +58,7 @@ export interface SourceMembership {
   projectId: Id;
   sourceId: Id;
   state: MembershipState;
-  reason: "tab-authorized" | "user-selected" | "suggested" | "duplicate";
+  reason: "tab-authorized" | "user-selected" | "suggested" | "auto-classified" | "duplicate";
 }
 
 export interface TargetSession {

@@ -316,6 +316,39 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
         surface: { ...state.surface, activeCandidateId: candidateId },
       };
     }
+    case "restore-run": {
+      const run = domain.runs[event.runId];
+      return run?.candidateId && domain.candidates[run.candidateId] ? { ...state, surface: { ...state.surface, activeCandidateId: run.candidateId } } : state;
+    }
+    case "retry-run": {
+      const previous = domain.runs[event.runId];
+      if (!previous) return state;
+      const [runId, afterRunId] = nextId(domain, "run");
+      const [candidateId, afterCandidateId] = nextId(afterRunId, "candidate");
+      const citations = previous.actualContextSourceIds.slice(0, 2).flatMap((sourceId) => {
+        const source = domain.sources[sourceId];
+        return source ? [{ sourceId, label: source.title, excerpt: source.revisions.at(-1)?.content ?? "" }] : [];
+      });
+      const run = { ...previous, id: runId, status: "succeeded" as const, candidateId };
+      const candidate = { id: candidateId, runId, content: "Retry completed with the saved request and the same actual Sources.", contextSourceIds: [...previous.actualContextSourceIds], citations, status: "ready" as const };
+      return {
+        domain: { ...afterCandidateId, runs: { ...afterCandidateId.runs, [runId]: run }, candidates: { ...afterCandidateId.candidates, [candidateId]: candidate } },
+        surface: { ...state.surface, activeCandidateId: candidateId },
+      };
+    }
+    case "delete-run": {
+      const run = domain.runs[event.runId];
+      const candidate = run?.candidateId ? domain.candidates[run.candidateId] : undefined;
+      if (!run || candidate?.status === "adopted") return state;
+      const runs = { ...domain.runs };
+      const candidates = { ...domain.candidates };
+      delete runs[run.id];
+      if (candidate) delete candidates[candidate.id];
+      return {
+        domain: { ...domain, runs, candidates },
+        surface: { ...state.surface, activeCandidateId: state.surface.activeCandidateId === candidate?.id ? null : state.surface.activeCandidateId },
+      };
+    }
     case "edit-candidate": {
       const candidate = domain.candidates[event.candidateId];
       if (!candidate || candidate.status !== "ready") return state;

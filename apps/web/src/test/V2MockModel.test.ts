@@ -105,6 +105,35 @@ describe("V2 mock model", () => {
     expect(Object.keys(state.domain.sources)).toHaveLength(sourceCount);
   });
 
+  it("persists classification corrections and never treats a suggestion as Project Context", () => {
+    let state = createCanonicalScenario();
+    expect(getProjectMembership(state.domain, "project-a", "you-suggested")?.state).toBe("suggested");
+    expect(getProjectSources(state.domain, "project-a").map((source) => source.id)).not.toContain("you-suggested");
+
+    state = reduceMockSession(state, { type: "set-source-membership", sourceId: "you-suggested", projectId: "project-a", state: "added" });
+    expect(getProjectSources(state.domain, "project-a").map((source) => source.id)).toContain("you-suggested");
+    state = reduceMockSession(state, { type: "set-source-membership", sourceId: "you-suggested", projectId: "project-a", state: "excluded" });
+    expect(getProjectMembership(state.domain, "project-a", "you-suggested")).toMatchObject({ state: "excluded", reason: "user-selected" });
+    expect(getProjectSources(state.domain, "project-a").map((source) => source.id)).not.toContain("you-suggested");
+  });
+
+  it("restores, retries, and deletes an unadopted Run without deleting its Activity", () => {
+    let state = createCanonicalScenario();
+    state = reduceMockSession(state, { type: "retry-run", runId: "run-cancelled" });
+    const retryRun = state.domain.runs["run-100"];
+    const retryCandidate = state.domain.candidates["candidate-101"];
+    expect(retryRun).toMatchObject({ activityId: "activity-cancelled", status: "succeeded", candidateId: "candidate-101" });
+    expect(retryCandidate.status).toBe("ready");
+
+    state = reduceMockSession(state, { type: "restore-run", runId: retryRun.id });
+    expect(state.surface.activeCandidateId).toBe(retryCandidate.id);
+    state = reduceMockSession(state, { type: "delete-run", runId: retryRun.id });
+    expect(state.domain.runs[retryRun.id]).toBeUndefined();
+    expect(state.domain.candidates[retryCandidate.id]).toBeUndefined();
+    expect(state.domain.activities["activity-cancelled"]).toBeDefined();
+    expect(state.domain.sources["activity-cancelled-source"]).toBeDefined();
+  });
+
   it("returns isolated deep copies for every story seed", () => {
     const first = createStorySeed();
     const second = createStorySeed();

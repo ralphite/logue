@@ -49,9 +49,21 @@ const canonicalScenario: MockSessionState = {
         id: "web-duplicate", origin: "web", status: "saved", title: "Article A mirror", createdAt: "2026-08-05T09:07:00.000Z", pageId: "article-a", parentSourceIds: ["web-a"],
         revisions: [{ id: "web-duplicate-raw", kind: "raw", content: "The study found a clear preference for offline capture and later review.", createdAt: "2026-08-05T09:07:00.000Z" }],
       },
+      "you-suggested": {
+        id: "you-suggested", origin: "you", status: "saved", title: "Follow-up note", createdAt: "2026-08-05T09:08:00.000Z", parentSourceIds: [],
+        revisions: [{ id: "you-suggested-raw", kind: "raw", content: "Check whether offline capture changes the quality of later synthesis.", createdAt: "2026-08-05T09:08:00.000Z" }],
+      },
+      "you-auto": {
+        id: "you-auto", origin: "you", status: "saved", title: "Auto-added field note", createdAt: "2026-08-05T09:09:00.000Z", parentSourceIds: [],
+        revisions: [{ id: "you-auto-raw", kind: "raw", content: "Researchers need evidence at the decision moment, not only at capture time.", createdAt: "2026-08-05T09:09:00.000Z" }],
+      },
       "activity-existing": {
         id: "activity-existing", origin: "you", status: "activity", activityKind: "draft", title: "Draft reply", createdAt: "2026-08-05T09:10:00.000Z", parentSourceIds: [],
         revisions: [{ id: "activity-existing-raw", kind: "raw", content: "Using Mobile research, draft a reply", createdAt: "2026-08-05T09:10:00.000Z" }],
+      },
+      "activity-cancelled-source": {
+        id: "activity-cancelled-source", origin: "you", status: "activity", activityKind: "draft", title: "Compare field notes", createdAt: "2026-08-05T09:11:00.000Z", parentSourceIds: [],
+        revisions: [{ id: "activity-cancelled-source-raw", kind: "raw", content: "Compare offline capture with evidence review behavior.", createdAt: "2026-08-05T09:11:00.000Z" }],
       },
       "ai-adopted": {
         id: "ai-adopted", origin: "ai", status: "saved", title: "Draft reply", createdAt: "2026-08-05T09:12:00.000Z", parentSourceIds: ["web-a", "you-a", "web-b", "you-b"],
@@ -64,6 +76,8 @@ const canonicalScenario: MockSessionState = {
       "project-a:web-b": { id: "project-a:web-b", projectId: "project-a", sourceId: "web-b", state: "added", reason: "tab-authorized" },
       "project-a:you-b": { id: "project-a:you-b", projectId: "project-a", sourceId: "you-b", state: "added", reason: "tab-authorized" },
       "project-a:web-duplicate": { id: "project-a:web-duplicate", projectId: "project-a", sourceId: "web-duplicate", state: "duplicate-linked", reason: "duplicate" },
+      "project-a:you-suggested": { id: "project-a:you-suggested", projectId: "project-a", sourceId: "you-suggested", state: "suggested", reason: "suggested" },
+      "project-a:you-auto": { id: "project-a:you-auto", projectId: "project-a", sourceId: "you-auto", state: "added", reason: "auto-classified" },
       "project-a:ai-adopted": { id: "project-a:ai-adopted", projectId: "project-a", sourceId: "ai-adopted", state: "added", reason: "user-selected" },
       "project-b:web-b": { id: "project-b:web-b", projectId: "project-b", sourceId: "web-b", state: "suggested", reason: "suggested" },
     },
@@ -72,9 +86,11 @@ const canonicalScenario: MockSessionState = {
     },
     activities: {
       "activity-record-existing": { id: "activity-record-existing", sourceId: "activity-existing", projectId: "project-a", targetSessionId: "email-target", transcript: "Using Mobile research, draft a reply", parsedIntent: { action: "draft-reply", projectId: "project-a", output: "current-target" } },
+      "activity-cancelled": { id: "activity-cancelled", sourceId: "activity-cancelled-source", projectId: "project-a", transcript: "Compare offline capture with evidence review behavior.", parsedIntent: { action: "draft-reply", projectId: "project-a", output: "current-target" } },
     },
     runs: {
       "run-existing": { id: "run-existing", activityId: "activity-record-existing", projectId: "project-a", status: "succeeded", actualContextSourceIds: ["web-a", "you-a", "web-b", "you-b"], candidateId: "candidate-existing" },
+      "run-cancelled": { id: "run-cancelled", activityId: "activity-cancelled", projectId: "project-a", status: "cancelled", actualContextSourceIds: ["web-a", "you-a"] },
     },
     candidates: {
       "candidate-existing": {
