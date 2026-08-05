@@ -1,23 +1,66 @@
 # LOGUE.ai 竞品与定位验证
 
 日期：2026-08-04
-状态：官方资料研究与独立审查汇总完成
-范围：验证 LOGUE.ai 的首个用户、获客切口、差异化、留存闭环与 MVP 边界。竞品功能以本日期可访问的官方页面为准；价格不是本次定位判断的主要依据。
+状态：V2 持续更新的支持证据；不是产品合同，其中的 MVP 建议已被后续用户决定覆盖
+范围：验证 LOGUE.ai 的产品类别、个人到团队的知识沉淀方向、差异化和竞争边界。竞品功能以本日期可访问的官方页面为准；价格不是本次定位判断的主要依据。
 
-## 1. 先给结论
+## 1. 分阶段结论
 
-当前愿景成立，但原定位 **“Voice + Log + AI 的个人工作系统”必须收窄**。
+第一轮针对个人产品的研究表明：原定位 **“Voice + Log + AI 的个人工作系统”必须收窄**。
 
 - `任意位置语音输入`、`选区语音命令`、`自定义处理 prompt` 已是语音产品的竞争标配。
 - `捕获 → 自动整理 → 搜索/问答 → 生成` 已被多种语音笔记和 AI 知识产品覆盖。
 - `网页选区批注`、`全文/选区 Skill`、`带来源的问答` 也分别被 Readwise Reader、Notion AI 等产品覆盖。
 - LOGUE.ai 仍有一个可以验证的交叉切口：**不离开当前网页，用语音或文字对页面/精确选区留下有锚点的工作判断；这些判断连同原始证据进入明确的 Project Context；之后又能在任意编辑器中找回来源并生成可插入的结果。**
 
-因此，产品不应承诺“记住一切”，而应承诺：
+因此，当产品只讨论个人闭环时，不应承诺“记住一切”，而应承诺：
 
 > **说一次，记住来源，用回当前工作。**
 
-## 2. 竞争版图
+扩展到大平台、开源个人 AI、团队知识库和企业搜索后，用户提出的 `Private Source → Personal Knowledge → Project / Team Knowledge` 方向，比上述个人闭环更有长期潜力。它把个人闭环保留为价值入口，把长期类别提升为 **AI-native work 的 knowledge maturation layer**。
+
+但不能直接把原始输入称为团队 `source of truth`。更准确的定义是：原始输入是可追溯的第一方 Evidence，经过提炼、核验、权限选择和持续修订后，才形成团队可依赖的 Knowledge。
+
+## 2. 扩展后的竞争版图：真正的对手不只是小型 SaaS
+
+| 类别 | 代表产品与已验证能力 | 已占据的位置 | LOGUE.ai 不应重复的方向 |
+| --- | --- | --- | --- |
+| 大平台的 Work Graph | [Microsoft 365 Copilot](https://learn.microsoft.com/en-us/microsoft-365/copilot/microsoft-365-copilot-overview) 以 Microsoft Graph 中用户有权访问的邮件、聊天、文档和会议作为 Context；[Atlassian Rovo](https://www.atlassian.com/software/rovo/features) 用 Teamwork Graph 连接 Atlassian 和第三方 SaaS | 组织数据上的搜索、问答、生成和 Agent | 再做一个连接器驱动的企业搜索入口 |
+| 协作入口中的企业搜索 | [Slack Enterprise Search](https://slack.com/features/enterprise-search) 在 Slack 内查询对话、文件和第三方应用，并按权限返回结果；[Glean Knowledge Graph](https://docs.glean.com/security/knowledge-graph) 连接内容、人员与活动 | 在员工已经工作的入口统一检索公司知识 | 只把已有文档与聊天索引后提供 Chat |
+| 开源企业 AI / RAG | [Onyx](https://github.com/onyx-dot-app/onyx) 提供 50+ connectors、RAG、Agent、Voice、self-hosting；Community Edition 为 MIT | 自托管的企业搜索与 AI 应用层 | 用“开源、可自托管、有 RAG”本身作为差异化 |
+| 开源个人 AI 与 Memory | [Khoj](https://github.com/khoj-ai/khoj) 是可自托管的个人 AI/second brain；[Mem0](https://github.com/mem0ai/mem0) 是面向 AI Agent 的多层长期 Memory | 让 AI 记住用户或在个人文档上工作 | 只做个人资料的 semantic search 或长期 memory API |
+| 开源知识工作区 / Wiki | [AFFiNE](https://github.com/toeverything/AFFiNE) 覆盖 local-first 文档、画布和知识库；[Outline](https://github.com/outline/outline) 覆盖团队实时协作文档与 Wiki | 个人工作区、团队知识库和文档协作 | 正面重做 Notion/Confluence/Outline |
+| 原始活动捕获 | [screenpipe](https://screenpipe.com/about) 本地持续记录屏幕和音频并形成可搜索记忆 | 低摩擦、近乎完整的个人工作活动记录 | 把“捕获一切”当成知识已经形成 |
+| 垂直交互与个人工具 | Wispr Flow、Readwise、Tana、Mem、Voicenotes 等，详见下一节 | Voice、annotation、PKM、自动整理、来源问答 | 用单个 feature 或功能总和定义产品 |
+
+### 2.1 观察到的共同模式
+
+1. 大平台和企业搜索大多从 **已经存在** 的组织内容开始：邮件、聊天、文档、工单和连接的 SaaS。
+2. 个人知识工具大多优化保存、写作、组织和找回，但通常没有把私人工作记录晋升为受治理团队知识的清晰产品模型。
+3. 原始活动捕获产品解决“没有记录”，却不等于解决了“什么值得相信、共享和复用”。
+4. 开源、自托管、RAG、Voice 和 Agent 都已经分别存在；它们是策略或能力，不足以单独构成定位。
+
+### 2.2 候选竞争空位
+
+LOGUE.ai 可能占据的是 **knowledge maturation**，而不是 capture、PKM、Wiki 或 enterprise search 中的任意一个：
+
+`private work evidence → personal understanding → reviewable share candidate → governed project/team knowledge`
+
+这个空位有三个重要限制：
+
+- 必须先让个人受益，否则产品会被理解成公司对员工工作过程的采集系统。
+- AI 可以自动分类、去重、提炼和建议，不能静默扩大可见范围。
+- 团队 Knowledge 必须保留 provenance、owner、状态、适用范围和 freshness；原始 Source 不能自动成为 canonical truth。
+
+这是基于当前官方产品能力的**定位推断**，尚无一手用户研究证明团队愿意采用这条晋升链。
+
+### 2.3 开源判断
+
+开源与本方向高度相容，因为广泛捕获个人工作会放大对数据所有权、可检查性、本地部署和可迁移性的要求。但开源是信任、分发和生态策略，不是产品价值本身。
+
+在许可证和商业模式未决定前，仍可把以下内容视为产品原则：开放导出格式、可检查的来源 lineage、可替换模型、清晰 API/MCP 边界，以及个人/团队可控制的部署位置。是否采用 fully open source、open core 或托管服务应后续独立决策。
+
+## 3. 垂直产品与交互能力版图
 
 | 产品 | 已验证的主要能力 | 它占据的用户心智 | 对 LOGUE.ai 的含义 |
 | --- | --- | --- | --- |
@@ -44,7 +87,7 @@
 | [Tana AI voice chat](https://outliner.tana.inc/blog/ai-voice-chat-on-android-and-ios-can-now-search-tana-and-the-web) | Voice chat 可查 graph/web，输出结构化结果并关联项目 | 与个人 graph 对话并落成对象 | 长期 Voice/Log/AI 愿景已存在强相邻实现 |
 | [mymind](https://mymind.com/what) | notes/bookmarks/articles/images 统一保存，AI/OCR 检索，不要求先分类 | 私密、无整理负担的个人收藏 | “自动整理、少分类”是成熟承诺，不应成为单独卖点 |
 
-## 3. 哪些是标配，哪些可能差异化
+## 4. 哪些是标配，哪些可能差异化
 
 ### Table stakes
 
@@ -66,7 +109,7 @@
 
 这仍是**待验证的组合差异化**，不是已建立的市场壁垒。大平台可以复制功能；真正的防御来自长期积累的项目证据链、纠正历史、采用反馈和跨宿主可靠性。
 
-## 4. 最危险的六个定位问题
+## 5. 最危险的六个定位问题
 
 1. **用户过宽**：学生、研究者、PM、创始人、顾问和普通知识工作者的输入源、产出和付费理由不同。
 2. **入口强但升级路径弱**：用户可能只把它当 dictation utility，永远不进入 Log/Project。
@@ -75,7 +118,7 @@
 5. **对象和配置太多**：Source、Derived Source、Topic、Project、Skill、Page、Run 同时显性化，会先要求用户学习系统。
 6. **平台复制风险高**：单个 feature 几乎都可被 Wispr、Readwise、Notion、Tana、Mem 或 ChatGPT Projects 覆盖。
 
-## 5. 推荐的首个 beachhead
+## 6. 个人价值入口的推荐 beachhead
 
 **每天围绕一个活跃项目，在网页、ChatGPT、Google Docs 和邮件之间阅读、判断、写作的个人知识工作者。**
 
@@ -86,7 +129,7 @@
 - 每周至少两次需要把多个来源转成邮件、PRD、报告或决策材料。
 - 已感到“我记得看过/说过，但找不到出处”造成返工。
 
-## 6. 最窄的验证 MVP
+## 7. 历史验证 MVP 建议（已被用户后续决定覆盖）
 
 唯一完整旅程：
 
@@ -111,7 +154,7 @@
 - Derived Source、Run、Page 作为用户可见一级对象。
 - Screenshot/Image/PDF/File、会议、Daily、Agents、marketplace、多用户协作。
 
-## 7. 可证伪的验证标准
+## 8. 未来可证伪的验证标准
 
 先用 8–12 名符合行为条件的用户、持续 2 周验证：
 
@@ -124,7 +167,7 @@
 
 任一关键指标连续两周不成立，就应缩短闭环或重新选择 beachhead，而不是继续增加 capture 类型或 AI 功能。
 
-## 8. 已验证事实与推断边界
+## 9. 已验证事实与推断边界
 
 - 上表中的竞品能力来自官方产品页、帮助文档或官方更新。
 - “live-web anchored comment → Project evidence → in-place cited creation”尚未发现被一个主要竞品完整占据，是本次资料的**竞争空位推断**，不是不可复制的事实。

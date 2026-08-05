@@ -1,6 +1,8 @@
-# Logue 产品规格 v0.6
+# Logue V1 历史产品规格 v0.6
 
-当前 feature/UX 细节以 `docs/design/capture-to-reuse-product-design-2026-08-04.md` 为准。本文件与旧提案冲突时，以 `GOAL.md`、当前 schema/routes、真实 runtime 和该设计文档为依据。
+> **已被 V2 整体产品设计覆盖。** 本文件仅解释已发布 V1；V2 产品方向只以 [`design/logue-ai-product-positioning-2026-08-04.md`](./design/logue-ai-product-positioning-2026-08-04.md) 为准。当前不开始 V2 实现。
+
+以下 feature/UX 细节只在解释 V1 时有效；它们不得与 V2 权威设计合并使用。
 
 ## 产品承诺
 

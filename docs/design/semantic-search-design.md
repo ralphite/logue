@@ -1,4 +1,6 @@
-# Material search
+# V1 Historical Design — Material search
+
+> This document describes the released V1 product. It does not constrain the ongoing V2 redesign. See [`logue-ai-product-positioning-2026-08-04.md`](./logue-ai-product-positioning-2026-08-04.md).
 
 ## Existing pattern
 

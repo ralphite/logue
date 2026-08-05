@@ -4,6 +4,9 @@
 
 ## 2026-08-04 最新产品定位要求
 
+- 已发布的现有产品统一视为 V1；当前讨论的是 V2 整体产品重新设计。V1 的代码、设计、规格、数据和 Release 不限制 V2。
+- 当前只迭代并保存 V2 产品设计，用户会继续补充想法；现在不开始实现、不定义“只证明一个 Project”的 MVP，也不制定 Release 范围。
+- V2 只维护一份持续更新的权威整体设计稿；后续想法直接覆盖或整合进去，不得堆积多份相互冲突、难以判断优先级的总体设计文档。
 - 正式品牌名为 `LOGUE.ai`，产品简称 `Logue`。
 - 产品有三个不可拆分的核心：`Voice / Log / AI`。
 - Voice 不只是听写：任意需要用户输入的地方都应能语音输入；用户也能用语音执行命令，并与已有 Resources、Topics 和 Projects 交互。
@@ -16,6 +19,8 @@
 - 本定位必须先保存并经过深入竞品研究、ChatGPT/AI 红队分析和多个独立 agent review；在用户确认最终定位前，不进入新一轮产品实施。
 - 用户已确认：所有 Voice Write、Capture、Comment 及其他用户输入都形成 Source，并永久保存在私人 Log 中，直到用户明确删除。永久保存不等于永久进入 Project Memory。
 - Source 进入 Project Memory 有两条路径：用户显式选择；或系统自动分类。自动分类应综合项目相关性、重要性、新信息/补充价值、重复性与噪音；重要且高相关的内容可自动进入，低置信度只建议，无关、低价值或重复内容仍保留在 Log 但不污染 Project Memory。用户选择和纠正永久优先于自动分类。
+- 用户正在评估一个更大的产品方向：个人工作中产生的原始输入先被收集和整理，形成个人 Knowledge；其中适合共享的部分再沉淀为 Project 或 Team Knowledge，供团队成员和 AI 及时复用。这一方向可能比独立个人 SaaS 更有价值，并可能采用开源或自托管模式，但开源与商业路径尚未决定。
+- 用户把个人原始输入称为 `source of truth`；当前这是需要产品分析的假设，不代表已经确认原始输入可以直接成为团队事实。
 
 ## 核心目标
 
@@ -135,6 +140,6 @@
 
 ## 强制执行关系
 
-- `/GOAL.md` 定义总目标、真实验收场景和完成判定；本文件定义用户事实。
-- `docs/product-spec.md`、`docs/interaction-spec.md`、`docs/design-system.md` 只能细化二者，不能与二者冲突。
-- 新用户要求或纠正出现时，先更新 `/GOAL.md` 与本文件，再修改实现。
+- `docs/user-requirements.md` 记录用户事实；`docs/design/logue-ai-product-positioning-2026-08-04.md` 是当前 V2 唯一权威整体设计。
+- `/GOAL.md`、`docs/product-spec.md`、`docs/interaction-spec.md`、`docs/design-system.md`、旧专题设计与 QA 只解释已发布 V1，不限制 V2。
+- V2 设计阶段的新想法直接更新用户事实、V2 权威设计与 `DECISIONS_AND_RISKS.md`；当前不得据此开始实现。

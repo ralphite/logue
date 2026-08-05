@@ -1,6 +1,6 @@
 # Logue 历史验收记录（非权威）
 
-> 本文件保留历史证据，不能作为当前完成判定或产品契约。当前唯一权威目标是 [`GOAL.md`](../../GOAL.md)，未完成项只见 [`open-tasks.md`](./open-tasks.md)，完整历史矩阵见 [`bug-feature-status.md`](./bug-feature-status.md)。本文件中的旧 UI 名称、旧架构、旧 mobile 结论和旧 Release SHA 均不自动成立。
+> 本文件保留 V1 历史证据，不能作为 V2 完成判定或产品合同。当前 V2 唯一权威设计见 [`../design/logue-ai-product-positioning-2026-08-04.md`](../design/logue-ai-product-positioning-2026-08-04.md)；当前不开始实现。
 
 更新时间：2026-08-02 19:58（America/Los_Angeles）
 

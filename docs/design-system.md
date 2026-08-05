@@ -1,6 +1,8 @@
-# Logue 设计系统
+# Logue V1 历史设计系统
 
-本文件只定义视觉与共享布局。一级 IA 和 feature 行为以 `GOAL.md`、`docs/product-spec.md` 与 `docs/design/capture-to-reuse-product-design-2026-08-04.md` 为准。
+> 本文件描述已发布 V1 的视觉与布局。V2 可以完整重设计，不受这些 token、IA 或组件模式约束。当前权威产品设计见 [`design/logue-ai-product-positioning-2026-08-04.md`](./design/logue-ai-product-positioning-2026-08-04.md)。
+
+以下视觉与共享布局只适用于 V1；V2 是否复用由后续整体设计决定。
 
 ## 设计方向
 

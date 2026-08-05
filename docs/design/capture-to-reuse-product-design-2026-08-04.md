@@ -1,4 +1,6 @@
-# Logue：从捕获到复用的产品设计
+# Logue V1 历史设计：从捕获到复用
+
+> 本文件已被 V2 整体产品设计覆盖，仅保留为已发布 V1 的设计与审查记录。当前权威稿见 [`logue-ai-product-positioning-2026-08-04.md`](./logue-ai-product-positioning-2026-08-04.md)。
 
 日期：2026-08-04
 状态：产品与 UX 设计；尚未代表实现完成
@@ -6,7 +8,7 @@
 
 ## 0. 规范优先级与证据口径
 
-本设计按当前 `GOAL.md`、真实 runtime、当前 schema/routes 和用户最新要求编写。它取代旧规范中关于一级导航、`Generate`、LAN/跨机器访问、正常成功状态、字体下限和 panel 宽度的冲突条款。本工作批次同时同步 `docs/product-spec.md`、`docs/interaction-spec.md` 与 `docs/design-system.md`；后续不得继续按相反的旧条款实现。
+以下优先级和证据口径只用于解释 V1 当时的设计与实现，不适用于 V2。
 
 文档中的“已有基础”必须区分三件事：
 

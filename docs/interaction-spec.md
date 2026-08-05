@@ -1,6 +1,8 @@
-# Logue 核心交互规格
+# Logue V1 历史交互规格
 
-本文件只定义共享交互合同。一级 IA、feature scope 与完整 UX 状态以 `GOAL.md`、`docs/product-spec.md` 和 `docs/design/capture-to-reuse-product-design-2026-08-04.md` 为准；不得恢复相反的旧 `Generate` 页面或常驻成功状态。
+> **已被 V2 整体产品设计覆盖。** 本文件仅解释已发布 V1 的交互；不得用它限制 V2。当前权威设计见 [`design/logue-ai-product-positioning-2026-08-04.md`](./design/logue-ai-product-positioning-2026-08-04.md)。
+
+以下内容只定义 V1 的共享交互合同；其中的 IA、feature scope 和 UX 状态不自动进入 V2。
 
 ## 语音输入：极简直接插入
 

@@ -16,19 +16,41 @@
 ### DR-020 — LOGUE.ai 产品定位验证门
 
 - **优先级：** 产品基础 / P0
-- **状态：** 用户已确认收窄后的定位与首个用户；首轮 MVP 验证范围待最终确认，确认前不得实施
+- **状态：** 用户已确认收窄后的定位与首个用户；当前继续 V2 整体设计迭代，不定义 MVP、不开始实现
 - **研究前定位：** LOGUE.ai 是以 Voice 为第一交互方式、以 Log/Source 为个人信息底座、由 AI/Skills 完成处理、自动组织、分析和生成的个人工作系统。
 - **研究结论：** Voice / Log / AI 应保留为产品原则，但不能承担市场定位。任意输入框听写、选区命令、自定义 prompt、自动组织和基于个人内容生成已分别被 Wispr Flow、Superwhisper、Willow、Voicenotes、Mem、Tana、Readwise、Notion 等覆盖。
 - **确认定位：** 面向跨网页研究和写作的个人知识工作者；首个闭环为“当前网页/精确选区的语音或文字判断 → 带来源的 Log → 显式或自动 Project classification → 在当前输入位置基于 Sources 生成并插入”。短句为“说一次，记住来源，用回当前工作”。
-- **用户可见影响：** 首版 IA 建议只保留 `Log / Projects / Settings`；Skills 作为上下文动作和高级配置；Topic、Source、Page、Run 不各自建立一级入口。MVP 首轮验收聚焦一个 active Project 的完整 round trip，但产品仍支持多个 Projects；完整 Skill pipeline、自动分类高级配置、Topic 管理、Page editor、Screenshot/PDF、Daily、Agents 等后移但不删除。
+- **用户可见影响：** 当前 IA 方向建议 `Log / Projects / Settings`；Skills 作为上下文动作和高级配置；Topic、Source、Page、Run 不各自建立一级入口。这些仍可随用户后续想法继续迭代，不构成 MVP 或实现冻结。
 - **主要风险：** 若 round trip 不能明显优于 `Wispr + Readwise + ChatGPT` 的手工组合，产品仍会被理解为功能更少的 dictation/PKM 工具；来源 lineage 可以累积防御，但只有在当前工作位置真实节省返工时才产生用户价值。
 - **证据：** `docs/design/research/logue-ai-competitive-positioning-2026-08-04.md`、`docs/design/reviews/logue-ai-positioning-independent-review-2026-08-04.md`，以及 ChatGPT.com 独立会话 `https://chatgpt.com/c/6a72c769-02d8-83e8-9f9c-9978c94e5a41`。修订稿经 `logue_product_designer` 最终复审为 `PASS — 9.3/10`。
-- **用户决定：** 已确认收窄后的 wedge 与研究/写作密集的首个用户；已确认 DR-021。仍需确认“首轮只用一个 active Project 验证闭环”的范围，该表述不限制产品支持多个 Projects。
+- **用户决定：** 已确认收窄后的 wedge、研究/写作密集的首个用户与 DR-021；明确取消“首轮只证明一个 active Project”的当前范围讨论。现在只保存并迭代 V2 整体设计，等待更多想法，不实施。
+
+### DR-022 — V1 与 V2 的文档和产品边界
+
+- **优先级：** 产品基础 / P0
+- **状态：** 用户已确认；持续执行
+- **决定：** 已发布的现有产品统一称为 V1。当前讨论的是 V2 整体产品重设计；V1 的代码、界面、规格、数据、QA 和 Release 仅作历史证据，不限制 V2。
+- **文档规则：** `docs/design/logue-ai-product-positioning-2026-08-04.md` 是 V2 唯一权威整体设计稿；用户后续想法直接合并到该文件。竞品研究和 review 仅作支持证据。旧的 GOAL、产品规格、交互、设计系统和专题设计已明确标记为 V1 历史文档。
+- **用户可见影响：** 不再需要在多份互相冲突的设计稿中判断哪份最新；V2 会作为一套整体产品持续重写，而不是在 V1 上追加 feature。
+- **实施边界：** 当前不定义 MVP、排期或 Release 范围，也不开始代码实现；只有用户明确宣布进入实现阶段后再制定交付计划。
+
+### DR-023 — 个人 Source 向团队 Knowledge 沉淀的候选方向
+
+- **优先级：** 产品基础 / P0
+- **状态：** 评估中；尚未替换当前已确认定位
+- **候选决定：** LOGUE.ai 可能从个人 Log / Project Memory 扩展为 AI-native work 的 knowledge maturation layer：`Private Source → Personal Knowledge → Share Candidate → Project Knowledge → Team Knowledge`。
+- **用户可见影响：** 用户的现场输入先服务本人；适合共享的内容经过整理、核验和权限选择后，才成为项目或团队可复用的 Human/AI Context。
+- **关键纠正：** 原始输入是第一方工作记录和 Evidence，不天然是 Truth。团队可依赖的 Knowledge 需要来源、作者、状态、适用范围、更新时间和修订关系。
+- **替代方案：** 继续只做个人研究/写作闭环；或转为连接既有 SaaS 的企业搜索。前者边界清晰但团队复利较弱，后者会直接进入 Microsoft、Glean、Atlassian、Slack 和 Onyx 的强势区域。
+- **已有证据：** 大平台已经覆盖权限感知的组织内容搜索；Khoj、AFFiNE、Outline、Mem0、screenpipe 等覆盖个人 AI、知识库、AI Memory 或原始活动捕获。尚未发现主要产品把个人工作现场的 Source 通过受控晋升链变为团队 Knowledge 作为核心产品模型。
+- **主要风险：** 私人工作被团队监控、AI 错误共享、知识过期或冲突、个人没有足够直接收益、以及过早扩张成完整企业权限和协作平台。
+- **开放问题：** 首个协作用户、共享是否始终人工确认、Team Knowledge 的 owner/治理、私有来源与共享结论的权限关系、产品做完整协作层还是开放 knowledge layer、开源目标与许可证。
+- **实施边界：** 当前只记录和分析，不进入实现。
 
 ### DR-021 — Voice Write 与持久 Project Memory 的边界
 
 - **优先级：** 产品基础 / P0
-- **状态：** 用户已确认；实施与真实流程验证待后续批次
+- **状态：** 用户已确认设计边界；当前不实施
 - **决定：** 所有 Voice Write、Capture、Comment 和其他用户输入都形成 Source，并永久保存到私人 Log，直到用户明确删除。永久保存不等于进入 Project Memory。
 - **Project Memory 路径：** 用户可以显式选择一个或多个 Projects；系统也可以自动分类。高相关、重要且构成新信息或关键补充的 Source 可自动加入；低置信度只建议；无关、低价值或重复内容保持 Log-only，重复项关联已有 Source 而不放大 Context 权重。
 - **信任边界：** 用户显式加入、排除和纠正永久优先于自动分类，后台不得覆盖。Project Memory 是供 Project AI 使用的受控 Context，而不是另一份存储副本。

@@ -1,5 +1,7 @@
 # Capture-to-reuse 独立设计评审
 
+> **V1 历史审查。** 仅用于解释已发布 V1，不约束 V2。当前 V2 权威设计见 [`../logue-ai-product-positioning-2026-08-04.md`](../logue-ai-product-positioning-2026-08-04.md)。
+
 日期：2026-08-04
 对象：`docs/design/capture-to-reuse-product-design-2026-08-04.md` 冻结初稿
 
