@@ -28,7 +28,7 @@
 | B18 | 320px 详情批注区遮挡风险正文、Projects 最后一行被底栏遮挡 | PASS | 详情正文和操作在同一可滚动安全区；Projects 底部预留完整空间。证据：`/tmp/logue-projects-320-bottom.png`、`/tmp/logue-material-detail-320-end-current.png`。 |
 | B19 | 平板关闭/完整页热区不足 44px、主导航无文字 | PASS | 768px 保留一级文字，详情与新建资料关闭/完整页命中区至少 44×44px；已有真实平板证据。 |
 | B20 | 320px Generate 的 `Documents` 被截断 | PASS | 移动 Generate 行保留完整 Documents / Agents 文案和独立 44px plus，移除不必要的前置图标。证据：`/tmp/logue-generate-320-fixed.png`。 |
-| B21 | Web UI / Web code 混用中文 | PARTIAL | 当前 `apps/web/src` 产品文案、无障碍文案和测试命名无中文；用户自有资料、项目名和自建 Skill 原样保留。系统 Skill、固定文案和新分类理由为英文；用户既有派生内容不作静默改写。 |
+| B21 | Web UI / Web code 混用中文 | PASS | 正式 Web、Extension、安装器、Storybook 与服务端生产文案扫描无中文系统 copy；2026-08-04 真实 Chrome 抽查 Stream、Documents、Settings 均为英文。用户资料、项目名和自建 Skill 原样保留；实际 Stream 中的中文录音资料不是系统文案。 |
 | B22 | 公开安装默认把无认证 API 暴露到局域网 | PASS | `v0.2.1` 安装器默认只监听 `127.0.0.1`；真实公开升级后 `lsof` 确认为 `127.0.0.1:18831`，不是 wildcard。显式 LAN 能力仍保留，但安全配对前不作为默认公开入口。 |
 | B23 | Extension 覆盖升级存在稳定目录短暂消失 | PASS | 安装器先完整写入版本化 Extension 资产，最后只原子替换 manifest；旧 manifest 与旧资产在切换前后都保持可读。跨版本和同版本重复安装回归均通过。 |
 | B24 | 自定义安装端口的发布版 Web 错连固定 `8787` | PASS | 真实 `v0.2.0` 在 `18831` 复现断线；`v0.2.1` 改为只有 Vite `5173` 才连接 `8787`，任何 Go 托管端口均使用同源 API。公开升级后真实浏览器成功加载资料、文档和来源，控制台无 warn/error。 |
