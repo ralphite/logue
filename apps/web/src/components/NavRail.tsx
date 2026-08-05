@@ -1,8 +1,10 @@
 import {
+  FileText,
   FolderKanban,
   LibraryBig,
   PanelLeftClose,
   Settings,
+  Sparkles,
 } from "lucide-react";
 import { LogueLogo } from "@logue/ui";
 import { cn } from "@logue/ui";
@@ -10,11 +12,13 @@ import { useState } from "react";
 import { PanelResizer } from "./PanelResizer";
 import { Tooltip, TooltipProvider } from "./Tooltip";
 
-export type Section = "library" | "projects" | "settings";
+export type Section = "stream" | "projects" | "documents" | "skills" | "settings";
 
 const navItems = [
-  { id: "library" as const, label: "Library", icon: LibraryBig },
+  { id: "stream" as const, label: "Stream", icon: LibraryBig },
   { id: "projects" as const, label: "Projects", icon: FolderKanban },
+  { id: "documents" as const, label: "Documents", icon: FileText },
+  { id: "skills" as const, label: "Skills", icon: Sparkles },
   { id: "settings" as const, label: "Settings", icon: Settings },
 ];
 

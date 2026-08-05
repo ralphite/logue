@@ -21,32 +21,6 @@ interface ApiMaterial {
   organization?: Material["organization"];
 }
 
-export type SourceType = "voice" | "selection" | "snapshot";
-
-export interface Source {
-  id: string;
-  type: SourceType;
-  content: string;
-  transcript?: string;
-  origin?: SourceInfo;
-  projectNames: string[];
-  parentSourceIds: string[];
-  captureId?: string;
-  createdAt: string;
-}
-
-interface ApiSource {
-  id: string;
-  type: SourceType | "text" | "derived";
-  content: string;
-  transcript?: string;
-  origin?: SourceInfo;
-  project_names?: string[];
-  parent_source_ids?: string[];
-  capture_id?: string;
-  created_at: string;
-}
-
 export type MaterialSearchMatch =
   | { id: string; match: "content" | "annotation" | "source" | "tag" | "project"; reason?: string }
   | { id: string; match: "related"; reason: string };
@@ -129,20 +103,6 @@ export function fromApiMaterial(item: ApiMaterial): Material {
   };
 }
 
-function fromApiSource(item: ApiSource): Source {
-  return {
-    id: item.id,
-    type: item.type === "text" || item.type === "derived" ? "snapshot" : item.type,
-    content: item.content,
-    transcript: item.transcript,
-    origin: item.origin,
-    projectNames: item.project_names ?? [],
-    parentSourceIds: item.parent_source_ids ?? [],
-    captureId: item.capture_id,
-    createdAt: item.created_at,
-  };
-}
-
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const body = await response.text();
@@ -165,16 +125,6 @@ export async function getStatus() {
 export async function getMaterials() {
   const result = await parseResponse<{ items: ApiMaterial[] }>(await fetch(`${apiBase}/v1/items`));
   return result.items.map(fromApiMaterial);
-}
-
-export async function getSources() {
-  const result = await parseResponse<{ sources: ApiSource[] }>(await fetch(`${apiBase}/v1/sources`));
-  return result.sources.map(fromApiSource);
-}
-
-export async function getPages() {
-  const result = await parseResponse<{ pages: LogueDocument[] }>(await fetch(`${apiBase}/v1/pages`));
-  return result.pages;
 }
 
 export async function searchMaterials(query: string, signal?: AbortSignal) {

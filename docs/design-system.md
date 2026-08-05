@@ -1,14 +1,14 @@
-# Logue 设计系统（clean-slate）
+# Logue 设计系统
 
-本文件只定义视觉与共享布局。产品 IA 和行为以 `docs/product-spec.md` 与 clean-slate 产品设计为准；当前 UI 不构成保留约束。
+本文件只定义视觉与共享布局。一级 IA 和 feature 行为以 `GOAL.md`、`docs/product-spec.md` 与 `docs/design/capture-to-reuse-product-design-2026-08-04.md` 为准。
 
-## 方向
+## 设计方向
 
-Logue 使用 Notion 式内容优先界面：安静、直接、可读、低装饰。Minimalism 通过删除内容实现，不通过缩小文字或压窄面板实现。
+Logue 使用 Notion 式内容优先界面：温暖中性色、细分隔线、低装饰、紧凑但不拥挤。视觉不能掩盖产品结构；每个可见模块都必须回答一个用户问题或完成一个动作。
 
-品牌紫只用于文本选择、citation 和键盘 focus；导航选中使用中性底。正常连接、保存和后台记录不显示成功色。
+品牌紫用于文本选择、引用和键盘焦点；导航选中使用中性底。绿色只在用户必须看见的已验证状态中使用，正常连接/保存保持安静；红色只用于录音中、错误和删除。
 
-## Tokens
+## 基础 Token
 
 | Token | 值 | 用途 |
 | --- | --- | --- |
@@ -17,76 +17,47 @@ Logue 使用 Notion 式内容优先界面：安静、直接、可读、低装饰
 | `--ink` | `#181916` | 主要文字 |
 | `--muted` | `#6d7169` | 有意义的次要信息 |
 | `--line` | `#e4e5df` | 分栏与列表分隔 |
-| `--accent` | `#5b64f4` | 品牌、focus、citation、selection |
+| `--accent` | `#5b64f4` | 品牌、焦点、引用与文本选择 |
 | `--accent-soft` | `#eeeefa` | 引用/焦点辅助背景 |
+| `--success` | `#4f8b57` | 必须显式确认的已验证状态 |
 | `--recording` | `#e44c3f` | 录音中 |
 | `--danger` | `#b2483f` | 删除与不可恢复错误 |
 
-- 圆角：行内控件 4–6px，浮层 10–12px；不用大胶囊或卡片墙。
+- 圆角：行内控件 4–6px，浮层 10–12px；不用大面积胶囊和卡片堆叠。
 - 间距：4px 基线；常用控件高度 28 / 32 / 36px。
-- 字体：系统 UI；正文 15–16px，中文行高 1.6–1.75；正式辅助文字不低于 12px。
-- 阴影：只用于网页 launcher/menu、Dialog 和覆盖 drawer。
+- 字体：系统 UI 字体；正文 14–16px，中文行高 1.6–1.75；正式 UI 的有意义辅助信息不低于 12px，并保持可读对比度。
+- 阴影：只用于网页就地 launcher/menu、Dialog 和覆盖抽屉；Chrome 原生 Side Panel 与页面分区不加自定义外层阴影。
 
-## 内容层级
+## 层级
 
-- Page/Project title：38px / 700；窄屏 30px。
+- 文档标题：38px / 700；窄屏 30px。
+- 项目标题：38px / 700。
 - 一级页面标题：20px / 600。
-- 二级标题：18–20px / 650。
+- 文档二级标题：约 20px / 650。
 - 正文：15px / 1.75。
-- 列表主文字：14–15px；来源、项目、时间：12–14px。
+- 列表主文字：14–15px；来源、项目、时间为 12–14px。
 
-输入控件只继承 `font-family`，不得用 `font` shorthand 意外覆盖字号或字重。
+输入控件不得使用 `font` shorthand 覆盖 Tailwind 字号或字重；只继承 `font-family`。
 
-## 导航与表面
+## 组件规则
 
-- 一级导航只有 `Library / Projects / Settings`；全局 `Search` 固定在侧栏顶部。
-- 活动导航项使用浅中性底；不让子级选择复制同一视觉重量。
-- Library 统一展示 Source/Page，使用 `All / Sources / Pages` 轻量 segmented filter。
-- Page 和 Project 进入内容轴，不新增 Documents 一级列表。
-- Skills 使用 Settings 的同一内容轴与 section pattern，不形成独立产品视觉语言。
+- **导航：** 一级页面只有 `Stream / Projects / Documents / Skills / Settings`；活动项使用浅中性底，子级选中不复制同一视觉层级。
+- **主按钮：** 每个区域最多一个实心主按钮；危险动作与主动作分色、分层。
+- **资料行：** 内容摘录优先，随后是项目、来源、日期；本机地址显示为 `Logue 本地页面`，不泄露 `127.0.0.1` 技术细节。
+- **资料详情：** 原文只读；音频、转写、组织、派生关系和追加批注按需出现。项目和标签直接操作并自动保存。
+- **来源行：** 标题、唯一元数据与非重复摘录分别回答“是什么 / 来自哪里 / 为什么相关”。外链和引用动作分离。
+- **设置：** 只用“偏好 / 系统与集成”两组建立信息架构；高级环境变量默认折叠，不与日常偏好争抢视觉层级。
+- **录音：** 波形只在录音中出现；同时显示时长与停止/取消动作，不作为装饰。
+- **Toast：** 仅确认跨页面或不可见结果；已经在界面中显然发生的变化不重复通知。
+- **空状态：** 解释下一步，不创造 Inbox 或待办压力，不放示例统计卡。
 
-## 组件
+## 布局
 
-- **Primary action：** 每个区域最多一个实心主动作。
-- **Library row：** 类型 icon + title/excerpt + 唯一必要 metadata；不用状态点、标签堆或 hover-only 核心信息。
-- **Source detail：** 原始内容优先，随后音频/来源/annotations/actions；隐藏 request ID、内部状态和模型细节。
-- **Page editor：** title、Project 与 `{n} sources` 后直接进入正文；autosave 成功不显示。
-- **Source row：** title、domain/project/date、匹配摘录；外链与引用动作分离。
-- **Settings section：** 标题、紧凑说明、真实控件；只展示高级非敏感模型偏好。Provider credentials 不进入 Web；Extension Server URL 不在 Web Settings 重复出现。
-- **Recording：** 只有确实收到音频时显示波形，同时显示时长与停止/取消。
-- **Toast：** 仅用于跨页面且当前看不见的结果；显然发生的本地变化不重复通知。
-- **Empty state：** 只说明下一步，不放统计、宣传副标题或示例卡。
+- 一级 NavRail 复用当前共享宽度；Documents/Skills 的内部列表以 252px 为设计基线，复用共享可调整 min/default/max。
+- Web Detail/Sources panel 可扩展到工作区全部剩余空间，同时为主内容保留最小阅读宽度；不得用固定 390/320px 或局部 `max-width` 卡住。
+- 宽度不足时 Detail/Sources 使用覆盖 drawer/full-width sheet，并保持 Header 固定、单一内容滚动；不得直接隐藏 Sources。
+- Chrome Extension 内容填满用户提供的原生 Side Panel 宽度；约 360px 只是设计基线，产品不能控制或承诺默认宽度，也不提供自定义位置/宽度/关闭控件。
 
-## 布局轴
+## 审查规则
 
-- NavRail 使用共享宽度。
-- Library/Project 列表与 Page 阅读区使用共享 page axis；列表行和 header 左边缘一致。
-- Source detail 与 Sources panel 复用同一响应式 min/default/max 和 resizer pattern。
-- 侧面板默认打开到足够完成任务的宽度，可占剩余空间；不得在旁边留下无意义空白。
-- 桌面始终保留正文最小阅读宽度；宽度不足时 panel 变为覆盖 drawer/full-width sheet。
-- Drawer header 固定，内容区只有一个滚动容器。
-- Chrome Extension 填满用户提供的原生 Side Panel；360px 只是设计基线，不承诺默认宽度。
-
-## 状态与可访问性
-
-- hover、selected、focus-visible、disabled、recording、error 使用共享 token 和组件状态。
-- 颜色不单独承载含义；录音、错误和 destructive action 同时有文字或 accessible name。
-- Icon button 至少 32px；resizer 有键盘操作与清晰焦点。
-- 支持 reduced motion；加载不引起布局跳动。
-- Search、drawer、menu、dialog 关闭后恢复原触发器焦点。
-
-## 删除规则
-
-以下模式不进入新产品：
-
-- `Stream / Documents / Skills / Generate` 旧导航；
-- Material、Tags、Needs review、自动组织状态；
-- 正常 `Connected / Saved / Organizing`；
-- request ID、端口、分类器、模型品牌等日常技术信息；
-- 重复标题、重复来源、重复动作和常驻安全说明；
-- 窄 panel + 大片闲置空白；
-- 用 10–11px 正式文字换取密度。
-
-## 审查清单
-
-每次用户可见改动检查：内容轴、层级、重复信息、文字大小、CJK 换行、滚动归属、面板宽度、键盘焦点、loading/empty/error/recovery、窄屏、真实点击目标，以及是否还能直接删掉一个无价值元素。
+每次用户可见改动必须检查：重复标题、重复来源、原生技术名泄露、低对比度、CJK 孤字换行、滚动归属、点击目标、加载/空/错误/恢复状态，以及是否存在可以直接删除的低价值 UI。

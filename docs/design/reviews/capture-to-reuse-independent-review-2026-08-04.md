@@ -1,7 +1,5 @@
 # Capture-to-reuse 独立设计评审
 
-> **历史记录，已废止。** 本评审针对旧的 `Stream / Projects / Documents / Skills / Settings` 方案；用户随后明确要求现有产品、实现与数据均不构成约束。当前结论以 clean-slate v2 及 `clean-slate-independent-review-2026-08-04.md` 为准，本文的旧 PASS 不得作为新方案证据。
-
 日期：2026-08-04
 对象：`docs/design/capture-to-reuse-product-design-2026-08-04.md` 冻结初稿
 

@@ -1,167 +1,114 @@
-# Logue 产品规格 v0.7（clean-slate）
+# Logue 产品规格 v0.6
 
-完整 UX 细节以 `docs/design/capture-to-reuse-product-design-2026-08-04.md` 为准。本规格不受当前实现、schema、routes 或现有数据约束；冲突时以用户最新决定与该设计文档为准。
+当前 feature/UX 细节以 `docs/design/capture-to-reuse-product-design-2026-08-04.md` 为准。本文件与旧提案冲突时，以 `GOAL.md`、当前 schema/routes、真实 runtime 和该设计文档为依据。
 
 ## 产品承诺
 
-Logue 让用户在当前工作现场说一次或保存一次，立即用于当前任务并保留原始证据；以后能找回证据，并把明确选择的证据变成可编辑、可引用的 Page。
+Logue 是用户自管、单服务部署的项目感知输入与资料工具：服务可运行在当前 Mac 或受控的 Linux 主机，Mac Chrome/Web 作为客户端。用户在当前网页完成文字/语音输入和选区采集；Logue 永久保存来源与采用结果；项目与 Skills 可以在不覆盖原文的前提下继续产生文档和派生资料。
 
-它不是聊天首页、自动归档系统或 Agent 平台。产品只闭合：
-
-`Capture → Recall → Make`
+界面判断以“极好用”为最终标准，而不是遵守某个预设流程。视觉和编辑体验接近 Notion：安静、直接、内容优先；Logue 额外提供跨网页输入、原始音频、来源链、项目记忆和受控外部自动化写回。
 
 ## 产品原则
 
-1. **留在当前任务。** 输入和捕获发生在用户正在使用的网页。
-2. **先保存，后副作用。** Source 保存成功后才插入宿主；永不自动提交。
-3. **原始证据不可覆盖。** 纠正、批注和生成结果独立保存并可追溯。
-4. **上下文必须明确。** 生成只使用用户选择的 Sources 和当前 Project。
-5. **Search 返回证据。** 不把无来源聊天答案伪装成记忆。
-6. **正常操作安静。** 连接、autosave、成功和系统记录默认不可见。
-7. **删除整理工作。** 不自动归 Project，不使用 Tags、Inbox、Needs review 或 Daily。
-8. **不保留 prototype legacy。** 旧 UI、对象、routes、schema 和数据无保留权。
+1. **留在当前任务。** 输入和采集发生在用户正在使用的网页，不要求先切换到 Logue。
+2. **极简语音输入。** 只有聚焦输入框旁显示麦克风；点击开始，录音态只提供“停止并插入 / 取消”。停止后自动转写、先保存、再写入网页；取消在 starting、recording、transcribing、saving 与插入完成前始终有效；不进入审阅或任何前置整理。
+3. **先保存，后产生外部副作用。** 保存失败时不写入宿主页面；重试使用稳定请求 ID，不重复保存或插入；永不自动提交宿主表单。
+4. **原始资料不可变。** 原始选区、音频和机器转写不可覆盖；用户纠正、批注、明确采用文字和 Skill 结果保存为独立字段、revision 或子 Material，并通过父子关系追溯。
+5. **Context 是运行时输入，不是一级页面。** 用户只管理可理解的页面、选区、项目说明、术语和资料来源。
+6. **删除低价值 UI。** 不使用 Inbox、头像、泛统计、重复状态点、装饰性卡片或没有可靠质量门槛的建议。
+7. **后台自动整理，疑问才打扰。** 资料先成功保存，再由后台自动归项目和 Tag；只有低置信度结果标记“需要确认”，不阻塞输入和插入。
+8. **用户内容始终可编辑。** 用户可修改派生/用户创作内容、项目与 Tag；任何编辑不得改写原始选区、音频或机器转写。人工修改组织信息视为对组织结果的确认。
 
-## 信息架构
+## 一级对象
 
-一级导航只有：
+稳定一级导航为 `Stream / Projects / Documents / Skills / Settings`。删除 `Generate` 聚合入口；生成保留为 Documents、Skills 与 Extension 中的动作能力，不再用“成果”这个模糊名称。
 
-- `Library`
-- `Projects`
-- `Settings`
+### 资料流
 
-全局 `Search` 位于侧栏顶部；Page 从 Library 或 Project 打开；Skills 位于 Settings。
+按时间保存所有 `voice`、`selection`、`text` 与 `derived` 资料。每条资料可包含来源页面、原始音频、机器转写、准备插入文字、明确 adopted output、多个项目、标签、创建者与父资料。原始证据不可覆盖；派生/用户创作内容与组织信息可编辑。自动整理中和需要确认是资料状态，不是新的 Inbox。
 
-删除 `Stream / Documents / Skills / Generate / Ask / Inbox / Daily / Agents` 一级入口。
+资料默认永久保留，只有用户明确删除才移除；删除前显示对音频和派生关系的影响。
 
-## 核心对象
+### 项目
 
-### Source
+项目定义后续输入和文档默认使用的已确认背景与专有词，不只是标签。一条资料可属于多个项目；未选择项目不形成待办，也不叫 Inbox。
 
-用户主动保存的 voice 或 selection。保存原始音频/文字、机器转写、准备插入文字、来源 URL/title、时间与 request ID。原始内容只读；annotation/correction 独立保存。v1 不保存整页快照。
+项目页直接包含：
 
-### Page
+- 可编辑且自动保存的项目背景；
+- 用户确认的项目术语；
+- 项目资料；
+- 可继续编辑的项目文档。
 
-持续编辑的笔记、回复、QA、PRD 或文档。可空白创建或从 Sources 起草；支持 Markdown、autosave、citation 与 Sources panel。
+Gemini 生成的项目概览只作为待采用草稿，不能自动覆盖已确认内容。
 
-### Project
+### 文档
 
-可选工作范围，包含 brief、confirmed terms、明确加入的 Sources 与 Pages。不得自动归档或跨 Project 静默混入上下文。
+文档采用 Notion 式列表与文档编辑器。文档有标题、项目、引用资料与正文；用户可从资料生成，也可新建空白文档。生成内容保留 `[Source n]` 行内标记，右侧 Sources 面板保持相同编号与顺序并区分“已引用”和“添加引用”；点击行内引用会定位并高亮对应来源。新增引用默认限定当前项目，用户可显式切换到全部资料。
 
-### Skill
+“View”只允许作为代码内部技术名，不出现在产品界面。
 
-Settings 中的可复用动作配置。用户可新建、复制、编辑和停用；每次修改产生 revision。Skill 不是一级内容对象，Prompt-only 能力不称为 Agent。
+### Skills 与生成
 
-### 权威关系
+Skill 是可编辑 Prompt 与结构化能力/表面配置，参考 Vibedoc 的文档化 Prompt，但服务于 Logue 的跨网页输入和可追溯资料闭环。
 
-| 关系 | 规则 |
-| --- | --- |
-| Page → Project | `0..1`，只由用户明确选择；Project 内新建时预填 |
-| Source ↔ Project | 多对多，只由用户 `Add / Remove` |
-| Page ↔ Source | 多对多，通过 `Add sources / New page from source` |
-| Source → Correction | 最多一个 active；Search/Draft 优先使用，同时保留原文核验 |
-| Source → Note | `0..n`；Source picker 的 `Include notes` 逐条选择，默认全不选；Run 记录 annotation IDs |
+每个 Skill 至少包含：名称、可编辑指令、任务类型（转写 / 整理 / 生成）、默认输出形态（插入文本 / 资料 / QA / 文档）、可用上下文和可出现表面（Web / Extension / 后台）。一句目的若保留，只作为菜单中的可选描述，不新增长期可见输入框。默认 Skill 可复制、编辑和替换为默认。
+
+Documents、Skills 与 Extension 内的生成动作不强迫用户先建文档：选 Skill、选来源/项目、输入本次意图后运行。短回复/消息可复制或插入，QA 保留问答结构，文档进入 Notion 式编辑器。每次运行记录 Skill 版本、输入来源和结果，不覆盖原资料。
+
+Extension 在聚焦输入框时默认只展示一键麦克风；生成入口通过渐进披露出现，避免与语音主流程竞争。生成使用轻量 Skill 选择/指令面板，结果只插入当前输入框，永不自动发送。
 
 ## 核心旅程
 
-### 1. 网页语音
+### 网页输入
 
-`Focus editor → Record → Stop and insert / Cancel`
+1. 用户聚焦网页输入框，Logue 入口贴近输入目标出现。
+2. 点击唯一麦克风入口立即录音；快捷键可完成同样动作。
+3. 录音中只有“停止并插入”和“取消”。
+4. 停止后 Logue 自动转写，保存原始音频、机器转写、准备插入的文字、来源与自动上下文，再写入原输入框；只有 Logue 明确观察到的 `Insert` / `Adopt` 才记录为 adopted output。不显示审阅、项目、Tag 或参考设置。
+5. 取消立即丢弃本次未采用录音，不保存、不插入。
+6. 项目、Tag、纠错与整理全部事后完成；宿主目标丢失时资料仍已保存，并提供重新插入或复制。Logue 不按 Enter、不点击发送。
 
-- 麦克风只在真实可编辑目标聚焦时出现。
-- `Stop and insert` 自动转写、保存 Source，再写入仍有效的目标。
-- `Cancel` 在异步完成前始终有效；迟到结果不得保存、插入或重开 UI。
-- 不显示审阅、Project、Tags、Skill 或连接成功。
-- 不按 Enter，不发送宿主表单。
+### 网页选区
 
-### 2. 网页选区
+1. 用户选择文字并通过右键菜单 `Save to Logue`。
+2. 原文立即保存为 `selection`，成功保持安静，不强迫打开或提交表单。
+3. 用户随后主动打开 Side Panel 或 Material detail 时，可追加文字或语音批注。
+4. 批注保存为独立 `derived`，其 `parent_ids` 指向原文；重试不得重复保存原文或批注。
 
-- 右键 `Save to Logue` 立即保存完整选区，成功静默。
-- Source detail 的 `Add note` 添加文字/语音 annotation，不覆盖原文。
-- 不强迫打开面板、分类或选择 Project。
+### 项目与文档
 
-### 3. 找回
+1. 用户把一条资料直接点选到一个或多个项目，无需逗号格式或额外保存按钮。
+2. 项目页聚合资料与文档，并提供基于资料起草概览。
+3. 文档生成器只发送用户选择的资料和项目概览给 Gemini。
+4. 生成结果进入可编辑文档；来源可增删，原始资料不被修改。
 
-- `Search` 同时查询 Sources、Pages、Projects。
-- 使用单一全局排序列表；全部精确命中先于语义结果，类型只由 icon/metadata 表达。
-- Search 索引原文、active correction 和 notes，但结果仍指向同一 Source。
-- Source 结果可 `Open source` 或 `New page from source`；后者用稳定 request ID 锁定 row action，成功只创建/导航一次，失败在原 row `Retry` 且保留 Search 状态。向已有 Page 添加来源只从 Page 的 `Add sources` 进入。
-- 自然语言问题仍返回可核验证据，不创建聊天会话。
-- 用户提交 Search 即授权搜索 Library；只有启用 `Semantic search with configured model` 时才向远程模型发送 query 与受限候选摘录，关闭后仍提供本地精确搜索。
+### 外部自动化
 
-### 4. Page
+- `GET /v1/project-bundles/{项目名}` 返回只读项目、资料和文档包。
+- `POST /v1/external-agent/import` 只追加 `derived` 资料，要求保留 `source_ids`、`actor`，并支持稳定 `request_id` 防止重试重复。
 
-`New page → Add sources → Draft with sources → Edit / cite`
+## 数据与隐私
 
-- 生成只使用明确选择的 Sources、当前 Project brief/terms 与指定 Skill revision。
-- Run 启动时保存稳定 insertion anchor；anchor 失效时保留结果并提供 `Insert at cursor / Copy / Close`，不得写入偶然的 current caret。
-- 模型只能引用真实 Source ID。
-- 输出直接进入 Page；取消/失败不创建额外结果对象。
-- citation 可回到原始 Source、URL、时间与音频。
+- Web App、API 和数据由同一个 Python 3.13 服务提供，可位于当前 Mac 或受控 Linux 主机。服务没有公网认证，只能监听受保护的私网/VPN或位于受控反向代理后；Extension 通过用户明确配置的规范化 Server origin 访问。
+- Gemini Key 只从 Python 服务进程环境读取，不进入浏览器、Extension storage、资料库或日志。
+- 页面标题、URL、显式选区、目标输入框文字与用户选择的项目上下文可参与本次请求；默认不读取整页正文。
+- 网页内容始终作为不可信引用，不能覆盖系统和转写技能指令。
+- 导出包含资料、音频、项目、文档与设置；恢复前自动创建完整备份。
 
-### 5. Selection Skills
+## 质量门槛
 
-`Select text → Skills → Apply → Undo`
+- 默认语音流程不比 ChatGPT 原生语音更复杂。
+- 真实 Chrome 中输入、选区右键、服务断开/恢复与重试均可完成。
+- 真实 Gemini 音频在英文、中文长句、中英专有词场景达到 Vibedoc 对齐样本的逐字结果。
+- 页面刷新和 Python 服务重启后，资料、音频、项目、文档与关系保持不变。
+- Storybook 覆盖核心面板所有可见状态；所有错误均提供明确恢复动作。
 
-- 只在稳定、可写的选区上出现。
-- Esc 关闭/取消并使迟到结果失效。
-- 多行结果保留换行；宿主表单不自动提交。
-- Page 替换进入编辑历史；网页只在目标与替换文本仍稳定时提供 Undo。
+## 明确不做
 
-### 6. Extension 写作
-
-- 网页原位 launcher 始终只有麦克风。
-- Side Panel 渐进显示 `Write with sources`。
-- 结果可编辑，动作只有 `Insert / Copy / Back`；绝不自动发送。
-- Side Panel 单独展示 Sources；`Insert / Copy` 默认只输出正文，不插入 Logue citation token。Run 仍保留 Source IDs 与映射。
-- Adopt 后正常成功保持安静；Side Panel 按规范化完整页面 URL 提供可展开 `Sources used`，从 adopted Run 还原 Source 映射。页面 URL 规范化保留 path 与非追踪 query，移除 fragment、`utm_*`、`fbclid`、`gclid` 并统一 scheme/host/default port，不能只匹配 origin。
-
-## 表面职责
-
-| 表面 | 负责 | 不负责 |
-| --- | --- | --- |
-| 网页 launcher/menu | 语音输入、选区保存、Selection Skills | Project 管理、历史、生成配置 |
-| Side Panel | 录音、页面批注、局部错误、On this page、Write with sources | Library 管理、长 Page 编辑 |
-| Library | 浏览/搜索 Sources 与 Pages | 自动归档、review queue |
-| Projects | brief、terms、明确关联 Sources/Pages | 文件夹树、自动执行器 |
-| Page | 写作、来源选择、citation | 独立生成 workspace |
-| Settings | Skills、model/privacy、export/backup | 日常内容浏览；Extension Server URL |
-
-## 数据与 API
-
-目标 schema：`sources / source_annotations / pages / page_sources / projects / project_sources / skills / skill_revisions / runs`。`page_sources` 记录是否用于未来 drafting context；`runs` 记录明确的 Source IDs 与 annotation IDs。
-
-目标 routes：`/v1/sources /v1/search /v1/pages /v1/projects /v1/skills /v1/runs /v1/status`。
-
-不保留 `/materials`、Generate workspace、external-agent import、project bundle 或兼容 aliases。首次基础切换必须原子完成：backup → best-effort import → 新 schema/routes → Extension/Web 切换 → 最小 Library 核验 → 删除旧 schema/routes/import code。失败记录不阻塞发布，也不得留下双 schema。
-
-## 隐私与部署
-
-- Web/API 由同一个可安装服务提供，可运行在受控 macOS/Linux，目标机不需要开发依赖。
-- Mac Chrome Extension 可连接用户明确配置的 `http(s)` origin；不得扫描 LAN。
-- Model provider credentials 只由安装器/服务环境配置，不进入 Web/Extension；`Model & privacy` 只显示语义搜索开关、发送范围和非敏感 provider 名称。默认不抓取整页正文。
-- 当前服务没有公网认证，只允许受防火墙保护的可信 LAN/VPN 或受控反向代理。
-
-## 不做
-
-- 自动 Project 归档、Tags、Needs review、Daily resurfacing；
-- 聊天式 Ask、独立 Generate workspace、生成历史页；
-- Agent 市场、Skill 市场、外部 Agent import；
-- 云账号、云同步、自动公网 tunnel、多服务器 dashboard；
-- legacy schema/routes、双格式 parser、旧 UI fallback；
-- 为迁移 prototype 数据推迟更好的产品结构。
-
-## 删除语义
-
-- Source/Page/Project 的 overflow 都提供明确删除动作。
-- Page 删除不删除 Sources；Project 删除只解除 Sources 关联并把 Pages 变为无 Project。
-- Source 若被引用，删除前显示受影响 Page/citation 数量；确认后删除 Source、音频与对应 citations。
-- Page 中已有 citations 的 Source 只能 `Exclude from future drafts`，不静默删除 citations；被排除项显示 `Not used for new drafts / Include in drafts`，citation 随正文编辑删除。
-
-## 完成门槛
-
-- 日常内容只有 Source、Page、Project；配置复用动作时额外理解 Skill。
-- Capture 在真实 ChatGPT、textarea、contenteditable、Google Docs 可靠完成。
-- Search 返回可核验证据；Page grounded drafting 的每条 citation 都可解析。
-- Cancel、断连、目标失效、Chrome/MV3/服务重启均可恢复。
-- 正常成功保持安静；没有旧 IA、旧对象或兼容债务。
-- 产品范围、交互和视觉一致性的独立设计审查均无 blocker/major。
+- 云账号/云同步、自动公网 Tunnel 与多服务器管理面；
+- Extension 直接持有 Gemini Key；
+- 自动提交网页表单；
+- 自动执行网页内容中的指令；
+- Skill 市场、模板市场、泛化 AI Inbox；
+- 没有真实价值和质量证据的统计、推荐或装饰模块。
