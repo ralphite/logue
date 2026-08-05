@@ -1,7 +1,7 @@
 # Logue V2 功能完整性与交互成本审计
 
 日期：2026-08-05
-结论：**FAIL — 当前没有一条 J1–J9 Journey 达到 WORKING。**
+结论：**进行中 — J5 Page/Selection Skill 已达到 WORKING；其余 J1–J4、J6–J9 仍未达到完整性门槛。**
 
 本轮只判断功能、持久终态与默认路径，不以 Story 数、截图、静态说明或视觉完成度替代产品完成度。审计由主产品检查、两名独立只读 agent 与浏览器实证共同完成。
 
@@ -13,7 +13,7 @@
 | J2 Voice Write | PARTIAL | 默认路径被 Profile、Stop/review、版本和分类阻断；跨表面持久终态不完整 |
 | J3 Selection Voice Comment | PARTIAL | 仍需 `Add comment → Voice → Stop → Link comment`，未实现 `Mic → Accept` |
 | J4 Project transcription context | PARTIAL | Profile、Vocabulary、Edit、Review、Re-transcribe 多为静态或无共享持久对象 |
-| J5 Page/Selection Skill | PARTIAL | `Run Skill` 硬编码 Explain；通用 Save 与 Save as source 无终态；没有四层解析 |
+| J5 Page/Selection Skill | WORKING | pinned/recent/Project default 一击运行；Copy/Replace/Cancel/Undo；Run 固化 revision、解析来源与实际 Context |
 | J6 Ask / Draft / Insert | PARTIAL | 暴露 Parse/Generate；Copy、Save document 与部分 Side Panel 入口无终态 |
 | J7 Classification correction | PARTIAL | Web correction 已可操作；Side Panel、Change Project 与 learned rule 不完整 |
 | J8 Find / recovery | PARTIAL | 可搜索并打开 Source；semantic match、why、filters、加入 Draft/Project 不完整 |
@@ -23,16 +23,16 @@
 
 | 能力 | 当前状态 | 必须达到 |
 | --- | --- | --- |
-| Built-in Skills | STATIC | 稳定 ID/revision；可置顶、隐藏、复制；一击运行 |
-| Global defaults | STATIC | 每类默认 binding、pinned actions、解析来源可见 |
-| My Skills | MISSING | 创建、编辑 revision、复制、归档、恢复、运行 |
-| Project-specific Skills | MISSING | inherit、override/bind、reset；不重复复制对象 |
-| Runtime resolver | MISSING | `explicit > Project > Global > system`，每次 Run 记录 revision/source |
-| Selection/Page | PARTIAL | pinned/recent 一击运行；More Skills 选择即运行；Replace/Copy/Cancel |
-| Voice Write/Comment | MISSING | 默认静默解析；高级 review 才切换；结果动作与任务一致 |
-| Organization | MISSING | 产生可纠正建议并记录所用 Skill |
-| Ask/Draft | PARTIAL | 单次 Run；实际 citations；Insert/Copy/Save as document 终态 |
-| Settings management | STATIC | Global 与 Project 两个真实管理入口；所有按钮可操作 |
+| Built-in Skills | WORKING | 稳定 ID/revision；可置顶、隐藏、复制；一击运行 |
+| Global defaults | WORKING | 五类 binding、pinned actions、真实 fallback 与 revision 可见 |
+| My Skills | WORKING | 创建、搜索、编辑 revision、复制、归档、恢复；完整高级策略 |
+| Project-specific Skills | PARTIAL | inherit、改绑、reset 已工作；Project-local Customize 留待下一批 |
+| Runtime resolver | WORKING | `explicit > Project > Global > system`；五类 Run 记录 revision/source/Context；revision instruction 决定结果 |
+| Selection/Page | WORKING | Project default、pinned/recent 一击运行；More Skills 选择即运行；Replace/Copy/Cancel/Undo |
+| Voice Write/Comment | PARTIAL | transcription + transformation 已静默解析并留 Run；Mic → Accept 默认旅程尚未重构 |
+| Organization | PARTIAL | 捕获后产生带 Skill Run 的可纠正 suggestion；Side Panel correction 仍未完整连接 |
+| Ask/Draft | PARTIAL | Generation Skill 已决定 Run 与 cited Candidate；仍需收敛默认 Command 旅程和完整终态 |
+| Settings management | PARTIAL | Built-ins、My、Global、Project inherit/bind/reset 已工作；Project-local Customize 尚缺 |
 
 ## 当前实证
 
@@ -67,4 +67,12 @@
 - 静态选区只显示 `Copy / Cancel`；可编辑选区只显示 `Replace / Cancel`，Replace 后提供局部 Undo；
 - 已移除 Selection 中的 `Run Skill`、通用 `Save` 与 `Save as source`。
 
-该纵向切片现为 `WORKING`；J5 总体仍为 `PARTIAL`，直到 Global Settings、Project inherit/override/reset、Run details 与其他 Page/Selection 入口共用同一 registry 并完成浏览器验收。
+2026-08-05 第二批完成 Settings → 实际运行闭环：
+
+- My Skill revision 现在包含 Trigger、Allowed input scope、Output、Language/tone、Project Context 与结果策略；非高频字段折叠在 `Advanced`；
+- 共享 executor 不再按 Skill ID 硬编码，创建或编辑 revision 会真实改变 Candidate；
+- Selection、Voice transcription/transformation、Organization、Ask/Draft 均使用同一 resolver；
+- Global 与 Project Settings 显示实际来源和 revision；不兼容 scope 不能绑定；归档/隐藏立即清理悬空 binding；
+- Selection 的 Project default 一击运行，Run details 显示实际 revision、解析来源和 Context；嵌套 `Esc` 只关闭最上层，窄宽度 picker 不再越界。
+
+J5 现为 `WORKING`。Skills 整体仍为 `PARTIAL`：下一批必须完成 Project-local Customize，并把 Voice、Organization 与 Ask/Draft 各自的默认 Journey 收敛到产品合同后，才可宣称 Skills 完整。

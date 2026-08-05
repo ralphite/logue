@@ -391,7 +391,7 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **已有证据：** 冻结后的独立产品设计复审复现 `Settings → Export & Backup → Prepare export` 仅改变提示文本，没有选择、下载或终态，判为 P1。
 - **开放问题：** 真实 Finder、浏览器扩展页、压缩包格式与下载写入在实现阶段连接本机系统；mock 先固定用户可见的范围选择、确认与完成语义。
 
-### DR-035 — 关键用户旅程使用独立的引导式 Demo，而不进入产品界面
+### DR-039 — 关键用户旅程使用独立的引导式 Demo，而不进入产品界面
 
 - **优先级：** V2 mock / P0
 - **状态：** 已确认设计合同；实现与真实浏览器验收进行中
@@ -401,7 +401,7 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **已有证据：** 用户明确要求所有重要 CUJ 都有 Demo，并在任意 UI 状态显示可执行操作的动态屏上指示和就近说明。2026-08-05 的独立 `logue_product_designer` 预审给出 GO，但限定为 demo-only overlay，并要求真实语义完成条件、checkpoint 恢复、reduced-motion 与目标缺失时的本地错误。
 - **开放问题：** 先用 canonical journey 验证共享 checkpoint 与语义推进合同；通过后复用到其余 CUJ。视觉只修正明显遮挡、不可读和焦点问题，不为教程层做低价值像素精修。
 
-### DR-036 — 高频默认路径隐藏持久化步骤，只在高级路径披露控制
+### DR-040 — 高频默认路径隐藏持久化步骤，只在高级路径披露控制
 
 - **优先级：** V2 产品 / P0
 - **状态：** 用户已确认；全旅程审计与 mock 重构进行中
@@ -412,12 +412,12 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **已有证据：** 2026-08-05 用户首次试用 Canonical Guided Demo 时直接指出四步路径过重，并明确给出两次点击与快捷键模型。当前 Chrome 截图也证明用户必须依次经过 Comment composer、Recording Stop 和 Link Comment 三个中间容器。
 - **开放问题：** 全部 J1–J9 需要按相同标准重新审计；只有真实不确定、不可撤销或高影响的动作允许阻断式确认。
 
-### DR-037 — Skills 采用两种来源、两层绑定和一次点击执行
+### DR-041 — Skills 采用两种来源、两层绑定和一次点击执行
 
 - **优先级：** V2 产品 / P0
-- **状态：** 产品合同已更新；共享 domain、四级 resolver 与 Selection 一击执行已通过测试和浏览器验证，Global / Project 管理尚未实现
-- **决定：** Skills 只有 Built-in 与 My Skill 两种来源；Global 和 Project-specific 是绑定/覆盖层，不复制为新的对象类型。运行时按 `explicit > Project binding/override > Global binding/default > system default` 解析唯一 revision。选区菜单直接显示 pinned / recent 的具体 Skill，点击一次立即运行；`More Skills…` 选择后也立即运行，不再出现第二次 `Run Skill`。结果只显示场景动作，例如 `Replace`、`Copy`、`Insert`、`Accept` 与 `Cancel`。通用 `Save` 禁止使用；只有物化永久 AI Source 时显示 `Keep in Logue`，写入 Document 时显示 `Save as document`。
+- **状态：** 管理入口与 Selection 一击执行已可操作，但独立完整性审查确认配置尚未真正驱动五类运行；当前按 P0 重构共享 executor，未达到完成
+- **决定：** Skills 只有 Built-in 与 My Skill 两种来源；Global 和 Project-specific 是绑定/覆盖层，不复制为新的对象类型。运行时按 `explicit > Project binding/override > Global binding/default > system default` 解析唯一 revision。选区菜单直接显示 pinned / recent 的具体 Skill，点击一次立即运行；`More Skills…` 选择后也立即运行，不再出现第二次 `Run Skill`。结果只显示场景动作，例如 `Replace`、`Copy`、`Insert`、`Accept` 与 `Cancel`。通用 `Save` 禁止使用；只有物化永久 AI Source 时显示 `Keep in Logue`，写入 Document 时显示 `Save as document`。Mock 的结果必须由解析出的 revision instruction 与结构化策略驱动，不能再按 Skill ID 硬编码；同一个 executor 连接 Selection、Voice、Organization 与 Ask/Draft。binding 只能选择兼容当前触发点的 Skill；Skill 被归档或隐藏时立即移除引用它的 Global/Project binding，界面明确显示实际 fallback，而不是保留悬空 Override。
 - **用户可见影响：** 用户无需理解 Skill 层级就能一击完成高频转换；需要时仍可在 Settings 创建、编辑、复制、归档 My Skills，在 Global 设置默认/置顶，在 Project 继承、覆盖或 Reset，并从 Run details 核验实际 revision。
 - **替代方案：** 把 built-in / global / custom / Project-specific 做成四份重复 Skill，或先点 `Run Skill` 再选再运行。前者会产生不清楚的所有权和同步语义；后者把配置模型暴露给高频动作。
-- **已有证据：** 三路独立完整性审查均发现当前 mock 没有 Skill domain、revision、Global/Project binding 或真实管理，Selection `Run Skill` 实际硬编码 Explain，`Save` 与 Settings `Edit` 为静态控件。用户明确指出完整性不足、二次点击与 Save 语义不可理解。
+- **已有证据：** 三路独立完整性审查均发现原 mock 没有 Skill domain、revision、Global/Project binding 或真实管理，Selection `Run Skill` 实际硬编码 Explain，`Save` 与 Settings `Edit` 为静态控件。第一批实现虽补齐管理 UI 与 resolver，但 2026-08-05 的 fresh completeness gate 进一步复现：修改 instruction 不改变结果、Voice/Organization/Ask 未使用 resolver、悬空 binding 与 scope fallback 使配置显示和实际运行不一致。用户明确要求完整性先于 Journey、UX 与 UI。
 - **开放问题：** 无。实现先建立共享 Skill resolver 与持久 domain state，再连接 Selection、Voice、Organization、Ask/Draft 和 Settings；未连接的可见控件一律按缺失处理。
