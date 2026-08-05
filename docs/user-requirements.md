@@ -2,6 +2,16 @@
 
 本文件只记录用户在原会话与当前会话中明确表达的意图。产品规格、Mock 和 Agent 生成的建议不能覆盖这里的要求；发生冲突时，以较新的用户纠正为准。
 
+## 2026-08-04 最新 clean-slate 纠正
+
+本节覆盖下文所有相反的历史表述：
+
+- 现有原型代码、UI、数据、schema、routes、对象名与默认值均可替换或删除；不因已经存在而保留，也不为旧行为增加兼容层。
+- 桌面 Web 的一级信息架构只有 `Library / Projects / Settings`。Library 同时容纳 Sources 与 Pages；Page 从 Library 或 Project 打开；Skills 是 Settings 内的可复用动作配置，不是一级内容区。
+- 用户只需理解 `Source / Page / Project` 三个内容对象。删除用户可见的 `Material / Document / Tag / Inbox item / Daily item / Agent workspace / Generation result` 等旧对象、旧入口和旧路由。
+- 现有资料不构成发布或回滚约束。破坏性切换前可行时备份并尝试一次 best-effort 导入；不成功只需报告，随后删除迁移与兼容代码。
+- iPhone 与移动端不在当前支持范围；不投入移动端专项实现或验收，也不阻塞桌面 Web、Chrome Extension、LAN、Storybook、设计终审或 Release。
+
 ## 核心目标
 
 - 做一个非常好用、完成度高、真正解决核心任务的工具；UI/UX 具体方案由产品设计判断，用户要求的是质量，不是某一种固定交互。
