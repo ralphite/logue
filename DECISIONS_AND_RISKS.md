@@ -44,8 +44,18 @@
 - **视觉方向：** 以 2026-08-05 实际捕获的 Notion 页面与 ChatGPT 首页为层级、阅读轴、输入节奏和克制程度基准。实施前 `logue_product_designer` 从三份 ImageGen 方向中选择 `Project Canvas` 作为 Web 主目标，保存于 `docs/design/references/logue-v2-project-canvas-target.png`；实现时必须移除其一级 Skills、正常保存噪音与无 target 时的 Insert，补齐 Project 默认态，并让 Sources inspector 可折叠、可调宽、渐进展开。Extension 与 Side Panel 不继承该 Web 布局，只共享视觉 token 与对象语义。
 - **数据与风险：** Stop 后永久保存、Project membership、Insert/Adopt 必须是独立状态；Transcription Profile 不得冒充 Project Generation Context；Web/You/AI 同时用图标与文字区分；target lost、offline pending、未采用 Run 和删除 dependency 必须有可恢复终态。每个 Story 使用独立 seed，避免交互污染其他 Story。
 - **替代方案：** 在旧单文件 mock 上继续补功能，或先做静态总览再补交互。前者继承错误对象与 IA，后者不能证明真实 Journey，均拒绝。
-- **已有证据：** 权威产品定义第 11–14、19 节；真实 Notion/ChatGPT 截图；旧 mock 运行截图；独立代码架构审查确认稳定原语可复用但旧 V2 产品组件必须整体弃用。
+- **已有证据：** 权威产品定义第 11–14、19 节；用户指定的真实 Notion `Explain` Skill 页已通过其登录 Chrome 与 Computer Use 双重读取并保存为 `docs/design/references/notion/08-notion-skill-page-explain-20260805.jpeg`、`09-notion-explain-full-20260805.png`，确认 270px 左栏、56px 顶栏、约 720px 单一编辑轴、安静行级导航与渐进操作；真实 ChatGPT 首页、旧 mock 运行截图；独立代码架构审查确认稳定原语可复用但旧 V2 产品组件必须整体弃用。
 - **完成证据：** Storybook 真实运行中完成 canonical journey；独立 Stories 覆盖全部合同矩阵；代表性 viewport、键盘/焦点、a11y、console、reload 通过；多位独立 designer、Claude Code Fable 5 Max 与 final goal_supervisor 无 P0/P1。
+
+### DR-038 — Extension 宿主与 Side Panel 在窄窗口中保持可完成，不互相覆盖
+
+- **优先级：** V2 mock / P1
+- **状态：** 已在 900px 与窄宽 Chrome 复验；不再阻断主旅程
+- **决定：** 桌面宽度继续并排显示宿主和 360–392px Side Panel；900px 附近缩小 Side Panel 但不覆盖宿主；更窄的审查视口改为上下排列，让宿主动作和 Side Panel 都可操作。`This tab` 只显示当前页面的 Comment，Project 全量证据仍从 `Open project` 进入 Web App 核验。
+- **用户可见影响：** 用户在较小浏览器窗口仍能完成 Comment、Command、引用和恢复操作，不会被侧栏遮住；切换文章后不会把另一页的 Comment 误称为当前页内容。
+- **替代方案：** 用覆盖式 drawer 或在窄宽度隐藏宿主。前者已真实遮挡主任务，后者会让 canonical Story 无法完成。
+- **已有证据：** 独立 Extension review 在 900×900 复现 Side Panel 覆盖与裁切；Chrome 复跑还确认 `Show excerpt` 折叠态仍显示原文，以及 Article B 下错误出现 Article A Comment。
+- **开放问题：** 这只是 Storybook 对多表面的响应式表达；真实 Chrome Side Panel 的宽度与宿主网页重排由浏览器负责，不在 mock 中伪造浏览器能力。
 
 ### DR-020 — LOGUE.ai 产品定位验证门
 

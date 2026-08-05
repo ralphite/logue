@@ -5,6 +5,7 @@ These screenshots are durable visual references for Logue UI reviews. They were 
 ## Sources
 
 - `notion/`: [Notion](https://app.notion.com/) pages, side peeks, Skills, and Settings.
+- `notion/08-notion-skill-page-explain-20260805.jpeg` and `09-notion-explain-full-20260805.png`: the user's signed-in `Explain` Skill page captured through macOS Computer Use and Chrome browser control; use this pair for current sidebar, top bar, editor-axis, density, and progressive-action comparison.
 - `chatgpt/`: [ChatGPT](https://chatgpt.com/) home and navigation.
 
 ## What to compare
