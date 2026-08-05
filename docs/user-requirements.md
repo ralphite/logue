@@ -62,13 +62,13 @@
 - 用多种输入、多个项目和多个生成文档证明价值，并保留数据供复查；最终保持服务器运行。
 - 所有可见状态完整；最终由独立代理重新核对全部用户输入和交付目标。
 - 使用 ChatGPT.com 对真实产品截图做 UI/UX 盲审并持续改进，直到继续修改的增益有限。
-- 对照 Notion 和当前直接/相邻竞品审查信息架构、核心流程、编辑体验和差异化能力；不能只做视觉换皮。Mobile 曾在此范围内，现按最新要求降为非当前优先。
+- 对照 Notion 和当前直接/相邻竞品审查信息架构、核心流程、编辑体验和差异化能力；不能只做视觉换皮。移动端不在当前产品支持范围。
 - 使用 fresh-context 第三方 Agent 独立审查全部目标；未达到目标时继续实现，不得把审查报告本身当作完成。
 - 把全部用户要求、项目目标、完成条件和错误解释明确写进项目文件，并作为后续实现的强制约束。
 - 每小时在当前任务中自动重新审查一次目标完成度，并在未完成时继续最高价值工作。
 - 对全部历史 bug 与 feature request 做独立复核，维护逐项进度和未完成列表；明显且无歧义的设计问题主动修复，不确定项单列给用户 review。
 - 先完成缺失实现，再做与风险相称的测试；不能在大量核心功能缺失时用低价值测试消耗主要时间。
-- 用户曾要求提供真实产品截图、同一局域网手机访问和完整手机体验；最新纠正是 Mobile 当前不优先，也不阻塞桌面 Web、Extension、Storybook、legacy 清理、Release 和设计终审。
+- 用户曾要求提供真实产品截图、同一局域网手机访问和完整手机体验；最新纠正是 iPhone 与移动端不在当前支持范围，也不阻塞桌面 Web、Extension、Storybook、legacy 清理、Release 和设计终审。
 - 远端 `https://github.com/ralphite/logue` 的旧实现已经完全废弃，允许删除并放弃远端既有内容；当前 Logue 必须完整替换它，成为唯一代码来源。
 - 必须创建 GitHub Release，并提供一个可复制的一行 `curl URL | shell` 安装命令；用户不应手动 clone 或构建。
 - 同一安装命令既能全新安装，也能覆盖已有 Logue 程序；覆盖前安全停止旧服务，覆盖后自动启动新服务，已有 data 数据绝不能覆盖或删除。
@@ -97,8 +97,8 @@
 - Storybook 根 URL 必须真实可用，并按 Foundations、Base Components、Feature Components、Page Compositions 组织。每个生产组件必须覆盖其所有有意义状态，Story 必须直接复用生产组件而不是复制 demo UI；Storybook 仍不能替代真实产品验收。
 - Web、Storybook、README、Installer、默认 Skills、Prompt、Citation、系统 fallback、Demo 和测试/无障碍文案使用英文；用户自己的中文或多语言内容不得被误删或翻译。
 - 永远使用 `main`；每个已验证批次使用小而原子的 commit，并立即 push `origin/main`。
-- Mobile 当前不是优先项，不阻塞当前桌面 Web、Extension、Storybook、legacy 清理、Release 和设计终审；现有响应式不应故意退化，但暂不投入移动端专项优化。
-- Linux 主机运行服务、MacBook Chrome/Web 通过局域网可变域名连接是最新 P0，不能与已后置的 Mobile 混为一项。Extension 必须可配置 Server URL、按具体 origin 请求权限、验证兼容 Logue 服务、在连接失败时允许 Retry/Change server，并在域名变化后无需重装即可恢复；所有 Extension API 都使用同一配置，不能有 localhost 旁路。
+- iPhone 与移动端不在当前支持范围，不阻塞当前桌面 Web、Extension、Storybook、legacy 清理、Release 和设计终审；现有响应式不应故意退化，但不投入移动端专项优化或真机验收。
+- Linux 主机运行服务、MacBook Chrome/Web 通过局域网可变域名连接是最新 P0，不能与不在支持范围的移动端混为一项。Extension 必须可配置 Server URL、按具体 origin 请求权限、验证兼容 Logue 服务、在连接失败时允许 Retry/Change server，并在域名变化后无需重装即可恢复；所有 Extension API 都使用同一配置，不能有 localhost 旁路。
 - Release 与一行安装必须支持 Linux 服务端资产、安装/覆盖、自动启动、可选 systemd 用户级开机启动和显式监听地址；安装时让用户选择 `0.0.0.0` 或 `127.0.0.1`，默认 `0.0.0.0`，并明确提示 wildcard 监听必须受可信局域网/VPN 防火墙保护；隔离 Linux 验收机上的既有数据可视为不存在，但真实服务主机上的 Logue 数据仍必须保护。
 - Linux 服务端安装无法跨机器替 MacBook 静默安装 Chrome Extension。Release 需提供独立、可校验、可覆盖的 Extension 客户端安装命令/资产；MacBook 不必运行 Go 服务，首次只在 `chrome://extensions` 选择稳定 unpacked 目录，后续升级保留 Chrome storage 并复用该目录。
 
