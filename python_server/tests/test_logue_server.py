@@ -29,6 +29,7 @@ class RuntimeTest(unittest.TestCase):
         (self.web / "index.html").write_text("<main>built Logue</main>", encoding="utf-8")
         (self.web / "asset.js").write_text("window.logue=true", encoding="utf-8")
         self.server = logue_server.LogueHTTPServer(("127.0.0.1", 0), logue_server.Store(self.data), self.web)
+        self.server.gemini.key = ""
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
         host, port = self.server.server_address[:2]
@@ -96,6 +97,42 @@ class RuntimeTest(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as conflict:
             self.request(f"/v1/docs/{document['id']}", "PATCH", {"content": "stale", "expected_revision": 1})
         self.assertEqual(conflict.exception.code, 409)
+
+    def test_semantic_search_keeps_direct_matches_and_falls_back_to_local(self) -> None:
+        self.assertEqual(
+            logue_server.search_items("测试一下看看能不能输入", [{"id": "mat_short", "content": "试一下"}]),
+            [],
+        )
+        _, direct = self.request("/v1/items", "POST", {"kind": "text", "content": "Voice capture from a meeting"})
+        _, related = self.request("/v1/items", "POST", {"kind": "text", "content": "Spoken notes collected from a webpage"})
+        _, document = self.request("/v1/docs", "POST", {"title": "Planning notes", "content": "A draft for the next team meeting"})
+        self.server.gemini.key = "test-key"
+
+        def semantic_response(prompt, **_):
+            if "saved materials" in prompt:
+                return json.dumps({"matches": [
+                    {"id": direct["id"], "reason": "Direct voice capture"},
+                    {"id": related["id"], "reason": "Captures spoken webpage notes"},
+                    {"id": "mat_unknown", "reason": "Must be ignored"},
+                ]})
+            return json.dumps({"matches": [{"id": document["id"], "reason": "Contains a meeting planning draft"}]})
+
+        self.server.gemini.generate = semantic_response
+        _, material_search = self.request("/v1/material-search?query=voice")
+        self.assertEqual(material_search["strategy"], "semantic")
+        self.assertEqual(material_search["matches"], [
+            {"id": direct["id"], "match": "content"},
+            {"id": related["id"], "match": "related", "reason": "Captures spoken webpage notes"},
+        ])
+        _, document_search = self.request("/v1/document-search?query=prepare%20an%20agenda")
+        self.assertEqual(document_search, {"matches": [{"id": document["id"], "match": "related", "reason": "Contains a meeting planning draft"}], "strategy": "semantic"})
+
+        def unavailable(*_, **__):
+            raise RuntimeError("Gemini is unavailable")
+
+        self.server.gemini.generate = unavailable
+        _, fallback = self.request("/v1/material-search?query=voice")
+        self.assertEqual(fallback, {"matches": [{"id": direct["id"], "match": "content"}], "strategy": "local"})
 
     def test_configured_agent_organizes_new_material_without_blocking_create(self) -> None:
         self.request("/v1/projects", "POST", {"name": "Research", "overview": "Voice research", "glossary": []})
