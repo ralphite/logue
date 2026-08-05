@@ -422,7 +422,7 @@ function NewGeneration({ skills, materials, initialProject, onCreated }: { skill
   }, [sourceCandidates, sourceSearch.normalizedQuery, sourceSearch.result]);
   const sourceSearchReason = useCallback((material: Material) => {
     const match = sourceSearch.matches.get(material.id);
-    return match?.match === "related" ? match.reason : "";
+    return match?.match !== "content" ? match?.reason ?? "" : "";
   }, [sourceSearch.matches]);
 
   useEffect(() => {

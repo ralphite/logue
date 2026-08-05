@@ -837,7 +837,7 @@ export function ViewWorkspace({
   const availableSourceGroupCount = useMemo(() => groupIdenticalMaterials(availableSources).length, [availableSources]);
   const sourceSearchReason = useCallback((material: Material) => {
     const match = sourceSearch.matches.get(material.id);
-    return match?.match === "related" ? match.reason : "";
+    return match?.match !== "content" ? match?.reason ?? "" : "";
   }, [sourceSearch.matches]);
 
   function markDirty() {

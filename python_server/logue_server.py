@@ -454,7 +454,10 @@ def search_items(query: str, values: list[dict[str, Any]], limit: int = 50) -> l
         score = sum(weight * (3 if kind in {"tag", "project"} else 1) for kind, weight in matches)
         if score:
             kind = next(kind for kind, weight in matches if weight)
-            ranked.append((-score, order, {"id": item["id"], "match": kind}))
+            match = {"id": item["id"], "match": kind}
+            if kind in {"annotation", "source", "tag", "project"}:
+                match["reason"] = f"Matches {kind}"
+            ranked.append((-score, order, match))
     ranked.sort()
     return [match for _, _, match in ranked[:limit]]
 

@@ -13,6 +13,7 @@
 | P1 | Extension 核心可靠性（B03、B27、F04） | IN_PROGRESS | 当前 `v0.2.13` 已在真实 Redfin input 验证聚焦后首击启动器进入录音、Cancel 恢复启动器并回到原输入框，且没有提交页面。还以真实 Mac Chrome 录制并 Stop 非人声环境音到临时 Ubuntu HTTPS 服务，只发布的 manifest 已确认该 capture 的 `.webm` 和 context 文件落盘。仍缺真实人声 Stop/保存/插入、选区文字/语音批注、无输入框页面录音、页面历史即时刷新、目标丢失、断线重试幂等，以及 `Cmd+Shift+L` 重开后的焦点完整实测。 | 当前 Release 在真实 Chrome 覆盖以上路径；不丢资料、不重复保存/插入、不自动 submit。 |
 | P1 | Selection Skills 最终防护（F06、F18） | IN_PROGRESS | Document 与当前 unpacked Extension 的 textarea/contenteditable 已真实通过菜单稳定、外部关闭、重新选择及多行写回；仍缺 Gemini 运行中按 Esc、切换选区/目标/SPA 路由后等待迟到结果返回也绝不写回的真实 Chrome 验证。 | 当前 Release 在真实 Chrome 完成取消与漂移回归，原文保持不变，菜单不被迟到事件唤回，提交计数为 0。 |
 | P1 | 自动整理与历史资料（B06、F05） | IN_PROGRESS | 新资料分类闭环已具备；真实库仍有旧的低置信中文理由需要一次性安全整理，并重新确认人工分类不会被后台覆盖。 | 备份后一次性转换，真实读取/修改/重启验证通过，并删除转换代码。 |
+| P1 | 语义检索 | IN_PROGRESS | 当前资料与文档搜索是本地词元匹配；来源、批注、标签和项目命中现会如实显示字段说明，但没有真实语义召回、排序或语义理由。 | 以真实查询集验证语义召回、排序和可解释理由；不能将本地字段命中说明当作语义检索。 |
 | P1 | 全产品英文（B21） | IN_PROGRESS | Web 和 Installer 的系统文案已为英文；仍需清除 Storybook、fixture、测试可见 copy 和其它正式产品表面的残余中文。用户自有内容不改写。 | 对生产 UI、Extension、Storybook 和安装器做英文扫描与真实页面抽查，无系统中文。 |
 | P1 | Storybook 生产 inventory（F20） | IN_PROGRESS | 仍缺完整的 production component → story → applicable state 映射，以及部分页面的 loading/error/offline/overflow/keyboard 状态。 | 根地址可用；每个生产组件及其有意义状态可直接查看，且复用生产组件而非复制 demo。 |
 | P1 | 全产品一致性终审（F15） | IN_PROGRESS | Settings 内容轴与焦点、Skills 编辑密度仍需最终统一；之后还缺两名 fresh-context 独立终审。 | 修复真实运行界面；两名独立审查者均无未解决 P0/P1，Notion/ChatGPT 对照达到目标。 |
