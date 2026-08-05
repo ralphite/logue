@@ -13,6 +13,28 @@
 
 ## 未解决
 
+### DR-020 — LOGUE.ai 产品定位验证门
+
+- **优先级：** 产品基础 / P0
+- **状态：** 官方竞品研究、三位 agents 与 ChatGPT.com 红队已完成；建议 `NARROW / REPLAN`，等待用户确认后才能实施
+- **研究前定位：** LOGUE.ai 是以 Voice 为第一交互方式、以 Log/Source 为个人信息底座、由 AI/Skills 完成处理、自动组织、分析和生成的个人工作系统。
+- **研究结论：** Voice / Log / AI 应保留为产品原则，但不能承担市场定位。任意输入框听写、选区命令、自定义 prompt、自动组织和基于个人内容生成已分别被 Wispr Flow、Superwhisper、Willow、Voicenotes、Mem、Tana、Readwise、Notion 等覆盖。
+- **推荐定位：** 面向跨网页研究和写作的个人知识工作者；首个闭环为“当前网页/精确选区的语音或文字判断 → 带来源的 Log → 用户确认的 Project Context → 在当前输入位置基于 Sources 生成并插入”。短句为“说一次，记住来源，用回当前工作”。
+- **用户可见影响：** 首版 IA 建议只保留 `Log / Projects / Settings`；Skills 作为上下文动作和高级配置；Topic、Source、Page、Run 不各自建立一级入口。MVP 只证明一个 Project 的完整 round trip；完整 Skill pipeline、自动 Project、Topic 管理、Page editor、Screenshot/PDF、Daily、Agents 等后移但不删除。
+- **主要风险：** 若 round trip 不能明显优于 `Wispr + Readwise + ChatGPT` 的手工组合，产品仍会被理解为功能更少的 dictation/PKM 工具；来源 lineage 可以累积防御，但只有在当前工作位置真实节省返工时才产生用户价值。
+- **证据：** `docs/design/research/logue-ai-competitive-positioning-2026-08-04.md`、`docs/design/reviews/logue-ai-positioning-independent-review-2026-08-04.md`，以及 ChatGPT.com 独立会话 `https://chatgpt.com/c/6a72c769-02d8-83e8-9f9c-9978c94e5a41`。修订稿经 `logue_product_designer` 最终复审为 `PASS — 9.3/10`。
+- **需要用户决策：** 确认收窄后的 wedge、首个用户、一个 Project 的 MVP 边界，以及 DR-021 的 Voice Write 保留语义。
+
+### DR-021 — Voice Write 与持久 Project Memory 的边界
+
+- **优先级：** 产品基础 / P0
+- **状态：** 推荐方案待用户确认；实施前必须决定
+- **问题：** 用户愿景希望所有主动语音输入都可成为 Source；竞品与独立审查指出，任意输入框同时包含敏感内容、临时回复和低价值草稿，默认永久索引会制造隐私恐惧、Log 噪音和错误 Project Context。
+- **推荐方案：** `Voice Write` 默认只完成转写和插入，保留短期、本地可恢复记录，并允许明确 `Keep in Log`；`Capture / Comment` 明确形成持久 Source 并进入用户控制的 Project Memory。
+- **兼容用户愿景的替代方案：** 所有 Voice Write 都进入私人 Log，但默认不被 Project/AI 检索；允许按应用或 active Project 开启持久索引和 retention。这样保留完整记录能力，但产品与隐私复杂度更高。
+- **用户可见影响：** 推荐方案减少“说一句就永久保存”的不安，但用户无法默认从 Project 中召回每一次普通听写；替代方案召回更完整，却更容易污染知识库并增加权限解释。
+- **需要用户决策：** 选择推荐的明确 Capture 语义，或选择所有 Voice Write 默认进入私人 Log。
+
 ### DR-001 — 扩展麦克风授权范围
 
 - **优先级：** P0
