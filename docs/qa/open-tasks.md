@@ -15,7 +15,6 @@
 | P1 | 自动整理与历史资料（B06、F05） | READY_FOR_REAL_ENV | 当前真实服务只有两条无可判断语义的录音测试，均为 `Unfiled` / `Needs review`；没有待安全迁移的旧资料，故不对现有数据批量重分类。新资料的高/低置信分类、人工确认不可覆盖已有真实验证。 | 新增有意义的真实资料后，验证高置信安静归档；低置信显示可理解理由且人工确认在服务重启后不被后台覆盖。 |
 | P1 | 语义检索 | IN_PROGRESS | Gemini 已对资料与文档返回受限的语义排序和理由，只有完整查询短语才算直接本地命中，12 秒模型失败后回到本地；真实 Stream 已以 `homes for sale` 找到既有 Redfin 资料并在 Reload 后复验，中文长句也不再被双字重叠误标为正文命中。当前真实文档数为 0，尚未有人类文档查询集可验收。 | 以真实文档和资料查询集验证语义召回、排序、解释及长期用量；不能将本地字段命中说明当作语义检索。 |
 | P1 | 全产品英文（B21） | IN_PROGRESS | Web 和 Installer 的系统文案已为英文；仍需清除 Storybook、fixture、测试可见 copy 和其它正式产品表面的残余中文。用户自有内容不改写。 | 对生产 UI、Extension、Storybook 和安装器做英文扫描与真实页面抽查，无系统中文。 |
-| P1 | Storybook 生产 inventory（F20） | IN_PROGRESS | 仍缺完整的 production component → story → applicable state 映射，以及部分页面的 loading/error/offline/overflow/keyboard 状态。 | 根地址可用；每个生产组件及其有意义状态可直接查看，且复用生产组件而非复制 demo。 |
 | P1 | 全产品一致性终审（F15） | IN_PROGRESS | Settings 内容轴与焦点、Skills 编辑密度仍需最终统一；之后还缺两名 fresh-context 独立终审。 | 修复真实运行界面；两名独立审查者均无未解决 P0/P1，Notion/ChatGPT 对照达到目标。 |
 | P1 | Release 跨机验收（F13） | READY_FOR_REAL_ENV | `v0.2.10` 的 Python-only 跨平台包、公开校验和、独立 Extension、服务首装/覆盖和数据保留已通过隔离验证；仍缺另一台真实 Linux/Mac 的服务安装、Chrome Load unpacked/Reload、数据保留和覆盖升级。 | 从公开 Release 在另一台机器完成首次安装和覆盖升级，真实数据不被覆盖，失败可回滚。 |
 

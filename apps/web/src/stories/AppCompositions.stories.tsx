@@ -27,7 +27,14 @@ export const StreamEmpty: Story = { args: { route: "?view=stream", fixture: "emp
 export const StreamLoading: Story = { args: { route: "?view=stream", fixture: "loading" } };
 export const StreamServiceError: Story = { args: { route: "?view=stream", fixture: "error" } };
 export const MaterialNeedsReview: Story = { args: { route: "?view=stream&material=mat_voice", fixture: "needs-review" } };
+export const ProjectsEmpty: Story = { args: { route: "?view=projects", fixture: "empty" } };
+export const ProjectsLoading: Story = { args: { route: "?view=projects", fixture: "loading" } };
+export const ProjectsServiceError: Story = { args: { route: "?view=projects", fixture: "error" } };
 export const DocumentsEmpty: Story = { args: { route: "?view=documents", fixture: "empty" } };
 export const DocumentsLoading: Story = { args: { route: "?view=documents", fixture: "loading" } };
 export const DocumentsServiceError: Story = { args: { route: "?view=documents", fixture: "error" } };
 export const SkillsEmpty: Story = { args: { route: "?view=skills", fixture: "empty" } };
+export const SkillsLoading: Story = { args: { route: "?view=skills", fixture: "loading" } };
+export const SkillsServiceError: Story = { args: { route: "?view=skills", fixture: "error" } };
+export const SettingsLoading: Story = { args: { route: "?view=settings", fixture: "loading" } };
+export const SettingsServiceError: Story = { args: { route: "?view=settings", fixture: "error" } };
