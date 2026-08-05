@@ -162,13 +162,12 @@ export async function getCaptureContext(pageUrl: string, project = "") {
 
 export async function getPageMaterials(pageUrl: string) {
   const result = await request<{
-    items?: Array<{ id: string; content: string; annotation?: string; created_at: string }>;
-  }>("page-materials", { pageUrl });
-  return (result.items ?? [])
+    sources?: Array<{ id: string; content: string; created_at: string }>;
+  }>("page-sources", { pageUrl });
+  return (result.sources ?? [])
     .map((item): PageMaterial => ({
       id: item.id,
       content: item.content,
-      annotation: item.annotation,
       createdAt: item.created_at,
     }))
     .sort((first, second) => Date.parse(second.createdAt) - Date.parse(first.createdAt));
@@ -213,7 +212,7 @@ export async function saveMaterial(input: {
   transcript?: string;
   appliedContext?: AppliedContext;
 }) {
-  return request<{ id: string }>("save-material", {
+  return request<{ id: string }>("save-source", {
     request_id: input.requestId,
     kind: input.kind,
     content: input.content,
@@ -228,7 +227,7 @@ export async function saveMaterial(input: {
 }
 
 export async function cancelMaterialSave(requestId: string) {
-  await request<null>("cancel-material-save", { requestId });
+  await request<null>("cancel-source-save", { requestId });
 }
 
 export async function saveSelection(input: {

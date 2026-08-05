@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { NavRail, type Section } from "../components/NavRail";
 
-function NavigationPreview({ initialSection = "stream", initiallyCollapsed = false, connected = true }: { initialSection?: Section; initiallyCollapsed?: boolean; connected?: boolean }) {
+function NavigationPreview({ initialSection = "library", initiallyCollapsed = false, connected = true }: { initialSection?: Section; initiallyCollapsed?: boolean; connected?: boolean }) {
   const [active, setActive] = useState<Section>(initialSection);
   const [collapsed, setCollapsed] = useState(initiallyCollapsed);
   const [width, setWidth] = useState(252);
@@ -24,5 +24,5 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Expanded: Story = {};
-export const CollapsedWithTooltips: Story = { args: { initiallyCollapsed: true, initialSection: "documents" } };
+export const CollapsedWithTooltips: Story = { args: { initiallyCollapsed: true, initialSection: "settings" } };
 export const ServiceDisconnected: Story = { args: { connected: false, initialSection: "projects" } };

@@ -41,7 +41,7 @@ VALID_TASKS = {"transcribe", "organize", "generate"}
 VALID_OUTPUTS = {"insert", "material", "qa", "document"}
 VALID_SURFACES = {"web", "extension", "background"}
 VALID_CONTEXTS = {"page", "target", "selection", "project", "materials", "personal"}
-ID_RE = re.compile(r"^(?:mat|doc|prj|sk|run|cap)_[A-Za-z0-9]+$")
+ID_RE = re.compile(r"^(?:src|doc|prj|sk|run|cap)_[A-Za-z0-9]+$")
 CITATION_RE = re.compile(r"\[Source (\d+)\]")
 GLOSSARY_RE = re.compile(r"\b[A-Z][A-Za-z0-9.-]{2,}\b")
 
@@ -110,7 +110,7 @@ class Store:
     def __init__(self, root: Path):
         self.root = root.resolve()
         self.lock = threading.RLock()
-        for name in ("items", "audio", "docs", "projects", "skills", "skill-runs"):
+        for name in ("sources", "audio", "docs", "projects", "skills", "skill-runs"):
             (self.root / name).mkdir(parents=True, exist_ok=True, mode=0o700)
         for skill in default_skills():
             path = self.root / "skills" / f"{skill['id']}.json"
@@ -124,7 +124,7 @@ class Store:
         return values
 
     def items(self) -> list[dict[str, Any]]:
-        return self._list("items", "created_at")
+        return self._list("sources", "created_at")
 
     def documents(self) -> list[dict[str, Any]]:
         return self._list("docs", "updated_at")
@@ -167,7 +167,7 @@ class Store:
         projects = normalize(value.get("projects"))
         timestamp = now()
         item = {
-            "id": make_id("mat_"), "kind": kind,
+            "id": make_id("src_"), "kind": kind,
             "status": "organized" if projects else "unfiled", "content": content,
             "projects": projects, "tags": normalize(value.get("tags")),
             "created_at": timestamp, "actor": str(value.get("actor", "")).strip() or "user",
@@ -183,12 +183,12 @@ class Store:
             "applied_context": value.get("applied_context") if isinstance(value.get("applied_context"), dict) else None,
         }
         item.update({key: entry for key, entry in optional.items() if entry})
-        atomic_json(self.root / "items" / f"{item['id']}.json", item)
+        atomic_json(self.root / "sources" / f"{item['id']}.json", item)
         return item
 
     def update_item(self, identifier: str, changes: dict[str, Any]) -> dict[str, Any]:
         with self.lock:
-            item = self.get("items", identifier)
+            item = self.get("sources", identifier)
             content_changed = False
             if "content" in changes:
                 content = str(changes["content"]).strip()
@@ -206,12 +206,12 @@ class Store:
                 item["organization"] = {"status": "confirmed", "confidence": 1, "updated_at": now()}
             elif content_changed:
                 item["organization"] = {"status": "pending", "updated_at": now()}
-            atomic_json(self.root / "items" / f"{identifier}.json", item)
+            atomic_json(self.root / "sources" / f"{identifier}.json", item)
             return item
 
     def complete_organization(self, identifier: str, expected_content: str, decision: dict[str, Any] | None) -> None:
         with self.lock:
-            item = self.get("items", identifier)
+            item = self.get("sources", identifier)
             if item.get("content") != expected_content or (item.get("organization") or {}).get("status") != "pending":
                 return
             current_projects = normalize(item.get("projects"))
@@ -233,15 +233,15 @@ class Store:
                     item["organization"] = {"status": "organized", "confidence": confidence, "reason": reason, "updated_at": now()}
                 else:
                     item["organization"] = {"status": "needs_review", "confidence": confidence, "reason": reason or "The organization result is uncertain. Review the project and tags.", "suggested_projects": suggested_projects, "suggested_tags": suggested_tags, "updated_at": now()}
-            atomic_json(self.root / "items" / f"{identifier}.json", item)
+            atomic_json(self.root / "sources" / f"{identifier}.json", item)
 
     def delete_item(self, identifier: str) -> None:
         with self.lock:
-            item = self.get("items", identifier)
+            item = self.get("sources", identifier)
             for document in self.documents():
                 if identifier in document.get("source_ids", []):
                     raise ValueError(f"material is still cited by document {document.get('title')!r}; remove the citation first")
-            (self.root / "items" / f"{identifier}.json").unlink()
+            (self.root / "sources" / f"{identifier}.json").unlink()
             capture_id = item.get("capture_id")
             if capture_id and not any(other.get("capture_id") == capture_id for other in self.items()):
                 for path in (self.root / "audio").glob(f"{capture_id}.*"):
@@ -633,7 +633,7 @@ class LogueHTTPServer(ThreadingHTTPServer):
 
     def organize(self, identifier: str) -> None:
         try:
-            item = self.store.get("items", identifier)
+            item = self.store.get("sources", identifier)
             settings = self.store.settings()
             skill = self.store.get("skills", str(settings.get("default_organization_skill", "sk_organize")))
             known_tags = normalize([tag for value in self.store.items() for tag in value.get("tags", [])])
@@ -641,7 +641,7 @@ class LogueHTTPServer(ThreadingHTTPServer):
             self.store.complete_organization(identifier, str(item.get("content", "")), decision)
         except Exception as error:
             try:
-                item = self.store.get("items", identifier)
+                item = self.store.get("sources", identifier)
                 self.store.complete_organization(identifier, str(item.get("content", "")), None)
             except Exception:
                 pass
@@ -703,12 +703,59 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as error:
             self.error(HTTPStatus.INTERNAL_SERVER_ERROR, str(error))
 
+    @staticmethod
+    def source_view(item: dict[str, Any]) -> dict[str, Any]:
+        origin = dict(item.get("source") or {})
+        return {
+            "id": item["id"],
+            "type": item.get("kind", "snapshot"),
+            "content": item.get("content", ""),
+            "transcript": item.get("transcript", ""),
+            "origin": origin,
+            "project_names": normalize(item.get("projects")),
+            "parent_source_ids": normalize(item.get("parent_ids")),
+            "capture_id": item.get("capture_id", ""),
+            "created_at": item.get("created_at", ""),
+        }
+
+    @staticmethod
+    def page_view(document: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": document["id"],
+            "title": document.get("title", "Untitled"),
+            "content": document.get("content", ""),
+            "project_name": document.get("project", ""),
+            "source_ids": normalize(document.get("source_ids")),
+            "revision": document.get("revision", 1),
+            "created_at": document.get("created_at", ""),
+            "updated_at": document.get("updated_at", ""),
+        }
+
     def handle_get(self) -> None:
         path = self.parsed.path
         query = urllib.parse.parse_qs(self.parsed.query)
         store = self.server.store
         if path == "/v1/status":
             self.json(HTTPStatus.OK, {"ok": True, "api_version": 1, "ai_configured": bool(self.server.gemini.key), "model": self.server.gemini.model, "storage_root": str(store.root), "version": VERSION})
+        elif path == "/v1/sources":
+            source_url = (query.get("source_url") or [""])[0].strip()
+            values = store.items()
+            if source_url:
+                values = [item for item in values if str((item.get("source") or {}).get("url", "")) == source_url]
+            self.json(HTTPStatus.OK, {"sources": [self.source_view(item) for item in values]})
+        elif path.startswith("/v1/sources/"):
+            self.json(HTTPStatus.OK, self.source_view(store.get("sources", path.removeprefix("/v1/sources/"))))
+        elif path == "/v1/pages":
+            self.json(HTTPStatus.OK, {"pages": [self.page_view(page) for page in store.documents()]})
+        elif path.startswith("/v1/pages/"):
+            self.json(HTTPStatus.OK, self.page_view(store.get("docs", path.removeprefix("/v1/pages/"))))
+        elif path == "/v1/search":
+            query_text = (query.get("query") or [""])[0].strip()
+            sources = store.items()
+            source_matches, source_strategy = ranked_search(self.server.gemini, query_text, sources, material_search_candidates(sources), "sources")
+            pages = store.documents()
+            page_matches, page_strategy = ranked_search(self.server.gemini, query_text, [{**page, "projects": [page.get("project", "")], "tags": []} for page in pages], document_search_candidates(pages), "pages")
+            self.json(HTTPStatus.OK, {"sources": source_matches, "pages": page_matches, "strategy": "semantic" if source_strategy == "semantic" or page_strategy == "semantic" else "local"})
         elif path == "/v1/items":
             values = store.items()
             source_url = (query.get("source_url") or [""])[0].strip()
@@ -790,7 +837,48 @@ class Handler(BaseHTTPRequestHandler):
     def handle_mutation(self, method: str) -> None:
         path = self.parsed.path
         store = self.server.store
-        if path == "/v1/items" and method == "POST":
+        if path == "/v1/sources/selection" and method == "POST":
+            value = self.body_json()
+            result = store.create_selection({
+                "request_id": value.get("request_id", ""),
+                "source_content": value.get("content", ""),
+                "annotation": value.get("annotation", ""),
+                "transcript": value.get("transcript", ""),
+                "source": value.get("origin", {}),
+                "projects": value.get("project_names", []),
+                "capture_id": value.get("capture_id", ""),
+            })
+            response = {"source": self.source_view(result["source"])}
+            if result.get("annotation"):
+                response["annotation"] = self.source_view(result["annotation"])
+            self.json(HTTPStatus.CREATED, response)
+        elif path == "/v1/sources" and method == "POST":
+            value = self.body_json()
+            request_id = str(value.get("request_id", "")).strip()
+            if request_id in self.server.cancelled:
+                raise Conflict("source save was cancelled")
+            source_type = str(value.get("type", "snapshot")).strip()
+            source = store.create_item({
+                "request_id": request_id,
+                "kind": "text" if source_type == "snapshot" else source_type,
+                "content": value.get("content", ""),
+                "transcript": value.get("transcript", ""),
+                "source": value.get("origin", {}),
+                "projects": value.get("project_names", []),
+                "parent_ids": value.get("parent_source_ids", []),
+                "capture_id": value.get("capture_id", ""),
+            })
+            self.json(HTTPStatus.CREATED, self.source_view(source))
+        elif path == "/v1/captures/cancel" and method == "POST":
+            request_id = str(self.body_json().get("request_id", "")).strip()
+            if not request_id:
+                raise ValueError("request id is required")
+            self.server.cancelled.add(request_id)
+            existing = store._request_item(request_id)
+            if existing:
+                store.delete_item(existing["id"])
+            self.json(HTTPStatus.OK, {"ok": True})
+        elif path == "/v1/items" and method == "POST":
             value = self.body_json()
             if value.get("request_id") in self.server.cancelled:
                 raise Conflict("material save was cancelled")
@@ -801,9 +889,9 @@ class Handler(BaseHTTPRequestHandler):
             identifier = path.removeprefix("/v1/items/")
             if identifier.endswith("/organize") and method == "POST":
                 identifier = identifier.removesuffix("/organize")
-                item = store.get("items", identifier)
+                item = store.get("sources", identifier)
                 item["organization"] = {"status": "pending", "updated_at": now()}
-                atomic_json(store.root / "items" / f"{identifier}.json", item)
+                atomic_json(store.root / "sources" / f"{identifier}.json", item)
                 self.json(HTTPStatus.ACCEPTED, item)
                 self.server.schedule_organization(item)
             elif method == "PATCH":

@@ -4,8 +4,8 @@ import { cancelMaterialSave, createExtensionSkillRun, getPageMaterials, saveSele
 describe("selection API", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("sends the complete original, multiple projects, and tags in one idempotent request", async () => {
-    const sendMessage = vi.fn(async () => ({ ok: true, value: { source: { id: "mat_source" } } }));
+  it("sends the complete original in one idempotent source request", async () => {
+    const sendMessage = vi.fn(async () => ({ ok: true, value: { source: { id: "src_source" } } }));
     vi.stubGlobal("chrome", { runtime: { sendMessage } });
     const sourceContent = `${"完整原文".repeat(100)}末尾校验`;
 
@@ -13,8 +13,6 @@ describe("selection API", () => {
       requestId: "stable-request-id",
       sourceContent,
       source: { url: "https://example.com/article", title: "Article", selection: sourceContent },
-      projects: ["Skill Harness", "Logue"],
-      tags: ["research", "provenance"],
     });
 
     expect(sendMessage).toHaveBeenCalledWith({
@@ -23,8 +21,6 @@ describe("selection API", () => {
       payload: expect.objectContaining({
         request_id: "stable-request-id",
         source_content: sourceContent,
-        projects: ["Skill Harness", "Logue"],
-        tags: ["research", "provenance"],
       }),
     });
   });
@@ -65,7 +61,7 @@ describe("selection API", () => {
       sent.push(message);
       attempt += 1;
       if (attempt === 1) return { ok: false, error: "offline" };
-      return { ok: true, value: { source: { id: "mat_source" }, annotation: { id: "mat_annotation" } } };
+      return { ok: true, value: { source: { id: "src_source" }, annotation: { id: "src_annotation" } } };
     });
     vi.stubGlobal("chrome", { runtime: { sendMessage } });
     const input = {
@@ -74,8 +70,6 @@ describe("selection API", () => {
       annotation: "语音批注",
       transcript: "语音批注",
       source: { url: "https://example.com/article", title: "Article", selection: "完整原文" },
-      projects: ["Logue"],
-      tags: ["voice"],
       captureId: "cap_selection",
       appliedContext: {
         page_url: "https://example.com/article",
@@ -87,15 +81,15 @@ describe("selection API", () => {
 
     await expect(saveSelection(input)).rejects.toThrow("offline");
     await expect(saveSelection(input)).resolves.toEqual({
-      source: { id: "mat_source" },
-      annotation: { id: "mat_annotation" },
+      source: { id: "src_source" },
+      annotation: { id: "src_annotation" },
     });
 
     expect(sent).toHaveLength(2);
     expect(sent[1]).toEqual(sent[0]);
   });
 
-  it("cancels the exact in-flight material request", async () => {
+  it("cancels the exact in-flight source request", async () => {
     const sendMessage = vi.fn(async () => ({ ok: true, value: null }));
     vi.stubGlobal("chrome", { runtime: { sendMessage } });
 
@@ -103,7 +97,7 @@ describe("selection API", () => {
 
     expect(sendMessage).toHaveBeenCalledWith({
       type: "logue:api",
-      action: "cancel-material-save",
+      action: "cancel-source-save",
       payload: { requestId: "inline-voice-request" },
     });
   });
@@ -127,25 +121,25 @@ describe("selection API", () => {
     }));
   });
 
-  it("loads current-page materials from the source endpoint with the newest first", async () => {
+  it("loads current-page sources from the source endpoint with the newest first", async () => {
     const sendMessage = vi.fn(async () => ({
       ok: true,
       value: {
-        items: [
+        sources: [
           { id: "older", content: "Earlier note", created_at: "2026-08-01T10:00:00Z" },
-          { id: "newer", content: "Latest note", annotation: "Voice note", created_at: "2026-08-02T10:00:00Z" },
+          { id: "newer", content: "Latest note", created_at: "2026-08-02T10:00:00Z" },
         ],
       },
     }));
     vi.stubGlobal("chrome", { runtime: { sendMessage } });
 
     await expect(getPageMaterials("https://example.com/current page")).resolves.toEqual([
-      { id: "newer", content: "Latest note", annotation: "Voice note", createdAt: "2026-08-02T10:00:00Z" },
+      { id: "newer", content: "Latest note", annotation: undefined, createdAt: "2026-08-02T10:00:00Z" },
       { id: "older", content: "Earlier note", annotation: undefined, createdAt: "2026-08-01T10:00:00Z" },
     ]);
     expect(sendMessage).toHaveBeenCalledWith({
       type: "logue:api",
-      action: "page-materials",
+      action: "page-sources",
       payload: { pageUrl: "https://example.com/current page" },
     });
   });

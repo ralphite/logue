@@ -49,7 +49,7 @@ let inlineRecorderPermission: { token: string; sessionId: string } | undefined;
 
 interface ApiMessage {
   type: "logue:api";
-  action: "status" | "test-server" | "context" | "page-materials" | "transcribe" | "save-material" | "cancel-material-save" | "save-selection" | "delete-capture" | "skills" | "settings" | "skill-run" | "adopt-skill-run";
+  action: "status" | "test-server" | "context" | "page-sources" | "transcribe" | "save-source" | "cancel-source-save" | "save-selection" | "delete-capture" | "skills" | "settings" | "skill-run" | "adopt-skill-run";
   payload?: Record<string, unknown>;
 }
 
@@ -588,9 +588,9 @@ async function handleApiMessage(message: ApiMessage) {
   if (message.action === "settings") {
     return parseResponse(await fetch(`${apiBase}/v1/settings`));
   }
-  if (message.action === "page-materials") {
+  if (message.action === "page-sources") {
     const query = new URLSearchParams({ source_url: String(payload.pageUrl ?? "") });
-    return parseResponse(await fetch(`${apiBase}/v1/items?${query.toString()}`));
+    return parseResponse(await fetch(`${apiBase}/v1/sources?${query.toString()}`));
   }
   if (message.action === "skill-run") {
     return parseResponse(
@@ -611,9 +611,12 @@ async function handleApiMessage(message: ApiMessage) {
       }),
     );
   }
-  if (message.action === "cancel-material-save") {
-    const requestId = encodeURIComponent(String(payload.requestId ?? ""));
-    return parseResponse(await fetch(`${apiBase}/v1/cancellations/${requestId}`, { method: "POST" }));
+  if (message.action === "cancel-source-save") {
+    return parseResponse(await fetch(`${apiBase}/v1/captures/cancel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ request_id: payload.requestId }),
+    }));
   }
   if (message.action === "transcribe") {
     const audioBase64 = String(payload.audioBase64 ?? "");
@@ -632,21 +635,39 @@ async function handleApiMessage(message: ApiMessage) {
     if (payload.appliedContext) form.append("applied_context", JSON.stringify(payload.appliedContext));
     return parseResponse(await fetch(`${apiBase}/v1/transcribe`, { method: "POST", body: form }));
   }
-  if (message.action === "save-material") {
+  if (message.action === "save-source") {
+    const sourceType = payload.kind === "text" || payload.kind === "derived" ? "snapshot" : payload.kind;
     return parseResponse(
-      await fetch(`${apiBase}/v1/items`, {
+      await fetch(`${apiBase}/v1/sources`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          request_id: payload.request_id,
+          type: sourceType,
+          content: payload.content,
+          transcript: payload.transcript,
+          origin: payload.source,
+          project_names: payload.projects,
+          parent_source_ids: payload.parent_ids,
+          capture_id: payload.capture_id,
+        }),
       }),
     );
   }
   if (message.action === "save-selection") {
     return parseResponse(
-      await fetch(`${apiBase}/v1/selections`, {
+      await fetch(`${apiBase}/v1/sources/selection`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          request_id: payload.request_id,
+          content: payload.source_content,
+          annotation: payload.annotation,
+          transcript: payload.transcript,
+          origin: payload.source,
+          project_names: payload.projects,
+          capture_id: payload.capture_id,
+        }),
       }),
     );
   }
