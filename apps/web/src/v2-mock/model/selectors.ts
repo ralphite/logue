@@ -1,6 +1,43 @@
-import type { Candidate, DomainState, Id, MockSessionState, Source, SourceMembership } from "./types";
+import type { Candidate, DomainState, Id, MockSessionState, Skill, SkillCategory, SkillInputScope, SkillResolutionSource, SkillRevision, Source, SourceMembership } from "./types";
 
 export const membershipId = (projectId: Id, sourceId: Id) => `${projectId}:${sourceId}`;
+export const globalSkillBindingId = (category: SkillCategory) => `global:${category}`;
+export const projectSkillBindingId = (projectId: Id, category: SkillCategory) => `project:${projectId}:${category}`;
+
+export interface ResolvedSkill {
+  skill: Skill;
+  revision: SkillRevision;
+  source: SkillResolutionSource;
+}
+
+function activeSkill(domain: DomainState, skillId: Id | undefined, category: SkillCategory, inputScope?: SkillInputScope) {
+  const skill = skillId ? domain.skills[skillId] : undefined;
+  if (!skill || skill.archived || skill.category !== category) return undefined;
+  if (inputScope && !skill.allowedInputScopes.includes(inputScope)) return undefined;
+  return domain.skillRevisions[skill.currentRevisionId] ? skill : undefined;
+}
+
+export function resolveSkill(domain: DomainState, category: SkillCategory, options: { explicitSkillId?: Id; projectId?: Id | null; inputScope?: SkillInputScope } = {}): ResolvedSkill | undefined {
+  const explicit = activeSkill(domain, options.explicitSkillId, category, options.inputScope);
+  if (explicit) return { skill: explicit, revision: domain.skillRevisions[explicit.currentRevisionId], source: "explicit" };
+
+  const projectBinding = options.projectId ? domain.skillBindings[projectSkillBindingId(options.projectId, category)] : undefined;
+  const projectSkill = activeSkill(domain, projectBinding?.skillId, category, options.inputScope);
+  if (projectSkill) return { skill: projectSkill, revision: domain.skillRevisions[projectSkill.currentRevisionId], source: "project" };
+
+  const globalBinding = domain.skillBindings[globalSkillBindingId(category)];
+  const globalSkill = activeSkill(domain, globalBinding?.skillId, category, options.inputScope);
+  if (globalSkill) return { skill: globalSkill, revision: domain.skillRevisions[globalSkill.currentRevisionId], source: "global" };
+
+  const systemSkill = Object.values(domain.skills).find((skill) => skill.systemDefault && Boolean(activeSkill(domain, skill.id, category, options.inputScope)));
+  return systemSkill ? { skill: systemSkill, revision: domain.skillRevisions[systemSkill.currentRevisionId], source: "system" } : undefined;
+}
+
+export function getPinnedSkills(domain: DomainState, category: SkillCategory, inputScope: SkillInputScope): Skill[] {
+  return domain.pinnedSkillIds
+    .map((skillId) => activeSkill(domain, skillId, category, inputScope))
+    .filter((skill): skill is Skill => Boolean(skill));
+}
 
 export function getActiveTab(state: MockSessionState) {
   return state.domain.tabs[state.surface.activeTabId];

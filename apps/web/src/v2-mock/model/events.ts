@@ -1,4 +1,4 @@
-import type { Id } from "./types";
+import type { Id, SkillCategory, SkillInputScope } from "./types";
 
 export type MockEvent =
   | { type: "set-tab-project"; tabId: Id; projectId: Id | null }
@@ -22,6 +22,10 @@ export type MockEvent =
   | { type: "restore-run"; runId: Id }
   | { type: "retry-run"; runId: Id }
   | { type: "delete-run"; runId: Id }
+  | { type: "run-skill"; category: SkillCategory; inputScope: SkillInputScope; input: string; explicitSkillId?: Id; projectId?: Id | null; contextSourceIds?: Id[] }
+  | { type: "adopt-skill-candidate"; candidateId: Id; adoption: "replace" | "copy" }
+  | { type: "dismiss-skill-candidate"; candidateId: Id }
+  | { type: "undo-skill-adoption"; candidateId: Id }
   | { type: "edit-candidate"; candidateId: Id; content: string }
   | { type: "insert-candidate"; candidateId: Id; targetSessionId: Id }
   | { type: "undo-target"; targetSessionId: Id }

@@ -1,8 +1,27 @@
 import type { MockEvent } from "./events";
-import { membershipId } from "./selectors";
+import { membershipId, resolveSkill } from "./selectors";
 import type { BrowserPage, DomainState, MockSessionState, Source, SourceMembership } from "./types";
 
 const now = "2026-08-05T12:00:00.000Z";
+
+function skillResult(skillId: string, input: string) {
+  switch (skillId) {
+    case "skill-translate-zh":
+      return "参与者会在准备做出决定时重新查看笔记，而不是在浏览时。";
+    case "skill-shorten":
+      return "People revisit notes when making decisions.";
+    case "skill-rewrite":
+      return "People return to their notes when a decision is due—not while they browse.";
+    case "skill-explain":
+      return "The note becomes useful later, when the reader needs evidence for a decision.";
+    case "skill-summarize":
+      return "Offline capture matters first; evidence review matters when a decision arrives.";
+    case "skill-decision-signal":
+      return "Decision signal: evidence must be available at the moment it can change a choice.";
+    default:
+      return input.trim();
+  }
+}
 
 function nextId(domain: DomainState, prefix: string): [string, DomainState] {
   return [`${prefix}-${domain.nextId}`, { ...domain, nextId: domain.nextId + 1 }];
@@ -314,6 +333,73 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
           runs: { ...nextDomain.runs, [run.id]: { ...run, status: "succeeded", candidateId } },
         },
         surface: { ...state.surface, activeCandidateId: candidateId },
+      };
+    }
+    case "run-skill": {
+      const resolved = resolveSkill(domain, event.category, { explicitSkillId: event.explicitSkillId, projectId: event.projectId, inputScope: event.inputScope });
+      if (!resolved || !event.input.trim()) return state;
+      const [runId, afterRunId] = nextId(domain, "run");
+      const [candidateId, afterCandidateId] = nextId(afterRunId, "candidate");
+      const actualContextSourceIds = (event.contextSourceIds ?? []).filter((sourceId) => Boolean(domain.sources[sourceId]));
+      const run = {
+        id: runId,
+        activityId: null,
+        projectId: event.projectId && domain.projects[event.projectId] ? event.projectId : null,
+        status: "succeeded" as const,
+        actualContextSourceIds,
+        candidateId,
+        skillId: resolved.skill.id,
+        skillRevisionId: resolved.revision.id,
+        skillResolution: resolved.source,
+        inputScope: event.inputScope,
+        input: event.input,
+      };
+      const candidate = {
+        id: candidateId,
+        runId,
+        content: skillResult(resolved.skill.id, event.input),
+        contextSourceIds: actualContextSourceIds,
+        citations: [],
+        status: "ready" as const,
+      };
+      return {
+        domain: {
+          ...afterCandidateId,
+          runs: { ...afterCandidateId.runs, [runId]: run },
+          candidates: { ...afterCandidateId.candidates, [candidateId]: candidate },
+          recentSkillIds: [resolved.skill.id, ...afterCandidateId.recentSkillIds.filter((skillId) => skillId !== resolved.skill.id)].slice(0, 8),
+        },
+        surface: { ...state.surface, activeCandidateId: candidateId },
+      };
+    }
+    case "adopt-skill-candidate": {
+      const candidate = domain.candidates[event.candidateId];
+      const run = candidate ? domain.runs[candidate.runId] : undefined;
+      if (!candidate || candidate.status !== "ready" || !run?.skillId) return state;
+      return {
+        ...state,
+        domain: { ...domain, candidates: { ...domain.candidates, [candidate.id]: { ...candidate, status: "adopted", adoption: event.adoption } } },
+        surface: { ...state.surface, activeCandidateId: event.adoption === "copy" ? null : candidate.id },
+      };
+    }
+    case "dismiss-skill-candidate": {
+      const candidate = domain.candidates[event.candidateId];
+      const run = candidate ? domain.runs[candidate.runId] : undefined;
+      if (!candidate || candidate.status !== "ready" || !run?.skillId) return state;
+      return {
+        ...state,
+        domain: { ...domain, candidates: { ...domain.candidates, [candidate.id]: { ...candidate, status: "dismissed" } } },
+        surface: { ...state.surface, activeCandidateId: state.surface.activeCandidateId === candidate.id ? null : state.surface.activeCandidateId },
+      };
+    }
+    case "undo-skill-adoption": {
+      const candidate = domain.candidates[event.candidateId];
+      const run = candidate ? domain.runs[candidate.runId] : undefined;
+      if (!candidate || candidate.status !== "adopted" || candidate.adoption !== "replace" || !run?.skillId) return state;
+      return {
+        ...state,
+        domain: { ...domain, candidates: { ...domain.candidates, [candidate.id]: { ...candidate, status: "ready", adoption: undefined } } },
+        surface: { ...state.surface, activeCandidateId: candidate.id },
       };
     }
     case "restore-run": {

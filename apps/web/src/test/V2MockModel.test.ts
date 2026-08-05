@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createCanonicalScenario } from "../v2-mock/fixtures/canonicalScenario";
 import { createStorySeed } from "../v2-mock/fixtures/storySeeds";
 import { reduceMockSession } from "../v2-mock/model/reducer";
-import { getCandidateCitations, getCommentBundle, getProjectMembership, getProjectSources } from "../v2-mock/model/selectors";
+import { getCandidateCitations, getCommentBundle, getProjectMembership, getProjectSources, resolveSkill } from "../v2-mock/model/selectors";
 
 describe("V2 mock model", () => {
   it("keeps a stopped voice comment as a saved-only You source before linking", () => {
@@ -132,6 +132,61 @@ describe("V2 mock model", () => {
     expect(state.domain.candidates[retryCandidate.id]).toBeUndefined();
     expect(state.domain.activities["activity-cancelled"]).toBeDefined();
     expect(state.domain.sources["activity-cancelled-source"]).toBeDefined();
+  });
+
+  it("resolves one Skill revision through explicit, Project, Global, then system priority", () => {
+    const state = createCanonicalScenario();
+
+    expect(resolveSkill(state.domain, "page-selection", { explicitSkillId: "skill-translate-zh", projectId: "project-a", inputScope: "selection" })).toMatchObject({ skill: { id: "skill-translate-zh" }, revision: { id: "skill-translate-zh-r1" }, source: "explicit" });
+    expect(resolveSkill(state.domain, "page-selection", { projectId: "project-a", inputScope: "selection" })).toMatchObject({ skill: { id: "skill-decision-signal" }, revision: { id: "skill-decision-signal-r2" }, source: "project" });
+    expect(resolveSkill(state.domain, "page-selection", { projectId: "project-b", inputScope: "selection" })).toMatchObject({ skill: { id: "skill-shorten" }, revision: { id: "skill-shorten-r2" }, source: "global" });
+
+    delete state.domain.skillBindings["global:page-selection"];
+    expect(resolveSkill(state.domain, "page-selection", { projectId: "project-b", inputScope: "selection" })).toMatchObject({ skill: { id: "skill-explain" }, revision: { id: "skill-explain-r1" }, source: "system" });
+  });
+
+  it("runs a pinned Skill in one event and keeps its exact revision on the Run", () => {
+    let state = createCanonicalScenario();
+    state = reduceMockSession(state, {
+      type: "run-skill",
+      category: "page-selection",
+      inputScope: "selection",
+      input: "Participants returned to notes when preparing decisions, not while browsing.",
+      explicitSkillId: "skill-translate-zh",
+      projectId: "project-a",
+      contextSourceIds: ["web-b", "missing-source"],
+    });
+
+    expect(state.domain.runs["run-100"]).toMatchObject({
+      activityId: null,
+      projectId: "project-a",
+      status: "succeeded",
+      actualContextSourceIds: ["web-b"],
+      candidateId: "candidate-101",
+      skillId: "skill-translate-zh",
+      skillRevisionId: "skill-translate-zh-r1",
+      skillResolution: "explicit",
+      inputScope: "selection",
+    });
+    expect(state.domain.candidates["candidate-101"]).toMatchObject({ status: "ready", content: "参与者会在准备做出决定时重新查看笔记，而不是在浏览时。" });
+    expect(state.surface.activeCandidateId).toBe("candidate-101");
+
+    state = reduceMockSession(state, { type: "dismiss-skill-candidate", candidateId: "candidate-101" });
+    expect(state.domain.candidates["candidate-101"].status).toBe("dismissed");
+    expect(state.surface.activeCandidateId).toBeNull();
+    expect(state.domain.sources["ai-candidate-101"]).toBeUndefined();
+  });
+
+  it("adopts and undoes an editable Selection Skill result without creating a Source", () => {
+    let state = createCanonicalScenario();
+    state = reduceMockSession(state, { type: "run-skill", category: "page-selection", inputScope: "editable-selection", input: "Original text", explicitSkillId: "skill-rewrite", projectId: "project-a" });
+    state = reduceMockSession(state, { type: "adopt-skill-candidate", candidateId: "candidate-101", adoption: "replace" });
+    expect(state.domain.candidates["candidate-101"]).toMatchObject({ status: "adopted", adoption: "replace" });
+    expect(state.domain.sources["ai-candidate-101"]).toBeUndefined();
+
+    state = reduceMockSession(state, { type: "undo-skill-adoption", candidateId: "candidate-101" });
+    expect(state.domain.candidates["candidate-101"]).toMatchObject({ status: "ready" });
+    expect(state.domain.candidates["candidate-101"].adoption).toBeUndefined();
   });
 
   it("returns isolated deep copies for every story seed", () => {

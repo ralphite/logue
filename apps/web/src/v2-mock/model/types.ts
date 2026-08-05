@@ -9,6 +9,10 @@ export type SourceStatus = "saved" | "activity";
 export type MembershipState = "saved-only" | "added" | "suggested" | "excluded" | "removed" | "duplicate-linked";
 export type RunStatus = "running" | "succeeded" | "failed" | "cancelled";
 export type CandidateStatus = "ready" | "adopted" | "dismissed";
+export type SkillCategory = "transcription" | "transformation" | "page-selection" | "organization" | "generation";
+export type SkillOrigin = "built-in" | "user";
+export type SkillInputScope = "selection" | "page" | "editable-selection" | "voice-write" | "voice-comment" | "project-sources";
+export type SkillResolutionSource = "explicit" | "project" | "global" | "system";
 
 export interface Project {
   id: Id;
@@ -93,15 +97,50 @@ export interface Candidate {
   contextSourceIds: Id[];
   citations: Citation[];
   status: CandidateStatus;
+  adoption?: "replace" | "copy" | "insert" | "keep" | "document";
 }
 
 export interface Run {
   id: Id;
-  activityId: Id;
-  projectId: Id;
+  activityId: Id | null;
+  projectId: Id | null;
   status: RunStatus;
   actualContextSourceIds: Id[];
   candidateId?: Id;
+  skillId?: Id;
+  skillRevisionId?: Id;
+  skillResolution?: SkillResolutionSource;
+  inputScope?: SkillInputScope;
+  input?: string;
+}
+
+export interface Skill {
+  id: Id;
+  name: string;
+  description: string;
+  category: SkillCategory;
+  origin: SkillOrigin;
+  allowedInputScopes: SkillInputScope[];
+  revisionIds: Id[];
+  currentRevisionId: Id;
+  systemDefault: boolean;
+  archived: boolean;
+}
+
+export interface SkillRevision {
+  id: Id;
+  skillId: Id;
+  version: number;
+  instruction: string;
+  createdAt: string;
+}
+
+export interface SkillBinding {
+  id: Id;
+  level: "global" | "project";
+  category: SkillCategory;
+  skillId: Id;
+  projectId?: Id;
 }
 
 export interface DocumentRevision {
@@ -147,6 +186,11 @@ export interface DomainState {
   activities: Record<Id, Activity>;
   runs: Record<Id, Run>;
   candidates: Record<Id, Candidate>;
+  skills: Record<Id, Skill>;
+  skillRevisions: Record<Id, SkillRevision>;
+  skillBindings: Record<Id, SkillBinding>;
+  pinnedSkillIds: Id[];
+  recentSkillIds: Id[];
   documents: Record<Id, Document>;
   documentRevisions: Record<Id, DocumentRevision>;
   host: HostState;
