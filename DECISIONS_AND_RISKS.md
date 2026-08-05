@@ -34,18 +34,19 @@
 - **用户可见影响：** 不再需要在多份互相冲突的设计稿中判断哪份最新；V2 会作为一套整体产品持续重写，而不是在 V1 上追加 feature。
 - **实施边界：** 当前不定义 MVP、排期或 Release 范围，也不开始代码实现；只有用户明确宣布进入实现阶段后再制定交付计划。
 
-### DR-023 — 个人 Source 向团队 Knowledge 沉淀的候选方向
+### DR-023 — 个人 Source 向团队 Context 的显式发布边界
 
 - **优先级：** 产品基础 / P0
-- **状态：** 评估中；尚未替换当前已确认定位
-- **候选决定：** LOGUE.ai 可能从个人 Log / Project Memory 扩展为 AI-native work 的 knowledge maturation layer：`Private Source → Personal Knowledge → Share Candidate → Project Knowledge → Team Knowledge`。
-- **用户可见影响：** 用户的现场输入先服务本人；适合共享的内容经过整理、核验和权限选择后，才成为项目或团队可复用的 Human/AI Context。
-- **关键纠正：** 原始输入是第一方工作记录和 Evidence，不天然是 Truth。团队可依赖的 Knowledge 需要来源、作者、状态、适用范围、更新时间和修订关系。
-- **替代方案：** 继续只做个人研究/写作闭环；或转为连接既有 SaaS 的企业搜索。前者边界清晰但团队复利较弱，后者会直接进入 Microsoft、Glean、Atlassian、Slack 和 Onyx 的强势区域。
-- **已有证据：** 大平台已经覆盖权限感知的组织内容搜索；Khoj、AFFiNE、Outline、Mem0、screenpipe 等覆盖个人 AI、知识库、AI Memory 或原始活动捕获。尚未发现主要产品把个人工作现场的 Source 通过受控晋升链变为团队 Knowledge 作为核心产品模型。
-- **主要风险：** 私人工作被团队监控、AI 错误共享、知识过期或冲突、个人没有足够直接收益、以及过早扩张成完整企业权限和协作平台。
-- **开放问题：** 首个协作用户、共享是否始终人工确认、Team Knowledge 的 owner/治理、私有来源与共享结论的权限关系、产品做完整协作层还是开放 knowledge layer、开源目标与许可证。
-- **实施边界：** 当前只记录和分析，不进入实现。
+- **状态：** 用户已确认长期扩展模型；保持个人-first 定位，当前不实施
+- **决定：** 不采用 `Private Source → Personal Knowledge → Share Candidate → Project Knowledge → Team Knowledge` 五层对象。V2 使用 `Source + Knowledge + Scope + Publication`：Source 是来自 Web/You/AI 的可追溯记录或证据；Knowledge 只能由用户明确采纳或确认值得持续依赖的判断、决定、结论或方法形成；Personal/Project/Workspace 是 Scope；Publication 把一个明确 Knowledge revision 及允许公开的证据显式发布给目标 Project/Workspace。
+- **用户可见影响：** 当前个人 Capture、Voice Write、Comment、私人 Log 和 Project Context 流程不增加步骤。未来团队能力只增加 `Share to project`：用户预览正文与证据、删改或脱敏后发布独立 Project 快照；私人原件不改变权限。删除私人原件不会自动撤回已发布快照，撤回必须单独执行 `Withdraw`。
+- **信任边界：** 自动分类只改变个人 Context membership，不改变共享范围。AI 可生成仅作者可见的建议，不得自动发布；`Share Candidate` 不建立 Inbox、一级导航或长期对象。团队不得看到未共享内容、被忽略的建议、个人捕获量或个人贡献排名。
+- **生命周期：** Knowledge 使用 revision 与 supersedes 表达更新；Publication 固定明确 revision，并只需要 `active / withdrawn`。删除私人 Source、从 Project 移除和撤回 Publication 是不同动作；撤回后停止未来检索和 AI 使用，历史只保留必要 tombstone/provenance。是否需要 freshness、冲突、负责人和团队 endorsement 属于待验证治理，不进入当前状态机。
+- **替代方案：** 五层晋升链会混淆内容类型、成熟度和可见范围；同一对象多 scope 会让私人修改静默改变团队内容；只做企业搜索则进入 Microsoft、Glean、Atlassian、Slack、Google 和 Onyx 的强势区域。显式 Publication 在低摩擦个人体验与未来团队治理之间提供最小边界。
+- **已有证据：** 三个独立 Agent、三个 ChatGPT.com 深度研究会话与 Claude Fable 5 Max 的结论均认为团队方向只能作为受控扩展；Glean、Microsoft Work IQ、Notion、ChatGPT/Claude Projects、Granola、Dovetail 和 Slite 已覆盖个人/项目记忆、企业搜索、共享空间或知识验证，LOGUE.ai 更可信的空位是正式文档产生之前的“判断 + 证据 + lineage + 显式发布”。
+- **主要风险：** 私人工作被理解成员工监控；分类与共享混淆；私人来源通过 AI 派生结论穿透权限；分享建议形成新的维护 Inbox；团队实际只需要搜索已有文档而不需要原子 Knowledge。
+- **开放问题：** Knowledge 何时成为个人 V2 的显式对象；团队 endorsement、负责人和 freshness 治理何时出现；团队内容主要留在 LOGUE.ai 还是写回现有工具；雇主 Workspace 与真正私人空间的所有权边界；开源范围、许可证和托管模式。
+- **实施边界：** 现在只更新产品设计语义，明确延后 Team 导航、自动发布、复杂权限、审批、企业连接器和治理后台；不构成实现授权。
 
 ### DR-021 — Voice Write 与持久 Project Memory 的边界
 

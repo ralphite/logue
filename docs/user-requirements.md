@@ -2,6 +2,18 @@
 
 本文件只记录用户在原会话与当前会话中明确表达的意图。产品规格、Mock 和 Agent 生成的建议不能覆盖这里的要求；发生冲突时，以较新的用户纠正为准。
 
+## 2026-08-05 已确认的长期扩展模型
+
+- 用户已确认：当前个人-first 定位保持不变；团队方向作为 V2 的长期扩展原则，不把 LOGUE.ai 立即改成团队知识库或企业搜索产品。
+- 用户已确认：个人与团队之间使用显式 `Publication` 边界，采用 `Source + Knowledge + Scope + Publication` 产品语义，不再使用 `Private Source → Personal Knowledge → Share Candidate → Project Knowledge → Team Knowledge` 五层晋升模型。
+- `Source` 是来自 Web、You 或 AI 的可追溯记录或证据；原始与派生状态另行区分。`Knowledge` 只能由用户明确采纳或确认“值得持续依赖”的判断、决定、结论或方法形成；Personal、Project、Workspace 是 Scope，不是不同知识类型。
+- 私人 Source 默认不共享。自动分类只决定个人 Project Context，不改变可见范围；AI 可以建议分享，不能静默发布。`Share Candidate` 不建立长期对象、Inbox 或一级导航。
+- 未来最小共享动作是 `Share to project`：用户先检查最终正文、引用和将公开的证据，可删改或脱敏后发布一个明确 revision 的独立 Project 快照；私人原件保持私人。删除私人原件不会自动撤回已发布快照，撤回必须单独执行 `Withdraw`。
+- 所有主动输入仍默认长期保存在私人 Log，直到用户明确删除；原始版本不被静默覆盖。删除私人 Source、从 Project Context 移除、撤回已发布内容是不同动作。
+- 团队方向必须避免员工监控：未共享内容、被忽略的分享建议、个人捕获量和个人贡献排名不得成为团队可见信息。
+- 开放 schema、完整导出、API/MCP、插件和可检查 provenance 是确定方向；是否开源、自托管边界、许可证和商业模式仍未决定。
+- 当前仍只更新整体产品设计，不开始实现，也不 commit 设计更改，直到用户阅读并明确确认。
+
 ## 2026-08-04 最新产品定位要求
 
 - 已发布的现有产品统一视为 V1；当前讨论的是 V2 整体产品重新设计。V1 的代码、设计、规格、数据和 Release 不限制 V2。
