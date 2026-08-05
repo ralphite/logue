@@ -45,12 +45,12 @@
 | F02 | 产品一级名称用 Stream / Projects / Generate / Settings，不用 View / Inbox / 成果 | PASS | 可见一级 UI、稳定路由和代码模型只使用当前英文产品名；旧 `views` / `agents` 导航与模型别名已删除。 |
 | F03 | Generate 只保留 Documents / Skills；行尾 plus 分别新建 | PASS | 无 `New`、无顶部重复 plus；点击行只更新列表，点击行尾 plus 才创建。 |
 | F04 | 极简网页语音输入：聚焦才显示、一键开始、停止并插入、取消、快捷键 | PARTIAL | 2026-08-03 已在真实 ChatGPT contenteditable 与 Logue textarea 完成非空录音 → Gemini → 保存 → 单次插入，且未发送；标准 input、目标丢失、断线与重试幂等尚未以当前原位架构完整闭环。 |
-| F05 | 自动项目/Tag 整理，低置信可审阅，任何 item 可事后编辑 | PARTIAL | 分类、建议/确认、内容/项目/Tag 编辑和人工判断保护已有真实证据；真实库仍有 14 条旧低置信中文理由，需安全一次性整理后才能关闭。 |
+| F05 | 自动项目/Tag 整理，低置信可审阅，任何 item 可事后编辑 | READY_FOR_REAL_ENV | 分类、建议/确认、内容/项目/Tag 编辑和人工判断保护已有真实证据；当前真实库只有两条无可判断语义的录音测试，均保持 `Unfiled` / `Needs review`，没有安全迁移候选。等待有意义的新资料验证分类与人工确认重启后不被覆盖。 |
 | F06 | 多个可定制 Skills，用于转写、整理、短回复、QA、文档 | PARTIAL | 现有对象可编辑/复制/设默认并能产生可追溯 Skill run；Web 选区变换已实现。仍需在已安装扩展的真实权限环境完成网页选区 Skill 流程验证。 |
 | F07 | Extension 中基于资料生成回复并插入、不自动发送 | PASS | 2026-08-03 在真实 ChatGPT 通过原生 Side Panel 生成 `Logue capture is ready.`，点击 Insert 后仅写入 ChatGPT 草稿，Send 未被点击；测试草稿已清除。 |
 | F08 | Logue Web App 自己也能使用 Extension | PASS | 2026-08-03 在真实 `127.0.0.1:5173/?view=generate` 验证自动聚焦后出现单一语音入口；非空语音经 Gemini 转写后只写入 Task，未自动生成。运行时截图见 `docs/design/references/runtime/extension-inline-voice-logue-web-success-20260803.png`。 |
 | F09 | 所有关键竖向 panel 可拖拽并保持同一风格 | PASS | 至少一级导航、Generate、资料详情、文档列表和来源面板使用同一 `PanelResizer` 体系；键盘与 pointer 均支持。 |
-| F10 | 手机完整可用并可从同一局域网访问 | PARTIAL | Web/API 支持显式局域网监听，320/390/768 已覆盖 Stream、Projects、Generate、详情和底栏；公开安装为保护资料默认只监听本机。仍缺安全配对入口和一台物理 iPhone 的触控、旋转、刷新与文档编辑闭环。 |
+| F10 | 手机完整可用并可从同一局域网访问 | OUT_OF_SCOPE | 用户已明确不需要 iPhone 或移动端支持。既有响应式访问不故意退化，但不再安排移动专项实现或真机验收，也不阻塞桌面流程。 |
 | F11 | React + TypeScript + Tailwind + Storybook；Go；Gemini 终端环境变量 | PASS | 架构与构建已落地；Gemini Key 只由 Go 进程读取，不进入 Web、Extension、资料、日志或 Release。 |
 | F12 | GitHub 旧仓库彻底替换、永远 main、小提交后立即 push | PASS | `ralphite/logue` 已由当前项目替换；当前分支与 upstream 均为 `main`；本轮逻辑批次均提交后立即推送。 |
 | F13 | 一行 curl 安装、覆盖升级保留数据、询问开机启动、安装后自动启动 | PARTIAL | `v0.2.4` 的 macOS 完整安装、覆盖升级、失败回滚、数据保留，以及 Linux 安装回归已在双平台 CI 全绿；两份公开安装脚本均无中文。公开 `releases/latest` 的独立 Extension 命令已在隔离 HOME 完成首次安装和覆盖升级，稳定目录、版本化 Side Panel、首次 Server settings 与升级 Reload 均通过。仍需在另一台真实机器完成服务安装和覆盖升级。 |
@@ -73,4 +73,3 @@
 5. **P1（Storybook 与英文文案）**：改为生产组件 inventory、全状态覆盖，并清除 Installer/fixture/系统 copy 中的中文。
 6. **P1（全产品一致性）**：独立盲审已发现 Documents Sources 默认过宽、Settings 内容轴错位、Settings 表单焦点不清晰；先修共享布局/焦点问题，再进行两名 fresh-context 独立终审。
 7. **P1（Release 跨机验收）**：`v0.2.4` 与公开 Extension 首装/覆盖升级已完成；仍需在另一台真实 Linux/Mac 环境完成服务安装、Chrome Load unpacked/Reload、可变域名和覆盖升级。
-8. **P3（移动端，用户明确后置）**：物理 iPhone 的触控、旋转、刷新、Stream / Projects / Generate / 文档编辑闭环；不再把桌面 LAN 服务连接错误归入此项。

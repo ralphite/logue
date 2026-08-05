@@ -4,9 +4,9 @@
 
 更新时间：2026-08-02 19:58（America/Los_Angeles）
 
-本文件逐项对应 `/GOAL.md` 的 14 个真实场景，是滚动状态而不是完成声明。`PASS` 必须有真实 Chrome、真实 Go 服务和真实持久数据；单元测试、构建、文档或截图不能单独升级状态。
+本文件逐项保留旧版 `/GOAL.md` 的真实场景，是滚动状态而不是完成声明。`PASS` 必须有真实 Chrome、真实 Go 服务和真实持久数据；单元测试、构建、文档或截图不能单独升级状态。
 
-全部历史 bug / feature request 的逐项状态见 [`bug-feature-status.md`](./bug-feature-status.md)。原生 Side Panel 当前已在真实 Chrome 完成 textarea 录音、取消、关闭停麦、目标丢失恢复和单次插入；这不能自动继承旧浮层在其它网站上的 PASS。当前还需重跑标准 input、ChatGPT contenteditable、选区语音、Extension Generate、Logue Web App 与断线恢复，并把最新 `main` 发布；此外仍有安全 LAN/物理 iPhone、历史中文分类理由和全产品最终设计复审。
+全部历史 bug / feature request 的逐项状态见 [`bug-feature-status.md`](./bug-feature-status.md)。原生 Side Panel 当前已在真实 Chrome 完成 textarea 录音、取消、关闭停麦、目标丢失恢复和单次插入；这不能自动继承旧浮层在其它网站上的 PASS。当前还需重跑标准 input、ChatGPT contenteditable、选区语音、Extension Generate、Logue Web App 与断线恢复，并把最新 `main` 发布；此外仍有安全 LAN、历史分类资料和全产品最终设计复审。
 
 | # | 场景 | 状态 | 当前证据 / 未关闭项 |
 |---|---|---|---|
@@ -21,7 +21,7 @@
 | 9 | Go 服务断线与恢复 | PARTIAL | 旧浮层已通过真实断线恢复；原生 Side Panel 的局部错误、保留音频与幂等重试仍需重新验证。 |
 | 10 | 刷新/重启持久化与导出恢复 | PASS | 资料、音频、项目、Agent、生成记录、文档、来源和设置跨刷新/服务重启保持；导出恢复在隔离副本验证并创建备份。 |
 | 11 | Vibedoc 转写质量对齐 | PASS | 4 段全新同源 48 kHz WAV 覆盖中文长句、英文、中英混合与项目术语；Logue 总 CER 0.28%（1/352），VibeDoc 0.57%（2/352），每类均不低于对照。生产 Extension 的真实 WebM E2E 已单独通过。详见 `docs/qa/transcription/comparison.md`。 |
-| 12 | 真实手机完整 Web App | PARTIAL | Web/API 支持显式局域网监听；320/390/768px 已验证资料、项目、生成、详情抽屉、重复资料折叠与底部导航。公开安装为保护无认证资料默认只监听本机；仍缺安全配对和物理 iPhone 真机触控闭环。 |
+| 12 | 真实手机完整 Web App | OUT_OF_SCOPE | 用户已明确不需要 iPhone 或移动端支持。保留既有响应式实现，但不再安排移动触控、旋转或真机验收，也不让它阻塞桌面 Release。 |
 | 13 | GitHub Release 一行全新安装 | PARTIAL | 公开 `v0.2.3` 的一行安装和资产已通过，但当前 `main` 为 `3fc2ac6`，尚未进入公开 Release；因此不能把旧 Release 当成最新交付。 |
 | 14 | 同一命令覆盖升级并保留数据 | PARTIAL | `v0.2.3` 的真实覆盖升级、保留数据和失败回滚已通过；仍需将当前主线发布并对最新版本再做一次真实覆盖升级。 |
 
@@ -65,7 +65,6 @@
 
 ## 下一轮不能跳过
 
-1. 可用物理 iPhone 出现后，直接访问当前局域网入口，完成资料浏览、项目浏览、生成、文档编辑、引用查看和刷新；保存真机截图。
-2. textarea、ChatGPT 富文本、选区语音批注、Go 断线恢复、Extension Agent、多项目隔离、目标输入框丢失恢复和跨选择器重复折叠都已完成真实闭环；后续继续由 fresh-context 审查选择仍可独立关闭的最高价值缺口。
-3. 在等待真机外部条件期间，不得把设备不可用变成暂停整个目标的理由。
-4. 转写质量门槛已通过；后续自然人声、噪声和口音样本作为增强，不阻塞当前最高价值工作。
+1. textarea、ChatGPT 富文本、选区语音批注、Go 断线恢复、Extension Agent、多项目隔离、目标输入框丢失恢复和跨选择器重复折叠都已完成真实闭环；后续继续由 fresh-context 审查选择仍可独立关闭的最高价值缺口。
+2. 在等待 Linux/LAN 与自然人声等外部条件期间，不得把环境不可用变成暂停整个目标的理由。
+3. 转写质量门槛已通过；后续自然人声、噪声和口音样本作为增强，不阻塞当前最高价值工作。
