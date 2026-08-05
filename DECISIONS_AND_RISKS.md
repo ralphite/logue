@@ -160,3 +160,13 @@
 - **替代方案：** 在结果返回时再询问是否采用，或取消服务器请求。前者为正常流程增加第二次确认；后者无法可靠中断已经发出的 Gemini 请求，且不能单独保证迟到结果不写回。
 - **证据：** 2026-08-04，真实 Mac Chrome 的 Google 顶层输入框中，选择 `clear meeting follow-up` → `Draft reply` → 立即 `Esc`；等待隔离 Gemini 服务返回后，输入仍为 `Please turn this into a clear meeting follow-up.`，Skill 菜单没有重开，页面仍为 `google.com/`，新产生的临时 run 没有 `adopted_output`。
 - **下一步证据：** 当前 Release 在真实 Chrome 复测同一路径，并覆盖选区/目标切换与 SPA 路由后的迟到结果。
+
+### DR-017 — 将当前 HEAD 原子安装到 Mac 的稳定 Extension 目录
+
+- **优先级：** P1
+- **状态：** 已复现，安装中
+- **决策：** 使用现有 Extension 安装器的版本化 assets 与最终 manifest 原子切换方式，将当前 `main` 的本地构建装入 `/Users/yadong/.local/share/logue/extension`；随后只在 Chrome Reload 这一已加载的稳定目录。
+- **用户可见影响：** Chrome 当前稳定目录仍指向 `0.2.10` 的 `workspace-sidepanel-tab-v3` assets，不能验证已推送的 Esc 修正，也可能继续呈现旧的扩展故障。切换后 Chrome storage、稳定目录和现有服务数据不被替换；仅加载的 Extension 代码更新。
+- **替代方案：** 继续用临时 unpacked 目录，或等待最终公开 Release。前者不能证明用户实际加载路径；后者会让已复现的 P1 可靠性修正一直无法在真实 Chrome 回归。
+- **已有证据：** 2026-08-04 读取稳定 manifest，版本为 `0.2.10`，service worker、content script 与 Side Panel 都指向 `releases/workspace-sidepanel-tab-v3/`；当前 `main` 已包含 `9b50b81` 的 Esc 修正且已推送。
+- **下一步证据：** 原子安装后 Chrome Reload，真实验证 Esc、选区/目标切换与 SPA 路由的迟到结果不写回；失败才修改代码。
