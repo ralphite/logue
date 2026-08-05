@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { Button } from "../../components/ui";
 import { useMockSession } from "../runtime/MockSessionProvider";
 import { ProjectShell, type V2PrimaryRoute } from "./ProjectShell";
+import { SkillSettings, type SkillSettingsView } from "./SkillSettings";
 
 export type SettingsSection = "Host" | "Models" | "Voice" | "Skills" | "Privacy" | "Backup";
 
@@ -12,7 +13,7 @@ function SettingRow({ title, detail, action }: { title: string; detail: string; 
   return <div className="v2-setting-row"><div><strong>{title}</strong><p>{detail}</p></div>{action}</div>;
 }
 
-export function SettingsView({ onRouteChange, initialSection = "Host" }: { onRouteChange: (route: V2PrimaryRoute) => void; initialSection?: SettingsSection }) {
+export function SettingsView({ onRouteChange, initialSection = "Host", initialSkillsView = "Built-ins" }: { onRouteChange: (route: V2PrimaryRoute) => void; initialSection?: SettingsSection; initialSkillsView?: SkillSettingsView }) {
   const { state } = useMockSession();
   const [active, setActive] = useState<SettingsSection>(initialSection);
   const voiceReady = state.domain.host.providers.voice.status === "ready";
@@ -24,7 +25,7 @@ export function SettingsView({ onRouteChange, initialSection = "Host" }: { onRou
           <nav className="v2-settings-nav" aria-label="Settings sections">{sections.map((section) => <button key={section} className={section === active ? "is-active" : ""} onClick={() => setActive(section)}>{section}</button>)}</nav>
           <main>
             <h1 className="v2-settings-title">{active}</h1>
-            <p className="v2-settings-lead">{active === "Host" ? "This Mac owns your Logue data. There is no Logue account." : active === "Voice" ? "Control transcription accuracy without changing Project Context." : active === "Privacy" ? "Choose what leaves this Host for each task." : "Local product settings for this Host."}</p>
+            <p className="v2-settings-lead">{active === "Host" ? "This Mac owns your Logue data. There is no Logue account." : active === "Voice" ? "Control transcription accuracy without changing Project Context." : active === "Skills" ? "Manage reusable actions and the defaults this Host applies." : active === "Privacy" ? "Choose what leaves this Host for each task." : "Local product settings for this Host."}</p>
             {active === "Host" && <section className="v2-settings-section">
               <h2>Current Host</h2>
               <SettingRow title="Yadong’s Mac" detail="Local · http://127.0.0.1:8787 · Data authority" action={<span className="v2-local-ready"><Check aria-hidden="true" size={14} /> Ready</span>} />
@@ -47,12 +48,7 @@ export function SettingsView({ onRouteChange, initialSection = "Host" }: { onRou
               <SettingRow title="Mobile research" detail="12 terms · offline capture, field researcher, Logue" action={<Button size="sm">Edit profile <ChevronRight aria-hidden="true" size={14} /></Button>} />
               <SettingRow title="Suggested vocabulary" detail="3 terms found in confirmed Project Sources. Nothing is added without review." action={<Button size="sm">Review</Button>} />
             </section>}
-            {active === "Skills" && <section className="v2-settings-section">
-              <h2>Everyday actions</h2>
-              <SettingRow title="Clean up transcription" detail="Global default · Transcription · revision 4" action={<Button size="sm">Edit</Button>} />
-              <SettingRow title="Translate to Chinese" detail="Selection and page · no Project Context" action={<Button size="sm">Edit</Button>} />
-              <SettingRow title="Draft reply" detail="Generation · may use Project Context · revision 2" action={<Button size="sm">Edit</Button>} />
-            </section>}
+            {active === "Skills" && <SkillSettings initialView={initialSkillsView} />}
             {active === "Privacy" && <section className="v2-settings-section">
               <h2>Capture</h2>
               <SettingRow title="Sensitive fields" detail="Passwords and payment fields are never captured." action={<span className="v2-local-ready">Always excluded</span>} />

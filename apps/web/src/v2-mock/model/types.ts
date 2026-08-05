@@ -13,6 +13,10 @@ export type SkillCategory = "transcription" | "transformation" | "page-selection
 export type SkillOrigin = "built-in" | "user";
 export type SkillInputScope = "selection" | "page" | "editable-selection" | "voice-write" | "voice-comment" | "project-sources";
 export type SkillResolutionSource = "explicit" | "project" | "global" | "system";
+export type SkillTrigger = "after-speech" | "explicit-action" | "background-organization" | "ask-draft";
+export type SkillOutputFormat = "plain-text" | "markdown" | "project-suggestion";
+export type SkillProjectContext = "never" | "optional" | "required";
+export type SkillResultBehavior = "transcript-revision" | "replace-or-copy" | "membership-suggestion" | "insert-copy-or-document";
 
 export interface Project {
   id: Id;
@@ -41,6 +45,7 @@ export interface SourceRevision {
   content: string;
   createdAt: string;
   transcriptionProfileId?: string;
+  runId?: Id;
 }
 
 export interface Source {
@@ -63,6 +68,7 @@ export interface SourceMembership {
   sourceId: Id;
   state: MembershipState;
   reason: "tab-authorized" | "user-selected" | "suggested" | "auto-classified" | "duplicate";
+  runId?: Id;
 }
 
 export interface TargetSession {
@@ -73,6 +79,22 @@ export interface TargetSession {
   value: string;
   isValid: boolean;
   lastInsertion?: { candidateId: Id; previousValue: string; insertedValue: string };
+}
+
+export interface SelectionTargetRevision {
+  id: Id;
+  kind: "original" | "replacement" | "restored";
+  content: string;
+  createdAt: string;
+  runId?: Id;
+}
+
+export interface SelectionTarget {
+  id: Id;
+  pageId: Id;
+  value: string;
+  revisions: SelectionTargetRevision[];
+  lastReplacement?: { candidateId: Id; previousValue: string; insertedValue: string };
 }
 
 export interface Activity {
@@ -119,6 +141,7 @@ export interface Skill {
   name: string;
   description: string;
   category: SkillCategory;
+  trigger: SkillTrigger;
   origin: SkillOrigin;
   allowedInputScopes: SkillInputScope[];
   revisionIds: Id[];
@@ -132,6 +155,10 @@ export interface SkillRevision {
   skillId: Id;
   version: number;
   instruction: string;
+  outputFormat: SkillOutputFormat;
+  languageTone: string;
+  projectContext: SkillProjectContext;
+  resultBehavior: SkillResultBehavior;
   createdAt: string;
 }
 
@@ -183,6 +210,7 @@ export interface DomainState {
   sources: Record<Id, Source>;
   memberships: Record<Id, SourceMembership>;
   targetSessions: Record<Id, TargetSession>;
+  selectionTargets: Record<Id, SelectionTarget>;
   activities: Record<Id, Activity>;
   runs: Record<Id, Run>;
   candidates: Record<Id, Candidate>;
@@ -191,6 +219,7 @@ export interface DomainState {
   skillBindings: Record<Id, SkillBinding>;
   pinnedSkillIds: Id[];
   recentSkillIds: Id[];
+  hiddenBuiltInSkillIds: Id[];
   documents: Record<Id, Document>;
   documentRevisions: Record<Id, DocumentRevision>;
   host: HostState;

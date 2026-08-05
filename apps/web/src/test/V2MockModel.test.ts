@@ -52,7 +52,7 @@ describe("V2 mock model", () => {
     state = reduceMockSession(state, { type: "parse-command", transcript: "Using Mobile research, draft a reply", projectId: "project-a", targetSessionId: "email-target" });
     state = reduceMockSession(state, { type: "execute-command", activityId: "activity-record-101", contextSourceIds: ["web-a", "you-b", "missing-source"] });
     state = reduceMockSession(state, {
-      type: "generate-sourced-draft", runId: "run-102", content: "Offline capture should stay connected to review.",
+      type: "generate-sourced-draft", runId: "run-102",
       citations: [
         { sourceId: "web-a", label: "Article A", excerpt: "offline capture" },
         { sourceId: "you-b", label: "Your thought", excerpt: "decision framing" },
@@ -60,7 +60,8 @@ describe("V2 mock model", () => {
       ],
     });
 
-    expect(state.domain.runs["run-102"].actualContextSourceIds).toEqual(["web-a", "you-b"]);
+    expect(state.domain.runs["run-102"]).toMatchObject({ actualContextSourceIds: ["web-a", "you-b"], skillId: "skill-draft-reply", skillRevisionId: "skill-draft-reply-r2", skillResolution: "global", inputScope: "project-sources" });
+    expect(state.domain.candidates["candidate-103"].content).toContain("offline capture");
     expect(getCandidateCitations(state.domain, "candidate-103").map((citation) => citation.source.id)).toEqual(["web-a", "you-b"]);
   });
 
@@ -88,8 +89,8 @@ describe("V2 mock model", () => {
     state = reduceMockSession(state, { type: "undo-target", targetSessionId: "email-target" });
 
     expect(afterInsert.domain.sources["you-write-100"]).toMatchObject({ origin: "you", status: "saved", title: "Voice write" });
-    expect(afterInsert.domain.sources["you-write-100"].revisions.map((revision) => revision.kind)).toEqual(["raw", "candidate", "candidate", "adopted"]);
-    expect(afterInsert.domain.sources["you-write-100"].revisions[2]).toMatchObject({ content: "Keep field evidence in the reply.", transcriptionProfileId: "project-a" });
+    expect(afterInsert.domain.sources["you-write-100"].revisions.map((revision) => revision.kind)).toEqual(["raw", "normalized", "candidate", "candidate", "adopted"]);
+    expect(afterInsert.domain.sources["you-write-100"].revisions.filter((revision) => revision.kind === "candidate").at(-1)).toMatchObject({ content: "Keep field evidence in the reply.", transcriptionProfileId: "project-a" });
     expect(getProjectMembership(afterInsert.domain, "project-a", "you-write-100")?.state).toBe("suggested");
     expect(state.domain.targetSessions["email-target"].value).toBe("Hi Maya,");
     expect(state.domain.sources["you-write-100"].revisions.at(-1)?.kind).toBe("adopted");
@@ -179,14 +180,106 @@ describe("V2 mock model", () => {
 
   it("adopts and undoes an editable Selection Skill result without creating a Source", () => {
     let state = createCanonicalScenario();
-    state = reduceMockSession(state, { type: "run-skill", category: "page-selection", inputScope: "editable-selection", input: "Original text", explicitSkillId: "skill-rewrite", projectId: "project-a" });
-    state = reduceMockSession(state, { type: "adopt-skill-candidate", candidateId: "candidate-101", adoption: "replace" });
+    state = reduceMockSession(state, { type: "run-skill", category: "page-selection", inputScope: "editable-selection", input: "Participants returned to notes when preparing decisions, not while browsing.", explicitSkillId: "skill-rewrite", projectId: "project-a" });
+    state = reduceMockSession(state, { type: "adopt-skill-candidate", candidateId: "candidate-101", adoption: "replace", selectionTargetId: "article-b-selection" });
     expect(state.domain.candidates["candidate-101"]).toMatchObject({ status: "adopted", adoption: "replace" });
+    expect(state.domain.selectionTargets["article-b-selection"].value).toBe("People return to their notes when a decision is due—not while they browse.");
+    expect(state.domain.selectionTargets["article-b-selection"].revisions.at(-1)).toMatchObject({ kind: "replacement", runId: "run-100" });
     expect(state.domain.sources["ai-candidate-101"]).toBeUndefined();
 
-    state = reduceMockSession(state, { type: "undo-skill-adoption", candidateId: "candidate-101" });
+    state = reduceMockSession(state, { type: "undo-skill-adoption", candidateId: "candidate-101", selectionTargetId: "article-b-selection" });
     expect(state.domain.candidates["candidate-101"]).toMatchObject({ status: "ready" });
     expect(state.domain.candidates["candidate-101"].adoption).toBeUndefined();
+    expect(state.domain.selectionTargets["article-b-selection"].value).toBe("Participants returned to notes when preparing decisions, not while browsing.");
+    expect(state.domain.selectionTargets["article-b-selection"].revisions.at(-1)?.kind).toBe("restored");
+  });
+
+  it("creates and revises a My Skill without rewriting prior revisions", () => {
+    let state = createCanonicalScenario();
+    state = reduceMockSession(state, { type: "create-my-skill", name: "Board summary", description: "Summarize a decision for leadership.", category: "generation", instruction: "Write three concise bullets with citations.", allowedInputScopes: ["project-sources"], outputFormat: "markdown", languageTone: "Concise and grounded.", projectContext: "required", resultBehavior: "insert-copy-or-document" });
+
+    expect(state.domain.skills["skill-100"]).toMatchObject({ origin: "user", name: "Board summary", currentRevisionId: "skill-revision-101", archived: false });
+    expect(state.domain.skillRevisions["skill-revision-101"]).toMatchObject({ version: 1, instruction: "Write three concise bullets with citations." });
+
+    state = reduceMockSession(state, { type: "revise-my-skill", skillId: "skill-100", name: "Board summary", description: "Summarize a decision for leadership.", instruction: "Write five concise bullets with citations.", allowedInputScopes: ["project-sources"], outputFormat: "markdown", languageTone: "Concise and grounded.", projectContext: "required", resultBehavior: "insert-copy-or-document" });
+    expect(state.domain.skills["skill-100"]).toMatchObject({ currentRevisionId: "skill-revision-102", revisionIds: ["skill-revision-101", "skill-revision-102"] });
+    expect(state.domain.skillRevisions["skill-revision-101"].instruction).toBe("Write three concise bullets with citations.");
+    expect(state.domain.skillRevisions["skill-revision-102"]).toMatchObject({ version: 2, instruction: "Write five concise bullets with citations." });
+  });
+
+  it("duplicates, hides, pins, archives, and restores Skills in shared state", () => {
+    let state = createCanonicalScenario();
+    state = reduceMockSession(state, { type: "set-built-in-hidden", skillId: "skill-translate-zh", hidden: true });
+    expect(state.domain.hiddenBuiltInSkillIds).toContain("skill-translate-zh");
+    expect(state.domain.pinnedSkillIds).not.toContain("skill-translate-zh");
+
+    state = reduceMockSession(state, { type: "set-built-in-hidden", skillId: "skill-translate-zh", hidden: false });
+    state = reduceMockSession(state, { type: "set-skill-pinned", skillId: "skill-translate-zh", pinned: true });
+    expect(state.domain.pinnedSkillIds).toContain("skill-translate-zh");
+
+    state = reduceMockSession(state, { type: "duplicate-skill", skillId: "skill-translate-zh", name: "Translate for research" });
+    expect(state.domain.skills["skill-100"]).toMatchObject({ origin: "user", name: "Translate for research", systemDefault: false, archived: false });
+    expect(state.domain.skillRevisions["skill-revision-101"].instruction).toBe(state.domain.skillRevisions["skill-translate-zh-r1"].instruction);
+
+    state = reduceMockSession(state, { type: "set-skill-archived", skillId: "skill-100", archived: true });
+    expect(state.domain.skills["skill-100"].archived).toBe(true);
+    state = reduceMockSession(state, { type: "set-skill-archived", skillId: "skill-100", archived: false });
+    expect(state.domain.skills["skill-100"].archived).toBe(false);
+  });
+
+  it("applies Global and Project Skill bindings immediately and resets to inheritance", () => {
+    let state = createCanonicalScenario();
+    state = reduceMockSession(state, { type: "set-global-skill-binding", category: "page-selection", skillId: "skill-translate-zh" });
+    expect(resolveSkill(state.domain, "page-selection", { projectId: "project-b", inputScope: "selection" })).toMatchObject({ skill: { id: "skill-translate-zh" }, source: "global" });
+
+    state = reduceMockSession(state, { type: "set-project-skill-binding", projectId: "project-b", category: "page-selection", skillId: "skill-explain" });
+    expect(resolveSkill(state.domain, "page-selection", { projectId: "project-b", inputScope: "selection" })).toMatchObject({ skill: { id: "skill-explain" }, source: "project" });
+
+    state = reduceMockSession(state, { type: "reset-project-skill-binding", projectId: "project-b", category: "page-selection" });
+    expect(resolveSkill(state.domain, "page-selection", { projectId: "project-b", inputScope: "selection" })).toMatchObject({ skill: { id: "skill-translate-zh" }, source: "global" });
+  });
+
+  it("uses an edited My Skill revision to change actual output", () => {
+    let state = createCanonicalScenario();
+    state = reduceMockSession(state, { type: "create-my-skill", name: "Recommendations", description: "Turn evidence into recommendations.", category: "generation", instruction: "Write three recommendations.", allowedInputScopes: ["project-sources"], outputFormat: "markdown", languageTone: "Concise and grounded.", projectContext: "required", resultBehavior: "insert-copy-or-document" });
+    state = reduceMockSession(state, { type: "set-global-skill-binding", category: "generation", skillId: "skill-100" });
+    state = reduceMockSession(state, { type: "run-skill", category: "generation", inputScope: "project-sources", input: "Draft recommendations", projectId: "project-b", contextSourceIds: ["web-a"] });
+
+    expect(state.domain.runs["run-102"]).toMatchObject({ skillId: "skill-100", skillRevisionId: "skill-revision-101", skillResolution: "global", actualContextSourceIds: ["web-a"] });
+    expect(state.domain.candidates["candidate-103"].content.split("\n")).toHaveLength(3);
+
+    state = reduceMockSession(state, { type: "revise-my-skill", skillId: "skill-100", name: "Recommendations", description: "Turn evidence into recommendations.", instruction: "Write five recommendations.", allowedInputScopes: ["project-sources"], outputFormat: "markdown", languageTone: "Concise and grounded.", projectContext: "required", resultBehavior: "insert-copy-or-document" });
+    state = reduceMockSession(state, { type: "run-skill", category: "generation", inputScope: "project-sources", input: "Draft recommendations", projectId: "project-b", contextSourceIds: ["web-a"] });
+
+    expect(state.domain.runs["run-105"]).toMatchObject({ skillRevisionId: "skill-revision-104", skillResolution: "global" });
+    expect(state.domain.candidates["candidate-106"].content.split("\n")).toHaveLength(5);
+  });
+
+  it("resolves Voice and Organization Skills into durable Runs", () => {
+    let state = createCanonicalScenario();
+    state = reduceMockSession(state, { type: "start-voice-write", tabId: "research-tab", targetSessionId: "email-target" });
+    state = reduceMockSession(state, { type: "stop-voice-write", transcript: "Um, keep offline capture connected to the decision.", transcriptionProfileId: "project-a" });
+
+    expect(state.domain.runs["run-101"]).toMatchObject({ skillId: "skill-field-voice", skillRevisionId: "skill-field-voice-r1", skillResolution: "project", inputScope: "voice-write" });
+    expect(state.domain.runs["run-103"]).toMatchObject({ skillId: "skill-clean-voice", skillResolution: "global", inputScope: "voice-write" });
+    expect(state.domain.runs["run-105"]).toMatchObject({ skillId: "skill-organize", skillResolution: "global", inputScope: "project-sources", actualContextSourceIds: ["you-write-100"] });
+    expect(state.domain.memberships["project-a:you-write-100"]).toMatchObject({ state: "suggested", runId: "run-105" });
+    expect(state.domain.sources["you-write-100"].revisions.at(-1)).toMatchObject({ kind: "candidate", runId: "run-103" });
+  });
+
+  it("removes bindings when a Skill is archived or hidden and rejects incompatible defaults", () => {
+    let state = createCanonicalScenario();
+    state = reduceMockSession(state, { type: "set-skill-archived", skillId: "skill-decision-signal", archived: true });
+    expect(state.domain.skillBindings["project:project-a:page-selection"]).toBeUndefined();
+    expect(resolveSkill(state.domain, "page-selection", { projectId: "project-a", inputScope: "selection" })?.source).toBe("global");
+
+    state = reduceMockSession(state, { type: "set-built-in-hidden", skillId: "skill-shorten", hidden: true });
+    expect(state.domain.skillBindings["global:page-selection"]).toBeUndefined();
+    expect(resolveSkill(state.domain, "page-selection", { projectId: "project-b", inputScope: "page" })).toMatchObject({ skill: { id: "skill-explain" }, source: "system" });
+
+    state = reduceMockSession(state, { type: "create-my-skill", name: "Selection only", description: "Only selected text.", category: "page-selection", instruction: "Explain the selection.", allowedInputScopes: ["selection"], outputFormat: "plain-text", languageTone: "Clear.", projectContext: "optional", resultBehavior: "replace-or-copy" });
+    state = reduceMockSession(state, { type: "set-global-skill-binding", category: "page-selection", skillId: "skill-100" });
+    expect(state.domain.skillBindings["global:page-selection"]).toBeUndefined();
   });
 
   it("returns isolated deep copies for every story seed", () => {

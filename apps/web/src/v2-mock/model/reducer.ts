@@ -1,30 +1,61 @@
 import type { MockEvent } from "./events";
-import { membershipId, resolveSkill } from "./selectors";
-import type { BrowserPage, DomainState, MockSessionState, Source, SourceMembership } from "./types";
+import { getBindableSkills, globalSkillBindingId, membershipId, projectSkillBindingId, resolveSkill } from "./selectors";
+import { executeSkill } from "./skillExecutor";
+import { skillPolicyDefaults } from "./skillContract";
+import type { BrowserPage, DomainState, Id, MockSessionState, SkillCategory, SkillInputScope, Source, SourceMembership } from "./types";
 
 const now = "2026-08-05T12:00:00.000Z";
 
-function skillResult(skillId: string, input: string) {
-  switch (skillId) {
-    case "skill-translate-zh":
-      return "参与者会在准备做出决定时重新查看笔记，而不是在浏览时。";
-    case "skill-shorten":
-      return "People revisit notes when making decisions.";
-    case "skill-rewrite":
-      return "People return to their notes when a decision is due—not while they browse.";
-    case "skill-explain":
-      return "The note becomes useful later, when the reader needs evidence for a decision.";
-    case "skill-summarize":
-      return "Offline capture matters first; evidence review matters when a decision arrives.";
-    case "skill-decision-signal":
-      return "Decision signal: evidence must be available at the moment it can change a choice.";
-    default:
-      return input.trim();
-  }
-}
-
 function nextId(domain: DomainState, prefix: string): [string, DomainState] {
   return [`${prefix}-${domain.nextId}`, { ...domain, nextId: domain.nextId + 1 }];
+}
+
+function executeSkillRun(domain: DomainState, options: {
+  category: SkillCategory;
+  inputScope: SkillInputScope;
+  input: string;
+  explicitSkillId?: Id;
+  projectId?: Id | null;
+  contextSourceIds?: Id[];
+  activityId?: Id | null;
+}) {
+  const resolved = resolveSkill(domain, options.category, { explicitSkillId: options.explicitSkillId, projectId: options.projectId, inputScope: options.inputScope });
+  if (!resolved || !options.input.trim()) return null;
+  const [runId, afterRunId] = nextId(domain, "run");
+  const [candidateId, afterCandidateId] = nextId(afterRunId, "candidate");
+  const requestedContextSourceIds = (options.contextSourceIds ?? []).filter((sourceId) => Boolean(domain.sources[sourceId]));
+  const actualContextSourceIds = resolved.revision.projectContext === "never" ? [] : requestedContextSourceIds;
+  if (resolved.revision.projectContext === "required" && !actualContextSourceIds.length) return null;
+  const contextSources = actualContextSourceIds.map((sourceId) => domain.sources[sourceId]);
+  const content = executeSkill({ skill: resolved.skill, revision: resolved.revision, input: options.input, contextSources });
+  const run = {
+    id: runId,
+    activityId: options.activityId ?? null,
+    projectId: options.projectId && domain.projects[options.projectId] ? options.projectId : null,
+    status: "succeeded" as const,
+    actualContextSourceIds,
+    candidateId,
+    skillId: resolved.skill.id,
+    skillRevisionId: resolved.revision.id,
+    skillResolution: resolved.source,
+    inputScope: options.inputScope,
+    input: options.input,
+  };
+  const candidate = { id: candidateId, runId, content, contextSourceIds: actualContextSourceIds, citations: [], status: "ready" as const };
+  return {
+    domain: {
+      ...afterCandidateId,
+      runs: { ...afterCandidateId.runs, [runId]: run },
+      candidates: { ...afterCandidateId.candidates, [candidateId]: candidate },
+      recentSkillIds: [resolved.skill.id, ...afterCandidateId.recentSkillIds.filter((skillId) => skillId !== resolved.skill.id)].slice(0, 8),
+    },
+    run,
+    candidate,
+  };
+}
+
+function withoutSkillBindings(domain: DomainState, skillId: Id) {
+  return Object.fromEntries(Object.entries(domain.skillBindings).filter(([, binding]) => binding.skillId !== skillId));
 }
 
 function withMembership(domain: DomainState, projectId: string | null | undefined, sourceId: string, reason: SourceMembership["reason"]): DomainState {
@@ -117,6 +148,13 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
       const recording = state.surface.recording;
       if (!recording || recording.kind !== "voice-comment") return state;
       const [sourceId, nextDomain] = nextId(domain, "you-comment");
+      const projectId = nextDomain.tabs[recording.tabId]?.activeProjectId;
+      const transcription = executeSkillRun(nextDomain, { category: "transcription", inputScope: "voice-comment", input: event.transcript, projectId });
+      const afterTranscription = transcription?.domain ?? nextDomain;
+      const transcript = transcription?.candidate.content ?? event.transcript.trim();
+      const transformation = executeSkillRun(afterTranscription, { category: "transformation", inputScope: "voice-comment", input: transcript, projectId });
+      const afterSkills = transformation?.domain ?? afterTranscription;
+      const candidate = transformation?.candidate.content ?? transcript;
       const source: Source = {
         id: sourceId,
         origin: "you",
@@ -128,11 +166,12 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
         audio: { id: `${sourceId}-audio`, durationSeconds: 8 },
         revisions: [
           { id: `${sourceId}-raw`, kind: "raw", content: event.transcript, createdAt: now },
-          { id: `${sourceId}-candidate`, kind: "candidate", content: event.transcript, createdAt: now },
+          ...(transcription ? [{ id: `${sourceId}-normalized`, kind: "normalized" as const, content: transcript, createdAt: now, runId: transcription.run.id }] : []),
+          { id: `${sourceId}-candidate`, kind: "candidate", content: candidate, createdAt: now, runId: transformation?.run.id ?? transcription?.run.id },
         ],
       };
       return {
-        domain: { ...nextDomain, sources: { ...nextDomain.sources, [sourceId]: source } },
+        domain: { ...afterSkills, sources: { ...afterSkills.sources, [sourceId]: source } },
         surface: { ...state.surface, recording: null, selectedSourceId: sourceId },
       };
     }
@@ -160,7 +199,13 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
       const recording = state.surface.recording;
       if (!recording || recording.kind !== "voice-write") return state;
       const [sourceId, nextDomain] = nextId(domain, "you-write");
-      const transcript = event.transcript.trim();
+      const projectId = nextDomain.tabs[recording.tabId]?.activeProjectId;
+      const transcription = executeSkillRun(nextDomain, { category: "transcription", inputScope: "voice-write", input: event.transcript, projectId });
+      const afterTranscription = transcription?.domain ?? nextDomain;
+      const transcript = transcription?.candidate.content ?? event.transcript.trim();
+      const transformation = executeSkillRun(afterTranscription, { category: "transformation", inputScope: "voice-write", input: transcript, projectId });
+      const afterVoiceSkills = transformation?.domain ?? afterTranscription;
+      const transformed = transformation?.candidate.content ?? transcript;
       const source: Source = {
         id: sourceId,
         origin: "you",
@@ -171,19 +216,21 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
         parentSourceIds: [],
         audio: { id: `${sourceId}-audio`, durationSeconds: 7 },
         revisions: [
-          { id: `${sourceId}-raw`, kind: "raw", content: transcript, createdAt: now },
-          { id: `${sourceId}-candidate`, kind: "candidate", content: transcript, createdAt: now, transcriptionProfileId: event.transcriptionProfileId },
+          { id: `${sourceId}-raw`, kind: "raw", content: event.transcript.trim(), createdAt: now },
+          ...(transcription ? [{ id: `${sourceId}-normalized`, kind: "normalized" as const, content: transcript, createdAt: now, transcriptionProfileId: event.transcriptionProfileId, runId: transcription.run.id }] : []),
+          { id: `${sourceId}-candidate`, kind: "candidate", content: transformed, createdAt: now, transcriptionProfileId: event.transcriptionProfileId, runId: transformation?.run.id ?? transcription?.run.id },
         ],
       };
-      const projectId = domain.tabs[recording.tabId]?.activeProjectId;
-      const withSource = { ...nextDomain, sources: { ...nextDomain.sources, [sourceId]: source } };
+      const withSource = { ...afterVoiceSkills, sources: { ...afterVoiceSkills.sources, [sourceId]: source } };
+      const organization = projectId ? executeSkillRun(withSource, { category: "organization", inputScope: "project-sources", input: transformed, projectId, contextSourceIds: [sourceId] }) : null;
+      const afterOrganization = organization?.domain ?? withSource;
       const withSuggestion = projectId ? {
-        ...withSource,
+        ...afterOrganization,
         memberships: {
-          ...withSource.memberships,
-          [membershipId(projectId, sourceId)]: { id: membershipId(projectId, sourceId), projectId, sourceId, state: "suggested" as const, reason: "suggested" as const },
+          ...afterOrganization.memberships,
+          [membershipId(projectId, sourceId)]: { id: membershipId(projectId, sourceId), projectId, sourceId, state: "suggested" as const, reason: "suggested" as const, runId: organization?.run.id },
         },
-      } : withSource;
+      } : afterOrganization;
       return {
         domain: withSuggestion,
         surface: { ...state.surface, recording: null, selectedSourceId: sourceId },
@@ -192,14 +239,22 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
     case "retranscribe-voice-write": {
       const source = domain.sources[event.sourceId];
       if (!source || source.origin !== "you" || source.title !== "Voice write") return state;
+      const tab = Object.values(domain.tabs).find((item) => item.pageId === source.pageId) ?? domain.tabs[state.surface.activeTabId];
+      const projectId = tab?.activeProjectId;
+      const transcription = executeSkillRun(domain, { category: "transcription", inputScope: "voice-write", input: event.transcript, projectId });
+      const afterTranscription = transcription?.domain ?? domain;
+      const transcript = transcription?.candidate.content ?? event.transcript.trim();
+      const transformation = executeSkillRun(afterTranscription, { category: "transformation", inputScope: "voice-write", input: transcript, projectId });
+      const nextDomain = transformation?.domain ?? afterTranscription;
       const revision = {
         id: `${source.id}-candidate-${source.revisions.length + 1}`,
         kind: "candidate" as const,
-        content: event.transcript.trim(),
+        content: transformation?.candidate.content ?? transcript,
         createdAt: now,
         transcriptionProfileId: event.transcriptionProfileId,
+        runId: transformation?.run.id ?? transcription?.run.id,
       };
-      return { ...state, domain: { ...domain, sources: { ...domain.sources, [source.id]: { ...source, revisions: [...source.revisions, revision] } } } };
+      return { ...state, domain: { ...nextDomain, sources: { ...nextDomain.sources, [source.id]: { ...source, revisions: [...source.revisions, revision] } } } };
     }
     case "edit-voice-write": {
       const source = domain.sources[event.sourceId];
@@ -307,25 +362,32 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
     case "execute-command": {
       const activity = domain.activities[event.activityId];
       if (!activity?.parsedIntent) return state;
+      const resolved = resolveSkill(domain, "generation", { projectId: activity.parsedIntent.projectId, inputScope: "project-sources" });
+      if (!resolved) return state;
       const [runId, nextDomain] = nextId(domain, "run");
-      const actualContextSourceIds = event.contextSourceIds.filter((sourceId) => Boolean(nextDomain.sources[sourceId]));
+      const requestedContextSourceIds = event.contextSourceIds.filter((sourceId) => Boolean(nextDomain.sources[sourceId]));
+      const actualContextSourceIds = resolved.revision.projectContext === "never" ? [] : requestedContextSourceIds;
+      if (resolved.revision.projectContext === "required" && !actualContextSourceIds.length) return state;
       return {
         ...state,
         domain: {
           ...nextDomain,
           runs: {
             ...nextDomain.runs,
-            [runId]: { id: runId, activityId: activity.id, projectId: activity.parsedIntent.projectId, status: "running", actualContextSourceIds },
+            [runId]: { id: runId, activityId: activity.id, projectId: activity.parsedIntent.projectId, status: "running", actualContextSourceIds, skillId: resolved.skill.id, skillRevisionId: resolved.revision.id, skillResolution: resolved.source, inputScope: "project-sources", input: activity.transcript },
           },
         },
       };
     }
     case "generate-sourced-draft": {
       const run = domain.runs[event.runId];
-      if (!run) return state;
+      const skill = run?.skillId ? domain.skills[run.skillId] : undefined;
+      const revision = run?.skillRevisionId ? domain.skillRevisions[run.skillRevisionId] : undefined;
+      if (!run || !skill || !revision || !run.input) return state;
       const [candidateId, nextDomain] = nextId(domain, "candidate");
       const citations = event.citations.filter((citation) => run.actualContextSourceIds.includes(citation.sourceId));
-      const candidate = { id: candidateId, runId: run.id, content: event.content, contextSourceIds: [...run.actualContextSourceIds], citations, status: "ready" as const };
+      const content = executeSkill({ skill, revision, input: run.input, contextSources: run.actualContextSourceIds.map((sourceId) => domain.sources[sourceId]).filter(Boolean) });
+      const candidate = { id: candidateId, runId: run.id, content, contextSourceIds: [...run.actualContextSourceIds], citations, status: "ready" as const };
       return {
         domain: {
           ...nextDomain,
@@ -336,49 +398,31 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
       };
     }
     case "run-skill": {
-      const resolved = resolveSkill(domain, event.category, { explicitSkillId: event.explicitSkillId, projectId: event.projectId, inputScope: event.inputScope });
-      if (!resolved || !event.input.trim()) return state;
-      const [runId, afterRunId] = nextId(domain, "run");
-      const [candidateId, afterCandidateId] = nextId(afterRunId, "candidate");
-      const actualContextSourceIds = (event.contextSourceIds ?? []).filter((sourceId) => Boolean(domain.sources[sourceId]));
-      const run = {
-        id: runId,
-        activityId: null,
-        projectId: event.projectId && domain.projects[event.projectId] ? event.projectId : null,
-        status: "succeeded" as const,
-        actualContextSourceIds,
-        candidateId,
-        skillId: resolved.skill.id,
-        skillRevisionId: resolved.revision.id,
-        skillResolution: resolved.source,
-        inputScope: event.inputScope,
-        input: event.input,
-      };
-      const candidate = {
-        id: candidateId,
-        runId,
-        content: skillResult(resolved.skill.id, event.input),
-        contextSourceIds: actualContextSourceIds,
-        citations: [],
-        status: "ready" as const,
-      };
+      const executed = executeSkillRun(domain, event);
+      if (!executed) return state;
       return {
-        domain: {
-          ...afterCandidateId,
-          runs: { ...afterCandidateId.runs, [runId]: run },
-          candidates: { ...afterCandidateId.candidates, [candidateId]: candidate },
-          recentSkillIds: [resolved.skill.id, ...afterCandidateId.recentSkillIds.filter((skillId) => skillId !== resolved.skill.id)].slice(0, 8),
-        },
-        surface: { ...state.surface, activeCandidateId: candidateId },
+        domain: executed.domain,
+        surface: { ...state.surface, activeCandidateId: executed.candidate.id },
       };
     }
     case "adopt-skill-candidate": {
       const candidate = domain.candidates[event.candidateId];
       const run = candidate ? domain.runs[candidate.runId] : undefined;
       if (!candidate || candidate.status !== "ready" || !run?.skillId) return state;
+      const selectionTarget = event.selectionTargetId ? domain.selectionTargets[event.selectionTargetId] : undefined;
+      if (event.adoption === "replace" && (!selectionTarget || selectionTarget.value !== run.input)) return state;
+      const selectionTargets = selectionTarget ? {
+        ...domain.selectionTargets,
+        [selectionTarget.id]: {
+          ...selectionTarget,
+          value: candidate.content,
+          revisions: [...selectionTarget.revisions, { id: `${selectionTarget.id}-replacement-${selectionTarget.revisions.length + 1}`, kind: "replacement" as const, content: candidate.content, createdAt: now, runId: run.id }],
+          lastReplacement: { candidateId: candidate.id, previousValue: selectionTarget.value, insertedValue: candidate.content },
+        },
+      } : domain.selectionTargets;
       return {
         ...state,
-        domain: { ...domain, candidates: { ...domain.candidates, [candidate.id]: { ...candidate, status: "adopted", adoption: event.adoption } } },
+        domain: { ...domain, selectionTargets, candidates: { ...domain.candidates, [candidate.id]: { ...candidate, status: "adopted", adoption: event.adoption } } },
         surface: { ...state.surface, activeCandidateId: event.adoption === "copy" ? null : candidate.id },
       };
     }
@@ -395,12 +439,140 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
     case "undo-skill-adoption": {
       const candidate = domain.candidates[event.candidateId];
       const run = candidate ? domain.runs[candidate.runId] : undefined;
-      if (!candidate || candidate.status !== "adopted" || candidate.adoption !== "replace" || !run?.skillId) return state;
+      const selectionTarget = domain.selectionTargets[event.selectionTargetId];
+      if (!candidate || candidate.status !== "adopted" || candidate.adoption !== "replace" || !run?.skillId || selectionTarget?.lastReplacement?.candidateId !== candidate.id) return state;
       return {
         ...state,
-        domain: { ...domain, candidates: { ...domain.candidates, [candidate.id]: { ...candidate, status: "ready", adoption: undefined } } },
+        domain: {
+          ...domain,
+          selectionTargets: {
+            ...domain.selectionTargets,
+            [selectionTarget.id]: {
+              ...selectionTarget,
+              value: selectionTarget.lastReplacement.previousValue,
+              revisions: [...selectionTarget.revisions, { id: `${selectionTarget.id}-restored-${selectionTarget.revisions.length + 1}`, kind: "restored", content: selectionTarget.lastReplacement.previousValue, createdAt: now, runId: run.id }],
+              lastReplacement: undefined,
+            },
+          },
+          candidates: { ...domain.candidates, [candidate.id]: { ...candidate, status: "ready", adoption: undefined } },
+        },
         surface: { ...state.surface, activeCandidateId: candidate.id },
       };
+    }
+    case "create-my-skill": {
+      const name = event.name.trim();
+      const description = event.description.trim();
+      const instruction = event.instruction.trim();
+      if (!name || !instruction || !event.allowedInputScopes.length) return state;
+      const [skillId, afterSkillId] = nextId(domain, "skill");
+      const [revisionId, nextDomain] = nextId(afterSkillId, "skill-revision");
+      return {
+        ...state,
+        domain: {
+          ...nextDomain,
+          skills: {
+            ...nextDomain.skills,
+            [skillId]: { id: skillId, name, description, category: event.category, trigger: skillPolicyDefaults[event.category].trigger, origin: "user", allowedInputScopes: [...event.allowedInputScopes], revisionIds: [revisionId], currentRevisionId: revisionId, systemDefault: false, archived: false },
+          },
+          skillRevisions: {
+            ...nextDomain.skillRevisions,
+            [revisionId]: { id: revisionId, skillId, version: 1, instruction, outputFormat: event.outputFormat, languageTone: event.languageTone.trim(), projectContext: event.projectContext, resultBehavior: event.resultBehavior, createdAt: now },
+          },
+        },
+      };
+    }
+    case "revise-my-skill": {
+      const skill = domain.skills[event.skillId];
+      const currentRevision = skill ? domain.skillRevisions[skill.currentRevisionId] : undefined;
+      const name = event.name.trim();
+      const description = event.description.trim();
+      const instruction = event.instruction.trim();
+      if (!skill || skill.origin !== "user" || skill.archived || !currentRevision || !name || !instruction || !event.allowedInputScopes.length) return state;
+      if (skill.name === name && skill.description === description && currentRevision.instruction === instruction && skill.allowedInputScopes.join("|") === event.allowedInputScopes.join("|") && currentRevision.outputFormat === event.outputFormat && currentRevision.languageTone === event.languageTone.trim() && currentRevision.projectContext === event.projectContext && currentRevision.resultBehavior === event.resultBehavior) return state;
+      const [revisionId, nextDomain] = nextId(domain, "skill-revision");
+      const version = Math.max(...skill.revisionIds.map((id) => domain.skillRevisions[id]?.version ?? 0)) + 1;
+      return {
+        ...state,
+        domain: {
+          ...nextDomain,
+          skills: { ...nextDomain.skills, [skill.id]: { ...skill, name, description, allowedInputScopes: [...event.allowedInputScopes], revisionIds: [...skill.revisionIds, revisionId], currentRevisionId: revisionId } },
+          skillRevisions: { ...nextDomain.skillRevisions, [revisionId]: { id: revisionId, skillId: skill.id, version, instruction, outputFormat: event.outputFormat, languageTone: event.languageTone.trim(), projectContext: event.projectContext, resultBehavior: event.resultBehavior, createdAt: now } },
+        },
+      };
+    }
+    case "duplicate-skill": {
+      const source = domain.skills[event.skillId];
+      const sourceRevision = source ? domain.skillRevisions[source.currentRevisionId] : undefined;
+      if (!source || !sourceRevision) return state;
+      const [skillId, afterSkillId] = nextId(domain, "skill");
+      const [revisionId, nextDomain] = nextId(afterSkillId, "skill-revision");
+      return {
+        ...state,
+        domain: {
+          ...nextDomain,
+          skills: {
+            ...nextDomain.skills,
+            [skillId]: { ...source, id: skillId, name: event.name?.trim() || `${source.name} copy`, origin: "user", revisionIds: [revisionId], currentRevisionId: revisionId, systemDefault: false, archived: false },
+          },
+          skillRevisions: { ...nextDomain.skillRevisions, [revisionId]: { ...sourceRevision, id: revisionId, skillId, version: 1, createdAt: now } },
+        },
+      };
+    }
+    case "set-skill-archived": {
+      const skill = domain.skills[event.skillId];
+      if (!skill || skill.origin !== "user") return state;
+      return {
+        ...state,
+        domain: {
+          ...domain,
+          skills: { ...domain.skills, [skill.id]: { ...skill, archived: event.archived } },
+          pinnedSkillIds: event.archived ? domain.pinnedSkillIds.filter((id) => id !== skill.id) : domain.pinnedSkillIds,
+          skillBindings: event.archived ? withoutSkillBindings(domain, skill.id) : domain.skillBindings,
+        },
+      };
+    }
+    case "set-built-in-hidden": {
+      const skill = domain.skills[event.skillId];
+      if (!skill || skill.origin !== "built-in") return state;
+      const hiddenBuiltInSkillIds = event.hidden
+        ? Array.from(new Set([...domain.hiddenBuiltInSkillIds, skill.id]))
+        : domain.hiddenBuiltInSkillIds.filter((id) => id !== skill.id);
+      return {
+        ...state,
+        domain: {
+          ...domain,
+          hiddenBuiltInSkillIds,
+          pinnedSkillIds: event.hidden ? domain.pinnedSkillIds.filter((id) => id !== skill.id) : domain.pinnedSkillIds,
+          skillBindings: event.hidden ? withoutSkillBindings(domain, skill.id) : domain.skillBindings,
+        },
+      };
+    }
+    case "set-skill-pinned": {
+      const skill = domain.skills[event.skillId];
+      if (!skill || skill.archived || skill.category !== "page-selection" || domain.hiddenBuiltInSkillIds.includes(skill.id)) return state;
+      const pinnedSkillIds = event.pinned
+        ? Array.from(new Set([...domain.pinnedSkillIds, skill.id]))
+        : domain.pinnedSkillIds.filter((id) => id !== skill.id);
+      return { ...state, domain: { ...domain, pinnedSkillIds } };
+    }
+    case "set-global-skill-binding": {
+      const skill = domain.skills[event.skillId];
+      if (!skill || !getBindableSkills(domain, event.category).some((candidate) => candidate.id === skill.id)) return state;
+      const id = globalSkillBindingId(event.category);
+      return { ...state, domain: { ...domain, skillBindings: { ...domain.skillBindings, [id]: { id, level: "global", category: event.category, skillId: skill.id } } } };
+    }
+    case "set-project-skill-binding": {
+      const skill = domain.skills[event.skillId];
+      if (!domain.projects[event.projectId] || !skill || !getBindableSkills(domain, event.category).some((candidate) => candidate.id === skill.id)) return state;
+      const id = projectSkillBindingId(event.projectId, event.category);
+      return { ...state, domain: { ...domain, skillBindings: { ...domain.skillBindings, [id]: { id, level: "project", projectId: event.projectId, category: event.category, skillId: skill.id } } } };
+    }
+    case "reset-project-skill-binding": {
+      const id = projectSkillBindingId(event.projectId, event.category);
+      if (!domain.skillBindings[id]) return state;
+      const skillBindings = { ...domain.skillBindings };
+      delete skillBindings[id];
+      return { ...state, domain: { ...domain, skillBindings } };
     }
     case "restore-run": {
       const run = domain.runs[event.runId];
@@ -416,7 +588,12 @@ export function reduceMockSession(state: MockSessionState, event: MockEvent): Mo
         return source ? [{ sourceId, label: source.title, excerpt: source.revisions.at(-1)?.content ?? "" }] : [];
       });
       const run = { ...previous, id: runId, status: "succeeded" as const, candidateId };
-      const candidate = { id: candidateId, runId, content: "Retry completed with the saved request and the same actual Sources.", contextSourceIds: [...previous.actualContextSourceIds], citations, status: "ready" as const };
+      const skill = previous.skillId ? domain.skills[previous.skillId] : undefined;
+      const revision = previous.skillRevisionId ? domain.skillRevisions[previous.skillRevisionId] : undefined;
+      const content = skill && revision && previous.input
+        ? executeSkill({ skill, revision, input: previous.input, contextSources: previous.actualContextSourceIds.map((sourceId) => domain.sources[sourceId]).filter(Boolean) })
+        : "Retry completed with the saved request and the same actual Sources.";
+      const candidate = { id: candidateId, runId, content, contextSourceIds: [...previous.actualContextSourceIds], citations, status: "ready" as const };
       return {
         domain: { ...afterCandidateId, runs: { ...afterCandidateId.runs, [runId]: run }, candidates: { ...afterCandidateId.candidates, [candidateId]: candidate } },
         surface: { ...state.surface, activeCandidateId: candidateId },

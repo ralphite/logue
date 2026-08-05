@@ -16,3 +16,4 @@ export const StaticPageSelection: Story = { args: { scope: "selection" } };
 export const EditableSelectionReplaceAndUndo: Story = { args: { scope: "editable-selection" } };
 export const WholePageSummary: Story = { args: { scope: "page" } };
 export const MoreSkillsRunsImmediately: Story = { args: { scope: "selection", initialMoreOpen: true } };
+export const CopyFailureKeepsResult: Story = { args: { scope: "selection", copyMode: "failure" } };

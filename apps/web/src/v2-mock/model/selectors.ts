@@ -1,4 +1,5 @@
 import type { Candidate, DomainState, Id, MockSessionState, Skill, SkillCategory, SkillInputScope, SkillResolutionSource, SkillRevision, Source, SourceMembership } from "./types";
+import { skillPolicyDefaults } from "./skillContract";
 
 export const membershipId = (projectId: Id, sourceId: Id) => `${projectId}:${sourceId}`;
 export const globalSkillBindingId = (category: SkillCategory) => `global:${category}`;
@@ -12,9 +13,22 @@ export interface ResolvedSkill {
 
 function activeSkill(domain: DomainState, skillId: Id | undefined, category: SkillCategory, inputScope?: SkillInputScope) {
   const skill = skillId ? domain.skills[skillId] : undefined;
-  if (!skill || skill.archived || skill.category !== category) return undefined;
+  if (!skill || skill.archived || (skill.origin === "built-in" && domain.hiddenBuiltInSkillIds.includes(skill.id)) || skill.category !== category) return undefined;
   if (inputScope && !skill.allowedInputScopes.includes(inputScope)) return undefined;
   return domain.skillRevisions[skill.currentRevisionId] ? skill : undefined;
+}
+
+export function getBindableSkills(domain: DomainState, category: SkillCategory): Skill[] {
+  const requiredScopes = skillPolicyDefaults[category].allowedInputScopes;
+  return getActiveSkills(domain, category).filter((skill) => requiredScopes.every((scope) => skill.allowedInputScopes.includes(scope)));
+}
+
+export function getActiveSkills(domain: DomainState, category?: SkillCategory, inputScope?: SkillInputScope): Skill[] {
+  return Object.values(domain.skills).filter((skill) => {
+    if (skill.archived || (skill.origin === "built-in" && domain.hiddenBuiltInSkillIds.includes(skill.id))) return false;
+    if (category && skill.category !== category) return false;
+    return !inputScope || skill.allowedInputScopes.includes(inputScope);
+  });
 }
 
 export function resolveSkill(domain: DomainState, category: SkillCategory, options: { explicitSkillId?: Id; projectId?: Id | null; inputScope?: SkillInputScope } = {}): ResolvedSkill | undefined {
@@ -36,7 +50,8 @@ export function resolveSkill(domain: DomainState, category: SkillCategory, optio
 export function getPinnedSkills(domain: DomainState, category: SkillCategory, inputScope: SkillInputScope): Skill[] {
   return domain.pinnedSkillIds
     .map((skillId) => activeSkill(domain, skillId, category, inputScope))
-    .filter((skill): skill is Skill => Boolean(skill));
+    .filter((skill): skill is Skill => skill !== undefined)
+    .filter((skill) => !domain.hiddenBuiltInSkillIds.includes(skill.id));
 }
 
 export function getActiveTab(state: MockSessionState) {

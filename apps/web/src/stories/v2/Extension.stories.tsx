@@ -14,6 +14,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const CanonicalRoundTrip: Story = { args: { seed: "journey-start" } };
+export const SourcedCommandWithSkills: Story = { args: { seed: "canonical" } };
 export const TargetLost: Story = { args: { seed: "target-lost" } };
 export const UnlinkedVoiceComment: Story = {
   render: () => {

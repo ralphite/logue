@@ -23,5 +23,8 @@ export const LibraryAllActivity: Story = { render: () => <MockSessionProvider><L
 export const LocalHostSettings: Story = { args: { route: "settings" } };
 export const ProjectTranscriptionProfile: Story = { render: () => <MockSessionProvider><LogueWebApp initialRoute="settings" initialSettingsSection="Voice" /></MockSessionProvider> };
 export const SkillsConfiguration: Story = { render: () => <MockSessionProvider><LogueWebApp initialRoute="settings" initialSettingsSection="Skills" /></MockSessionProvider> };
+export const MySkillsManagement: Story = { render: () => <MockSessionProvider><LogueWebApp initialRoute="settings" initialSettingsSection="Skills" initialSkillsView="My Skills" /></MockSessionProvider> };
+export const GlobalSkillDefaults: Story = { render: () => <MockSessionProvider><LogueWebApp initialRoute="settings" initialSettingsSection="Skills" initialSkillsView="Global defaults" /></MockSessionProvider> };
+export const ProjectSkillInheritance: Story = { render: () => <MockSessionProvider><LogueWebApp initialRoute="projects" initialProjectSkillsOpen /></MockSessionProvider> };
 export const PrivacyAndModelBoundary: Story = { render: () => <MockSessionProvider><LogueWebApp initialRoute="settings" initialSettingsSection="Privacy" /></MockSessionProvider> };
 export const ProviderNeedsAttention: Story = { args: { route: "settings", seed: "provider-needs-attention" } };

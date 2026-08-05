@@ -1,4 +1,10 @@
 import type { MockSessionState } from "../model/types";
+import { skillPolicyDefaults } from "../model/skillContract";
+
+const revisionPolicy = (category: keyof typeof skillPolicyDefaults) => {
+  const { outputFormat, languageTone, projectContext, resultBehavior } = skillPolicyDefaults[category];
+  return { outputFormat, languageTone, projectContext, resultBehavior };
+};
 
 const canonicalScenario: MockSessionState = {
   domain: {
@@ -84,6 +90,14 @@ const canonicalScenario: MockSessionState = {
     targetSessions: {
       "email-target": { id: "email-target", tabId: "research-tab", label: "Reply to Maya", kind: "email", value: "Hi Maya,", isValid: true },
     },
+    selectionTargets: {
+      "article-b-selection": {
+        id: "article-b-selection",
+        pageId: "article-b",
+        value: "Participants returned to notes when preparing decisions, not while browsing.",
+        revisions: [{ id: "article-b-selection-original", kind: "original", content: "Participants returned to notes when preparing decisions, not while browsing.", createdAt: "2026-08-05T09:05:00.000Z" }],
+      },
+    },
     activities: {
       "activity-record-existing": { id: "activity-record-existing", sourceId: "activity-existing", projectId: "project-a", targetSessionId: "email-target", transcript: "Using Mobile research, draft a reply", parsedIntent: { action: "draft-reply", projectId: "project-a", output: "current-target" } },
       "activity-cancelled": { id: "activity-cancelled", sourceId: "activity-cancelled-source", projectId: "project-a", transcript: "Compare offline capture with evidence review behavior.", parsedIntent: { action: "draft-reply", projectId: "project-a", output: "current-target" } },
@@ -102,32 +116,35 @@ const canonicalScenario: MockSessionState = {
       },
     },
     skills: {
-      "skill-clean-transcript": { id: "skill-clean-transcript", name: "Clean up transcription", description: "Remove filler words while preserving meaning.", category: "transcription", origin: "built-in", allowedInputScopes: ["voice-write", "voice-comment"], revisionIds: ["skill-clean-transcript-r4"], currentRevisionId: "skill-clean-transcript-r4", systemDefault: true, archived: false },
-      "skill-translate-zh": { id: "skill-translate-zh", name: "Translate to Chinese", description: "Translate clearly without adding information.", category: "page-selection", origin: "built-in", allowedInputScopes: ["selection", "editable-selection", "page"], revisionIds: ["skill-translate-zh-r1"], currentRevisionId: "skill-translate-zh-r1", systemDefault: false, archived: false },
-      "skill-shorten": { id: "skill-shorten", name: "Shorten", description: "Keep the claim and remove repetition.", category: "page-selection", origin: "built-in", allowedInputScopes: ["selection", "editable-selection"], revisionIds: ["skill-shorten-r2"], currentRevisionId: "skill-shorten-r2", systemDefault: false, archived: false },
-      "skill-rewrite": { id: "skill-rewrite", name: "Rewrite", description: "Improve clarity without changing the claim.", category: "page-selection", origin: "built-in", allowedInputScopes: ["selection", "editable-selection"], revisionIds: ["skill-rewrite-r1"], currentRevisionId: "skill-rewrite-r1", systemDefault: false, archived: false },
-      "skill-explain": { id: "skill-explain", name: "Explain", description: "Explain the selected idea in plain language.", category: "page-selection", origin: "built-in", allowedInputScopes: ["selection", "editable-selection", "page"], revisionIds: ["skill-explain-r1"], currentRevisionId: "skill-explain-r1", systemDefault: true, archived: false },
-      "skill-summarize": { id: "skill-summarize", name: "Summarize", description: "Summarize the page around its main decision signal.", category: "page-selection", origin: "built-in", allowedInputScopes: ["page"], revisionIds: ["skill-summarize-r3"], currentRevisionId: "skill-summarize-r3", systemDefault: false, archived: false },
-      "skill-organize": { id: "skill-organize", name: "Suggest projects", description: "Suggest relevant Projects without moving Sources automatically.", category: "organization", origin: "built-in", allowedInputScopes: ["project-sources"], revisionIds: ["skill-organize-r1"], currentRevisionId: "skill-organize-r1", systemDefault: true, archived: false },
-      "skill-draft-reply": { id: "skill-draft-reply", name: "Draft reply", description: "Draft a concise reply grounded in actual Project Sources.", category: "generation", origin: "built-in", allowedInputScopes: ["project-sources"], revisionIds: ["skill-draft-reply-r2"], currentRevisionId: "skill-draft-reply-r2", systemDefault: true, archived: false },
-      "skill-decision-signal": { id: "skill-decision-signal", name: "Decision signal", description: "State what evidence should change the current decision.", category: "page-selection", origin: "user", allowedInputScopes: ["selection", "editable-selection", "page"], revisionIds: ["skill-decision-signal-r1", "skill-decision-signal-r2"], currentRevisionId: "skill-decision-signal-r2", systemDefault: false, archived: false },
-      "skill-field-voice": { id: "skill-field-voice", name: "Field research voice", description: "Preserve research terms and clean speech lightly.", category: "transcription", origin: "user", allowedInputScopes: ["voice-write", "voice-comment"], revisionIds: ["skill-field-voice-r1"], currentRevisionId: "skill-field-voice-r1", systemDefault: false, archived: false },
+      "skill-clean-transcript": { id: "skill-clean-transcript", name: "Clean up transcription", description: "Remove filler words while preserving meaning.", category: "transcription", trigger: "after-speech", origin: "built-in", allowedInputScopes: ["voice-write", "voice-comment"], revisionIds: ["skill-clean-transcript-r4"], currentRevisionId: "skill-clean-transcript-r4", systemDefault: true, archived: false },
+      "skill-clean-voice": { id: "skill-clean-voice", name: "Clear voice note", description: "Turn a rough voice note into concise written text.", category: "transformation", trigger: "after-speech", origin: "built-in", allowedInputScopes: ["voice-write", "voice-comment"], revisionIds: ["skill-clean-voice-r1"], currentRevisionId: "skill-clean-voice-r1", systemDefault: true, archived: false },
+      "skill-translate-zh": { id: "skill-translate-zh", name: "Translate to Chinese", description: "Translate clearly without adding information.", category: "page-selection", trigger: "explicit-action", origin: "built-in", allowedInputScopes: ["selection", "editable-selection", "page"], revisionIds: ["skill-translate-zh-r1"], currentRevisionId: "skill-translate-zh-r1", systemDefault: false, archived: false },
+      "skill-shorten": { id: "skill-shorten", name: "Shorten", description: "Keep the claim and remove repetition.", category: "page-selection", trigger: "explicit-action", origin: "built-in", allowedInputScopes: ["selection", "editable-selection", "page"], revisionIds: ["skill-shorten-r2"], currentRevisionId: "skill-shorten-r2", systemDefault: false, archived: false },
+      "skill-rewrite": { id: "skill-rewrite", name: "Rewrite", description: "Improve clarity without changing the claim.", category: "page-selection", trigger: "explicit-action", origin: "built-in", allowedInputScopes: ["selection", "editable-selection", "page"], revisionIds: ["skill-rewrite-r1"], currentRevisionId: "skill-rewrite-r1", systemDefault: false, archived: false },
+      "skill-explain": { id: "skill-explain", name: "Explain", description: "Explain the selected idea in plain language.", category: "page-selection", trigger: "explicit-action", origin: "built-in", allowedInputScopes: ["selection", "editable-selection", "page"], revisionIds: ["skill-explain-r1"], currentRevisionId: "skill-explain-r1", systemDefault: true, archived: false },
+      "skill-summarize": { id: "skill-summarize", name: "Summarize", description: "Summarize the page around its main decision signal.", category: "page-selection", trigger: "explicit-action", origin: "built-in", allowedInputScopes: ["selection", "editable-selection", "page"], revisionIds: ["skill-summarize-r3"], currentRevisionId: "skill-summarize-r3", systemDefault: false, archived: false },
+      "skill-organize": { id: "skill-organize", name: "Suggest projects", description: "Suggest relevant Projects without moving Sources automatically.", category: "organization", trigger: "background-organization", origin: "built-in", allowedInputScopes: ["project-sources"], revisionIds: ["skill-organize-r1"], currentRevisionId: "skill-organize-r1", systemDefault: true, archived: false },
+      "skill-draft-reply": { id: "skill-draft-reply", name: "Draft reply", description: "Draft a concise reply grounded in actual Project Sources.", category: "generation", trigger: "ask-draft", origin: "built-in", allowedInputScopes: ["project-sources"], revisionIds: ["skill-draft-reply-r2"], currentRevisionId: "skill-draft-reply-r2", systemDefault: true, archived: false },
+      "skill-decision-signal": { id: "skill-decision-signal", name: "Decision signal", description: "State what evidence should change the current decision.", category: "page-selection", trigger: "explicit-action", origin: "user", allowedInputScopes: ["selection", "editable-selection", "page"], revisionIds: ["skill-decision-signal-r1", "skill-decision-signal-r2"], currentRevisionId: "skill-decision-signal-r2", systemDefault: false, archived: false },
+      "skill-field-voice": { id: "skill-field-voice", name: "Field research voice", description: "Preserve research terms and clean speech lightly.", category: "transcription", trigger: "after-speech", origin: "user", allowedInputScopes: ["voice-write", "voice-comment"], revisionIds: ["skill-field-voice-r1"], currentRevisionId: "skill-field-voice-r1", systemDefault: false, archived: false },
     },
     skillRevisions: {
-      "skill-clean-transcript-r4": { id: "skill-clean-transcript-r4", skillId: "skill-clean-transcript", version: 4, instruction: "Remove filler words and repair punctuation. Preserve meaning and terminology.", createdAt: "2026-08-01T09:00:00.000Z" },
-      "skill-translate-zh-r1": { id: "skill-translate-zh-r1", skillId: "skill-translate-zh", version: 1, instruction: "Translate into natural Simplified Chinese without adding information.", createdAt: "2026-08-01T09:00:00.000Z" },
-      "skill-shorten-r2": { id: "skill-shorten-r2", skillId: "skill-shorten", version: 2, instruction: "Keep the claim and necessary evidence; remove repetition.", createdAt: "2026-08-02T09:00:00.000Z" },
-      "skill-rewrite-r1": { id: "skill-rewrite-r1", skillId: "skill-rewrite", version: 1, instruction: "Improve clarity and rhythm without changing the claim.", createdAt: "2026-08-01T09:00:00.000Z" },
-      "skill-explain-r1": { id: "skill-explain-r1", skillId: "skill-explain", version: 1, instruction: "Explain the idea in plain language and state why it matters.", createdAt: "2026-08-01T09:00:00.000Z" },
-      "skill-summarize-r3": { id: "skill-summarize-r3", skillId: "skill-summarize", version: 3, instruction: "Summarize the page around the main evidence and decision signal.", createdAt: "2026-08-03T09:00:00.000Z" },
-      "skill-organize-r1": { id: "skill-organize-r1", skillId: "skill-organize", version: 1, instruction: "Suggest Projects using confirmed Source content. Never move a Source silently.", createdAt: "2026-08-01T09:00:00.000Z" },
-      "skill-draft-reply-r2": { id: "skill-draft-reply-r2", skillId: "skill-draft-reply", version: 2, instruction: "Draft a concise reply using only the actual Sources selected for this Run.", createdAt: "2026-08-02T09:00:00.000Z" },
-      "skill-decision-signal-r1": { id: "skill-decision-signal-r1", skillId: "skill-decision-signal", version: 1, instruction: "Extract the decision implication from this evidence.", createdAt: "2026-08-03T09:00:00.000Z" },
-      "skill-decision-signal-r2": { id: "skill-decision-signal-r2", skillId: "skill-decision-signal", version: 2, instruction: "State the decision signal in one sentence, starting with ‘Decision signal:’.", createdAt: "2026-08-05T09:00:00.000Z" },
-      "skill-field-voice-r1": { id: "skill-field-voice-r1", skillId: "skill-field-voice", version: 1, instruction: "Preserve ‘offline capture’, ‘field researcher’, and ‘Logue’; remove filler words only.", createdAt: "2026-08-05T09:00:00.000Z" },
+      "skill-clean-transcript-r4": { id: "skill-clean-transcript-r4", skillId: "skill-clean-transcript", version: 4, instruction: "Remove filler words and repair punctuation. Preserve meaning and terminology.", ...revisionPolicy("transcription"), createdAt: "2026-08-01T09:00:00.000Z" },
+      "skill-clean-voice-r1": { id: "skill-clean-voice-r1", skillId: "skill-clean-voice", version: 1, instruction: "Turn rough spoken notes into concise written text without changing the claim.", ...revisionPolicy("transformation"), createdAt: "2026-08-01T09:00:00.000Z" },
+      "skill-translate-zh-r1": { id: "skill-translate-zh-r1", skillId: "skill-translate-zh", version: 1, instruction: "Translate into natural Simplified Chinese without adding information.", ...revisionPolicy("page-selection"), createdAt: "2026-08-01T09:00:00.000Z" },
+      "skill-shorten-r2": { id: "skill-shorten-r2", skillId: "skill-shorten", version: 2, instruction: "Keep the claim and necessary evidence; remove repetition.", ...revisionPolicy("page-selection"), createdAt: "2026-08-02T09:00:00.000Z" },
+      "skill-rewrite-r1": { id: "skill-rewrite-r1", skillId: "skill-rewrite", version: 1, instruction: "Improve clarity and rhythm without changing the claim.", ...revisionPolicy("page-selection"), createdAt: "2026-08-01T09:00:00.000Z" },
+      "skill-explain-r1": { id: "skill-explain-r1", skillId: "skill-explain", version: 1, instruction: "Explain the idea in plain language and state why it matters.", ...revisionPolicy("page-selection"), createdAt: "2026-08-01T09:00:00.000Z" },
+      "skill-summarize-r3": { id: "skill-summarize-r3", skillId: "skill-summarize", version: 3, instruction: "Summarize the page around the main evidence and decision signal.", ...revisionPolicy("page-selection"), createdAt: "2026-08-03T09:00:00.000Z" },
+      "skill-organize-r1": { id: "skill-organize-r1", skillId: "skill-organize", version: 1, instruction: "Suggest Projects using confirmed Source content. Never move a Source silently.", ...revisionPolicy("organization"), createdAt: "2026-08-01T09:00:00.000Z" },
+      "skill-draft-reply-r2": { id: "skill-draft-reply-r2", skillId: "skill-draft-reply", version: 2, instruction: "Draft a concise reply using only the actual Sources selected for this Run.", ...revisionPolicy("generation"), createdAt: "2026-08-02T09:00:00.000Z" },
+      "skill-decision-signal-r1": { id: "skill-decision-signal-r1", skillId: "skill-decision-signal", version: 1, instruction: "Extract the decision implication from this evidence.", ...revisionPolicy("page-selection"), createdAt: "2026-08-03T09:00:00.000Z" },
+      "skill-decision-signal-r2": { id: "skill-decision-signal-r2", skillId: "skill-decision-signal", version: 2, instruction: "State the decision signal in one sentence, starting with ‘Decision signal:’.", ...revisionPolicy("page-selection"), createdAt: "2026-08-05T09:00:00.000Z" },
+      "skill-field-voice-r1": { id: "skill-field-voice-r1", skillId: "skill-field-voice", version: 1, instruction: "Preserve ‘offline capture’, ‘field researcher’, and ‘Logue’; remove filler words only.", ...revisionPolicy("transcription"), createdAt: "2026-08-05T09:00:00.000Z" },
     },
     skillBindings: {
       "global:transcription": { id: "global:transcription", level: "global", category: "transcription", skillId: "skill-clean-transcript" },
+      "global:transformation": { id: "global:transformation", level: "global", category: "transformation", skillId: "skill-clean-voice" },
       "global:page-selection": { id: "global:page-selection", level: "global", category: "page-selection", skillId: "skill-shorten" },
       "global:organization": { id: "global:organization", level: "global", category: "organization", skillId: "skill-organize" },
       "global:generation": { id: "global:generation", level: "global", category: "generation", skillId: "skill-draft-reply" },
@@ -136,6 +153,7 @@ const canonicalScenario: MockSessionState = {
     },
     pinnedSkillIds: ["skill-translate-zh", "skill-shorten", "skill-decision-signal"],
     recentSkillIds: ["skill-rewrite", "skill-explain"],
+    hiddenBuiltInSkillIds: [],
     documents: { "document-brief": { id: "document-brief", projectId: "project-a", title: "Mobile research reply", revisionIds: ["document-brief-r1"] } },
     documentRevisions: {
       "document-brief-r1": { id: "document-brief-r1", documentId: "document-brief", content: "Evidence-led reply outline.", sourceIds: ["web-a", "you-a"], runId: "run-existing" },

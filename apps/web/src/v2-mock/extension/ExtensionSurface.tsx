@@ -36,6 +36,7 @@ function ExtensionSurfaceContent() {
   const [emailValue, setEmailValue] = useState(target?.value ?? "Hi Maya,");
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandText, setCommandText] = useState("Using Mobile research, draft a reply");
+  const [commandError, setCommandError] = useState<string | null>(null);
   const [runId, setRunId] = useState<Id | null>(null);
   const [copiedCandidateId, setCopiedCandidateId] = useState<Id | null>(null);
   const [logueRoute, setLogueRoute] = useState<"projects" | "library" | "activity" | null>(null);
@@ -84,12 +85,16 @@ function ExtensionSurfaceContent() {
     const activityId = surface.commandActivityId;
     if (!activityId || !project) return;
     const contextSourceIds = getProjectSources(domain, project.id).map((source) => source.id).slice(0, 4);
+    if (!contextSourceIds.length) {
+      setCommandError(`${project.name} has no Project Sources yet. Add evidence before drafting.`);
+      return;
+    }
+    setCommandError(null);
     const nextRunId = `run-${domain.nextId}`;
     dispatch({ type: "execute-command", activityId, contextSourceIds });
     dispatch({
       type: "generate-sourced-draft",
       runId: nextRunId,
-      content: "The research points to one clear priority: keep offline capture connected to the moment a decision is made. That lets people return to the evidence and the judgment behind it without recreating context.",
       citations: contextSourceIds.slice(0, 2).map((sourceId, index) => ({ sourceId, label: index === 0 ? "Article A" : "Your thought", excerpt: sourceContent(domain.sources[sourceId]) })),
     });
     setRunId(nextRunId);
@@ -166,6 +171,7 @@ function ExtensionSurfaceContent() {
                 {surface.commandActivityId ? <div style={{ marginTop: 8, color: "var(--v2-ink-soft)", fontSize: 13 }}>Draft reply · {project?.name ?? "Choose a project"} · Email</div> : null}
                 {!surface.commandActivityId ? <button type="button" style={{ ...primaryStyle, marginTop: 10 }} onClick={parseCommand} disabled={!project || !target?.isValid}>Parse command</button> : null}
                 {surface.commandActivityId && !runId ? <button type="button" style={{ ...primaryStyle, marginTop: 10 }} onClick={runCommand}>Generate draft</button> : null}
+                {commandError ? <p role="alert" style={{ margin: "9px 0 0", color: "var(--v2-danger)", fontSize: 12 }}>{commandError}</p> : null}
               </section> : null}
               {voiceWriteSource && voiceWriteCandidate && target?.isValid && !voiceWriteClosed ? <section style={{ marginTop: 12, border: "1px solid var(--v2-accent-line)", borderRadius: 9, padding: 10, background: "var(--v2-surface)" }} aria-label="Saved voice write"><div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 8, color: "var(--v2-muted)", fontSize: 12 }}><span>Saved to Library · {voiceWriteCandidate.transcriptionProfileId === "project-a" ? "Mobile research profile" : voiceWriteCandidate.transcriptionProfileId === "one-shot" ? "One-time vocabulary" : "Global voice profile"}</span><span>{voiceWriteSource.revisions.filter((revision) => revision.kind === "candidate").length} transcript version{voiceWriteSource.revisions.filter((revision) => revision.kind === "candidate").length === 1 ? "" : "s"}</span></div><textarea aria-label="Voice write candidate" value={voiceWriteCandidate.content} onChange={(event) => dispatch({ type: "edit-voice-write", sourceId: voiceWriteSource.id, content: event.target.value })} style={{ width: "100%", minHeight: 60, resize: "vertical", border: 0, outline: 0, background: "transparent", color: "var(--v2-ink)", lineHeight: 1.55 }} /><div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 8 }}><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}><button type="button" style={buttonStyle} onClick={() => dispatch({ type: "retranscribe-voice-write", sourceId: voiceWriteSource.id, transcriptionProfileId: voiceProfileId, transcript: voiceProfileId === "project-a" ? "Thanks — keep the field evidence connected to the decision." : voiceProfileId === "one-shot" ? "Thanks — keep the field evidence connected to the decision memo." : "Thanks — I’ll keep the evidence connected to the decision." })}>Re-transcribe with {voiceProfileLabel}</button><button type="button" style={buttonStyle} onClick={() => setLogueRoute("library")}>Open in Library</button><button type="button" style={buttonStyle} onClick={() => setVoiceWriteClosed(true)}>Close</button></div><button type="button" style={primaryStyle} onClick={() => { dispatch({ type: "insert-voice-write", sourceId: voiceWriteSource.id, targetSessionId: target.id }); setInsertedVoiceWriteSourceId(voiceWriteSource.id); }}>Insert</button></div>{voiceWriteMembership?.state === "suggested" ? <div className="v2-recovery-card" style={{ marginTop: 10 }}><p style={{ margin: 0 }}>Suggested for {project?.name}. This voice write is saved, but not in Project Context.</p><div style={{ display: "flex", gap: 6, marginTop: 8 }}><button type="button" style={mutedButtonStyle} onClick={() => project && dispatch({ type: "set-source-membership", sourceId: voiceWriteSource.id, projectId: project.id, state: "added" })}>Add to project</button><button type="button" style={buttonStyle} onClick={() => project && dispatch({ type: "set-source-membership", sourceId: voiceWriteSource.id, projectId: project.id, state: "saved-only" })}>Keep saved only</button></div></div> : null}</section> : null}
               {voiceWriteSource && voiceWriteClosed ? <div className="v2-recovery-card" style={{ marginTop: 12 }}><p style={{ margin: 0 }}>Voice write saved. Closing the review did not remove it.</p><button type="button" style={{ ...buttonStyle, marginTop: 8 }} onClick={() => setLogueRoute("library")}>Find in Library</button></div> : null}

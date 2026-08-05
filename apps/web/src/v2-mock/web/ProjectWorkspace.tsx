@@ -1,12 +1,13 @@
-import { PanelRightClose } from "lucide-react";
+import { PanelRightClose, Settings2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { IconButton } from "../../components/ui";
+import { Button, IconButton } from "../../components/ui";
 import { Tooltip, TooltipProvider } from "../../components/Tooltip";
 import { useMockSession } from "../runtime/MockSessionProvider";
 import { OriginLabel } from "../primitives/OriginLabel";
 import { ProjectComposer } from "../primitives/ProjectComposer";
 import { SourceBundleView } from "../primitives/SourceBundleView";
 import { ProjectShell, type V2PrimaryRoute } from "./ProjectShell";
+import { ProjectSkillSettings } from "./ProjectSkillSettings";
 
 function currentText(revisions: Array<{ content: string; kind: string }>) {
   return revisions.filter((revision) => revision.kind === "adopted").at(-1)?.content ?? revisions.at(-1)?.content ?? "";
@@ -45,9 +46,10 @@ function ProjectSources({ projectId, onClose }: { projectId: string; onClose: ()
   );
 }
 
-export function ProjectWorkspace({ onRouteChange, onProjectChange, onOpenContext }: { onRouteChange: (route: V2PrimaryRoute) => void; onProjectChange: (projectId: string) => void; onOpenContext?: () => void }) {
+export function ProjectWorkspace({ onRouteChange, onProjectChange, onOpenContext, initialProjectSkillsOpen = false }: { onRouteChange: (route: V2PrimaryRoute) => void; onProjectChange: (projectId: string) => void; onOpenContext?: () => void; initialProjectSkillsOpen?: boolean }) {
   const { state, dispatch } = useMockSession();
   const [inspectorOpen, setInspectorOpen] = useState(() => window.innerWidth >= 980);
+  const [projectSkillsOpen, setProjectSkillsOpen] = useState(initialProjectSkillsOpen);
   const [request, setRequest] = useState("");
   const projectId = state.domain.tabs[state.surface.activeTabId]?.activeProjectId ?? "project-a";
   const project = state.domain.projects[projectId];
@@ -72,11 +74,12 @@ export function ProjectWorkspace({ onRouteChange, onProjectChange, onOpenContext
       activeProjectId={project.id}
       onRouteChange={onRouteChange}
       onProjectChange={onProjectChange}
+      topbarActions={<Button size="sm" onClick={() => { setProjectSkillsOpen(true); setInspectorOpen(false); }}><Settings2 aria-hidden="true" size={15} />Project settings</Button>}
       inspectorOpen={inspectorOpen}
       onInspectorOpenChange={setInspectorOpen}
-      inspector={<ProjectSources projectId={projectId} onClose={() => setInspectorOpen(false)} />}
+      inspector={projectSkillsOpen ? undefined : <ProjectSources projectId={projectId} onClose={() => setInspectorOpen(false)} />}
     >
-      <div className="v2-editor-scroll">
+      {projectSkillsOpen ? <ProjectSkillSettings projectId={projectId} onClose={() => setProjectSkillsOpen(false)} /> : <><div className="v2-editor-scroll">
         <article className="v2-editor-axis" aria-label="Project document">
           <div className="v2-page-heading-copy">
             <div className="v2-editor-eyebrow">Document</div>
@@ -100,7 +103,7 @@ export function ProjectWorkspace({ onRouteChange, onProjectChange, onOpenContext
       </div>
       <div className="v2-composer-wrap">
         <ProjectComposer value={request} onChange={setRequest} onSubmit={() => setRequest("")} placeholder="Ask or draft with Mobile research" />
-      </div>
+      </div></>}
     </ProjectShell>
   );
 }
