@@ -14,7 +14,6 @@
 | P1 | Selection Skills 最终防护（F06、F18） | IN_PROGRESS | Document 与当前 unpacked Extension 的 textarea/contenteditable 已真实通过菜单稳定、外部关闭、重新选择及多行写回。当前构建已在真实 Mac Chrome 的 Google 顶层输入框验证：`Draft reply` 后立即 `Esc`，等待隔离 Gemini 返回，原输入不变、菜单不重开、页面不提交，run 无 `adopted_output`。仍缺当前 Release 的同一路径，以及切换选区/目标/SPA 路由后的迟到结果验证。 | 当前 Release 在真实 Chrome 完成取消与漂移回归，原文保持不变，菜单不被迟到事件唤回，提交计数为 0。 |
 | P1 | 自动整理与历史资料（B06、F05） | READY_FOR_REAL_ENV | 当前真实服务只有两条无可判断语义的录音测试，均为 `Unfiled` / `Needs review`；没有待安全迁移的旧资料，故不对现有数据批量重分类。新资料的高/低置信分类、人工确认不可覆盖已有真实验证。 | 新增有意义的真实资料后，验证高置信安静归档；低置信显示可理解理由且人工确认在服务重启后不被后台覆盖。 |
 | P1 | 语义检索 | IN_PROGRESS | Gemini 已对资料与文档返回受限的语义排序和理由，只有完整查询短语才算直接本地命中，12 秒模型失败后回到本地；真实 Stream 已以 `homes for sale` 找到既有 Redfin 资料并在 Reload 后复验，中文长句也不再被双字重叠误标为正文命中。当前真实文档数为 0，尚未有人类文档查询集可验收。 | 以真实文档和资料查询集验证语义召回、排序、解释及长期用量；不能将本地字段命中说明当作语义检索。 |
-| P1 | 全产品一致性终审（F15） | IN_PROGRESS | Settings 内容轴与焦点、Skills 编辑密度仍需最终统一；之后还缺两名 fresh-context 独立终审。 | 修复真实运行界面；两名独立审查者均无未解决 P0/P1，Notion/ChatGPT 对照达到目标。 |
 | P1 | Release 跨机验收（F13） | READY_FOR_REAL_ENV | `v0.2.10` 的 Python-only 跨平台包、公开校验和、独立 Extension、服务首装/覆盖和数据保留已通过隔离验证；仍缺另一台真实 Linux/Mac 的服务安装、Chrome Load unpacked/Reload、数据保留和覆盖升级。 | 从公开 Release 在另一台机器完成首次安装和覆盖升级，真实数据不被覆盖，失败可回滚。 |
 
 ## 维护规则
