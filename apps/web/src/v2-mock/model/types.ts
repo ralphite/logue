@@ -1,0 +1,173 @@
+/**
+ * Shared, normalized state for the V2 mock. Domain data deliberately has no
+ * UI-only flags: every surface reads the same durable product state.
+ */
+export type Id = string;
+
+export type SourceOrigin = "web" | "you" | "ai";
+export type SourceStatus = "saved" | "activity";
+export type MembershipState = "saved-only" | "added" | "suggested" | "excluded" | "duplicate-linked";
+export type RunStatus = "running" | "succeeded" | "failed" | "cancelled";
+export type CandidateStatus = "ready" | "adopted" | "dismissed";
+
+export interface Project {
+  id: Id;
+  name: string;
+  goal: string;
+}
+
+export interface BrowserPage {
+  id: Id;
+  url: string;
+  title: string;
+  selection: string;
+  snapshot: string;
+  webSourceId?: Id;
+}
+
+export interface BrowserTab {
+  id: Id;
+  pageId: Id;
+  activeProjectId: Id | null;
+}
+
+export interface SourceRevision {
+  id: Id;
+  kind: "raw" | "normalized" | "candidate" | "adopted";
+  content: string;
+  createdAt: string;
+  transcriptionProfileId?: string;
+}
+
+export interface Source {
+  id: Id;
+  origin: SourceOrigin;
+  status: SourceStatus;
+  title: string;
+  createdAt: string;
+  pageId?: Id;
+  commentsOnSourceId?: Id;
+  parentSourceIds: Id[];
+  revisions: SourceRevision[];
+  audio?: { id: Id; durationSeconds: number };
+  activityKind?: "voice-command" | "ask" | "draft";
+}
+
+export interface SourceMembership {
+  id: Id;
+  projectId: Id;
+  sourceId: Id;
+  state: MembershipState;
+  reason: "tab-authorized" | "user-selected" | "suggested" | "duplicate";
+}
+
+export interface TargetSession {
+  id: Id;
+  tabId: Id;
+  label: string;
+  kind: "email" | "document" | "input";
+  value: string;
+  isValid: boolean;
+  lastInsertion?: { candidateId: Id; previousValue: string; insertedValue: string };
+}
+
+export interface Activity {
+  id: Id;
+  sourceId: Id;
+  projectId: Id | null;
+  targetSessionId?: Id;
+  transcript: string;
+  parsedIntent?: { action: "draft-reply"; projectId: Id; output: "current-target" };
+}
+
+export interface Citation {
+  sourceId: Id;
+  label: string;
+  excerpt: string;
+}
+
+export interface Candidate {
+  id: Id;
+  runId: Id;
+  content: string;
+  contextSourceIds: Id[];
+  citations: Citation[];
+  status: CandidateStatus;
+}
+
+export interface Run {
+  id: Id;
+  activityId: Id;
+  projectId: Id;
+  status: RunStatus;
+  actualContextSourceIds: Id[];
+  candidateId?: Id;
+}
+
+export interface DocumentRevision {
+  id: Id;
+  documentId: Id;
+  content: string;
+  sourceIds: Id[];
+  runId?: Id;
+}
+
+export interface Document {
+  id: Id;
+  projectId: Id;
+  title: string;
+  revisionIds: Id[];
+}
+
+export interface ProviderState {
+  id: "voice" | "ai";
+  label: string;
+  status: "ready" | "needs-attention";
+}
+
+export interface PendingCapture {
+  id: Id;
+  sourceId: Id;
+  state: "pending" | "uploaded" | "failed";
+}
+
+export interface HostState {
+  status: "ready" | "offline";
+  providers: Record<ProviderState["id"], ProviderState>;
+  pendingCaptures: Record<Id, PendingCapture>;
+}
+
+export interface DomainState {
+  projects: Record<Id, Project>;
+  pages: Record<Id, BrowserPage>;
+  tabs: Record<Id, BrowserTab>;
+  sources: Record<Id, Source>;
+  memberships: Record<Id, SourceMembership>;
+  targetSessions: Record<Id, TargetSession>;
+  activities: Record<Id, Activity>;
+  runs: Record<Id, Run>;
+  candidates: Record<Id, Candidate>;
+  documents: Record<Id, Document>;
+  documentRevisions: Record<Id, DocumentRevision>;
+  host: HostState;
+  nextId: number;
+}
+
+/** UI state is intentionally separate: it may be reset without data loss. */
+export interface SurfaceState {
+  activeTabId: Id;
+  selectedSourceId: Id | null;
+  selectedTargetSessionId: Id | null;
+  activeCandidateId: Id | null;
+  recording:
+    | { kind: "voice-comment"; tabId: Id; pageId: Id }
+    | { kind: "voice-write"; tabId: Id; pageId: Id; targetSessionId: Id }
+    | null;
+  commandActivityId: Id | null;
+  openCitationSourceId: Id | null;
+}
+
+export interface MockSessionState {
+  domain: DomainState;
+  surface: SurfaceState;
+}
