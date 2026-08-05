@@ -390,3 +390,34 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 继续只显示状态文案，或为四项操作各做独立设置页面。前者是死路；后者对低频本地操作过重，并破坏 Settings 的安静阅读轴。
 - **已有证据：** 冻结后的独立产品设计复审复现 `Settings → Export & Backup → Prepare export` 仅改变提示文本，没有选择、下载或终态，判为 P1。
 - **开放问题：** 真实 Finder、浏览器扩展页、压缩包格式与下载写入在实现阶段连接本机系统；mock 先固定用户可见的范围选择、确认与完成语义。
+
+### DR-035 — 关键用户旅程使用独立的引导式 Demo，而不进入产品界面
+
+- **优先级：** V2 mock / P0
+- **状态：** 已确认设计合同；实现与真实浏览器验收进行中
+- **决定：** Storybook 为每条重要 CUJ 提供独立 Guided Demo。引导层只存在于 Demo：用柔和脉冲热点标出真实可操作控件，并在旁边用两句以内说明“现在做什么”和“完成后发生什么”。用户必须操作真实控件且达到对应持久终态后才前进；不提供虚构的 Next、替代按钮或成功状态。引导显示进度，支持 Back、Restart 和 Skip；Back/Restart 必须同时恢复共享 domain state 与该表面的局部 UI checkpoint。
+- **用户可见影响：** 新用户或评审者可直接完成一条真实旅程，而不用猜 Story 中下一步点哪里；退出引导后产品界面不残留教程 chrome。Canonical round trip 与 J2–J9、恢复矩阵分别演示，避免一条过长的 mega-tour。
+- **替代方案：** 在每屏常驻解释文字、只监听 click 自动前进、或录制视频。常驻说明会污染产品信息层级；click 不能证明操作成功；视频不能验证真实控件和状态连续性。
+- **已有证据：** 用户明确要求所有重要 CUJ 都有 Demo，并在任意 UI 状态显示可执行操作的动态屏上指示和就近说明。2026-08-05 的独立 `logue_product_designer` 预审给出 GO，但限定为 demo-only overlay，并要求真实语义完成条件、checkpoint 恢复、reduced-motion 与目标缺失时的本地错误。
+- **开放问题：** 先用 canonical journey 验证共享 checkpoint 与语义推进合同；通过后复用到其余 CUJ。视觉只修正明显遮挡、不可读和焦点问题，不为教程层做低价值像素精修。
+
+### DR-036 — 高频默认路径隐藏持久化步骤，只在高级路径披露控制
+
+- **优先级：** V2 产品 / P0
+- **状态：** 用户已确认；全旅程审计与 mock 重构进行中
+- **决定：** Logue 的高频动作必须围绕用户意图，而不是 Source、Run、membership 或 linking 等内部对象设计。默认路径只询问完成意图所必需的决定；已授权、可撤销且低风险的保存、转写、关联与分类在后台安静完成。复杂配置、文本输入、标签、多 Project、分类理由、版本与 lineage 进入已打开的 Side Panel 或 Web App 渐进披露。
+- **首个强制应用：** 用户选择网页文字后直接出现轻量 Mic。点击开始录音，录音态只显示 `Accept ↵` 与 `Cancel Esc`；Accept 同时停止、永久保存原音/转写、创建 Web + You Comment bundle，并按当前 tab 已授权的 active Project 规则关联。Cancel 放弃未完成录音。无 active Project 时保持 Saved only，再在 Side Panel 非阻塞建议归类。
+- **用户可见影响：** 选区语音 Comment 从 `Add comment → Voice → Stop → Link comment` 四次点击压缩为 `Mic → Accept` 两次点击；用户不需要先理解 Comment bundle 或 Project membership。打开 Side Panel 后仍能改文字、加 tag、换/加多个 Project、查看分类原因与原始版本。
+- **替代方案：** 保留显式 Stop 与 Link 以逐步展示数据安全，或默认打开完整 Comment composer。两者都把系统工作转嫁给高频用户，并让核心价值低于普通语音批注工具。
+- **已有证据：** 2026-08-05 用户首次试用 Canonical Guided Demo 时直接指出四步路径过重，并明确给出两次点击与快捷键模型。当前 Chrome 截图也证明用户必须依次经过 Comment composer、Recording Stop 和 Link Comment 三个中间容器。
+- **开放问题：** 全部 J1–J9 需要按相同标准重新审计；只有真实不确定、不可撤销或高影响的动作允许阻断式确认。
+
+### DR-037 — Skills 采用两种来源、两层绑定和一次点击执行
+
+- **优先级：** V2 产品 / P0
+- **状态：** 产品合同已更新；共享 domain、四级 resolver 与 Selection 一击执行已通过测试和浏览器验证，Global / Project 管理尚未实现
+- **决定：** Skills 只有 Built-in 与 My Skill 两种来源；Global 和 Project-specific 是绑定/覆盖层，不复制为新的对象类型。运行时按 `explicit > Project binding/override > Global binding/default > system default` 解析唯一 revision。选区菜单直接显示 pinned / recent 的具体 Skill，点击一次立即运行；`More Skills…` 选择后也立即运行，不再出现第二次 `Run Skill`。结果只显示场景动作，例如 `Replace`、`Copy`、`Insert`、`Accept` 与 `Cancel`。通用 `Save` 禁止使用；只有物化永久 AI Source 时显示 `Keep in Logue`，写入 Document 时显示 `Save as document`。
+- **用户可见影响：** 用户无需理解 Skill 层级就能一击完成高频转换；需要时仍可在 Settings 创建、编辑、复制、归档 My Skills，在 Global 设置默认/置顶，在 Project 继承、覆盖或 Reset，并从 Run details 核验实际 revision。
+- **替代方案：** 把 built-in / global / custom / Project-specific 做成四份重复 Skill，或先点 `Run Skill` 再选再运行。前者会产生不清楚的所有权和同步语义；后者把配置模型暴露给高频动作。
+- **已有证据：** 三路独立完整性审查均发现当前 mock 没有 Skill domain、revision、Global/Project binding 或真实管理，Selection `Run Skill` 实际硬编码 Explain，`Save` 与 Settings `Edit` 为静态控件。用户明确指出完整性不足、二次点击与 Save 语义不可理解。
+- **开放问题：** 无。实现先建立共享 Skill resolver 与持久 domain state，再连接 Selection、Voice、Organization、Ask/Draft 和 Settings；未连接的可见控件一律按缺失处理。

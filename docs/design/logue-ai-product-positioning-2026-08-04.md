@@ -172,7 +172,7 @@ PM、Founder、Researcher、Analyst、Consultant、Writer 或 UX Researcher 只�
 
 ## 5. 产品目标与衡量方式
 
-### 5.1 四个当前产品目标
+### 5.1 五个当前产品目标
 
 #### G1 — 零丢失的主动输入
 
@@ -195,6 +195,12 @@ Logue 必须帮助用户把相关、重要、新颖的 Sources 放进正确 Proj
 #### G4 — 建立可核验的信任
 
 任何关键结果都能回到实际使用的 Source；原始内容、转换结果和最终采用版不相互冒充；AI 不静默扩大 Context 或可见范围。
+
+#### G5 — 让最高频意图几乎没有操作负担
+
+Logue 必须让用户在当前页面用最少必要动作完成记录、评论、听写和采用，不要求用户先理解或操作内部持久化模型。默认流程使用渐进披露：快速路径只显示当前决定，高级控制进入 Side Panel 或 Web App。
+
+成功不是 “功能入口都可见”，而是用户无需教学就能完成核心动作；Selection Voice Comment 的基线是 `Mic → Accept` 两次点击，并同时提供 `Enter / Esc` 键盘等价操作。
 
 ### 5.2 North Star
 
@@ -290,6 +296,20 @@ AI 可以转写、整理、分类、建议和生成，但：
 - 官网 logue.ai 负责介绍、下载与文档，不承担当前数据账号；
 - Export、Backup、Delete 和模型连接属于当前 Logue Host 设置。
 
+### 6.10 最快主路径，渐进披露高级控制
+
+Logue 的高频默认路径围绕用户正在完成的意图设计，不围绕 Source、Run、membership、linking 或 transcription revision 等内部对象设计。
+
+- 默认路径只要求当前意图不可缺少的用户决定；
+- 已授权、可撤销、低风险的保存、转写、来源关联和分类在后台安静完成；
+- 不把 `Stop → Save → Link → Add to Project` 之类系统状态逐项变成按钮；
+- 只有真实不确定、不可撤销、高影响或隐私边界变化才阻断并要求确认；
+- 文本输入、标签、多 Project、分类理由、版本、lineage 和自定义 Skills 通过已打开的 Side Panel 或 Web App 渐进披露；
+- 快速路径必须支持清晰、可预测的键盘等价操作，并在完成后保留局部 Undo 或可恢复入口；
+- Guided Demo 暴露出的额外步骤首先视为产品 UX 缺陷，不能用教程说明来合理化。
+
+首个强制基线是 Selection Voice Comment：选中文字后直接出现轻量 Mic；点击后只显示 `Accept ↵` 与 `Cancel Esc`。Accept 同时停止录音、保存原音与转写、创建 Comment bundle，并应用当前 tab 已授权的 Project 规则；Cancel 放弃本次未完成录音。无 active Project 时保持 Saved only，在 Side Panel 非阻塞建议归类。
+
 ---
 
 ## 7. 产品模型与术语
@@ -375,8 +395,9 @@ AI 可以转写、整理、分类、建议和生成，但：
 | --- | --- | --- | --- | --- |
 | Voice Write → Stop | 1 个 You Source；包含 audio、raw transcript、normalized candidate，Insert 后追加 adopted revision | Saved content | 默认 Saved only；即使 tab 有 active Project 也只 Suggest | 删除 Source 同时删除其 audio/revisions；不撤销已写入宿主的文字 |
 | Save page/selection，无 Comment | 1 个 Web Source | Saved content | 按 tab Project 授权加入，否则 Suggest | 删除 Web Source 不自动删除引用它的 Comment；Comment 保留必要快照/tombstone |
-| Voice Comment → Stop，尚未 Save | 立即建立 1 个 Saved-only You Comment Source，保留 audio、transcript、Candidate 与待关联的页面/选区 target metadata；不建立 Web Source 或 membership | Saved content 中显示 Unlinked comment，可 Finish linking | 无；必须完成 Save 才能关联 Web evidence 和 Project | Esc 只关闭待关联界面；用户之后可 Finish linking 或明确 Delete |
-| Page/Selection Comment → Save | 复用已保存的 You Comment Source；创建或复用 1 个 Web Source，并以 comments-on 关系连接；文字 Comment 则在 Save 时新建 You Source | 作为一个 bundle 显示，可展开为 Web / You | 两个 Sources 默认共享本次 membership 决定，但可分别排除 | 默认提供 Delete comment 与 Delete bundle 两种明确动作 |
+| Selection Voice Comment → Accept | 原子创建或复用 1 个 Web Source，并创建 1 个含 audio、transcript 与 normalized version 的 You Comment Source；以 comments-on 连接 | 作为一个 bundle 显示，可展开为 Web / You | 按当前 tab 已授权 Project 规则一起加入；无授权时 Saved only | Recording 中 Cancel/Esc 删除未完成录音；已接受后提供 Delete comment 与 Delete bundle |
+| Advanced Voice Comment → Stop，尚未 Accept | 立即建立 1 个 Saved-only You Comment Source，保留 audio、transcript、Candidate 与待关联 target metadata；不建立 Web Source 或 membership | Saved content 中显示 Unlinked comment，可 Finish linking | 无；必须 Accept 才能关联 Web evidence 和 Project | Esc 只关闭高级 review；用户之后可 Finish linking 或明确 Delete |
+| Page/Selection Text Comment → Save | 创建或复用 1 个 Web Source；创建 1 个 You Comment Source，并以 comments-on 连接 | 作为一个 bundle 显示，可展开为 Web / You | 两个 Sources 默认共享本次 membership 决定，但可分别排除 | 默认提供 Delete comment 与 Delete bundle 两种明确动作 |
 | Text Note | 1 个 You Source | Saved content | 显式加入或 Suggest | 只删除该 Source 及其未采用派生 Run |
 | Voice Command / Ask prompt | 1 个 You / Activity Source + 1 个 Run | All activity；不在 Saved content | prompt 默认不进入 Context；用户 Pin/Save 后才可加入 | 删除 Activity 时可同时删除未采用 Run；已采用依赖先预览 |
 | AI Candidate 未采用 | 只存在于 Run，不是 Source | Project/Global History，可从 All activity 打开 | 永不进入 Context | 可单独删除 Run；没有 adopted dependency 时完全删除 |
@@ -671,6 +692,17 @@ Voice Comment 的持久化边界：
 3. Save 创建或复用 Web Source、建立 comments-on 关系，并应用用户选择的 membership；
 4. Stop 后 Esc 只关闭待关联界面，保留 `Unlinked comment`；用户可从 Saved content 继续 Finish linking 或明确删除。
 
+上面的四步是高级 review path 的数据合同，不是高频 Selection Voice Comment 的默认 UI。默认路径必须是：
+
+1. 选中文字后，就近显示轻量 Mic；
+2. 点击 Mic 开始录音，录音态只显示 `Accept ↵` 与 `Cancel Esc`；
+3. Accept 同时 Stop、保存原音与转写、创建或复用 Web Source、建立 comments-on 关系，并应用当前 tab 已授权的 Project 规则；
+4. Cancel 删除本次未完成录音，不建立 Source；
+5. 无 active Project 时 bundle 保持 Saved only，Side Panel 可非阻塞建议 Project；
+6. 文本 Comment、tag、多 Project、分类原因、转写修订与重新关联只在打开 Side Panel 后渐进披露。
+
+默认路径不能再要求 `Add comment → Voice → Stop → Link comment`。需要先审查转写的用户可以在 Side Panel 启用高级 review path，但它不是所有人的默认流程。
+
 每条 Comment 保留：
 
 - 页面 URL、标题、时间与必要快照；
@@ -874,13 +906,15 @@ Project 第二天打开时：
 
 ### 10.12 Skills
 
-五类 Skill 使用统一模型：
+Skill 是可复用的处理方式，不是独立工作空间，也不是 Agent。五类 Skill 使用同一执行合同：
 
 1. Transcription；
 2. Transformation；
 3. Page / Selection；
 4. Organization；
 5. Generation。
+
+#### 10.12.1 类型、来源与生命周期
 
 每个 Skill 至少定义：
 
@@ -894,14 +928,59 @@ Project 第二天打开时：
 - 保存结果的方式；
 - Revision。
 
-优先级：
+Skill 有两种来源：
+
+- **Built-in：** Logue 随产品提供；用户可置顶、隐藏、调整默认绑定或复制为自定义版本，但不能直接修改或删除系统定义；
+- **My Skill：** 用户创建；可以编辑、复制、归档和恢复。编辑产生新 revision，历史 Run 继续指向执行时的旧 revision。
+
+Global 与 Project-specific 不是第三、第四种 Skill 文件，而是两层绑定：
+
+- **Global binding：** 定义所有页面和 Project 的默认 Skill，以及 Selection menu 的 pinned actions；
+- **Project binding：** 对一个 Project 继承 Global、改绑另一个 Skill，或基于 built-in/My Skill 建立 Project override；Reset 恢复继承，不复制一份难以同步的配置。
+
+每个运行点只解析出一个明确 Skill revision，优先级为：
 
 1. 本次动作显式选择；
-2. Project override；
-3. Global default；
+2. 当前 Project binding / override；
+3. Global binding / default；
 4. System default。
 
-日常界面显示 Translate、Shorten、Draft reply 等具体 Action。Skills 只在创建、编辑默认行为和高级配置时出现。Agents 保留给以后拥有 trigger、tools、permissions 和 runs 的自主能力，不能混用。
+没有 active Project 时不得暗中采用最近 Project 的 Skill；只使用 Global 或本次显式选择。一次性 Topic Vocabulary 可以作为输入 Context，但不改变 Skill binding。
+
+#### 10.12.2 高频执行模型
+
+日常界面显示 `Translate`、`Shorten`、`Draft reply` 等具体动作名，不先要求用户进入 `Run Skill`：
+
+- 选区旁直接显示 pinned / recent Skills；点击具体 Skill 一次即运行；
+- `More Skills…` 才打开完整选择器，显示 Built-in、My Skills、最近使用和搜索；选择后立即运行，不再出现第二个 Run；
+- Voice Write 与 Voice Comment 默认静默使用解析后的 transcription/transformation Skill；只有用户打开高级 review 时才切换 Skill；
+- Project Ask/Draft 使用解析后的 Generation Skill；只有本次确实需要改变处理方式时才显式选择；
+- Organization Skill 在后台生成建议；只有低置信或会改变 Context 时才要求用户处理。
+
+所有表面复用一个执行原语：`input scope → resolved Skill ID/revision → Candidate → contextual adoption`。Run 必须记录 Skill ID、revision、解析来源（explicit / Project / Global / system）、实际 Context 和结果状态。
+
+#### 10.12.3 结果动作
+
+结果动作由用户正在完成的任务决定，不使用含糊的通用 `Save`：
+
+| 场景 | 默认结果动作 | 高级持久化动作 |
+| --- | --- | --- |
+| Voice Comment | `Accept ↵` / `Cancel Esc` | Side Panel 中编辑、tag、多 Project、revision |
+| Voice Write | `Insert ↵` / `Cancel Esc` | 加入 Project、Re-transcribe、保存为独立 Note |
+| 可编辑选区 | `Replace` / `Cancel` | `Keep in Logue` 仅在明确物化 AI Source 时出现 |
+| 静态页面/选区 | `Copy` / `Cancel` | `Keep in Logue` |
+| Ask / Draft | `Insert` 或 `Copy` / `Cancel` | `Save as document` 或 `Keep in Logue` |
+
+`Keep in Logue` 的唯一含义是把 Candidate 物化为永久 AI Source；`Save as document` 的唯一含义是写入新的或当前 Document revision。按钮必须使用完整结果名，不能显示无法预测终态的 `Save`。
+
+#### 10.12.4 管理入口
+
+- **Settings → Skills：** 分为 Built-ins 与 My Skills；支持搜索、创建、复制、编辑、归档、恢复、设置 Global default 与 pinned actions；
+- **Project → Settings → Skills：** 显示每类当前解析结果和来源，支持 inherit / override / reset；
+- **运行时 More Skills：** 只负责发现和本次选择，不承担完整管理；
+- **Run details：** 只读显示实际 Skill revision 与解析来源，保证结果可解释和可重现。
+
+Agents 保留给以后拥有 trigger、tools、permissions 和 runs 的自主能力，不能混用。
 
 ### 10.13 Local data controls
 
@@ -1096,7 +1175,7 @@ Anchored → Page changed → Re-anchored / Snapshot only
 | --- | --- | --- | --- | --- |
 | Voice Write | Inline mic / Voice Write shortcut | Stop 保存 audio；Enter Insert Candidate | Recording 中 Cancel 删除未完成录音；Candidate 中 Esc 只关闭 | You Source；Insert 后有 Adopted revision |
 | Voice Command | Command shortcut / explicit mode switch | Stop 解析 intent；Enter 执行 | Esc 不执行并恢复原焦点 | You Activity + Run；采用后才有 AI Source/Document revision |
-| Voice Comment | Comment action 后 mic | Stop 立即保存 You Comment Source 并转写；Save 复用它建立 Comment bundle | Recording 中 Cancel 删除未完成录音；Stop 后 Esc 只关闭并保留 Unlinked comment | Stop 后为 Saved-only You Source；Save 后为 Web + You bundle |
+| Voice Comment | 选区旁 Inline mic；Side Panel 提供高级 composer | 默认 `Accept / Enter` 同时 Stop、保存并建立 bundle；高级 review path 可先 Stop 再编辑 | Recording 中 `Cancel / Esc` 删除未完成录音；高级 review 中 Esc 只关闭并保留 Unlinked comment | 默认 Accept 后直接得到 Web + You bundle；无 active Project 时 Saved only |
 | Text Comment | Comment action 后 textarea | Save 建立 bundle | Esc 关闭且不保存未提交文字 | Web Source + You Comment Source |
 | Page/Selection Action | Selection menu / Side Panel | Preview 后 Replace/Insert/Copy/Save | Esc 关闭 Candidate，不改原文 | Run；采用后 AI Source 或 target revision |
 | Project Ask/Draft | Command Launcher 或 Web Project composer | Run 后 Preview；选择 Insert/Copy/Document | Cancel 保留 prompt Activity，可删除 Run | Activity + Run；采用后 materialize output |
@@ -1113,7 +1192,7 @@ Anchored → Page changed → Re-anchored / Snapshot only
 2. Host 检查 Voice / AI readiness；未配置时选择 recommended local models 或连接自己的 provider；
 3. Extension 自动发现当前 Mac 的默认 Logue Host 并完成本地配对；自有 LAN Host 只从 Advanced connection 显式选择；
 4. 用户只授予一次 Extension 麦克风权限；
-5. 在文章 A 先创建/选择 Project A 作为当前 tab 的 active Project，再对选区添加语音 Comment；首条直接进入 Project A；
+5. 在文章 A 先创建/选择 Project A 作为当前 tab 的 active Project；选中段落后点击就近 Mic，说出判断，再用 Accept 或 Enter 完成，首条 Web + You bundle 直接进入 Project A；
 6. 在同一 tab 导航到文章 B，再保存一个判断；它按 tab 授权进入 Project A；
 7. 在 Side Panel 核验两条 Web evidence 与自己的 Comments；
 8. 在邮件或文档输入框进入独立 Voice Command mode，明确选择或说出 “Using Project A, draft a reply”；
@@ -1137,11 +1216,11 @@ Anchored → Page changed → Re-anchored / Snapshot only
 
 ### J3 — 选区判断进入 Project
 
-1. 选择页面段落；
-2. 说出为什么它重要；
-3. Logue 创建或复用一个 Web Source，并创建一个通过 comments-on 连接的 You Comment Source；
-4. tab 已显式授权 active Project 时两个 Sources 默认一起加入；没有授权时给出建议；
-5. 用户接受、换 Project、加入多个 Projects 或保持 Saved only；
+1. 选择页面段落，就近出现轻量 Mic；
+2. 点击 Mic，说出为什么它重要；录音态只显示 `Accept ↵` 与 `Cancel Esc`；
+3. Accept 同时结束录音并让 Logue 创建或复用 Web Source、创建 comments-on 的 You Comment Source；
+4. tab 已显式授权 active Project 时两个 Sources 默认一起加入；没有授权时保持 Saved only，并在 Side Panel 非阻塞建议；
+5. 只有需要高级控制时，用户打开 Side Panel 输入文字、加 tag、换/加多个 Projects、查看或纠正分类；
 6. 在 Project 中打开 Comment bundle，分别查看 Web evidence 与自己的判断。
 
 完成条件：返回原页面或快照能核验选区；错误分类一次操作可纠正。
@@ -1160,11 +1239,11 @@ Anchored → Page changed → Re-anchored / Snapshot only
 ### J5 — 对页面或选区使用 Skill
 
 1. 用户选择文字或整页；
-2. 选择 Translate、Summarize 或 custom Skill；
-3. 界面说明作用范围和是否使用 Project Context；
-4. 用户预览结果；
-5. 对可编辑选区 Replace/Insert，对静态页面 Copy/Save；
-6. 原文与派生关系可查看。
+2. pinned / recent 的 Translate、Summarize 或 My Skill 直接出现在选区菜单；用户点击一次即运行；
+3. 用户预览结果；对可编辑选区 `Replace`，对静态页面 `Copy`，两者都可 `Cancel`；
+4. 只有需要其他 Skill、切换 Selection/Page scope 或改变 Project Context 时才打开 `More Skills…`；选择后立即运行；
+5. 只有用户明确要永久保留 AI 结果时才使用 `Keep in Logue`，需要继续写作时使用 `Save as document`；
+6. 原文、实际 Skill revision、实际 Context 与派生关系在高级详情中可查看。
 
 完成条件：用户不会误以为原文已被覆盖，也不会误把 AI output 当作证据。
 
@@ -1228,6 +1307,20 @@ Anchored → Page changed → Re-anchored / Snapshot only
 | J9 Export/Delete | Host 可用；owner 明确范围 | Web Settings/Library | 已下载 export 或已确认 delete；pending/Run/dependency 结果清楚 |
 
 任何 Journey 如果只能显示成功 toast、固定 Draft 或静态文案，而没有上述持久终态，不算 mock 完成。
+
+### 13.2 Mock 完整性门槛
+
+每个 Journey 只有同时满足以下条件才可标记为 `WORKING`：
+
+1. 从真实入口开始，默认路径不依赖 Storybook 控件、说明卡或虚构 Next；
+2. 默认路径中的每个主按钮、菜单项、快捷键和输入都能操作；静态按钮按缺失功能计算；
+3. 操作写入三表面共享的 domain state，并到达 §13.1 的持久终态；
+4. 重新打开相关 Extension、Side Panel 或 Web App 后仍能看到同一结果；
+5. 用户能取消或恢复本次高频动作；不可逆操作按 §14 提供确认；
+6. Story 同时提供正常、空、关键失败和恢复状态；
+7. 用浏览器实际完成整条路径，而不是只验证截图、单个组件或 reducer 测试。
+
+功能审计按 `MISSING / STATIC / PARTIAL / WORKING` 四级记录。只有 `WORKING` 计入完整覆盖；UI polish、Guided Demo 和竞品视觉比较必须等所有 P0 Journey 与 Skills 执行闭环达到 `WORKING` 后再开始。
 
 ---
 
