@@ -164,19 +164,19 @@
 ### DR-017 — 将当前 HEAD 原子安装到 Mac 的稳定 Extension 目录
 
 - **优先级：** P1
-- **状态：** 已复现，安装中
+- **状态：** 已安装并由真实 Chrome 加载；其余稳定性回归待验收
 - **决策：** 使用现有 Extension 安装器的版本化 assets 与最终 manifest 原子切换方式，将当前 `main` 的本地构建装入 `/Users/yadong/.local/share/logue/extension`；随后只在 Chrome Reload 这一已加载的稳定目录。
-- **用户可见影响：** Chrome 当前稳定目录仍指向 `0.2.10` 的 `workspace-sidepanel-tab-v3` assets，不能验证已推送的 Esc 修正，也可能继续呈现旧的扩展故障。切换后 Chrome storage、稳定目录和现有服务数据不被替换；仅加载的 Extension 代码更新。
+- **用户可见影响：** 稳定根 manifest 现指向 `releases/v0.2.13-permissionfix.1-67141/`，当前 Chrome 已实际加载其显式麦克风授权路径。切换不替换 Chrome storage、稳定目录或现有服务数据；仅加载的 Extension 代码更新。
 - **替代方案：** 继续用临时 unpacked 目录，或等待最终公开 Release。前者不能证明用户实际加载路径；后者会让已复现的 P1 可靠性修正一直无法在真实 Chrome 回归。
-- **已有证据：** 2026-08-04 读取稳定 manifest，版本为 `0.2.10`，service worker、content script 与 Side Panel 都指向 `releases/workspace-sidepanel-tab-v3/`；当前 `main` 已包含 `9b50b81` 的 Esc 修正且已推送。
-- **下一步证据：** 原子安装后 Chrome Reload，真实验证 Esc、选区/目标切换与 SPA 路由的迟到结果不写回；失败才修改代码。
+- **已有证据：** 根 manifest 的 background/content/sidepanel 都指向上述版本化路径，且全部运行时文件与本地 `dist/release/logue-python.zip` 哈希一致；2026-08-04 当前 Chrome 的独立 Google 测试页点击 launcher 后，Chrome 显示 Logue 的麦克风权限提示，授权后界面进入 `Cancel` / `Stop`，证明稳定加载路径已生效。
+- **下一步证据：** 在同一稳定安装真实验证 Esc、选区/目标切换与 SPA 路由的迟到结果不写回；失败才修改代码。
 
 ### DR-018 — 扩展一次授权的麦克风入口
 
 - **优先级：** P1
-- **状态：** 已复现，修正中
+- **状态：** 真实 Chrome 首次授权/取消已通过；真实人声保存仍待验证
 - **决策：** 首次录音由扩展自己的授权小窗口提供明确的 `Allow microphone` 按钮；用户点击后才调用 `getUserMedia`。授权归属 Logue Extension，不归属当前网页，因此一次授权适用于扩展支持的所有网页。
 - **用户可见影响：** 首次使用多一次清晰、一次性的授权点击；之后网页录音不再逐站点请求权限。正常录音、保存、插入路径不增加检查或步骤。
-- **已有证据：** 当前稳定安装 `0.2.13` 在真实 Google 页面点击录音后，扩展授权窗口持续显示 `Requesting access…`，页面录音控制停在启动态超过 5 秒，无法进入录音。当前实现由新弹窗加载即自动调用 `getUserMedia`，没有可见用户手势。
+- **已有证据：** 旧稳定安装在真实 Google 页面点击录音后会停在 `Requesting access…`，实现没有可见用户手势。当前稳定安装在新的独立 Google 页面点击 `Start voice input` 后，Chrome 显示 Logue 的麦克风权限提示；选择允许后 launcher 进入 `Cancel` / `Stop and insert`，Cancel 回到 `Start voice input` 且焦点回到网页 Search。服务 `/v1/items` 前后都为同两条既有资料，确认取消零写入。
 - **替代方案：** 改用每个网页的麦克风权限，或继续自动请求。前者会产生逐站点权限摩擦并受页面策略影响；后者已在真实稳定安装中失败。
-- **下一步证据：** 当前稳定安装中，首次点击 `Allow microphone` 后进入录音、Cancel 后回到启动器且零写入；真实人声保存/插入仍按 C1/C2/C4 单独验收。
+- **下一步证据：** 当前稳定安装中，用真实人声 Stop 后恰好保存一条带原始音频的 Material，并按 C2/C4 验证插入路径。
