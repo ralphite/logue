@@ -1,7 +1,7 @@
 # Logue V2 功能完整性与交互成本审计
 
 日期：2026-08-05
-结论：**进行中 — J5 Page/Selection Skill 已达到 WORKING；其余 J1–J4、J6–J9 仍未达到完整性门槛。**
+结论：**进行中 — J3 Selection Voice Comment 与 J5 Page/Selection Skill 已达到 WORKING；J1、J2、J4、J6–J9 仍未达到完整性门槛。**
 
 本轮只判断功能、持久终态与默认路径，不以 Story 数、截图、静态说明或视觉完成度替代产品完成度。审计由主产品检查、两名独立只读 agent 与浏览器实证共同完成。
 
@@ -9,9 +9,9 @@
 
 | Journey | 状态 | 主要缺口 |
 | --- | --- | --- |
-| J1 首次 sourced round trip | PARTIAL | Voice Comment 与 Command 仍暴露 Link / Parse / Generate 内部步骤；Guided Journey 教授旧模型 |
+| J1 首次 sourced round trip | PARTIAL | Voice Comment 激活已原子化；Command 仍暴露 Parse / Generate 内部步骤，Guided Journey 教授旧模型 |
 | J2 Voice Write | PARTIAL | 默认路径被 Profile、Stop/review、版本和分类阻断；跨表面持久终态不完整 |
-| J3 Selection Voice Comment | PARTIAL | 仍需 `Add comment → Voice → Stop → Link comment`，未实现 `Mic → Accept` |
+| J3 Selection Voice Comment | WORKING | 选区旁直接 `Mic → Accept`；Enter/Esc；active Project / Saved only；原子 bundle；跨 Side Panel/Web Project 重开 |
 | J4 Project transcription context | PARTIAL | Profile、Vocabulary、Edit、Review、Re-transcribe 多为静态或无共享持久对象 |
 | J5 Page/Selection Skill | WORKING | pinned/recent/Project default 一击运行；Copy/Replace/Cancel/Undo；Run 固化 revision、解析来源与实际 Context |
 | J6 Ask / Draft / Insert | PARTIAL | 暴露 Parse/Generate；Copy、Save document 与部分 Side Panel 入口无终态 |
@@ -29,12 +29,13 @@
 | Project-specific Skills | PARTIAL | inherit、改绑、reset 已工作；Project-local Customize 留待下一批 |
 | Runtime resolver | WORKING | `explicit > Project > Global > system`；五类 Run 记录 revision/source/Context；revision instruction 决定结果 |
 | Selection/Page | WORKING | Project default、pinned/recent 一击运行；More Skills 选择即运行；Replace/Copy/Cancel/Undo |
-| Voice Write/Comment | PARTIAL | transcription + transformation 已静默解析并留 Run；Mic → Accept 默认旅程尚未重构 |
+| Voice Comment | WORKING | transcription + transformation 静默解析并留 Run；`Mic → Accept` 原子写入；Cancel/Esc 无残留；bundle 可跨表面重开 |
+| Voice Write | PARTIAL | transcription + transformation 已静默解析并留 Run；默认 Profile、Stop/review、版本与分类旅程仍待收敛 |
 | Organization | PARTIAL | 捕获后产生带 Skill Run 的可纠正 suggestion；Side Panel correction 仍未完整连接 |
 | Ask/Draft | PARTIAL | Generation Skill 已决定 Run 与 cited Candidate；仍需收敛默认 Command 旅程和完整终态 |
 | Settings management | PARTIAL | Built-ins、My、Global、Project inherit/bind/reset 已工作；Project-local Customize 尚缺 |
 
-## 当前实证
+## 问题实证（修复前）
 
 1. [选区后的现有入口](./01-selection-start.png)
 2. [Comment 模式二次选择](./02-comment-mode-picker.png)
@@ -76,3 +77,13 @@
 - Selection 的 Project default 一击运行，Run details 显示实际 revision、解析来源和 Context；嵌套 `Esc` 只关闭最上层，窄宽度 picker 不再越界。
 
 J5 现为 `WORKING`。Skills 整体仍为 `PARTIAL`：下一批必须完成 Project-local Customize，并把 Voice、Organization 与 Ask/Draft 各自的默认 Journey 收敛到产品合同后，才可宣称 Skills 完整。
+
+2026-08-05 第三批完成 Selection Voice Comment 原子旅程：
+
+- 选区旁直接显示 Mic；录音态只显示 `Accept / Cancel`，并暴露 Enter/Escape 快捷键语义；
+- 单个 `accept-voice-comment` 事件创建或复用 Web Source、写入带 audio/raw/normalized/candidate 的 You Comment Source、建立 `comments-on`，并按 tab 授权写入 Project；
+- No Project 时 bundle 明确显示 `Saved only`；Cancel/Esc 不创建 Source、Run 或 membership；重复 Accept 幂等；
+- Side Panel 与 Web Project 从同一共享 domain state 重开相同 bundle；旧 Stop/Edit/Link/Unlinked 中间态已删除；
+- 真实 Chrome 四条旅程与独立完整性审查均通过；最终设计 gate 为 GO/PASS 9.2/10，无 P0/P1。
+
+J3 与 J5 现为 `WORKING`。下一批仍应一次只关闭一个最高价值旅程，不能用 Guided Demo 或视觉优化代替剩余完整性。

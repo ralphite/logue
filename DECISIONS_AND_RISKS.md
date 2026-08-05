@@ -404,20 +404,21 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 ### DR-040 — 高频默认路径隐藏持久化步骤，只在高级路径披露控制
 
 - **优先级：** V2 产品 / P0
-- **状态：** 用户已确认；全旅程审计与 mock 重构进行中
+- **状态：** Selection Voice Comment 原子旅程已完成；两轮独立审查无 P0/P1
 - **决定：** Logue 的高频动作必须围绕用户意图，而不是 Source、Run、membership 或 linking 等内部对象设计。默认路径只询问完成意图所必需的决定；已授权、可撤销且低风险的保存、转写、关联与分类在后台安静完成。复杂配置、文本输入、标签、多 Project、分类理由、版本与 lineage 进入已打开的 Side Panel 或 Web App 渐进披露。
 - **首个强制应用：** 用户选择网页文字后直接出现轻量 Mic。点击开始录音，录音态只显示 `Accept ↵` 与 `Cancel Esc`；Accept 同时停止、永久保存原音/转写、创建 Web + You Comment bundle，并按当前 tab 已授权的 active Project 规则关联。Cancel 放弃未完成录音。无 active Project 时保持 Saved only，再在 Side Panel 非阻塞建议归类。
 - **用户可见影响：** 选区语音 Comment 从 `Add comment → Voice → Stop → Link comment` 四次点击压缩为 `Mic → Accept` 两次点击；用户不需要先理解 Comment bundle 或 Project membership。打开 Side Panel 后仍能改文字、加 tag、换/加多个 Project、查看分类原因与原始版本。
 - **替代方案：** 保留显式 Stop 与 Link 以逐步展示数据安全，或默认打开完整 Comment composer。两者都把系统工作转嫁给高频用户，并让核心价值低于普通语音批注工具。
-- **已有证据：** 2026-08-05 用户首次试用 Canonical Guided Demo 时直接指出四步路径过重，并明确给出两次点击与快捷键模型。当前 Chrome 截图也证明用户必须依次经过 Comment composer、Recording Stop 和 Link Comment 三个中间容器。
-- **开放问题：** 全部 J1–J9 需要按相同标准重新审计；只有真实不确定、不可撤销或高影响的动作允许阻断式确认。
+- **已有证据：** 2026-08-05 用户首次试用 Canonical Guided Demo 时直接指出四步路径过重，并明确给出两次点击与快捷键模型。重构后真实 Chrome 已分别走通 active Project、No Project、Accept/Enter、Cancel/Esc 和跨表面 Project 重开；完整性审查 PASS，最终 `logue_product_designer` 为 GO/PASS 9.2/10，无 P0/P1。
+- **实施合同：** 状态机固定为 `Selection ready → Mic → Recording → Accept/Enter → Atomic commit → Quiet success`。Accept 必须幂等地创建或复用 Web Source、创建带 audio/raw/normalized/candidate revisions 的 You Comment Source、建立 `comments-on`，并只在 tab 已授权 Project 时将二者加入该 Project；无 Project 时 bundle 保持 Saved only。Cancel/Esc 不得创建 Source、Run 或 membership。默认路径不得出现 Stop、transcript review 或 Link；高级编辑留在 Side Panel/Web App。
+- **开放问题：** 全部 J1–J9 仍需按相同标准逐条审计；本批只关闭 Selection Voice Comment，不混入 Project Customize、Voice Write、Ask/Draft、Guided Demo 或视觉边角。
 
 ### DR-041 — Skills 采用两种来源、两层绑定和一次点击执行
 
 - **优先级：** V2 产品 / P0
-- **状态：** 管理入口与 Selection 一击执行已可操作，但独立完整性审查确认配置尚未真正驱动五类运行；当前按 P0 重构共享 executor，未达到完成
+- **状态：** 共享 resolver/executor 与五类运行已完成并通过两轮独立审查；无 P0/P1
 - **决定：** Skills 只有 Built-in 与 My Skill 两种来源；Global 和 Project-specific 是绑定/覆盖层，不复制为新的对象类型。运行时按 `explicit > Project binding/override > Global binding/default > system default` 解析唯一 revision。选区菜单直接显示 pinned / recent 的具体 Skill，点击一次立即运行；`More Skills…` 选择后也立即运行，不再出现第二次 `Run Skill`。结果只显示场景动作，例如 `Replace`、`Copy`、`Insert`、`Accept` 与 `Cancel`。通用 `Save` 禁止使用；只有物化永久 AI Source 时显示 `Keep in Logue`，写入 Document 时显示 `Save as document`。Mock 的结果必须由解析出的 revision instruction 与结构化策略驱动，不能再按 Skill ID 硬编码；同一个 executor 连接 Selection、Voice、Organization 与 Ask/Draft。binding 只能选择兼容当前触发点的 Skill；Skill 被归档或隐藏时立即移除引用它的 Global/Project binding，界面明确显示实际 fallback，而不是保留悬空 Override。
 - **用户可见影响：** 用户无需理解 Skill 层级就能一击完成高频转换；需要时仍可在 Settings 创建、编辑、复制、归档 My Skills，在 Global 设置默认/置顶，在 Project 继承、覆盖或 Reset，并从 Run details 核验实际 revision。
 - **替代方案：** 把 built-in / global / custom / Project-specific 做成四份重复 Skill，或先点 `Run Skill` 再选再运行。前者会产生不清楚的所有权和同步语义；后者把配置模型暴露给高频动作。
-- **已有证据：** 三路独立完整性审查均发现原 mock 没有 Skill domain、revision、Global/Project binding 或真实管理，Selection `Run Skill` 实际硬编码 Explain，`Save` 与 Settings `Edit` 为静态控件。第一批实现虽补齐管理 UI 与 resolver，但 2026-08-05 的 fresh completeness gate 进一步复现：修改 instruction 不改变结果、Voice/Organization/Ask 未使用 resolver、悬空 binding 与 scope fallback 使配置显示和实际运行不一致。用户明确要求完整性先于 Journey、UX 与 UI。
-- **开放问题：** 无。实现先建立共享 Skill resolver 与持久 domain state，再连接 Selection、Voice、Organization、Ask/Draft 和 Settings；未连接的可见控件一律按缺失处理。
+- **已有证据：** 三路独立完整性审查曾发现原 mock 没有 Skill domain、revision、Global/Project binding 或真实管理，Selection `Run Skill` 实际硬编码 Explain，`Save` 与 Settings `Edit` 为静态控件。随后已用统一、revision-aware executor 连接 Selection、Voice、Organization、Ask/Draft，并验证配置会改变输出、运行记录精确 revision、失效 binding 自动清理、局部错误保留当前工作。2026-08-05 两轮 fresh post-gate 均为 GO/PASS 9.1/10，无 P0/P1。
+- **开放问题：** Project-local Customize 仍是后续独立旅程，不影响本条共享执行合同已关闭。
