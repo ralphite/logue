@@ -243,11 +243,11 @@ export function GenerationWorkspace({ materials, initialMode = "documents", init
             type="button"
             onClick={() => void (listSection === "skills" ? addSkill() : addDocument())}
             disabled={listSection === "skills" ? creatingSkill : creatingDocument}
-            className="inline-flex size-8 items-center justify-center rounded-md text-[#777873] hover:bg-[#e8e8e5] focus-visible:outline-2 focus-visible:outline-[#777873] disabled:cursor-wait disabled:opacity-60"
+            className={`inline-flex h-8 items-center justify-center rounded-md text-[#777873] hover:bg-[#e8e8e5] focus-visible:outline-2 focus-visible:outline-[#777873] disabled:cursor-wait disabled:opacity-60 ${listSection === "documents" ? "gap-1.5 px-2 text-[13px] font-medium" : "w-8"}`}
             aria-label={listSection === "skills" ? "New skill" : "New document"}
             title={listSection === "skills" ? "New skill" : "New document"}
           >
-            {(listSection === "skills" ? creatingSkill : creatingDocument) ? <LoaderCircle size={15} className="animate-spin motion-reduce:animate-none" /> : <Plus size={15} />}
+            {(listSection === "skills" ? creatingSkill : creatingDocument) ? <LoaderCircle size={15} className="animate-spin motion-reduce:animate-none" /> : <><Plus size={15} />{listSection === "documents" && <span>New document</span>}</>}
           </button>
         </header>
         {listSection === "documents" && (
@@ -299,6 +299,7 @@ export function GenerationWorkspace({ materials, initialMode = "documents", init
           onOpenGenerate={() => void startGeneration()}
           onManageSkills={() => void openSkills(false)}
           showDocumentSidebar={false}
+          showEmptyDocumentAction={false}
           documents={documents}
           documentsLoading={documentsLoading}
           onDocumentsChange={setDocuments}

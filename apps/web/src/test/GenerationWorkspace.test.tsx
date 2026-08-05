@@ -106,12 +106,12 @@ vi.mock("../api", async (importOriginal) => {
 vi.mock("../components/DocumentWorkspace", async () => {
   const React = await import("react");
   return {
-    ViewWorkspace: ({ initialDocumentId, onLeaveGuardChange, onOpenGenerate, showDocumentSidebar, documents = [] }: { initialDocumentId?: string; onLeaveGuardChange?: (guard?: () => Promise<boolean>) => void; onOpenGenerate?: () => void; showDocumentSidebar?: boolean; documents?: Array<{ id: string }> }) => {
+    ViewWorkspace: ({ initialDocumentId, onLeaveGuardChange, onOpenGenerate, showDocumentSidebar, showEmptyDocumentAction, documents = [] }: { initialDocumentId?: string; onLeaveGuardChange?: (guard?: () => Promise<boolean>) => void; onOpenGenerate?: () => void; showDocumentSidebar?: boolean; showEmptyDocumentAction?: boolean; documents?: Array<{ id: string }> }) => {
       React.useEffect(() => {
         onLeaveGuardChange?.(mocks.documentGuard);
         return () => onLeaveGuardChange?.(undefined);
       }, [onLeaveGuardChange]);
-      return <main data-testid="document-workspace" data-document-id={initialDocumentId} data-document-count={documents.length} data-show-sidebar={String(showDocumentSidebar)}>Document editor<button type="button" onClick={onOpenGenerate}>Open generation</button></main>;
+      return <main data-testid="document-workspace" data-document-id={initialDocumentId} data-document-count={documents.length} data-show-sidebar={String(showDocumentSidebar)} data-show-empty-document-action={String(showEmptyDocumentAction)}>Document editor<button type="button" onClick={onOpenGenerate}>Open generation</button></main>;
     },
   };
 });
@@ -149,11 +149,20 @@ describe("GenerationWorkspace navigation", () => {
 
     const shell = screen.getByRole("complementary", { name: "Documents navigation" });
     expect(within(shell).getByRole("heading", { name: "Documents" })).toBeTruthy();
-    expect(within(shell).getByRole("button", { name: "New document" })).toBeTruthy();
+    expect(within(shell).getByRole("button", { name: "New document" }).textContent).toContain("New document");
     expect(within(shell).queryByRole("button", { name: "Skills" })).toBeNull();
     expect(within(shell).queryByText("Generate")).toBeNull();
     await waitFor(() => expect(onSelectedDocumentChange).toHaveBeenCalledWith(documentItem.id, true));
     expect(screen.getByTestId("document-workspace").getAttribute("data-document-id")).toBe(documentItem.id);
+  });
+
+  it("keeps the Documents empty state from duplicating the shell create action", async () => {
+    mocks.getDocuments.mockResolvedValueOnce([]);
+    renderWorkspace();
+
+    const shell = screen.getByRole("complementary", { name: "Documents navigation" });
+    expect(within(shell).getAllByRole("button", { name: "New document" })).toHaveLength(1);
+    await waitFor(() => expect(screen.getByTestId("document-workspace").getAttribute("data-show-empty-document-action")).toBe("false"));
   });
 
   it("shows Skills as a direct workspace without a duplicate Documents switch", async () => {

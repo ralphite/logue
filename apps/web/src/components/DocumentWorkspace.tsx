@@ -503,6 +503,7 @@ export function ViewWorkspace({
   onOpenGenerate,
   onManageSkills,
   showDocumentSidebar = true,
+  showEmptyDocumentAction = true,
   documents: suppliedDocuments,
   documentsLoading = false,
   onDocumentsChange,
@@ -516,6 +517,7 @@ export function ViewWorkspace({
   onOpenGenerate?: () => void;
   onManageSkills?: () => void;
   showDocumentSidebar?: boolean;
+  showEmptyDocumentAction?: boolean;
   documents?: LogueDocument[];
   documentsLoading?: boolean;
   onDocumentsChange?: (documents: LogueDocument[]) => void;
@@ -1516,7 +1518,7 @@ export function ViewWorkspace({
             <h1 className="mt-4 text-[19px] font-semibold tracking-[-0.025em] text-[#343631]">Create your first document</h1>
             <p className="mx-auto mt-1.5 max-w-sm text-[14px] leading-5 text-[#858780]">Write directly in a familiar editor, or let Gemini create an editable draft with source citations.</p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-              <button type="button" onClick={() => void addDocument()} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[14px] font-medium text-white hover:bg-[#3a3b37]"><FilePlus2 size={14} /> New blank document</button>
+              {showEmptyDocumentAction && <button type="button" onClick={() => void addDocument()} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[14px] font-medium text-white hover:bg-[#3a3b37]"><FilePlus2 size={14} /> New blank document</button>}
               <button type="button" onClick={materials.length > 0 ? openGenerator : onOpenMaterials} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#d9d9d5] px-3.5 text-[14px] font-medium text-[#656761] hover:bg-[#f5f5f2]"><Sparkles size={14} /> {materials.length > 0 ? "Generate from materials" : "Add materials first"}</button>
             </div>
           </section>
