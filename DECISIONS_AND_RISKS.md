@@ -60,39 +60,39 @@
 ### DR-006 — 在剩余 P0 现场验收前发布补丁
 
 - **优先级：** P0 交付
-- **状态：** 已按用户要求发布；真实环境验收仍未完成
-- **决策：** 用户明确要求先发布，因此将当前 `main` 发布为 `v0.2.11`，再发布必要的 Side Panel 补丁 `v0.2.12`。这些 Release 不宣称目标 Linux 动态域名路径或真实人声 Docs 插入已经通过。
+- **状态：** `v0.2.13` 已由用户明确要求发布；真实环境验收仍未完成
+- **决策：** 用户明确要求先发布，因此已发布 `v0.2.11`、`v0.2.12`，并将发布当前 `main` 的麦克风补丁 `v0.2.13`。这些 Release 不宣称目标 Linux 动态域名路径、真实人声保存或 Docs 插入已经通过。
 - **为什么重要：** 安装器的 `latest` 会在两项现场证据缺失时前进；升级用户获得当前修复，但远程 Linux 和 Docs 人声路径仍必须视为未验证。
 - **替代方案：** 等待两项 P0 环境检查通过后再发布。这样 Release 门槛更严格，但与用户“先发布”的明确指令冲突。
-- **证据：** `v0.2.12` 是最新 GitHub Release，官方 Extension 产物已在真实 Chrome 成功打开。未完成任务仍将两项现场证据列为 `READY_FOR_REAL_ENV`。
-- **用户决定：** 用户于 2026-08-04 在本任务中明确批准。
+- **证据：** `v0.2.12` 的官方 Extension 产物已在真实 Chrome 成功打开；`v0.2.13` 候选已通过自动化检查、安装器首装/覆盖回归，并在真实 Chrome 通过授权后由 Record 进入 `Cancel` / `Stop`，取消后回到 Record。自动化不能提供可信人声，因此没有声称已完成保存或插入。未完成任务仍将两项现场证据列为 `READY_FOR_REAL_ENV`。
+- **用户决定：** 用户于 2026-08-04 在本任务中先后明确要求“先创建新 Release”及“update release”。
 
 ### DR-008 — Side Panel 麦克风授权窗口没有请求权限
 
 - **优先级：** P0
-- **状态：** 已从 Release 源码复现；修复中
+- **状态：** 已修正；真实人声保存仍待验证
 - **决策：** 以显式 `mode=permission` 查询参数打开扩展自有的麦克风授权窗口，使其调用 `getUserMedia`、将结果回传 Side Panel 后关闭。
 - **用户可见影响：** Chrome 若抑制原生 Side Panel 授权提示，按 Record 会停在开始态，无法采集声音。
-- **证据：** Side Panel 打开的是 `microphone.html?token=…`，而该页面只在 `mode=permission` 时请求麦克风；行内录音器已传入该参数，是应遵循的正确路径。修正后候选已能到达授权 URL，并暴露出下方独立的版本化资源路径故障。
+- **证据：** Side Panel 原先打开 `microphone.html?token=…`，而该页面只在 `mode=permission` 时请求麦克风；行内录音器已传入该参数，是应遵循的正确路径。修正候选在真实 Chrome 授权后从 Record 进入 `Cancel` / `Stop`，取消后返回 Record，未显示错误文档。
 - **替代方案：** 将该页面的任意 URL 都当作授权请求。这会破坏其独立的 offscreen recorder 模式，用模糊分支掩盖精确调用错误。
-- **下一步证据：** 在 Chrome 安装修正 Release，允许扩展麦克风权限，确认 Record 到达录音控件。
+- **下一步证据：** 在 Release 安装的扩展中，用一句真实人声 Stop，确认仅保存一条带原始音频的 Material。
 
 ### DR-010 — 版本化 Extension 安装破坏麦克风授权页
 
 - **优先级：** P0
-- **状态：** 已在真实 Chrome 复现；修复中
+- **状态：** 已修正；真实人声保存仍待验证
 - **决策：** `microphone.html` 相对正在运行的 Side Panel 或 MV3 worker 资源解析，不通过根路径 `chrome.runtime.getURL` 解析。
 - **用户可见影响：** Record 会打开 Chrome `ERR_FILE_NOT_FOUND`，导致 Side Panel 与行内语音在版本化安装升级后都无法请求麦克风权限。
-- **证据：** 真实候选 Side Panel 请求 `chrome-extension://<id>/microphone.html?mode=permission&token=…`；其 manifest 和资源目录只存在 `releases/<version>/microphone.html`。
+- **证据：** 真实候选 Side Panel 原先请求 `chrome-extension://<id>/microphone.html?mode=permission&token=…`；其 manifest 和资源目录只存在 `releases/<version>/microphone.html`。修正候选从版本化 `releases/v0.2.12-audiofix2-30941/sidepanel.html` 成功请求授权并显示 `Cancel` / `Stop`；取消后回到 Record。
 - **替代方案：** 每次安装复制根目录 `microphone.html`。这会重建刚从 Side Panel 移除的双代资源分裂。
-- **下一步证据：** 加载修正候选，接受 Chrome 麦克风提示，确认出现录音控件；随后取消并确认零写入。
+- **下一步证据：** 在 Release 安装的扩展中，用一句真实人声 Stop，确认仅保存一条带原始音频的 Material。
 
 ### DR-009 — 每次 Release 前的风险驱动 CUJ 门槛
 
 - **优先级：** P0 交付
-- **状态：** 已定义；首次执行待完成
+- **状态：** 已执行基础门槛；真实人声子项待外部环境
 - **决策：** 创建 Release tag 前，必须通过自动化检查、产物安装，以及按改动文件选择的最小真实 Chrome 关键用户旅程。音频、插入、Docs、连接和安装器改动各有命名的必跑旅程；无关 UI 改动不会触发重新录音。
 - **用户可见影响：** 新 Release 不再把构建成功或 Side Panel 能打开单独当成“捕捉可用”的证据。
 - **替代方案：** 每个补丁跑全部历史场景。这样更慢，却不会给未改动路径带来更强证据；未完成的现场验收任务仍独立存在，不能被静默豁免。
 - **证据：** `v0.2.12` 通过了 Side Panel 资源路径，却没有通过真实 Side Panel 麦克风启动，因而发现遗漏的 `mode=permission` 查询参数。
-- **下一步证据：** 在创建麦克风补丁 Release tag 前，对候选使用已记录的 CUJ 门槛。
+- **本次证据与例外：** `v0.2.13` 候选已通过 A1、A2、A3，以及 C1 的授权→录音→取消；C1 的“真实人声 Stop 后保存一条 Material”仍缺真实人声。用户明确要求发布，例外已记录于 DR-006；该项仍是后续 Release 前的必跑项。
