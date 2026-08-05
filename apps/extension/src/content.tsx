@@ -20,6 +20,7 @@ import {
 } from "./recordingBridge";
 import { recordingShortcutAction } from "./recordingShortcuts";
 import { createRequestId } from "./requestId";
+import { shouldDismissSelectionSkills } from "./selectionSkillEscape";
 import { selectionSkillInvocationState } from "./selectionSkillInvocation";
 import { completeVoiceInput, VoiceInputTransactionError } from "./transaction";
 import { InlineVoiceControls, type InlineVoicePhase } from "./InlineVoiceControls";
@@ -619,6 +620,21 @@ function ExtensionLauncher() {
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [eligibleSelectionSkills.length]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!shouldDismissSelectionSkills(
+        event,
+        Boolean(selectionSnapshotRef.current && eligibleSelectionSkills.length),
+        Boolean(voiceSessionRef.current),
+      )) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      dismissSelectionSkills();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [dismissSelectionSkills, eligibleSelectionSkills.length]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
