@@ -152,4 +152,10 @@ describe("side panel initial focus", () => {
     expect(shortcuts).toContain('if (action === "record" && !handlers.pendingInsert) handlers.onRecord()');
     expect(panel).toContain('persistDraft({ draft: "", transcript: "", pendingInsert: null })');
   });
+
+  it("clears a stale local error after an explicit server change without hiding a pending insert", () => {
+    const panel = readFileSync(resolve(process.cwd(), "src/sidePanel.tsx"), "utf8");
+
+    expect(panel.match(/setError\(\(active\) => pendingInsert \? active : undefined\);/g)).toHaveLength(2);
+  });
 });

@@ -252,11 +252,12 @@ function SidePanelApp() {
       setPageMaterials([]);
       setSkills([]);
       setSkillId("");
+      setError((active) => pendingInsert ? active : undefined);
       await refreshServerConnection();
     }).catch((cause: unknown) => {
       setServerSettingsError(cause instanceof Error ? cause.message : "Could not connect to this server.");
     }).finally(() => setServerConnecting(false));
-  }, [refreshServerConnection, serverConnecting, serverURLDraft]);
+  }, [pendingInsert, refreshServerConnection, serverConnecting, serverURLDraft]);
 
   const connectCandidateServer = useCallback(() => {
     const current = stateRef.current;
@@ -281,11 +282,12 @@ function SidePanelApp() {
       setPageMaterials([]);
       setSkills([]);
       setSkillId("");
+      setError((active) => pendingInsert ? active : undefined);
       await refreshServerConnection();
     }).catch(() => {
       setServerSettingsError("Couldn’t verify this Logue server.");
     }).finally(() => setServerConnecting(false));
-  }, [refreshServerConnection, serverConnecting]);
+  }, [pendingInsert, refreshServerConnection, serverConnecting]);
 
   const saveContent = useCallback(async (content: string, captureId?: string, rawTranscript?: string) => {
     const current = stateRef.current;
