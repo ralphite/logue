@@ -756,12 +756,6 @@ class Handler(BaseHTTPRequestHandler):
             pages = store.documents()
             page_matches, page_strategy = ranked_search(self.server.gemini, query_text, [{**page, "projects": [page.get("project", "")], "tags": []} for page in pages], document_search_candidates(pages), "pages")
             self.json(HTTPStatus.OK, {"sources": source_matches, "pages": page_matches, "strategy": "semantic" if source_strategy == "semantic" or page_strategy == "semantic" else "local"})
-        elif path == "/v1/items":
-            values = store.items()
-            source_url = (query.get("source_url") or [""])[0].strip()
-            if source_url:
-                values = [item for item in values if (item.get("source") or {}).get("url") == source_url or (item.get("applied_context") or {}).get("page_url") == source_url]
-            self.json(HTTPStatus.OK, {"items": values})
         elif path == "/v1/projects":
             self.json(HTTPStatus.OK, {"projects": store.projects()})
         elif path.startswith("/v1/projects/"):
@@ -776,34 +770,12 @@ class Handler(BaseHTTPRequestHandler):
             self.json(HTTPStatus.OK, {"runs": store.skill_runs()})
         elif path.startswith("/v1/skill-runs/"):
             self.json(HTTPStatus.OK, store.get("skill-runs", path.removeprefix("/v1/skill-runs/")))
-        elif path == "/v1/docs":
-            self.json(HTTPStatus.OK, {"documents": store.documents()})
-        elif path.startswith("/v1/docs/"):
-            self.json(HTTPStatus.OK, store.get("docs", path.removeprefix("/v1/docs/")))
-        elif path == "/v1/material-search":
-            query_text = (query.get("query") or [""])[0].strip()
-            items = store.items()
-            matches, strategy = ranked_search(self.server.gemini, query_text, items, material_search_candidates(items), "materials")
-            self.json(HTTPStatus.OK, {"matches": matches, "strategy": strategy})
-        elif path == "/v1/document-search":
-            query_text = (query.get("query") or [""])[0].strip()
-            documents = store.documents()
-            matches, strategy = ranked_search(self.server.gemini, query_text, [{**document, "projects": [document.get("project", "")], "tags": []} for document in documents], document_search_candidates(documents), "documents")
-            for match in matches:
-                if match["match"] not in {"title", "content", "project"}:
-                    if match["match"] != "related":
-                        match["match"] = "content"
-            self.json(HTTPStatus.OK, {"matches": matches, "strategy": strategy})
         elif path == "/v1/context":
             self.json(HTTPStatus.OK, self.context(query))
         elif path == "/v1/glossary-suggestions":
             self.json(HTTPStatus.OK, {"suggestions": self.glossary_suggestions()})
         elif path.startswith("/v1/captures/"):
             self.serve_capture(path.removeprefix("/v1/captures/"))
-        elif path.startswith("/v1/project-bundles/"):
-            name = urllib.parse.unquote(path.removeprefix("/v1/project-bundles/"))
-            project = store.get_project(name)
-            self.json(HTTPStatus.OK, {"schema_version": 1, "read_only": True, "project": project, "materials": [item for item in store.items() if name in item.get("projects", [])], "documents": [document for document in store.documents() if document.get("project") == name]})
         elif path == "/v1/export":
             self.json(HTTPStatus.OK, self.export_workspace())
         elif path.startswith("/v1/") or path == "/v1":
@@ -878,37 +850,6 @@ class Handler(BaseHTTPRequestHandler):
             if existing:
                 store.delete_item(existing["id"])
             self.json(HTTPStatus.OK, {"ok": True})
-        elif path == "/v1/items" and method == "POST":
-            value = self.body_json()
-            if value.get("request_id") in self.server.cancelled:
-                raise Conflict("material save was cancelled")
-            item = store.create_item(value)
-            self.json(HTTPStatus.CREATED, item)
-            self.server.schedule_organization(item)
-        elif path.startswith("/v1/items/"):
-            identifier = path.removeprefix("/v1/items/")
-            if identifier.endswith("/organize") and method == "POST":
-                identifier = identifier.removesuffix("/organize")
-                item = store.get("sources", identifier)
-                item["organization"] = {"status": "pending", "updated_at": now()}
-                atomic_json(store.root / "sources" / f"{identifier}.json", item)
-                self.json(HTTPStatus.ACCEPTED, item)
-                self.server.schedule_organization(item)
-            elif method == "PATCH":
-                item = store.update_item(identifier, self.body_json())
-                self.json(HTTPStatus.OK, item)
-                self.server.schedule_organization(item)
-            elif method == "DELETE":
-                store.delete_item(identifier)
-                self.empty(HTTPStatus.NO_CONTENT)
-            else:
-                self.method_error()
-        elif path == "/v1/selections" and method == "POST":
-            result = store.create_selection(self.body_json())
-            self.json(HTTPStatus.CREATED, result)
-            self.server.schedule_organization(result["source"])
-            if result.get("annotation"):
-                self.server.schedule_organization(result["annotation"])
         elif path == "/v1/projects" and method == "POST":
             self.json(HTTPStatus.CREATED, store.save_project("", self.body_json()))
         elif path.startswith("/v1/projects/") and method == "PATCH":
@@ -941,25 +882,6 @@ class Handler(BaseHTTPRequestHandler):
             run["updated_at"] = now()
             atomic_json(store.root / "skill-runs" / f"{identifier}.json", run)
             self.json(HTTPStatus.OK, run)
-        elif path == "/v1/docs" and method == "POST":
-            self.json(HTTPStatus.CREATED, store.create_document(self.body_json()))
-        elif path == "/v1/docs/generate" and method == "POST":
-            value = self.body_json()
-            source_ids = normalize(value.get("source_ids"))
-            if not source_ids:
-                raise ValueError("at least one source is required")
-            skill = store.get("skills", "sk_document")
-            self.generate_document(value, skill)
-        elif path.startswith("/v1/docs/"):
-            identifier = path.removeprefix("/v1/docs/")
-            if method == "PATCH":
-                self.json(HTTPStatus.OK, store.update_document(identifier, self.body_json()))
-            elif method == "DELETE":
-                store.get("docs", identifier)
-                (store.root / "docs" / f"{identifier}.json").unlink()
-                self.empty(HTTPStatus.NO_CONTENT)
-            else:
-                self.method_error()
         elif path == "/v1/transcribe" and method == "POST":
             self.transcribe()
         elif path.startswith("/v1/captures/") and method == "DELETE":
@@ -968,32 +890,8 @@ class Handler(BaseHTTPRequestHandler):
             for capture in (store.root / "audio").glob(f"{identifier}.*"):
                 capture.unlink(missing_ok=True)
             self.empty(HTTPStatus.NO_CONTENT)
-        elif path.startswith("/v1/cancellations/") and method == "POST":
-            identifier = path.removeprefix("/v1/cancellations/").strip()
-            if not identifier or "/" in identifier:
-                raise ValueError("request id is required")
-            self.server.cancelled.add(identifier)
-            existing = store._request_item(identifier)
-            if existing:
-                store.delete_item(existing["id"])
-            self.json(HTTPStatus.OK, {"ok": True})
-        elif path == "/v1/external-agent/import" and method == "POST":
-            value = self.body_json()
-            if not str(value.get("actor", "")).strip() or not normalize(value.get("source_ids")):
-                raise ValueError("actor and source_ids are required")
-            item = store.create_item({"request_id": value.get("request_id"), "kind": "derived", "content": value.get("content"), "projects": [value["project"]] if value.get("project") else [], "parent_ids": value.get("source_ids"), "source": value.get("source"), "actor": value.get("actor")})
-            self.json(HTTPStatus.CREATED, item)
-            self.server.schedule_organization(item)
         elif path == "/v1/restore" and method == "POST":
             self.restore_workspace(self.body_json(250 << 20))
-        elif path.startswith("/v1/project-overview-drafts/") and method == "POST":
-            name = urllib.parse.unquote(path.removeprefix("/v1/project-overview-drafts/"))
-            project = store.get_project(name)
-            sources = [item for item in store.items() if name in item.get("projects", [])][:12]
-            if not sources:
-                raise ValueError("project has no materials")
-            output = self.server.gemini.run_skill(store.get("skills", "sk_document"), {"instruction": "Draft a concise project overview update.", "project": name}, [{"id": source["id"], "content": source["content"]} for source in sources], store.settings(), str(project.get("overview", "")))
-            self.json(HTTPStatus.OK, {"draft": output, "source_ids": [source["id"] for source in sources]})
         else:
             self.error(HTTPStatus.NOT_FOUND, "not found")
 

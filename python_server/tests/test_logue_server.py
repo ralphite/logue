@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -79,6 +80,11 @@ class SourceRuntimeTest(unittest.TestCase):
         _, result = self.request("/v1/search?query=voice")
         self.assertEqual(result["sources"], [{"id": first["id"], "match": "content"}])
         self.assertEqual(result["pages"], [])
+
+    def test_legacy_item_route_is_not_available(self) -> None:
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            self.request("/v1/items")
+        self.assertEqual(raised.exception.code, 404)
 
     def test_transcription_keeps_audio_readable(self) -> None:
         self.server.gemini.transcribe = lambda *args, **kwargs: "spoken words"

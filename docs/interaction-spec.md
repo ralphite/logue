@@ -1,109 +1,118 @@
-# Logue 核心交互规格
+# Logue 核心交互规格（clean-slate）
 
-本文件只定义共享交互合同。一级 IA、feature scope 与完整 UX 状态以 `GOAL.md`、`docs/product-spec.md` 和 `docs/design/capture-to-reuse-product-design-2026-08-04.md` 为准；不得恢复相反的旧 `Generate` 页面或常驻成功状态。
+本文件只定义共享交互合同。一级 IA 与 feature scope 以 `docs/product-spec.md` 和 `docs/design/capture-to-reuse-product-design-2026-08-04.md` 为准。
 
-## 语音输入：极简直接插入
+## 可取消 mutation / generation 合同
 
-最新用户纠正覆盖旧的“停止后审阅”流程。正确默认流程为：
+Capture、Draft、Selection Skill 和写回共用：
 
-`聚焦输入框 → 麦克风出现 → 点击录音 → 停止并插入 / 取消`
+| 状态 | 可见动作 | 规则 |
+| --- | --- | --- |
+| `idle` | 当前主动作 | 焦点留在任务入口 |
+| `pending` | `Cancel` | 阻止重复提交；取消使 request token 失效 |
+| `recoverable_error` | `Retry` + `Cancel/Copy`（按场景） | 旧请求不得覆盖新状态；错误用 alert |
+| `cancelled` | 返回原任务 | 迟到结果不得保存、写回或重开 UI |
+| `applied` | 继续；安全时 `Undo` | 成功静默；history 重试不得再次应用 |
 
-- 录音态主动作：`停止并插入`；自动转写、保存、插入。
-- `取消` 在 permission/starting/recording/transcribing/saving 与插入完成前始终可见；立即使 request token 失效、停止麦克风并丢弃未绑定 capture。迟到结果不得保存、插入或重新打开 UI。
-- 不存在审阅页、重录、项目、Tag、参考详情或归档选择。
-- Side Panel 只在其 document 获得焦点、且焦点不在编辑控件内时接管 `R` 开始录音、`Enter` 停止并转写、`Esc` 取消；网页原位 launcher 在录音中只使用 `Enter` 停止并插入与 `Esc` 取消。
-- 保存完成前不得写入宿主输入框。
-- 插入只分发宿主 `input` / `change` 所需事件，不按 Enter、不提交表单。
-- 连续点击由提交锁阻止；网络响应丢失时稳定 `request_id` 保证幂等。
+- Menu 打开聚焦首个可用项；方向键/Home/End 导航，Enter 执行，Esc 关闭。
+- Dialog/Drawer 关闭后焦点返回原触发器；内容区只有一个滚动归属。
+- loading 使用 polite status，不抢焦点；最终失败使用 alert。
+- 颜色不能单独表达状态；所有图标按钮有 accessible name 与 focus-visible。
 
-## Extension 状态机
+Search 不使用这张表的可见 Cancel。它采用 latest-query-wins：新 query、Clear 或关闭即使旧请求失效，旧结果不得覆盖新 query。
 
-| 状态 | 主动作 | 次动作 | 完成/恢复 |
-| --- | --- | --- | --- |
-| `idle` | 开始语音 | 无 | 只在当前输入框聚焦时显示入口 |
-| `starting` | 无 | 取消 | 取消后停止权限/麦克风请求；迟到结果无效 |
-| `recording` | 停止并插入 | 取消 | 停止进入自动处理；取消丢弃内存音频 |
-| `transcribing` | 无 | 取消 | 自动转写；取消后迟到结果无效 |
-| `saving` | 禁用重复提交 | 取消 | 先保存再插入；取消后未绑定 capture 删除，迟到结果无效 |
-| `error: transcription` | 重试并插入 | 取消 | 保留录音，不增加审阅步骤 |
-| `error: microphone` | 再次录音 | 取消 | 不阻断原网页输入 |
-| `error: save` | 重新保存 | 取消 | 宿主页面保持未写入 |
-| `error: target` | 重新聚焦后插入 | 复制文字 | 资料已经安全保存 |
-| `disconnected` | Retry | Change server… | 只验证当前配置的 Server URL；恢复后返回原任务并保留待插入内容 |
+## 语音输入
 
-用户在绑定 Material 前执行 `Cancel` / `Back` 时删除未绑定 capture；浏览器控制的 Side Panel 关闭不作为可靠清理事件。已经绑定到 Material 的录音不会因返回或关闭而删除。
+默认流程：`Focus editor → Record → Stop and insert / Cancel`。
 
-## 输入框模式
+- 麦克风只在真实可编辑目标聚焦时出现。
+- Side Panel 有效输入目标使用 `Stop and insert`；页面批注使用 `Stop and save`。
+- 仅在 recording 且非 IME composition/key repeat 时消费 `keydown`：`Enter` 停止，`Esc` 取消；不得传播给宿主或触发默认 submit。
+- `Cancel` 在 starting、recording、transcribing、saving 和插入完成前始终可用；每个副作用前再次校验 request token。
+- Source commit 前取消不创建 Source；commit 后、插入前取消保留 Source、取消插入，显示 `Saved to Library.` 与 `Insert again / Copy`。
+- 保存 Source 完成前不得写入宿主；插入不按 Enter，不提交表单。
+- 目标失效时 Source 仍保留，提供 `Insert again / Copy`。
+- 成功保持安静；连续点击由提交锁和稳定 request ID 保证幂等。
 
-- 入口只在真实可编辑目标聚焦时出现，不覆盖宿主关键控件。
-- 输入主流程不展示页面、项目、Tag、参考或 Context；这些由后台自动使用或在资料保存后整理。
-- 快捷键必须和点击入口产生完全相同的开始/停止行为。
-- 目标在提交前被移除时，先保存的资料仍保留，并提供重新插入或复制。
-- 成功默认安静；只在失败或目标丢失时显示局部、可行动的恢复。
+## 网页选区
 
-## 选区模式
+- 右键 `Save to Logue` 立即保存完整选区。
+- 成功静默；不自动打开 Side Panel 或要求选择 Project。
+- 保存失败时在原选区附近显示 `Couldn't save to Logue.` 与 `Retry / Change server… / Dismiss`；保留同一 selection snapshot 与 request ID，不自动打开 Side Panel。
+- Source detail 的 `Correct transcript` 最多维护一个 active correction；`Add note` 可追加多个文字/语音 annotation。Search/Draft 优先 active correction，原文始终可展开核验。Source picker 在有 Notes 时提供折叠 `Include notes`；展开后逐条 checkbox、默认全不选，Run 记录 annotation IDs。
+- 预览可截断，实际保存不可截断；重试不得重复创建。
 
-- 右键菜单名称：`Save to Logue`。
-- 右键动作立即保存完整选区；过长时任何预览可视觉截断，但保存内容不得截断。
-- 用户随后主动打开 Side Panel 或 Material detail 时，可用 `Add note` 追加文字/语音批注；不重复保存原文。
-- 原文与批注永远是两条资料，批注通过 `parent_ids` 指向原文；重试必须幂等。
+## Side Panel
 
-## Web App
+- 默认只承担 capture 和局部恢复，不复制 Web App 导航。
+- `On this page` 仅显示与当前规范化完整页面 URL 精确相同的 Sources，按 captured time 倒序、最多 5 条；规范化保留 path 和非追踪 query，移除 fragment、`utm_*`、`fbclid`、`gclid` 并统一 scheme/host/default port，不按 origin 混合。无法可靠取得 page URL 时不显示；不做语义扩展或显示 Pages。点击在新标签打开 Web detail。
+- `Write with sources` 渐进披露并复用统一 Source picker；至少一条 Source 后才显示 Run。Compose 只有 instruction、选定 Sources、默认 Skill。
+- 生成期间保留 instruction/Sources，提供 `Cancel`；失败原地 `Retry`。
+- 结果态：`Insert` 主动作、`Copy` 次动作、`Back`；Sources 在编辑框外展开，插入/复制默认只输出正文，不输出内部 citation token，也不自动发送。
+- 目标失效时禁用 Insert，显示 `The original editor is no longer available.` 与 `Copy`。Insert 后焦点回宿主插入末尾；Copy 用 polite `Copied`；Back 保留 instruction、Sources 和结果。
+- Adopt 后成功安静；Side Panel 按规范化完整页面 URL 提供折叠 `Sources used`，从 adopted Run 还原 Source 映射。规范化保留 path 与非追踪 query，移除 fragment、`utm_*`、`fbclid`、`gclid` 并统一 scheme/host/default port，不按 origin 混合不同页面。
+- Chrome 控制 Side Panel 的打开、关闭和宽度；产品不绘制伪关闭按钮。
 
-### 资料流
+## Library 与 Search
 
-- 初始只展示列表，不自动打开第一条详情。
-- 搜索同时覆盖内容、来源、项目与标签。
-- 筛选保留 `全部 / 需要确认 / 未归项目 / 已归项目`；“需要确认”只来自后台低置信度或异常结果，不是所有输入的待办箱。
-- 点击资料打开右侧详情；窄屏时详情覆盖主列表。
-- 新资料保存后后台自动归项目与 Tag；高置信度时安静完成，低置信度在列表和详情显示“需要确认”。
-- 派生/用户创作内容可进入编辑并保存；原始选区、音频与机器转写只读。项目归属使用直接点选并立即保存，标签按 Enter 添加并立即保存。用户修改项目或 Tag 即确认该组织结果。
+- Library 默认 `All`，另有 `Sources / Pages`；初始不自动打开第一条详情。
+- 点击 Source 打开 detail drawer；点击 Page 进入编辑器。
+- Search 打开后焦点进入搜索框，同时查询 Sources、Pages、Projects。
+- 结果使用单一全局排序：全部精确命中先于语义结果；类型由 icon/metadata 表达，不按类型分组。
+- Search 使用 latest-query-wins，不显示额外 Cancel。`No results` 保留 query；失败显示 `Couldn't search. Retry.`，焦点留在输入框。
+- 返回结果列表时恢复 query、filter、scroll，并把焦点还给原 row。
+- `Clear search` 后焦点回搜索框。
+- Source 结果提供 `Open source / New page from source`；后者首次激活后锁定 row action，使用稳定 request ID，成功只创建并导航一次。失败保留 Search 状态，在原 row 显示 `Couldn't create page. Retry.`，Retry 复用 request ID；该快速 mutation 不显示 Cancel。创建后关联 Source、聚焦正文且不改变 Project。向已有 Page 添加来源只通过 Page 内 `Add sources`。Search 不生成聊天答案。
+- Search 快捷键用平台无关 `Mod+…` 表述并经真实宿主验证；不得在 input/textarea/contenteditable、IME 或 editor selection 中接管。
 
-### 项目
+## Projects
 
-- 项目列表展示名称、概览摘录、资料数和文档数。
-- 项目详情的概览与术语自动保存；正常保存保持安静，仅失败时在编辑位置显示恢复动作。
-- Gemini 概览草稿必须显式“追加到概览”，不能自动覆盖。
-- 项目资料和文档都可直接打开对应一级页面。
+- Project brief 与 confirmed terms 就地编辑、静默 autosave。
+- Sources/Pages 只能由用户明确 `Add` 或 `Remove`。
+- 不存在自动归档、Tags、Needs review 或后台覆盖 Project context。
+- Page 最多属于一个 Project。Project 页面中的 `New page` 自动关联当前 Project；Source 可由用户明确关联多个 Projects；`Add sources` 使用统一 Source picker。
 
-### Documents / Skills 中的生成能力
+## Page
 
-- 一级导航没有“生成”。生成只作为 Documents、Skills 与 Extension 的动作能力出现。
-- 新生成的最小输入是 `Skill + 本次要做什么`；项目和资料作为可检查、可更改的上下文，默认由当前位置与 Skill 规则装配；取消/失败不创建空 Document。
-- 生成结果根据 Skill 输出形态显示：短回复/消息为可编辑文本和复制/插入动作；QA 为问答对；文档进入持续编辑器。
-- 生成历史保留 Skill 名称/版本、来源和结果；用户修改结果不改写原始资料。
+- `New page` 立即创建空白 Page，标题 `Untitled`，焦点进入正文。
+- `Add sources` 打开统一 picker；Project 内创建默认当前 Project，其他入口默认 `All sources`。空状态无动作，只显示 `No sources yet. Save something with the extension, then return.`，保留 Close/Esc；不假设 Web 能打开 Extension。
+- 未选择 Source 时隐藏 `Draft with sources`；生成期间保留 instruction/Sources，并提供 `Cancel`。
+- `Draft with sources` 使用行内 compose：instruction、Sources、产品内置且可编辑的默认 `Draft` Skill；`Change skill…` 位于 overflow。
+- Run 启动时保存稳定 insertion anchor；结果只插入该 anchor，不覆盖现有正文。Anchor 失效时保留结果，显示 `Insertion point changed.` 与 `Insert at cursor / Copy / Close`。完成后焦点位于插入内容末尾，并提供一次 Undo。
+- autosave 成功静默；失败在编辑位置显示 `Retry` 并保留本地草稿。
+- citation 点击后打开 Sources panel、滚动、高亮并聚焦对应来源。
+- Sources panel 桌面可调整宽度；窄屏覆盖显示，不能隐藏功能。
+- 未被引用的 Source 可直接 `Remove from page`；存在 citations 时使用 `Exclude from future drafts`，只更新 drafting context，不删除 citation。被排除项保留在 Sources panel，显示 `Not used for new drafts / Include in drafts`；Header 数量统计全部关联 Sources，drafting 数量只在 Compose 表达。Citation 只随正文编辑删除。
 
-### Skills
+## Selection Skills
 
-- 用户可新建、复制、重命名、启用/停用和编辑 Skill；当前 Prompt/指令能力不得称为 Agent。
-- Skill 编辑采用与项目/文档相同的内容优先、自动保存模式：标题和指令在主内容区，任务类型、输出形态、上下文和可用表面渐进展开。
-- 转写 Skill 只控制听写规则；整理 Skill 只能从实际项目白名单中选择并输出结构化 Tag/置信度；生成 Skill 必须记录实际来源。
-- 在 Document 或网页可编辑目标选中文字时，选区附近出现轻量 `Skills` 入口；选择 Skill 后只替换当前仍有效的选区，绝不自动提交宿主表单。
-- 不在第一版暴露 MCP 权限编辑器或模型细节矩阵；这些只在真实工具调用出现时渐进展开。
+- 只在同一稳定可编辑目标、非空选区、非 IME、非 repeat 时显示。
+- pending 显示 `Cancel`；Esc 与 Cancel 等价并使迟到结果失效。点击外部关闭菜单也恢复原选区。
+- 替换前再次校验目标与选区快照；失效则不写回。
+- 结果返回时目标/快照失效则保留结果，显示 `Selection changed.` 与 `Copy / Close`。
+- Page 替换进入同一编辑 history；网页只在目标仍存在且替换后文字未变化时显示 Undo。
+- Apply 后焦点位于替换范围末尾；Undo 恢复原文字和原选区。
+- 多行结果保留真实换行；绝不自动提交宿主表单。
+- 默认快捷键必须经过真实 Notion/宿主验证后再定稿。
 
-### 文档结果
+## Settings 与 Skills
 
-- 左侧文档列表 + 中间可编辑文档 + 可开关来源面板。
-- 标题是页面第一视觉层级；标题下只保留可操作的项目与来源数，更新时间放入 actions/Tooltip。
-- 已引用来源与可添加来源不重复出现；已引用用品牌紫表示，正常连接/保存不显示成功色。
-- 行内 `[Source n]` 与右侧 `#n` 一一对应；点击行内引用会打开来源面板、滚动并高亮对应资料。
-- 添加引用默认只搜索当前项目；用户可显式切换到“全部资料”，避免跨项目作用域含混。
-- 来源行展示唯一标题、项目/域名/日期；原始 URL 使用独立外链动作。
-- Markdown 标题、列表、粗体、代码与 `[Source n]` 在编辑器中正确呈现。
-- `Citations` 每行代表唯一 Source；`Remove source` 删除其全部行内引用、统一重编号并提供一次 Undo，不删除原 Material。
-- Sources 在桌面使用共享可调整宽度并保留编辑器最小阅读宽度；窄屏转为覆盖 drawer，不得直接隐藏。
+- Settings 分为 `Skills / Model & privacy / Export & backup`。Server URL 只在 Extension 的断连恢复/Advanced 中配置，Web 不复制该字段。
+- Skill 支持 create、duplicate、rename、enable/disable、edit instruction。
+- 每次编辑形成 revision；Run 使用 canonical context fields：Skill revision、Source IDs、annotation IDs、Project context、instruction、output、adopted target。
+- Prompt-only 配置不称为 Agent；无真实需求前不展示模型矩阵、工具权限或模板市场。
 
-## Extension Skill 生成
+## 删除
 
-- 原位输入默认只显示麦克风；生成属于渐进式功能，不能长期并列制造负担。
-- 需要生成时，使用用户设定的 Extension 默认 Skill；需切换时才展开 Skill 列表，不每次强迫选择。
-- 可使用当前输入框内容、当前页面、显式选区与自动关联的单一项目/资料；实际使用项必须随运行记录。
-- 返回结果在 Chrome Side Panel 内可编辑，主动作为“插入”；不自动发送、不按 Enter。实际使用的 Sources 可展开核验；基于资料的事实性结论沿用 `[Source n]` 映射。
+- Source/Page/Project 的 overflow 提供明确 `Delete…`。
+- Page 删除不删除 Sources；Project 删除只解除 Sources 关联并把 Pages 变为无 Project。
+- Source 被引用时，确认层显示受影响 Page/citation 数量；确认后删除 Source、音频和对应 citations。
 
 ## 键盘与可访问性
 
-- `Escape` 在非录音局部态执行返回/取消，关闭 menu/dialog 后焦点返回原触发器或选区；不新增无法控制的 Chrome Side Panel 关闭按钮。
-- 图标按钮必须有可读名称、至少 32px 点击区域、hover 与键盘焦点态。
-- 颜色不是唯一状态信号；连接、录音、保存和错误同时显示文字。
-- 支持 `prefers-reduced-motion`；波形和加载动画在降低动态效果时停止。
-- Menu 打开聚焦首个可用项，方向键/Home/End 移动，Enter 执行；Dialog 使用 focus trap；取消会使迟到结果无效，history 重试不得再次应用内容。
+- `Esc` 的优先级：取消当前 pending task → 关闭局部 menu/dialog/drawer → 返回原触发器。
+- Dialog/覆盖 Drawer 打开时聚焦标题或首个可用控件，Tab/Shift+Tab 留在浮层内，背景 inert；Esc 第一次取消 pending，第二次关闭并恢复触发器。
+- 窄屏主导航使用原生 menu/drawer；同一时刻只允许一个覆盖层。Library detail 与 Page Sources 复用 full-width drawer，不产生横向滚动。
+- Icon button 点击区域至少 32px；文字保持共享正式字号，不用浏览器缩放解决密度。
+- resizer 支持方向键、Shift 加速、Home/End 和清晰 focus-visible。
+- 支持 `prefers-reduced-motion`；波形在降低动态效果时停止动画但保留录音文字/时长。

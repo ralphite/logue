@@ -4,14 +4,15 @@
 - Keep commits small, atomic, and independently reviewable. Commit each verified product batch promptly and push it to `origin/main` immediately after committing.
 - Do not combine unrelated UI, backend, release, documentation, or QA changes in one commit.
 - The Web App UI uses English. Web App identifiers, comments, accessibility labels, and test descriptions also use English.
-- Preserve user data and unrelated worktree changes. Never discard or overwrite another contributor's edits.
+- Preserve unrelated worktree changes. Never discard or overwrite another contributor's edits.
 
 ## Single-user data and compatibility rules
 
-- This machine is the only supported installation and its current Logue data is the only data that must be preserved. There are no external users or deployed historical schemas to support.
-- The current schema, routes, product names, defaults, and file formats are the only source of truth. Do not add or retain legacy migrations, deprecated field or route aliases, old-copy fallbacks, dual-format parsers, or compatibility fixtures unless the user explicitly requests compatibility.
-- When a schema or format change affects this machine's current data, perform one explicit, backed-up, verified data update and then delete the migration code. Never keep a permanent migration path for a completed local transition.
-- Installer overwrite and rollback must continue to preserve this machine's current data and recover the current installed version. This operational safety requirement does not authorize support for legacy schemas or obsolete product behavior.
+- There are no external users or deployed historical schemas. Existing code, UI, schema, routes, product names, defaults, file formats, and current local data are disposable prototype inputs, not product constraints or sources of truth.
+- Design and implement from the latest user outcome and current product specification. Freely replace or delete existing flows, objects, routes, storage formats, and components when a better product requires it; do not preserve a path merely because it already exists.
+- Do not add or retain legacy migrations, deprecated field or route aliases, old-copy fallbacks, dual-format parsers, compatibility fixtures, or parallel old/new UI. Cut over cleanly.
+- Before a destructive local data transition, create a recoverable backup when practical and attempt one explicit best-effort import. Migration success is not a release blocker; report records that could not be imported, then delete the migration code and obsolete storage.
+- Installer rollback must recover the installed program version. Preserving pre-redesign prototype data is not a rollback or release requirement unless the user explicitly restores that constraint.
 
 ## Prototype delivery and complexity discipline
 
