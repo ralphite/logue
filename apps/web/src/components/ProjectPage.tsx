@@ -23,7 +23,7 @@ export function ProjectPage({
   onSelectedProjectChange: (project?: string, replace?: boolean) => void;
   onOpenStream: (project?: string) => void;
   onOpenMaterial: (materialId: string) => void;
-  onUpdateMaterialClassification?: (id: string, projects: string[], tags: string[], excludedProjects: string[]) => Promise<void>;
+  onUpdateMaterialClassification?: (id: string, projects: string[], tags: string[], excludedProjects: string[], savedOnlyProjects: string[]) => Promise<void>;
 }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [documents, setDocuments] = useState<LogueDocument[]>([]);

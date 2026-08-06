@@ -13,6 +13,7 @@ interface ApiMaterial {
   source?: SourceInfo;
   projects?: string[];
   excluded_projects?: string[];
+  saved_only_projects?: string[];
   tags?: string[];
   parent_ids?: string[];
   capture_id?: string;
@@ -133,6 +134,7 @@ export function fromApiMaterial(item: ApiMaterial): Material {
     source: item.source,
     projects: item.projects ?? [],
     excludedProjects: item.excluded_projects ?? [],
+    savedOnlyProjects: item.saved_only_projects ?? [],
     tags: item.tags ?? [],
     parentIds: item.parent_ids ?? [],
     captureId: item.capture_id,
@@ -333,7 +335,7 @@ export async function updateMaterialMetadata(id: string, projects: string[], tag
 
 export async function updateMaterial(
   id: string,
-  changes: { content?: string; projects?: string[]; excludedProjects?: string[]; tags?: string[] },
+  changes: { content?: string; projects?: string[]; excludedProjects?: string[]; savedOnlyProjects?: string[]; tags?: string[] },
 ) {
   const result = await parseResponse<ApiMaterial>(
     await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}`, {
@@ -343,6 +345,7 @@ export async function updateMaterial(
         ...(changes.content !== undefined ? { content: changes.content } : {}),
         ...(changes.projects !== undefined ? { projects: changes.projects } : {}),
         ...(changes.excludedProjects !== undefined ? { excluded_projects: changes.excludedProjects } : {}),
+        ...(changes.savedOnlyProjects !== undefined ? { saved_only_projects: changes.savedOnlyProjects } : {}),
         ...(changes.tags !== undefined ? { tags: changes.tags } : {}),
       }),
     }),

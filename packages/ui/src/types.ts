@@ -39,6 +39,7 @@ export interface Material {
   source?: SourceInfo;
   projects: string[];
   excludedProjects?: string[];
+  savedOnlyProjects?: string[];
   tags: string[];
   parentIds?: string[];
   captureId?: string;

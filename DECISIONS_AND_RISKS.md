@@ -482,9 +482,9 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 ### DR-047 — Project Context 的用户排除永久覆盖自动分类
 
 - **优先级：** V2 产品 / P0
-- **状态：** 真实 Host 与 Web Context review 已实现；最低构建检查通过，待完整功能完成后统一运行时验证
-- **决定：** Source 除 `projects` 外持久保存 `excluded_projects`。用户在 Context review 选择 Exclude 后，后台 Organization Skill 不得重新加入该 Project；用户显式 Add 会同时移除对应 exclusion。低置信度建议继续留在 Review，不自动进入 Context。
-- **用户可见影响：** 用户纠正一次后结果稳定，不会与后台分类反复拉扯；Saved content 仍永久保留，排除只影响特定 Project Context。
+- **状态：** 已完成并通过真实运行时验证；无 P0/P1
+- **决定：** Source 除 `projects` 外持久保存 `excluded_projects` 与不阻止重新分类的 `saved_only_projects`。Suggested 可 Add 或 Exclude；In Context 可 Remove（进入 Saved only）或 Exclude；Excluded 只能 Undo exclusion（进入 Saved only），不能用 Add 冒充撤销。Host 对同一 Project 强制 `projects`、`excluded_projects`、`saved_only_projects` 三者互斥，且 Comment bundle 的 Web Source 与所有 You Comments 共享一次 membership 决定。后台 Organization Skill 永远不得重新加入 excluded Project；低置信度建议继续留在 Review，不自动进入 Context。
+- **用户可见影响：** 用户能区分普通移出与永久排除，纠正一次后结果稳定；一条网页选区及其 Comments 始终作为一个概念管理，不会拆成重复行。Saved content 仍永久保留，所有 membership 动作只影响特定 Project Context。
 - **替代方案：** 只从 `projects` 数组删除，或把排除存在前端状态。两者都会在重新分类或重启后丢失用户意图。
-- **已有证据：** Goal 明确规定用户显式加入、排除和纠正永久优先，且永久 Library 与 Project Context 必须分离。
+- **已有证据：** Goal 明确规定用户显式加入、排除和纠正永久优先，且永久 Library 与 Project Context 必须分离。2026-08-05 使用当前 `.logue-data` 的真实 Comment bundle 完成 Suggested → Add → Remove → Exclude → Undo exclusion；Web/You 全程保持单行，Library 原件未删除。页面重新读取与 Host 重启后状态保留；重新运行 Organization 后 `excluded_projects=["Logue"]` 且 `projects` 未重新出现 Logue；直接提交三个重叠数组时 Host 仍只保留 `saved_only_projects`。fresh read-only post-gate 两次均为 GO，无 P0/P1。
 - **开放问题：** Topic merge/convert 是更高层组织能力；不阻塞 Source membership 的真实纠正合同。

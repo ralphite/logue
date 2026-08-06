@@ -166,13 +166,17 @@ class Store:
         source = dict(source)
         if source.get("url") and not source.get("domain"):
             source["domain"] = urllib.parse.urlsplit(str(source["url"])).hostname or ""
-        projects = normalize(value.get("projects"))
+        excluded_projects = normalize(value.get("excluded_projects"))
+        saved_only_projects = [name for name in normalize(value.get("saved_only_projects")) if name not in excluded_projects]
+        unavailable = set(excluded_projects + saved_only_projects)
+        projects = [name for name in normalize(value.get("projects")) if name not in unavailable]
         timestamp = now()
         item = {
             "id": make_id("mat_"), "kind": kind,
             "status": "organized" if projects else "unfiled", "content": content,
             "projects": projects, "tags": normalize(value.get("tags")),
-            "excluded_projects": normalize(value.get("excluded_projects")),
+            "excluded_projects": excluded_projects,
+            "saved_only_projects": saved_only_projects,
             "created_at": timestamp, "actor": str(value.get("actor", "")).strip() or "user",
             "organization": {"status": organization_status, "updated_at": timestamp},
         }
@@ -199,16 +203,32 @@ class Store:
                     raise ValueError("content is required")
                 content_changed = content != item.get("content")
                 item["content"] = content
-            metadata_changed = "projects" in changes or "excluded_projects" in changes or "tags" in changes
+            metadata_changed = "projects" in changes or "excluded_projects" in changes or "saved_only_projects" in changes or "tags" in changes
             if "projects" in changes:
                 item["projects"] = normalize(changes["projects"])
+                included = set(item["projects"])
+                item["excluded_projects"] = [name for name in normalize(item.get("excluded_projects")) if name not in included]
+                item["saved_only_projects"] = [name for name in normalize(item.get("saved_only_projects")) if name not in included]
             if "excluded_projects" in changes:
                 item["excluded_projects"] = normalize(changes["excluded_projects"])
+                excluded = set(item["excluded_projects"])
+                item["projects"] = [name for name in normalize(item.get("projects")) if name not in excluded]
+                item["saved_only_projects"] = [name for name in normalize(item.get("saved_only_projects")) if name not in excluded]
+            if "saved_only_projects" in changes:
+                item["saved_only_projects"] = normalize(changes["saved_only_projects"])
+                saved_only = set(item["saved_only_projects"])
+                item["projects"] = [name for name in normalize(item.get("projects")) if name not in saved_only]
+                item["excluded_projects"] = [name for name in normalize(item.get("excluded_projects")) if name not in saved_only]
             if "tags" in changes:
                 item["tags"] = normalize(changes["tags"])
             item["status"] = "organized" if item.get("projects") else "unfiled"
             if metadata_changed:
-                item["organization"] = {"status": "confirmed", "confidence": 1, "updated_at": now()}
+                previous = item.get("organization") if isinstance(item.get("organization"), dict) else {}
+                item["organization"] = {
+                    "status": "confirmed",
+                    **{key: previous[key] for key in ("confidence", "reason", "suggested_projects", "suggested_tags") if key in previous},
+                    "updated_at": now(),
+                }
             elif content_changed:
                 item["organization"] = {"status": "pending", "updated_at": now()}
             atomic_json(self.root / "items" / f"{identifier}.json", item)
@@ -219,12 +239,13 @@ class Store:
             item = self.get("items", identifier)
             if item.get("content") != expected_content or (item.get("organization") or {}).get("status") != "pending":
                 return
-            current_projects = normalize(item.get("projects"))
+            excluded_projects = set(normalize(item.get("excluded_projects")))
+            current_projects = [name for name in normalize(item.get("projects")) if name not in excluded_projects]
+            item["projects"] = current_projects
             current_tags = normalize(item.get("tags"))
             if decision is None:
                 item["organization"] = {"status": "needs_review", "confidence": 0, "reason": "Automatic organization is temporarily unavailable. Review the project and tags.", "updated_at": now()}
             else:
-                excluded_projects = set(normalize(item.get("excluded_projects")))
                 suggested_projects = [name for name in normalize(decision.get("projects")) if name not in excluded_projects][:3]
                 suggested_tags = normalize(decision.get("tags"))[:5]
                 confidence = float(decision.get("confidence", 0))
@@ -234,9 +255,11 @@ class Store:
                     raise ValueError("invalid organization result")
                 if confidence >= 0.75 and (current_projects or suggested_projects):
                     item["projects"] = normalize(current_projects + suggested_projects)
+                    included = set(item["projects"])
+                    item["saved_only_projects"] = [name for name in normalize(item.get("saved_only_projects")) if name not in included]
                     item["tags"] = normalize(current_tags + suggested_tags)
                     item["status"] = "organized" if item["projects"] else "unfiled"
-                    item["organization"] = {"status": "organized", "confidence": confidence, "reason": reason, "updated_at": now()}
+                    item["organization"] = {"status": "organized", "confidence": confidence, "reason": reason, "suggested_projects": suggested_projects, "suggested_tags": suggested_tags, "updated_at": now()}
                 else:
                     item["organization"] = {"status": "needs_review", "confidence": confidence, "reason": reason or "The organization result is uncertain. Review the project and tags.", "suggested_projects": suggested_projects, "suggested_tags": suggested_tags, "updated_at": now()}
             atomic_json(self.root / "items" / f"{identifier}.json", item)

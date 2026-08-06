@@ -284,8 +284,8 @@ export function App() {
     setMaterials((current) => current.map((material) => material.id === id ? updated : material));
   }
 
-  async function updateClassification(id: string, projects: string[], tags: string[], excludedProjects: string[]) {
-    const updated = await updateMaterial(id, { projects, tags, excludedProjects });
+  async function updateClassification(id: string, projects: string[], tags: string[], excludedProjects: string[], savedOnlyProjects: string[]) {
+    const updated = await updateMaterial(id, { projects, tags, excludedProjects, savedOnlyProjects });
     setMaterials((current) => current.map((material) => material.id === id ? updated : material));
   }
 

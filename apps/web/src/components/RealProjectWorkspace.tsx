@@ -45,7 +45,7 @@ export function RealProjectWorkspace({
   onSkillBindingsChange: (value: ProjectSkillBindings) => void;
   onDocumentsChange: (documents: LogueDocument[]) => void;
   onOpenMaterial: (materialId: string) => void;
-  onUpdateMaterialClassification: (id: string, projects: string[], tags: string[], excludedProjects: string[]) => Promise<void>;
+  onUpdateMaterialClassification: (id: string, projects: string[], tags: string[], excludedProjects: string[], savedOnlyProjects: string[]) => Promise<void>;
   onBack: () => void;
 }) {
   const projectDocuments = useMemo(() => documents.filter((document) => document.project === project.name), [documents, project.name]);
@@ -176,23 +176,30 @@ export function RealProjectWorkspace({
     return skills.find((skill) => skill.id === id)?.name ?? "System default";
   }
 
-  const contextMaterials = useMemo(() => materials.filter((material) =>
+  const contextCandidates = useMemo(() => materials.filter((material) =>
     material.projects.includes(project.name)
     || material.organization?.suggested_projects?.includes(project.name)
-    || material.excludedProjects?.includes(project.name),
+    || material.excludedProjects?.includes(project.name)
+    || material.savedOnlyProjects?.includes(project.name),
   ), [materials, project.name]);
+  const contextGroups = useMemo(() => groupLibraryMaterials(contextCandidates, materials), [contextCandidates, materials]);
 
-  async function setProjectMembership(material: Material, next: "added" | "excluded") {
-    setClassificationBusyId(material.id);
+  async function setProjectMembership(group: (typeof contextGroups)[number], next: "added" | "removed" | "excluded" | "undo-exclusion") {
+    setClassificationBusyId(group.key);
     setClassificationError(undefined);
     try {
-      const projects = next === "added"
-        ? Array.from(new Set([...material.projects, project.name]))
-        : material.projects.filter((name) => name !== project.name);
-      const excludedProjects = next === "excluded"
-        ? Array.from(new Set([...(material.excludedProjects ?? []), project.name]))
-        : (material.excludedProjects ?? []).filter((name) => name !== project.name);
-      await onUpdateMaterialClassification(material.id, projects, material.tags, excludedProjects);
+      await Promise.all(group.items.map((material) => {
+        const projects = next === "added"
+          ? Array.from(new Set([...material.projects, project.name]))
+          : material.projects.filter((name) => name !== project.name);
+        const excludedProjects = next === "excluded"
+          ? Array.from(new Set([...(material.excludedProjects ?? []), project.name]))
+          : (material.excludedProjects ?? []).filter((name) => name !== project.name);
+        const savedOnlyProjects = next === "removed" || next === "undo-exclusion"
+          ? Array.from(new Set([...(material.savedOnlyProjects ?? []), project.name]))
+          : (material.savedOnlyProjects ?? []).filter((name) => name !== project.name);
+        return onUpdateMaterialClassification(material.id, projects, material.tags, excludedProjects, savedOnlyProjects);
+      }));
     } catch (cause) {
       setClassificationError(cause instanceof Error ? cause.message : "Could not update Project Context.");
     } finally {
@@ -225,12 +232,17 @@ export function RealProjectWorkspace({
           </div></div> : activeView === "context" ? <div className="v2-editor-scroll"><div className="v2-list-axis">
             <div className="v2-page-heading"><div className="v2-page-heading-copy"><h1>Project context</h1><p>Review what this Project may use. Excluding a Source never deletes it from your private Library.</p></div></div>
             {classificationError && <div className="rounded-md bg-[#fff4f1] px-3 py-2 text-[14px] text-[#a33d36]" role="alert">{classificationError}</div>}
-            <div className="v2-review-list">{contextMaterials.map((material) => {
-              const included = material.projects.includes(project.name);
-              const excluded = material.excludedProjects?.includes(project.name) ?? false;
-              const state = included ? "In Context" : excluded ? "Excluded" : "Suggested";
-              return <article className="v2-review-row" key={material.id}><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="v2-membership-pill">{state}</span>{material.organization?.confidence !== undefined && !included && !excluded ? <span className="v2-quiet-pill">{Math.round(material.organization.confidence * 100)}% match</span> : null}</div><h3>{sourceTitle(material)}</h3><p>{material.content}</p>{!included ? <div className="v2-library-meta">{excluded ? "Your correction prevents automatic re-adding" : material.organization?.reason || "Suggested by automatic organization"}</div> : null}</div><div className="v2-inline-actions"><Button size="sm" onClick={() => onOpenMaterial(material.id)}>Open source</Button>{included ? <Button size="sm" disabled={classificationBusyId === material.id} onClick={() => void setProjectMembership(material, "excluded")}>Exclude</Button> : <Button size="sm" variant="primary" disabled={classificationBusyId === material.id} onClick={() => void setProjectMembership(material, "added")}>Add</Button>}</div></article>;
-            })}{!contextMaterials.length && <div className="v2-recovery-card"><p>No Sources are included, suggested, or excluded for this Project yet.</p></div>}</div>
+            <div className="v2-review-list">{contextGroups.map((group) => {
+              const included = group.items.some((material) => material.projects.includes(project.name));
+              const excluded = group.items.some((material) => material.excludedProjects?.includes(project.name));
+              const savedOnly = group.items.some((material) => material.savedOnlyProjects?.includes(project.name));
+              const representative = group.bundle?.source ?? group.representative;
+              const primary = group.bundle?.primaryComment ?? representative;
+              const suggestedBy = group.items.find((material) => material.organization?.suggested_projects?.includes(project.name));
+              const state = excluded ? "Excluded" : included ? "In Context" : suggestedBy ? "Suggested" : savedOnly ? "Saved only" : "Suggested";
+              const busy = classificationBusyId === group.key;
+              return <article className="v2-review-row" key={group.key}><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="v2-membership-pill">{state}</span>{suggestedBy?.organization?.confidence !== undefined && !included && !excluded ? <span className="v2-quiet-pill">{Math.round(suggestedBy.organization.confidence * 100)}% match</span> : null}</div><h3>{sourceTitle(representative)}</h3><p>{primary.content}</p>{excluded ? <div className="v2-library-meta">Your correction prevents automatic re-adding</div> : !included ? <div className="v2-library-meta">{suggestedBy?.organization?.reason || "Saved in your private Library"}</div> : null}</div><div className="v2-inline-actions"><Button size="sm" onClick={() => onOpenMaterial(primary.id)}>Open source</Button>{excluded ? <Button size="sm" variant="primary" disabled={busy} onClick={() => void setProjectMembership(group, "undo-exclusion")}>Undo exclusion</Button> : included ? <><Button size="sm" disabled={busy} onClick={() => void setProjectMembership(group, "removed")}>Remove from Context</Button><Button size="sm" disabled={busy} onClick={() => void setProjectMembership(group, "excluded")}>Exclude</Button></> : <><Button size="sm" variant="primary" disabled={busy} onClick={() => void setProjectMembership(group, "added")}>Add to Context</Button><Button size="sm" disabled={busy} onClick={() => void setProjectMembership(group, "excluded")}>Exclude</Button></>}</div></article>;
+            })}{!contextGroups.length && <div className="v2-recovery-card"><p>No Sources are included, suggested, or excluded for this Project yet.</p></div>}</div>
           </div></div> : <>
             <div className="v2-editor-scroll">
               {answerRun ? <article className="v2-editor-axis" aria-label="Project answer">
