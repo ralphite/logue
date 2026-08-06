@@ -52,6 +52,7 @@ import {
 import { ProjectShell, type V2PrimaryRoute } from "../v2-mock/web/ProjectShell";
 import { V2TopicsPanel } from "./V2TopicsPanel";
 import { updateNavigationState } from "./navigationState";
+import { ContentSummary, contentSummary } from "./contentPresentation";
 
 type LibraryTab = "saved" | "activity" | "topics";
 type OriginFilter = "all" | "web" | "you" | "ai";
@@ -83,11 +84,11 @@ function groupTitle(group: LibraryMaterialGroup) {
 }
 
 function groupCopy(group: LibraryMaterialGroup) {
-  return (
+  return contentSummary(
     group.bundle?.primaryComment.annotation?.trim() ||
     group.bundle?.primaryComment.content.trim() ||
     group.representative.annotation?.trim() ||
-    group.representative.content.trim()
+    group.representative.content.trim(),
   );
 }
 
@@ -388,7 +389,7 @@ function SourceInspector({
               </div>
               <div className="v2-source-excerpt is-expanded">
                 <OriginLabel origin="web" detail="Original evidence" />
-                <p>{evidence?.content}</p>
+                <p>{contentSummary(evidence?.content)}</p>
               </div>
             </>
           ) : (
@@ -562,7 +563,7 @@ function SourceInspector({
                                 ? "AI Source"
                                 : "Your input")}
                           </strong>
-                          <p>{source.content}</p>
+                          <p>{contentSummary(source.content)}</p>
                         </div>
                       </button>
                     ))}
@@ -578,7 +579,7 @@ function SourceInspector({
                           }
                           detail="Exact frozen evidence"
                         />
-                        <p>{openRevisionSource.content}</p>
+                        <p>{contentSummary(openRevisionSource.content)}</p>
                         {openRevisionSource.source?.url ? (
                           <a
                             className="v2-download-button"
@@ -644,7 +645,7 @@ function SourceInspector({
             <div className="v2-setting-row">
               <div>
                 <strong>Saved version</strong>
-                <p>{primary.content}</p>
+                <p>{contentSummary(primary.content)}</p>
               </div>
             </div>
             {primary.appliedContext ? (
@@ -739,7 +740,7 @@ function SourceInspector({
                         origin="ai"
                         detail={`Revision ${revision.revision}${revision.undone ? " · Undone" : ""}`}
                       />
-                      <p>{revision.content}</p>
+                      <p>{contentSummary(revision.content)}</p>
                       <div className="v2-library-meta">
                         {shortDate(revision.created_at)}
                         {revision.action ? ` · ${revision.action === "insert" ? "Inserted" : "Copied"}` : ""}
@@ -858,7 +859,7 @@ function SourceInspector({
                       detail="Frozen parent"
                     />
                     <strong>{source ? materialTitle(source) : id}</strong>
-                    {source ? <p>{source.content}</p> : null}
+                    {source ? <p>{contentSummary(source.content)}</p> : null}
                   </div>
                 </button>
               ))}
@@ -1130,7 +1131,7 @@ export function RunInspector({
                   source.source?.domain ||
                   "Saved Source"}
               </strong>
-              {source.content ? <p>{source.content}</p> : null}
+              {source.content ? <p>{contentSummary(source.content)}</p> : null}
               {source.source?.url ? (
                 <a
                   className="v2-source-excerpt-toggle"
@@ -1257,7 +1258,7 @@ function ActivityInspector({
       <div className="v2-inspector-scroll">
         <article className="v2-source-bundle is-active">
           <h3>{materialTitle(item)}</h3>
-          <p>{item.content}</p>
+          <p>{contentSummary(item.content)}</p>
           <div className="v2-source-meta">
             {shortDate(item.createdAt)} · Private Activity · never Project
             Context
@@ -1292,7 +1293,7 @@ function ActivityInspector({
             <div className="v2-setting-row">
               <div>
                 <strong>Saved activity</strong>
-                <p>{item.content}</p>
+                <p>{contentSummary(item.content)}</p>
               </div>
             </div>
           </section>
@@ -1318,6 +1319,7 @@ export function V2LibraryRoute({
   runs,
   projects,
   documents,
+  loading,
   onRoute,
   onRefresh,
 }: {
@@ -1325,6 +1327,7 @@ export function V2LibraryRoute({
   runs: SkillRun[];
   projects: ProjectSummary[];
   documents: LogueDocument[];
+  loading: boolean;
   onRoute: (route: V2PrimaryRoute) => void;
   onRefresh: () => Promise<void>;
 }) {
@@ -2172,14 +2175,14 @@ export function V2LibraryRoute({
                           className="v2-library-row-main"
                           onClick={() => {
                             const url = new URL(window.location.href);
-                            url.searchParams.set("document", document.id);
+                            url.searchParams.set("doc", document.id);
                             window.history.replaceState(null, "", url);
                             onRoute("documents");
                           }}
                         >
                           <OriginLabel origin="ai" detail="Document" />
                           <h3>{document.title}</h3>
-                          <p>{document.content}</p>
+                          <p>{contentSummary(document.content)}</p>
                           <div className="v2-library-meta">
                             {documentMatchLabel(match)} ·{" "}
                             {document.project || "No Project"} · Revision{" "}
@@ -2189,7 +2192,12 @@ export function V2LibraryRoute({
                       </article>
                     ) : null;
                   })}
-                {!groups.length &&
+                {loading && !groups.length && !visibleDocumentMatches.length ? (
+                  <div className="v2-recovery-card" aria-live="polite">
+                    <p>Loading saved content…</p>
+                  </div>
+                ) : null}
+                {!loading && !groups.length &&
                 !visibleDocumentMatches.length &&
                 !searching ? (
                   <div className="v2-recovery-card">
@@ -2221,7 +2229,7 @@ export function V2LibraryRoute({
                         }
                       />
                       <h3>{materialTitle(item)}</h3>
-                      <p>{item.content}</p>
+                      <ContentSummary value={item.content} />
                       <div className="v2-library-meta">
                         {shortDate(item.createdAt)} · Activity only · never
                         added to Project Context
@@ -2248,7 +2256,10 @@ export function V2LibraryRoute({
                     <div>
                       <OriginLabel origin="ai" detail={run.status} />
                       <h3>{run.skill_name}</h3>
-                      <p>{run.instruction || "Deleted Run details"}</p>
+                      <ContentSummary
+                        value={run.instruction}
+                        fallback="Deleted Run details"
+                      />
                       <div className="v2-library-meta">
                         {shortDate(run.created_at)} · {run.sources.length}{" "}
                         frozen Sources

@@ -58,6 +58,7 @@ import {
   saveDocumentPosition,
   updateNavigationState,
 } from "./navigationState";
+import { contentSummary } from "./contentPresentation";
 
 type DisplaySource = Material | SkillRunSourceSnapshot;
 
@@ -86,6 +87,7 @@ export function V2DocumentsRoute({
   materials,
   skills,
   aiReady,
+  loading,
   onRoute,
   onRefresh,
 }: {
@@ -94,12 +96,13 @@ export function V2DocumentsRoute({
   materials: Material[];
   skills: LogueSkill[];
   aiReady: boolean;
+  loading: boolean;
   onRoute: (route: V2PrimaryRoute) => void;
   onRefresh: () => Promise<void>;
 }) {
   const [selectedId, setSelectedId] = useState<string | undefined>(
     () =>
-      new URLSearchParams(window.location.search).get("document") ??
+      new URLSearchParams(window.location.search).get("doc") ??
       readNavigationState().documents?.selectedId,
   );
   const selected =
@@ -163,8 +166,8 @@ export function V2DocumentsRoute({
   }, [documents, selectedId]);
   useEffect(() => {
     const url = new URL(window.location.href);
-    if (selected?.id) url.searchParams.set("document", selected.id);
-    else url.searchParams.delete("document");
+    if (selected?.id) url.searchParams.set("doc", selected.id);
+    else url.searchParams.delete("doc");
     window.history.replaceState(
       null,
       "",
@@ -882,7 +885,7 @@ export function V2DocumentsRoute({
                     }
                   />
                   <h3>{materialTitle(source)}</h3>
-                  <p>{source.content}</p>
+                  <p>{contentSummary(source.content)}</p>
                   {source.source?.url ? (
                     <a
                       className="v2-source-excerpt-toggle"
@@ -976,7 +979,7 @@ export function V2DocumentsRoute({
         <aside className="v2-document-list">
           <div className="v2-document-list-heading">
             <strong>Documents</strong>
-            <span>{documents.length}</span>
+            <span>{loading ? "…" : documents.length}</span>
           </div>
           {documents.map((item) => (
             <button
@@ -1368,6 +1371,15 @@ export function V2DocumentsRoute({
                 </div>
               ) : null}
             </article>
+          ) : loading ? (
+            <div className="v2-list-axis" aria-live="polite">
+              <div className="v2-page-heading-copy">
+                <h1>Documents</h1>
+              </div>
+              <div className="v2-recovery-card">
+                <p>Loading Documents…</p>
+              </div>
+            </div>
           ) : (
             <div className="v2-list-axis">
               <div className="v2-page-heading-copy">

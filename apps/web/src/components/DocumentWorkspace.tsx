@@ -307,7 +307,32 @@ function withoutDuplicateTitle(value: string, title: string) {
 
 export function toEditorHTML(value: string, title: string) {
   const html = value.trimStart().startsWith("<") ? sanitizeEditorHTML(value) : markdownToEditorHTML(value, title);
-  return withoutDuplicateTitle(html.replace(citationPattern(), "[Source $1]"), title);
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  for (const paragraph of Array.from(template.content.querySelectorAll("p"))) {
+    const text = paragraph.textContent?.trim() ?? "";
+    const heading = /^(#{1,3})\s+(.+)$/.exec(text);
+    if (heading) {
+      const replacement = document.createElement(`h${heading[1].length}`);
+      replacement.textContent = heading[2];
+      paragraph.replaceWith(replacement);
+    }
+  }
+  for (const paragraph of Array.from(template.content.querySelectorAll("p"))) {
+    const blank = !(paragraph.textContent?.trim());
+    const previous = paragraph.previousElementSibling;
+    if (
+      blank &&
+      previous?.tagName === "P" &&
+      !previous.textContent?.trim()
+    ) {
+      paragraph.remove();
+    }
+  }
+  return withoutDuplicateTitle(
+    template.innerHTML.replace(citationPattern(), "[Source $1]"),
+    title,
+  );
 }
 
 export function hasCitationNumber(value: string, sourceNumber: number) {

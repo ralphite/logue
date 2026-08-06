@@ -1,6 +1,5 @@
 import {
   Archive,
-  Check,
   Copy,
   Download,
   KeyRound,
@@ -314,6 +313,9 @@ export function SettingsRoute({
   const [aiBusy, setAiBusy] = useState<"test" | "save">();
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [loadErrors, setLoadErrors] = useState<
+    Partial<Record<SettingsTab, string>>
+  >({});
   const [topics, setTopics] = useState<TopicVocabulary[]>([]);
   const [suggestions, setSuggestions] = useState<GlossarySuggestion[]>([]);
   const [suggestionTargets, setSuggestionTargets] = useState<
@@ -353,25 +355,23 @@ export function SettingsRoute({
     if (settings) setDraft(settings);
   }, [settings]);
   useEffect(() => {
-    void Promise.all([
-      getAIConnection(),
-      getTopicVocabularies(),
-      getGlossarySuggestions(),
-      getClients(),
-      getWorkspaceBackups(),
-    ])
-      .then(([ai, nextTopics, nextSuggestions, nextClients, nextBackups]) => {
-        setConnection(ai);
+    const scopedError = (section: SettingsTab, message: string) =>
+      setLoadErrors((current) => ({ ...current, [section]: message }));
+    void getAIConnection()
+      .then(setConnection)
+      .catch(() => scopedError("Models", "Provider settings are unavailable."));
+    void Promise.all([getTopicVocabularies(), getGlossarySuggestions()])
+      .then(([nextTopics, nextSuggestions]) => {
         setTopics(nextTopics);
         setSuggestions(nextSuggestions.filter((item) => item.count >= 2));
-        setClients(nextClients);
-        setBackups(nextBackups);
       })
-      .catch((cause) =>
-        setError(
-          cause instanceof Error ? cause.message : "Could not load settings.",
-        ),
-      );
+      .catch(() => scopedError("Voice", "Voice vocabulary is unavailable."));
+    void getClients()
+      .then(setClients)
+      .catch(() => scopedError("Host", "Extension connections are unavailable."));
+    void getWorkspaceBackups()
+      .then(setBackups)
+      .catch(() => scopedError("Backup", "Backups are unavailable."));
   }, []);
   useEffect(() => {
     if (!exportOpen) return;
@@ -902,6 +902,11 @@ export function SettingsRoute({
                 {error}
               </div>
             ) : null}
+            {!error && loadErrors[tab] ? (
+              <div className="v2-warning-bar" role="alert">
+                {loadErrors[tab]}
+              </div>
+            ) : null}
             {tab === "Host" ? (
               <>
                 <section className="v2-settings-section">
@@ -909,12 +914,7 @@ export function SettingsRoute({
                   <SettingRow
                     title="This Mac"
                     detail={status?.storage_root || "Local Logue data"}
-                  >
-                    <span className="v2-local-ready">
-                      <Check size={14} />
-                      Ready
-                    </span>
-                  </SettingRow>
+                  />
                   <SettingRow
                     title="Local address"
                     detail="An Extension on this Mac pairs automatically. Another device needs a one-time code."

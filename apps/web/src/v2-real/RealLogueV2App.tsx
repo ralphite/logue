@@ -33,6 +33,7 @@ import { V2SkillsRoute } from "./V2SkillsRoute";
 import { V2DocumentsRoute } from "./V2DocumentsRoute";
 import { V2LibraryRoute } from "./V2LibraryRoute";
 import { V2SetupRoute } from "./V2SetupRoute";
+import { RouteErrorBoundary } from "./RouteErrorBoundary";
 import "../v2-mock/styles/surfaces.css";
 
 type LibraryTab = "saved" | "activity";
@@ -137,12 +138,14 @@ export function RealLogueV2App() {
   const [status, setStatus] = useState<ServiceStatus>();
   const [settings, setSettings] = useState<WorkspaceSettings>();
   const [error, setError] = useState<string>();
+  const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
       const [nextMaterials, nextProjects, nextDocuments, nextSkills, nextRuns, nextStatus, nextSettings] = await Promise.all([getMaterials(), getProjects(), getDocuments(), getSkills(), getSkillRuns(), getStatus(), getWorkspaceSettings()]);
       setMaterials(nextMaterials); setProjects(nextProjects); setDocuments(nextDocuments); setSkills(nextSkills); setRuns(nextRuns); setStatus(nextStatus); setSettings(nextSettings); setError(undefined);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not reach the Logue Host."); }
+    finally { setLoading(false); }
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
@@ -154,9 +157,14 @@ export function RealLogueV2App() {
   if (status && !status.ai_configured && !hasExplicitLocalRoute) {
     return <V2SetupRoute status={status} onReady={refresh} onBrowseLocal={() => navigate("library")} />;
   }
-  if (route === "projects") return <V2ProjectRoute projects={projects} materials={materials} documents={documents} runs={runs} skills={skills} settings={settings} aiReady={Boolean(status?.ai_configured)} onRoute={navigate} onRefresh={refresh} />;
-  if (route === "documents") return <V2DocumentsRoute documents={documents} projects={projects} materials={materials} skills={skills} aiReady={Boolean(status?.ai_configured)} onRoute={navigate} onRefresh={refresh} />;
-  if (route === "skills") return <V2SkillsRoute skills={skills} settings={settings} onRoute={navigate} onRefresh={refresh} />;
-  if (route === "settings") return <SettingsRoute status={status} settings={settings} projects={projects} skills={skills} runs={runs} onRoute={navigate} onRefresh={refresh} />;
-  return <V2LibraryRoute materials={materials} runs={runs} projects={projects} documents={documents} onRoute={navigate} onRefresh={refresh} />;
+  const content = route === "projects"
+    ? <V2ProjectRoute projects={projects} materials={materials} documents={documents} runs={runs} skills={skills} settings={settings} aiReady={Boolean(status?.ai_configured)} loading={loading} onRoute={navigate} onRefresh={refresh} />
+    : route === "documents"
+      ? <V2DocumentsRoute documents={documents} projects={projects} materials={materials} skills={skills} aiReady={Boolean(status?.ai_configured)} loading={loading} onRoute={navigate} onRefresh={refresh} />
+      : route === "skills"
+        ? <V2SkillsRoute skills={skills} settings={settings} onRoute={navigate} onRefresh={refresh} />
+        : route === "settings"
+          ? <SettingsRoute status={status} settings={settings} projects={projects} skills={skills} runs={runs} onRoute={navigate} onRefresh={refresh} />
+          : <V2LibraryRoute materials={materials} runs={runs} projects={projects} documents={documents} loading={loading} onRoute={navigate} onRefresh={refresh} />;
+  return <RouteErrorBoundary resetKey={`${route}:${window.location.search}`} route={route} onRoute={navigate}>{content}</RouteErrorBoundary>;
 }

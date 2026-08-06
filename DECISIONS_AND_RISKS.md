@@ -886,3 +886,16 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 继续从 title 或 selection prompt 猜测 Compare；会让数据语义依赖 UI 文案。
 - **已有证据：** Phase 2 runtime 审查确认 producer 固定把非 Draft 写为 Ask，Host union 也不接受 Compare。
 - **开放问题：** 无。
+
+### DR-083 — 先批量恢复 Web App 可用性，再恢复 Phase 2 lineage 工作
+
+- **优先级：** Web App P0 / 用户当前最高优先级
+- **状态：** 已解决并通过单次窄范围真实运行时复核
+- **决定：** 保持 DR-078/079/082 与 OPS-03 的具名 stash 不动。本批不重做 IA、不增加功能，只按共享根因一次修复：Voice & Skills / Settings Voice 崩溃与 app-level error boundary、Recent work → Document 导航、统一 summary/plain-text 展示、编辑器连续内容、长内容摘要与展开、Library/Documents loading/empty 三态、共享内容轴与渐进操作、Skills 布局、Host 状态优先级。审计截图保持独立，不混入产品代码提交。
+- **现有设计模式：** 继续使用统一 V2 shell、共享 page/editor/reading axis、Master–Detail、resizer、按钮和渐进 disclosure；不恢复被否决的 V1 表面。
+- **拟议 UI：** 列表与活动只显示无标签源码的内容摘要和弱化 metadata；长内容 clamp 后由明确入口展开；加载中与真实空状态分离；Context 次要动作收敛到同一渐进菜单。
+- **用户可见影响：** 关键页面不再整页白屏；文档可以从 Project 正确打开；内容可连续阅读，页面不再先误报为空或显示 HTML 源码，主要操作保持安静且可发现。
+- **风险状态：** 必须保留 Document rich-text 编辑语义、真实 Document ID、现有本机数据和未提交 WIP；本批只改变渲染、导航和状态表达，不迁移或重写数据。
+- **替代方案：** 逐屏像素补丁会继续复制根因；恢复 lineage stash 会把无关 50+ 文件重新混入并扩大风险，因此拒绝。
+- **已有证据：** `.artifacts/web-ui-audit-2026-08-06/` 的真实截图、Voice 页 `undefined.join` 崩溃、Recent work 点击后 URL 未变化，以及 ChatGPT.com 独立盲审结论。修复后在 `http://localhost:5173`、真实 Host `http://127.0.0.1:8787` 与 storage root `/Users/yadong/dev2/logue/.logue-data` 复核：Project / Settings Voice 均可打开；Recent work 进入带真实 `doc` ID 的 Documents；Context / Library 无 HTML 标签源码；History 有可访问的展开；Document 连续呈现；Skills metadata 不拆行；Host 不再同时显示 Ready / not found。Fresh designer post-gate 的唯一 P1 为 Projects 首次误显空态；补上共享 Loading 后，真实首帧显示 `Loading Projects…` 且不显示 `Create a Project`，数据完成后显示现有 Logue Project，最终 post-gate PASS（9.1/10，无剩余 P0/P1）。Web typecheck 与 diff check 通过；按用户要求未运行全面测试或扩展视觉 QA。
+- **开放问题：** 无；若真实 producer 不能证明 Topics/Privacy 有数据，不造假内容。

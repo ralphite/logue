@@ -60,6 +60,8 @@ import { ProjectShell, type V2PrimaryRoute } from "../v2-mock/web/ProjectShell";
 import { RunInspector } from "./V2LibraryRoute";
 import { DocumentContent } from "./DocumentContent";
 import { readNavigationState, updateNavigationState } from "./navigationState";
+import { ContentSummary, contentSummary } from "./contentPresentation";
+import { RowActions } from "./RowActions";
 
 type ProjectView = "workspace" | "context" | "history" | "settings";
 type RequestMode = "ask" | "compare" | "draft";
@@ -148,6 +150,21 @@ function EmptyProject({ onCreate }: { onCreate: () => void }) {
             <Plus size={15} />
             New Project
           </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LoadingProjects() {
+  return (
+    <div className="v2-editor-scroll" aria-live="polite">
+      <div className="v2-list-axis">
+        <div className="v2-page-heading-copy">
+          <h1>Projects</h1>
+        </div>
+        <div className="v2-recovery-card">
+          <p>Loading Projects…</p>
         </div>
       </div>
     </div>
@@ -289,6 +306,7 @@ export function V2ProjectRoute({
   skills,
   settings,
   aiReady,
+  loading,
   onRoute,
   onRefresh,
 }: {
@@ -299,6 +317,7 @@ export function V2ProjectRoute({
   skills: LogueSkill[];
   settings?: WorkspaceSettings;
   aiReady: boolean;
+  loading: boolean;
   onRoute: (route: V2PrimaryRoute) => void;
   onRefresh: () => Promise<void>;
 }) {
@@ -776,6 +795,10 @@ export function V2ProjectRoute({
       ...current,
       documents: { ...current.documents, selectedId: identifier },
     }));
+    const url = new URL(window.location.href);
+    url.searchParams.set("doc", identifier);
+    if (project?.name) url.searchParams.set("project", project.name);
+    window.history.replaceState(null, "", url);
     onRoute("documents");
   }
 
@@ -1114,7 +1137,7 @@ export function V2ProjectRoute({
                 openedSource.source?.domain ||
                 "Saved Source"}
             </h3>
-            <p>{openedSource.content}</p>
+            <p>{contentSummary(openedSource.content)}</p>
             {openedSource.source?.url ? (
               <a
                 className="v2-source-excerpt-toggle"
@@ -1155,7 +1178,7 @@ export function V2ProjectRoute({
       </header>
       <div className="v2-inspector-scroll">
         <article className="v2-source-bundle is-active">
-          <p>{citationSource.content}</p>
+          <p>{contentSummary(citationSource.content)}</p>
           {citationSource.source?.url ? (
             <a
               className="v2-source-excerpt-toggle"
@@ -1204,7 +1227,9 @@ export function V2ProjectRoute({
               : undefined
         }
       />
-      {!project ? (
+      {loading && !project ? (
+        <LoadingProjects />
+      ) : !project ? (
         <EmptyProject onCreate={() => setCreateOpen(true)} />
       ) : (
         <>
@@ -1309,18 +1334,7 @@ export function V2ProjectRoute({
                             type="button"
                             className="v2-project-source-row"
                             key={item.id}
-                            onClick={() => {
-                              setDocumentId(item.id);
-                              updateNavigationState((current) => ({
-                                ...current,
-                                project: {
-                                  ...current.project,
-                                  id: project.id,
-                                  name: project.name,
-                                  documentId: item.id,
-                                },
-                              }));
-                            }}
+                            onClick={() => openDocumentInEditor(item.id)}
                           >
                             <OriginLabel origin="ai" detail="Document" />
                             <span>{item.title}</span>
@@ -1658,7 +1672,7 @@ export function V2ProjectRoute({
                               group.bundle?.source ?? group.representative,
                             )}
                           </h3>
-                          <p>{item.content}</p>
+                          <ContentSummary value={item.content} />
                           <div className="v2-library-meta">
                             {excluded
                               ? "Your exclusion prevents automatic re-adding."
@@ -1671,63 +1685,30 @@ export function V2ProjectRoute({
                                   "Saved in your private Library."}
                           </div>
                         </div>
-                        <div className="v2-inline-actions">
-                          {excluded ? (
-                            <Button
-                              size="sm"
-                              variant="primary"
-                              disabled={busy}
-                              onClick={() =>
-                                void updateMembership(group, "undo")
-                              }
-                            >
-                              Undo exclusion
-                            </Button>
-                          ) : included ? (
-                            <>
-                              <Button
-                                size="sm"
-                                disabled={busy}
-                                onClick={() =>
-                                  void updateMembership(group, "remove")
-                                }
-                              >
+                        <RowActions
+                          label={`More actions for ${materialTitle(group.bundle?.source ?? group.representative)}`}
+                          primary={
+                            excluded ? (
+                              <Button size="sm" variant="primary" disabled={busy} onClick={() => void updateMembership(group, "undo")}>
+                                Undo exclusion
+                              </Button>
+                            ) : included ? (
+                              <Button size="sm" disabled={busy} onClick={() => void updateMembership(group, "remove")}>
                                 Remove
                               </Button>
-                              <Button
-                                size="sm"
-                                disabled={busy}
-                                onClick={() =>
-                                  void updateMembership(group, "exclude")
-                                }
-                              >
-                                Exclude
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="primary"
-                                disabled={busy}
-                                onClick={() =>
-                                  void updateMembership(group, "add")
-                                }
-                              >
+                            ) : (
+                              <Button size="sm" variant="primary" disabled={busy} onClick={() => void updateMembership(group, "add")}>
                                 Add to Context
                               </Button>
-                              <Button
-                                size="sm"
-                                disabled={busy}
-                                onClick={() =>
-                                  void updateMembership(group, "exclude")
-                                }
-                              >
-                                Exclude
-                              </Button>
-                            </>
-                          )}
-                          {projects.some(
+                            )
+                          }
+                        >
+                          {!excluded ? (
+                            <Button size="sm" disabled={busy} onClick={() => void updateMembership(group, "exclude")}>
+                              Exclude from this Project
+                            </Button>
+                          ) : null}
+                          {!excluded && projects.some(
                             (candidate) =>
                               candidate.name !== project.name &&
                               !candidate.archived_at,
@@ -1764,7 +1745,7 @@ export function V2ProjectRoute({
                                 ))}
                             </select>
                           ) : null}
-                        </div>
+                        </RowActions>
                       </article>
                     );
                   })}
@@ -1804,12 +1785,14 @@ export function V2ProjectRoute({
                           detail={`${item.skill_name} · ${item.status}`}
                         />
                         <h3>{item.instruction}</h3>
-                        <p>
-                          {item.adopted_output ||
+                        <ContentSummary
+                          value={
+                            item.adopted_output ||
                             item.original_output ||
-                            item.error ||
-                            "No result yet."}
-                        </p>
+                            item.error
+                          }
+                          fallback="No result yet."
+                        />
                         <div className="v2-library-meta">
                           {new Date(item.created_at).toLocaleDateString(
                             "en-US",

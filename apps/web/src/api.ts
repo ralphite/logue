@@ -278,6 +278,64 @@ export function createProjectVoiceProfile(): ProjectVoiceProfile {
   return { ...createVoiceProfile(), primary_language: "", mode: "inherited" };
 }
 
+function normalizeVoiceProfile(value: Partial<VoiceProfile> | undefined): VoiceProfile {
+  const fallback = createVoiceProfile();
+  const vocabulary = value?.vocabulary;
+  return {
+    ...fallback,
+    ...value,
+    mixed_languages: Array.isArray(value?.mixed_languages) ? value.mixed_languages : [],
+    phrases: Array.isArray(value?.phrases) ? value.phrases : [],
+    avoid_terms: Array.isArray(value?.avoid_terms) ? value.avoid_terms : [],
+    vocabulary: {
+      people: Array.isArray(vocabulary?.people) ? vocabulary.people : [],
+      companies: Array.isArray(vocabulary?.companies) ? vocabulary.companies : [],
+      products: Array.isArray(vocabulary?.products) ? vocabulary.products : [],
+      places: Array.isArray(vocabulary?.places) ? vocabulary.places : [],
+      acronyms: Array.isArray(vocabulary?.acronyms) ? vocabulary.acronyms : [],
+      preferred_spellings: Array.isArray(vocabulary?.preferred_spellings)
+        ? vocabulary.preferred_spellings
+        : [],
+    },
+  };
+}
+
+function normalizeProjectVoiceProfile(
+  value: Partial<ProjectVoiceProfile> | undefined,
+): ProjectVoiceProfile {
+  return {
+    ...normalizeVoiceProfile(value),
+    primary_language: value?.primary_language ?? "",
+    mode:
+      value?.mode === "customized" || value?.mode === "disabled"
+        ? value.mode
+        : "inherited",
+  };
+}
+
+function normalizeProjectSummary(project: ProjectSummary): ProjectSummary {
+  return {
+    ...project,
+    transcription_profile: normalizeProjectVoiceProfile(
+      project.transcription_profile,
+    ),
+    skill_bindings: project.skill_bindings ?? {},
+  };
+}
+
+function normalizeWorkspaceSettings(
+  settings: WorkspaceSettings,
+): WorkspaceSettings {
+  return {
+    ...settings,
+    personal_context: settings.personal_context ?? "",
+    ignored_terms: Array.isArray(settings.ignored_terms)
+      ? settings.ignored_terms
+      : [],
+    voice_profile: normalizeVoiceProfile(settings.voice_profile),
+  };
+}
+
 export interface TopicVocabulary {
   id: string;
   name: string;
@@ -784,7 +842,7 @@ export async function getProjects() {
   const result = await parseResponse<{ projects: ProjectSummary[] }>(
     await fetch(`${apiBase}/v1/projects`),
   );
-  return result.projects;
+  return result.projects.map(normalizeProjectSummary);
 }
 
 export async function getProjectDependencies(name: string) {
@@ -875,7 +933,7 @@ export async function saveProject(
   const path = currentName
     ? `${apiBase}/v1/projects/${encodeURIComponent(currentName)}`
     : `${apiBase}/v1/projects`;
-  return parseResponse<ProjectSummary>(
+  return normalizeProjectSummary(await parseResponse<ProjectSummary>(
     await fetch(path, {
       method: currentName ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
@@ -889,7 +947,7 @@ export async function saveProject(
         ...(input.archived !== undefined ? { archived: input.archived } : {}),
       }),
     }),
-  );
+  ));
 }
 
 export async function updateMaterialMetadata(
@@ -988,9 +1046,10 @@ export async function getMaterialDependencies(id: string) {
 }
 
 export async function getWorkspaceSettings() {
-  return parseResponse<WorkspaceSettings>(
+  const settings = await parseResponse<WorkspaceSettings>(
     await fetch(`${apiBase}/v1/settings`),
   );
+  return normalizeWorkspaceSettings(settings);
 }
 
 export async function getTopicVocabularies() {
@@ -1122,13 +1181,13 @@ export async function rememberTopicVocabularySuggestion(
 }
 
 export async function saveWorkspaceSettings(settings: WorkspaceSettings) {
-  return parseResponse<WorkspaceSettings>(
+  return normalizeWorkspaceSettings(await parseResponse<WorkspaceSettings>(
     await fetch(`${apiBase}/v1/settings`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(settings),
     }),
-  );
+  ));
 }
 
 export async function getGlossarySuggestions() {

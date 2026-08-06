@@ -14,6 +14,7 @@ import {
 } from "../api";
 import { Button } from "../components/ui";
 import { OriginLabel } from "../v2-mock/primitives/OriginLabel";
+import { contentSummary } from "./contentPresentation";
 
 function sourceTitle(source: Material | undefined) {
   return (
@@ -373,7 +374,7 @@ export function V2TopicsPanel({
                     />
                     <span>
                       <strong>{sourceTitle(source)}</strong>
-                      <p>{source.content}</p>
+                      <p>{contentSummary(source.content)}</p>
                     </span>
                   </label>
                   <Button size="sm" onClick={() => onOpenSource(source.id)}>
