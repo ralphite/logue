@@ -77,14 +77,14 @@
 - V2-PANEL-04 — INTEGRATED — Side Panel 当前页/选区、Comments、Project、classification、Ask/Draft、Source inspector 与 target recovery。
 - V2-PANEL-05 — INTEGRATED — 开始前离线只在 pending queue 可写时允许录音；中途断线保存并重连上传。
 - V2-PANEL-06 — INTEGRATED — pending capture 的 Retry / Export audio / Delete。
-- V2-PANEL-07 — CODED — pending queue 容量/不可写的开始前阻止已有 provisional WIP；按 Goal Governor REPLAN 冻结，待 DR-064 原子性与可恢复提交完成后再收口。
+- V2-PANEL-07 — INTEGRATED — Inline/Selection/Side Panel 都在录音前检查本地 pending queue 可写性与容量；满 20 条时 Side Panel 明确阻止录音并保留 Retry / Export audio / Delete 恢复路径。
 - V2-PANEL-08 — INTEGRATED — 单次麦克风授权、本地 Host发现/配对、Reconnect 与 LAN Advanced connection。
 
 ## Web — Projects (J4/J6/J7)
 
 - V2-PROJ-01 — INTEGRATED — 创建、切换、稳定 ID rename、archive/restore、依赖预览 delete 已接；rename 同步当前 Source/Document/Run 引用。
 - V2-PROJ-02 — INTEGRATED — Project name、goal/overview、instructions 的 Host/Web 数据链。
-- V2-PROJ-03 — CODED — workspace 显示最近 Document/Ask-Draft；最近编辑位置恢复尚缺。
+- V2-PROJ-03 — INTEGRATED — workspace 显示并恢复最近 Project、Document、Ask/Compare/Draft 模式与最近工作；Document 路由恢复最近选择、caret 与 scroll。
 - V2-PROJ-04 — INTEGRATED — Context review 的 Suggested/Added/Excluded、reason、Add/Remove/Exclude/Undo exclusion。
 - V2-PROJ-05 — INTEGRATED — Context review 区分 Auto-added / Added / Suggested / Excluded / Duplicate-linked；Change Project 使用 bundle 级 Host 合同，重复 Source 保留但 Run/Project retrieval 不重复加权。
 - V2-PROJ-06 — INTEGRATED — 本次 Run Sources 可 Pin/Exclude/补充，不改变 membership。
@@ -123,7 +123,7 @@
 ## Web — Documents
 
 - V2-DOC-01 — INTEGRATED — 可编辑 rich text/Markdown、heading/list/quote/code/link 与 autosave。
-- V2-DOC-02 — CODED — browser native undo 可用；显式 undo/redo 与最近 caret/scroll 恢复未实现。
+- V2-DOC-02 — CODED — 最近 Document、caret 与 scroll 已恢复；browser native undo 可用，显式 undo/redo 控件尚缺。
 - V2-DOC-03 — INTEGRATED — Web Document 默认 Copy；显式选择 live Extension target 后 Send，Extension 逐次复验并局部 Undo，失效时保留 Document 并回退改选。
 - V2-DOC-04 — INTEGRATED — 选区/全文 Action 与指定 Project Sources。
 - V2-DOC-05 — INTEGRATED — Action Replace/Copy/Keep 使用统一 AI Source / Document revision adoption 合同。
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: RECOVERY-COMMITS`
-- 完成条件：不丢弃任何 WIP，把已经静态闭合的独立产品边界拆为可恢复提交并逐个 push；未闭合的 V2-PANEL-07 保持 CODED，不混入完成声明。
+- `ACTIVE: V2-DOC-02`
+- 完成条件：Document editor 提供显式 Undo / Redo，并与浏览器原生编辑历史、autosave 与 dirty state 使用同一正文，不创建额外 revision 或 Source。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

@@ -681,3 +681,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **已有 gate 结论：** 首轮 scope/product/engineering 均 REPLAN：补全 per-Project Saved only 终态与 auto-include 边界；明确 tags 不自动学习；跨 Project Forget 展示完整影响；Host 保持 correction 子状态、bundle 原子清除且不触碰 membership。上述要求已并入本修订。
 - **fresh gate 结论：** scope、product/UX、engineering/runtime 三路均 PASS，无 P0/P1。确认 per-Project outcomes、auto-include 授权边界、跨 Project Forget 说明、bundle 去重与 Host membership 不变量完整。
 - **开放问题：** 无；当前仅实现 Source-linked learning example，不扩展自动规则类型。
+
+### DR-065 — 最近工作位置是本机浏览器状态，不是 Source 或 Project Context
+
+- **优先级：** V2 产品 / P1 工作连续性
+- **状态：** 静态 production 链已集成；最终跨会话运行时验证留到 Phase 5
+- **决定：** Web App 在当前浏览器保存最近 Project、Project 子视图、Ask/Compare/Draft 模式、最近 Document，以及每个 Document 的 caret/scroll。该状态只用于恢复单 owner 的界面位置，不进入 Source、Project Context、Run、导出或备份，也不参与分类和模型 Context。
+- **用户可见影响：** 用户离开再回来时直接回到最近工作位置；清除浏览器站点数据只重置界面位置，不删除 Host 中的任何永久资料。
+- **替代方案：** 把短生命周期 UI 位置写入 Host settings。这样会把设备/浏览器特定的 caret 与 scroll 混入可备份知识数据，并让另一浏览器继承不合适的位置。
+- **已有证据：** V2-PROJ-03 与 V2-DOC-02 要求恢复最近工作和编辑位置；当前产品是 local-first、single-owner，但 Host 仍只拥有永久产品对象。
+- **开放问题：** 无；多设备同步不在当前无账号产品范围。
