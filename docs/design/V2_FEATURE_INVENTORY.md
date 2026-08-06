@@ -169,7 +169,7 @@
 
 - V2-OPS-01 — INTEGRATED — Host 数据目录为唯一权威；Extension 仅持有 tab/target/pending 状态。
 - V2-OPS-02 — INTEGRATED — Source/membership/comment/run/document/profile/topic/skill API 主链及 adoption 互斥/幂等已接。
-- V2-OPS-03 — CODED — 当前 `.logue-data` 的 Voice/Profile/revision schema 已完成显式备份和一次性更新；production Python Host 与 Web callers 已删除四条绕过 Run/adoption 的旧 route，当前 schema/production API 是唯一权威。仓库仍保留无 production 入口且语义冲突的 Go Host，V2-only repository 合同尚未闭合。
+- V2-OPS-03 — INTEGRATED — 当前 `.logue-data` 的 Voice/Profile/revision schema 已完成显式备份和一次性更新；production Python Host 与 Web callers 已删除四条绕过 Run/adoption 的旧 route，无 production 入口且语义冲突的 Go Host 已移除，当前 schema/API/runtime 是唯一权威。
 - V2-OPS-04 — INTEGRATED — 不保留 V1 route/schema alias 或永久 migration path。
 - V2-OPS-05 — INTEGRATED — installer 在 managed 写入前拒绝 data/snapshot 路径重叠；旧 Linux 默认 workspace 与全部 Host snapshots 使用需确认、停服冻结校验、失败恢复旧 version/unit/path/active/enabled 的一次性迁移；程序 rollback 永不接管 data root。真实安装验收留 Phase 5。
 - V2-OPS-06 — INTEGRATED — workspace packages、release tag、Host VERSION、Extension version/version_name、split installer、fixtures 与 remote smoke 已使用同一 release identity；首次 Load 与升级 Reload 状态准确。真实 artifact 发布验收留 Phase 5。
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-OPS-03`（下一独立批次；DR-070 不扩展到生产 V1 调用方迁移）
+- `ACTIVE: PHASE 2 — unified code review + V2 product spec comparison`（不运行 Browser/CU、UX/UI review 或全面测试）
 - 完成条件：installer overwrite/rollback 保留当前 data root 与 Host-managed snapshots，版本与 release artifact 合同统一；只做阻塞性静态/构建检查，不在 Phase 1 扩展浏览器或安装验收。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

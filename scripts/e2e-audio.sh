@@ -2,7 +2,7 @@
 set -euo pipefail
 
 workspace_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-audio_file="${workspace_dir}/server/testdata/logue-e2e.wav"
+audio_file="${workspace_dir}/fixtures/audio/logue-e2e.wav"
 api_base="http://127.0.0.1:8787"
 request_id="e2e-audio-fixture-v1"
 expected="Logue keeps every source and preserves the relationship between original notes and derived insights."

@@ -786,3 +786,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 保留兼容 alias（违反当前 route/schema 唯一权威）；把旧路径改成 `/v2/*`（仍保留重复对象语义）；在未定义权限/provenance/adoption 前继续公开 external import（扩大未确认范围）。
 - **已有证据：** production 挂载链是 `main → App → RealLogueV2App → V2 routes`；`V2ProjectRoute` 已使用 canonical Run/adoption。三路 gate 已确认四条旧 route 只有未挂载 caller/技术按钮，删除不缩减确认 V2 能力。Go Host 与 audio fixtures 不进入本批，按 Goal Supervisor 要求保持独立。
 - **开放问题：** 无；本批只处理 Python routes、Web callers 与对应文档，Go Host 删除另做下一原子批次。
+
+### DR-073 — Python Host 是唯一 production Host；移除语义冲突的 Go Host
+
+- **优先级：** V2 Host / 单一 runtime
+- **状态：** scope / product / engineering fresh gate 已 PASS；Go Host 已移除、fixtures 已迁出，Web typecheck 与 diff check 通过
+- **决定：** dev、release artifact、installer、CLI 与 managed service 继续只使用 `python_server/logue_server.py`。删除没有 production build/install/release 入口、且 Skill Run 会隐式物化 Document/Material、缺少 canonical adoption 的 Go `server/`，不维护第二套语义不同的 Host。删除前把仍被 Storybook 与 `scripts/e2e-audio.sh` 使用的三份音频 fixture 迁到中立 `fixtures/audio/` 并更新引用。
+- **用户可见影响：** 产品只剩一套可发布、可安装、可核验的 Host 行为；删除 Go 源码不改变当前 Mac/LAN Host、Web、Extension 或本机数据。
+- **替代方案：** 把 Go Host 追平完整 V2（维护无 production consumer 的第二实现）；只删四条旧 Go routes（仍保留同路径、不同 Skill Run/adoption 语义的可运行 API）。
+- **已有证据：** release 只打包 `python_server/`、Web 与 Extension，`npm run dev:api` 和 installer 只启动 Python Host；repo-wide 调用检查没有 Go build/run 入口。三路 gate 均确认删除不缩减 V2 scope，engineering gate 唯一前置条件是先迁出中立 audio fixtures。
+- **开放问题：** 无；旧 Web surface 的更大范围删除仍保存在 frozen stash，不进入本批。

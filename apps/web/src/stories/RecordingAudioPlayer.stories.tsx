@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import sampleAudioUrl from "../../../../server/testdata/logue-e2e.wav?url";
+import sampleAudioUrl from "../../../../fixtures/audio/logue-e2e.wav?url";
 import { RecordingAudioPlayer } from "../components/RecordingAudioPlayer";
 
 const meta = {
