@@ -5,19 +5,40 @@ import {
   getExtensionSkills,
   getExtensionSettings,
   getPageMaterials,
+  getProjectSources,
+  getPendingVoices,
+  getPendingVoiceQueueStatus,
+  createExtensionProject,
   createExtensionSkillRun,
   adoptExtensionSkillRun,
+  adoptVoiceMaterial,
+  linkVoiceComment,
+  deleteMaterial,
+  saveExtensionSkillRunAsDocument,
+  completePendingVoice,
   connectServer,
   defaultServerURL,
   getServerURL,
   getServiceStatus,
+  markPendingVoiceTranscribed,
+  queuePendingVoice,
+  retranscribeMaterial,
+  retryPendingVoice,
+  exportPendingVoice,
+  deletePendingVoice,
+  deleteProjectAssociation,
+  saveProjectAssociation,
   saveMaterial,
   saveSelection,
   transcribeAudio,
+  updateCommentBundle,
+  updateSourceAnchor,
   type AppliedContext,
   type CaptureContext,
   type ExtensionSkill,
   type PageMaterial,
+  type PendingVoicePlan,
+  type PendingVoiceSummary,
   type VoiceProfileOverrides,
 } from "./api";
 import {
@@ -46,8 +67,10 @@ import {
   shouldPreservePanelCapturePresentation,
   type ActivePanelCaptureScope,
 } from "./sidePanelRecordingState";
-import { SidePanelView } from "./sidePanelView";
-import "./sidePanel.css";
+import { V2SidePanelSurface } from "./v2-real/V2SidePanelSurface";
+import type { VoiceCandidateRetranscribeInput, VoiceCandidateState } from "./v2-real/V2VoiceCandidateSurface";
+import type { PageMaterialChanges } from "./sidePanelModels";
+import "./v2-real/v2SidePanel.css";
 
 type Phase = CapturePhase;
 
@@ -69,6 +92,7 @@ interface PanelRuntimeMessage {
   type?: string;
   state?: PanelCaptureState;
   tabId?: number;
+  url?: string;
 }
 
 function isMicrophonePermissionResult(message: unknown): message is MicrophonePermissionResult {
@@ -95,7 +119,11 @@ function SidePanelApp() {
   const [context, setContext] = useState<CaptureContext>();
   const [voiceProfileOverrides, setVoiceProfileOverrides] = useState<VoiceProfileOverrides>({});
   const [voiceProfilePickerOpen, setVoiceProfilePickerOpen] = useState(false);
+  const [voiceCandidate, setVoiceCandidate] = useState<VoiceCandidateState>();
+  const [pendingVoices, setPendingVoices] = useState<PendingVoiceSummary[]>([]);
+  const [retryingPendingVoiceId, setRetryingPendingVoiceId] = useState<string>();
   const [pageMaterials, setPageMaterials] = useState<PageMaterial[]>([]);
+  const [generationSources, setGenerationSources] = useState<CommandResult["sources"]>([]);
   const [error, setError] = useState<LocalError>();
   const [elapsed, setElapsed] = useState(0);
   const [skills, setSkills] = useState<ExtensionSkill[]>([]);
@@ -103,16 +131,18 @@ function SidePanelApp() {
   const [commandResult, setCommandResult] = useState<CommandResult>();
   const [generating, setGenerating] = useState(false);
   const [insertingGenerated, setInsertingGenerated] = useState(false);
+  const [savingGeneratedDocument, setSavingGeneratedDocument] = useState(false);
   const [pendingInsert, setPendingInsert] = useState<PendingInsert>();
   const [insertingPending, setInsertingPending] = useState(false);
   const [serverURL, setServerURL] = useState(defaultServerURL);
   const [serverURLDraft, setServerURLDraft] = useState(defaultServerURL);
+  const [serverPairingCodeDraft, setServerPairingCodeDraft] = useState("");
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
   const [serverConnecting, setServerConnecting] = useState(false);
   const [serverSettingsError, setServerSettingsError] = useState<string>();
   const timerRef = useRef<number | undefined>(undefined);
   const requestIdRef = useRef(createRequestId());
-  const lastBlobRef = useRef<Blob | undefined>(undefined);
+  const generationSourcesTouchedRef = useRef(false);
   const stateRef = useRef<PanelCaptureState | undefined>(undefined);
   const draftRef = useRef("");
   const transcriptRef = useRef("");
@@ -129,6 +159,7 @@ function SidePanelApp() {
   const phaseRef = useRef<Phase>("idle");
   const commandResultRef = useRef<CommandResult | undefined>(undefined);
   const pendingInsertInFlightRef = useRef(false);
+  const voiceCandidateUndoTokenRef = useRef<string | undefined>(undefined);
   const panelMainRef = useRef<HTMLElement>(null);
   const focusPanelOnHydrationRef = useRef(false);
   const panelFocusControllerRef = useRef<SidePanelFocusController | undefined>(undefined);
@@ -154,6 +185,19 @@ function SidePanelApp() {
   const persistDraft = useCallback((patch: Record<string, unknown>) => {
     if (typeof panelTabId !== "number") return;
     void chrome.runtime.sendMessage({ type: "logue:update-panel-state", tabId: panelTabId, patch });
+  }, []);
+
+  const resolveActiveProject = useCallback(async (expected = stateRef.current) => {
+    if (!expected || typeof panelTabId !== "number") return expected;
+    const response = await chrome.runtime.sendMessage({
+      type: "logue:resolve-tab-projects",
+      tabId: panelTabId,
+    }) as RuntimeResponse<PanelCaptureState>;
+    const next = response.value;
+    if (!next || next.tabId !== expected.tabId) return stateRef.current;
+    stateRef.current = next;
+    setState(next);
+    return next;
   }, []);
 
   const commitCommandResult = useCallback((result?: CommandResult) => {
@@ -211,6 +255,7 @@ function SidePanelApp() {
       page_url: stateRef.current?.source.url ?? "",
       page_title: stateRef.current?.source.title ?? "",
       reference_project: referenceProject,
+      profile_project: profile.project_name || undefined,
       personal_context: profile.personal_context || undefined,
       project_overview: profile.project_overview || undefined,
       glossary: profile.vocabulary,
@@ -219,11 +264,15 @@ function SidePanelApp() {
       primary_language: profile.primary_language,
       mixed_languages: profile.mixed_languages,
       custom_instructions: profile.custom_instructions || undefined,
+      phrases: profile.phrases,
+      avoid_terms: profile.avoid_terms,
+      formatting_preference: profile.formatting_preference || undefined,
       transcription_skill_id: profile.skill_id,
       transcription_skill_name: profile.skill_name,
       transcription_skill_revision: profile.skill_revision,
       transcription_skill_instructions: profile.skill_instructions,
       disable_project_profile: Boolean(overrides.disable_project_profile),
+      use_default_profile: Boolean(overrides.use_default_profile),
       language_override: overrides.primary_language || undefined,
       topic_vocabulary_id: profile.topic_vocabulary_id || undefined,
       topic_vocabulary_name: profile.topic_vocabulary_name || undefined,
@@ -241,21 +290,83 @@ function SidePanelApp() {
     }
   }, []);
 
+  const applySuggestedProject = useCallback(async (current: PanelCaptureState, captureContext: CaptureContext) => {
+    const live = stateRef.current;
+    const requestedProject = explicitProjects(current)[0] ?? "";
+    if (
+      !live ||
+      live.tabId !== current.tabId ||
+      live.source.url !== current.source.url ||
+      live.updatedAt !== current.updatedAt ||
+      (explicitProjects(live)[0] ?? "") !== requestedProject ||
+      Boolean(live.projectExplicit) !== Boolean(current.projectExplicit)
+    ) return { state: live ?? current, context: captureContext, stale: true };
+
+    let base = current;
+    if (requestedProject && !captureContext.projects.some((project) => project.name === requestedProject)) {
+      base = {
+        ...current,
+        projects: current.projectExplicit ? [] : undefined,
+        projectAssociationId: undefined,
+        projectAssociationScope: undefined,
+        updatedAt: Date.now(),
+      };
+      stateRef.current = base;
+      setState(base);
+      persistDraft({
+        projects: current.projectExplicit ? [] : null,
+        projectExplicit: Boolean(current.projectExplicit),
+        projectAssociationId: null,
+        projectAssociationScope: null,
+      });
+    }
+    if (base.projectExplicit || base.projects !== undefined) return { state: base, context: captureContext, stale: false };
+    const association = captureContext.project_associations?.[0];
+    if (!association) return { state: base, context: captureContext, stale: false };
+    const next: PanelCaptureState = {
+      ...base,
+      projects: [association.project_name],
+      projectExplicit: false,
+      projectAssociationId: association.id,
+      projectAssociationScope: association.scope,
+      updatedAt: Date.now(),
+    };
+    stateRef.current = next;
+    setState(next);
+    persistDraft({
+      projects: next.projects,
+      projectExplicit: false,
+      projectAssociationId: association.id,
+      projectAssociationScope: association.scope,
+    });
+    const resolved = await getCaptureContext(next.source.url, association.project_name, voiceProfileOverrides);
+    const latest = stateRef.current;
+    const stale = !latest || latest.tabId !== next.tabId || latest.source.url !== next.source.url || latest.updatedAt !== next.updatedAt || explicitProjects(latest)[0] !== association.project_name || Boolean(latest.projectExplicit);
+    return { state: latest ?? next, context: resolved, stale };
+  }, [persistDraft, voiceProfileOverrides]);
+
   const refreshServerConnection = useCallback(async (current = stateRef.current) => {
     if (!current) return;
     setServerConnecting(true);
     try {
       await getServiceStatus();
       if (stateRef.current?.tabId !== current.tabId) return;
+      const resolvedState = await resolveActiveProject(current);
+      if (!resolvedState || resolvedState.tabId !== current.tabId || resolvedState.source.url !== current.source.url) return;
+      current = resolvedState;
       setError((active) => active?.kind === "service" ? undefined : active);
-      const captureContext = await getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "", voiceProfileOverrides);
-      if (stateRef.current?.tabId === current.tabId) setContext(captureContext);
+      const initialContext = await getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "", voiceProfileOverrides);
+      const accepted = await applySuggestedProject(current, initialContext);
+      if (accepted.stale) return;
+      const activeState = accepted.state;
+      const captureContext = accepted.context;
+      if (stateRef.current?.tabId === activeState.tabId) setContext(captureContext);
       if (shouldLoadPageHistory(current.intent)) await refreshPageMaterials(current.source.url);
-      if (current.intent === "generate") {
+      if (activeState.intent === "generate") {
         const [available, settings] = await Promise.all([getExtensionSkills(), getExtensionSettings()]);
         if (stateRef.current?.tabId !== current.tabId) return;
         setSkills(available);
-        const projectName = explicitProjects(current)[0];
+        const projectName = explicitProjects(activeState)[0];
         const projectSkill = projectName
           ? captureContext.projects.find((item) => item.name === projectName)?.skill_bindings?.command
           : undefined;
@@ -268,10 +379,11 @@ function SidePanelApp() {
     } finally {
       setServerConnecting(false);
     }
-  }, [refreshPageMaterials, voiceProfileOverrides]);
+  }, [applySuggestedProject, refreshPageMaterials, resolveActiveProject, voiceProfileOverrides]);
 
   const openServerSettings = useCallback(() => {
     setServerURLDraft(serverURL);
+    setServerPairingCodeDraft("");
     setServerSettingsError(undefined);
     setServerSettingsOpen(true);
   }, [serverURL]);
@@ -279,6 +391,7 @@ function SidePanelApp() {
   const closeServerSettings = useCallback(() => {
     if (serverConnecting) return;
     setServerURLDraft(serverURL);
+    setServerPairingCodeDraft("");
     setServerSettingsError(undefined);
     setServerSettingsOpen(false);
   }, [serverConnecting, serverURL]);
@@ -287,9 +400,10 @@ function SidePanelApp() {
     if (serverConnecting) return;
     setServerConnecting(true);
     setServerSettingsError(undefined);
-    void connectServer(serverURLDraft).then(async (connected) => {
+    void connectServer(serverURLDraft, serverPairingCodeDraft).then(async (connected) => {
       setServerURL(connected.url);
       setServerURLDraft(connected.url);
+      setServerPairingCodeDraft("");
       setServerSettingsOpen(false);
       setContext(undefined);
       setPageMaterials([]);
@@ -300,7 +414,7 @@ function SidePanelApp() {
     }).catch((cause: unknown) => {
       setServerSettingsError(cause instanceof Error ? cause.message : "Could not connect to this server.");
     }).finally(() => setServerConnecting(false));
-  }, [pendingInsert, refreshServerConnection, serverConnecting, serverURLDraft]);
+  }, [pendingInsert, refreshServerConnection, serverConnecting, serverPairingCodeDraft, serverURLDraft]);
 
   const connectCandidateServer = useCallback(() => {
     const current = stateRef.current;
@@ -332,22 +446,25 @@ function SidePanelApp() {
     }).finally(() => setServerConnecting(false));
   }, [pendingInsert, refreshServerConnection, serverConnecting]);
 
-  const saveContent = useCallback(async (content: string, captureId?: string, rawTranscript?: string, appliedContextOverride?: AppliedContext) => {
-    const current = stateRef.current;
-    if (!current) return;
+  const saveContent = useCallback(async (content: string, captureId?: string, rawTranscript?: string, transformedTranscript?: string, appliedContextOverride?: AppliedContext, deferFinalization = false, requestId = requestIdRef.current) => {
+    const expected = stateRef.current;
+    const current = await resolveActiveProject(expected);
+    if (!current || !expected || current.source.url !== expected.source.url || current.intent !== expected.intent) throw new Error("The page changed before this input was saved.");
     const currentContext = appliedContextOverride
       ? undefined
       : context ?? await getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "");
     const provenance = appliedContextOverride ?? appliedContext(currentContext!);
     const organization = captureOrganization(current);
     const selectionText = current.selectionText;
+    let savedId = "";
     if (selectionText) {
-      await saveThenRefreshPageHistory(
+      const saved = await saveThenRefreshPageHistory(
         () => saveSelection({
-          requestId: requestIdRef.current,
+          requestId,
           sourceContent: selectionText,
           annotation: content.trim() || undefined,
-          transcript: captureId ? rawTranscript : undefined,
+          rawTranscript: captureId ? rawTranscript : undefined,
+          transcript: captureId ? transformedTranscript : undefined,
           source: { ...current.source, selection: selectionText },
           ...organization,
           captureId,
@@ -355,21 +472,27 @@ function SidePanelApp() {
         }),
         () => refreshPageMaterials(current.source.url),
       );
+      savedId = saved.annotation?.id ?? saved.source.id;
     } else {
+      const voiceWrite = Boolean(captureId && current.intent === "input");
       const saved = await saveThenRefreshPageHistory(
         () => saveMaterial({
-          requestId: requestIdRef.current,
+          requestId,
           kind: captureId ? "voice" : "text",
           content,
-          transcript: captureId ? rawTranscript : undefined,
+          rawTranscript: captureId ? rawTranscript : undefined,
+          transcript: captureId ? transformedTranscript : undefined,
           source: current.source,
-          ...organization,
+          projects: voiceWrite ? [] : organization.projects,
+          suggestedProjects: voiceWrite ? organization.projects : [],
+          tags: organization.tags,
           captureId,
           appliedContext: provenance,
         }),
         () => refreshPageMaterials(current.source.url),
       );
-      if (current.intent === "input") {
+      savedId = saved.id;
+      if (current.intent === "input" && !deferFinalization) {
         const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:insert-text", text: content }) as { ok?: boolean } | undefined;
         if (!response?.ok) {
           const pending: PendingInsert = {
@@ -384,21 +507,66 @@ function SidePanelApp() {
         }
       }
     }
+    if (deferFinalization) return savedId;
     setPendingInsert(undefined);
     setDraft("");
     setTranscript("");
     setError(undefined);
     requestIdRef.current = createRequestId();
     persistDraft({ draft: "", transcript: "", pendingInsert: null });
-  }, [appliedContext, context, persistDraft, refreshPageMaterials]);
+    return savedId;
+  }, [appliedContext, context, persistDraft, refreshPageMaterials, resolveActiveProject]);
 
   const transcribeAndSave = useCallback(async (blob: Blob, session?: RecordingSession) => {
     const current = stateRef.current;
     if (!current) return;
+    const pendingId = session?.id ?? requestIdRef.current;
     setPhase("processing");
     setError(undefined);
     try {
+      await queuePendingVoice({
+        id: pendingId,
+        audio: blob,
+        tabId: current.tabId,
+        pageUrl: current.source.url,
+        pageTitle: current.source.title,
+      });
       const referenceProject = explicitProjects(current)[0];
+      const overrides = session?.overrides ?? voiceProfileOverrides;
+      const organization = captureOrganization(current);
+      const instructions = current.intent === "generate"
+        ? "Transcribe this as a direct instruction for Logue. Preserve the user's requested action and output intent."
+        : current.selectionText
+        ? "Transcribe this as an annotation to the selected source."
+        : "Transcribe this as concise text linked to the current page.";
+      const commentSource = current.selectionText ? { ...current.source, selection: current.selectionText } : current.source;
+      const savePlan = {
+        kind: "voice",
+        source: commentSource,
+        projects: [],
+        suggested_projects: current.intent === "input" || (current.intent !== "generate" && organization.projects.length) ? organization.projects : [],
+        tags: organization.tags,
+        ...(current.intent !== "input" && current.intent !== "generate" ? { comment_state: "unlinked" } : {}),
+        ...(current.intent === "generate" ? { projects: [], suggested_projects: [], activity_type: "voice-command" } : {}),
+      };
+      await queuePendingVoice({
+        id: pendingId,
+        tabId: current.tabId,
+        pageUrl: current.source.url,
+        pageTitle: current.source.title,
+        plan: {
+          kind: "material",
+          transcription: {
+            pageUrl: current.source.url,
+            pageTitle: current.source.title,
+            targetText: current.intent === "input" ? current.targetText : undefined,
+            selectedText: current.selectionText,
+            instructions,
+            profileRequest: { project: referenceProject ?? "", ...overrides },
+          },
+          save: savePlan,
+        },
+      });
       const frozen = session
         ? { context: await session.contextPromise, overrides: session.overrides }
         : lastVoiceContextRef.current ?? { context: context ?? await getCaptureContext(current.source.url, referenceProject ?? "", voiceProfileOverrides), overrides: voiceProfileOverrides };
@@ -406,31 +574,314 @@ function SidePanelApp() {
       const currentContext = frozen.context;
       const profile = currentContext.resolved_voice_profile;
       let provenance = appliedContext(currentContext, frozen.overrides);
+      const plan: PendingVoicePlan = {
+        kind: "material",
+        transcription: {
+          pageUrl: current.source.url,
+          pageTitle: current.source.title,
+          targetText: current.intent === "input" ? current.targetText : undefined,
+          selectedText: current.selectionText,
+          projectContext: [profile.personal_context, profile.project_overview].filter(Boolean).join("\n\n"),
+          glossary: profile.vocabulary.join("\n"),
+          instructions,
+          appliedContext: provenance,
+        },
+        save: savePlan,
+      };
+      await queuePendingVoice({
+        id: pendingId,
+        tabId: current.tabId,
+        pageUrl: current.source.url,
+        pageTitle: current.source.title,
+        plan,
+      });
       const result = await transcribeAudio({
+        requestId: pendingId,
         audio: blob,
         source: current.source,
         targetText: current.intent === "input" ? current.targetText : undefined,
         selectedText: current.selectionText,
         projectContext: [profile.personal_context, profile.project_overview].filter(Boolean).join("\n\n"),
         glossary: profile.vocabulary.join("\n"),
-        instructions: current.selectionText
-          ? "Transcribe this as an annotation to the selected source."
-          : "Transcribe this as concise text linked to the current page.",
+        instructions,
         appliedContext: provenance,
       });
       provenance = result.applied_context;
+      await markPendingVoiceTranscribed({
+        id: pendingId,
+        captureId: result.capture_id,
+        rawTranscript: result.raw_transcript,
+        text: result.text,
+        appliedContext: provenance,
+      });
+      if (current.intent === "generate") {
+        const activity = await saveMaterial({
+          requestId: pendingId,
+          kind: "voice",
+          content: result.text,
+          rawTranscript: result.raw_transcript,
+          transcript: result.text,
+          source: current.source,
+          projects: [],
+          tags: [],
+          captureId: result.capture_id,
+          appliedContext: provenance,
+          activityType: "voice-command",
+        });
+        await completePendingVoice(pendingId);
+        setPendingVoices((items) => items.filter((item) => item.id !== pendingId));
+        setTranscript(result.text);
+        setDraft(result.text);
+        persistDraft({ draft: result.text, transcript: result.text });
+        setVoiceProfilePickerOpen(false);
+        setPhase("idle");
+        const project = explicitProjects(current)[0];
+        if (!project) {
+          setError({ kind: "save", message: "Choose a Project to use for this command.", action: "retry" });
+          return;
+        }
+        try {
+          setGenerating(true);
+          const [projectSources, availableSkills, extensionSettings] = await Promise.all([
+            getProjectSources(project, result.text),
+            getExtensionSkills(),
+            getExtensionSettings(),
+          ]);
+          if (!projectSources.length) throw new Error("This Project has no Sources yet.");
+          const binding = currentContext.projects.find((item) => item.name === project)?.skill_bindings?.command;
+          const resolvedSkill = availableSkills.find((item) => item.id === (binding || extensionSettings.default_extension_skill))
+            || availableSkills.find((item) => item.output === "insert");
+          if (!resolvedSkill) throw new Error("No Voice Command Skill is available.");
+          const targetKey = generationTargetKey(current);
+          const run = await createExtensionSkillRun({
+            skillId: resolvedSkill.id,
+            instruction: result.text,
+            project,
+            pageTitle: current.source.title,
+            pageUrl: current.source.url,
+            targetText: current.targetText,
+            selection: current.selectionText,
+            sourceIds: projectSources.map((source) => source.id),
+            autoSearch: false,
+            activitySourceId: activity.id,
+          });
+          if (run.status !== "complete" || !run.original_output?.trim()) throw new Error(run.error || "No result returned.");
+          const nextState = { ...current, generationSourceIds: projectSources.map((source) => source.id), pinnedSourceIds: [], updatedAt: Date.now() };
+          stateRef.current = nextState;
+          setState(nextState);
+          persistDraft({ generationSourceIds: nextState.generationSourceIds, pinnedSourceIds: [] });
+          commitCommandResult({
+            runId: run.id,
+            originalText: run.original_output,
+            text: run.original_output,
+            targetKey,
+            sourceURL: current.source.url,
+            allowInsert: true,
+            sources: (run.sources ?? []).map((source) => ({
+              id: source.id,
+              kind: source.kind,
+              actor: source.actor,
+              content: source.content,
+              projects: source.projects ?? [],
+              tags: source.tags ?? [],
+              createdAt: source.created_at,
+              source: source.source ?? undefined,
+            })),
+          });
+          setDraft("");
+          persistDraft({ draft: "" });
+          setError(undefined);
+        } catch (cause) {
+          setError({ kind: "service", message: cause instanceof Error ? cause.message : "Could not create this sourced draft.", action: "retry" });
+        } finally {
+          setGenerating(false);
+        }
+        return;
+      }
       setTranscript(result.text);
       setDraft(result.text);
       persistDraft({ draft: result.text, transcript: result.text });
-      await saveContent(result.text, result.capture_id, result.text, provenance);
-      setVoiceProfileOverrides({});
+      const materialId = current.intent === "input"
+        ? await saveContent(result.text, result.capture_id, result.raw_transcript, result.text, provenance, true, pendingId)
+        : (await saveMaterial({
+            requestId: pendingId,
+            kind: "voice",
+            content: result.text,
+            rawTranscript: result.raw_transcript,
+            transcript: result.text,
+            source: commentSource,
+            projects: [],
+            suggestedProjects: organization.projects,
+            tags: organization.tags,
+            captureId: result.capture_id,
+            appliedContext: provenance,
+            actor: "user",
+            commentState: "unlinked",
+          })).id;
+      if (!materialId) throw new Error("The recording was transcribed but could not be saved.");
+      if (current.intent !== "input") await refreshPageMaterials(current.source.url);
+      await completePendingVoice(pendingId);
+      setPendingVoices((items) => items.filter((item) => item.id !== pendingId));
+      setVoiceCandidate({ materialId, text: result.text, revision: 1, profileLabel: provenance.voice_profile_label || profile.label, referenceProject, purpose: current.intent === "input" ? "write" : "comment" });
       setVoiceProfilePickerOpen(false);
       setPhase("idle");
-    } catch (cause) {
-      setError(friendlyLocalError(cause, /target unavailable/i.test(String(cause)) ? "target" : "transcription"));
+    } catch {
+      setError({ kind: "transcription", message: "Recording saved locally. Retry when Logue is available.", action: "retry" });
+      void getPendingVoices().then(setPendingVoices).catch(() => undefined);
       setPhase("error");
     }
-  }, [appliedContext, context, persistDraft, saveContent, voiceProfileOverrides]);
+  }, [appliedContext, commitCommandResult, context, persistDraft, refreshPageMaterials, saveContent, voiceProfileOverrides]);
+
+  const dismissVoiceCandidate = useCallback(() => {
+    setVoiceCandidate(undefined);
+    voiceCandidateUndoTokenRef.current = undefined;
+    setVoiceProfileOverrides({});
+    setVoiceProfilePickerOpen(false);
+    setDraft("");
+    setTranscript("");
+    setError(undefined);
+    requestIdRef.current = createRequestId();
+    persistDraft({ draft: "", transcript: "" });
+  }, [persistDraft]);
+
+  const finishVoiceComment = useCallback(async () => {
+    const current = stateRef.current;
+    const candidate = voiceCandidate;
+    const sourceContent = current?.selectionText?.trim() || current?.pageText?.trim() || current?.source.title.trim();
+    if (!current || !candidate || candidate.purpose !== "comment" || !candidate.text.trim() || !sourceContent || candidate.busy) return;
+    setVoiceCandidate((value) => value ? { ...value, busy: true, error: undefined } : value);
+    try {
+      const organization = captureOrganization(current);
+      await linkVoiceComment(candidate.materialId, {
+        content: candidate.text.trim(),
+        sourceContent,
+        source: current.selectionText ? { ...current.source, selection: current.selectionText } : current.source,
+        projects: organization.projects,
+        tags: organization.tags,
+      });
+      await refreshPageMaterials(current.source.url);
+      dismissVoiceCandidate();
+    } catch (cause) {
+      setVoiceCandidate((value) => value ? { ...value, busy: false, error: cause instanceof Error ? cause.message : "Could not finish this comment." } : value);
+    }
+  }, [dismissVoiceCandidate, refreshPageMaterials, voiceCandidate]);
+
+  const deleteVoiceComment = useCallback(async () => {
+    const current = stateRef.current;
+    const candidate = voiceCandidate;
+    if (!current || !candidate || candidate.purpose !== "comment" || candidate.busy) return;
+    setVoiceCandidate((value) => value ? { ...value, busy: true, error: undefined } : value);
+    try {
+      await deleteMaterial(candidate.materialId);
+      await refreshPageMaterials(current.source.url);
+      dismissVoiceCandidate();
+    } catch (cause) {
+      setVoiceCandidate((value) => value ? { ...value, busy: false, error: cause instanceof Error ? cause.message : "Could not delete this comment." } : value);
+    }
+  }, [dismissVoiceCandidate, refreshPageMaterials, voiceCandidate]);
+
+  const insertVoiceCandidate = useCallback(async () => {
+    const current = stateRef.current;
+    const candidate = voiceCandidate;
+    const text = candidate?.text.trim() ?? "";
+    if (!current || !candidate || !text || candidate.busy) return;
+    setVoiceCandidate((value) => value ? { ...value, busy: true, error: undefined } : value);
+    try {
+      const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:insert-text", text }) as { ok?: boolean; undoToken?: string } | undefined;
+      if (!response?.ok || !response.undoToken) throw new Error("The original input is no longer available. Copy the saved text instead.");
+      voiceCandidateUndoTokenRef.current = response.undoToken;
+      const adoptionId = createRequestId();
+      setVoiceCandidate((value) => value ? { ...value, text, busy: true, inserted: true, copied: false, canUndo: true, adoptionId, adoptionPending: "insert", error: undefined } : value);
+      try {
+        await adoptVoiceMaterial(candidate.materialId, { adoptionId, content: text, target: { surface: "side-panel-voice", url: current.source.url, target_key: generationTargetKey(current) } });
+        setVoiceCandidate((value) => value && value.adoptionId === adoptionId ? { ...value, busy: false, adoptionPending: undefined, error: undefined } : value);
+      } catch (cause) {
+        setVoiceCandidate((value) => value && value.adoptionId === adoptionId ? { ...value, busy: false, adoptionPending: "insert", error: cause instanceof Error ? `Inserted, but Logue could not record it: ${cause.message}` : "Inserted, but Logue could not record it." } : value);
+      }
+    } catch (cause) {
+      setVoiceCandidate((value) => value ? { ...value, busy: false, error: cause instanceof Error ? cause.message : "Could not insert this text." } : value);
+    }
+  }, [voiceCandidate]);
+
+  const copyVoiceCandidate = useCallback(async () => {
+    const current = stateRef.current;
+    const candidate = voiceCandidate;
+    if (!current || !candidate || !candidate.text.trim() || candidate.busy) return;
+    setVoiceCandidate((value) => value ? { ...value, busy: true, error: undefined } : value);
+    try {
+      await navigator.clipboard.writeText(candidate.text);
+      const adoptionId = createRequestId();
+      setVoiceCandidate((value) => value ? { ...value, copied: true, inserted: false, canUndo: false, adoptionId, adoptionPending: "copy", error: undefined } : value);
+      try {
+        await adoptVoiceMaterial(candidate.materialId, { adoptionId, content: candidate.text, target: { surface: "clipboard", url: current.source.url, target_key: generationTargetKey(current) } });
+        setVoiceCandidate((value) => value && value.adoptionId === adoptionId ? { ...value, busy: false, adoptionPending: undefined, error: undefined } : value);
+      } catch (cause) {
+        setVoiceCandidate((value) => value && value.adoptionId === adoptionId ? { ...value, busy: false, adoptionPending: "copy", error: cause instanceof Error ? `Copied, but Logue could not record it: ${cause.message}` : "Copied, but Logue could not record it." } : value);
+      }
+    } catch (cause) {
+      setVoiceCandidate((value) => value ? { ...value, busy: false, error: cause instanceof Error ? cause.message : "Could not copy this text." } : value);
+    }
+  }, [voiceCandidate]);
+
+  const undoVoiceCandidate = useCallback(async () => {
+    const current = stateRef.current;
+    const token = voiceCandidateUndoTokenRef.current;
+    const candidate = voiceCandidate;
+    if (!current || !token || !candidate?.adoptionId || candidate.busy) return;
+    setVoiceCandidate((value) => value ? { ...value, busy: true, error: undefined } : value);
+    try {
+      const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:undo-insert", token }) as { ok?: boolean } | undefined;
+      if (!response?.ok) throw new Error("The page changed, so this insert can’t be undone.");
+      voiceCandidateUndoTokenRef.current = undefined;
+      setVoiceCandidate((value) => value ? { ...value, inserted: false, canUndo: false, adoptionPending: "undo", error: undefined } : value);
+      try {
+        await adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, undone: true });
+        setVoiceCandidate((value) => value && value.adoptionId === candidate.adoptionId ? { ...value, busy: false, adoptionPending: undefined, error: undefined } : value);
+      } catch (cause) {
+        setVoiceCandidate((value) => value && value.adoptionId === candidate.adoptionId ? { ...value, busy: false, adoptionPending: "undo", error: cause instanceof Error ? `Text was removed, but Logue could not record Undo: ${cause.message}` : "Text was removed, but Logue could not record Undo." } : value);
+      }
+    } catch (cause) {
+      setVoiceCandidate((value) => value ? { ...value, busy: false, canUndo: false, error: cause instanceof Error ? cause.message : "Could not undo this insert." } : value);
+    }
+  }, [voiceCandidate]);
+
+  const retryVoiceCandidateAdoption = useCallback(async () => {
+    const current = stateRef.current;
+    const candidate = voiceCandidate;
+    if (!current || !candidate?.adoptionId || !candidate.adoptionPending || candidate.busy) return;
+    setVoiceCandidate((value) => value ? { ...value, busy: true, error: undefined } : value);
+    try {
+      if (candidate.adoptionPending === "undo") {
+        await adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, undone: true });
+      } else {
+        await adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, content: candidate.text, target: { surface: candidate.adoptionPending === "copy" ? "clipboard" : "side-panel-voice", url: current.source.url, target_key: generationTargetKey(current) } });
+      }
+      setVoiceCandidate((value) => value && value.adoptionId === candidate.adoptionId ? { ...value, busy: false, adoptionPending: undefined, error: undefined } : value);
+    } catch (cause) {
+      setVoiceCandidate((value) => value && value.adoptionId === candidate.adoptionId ? { ...value, busy: false, error: cause instanceof Error ? cause.message : "Could not record this adoption." } : value);
+    }
+  }, [voiceCandidate]);
+
+  const retranscribeVoiceCandidate = useCallback(async (input: VoiceCandidateRetranscribeInput) => {
+    const current = stateRef.current;
+    const candidate = voiceCandidate;
+    if (!current || !candidate || candidate.busy) return;
+    setVoiceCandidate((value) => value ? { ...value, busy: true, error: undefined } : value);
+    try {
+      const [result, nextContext] = await Promise.all([
+        retranscribeMaterial(candidate.materialId, { referenceProject: explicitProjects(current)[0] ?? "", profileOverrides: voiceProfileOverrides, correction: input.correction }),
+        getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "", voiceProfileOverrides),
+      ]);
+      setContext(nextContext);
+      setDraft(result.revision.transcript);
+      setTranscript(result.revision.transcript);
+      persistDraft({ draft: result.revision.transcript, transcript: result.revision.transcript });
+      voiceCandidateUndoTokenRef.current = undefined;
+      setVoiceCandidate((value) => value ? { ...value, text: result.revision.transcript, revision: result.revision.revision, profileLabel: result.revision.applied_context.voice_profile_label || value.profileLabel, busy: false, inserted: false, copied: false, canUndo: false, adoptionId: undefined, adoptionPending: undefined, error: undefined } : value);
+    } catch (cause) {
+      setVoiceCandidate((value) => value ? { ...value, busy: false, error: cause instanceof Error ? cause.message : "Could not re-transcribe this recording." } : value);
+    }
+  }, [persistDraft, voiceCandidate, voiceProfileOverrides]);
 
   transcribeAndSaveRef.current = transcribeAndSave;
 
@@ -464,7 +915,6 @@ function SidePanelApp() {
         stopRequestedRef.current = false;
         stopTimer();
         if (!session) return;
-        lastBlobRef.current = blob;
         void transcribeAndSaveRef.current(blob, session).finally(() => {
           activeCaptureScopeRef.current = undefined;
         });
@@ -483,39 +933,56 @@ function SidePanelApp() {
   }, [requestMicrophonePermission, stopTimer]);
 
   const startRecording = useCallback(() => {
-    if (phaseRef.current === "starting" || phaseRef.current === "recording" || phaseRef.current === "processing") return;
-    const current = stateRef.current;
-    if (!current) return;
-    const overrides = { ...voiceProfileOverrides };
-    const contextPromise = getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "", overrides);
-    const session = { id: createRequestId(), tabId: current.tabId, intent: current.intent, contextPromise, overrides };
-    recordingSessionRef.current = session;
-    activeCaptureScopeRef.current = session;
-    stopRequestedRef.current = false;
+    if ((voiceCandidate && stateRef.current?.intent !== "generate") || phaseRef.current === "starting" || phaseRef.current === "recording" || phaseRef.current === "processing") return;
+    phaseRef.current = "starting";
     setPhase("starting");
     setError(undefined);
     setPendingInsert(undefined);
     setVoiceProfilePickerOpen(false);
-    void contextPromise.then(() => {
-      if (recordingSessionRef.current?.id === session.id) return recorder().start();
+    void getPendingVoiceQueueStatus().then((status) => {
+      if (!status.writable) throw new Error(status.reason || "Clear a saved recording before recording again.");
+      return resolveActiveProject();
+    }).then((current) => {
+      if (!current || phaseRef.current !== "starting") return;
+      const overrides = { ...voiceProfileOverrides };
+      const contextPromise = getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "", overrides);
+      const session = { id: createRequestId(), tabId: current.tabId, intent: current.intent, contextPromise, overrides };
+      recordingSessionRef.current = session;
+      activeCaptureScopeRef.current = session;
+      stopRequestedRef.current = false;
+      void contextPromise.then((captureContext) => {
+        if (recordingSessionRef.current?.id === session.id) setContext(captureContext);
+      }).catch(() => undefined);
+      void recorder().start();
     }).catch((cause: unknown) => {
-      if (recordingSessionRef.current?.id !== session.id) return;
-      recordingSessionRef.current = undefined;
-      activeCaptureScopeRef.current = undefined;
-      setError(friendlyLocalError(cause, "service"));
+      const message = cause instanceof Error ? cause.message : "Could not start recording.";
+      setError(/saved recordings|clear a saved recording|cannot save another recording/i.test(message)
+        ? { kind: "save", message, action: "retry" }
+        : friendlyLocalError(cause, "service"));
       setPhase("error");
     });
-  }, [recorder, voiceProfileOverrides]);
+  }, [recorder, resolveActiveProject, voiceCandidate, voiceProfileOverrides]);
 
   startRecordingRef.current = startRecording;
 
   const runGeneration = useCallback(async () => {
-    const current = stateRef.current;
-    if (!current || !skillId || !draft.trim()) return;
-    const targetKey = generationTargetKey(current);
+    const snapshot = stateRef.current;
+    if (!snapshot || !skillId || !draft.trim()) return;
     setGenerating(true);
     setError(undefined);
     try {
+      const current = await resolveActiveProject(snapshot);
+      if (!current || current.source.url !== snapshot.source.url) throw new Error("The page changed before this Draft started.");
+      const targetKey = generationTargetKey(current);
+      const activity = await saveMaterial({
+        requestId: createRequestId(),
+        kind: "text",
+        content: draft.trim(),
+        source: current.source,
+        projects: [],
+        tags: [],
+        activityType: "text-command",
+      });
       const run = await createExtensionSkillRun({
         skillId,
         instruction: draft.trim(),
@@ -524,6 +991,12 @@ function SidePanelApp() {
         pageUrl: current.source.url,
         targetText: current.targetText,
         selection: current.selectionText,
+        sourceIds: [
+          ...(current.pinnedSourceIds ?? []).filter((id) => current.generationSourceIds?.includes(id)),
+          ...(current.generationSourceIds ?? []).filter((id) => !(current.pinnedSourceIds ?? []).includes(id)),
+        ],
+        autoSearch: false,
+        activitySourceId: activity.id,
       });
       if (run.status !== "complete" || !run.original_output?.trim()) throw new Error(run.error || "No result returned");
       commitCommandResult({
@@ -532,6 +1005,7 @@ function SidePanelApp() {
         text: run.original_output,
         targetKey,
         sourceURL: current.source.url,
+        allowInsert: true,
         sources: (run.sources ?? []).map((source) => ({
           id: source.id,
           kind: source.kind,
@@ -548,12 +1022,118 @@ function SidePanelApp() {
     } finally {
       setGenerating(false);
     }
-  }, [commitCommandResult, draft, skillId]);
+  }, [commitCommandResult, draft, resolveActiveProject, skillId]);
+
+  const runPageSkill = useCallback(async (requestedSkillId: string) => {
+    const snapshot = stateRef.current;
+    const skill = skills.find((item) => item.id === requestedSkillId);
+    const input = snapshot?.selectionText?.trim() || snapshot?.pageText?.trim();
+    if (!snapshot || !skill || !input || generating) return;
+    setGenerating(true);
+    setError(undefined);
+    try {
+      const current = await resolveActiveProject(snapshot);
+      if (!current || current.source.url !== snapshot.source.url) throw new Error("The page changed before this action started.");
+      const organization = captureOrganization(current);
+      const sourceId = current.selectionText?.trim()
+        ? (await saveSelection({
+          requestId: createRequestId(),
+          sourceContent: current.selectionText.trim(),
+          source: { ...current.source, selection: current.selectionText.trim() },
+          projects: organization.projects,
+          tags: organization.tags,
+        })).source.id
+        : (await saveMaterial({
+          requestId: createRequestId(),
+          kind: "selection",
+          content: input,
+          source: current.source,
+          projects: organization.projects,
+          tags: organization.tags,
+          actor: "web",
+        })).id;
+      const run = await createExtensionSkillRun({
+        skillId: skill.id,
+        instruction: `Apply ${skill.name} to the current ${current.selectionText ? "selection" : "page"}.`,
+        project: explicitProjects(current)[0],
+        pageTitle: current.source.title,
+        pageUrl: current.source.url,
+        selection: current.selectionText,
+        sourceIds: [sourceId],
+        autoSearch: false,
+      });
+      if (run.status !== "complete" || !run.original_output?.trim()) throw new Error(run.error || "No result returned.");
+      commitCommandResult({
+        runId: run.id,
+        originalText: run.original_output,
+        text: run.original_output,
+        targetKey: `page-action:${current.source.url}`,
+        sourceURL: current.source.url,
+        allowInsert: false,
+        sources: (run.sources ?? []).map((source) => ({
+          id: source.id,
+          kind: source.kind,
+          actor: source.actor,
+          content: source.content,
+          projects: source.projects ?? [],
+          tags: source.tags ?? [],
+          createdAt: source.created_at,
+          source: source.source ?? undefined,
+        })),
+      });
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "service"));
+    } finally {
+      setGenerating(false);
+    }
+  }, [commitCommandResult, generating, resolveActiveProject, skills]);
+
+  const captureCurrentPage = useCallback(async () => {
+    const snapshot = stateRef.current;
+    const content = snapshot?.selectionText?.trim() || snapshot?.pageText?.trim();
+    if (!snapshot || !content) return;
+    setGenerating(true); setError(undefined);
+    try {
+      const current = await resolveActiveProject(snapshot);
+      if (!current || current.source.url !== snapshot.source.url) throw new Error("The page changed before it was saved.");
+      const organization = captureOrganization(current);
+      if (current.selectionText?.trim()) await saveSelection({ requestId: createRequestId(), sourceContent: current.selectionText.trim(), source: { ...current.source, selection: current.selectionText.trim() }, projects: organization.projects, tags: organization.tags });
+      else await saveMaterial({ requestId: createRequestId(), kind: "selection", content, source: current.source, projects: organization.projects, tags: organization.tags, actor: "web" });
+      await refreshPageMaterials(current.source.url);
+    } catch (cause) { setError(friendlyLocalError(cause, "save")); }
+    finally { setGenerating(false); }
+  }, [refreshPageMaterials, resolveActiveProject]);
+
+  const selectGenerationSources = useCallback((ids: string[]) => {
+    const current = stateRef.current;
+    if (!current) return;
+    generationSourcesTouchedRef.current = true;
+    const generationSourceIds = Array.from(new Set(ids));
+    const pinnedSourceIds = (current.pinnedSourceIds ?? []).filter((id) => generationSourceIds.includes(id));
+    const next = { ...current, generationSourceIds, pinnedSourceIds, updatedAt: Date.now() };
+    stateRef.current = next;
+    setState(next);
+    persistDraft({ generationSourceIds, pinnedSourceIds });
+  }, [persistDraft]);
+
+  const pinGenerationSource = useCallback((id: string) => {
+    const current = stateRef.current;
+    if (!current) return;
+    generationSourcesTouchedRef.current = true;
+    const selected = Array.from(new Set([...(current.generationSourceIds ?? []), id]));
+    const pinned = current.pinnedSourceIds?.includes(id)
+      ? current.pinnedSourceIds.filter((value) => value !== id)
+      : [id, ...(current.pinnedSourceIds ?? [])];
+    const next = { ...current, generationSourceIds: selected, pinnedSourceIds: pinned, updatedAt: Date.now() };
+    stateRef.current = next;
+    setState(next);
+    persistDraft({ generationSourceIds: selected, pinnedSourceIds: pinned });
+  }, [persistDraft]);
 
   const useGeneratedText = useCallback(async () => {
     const current = stateRef.current;
     const result = commandResultRef.current;
-    if (!current || !result?.text.trim() || insertingGenerated) return;
+    if (!current || !result?.text.trim() || result.allowInsert === false || insertingGenerated) return;
     setInsertingGenerated(true);
     setError(undefined);
     try {
@@ -576,10 +1156,15 @@ function SidePanelApp() {
         text: result.text.trim(),
       }) as { ok?: boolean; undoToken?: string } | undefined;
       if (!response?.ok || !response.undoToken) throw new Error("target unavailable");
-      const inserted = { ...result, undoToken: response.undoToken };
+      const inserted = { ...result, undoToken: response.undoToken, adoptionPending: "insert" as const };
       commitCommandResult(inserted);
-      await adoptExtensionSkillRun(result.runId, result.text.trim());
-      commitCommandResult({ ...inserted, adopted: true });
+      try {
+        const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
+        const adopted = { ...inserted, materialId: adoptedRun.material_id, adopted: true, adoptionPending: undefined };
+        commitCommandResult(adopted);
+      } catch (cause) {
+        setError(friendlyLocalError(cause, "save"));
+      }
       setDraft("");
     } catch (cause) {
       setError(/target unavailable/i.test(String(cause))
@@ -590,21 +1175,57 @@ function SidePanelApp() {
     }
   }, [commitCommandResult, insertingGenerated]);
 
+  const retryGeneratedAdoption = useCallback(async () => {
+    const current = stateRef.current;
+    const result = commandResultRef.current;
+    if (!current || !result?.adoptionPending || !result.undoToken || insertingGenerated) return;
+    setInsertingGenerated(true);
+    setError(undefined);
+    try {
+      const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
+      commitCommandResult({ ...result, materialId: adoptedRun.material_id, adopted: true, adoptionPending: undefined });
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "save"));
+    } finally {
+      setInsertingGenerated(false);
+    }
+  }, [commitCommandResult, insertingGenerated]);
+
+  const keepGeneratedText = useCallback(async () => {
+    const current = stateRef.current;
+    const result = commandResultRef.current;
+    if (!current || !result?.text.trim()) return;
+    setError(undefined);
+    try {
+      const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "keep", target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
+      commitCommandResult({ ...result, materialId: adoptedRun.material_id, adopted: true });
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "save"));
+    }
+  }, [commitCommandResult]);
+
   const undoGeneratedText = useCallback(async () => {
     const current = stateRef.current;
     const result = commandResultRef.current;
     if (!current || !result?.undoToken) return;
     try {
+      let adoptedResult = result;
+      if (result.adoptionPending) {
+        const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
+        adoptedResult = { ...result, materialId: adoptedRun.material_id, adopted: true, adoptionPending: undefined };
+        commitCommandResult(adoptedResult);
+      }
       const response = await chrome.tabs.sendMessage(current.tabId, {
         type: "logue:undo-insert",
-        token: result.undoToken,
+        token: adoptedResult.undoToken,
       }) as { ok?: boolean } | undefined;
       if (!response?.ok) throw new Error("target unavailable");
-      const { undoToken: _consumed, ...restored } = result;
+      const { undoToken: _consumed, adoptionPending: _pending, ...restored } = adoptedResult;
+      await adoptExtensionSkillRun(adoptedResult.runId, adoptedResult.text.trim(), { action: "undo", target: { surface: "side-panel", url: current.source.url, target_key: adoptedResult.targetKey } });
       commitCommandResult(restored);
       setError(undefined);
-    } catch {
-      setError({ kind: "target", message: "The editor changed, so Logue didn’t undo it. Your draft is still saved here.", action: "copy" });
+    } catch (cause) {
+      setError(/target unavailable/i.test(String(cause)) ? { kind: "target", message: "The editor changed, so Logue didn’t undo it. Your draft is still saved here.", action: "copy" } : friendlyLocalError(cause, "save"));
     }
   }, [commitCommandResult]);
 
@@ -613,10 +1234,34 @@ function SidePanelApp() {
     if (!result?.text.trim()) return;
     try {
       await navigator.clipboard.writeText(result.text.trim());
+      const current = stateRef.current;
+      if (!current) return;
+      const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "copy", target: { surface: "clipboard", url: current.source.url, target_key: result.targetKey } });
+      commitCommandResult({ ...result, materialId: adoptedRun.material_id, adopted: true });
     } catch (cause) {
       setError(friendlyLocalError(cause, "target"));
     }
-  }, []);
+  }, [commitCommandResult]);
+
+  const saveGeneratedDocument = useCallback(async () => {
+    const current = stateRef.current;
+    const result = commandResultRef.current;
+    if (!current || !result?.text.trim() || savingGeneratedDocument) return;
+    setSavingGeneratedDocument(true);
+    setError(undefined);
+    try {
+      const created = await saveExtensionSkillRunAsDocument(result.runId, {
+        title: draft.trim().split("\n")[0]?.slice(0, 72) || `${current.source.title || "Logue"} draft`,
+        content: result.text.trim(),
+      });
+      if (!created.document.id) throw new Error("Could not save this Document.");
+      commitCommandResult({ ...result, adopted: true });
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "save"));
+    } finally {
+      setSavingGeneratedDocument(false);
+    }
+  }, [commitCommandResult, draft, savingGeneratedDocument]);
 
   const stopRecording = useCallback(() => {
     const session = recordingSessionRef.current;
@@ -634,6 +1279,7 @@ function SidePanelApp() {
     recordingSessionRef.current = undefined;
     recorderRef.current?.cancel();
     stopTimer();
+    phaseRef.current = "idle";
     setPhase("idle");
     setElapsed(0);
   }, [stopTimer]);
@@ -693,7 +1339,7 @@ function SidePanelApp() {
         if (!response?.ok) {
           setError({
             kind: "target",
-            message: response?.error || "Focus a writable editor, then try again.",
+            message: response?.error || "Could not open Actions for this page.",
             action: "retry",
           });
         }
@@ -701,17 +1347,29 @@ function SidePanelApp() {
       .catch((cause: unknown) => setError(friendlyLocalError(cause, "target")));
   }, [commitCommandResult]);
 
-  const selectProject = useCallback((project: string) => {
+  const selectProjects = useCallback((values: string[]) => {
     const current = stateRef.current;
     if (!current) return;
-    const projects = project ? [project] : [];
-    const next = { ...current, projects, updatedAt: Date.now() };
+    const projects = Array.from(new Set(values.filter(Boolean)));
+    const project = projects[0] ?? "";
+    const next: PanelCaptureState = {
+      ...current,
+      projects,
+      projectExplicit: true,
+      projectAssociationId: undefined,
+      projectAssociationScope: undefined,
+      generationSourceIds: undefined,
+      pinnedSourceIds: undefined,
+      updatedAt: Date.now(),
+    };
     stateRef.current = next;
     setState(next);
-    persistDraft({ projects });
+    persistDraft({ projects, projectExplicit: true, projectAssociationId: null, projectAssociationScope: null, generationSourceIds: undefined, pinnedSourceIds: undefined });
     void getCaptureContext(next.source.url, project, voiceProfileOverrides).then((captureContext) => {
       if (
         stateRef.current?.tabId === next.tabId &&
+        stateRef.current.source.url === next.source.url &&
+        stateRef.current.updatedAt === next.updatedAt &&
         explicitProjects(stateRef.current)[0] === (project || undefined)
       ) {
         setContext(captureContext);
@@ -729,6 +1387,200 @@ function SidePanelApp() {
     });
   }, [persistDraft, skills, voiceProfileOverrides]);
 
+  const createProject = useCallback(async (name: string, overview: string) => {
+    try {
+      const project = await createExtensionProject(name.trim(), overview.trim());
+      selectProjects([project.name]);
+      setError(undefined);
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "save"));
+      throw cause;
+    }
+  }, [selectProjects]);
+
+  const rememberProject = useCallback(async (scope: "page" | "site") => {
+    const current = stateRef.current;
+    const project = explicitProjects(current)[0];
+    if (!current || !project) return;
+    try {
+      await saveProjectAssociation({ scope, pageUrl: current.source.url, project });
+      const live = stateRef.current;
+      if (!live || live.tabId !== current.tabId || live.source.url !== current.source.url || live.updatedAt !== current.updatedAt || explicitProjects(live)[0] !== project) return;
+      const captureContext = await getCaptureContext(current.source.url, project, voiceProfileOverrides);
+      if (stateRef.current?.tabId === current.tabId && stateRef.current.source.url === current.source.url && stateRef.current.updatedAt === current.updatedAt && explicitProjects(stateRef.current)[0] === project) {
+        setContext(captureContext);
+        setError(undefined);
+      }
+    } catch (cause) {
+      if (stateRef.current?.tabId === current.tabId) setError(friendlyLocalError(cause, "save"));
+    }
+  }, [voiceProfileOverrides]);
+
+  const removeProjectAssociation = useCallback(async (id: string) => {
+    const current = stateRef.current;
+    if (!current) return;
+    try {
+      await deleteProjectAssociation(id);
+      const live = stateRef.current;
+      if (!live || live.tabId !== current.tabId || live.source.url !== current.source.url || live.updatedAt !== current.updatedAt || live.projectAssociationId !== current.projectAssociationId) return;
+      const removedActiveInheritance = !current.projectExplicit && current.projectAssociationId === id;
+      if (!removedActiveInheritance) {
+        const captureContext = await getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "", voiceProfileOverrides);
+        if (stateRef.current?.tabId === current.tabId && stateRef.current.source.url === current.source.url && stateRef.current.updatedAt === current.updatedAt) setContext(captureContext);
+        return;
+      }
+      const base: PanelCaptureState = {
+        ...current,
+        projects: undefined,
+        projectExplicit: false,
+        projectAssociationId: undefined,
+        projectAssociationScope: undefined,
+        updatedAt: Date.now(),
+      };
+      stateRef.current = base;
+      setState(base);
+      persistDraft({ projects: null, projectExplicit: false, projectAssociationId: null, projectAssociationScope: null });
+      const initialContext = await getCaptureContext(base.source.url, "", voiceProfileOverrides);
+      const accepted = await applySuggestedProject(base, initialContext);
+      if (!accepted.stale && stateRef.current?.tabId === accepted.state.tabId && stateRef.current.source.url === accepted.state.source.url) setContext(accepted.context);
+    } catch (cause) {
+      if (stateRef.current?.tabId === current.tabId) setError(friendlyLocalError(cause, "save"));
+    }
+  }, [applySuggestedProject, persistDraft, voiceProfileOverrides]);
+
+  const updateDraftTags = useCallback((tags: string[]) => {
+    const current = stateRef.current;
+    if (!current) return;
+    const nextTags = Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)));
+    const next = { ...current, tags: nextTags, updatedAt: Date.now() };
+    stateRef.current = next;
+    setState(next);
+    persistDraft({ tags: nextTags });
+  }, [persistDraft]);
+
+  const updatePageMaterial = useCallback(async (id: string, changes: PageMaterialChanges) => {
+    try {
+      await updateCommentBundle(id, changes);
+      const current = stateRef.current;
+      if (current) await refreshPageMaterials(current.source.url);
+      setError(undefined);
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "save"));
+      throw cause;
+    }
+  }, [refreshPageMaterials]);
+
+  const finishUnlinkedVoiceComment = useCallback(async (item: PageMaterial) => {
+    const snapshot = stateRef.current;
+    if (!snapshot || item.commentState !== "unlinked") return;
+    const sourceContent = item.source?.selection?.trim() || snapshot.pageText?.trim() || snapshot.source.title.trim();
+    if (!sourceContent) return;
+    try {
+      const current = await resolveActiveProject(snapshot);
+      if (!current || current.source.url !== snapshot.source.url) throw new Error("The page changed before this comment was linked.");
+      const organization = captureOrganization(current);
+      await linkVoiceComment(item.id, { content: item.content, sourceContent, source: item.source ?? current.source, projects: organization.projects, tags: organization.tags });
+      await refreshPageMaterials(current.source.url);
+      setError(undefined);
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "save"));
+    }
+  }, [refreshPageMaterials, resolveActiveProject]);
+
+  const deleteUnlinkedVoiceComment = useCallback(async (item: PageMaterial) => {
+    const current = stateRef.current;
+    if (!current || item.commentState !== "unlinked") return;
+    try {
+      await deleteMaterial(item.id);
+      await refreshPageMaterials(current.source.url);
+      setError(undefined);
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "save"));
+    }
+  }, [refreshPageMaterials]);
+
+  const locatePageAnchor = useCallback(async (item: PageMaterial) => {
+    const current = stateRef.current;
+    if (!current || !item.source) return;
+    const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:locate-page-anchor", source: item.source }) as { ok?: boolean } | undefined;
+    if (!response?.ok) {
+      await updateSourceAnchor(item.id, { action: "resolve", status: "page_changed", expectedRevision: item.source.anchor?.revision ?? 1 });
+      await refreshPageMaterials(current.source.url);
+      setError({ kind: "target", message: "The page changed. Select the new passage to re-anchor, or keep the saved snapshot.", action: "retry" });
+    } else {
+      setError(undefined);
+    }
+  }, [refreshPageMaterials]);
+
+  const reanchorPageMaterial = useCallback(async (item: PageMaterial) => {
+    const current = stateRef.current;
+    if (!current) return;
+    try {
+      const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:get-current-selection-anchor" }) as { ok?: boolean; value?: { selection?: string; context_before?: string; context_after?: string } } | undefined;
+      const quote = response?.value?.selection?.trim();
+      if (!response?.ok || !quote) throw new Error("Select the matching passage on the page first.");
+      await updateSourceAnchor(item.id, { action: "reanchor", expectedRevision: item.source?.anchor?.revision ?? 1, quote, contextBefore: response.value?.context_before, contextAfter: response.value?.context_after });
+      await refreshPageMaterials(current.source.url);
+      setError(undefined);
+    } catch (cause) {
+      setError({ kind: "target", message: cause instanceof Error ? cause.message : "Could not re-anchor this Source.", action: "retry" });
+    }
+  }, [refreshPageMaterials]);
+
+  const keepSnapshotAnchor = useCallback(async (item: PageMaterial) => {
+    const current = stateRef.current;
+    if (!current) return;
+    try {
+      await updateSourceAnchor(item.id, { action: "snapshot_only", expectedRevision: item.source?.anchor?.revision ?? 1 });
+      await refreshPageMaterials(current.source.url);
+      setError(undefined);
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "save"));
+    }
+  }, [refreshPageMaterials]);
+
+  const refreshPendingVoices = useCallback(() => {
+    return getPendingVoices().then(setPendingVoices).catch(() => undefined);
+  }, []);
+
+  const retrySavedRecording = useCallback(async (id: string) => {
+    if (retryingPendingVoiceId) return;
+    setRetryingPendingVoiceId(id);
+    try {
+      await retryPendingVoice(id);
+      const current = stateRef.current;
+      if (current) await refreshPageMaterials(current.source.url);
+      setError(undefined);
+    } catch {
+      setError({
+        kind: "transcription",
+        message: "This recording is still saved locally. Reconnect Logue and retry.",
+        action: "retry",
+      });
+    } finally {
+      setRetryingPendingVoiceId(undefined);
+      await refreshPendingVoices();
+    }
+  }, [refreshPageMaterials, refreshPendingVoices, retryingPendingVoiceId]);
+
+  const exportSavedRecording = useCallback(async (id: string) => {
+    try {
+      const record = await exportPendingVoice(id);
+      const bytes = Uint8Array.from(atob(record.audioBase64), (value) => value.charCodeAt(0));
+      const href = URL.createObjectURL(new Blob([bytes], { type: record.mimeType }));
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = `logue-recording-${new Date(record.createdAt).toISOString().replace(/[:.]/g, "-")}.webm`;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(href), 1_000);
+    } catch (cause) { setError(friendlyLocalError(cause, "save")); }
+  }, []);
+
+  const removeSavedRecording = useCallback(async (id: string) => {
+    try { await deletePendingVoice(id); await refreshPendingVoices(); }
+    catch (cause) { setError(friendlyLocalError(cause, "save")); }
+  }, [refreshPendingVoices]);
+
   const returnToPage = useCallback(() => {
     if (typeof panelTabId !== "number") return;
     void chrome.runtime.sendMessage({ type: "logue:return-panel-to-page", tabId: panelTabId })
@@ -743,6 +1595,37 @@ function SidePanelApp() {
       })
       .catch((cause: unknown) => setError(friendlyLocalError(cause, "target")));
   }, []);
+
+  useEffect(() => {
+    const current = state;
+    if (!current || current.intent !== "generate") {
+      setGenerationSources([]);
+      generationSourcesTouchedRef.current = false;
+      return;
+    }
+    const project = explicitProjects(current)[0];
+    if (!project) {
+      setGenerationSources([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void getProjectSources(project, draft.trim()).then((sources) => {
+        if (cancelled || stateRef.current?.intent !== "generate" || explicitProjects(stateRef.current)[0] !== project) return;
+        setGenerationSources(sources);
+        if (!generationSourcesTouchedRef.current) {
+          const ids = sources.map((source) => source.id);
+          const next = { ...stateRef.current, generationSourceIds: ids, pinnedSourceIds: [], updatedAt: Date.now() } as PanelCaptureState;
+          stateRef.current = next;
+          setState(next);
+          persistDraft({ generationSourceIds: ids, pinnedSourceIds: [] });
+        }
+      }).catch((cause: unknown) => {
+        if (!cancelled) setError(friendlyLocalError(cause, "service"));
+      });
+    }, 240);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [draft, persistDraft, state?.intent, state?.projects]);
 
   useEffect(() => {
     const hydrate = (next?: PanelCaptureState) => {
@@ -763,6 +1646,7 @@ function SidePanelApp() {
         stopTimer();
       }
       setState(next);
+      generationSourcesTouchedRef.current = next.generationSourceIds !== undefined;
       setDraft(next.draft ?? "");
       setTranscript(next.transcript ?? "");
       setPendingInsert(next.pendingInsert);
@@ -771,6 +1655,7 @@ function SidePanelApp() {
       setContext(undefined);
       setPageMaterials([]);
       if (next.intent === "generate") {
+        setVoiceCandidate(undefined);
         setSkills([]);
         setSkillId("");
       }
@@ -830,10 +1715,20 @@ function SidePanelApp() {
       if (panelMessage.type === "logue:side-panel-hidden" && panelMessage.tabId === panelTabId) {
         cancelRecording();
       }
+      if (panelMessage.type === "logue:pending-voices-changed") {
+        void refreshPendingVoices();
+      }
+      if (panelMessage.type === "logue:page-anchors-changed" && panelMessage.url && panelMessage.url === stateRef.current?.source.url) {
+        void refreshPageMaterials(panelMessage.url);
+      }
     };
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
-  }, [cancelRecording, refreshServerConnection, stopTimer]);
+  }, [cancelRecording, refreshPendingVoices, refreshServerConnection, stopTimer]);
+
+  useEffect(() => {
+    void refreshPendingVoices();
+  }, [refreshPendingVoices]);
 
   useEffect(() => {
     void getServerURL().then((value) => {
@@ -904,25 +1799,34 @@ function SidePanelApp() {
   }, [persistDraft, stopTimer]);
 
   return (
-    <SidePanelView
+    <V2SidePanelSurface
       state={state}
       phase={phase}
       draft={draft}
       generatedText={commandResult?.text ?? ""}
       commandSources={commandResult?.sources}
+      generationSources={generationSources}
+      generationSourceIds={state?.generationSourceIds ?? []}
+      pinnedSourceIds={state?.pinnedSourceIds ?? []}
       generatedUndoAvailable={Boolean(commandResult?.undoToken)}
+      generatedAdoptionPending={Boolean(commandResult?.adoptionPending)}
       insertingGenerated={insertingGenerated}
+      savingGeneratedDocument={savingGeneratedDocument}
       skills={skills}
       skillId={skillId}
       projects={context?.projects ?? []}
+      projectAssociations={context?.project_associations ?? []}
       pageMaterials={pageMaterials}
       error={error}
       elapsed={elapsed}
       pendingInsert={pendingInsert}
       insertingPending={insertingPending}
       generating={generating}
-      canRetry={Boolean(lastBlobRef.current)}
+      canRetry={false}
+      pendingVoices={pendingVoices}
+      retryingPendingVoiceId={retryingPendingVoiceId}
       serverURLDraft={serverURLDraft}
+      serverPairingCodeDraft={serverPairingCodeDraft}
       serverCandidateURL={state?.candidateServerURL && state.candidateServerURL !== serverURL ? state.candidateServerURL : undefined}
       serverSettingsOpen={serverSettingsOpen}
       serverConnecting={serverConnecting}
@@ -930,6 +1834,7 @@ function SidePanelApp() {
       voiceProfileContext={context}
       voiceProfileOverrides={voiceProfileOverrides}
       voiceProfilePickerOpen={voiceProfilePickerOpen}
+      voiceCandidate={voiceCandidate}
       panelRef={panelMainRef}
       onDraftChange={(value) => { setDraft(value); persistDraft({ draft: value }); }}
       onGeneratedTextChange={(text) => {
@@ -937,21 +1842,42 @@ function SidePanelApp() {
         if (current) commitCommandResult({ ...current, text, adopted: false });
       }}
       onCopyGenerated={() => void copyGeneratedText()}
+      onKeepGenerated={() => void keepGeneratedText()}
+      onSaveGeneratedDocument={() => void saveGeneratedDocument()}
       onUndoGenerated={() => void undoGeneratedText()}
+      onRetryGeneratedAdoption={() => void retryGeneratedAdoption()}
       onSkillIdChange={setSkillId}
-      onProjectChange={selectProject}
+      onGenerationSourceIdsChange={selectGenerationSources}
+      onPinGenerationSource={pinGenerationSource}
+      onProjectsChange={selectProjects}
+      onCreateProject={createProject}
+      onRememberProject={(scope) => void rememberProject(scope)}
+      onDeleteProjectAssociation={(id) => void removeProjectAssociation(id)}
+      onTagsChange={updateDraftTags}
+      onUpdatePageMaterial={updatePageMaterial}
+      onFinishUnlinkedVoiceComment={(item) => void finishUnlinkedVoiceComment(item)}
+      onDeleteUnlinkedVoiceComment={(item) => void deleteUnlinkedVoiceComment(item)}
+      onLocatePageAnchor={(item) => void locatePageAnchor(item)}
+      onReanchorPageMaterial={(item) => void reanchorPageMaterial(item)}
+      onKeepSnapshotAnchor={(item) => void keepSnapshotAnchor(item)}
       onStartRecording={startRecording}
       onStopRecording={stopRecording}
       onCancelRecording={cancelRecording}
-      onRetryTranscription={() => { if (lastBlobRef.current) void transcribeAndSave(lastBlobRef.current); }}
+      onRetryTranscription={() => undefined}
+      onRetryPendingVoice={(id) => void retrySavedRecording(id)}
+      onExportPendingVoice={(id) => void exportSavedRecording(id)}
+      onDeletePendingVoice={(id) => void removeSavedRecording(id)}
       onSave={() => void saveContent(draft.trim()).catch((cause) => { setError(friendlyLocalError(cause, "save")); setPhase("error"); })}
       onRequestGeneration={requestGeneration}
       onReturnToPage={returnToPage}
       onGenerate={() => void runGeneration()}
+      onRunPageSkill={(id) => void runPageSkill(id)}
+      onCapturePage={() => void captureCurrentPage()}
       onInsertGenerated={() => void useGeneratedText()}
       onRetryInsert={() => void retryInsert()}
       onCopyPendingInsert={() => void copyPendingInsert()}
       onServerURLDraftChange={setServerURLDraft}
+      onServerPairingCodeDraftChange={setServerPairingCodeDraft}
       onOpenServerSettings={openServerSettings}
       onCloseServerSettings={closeServerSettings}
       onConnectServer={connectConfiguredServer}
@@ -959,6 +1885,18 @@ function SidePanelApp() {
       onRetryServer={() => void refreshServerConnection()}
       onVoiceProfileOverridesChange={setVoiceProfileOverrides}
       onVoiceProfilePickerOpenChange={setVoiceProfilePickerOpen}
+      onVoiceCandidateTextChange={(text) => {
+        setVoiceCandidate((value) => value ? { ...value, text } : value);
+        setDraft(text);
+        persistDraft({ draft: text });
+      }}
+      onVoiceCandidateRetranscribe={(input) => void retranscribeVoiceCandidate(input)}
+      onVoiceCandidateInsert={() => void (voiceCandidate?.purpose === "comment" ? finishVoiceComment() : insertVoiceCandidate())}
+      onVoiceCandidateCopy={() => void copyVoiceCandidate()}
+      onVoiceCandidateUndo={() => void undoVoiceCandidate()}
+      onVoiceCandidateRetryAdoption={() => void retryVoiceCandidateAdoption()}
+      onVoiceCandidateDelete={() => void deleteVoiceComment()}
+      onVoiceCandidateDismiss={dismissVoiceCandidate}
     />
   );
 }

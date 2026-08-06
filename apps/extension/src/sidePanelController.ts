@@ -173,9 +173,14 @@ export function preserveMatchingPanelDraft(
     draft: current.draft,
     transcript: current.transcript,
     projects: current.projects,
+    projectExplicit: current.projectExplicit,
+    projectAssociationId: current.projectAssociationId,
+    projectAssociationScope: current.projectAssociationScope,
     tags: current.tags,
     pendingInsert: current.pendingInsert,
     commandResult: current.commandResult,
+    generationSourceIds: current.generationSourceIds,
+    pinnedSourceIds: current.pinnedSourceIds,
   };
 }
 

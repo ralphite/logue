@@ -1,9 +1,14 @@
+import type { SourceInfo } from "@logue/ui";
+
 export type CaptureIntent = "page" | "selection" | "input" | "generate";
 
 export interface CaptureSource {
   url: string;
   title: string;
   domain: string;
+  selection?: string;
+  context_before?: string;
+  context_after?: string;
 }
 
 export interface CaptureOrganization {
@@ -21,6 +26,7 @@ export interface PageCaptureContext {
   selectionText?: string;
   targetText?: string;
   targetAvailable: boolean;
+  pageText?: string;
 }
 
 export interface PendingInsert {
@@ -53,7 +59,10 @@ export interface CommandResult {
   targetKey: string;
   sourceURL: string;
   undoToken?: string;
+  materialId?: string;
   adopted?: boolean;
+  adoptionPending?: "insert";
+  allowInsert?: boolean;
 }
 
 export interface PanelCaptureState {
@@ -64,12 +73,18 @@ export interface PanelCaptureState {
   selectionText?: string;
   targetText?: string;
   targetAvailable: boolean;
+  pageText?: string;
   draft?: string;
   transcript?: string;
   projects?: string[];
+  projectExplicit?: boolean;
+  projectAssociationId?: string;
+  projectAssociationScope?: "page" | "site";
   tags?: string[];
   pendingInsert?: PendingInsert;
   commandResult?: CommandResult;
+  generationSourceIds?: string[];
+  pinnedSourceIds?: string[];
   autoStartToken?: string;
   updatedAt: number;
 }
@@ -93,7 +108,32 @@ export interface ExtensionSkill {
 
 export interface PageMaterial {
   id: string;
+  kind?: "voice" | "selection" | "text" | "derived";
+  actor?: string;
   content: string;
   annotation?: string;
+  parentIds?: string[];
+  captureId?: string;
+  commentState?: "unlinked" | "linked";
+  source?: SourceInfo;
   createdAt: string;
+  projects: string[];
+  excludedProjects: string[];
+  savedOnlyProjects: string[];
+  tags: string[];
+  organization?: {
+    status?: string;
+    reason?: string;
+    suggestedProjects?: string[];
+    membershipOrigins?: Record<string, "auto_added" | "added">;
+    duplicateOf?: string;
+  };
+}
+
+export interface PageMaterialChanges {
+  content?: string;
+  projects?: string[];
+  excludedProjects?: string[];
+  savedOnlyProjects?: string[];
+  tags?: string[];
 }
