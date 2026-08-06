@@ -82,7 +82,7 @@
 
 ## Web — Projects (J4/J6/J7)
 
-- V2-PROJ-01 — INTEGRATED — 创建、切换、稳定 ID rename、archive/restore、依赖预览 delete 已接；rename 同步当前 Source/Document/Run 引用。
+- V2-PROJ-01 — INTEGRATED — 创建、切换、稳定 ID rename、archive/restore、依赖预览 delete 已接；rename 在单一可回滚 root transaction 中同步当前 Source/Document/Run、classification 与 membership origin。
 - V2-PROJ-02 — INTEGRATED — Project name、goal/overview、instructions 的 Host/Web 数据链。
 - V2-PROJ-03 — INTEGRATED — 无显式 view 的 Web 根入口默认回到 Projects；workspace 显示并恢复最近 Project、Document、Ask/Compare/Draft 模式与最近工作，Document 路由恢复最近选择、caret 与 scroll；`view=stream` / Global Find 仍明确进入 Library。
 - V2-PROJ-04 — INTEGRATED — Context review 的 Suggested/Added/Excluded、reason、Add/Remove/Exclude/Undo exclusion。
@@ -94,7 +94,7 @@
 - V2-PROJ-10 — INTEGRATED — Project History 打开 Run、Candidate、Sources、Skill revision 与 adopted target。
 - V2-PROJ-11 — INTEGRATED — Project History 已接 Pin/Unpin、frozen retry lineage、依赖预览与 adopted/downstream-aware 安全删除。
 - V2-PROJ-12 — INTEGRATED — Project settings 汇总 Voice Profile、Skill overrides、相关 Topics、Archive/Restore、Project-scope Export 与依赖预览 Delete。
-- V2-PROJ-13 — CODED — Source-linked Classification memory 与 bundle 去重已接；Phase 2 已修正 Project delete 的 array schema，但 rename 的 transaction / membership origin 仍待闭合。
+- V2-PROJ-13 — INTEGRATED — Source-linked Classification memory、bundle 去重、Project delete/export 的单一 outcomes schema，以及 rename 的可回滚 transaction / membership origin 已闭合。
 
 ## Web — Transcription Profile / Topic Vocabulary (J4)
 
@@ -154,7 +154,7 @@
 - V2-SET-06 — INTEGRATED — Settings 使用内容列表消费 Host-managed snapshots，支持 fresh/default workspace 创建备份、下载当前 schema `.logue-backup`、安全迁入另一台 Host、明确确认与恢复；Host 在 snapshot staging 物化默认 settings，并以 opaque ID、archive 白名单、workspace barrier/generation、Restore 前备份、可回滚 swap 和 runtime reload 闭合真实 producer-consumer。
 - V2-SET-07 — CODED — scope-safe Export 已接；Phase 2 已修正 Project classification outcomes 投影，统一 deletion / backup 缺口闭合后再恢复 INTEGRATED。
 - V2-SET-08 — INTEGRATED — `Include activity history and unused AI drafts` 明确控制 scope 内 Activity Sources / unadopted Runs；默认只含 Saved content 与 adopted lineage，Project frozen snapshots 不扩权到其他 Project 当前对象。
-- V2-SET-09 — CODED — Host-owned dependency preview / fingerprint / terminal result 已接；Phase 2 已修正普通 Source preview、Comment bundle 原子删除、Project classification memory 与 fresh workspace backup；Project rename transaction 闭合后再恢复 INTEGRATED。
+- V2-SET-09 — INTEGRATED — Host-owned dependency preview / fingerprint / terminal result 已接；普通 Source、Comment bundle、Project classification memory、fresh workspace backup 与失败回滚的静态合同已统一。
 - V2-SET-10 — INTEGRATED — 新 Run 在 provider 调用前冻结实际 instruction、Skill instructions/revision、Project/Personal/Page Context 与 Sources；Settings → Privacy 以内容列表打开共享可调宽 Run inspector，不复制第二套 Run 状态。
 
 ## Topics / PKM

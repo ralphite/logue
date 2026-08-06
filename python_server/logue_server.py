@@ -1750,8 +1750,21 @@ class Store:
                 bindings = value.get("skill_bindings") if isinstance(value.get("skill_bindings"), dict) else {}
                 allowed = {"transcription", "organization", "command", "ask", "draft"}
                 project["skill_bindings"] = {str(key): str(entry).strip() for key, entry in bindings.items() if key in allowed and str(entry).strip()}
-            atomic_json(self.root / "projects" / f"{project['id']}.json", project)
-            if current_name and name != current_name:
+            renaming = bool(current_name and name != current_name)
+            snapshot: Path | None = None
+            if renaming:
+                snapshot = Path(tempfile.mkdtemp(prefix="logue-project-rename-", dir=self.root.parent))
+                shutil.rmtree(snapshot)
+                try:
+                    shutil.copytree(self.root, snapshot, copy_function=os.link)
+                except BaseException:
+                    shutil.rmtree(snapshot, ignore_errors=True)
+                    raise
+            try:
+                atomic_json(self.root / "projects" / f"{project['id']}.json", project)
+                if not renaming:
+                    return project
+
                 def renamed(values: Any) -> list[str]:
                     return normalize([name if entry == current_name else entry for entry in normalize(values)])
                 for item in self.items():
@@ -1767,6 +1780,13 @@ class Store:
                             if field in organization:
                                 organization[field] = renamed(organization.get(field))
                                 changed = True
+                        membership_origins = organization.get("membership_origins")
+                        if isinstance(membership_origins, dict) and current_name in membership_origins:
+                            next_origins = dict(membership_origins)
+                            origin = next_origins.pop(current_name)
+                            next_origins[name] = origin
+                            organization["membership_origins"] = next_origins
+                            changed = True
                         correction = organization.get("user_correction") if isinstance(organization.get("user_correction"), dict) else None
                         if correction:
                             if "original_suggested_projects" in correction:
@@ -1787,7 +1807,15 @@ class Store:
                     if str(run.get("project", "")) == current_name:
                         run["project"] = name
                         atomic_json(self.root / "skill-runs" / f"{run['id']}.json", run)
-            return project
+            except BaseException:
+                if snapshot is not None:
+                    shutil.rmtree(self.root)
+                    os.replace(snapshot, self.root)
+                raise
+            else:
+                if snapshot is not None:
+                    shutil.rmtree(snapshot)
+                return project
 
     def project_dependencies(self, name: str) -> dict[str, Any]:
         self.get_project(name)

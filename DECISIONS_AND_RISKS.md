@@ -826,3 +826,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 放宽 snapshot validator 允许缺失 settings；会产生无法精确恢复的非规范 backup。
 - **已有证据：** Phase 2 runtime 审查确认 fresh Host 只返回虚拟默认 settings，而 snapshot validator 强制文件存在，导致所有 backup consumer 必然失败。
 - **开放问题：** 无。
+
+### DR-077 — Project rename 在单一可回滚 root transaction 中完成
+
+- **优先级：** V2 Project / Phase 2 P1
+- **状态：** 已修复；Python compile 与 diff check 通过，真实 rename/restart 留到 Phase 5
+- **决定：** rename 在写入前为当前 data root 建立同文件系统 hard-link snapshot；Project、Sources、Documents、Runs、classification outcomes 与 `membership_origins` 全部写完才提交。任一写入失败时在 Store lock 内恢复完整 snapshot，不暴露新旧名称混合状态。
+- **用户可见影响：** Project 改名后 Auto-added / Added reason 仍保留；磁盘错误也不会留下重复或幽灵 Project 引用。
+- **替代方案：** 只保存逐文件旧值再回写；回滚本身失败时仍可能产生混合状态，且会遗漏新增 root 文件。
+- **已有证据：** Phase 2 runtime 审查确认当前实现先覆盖 Project，再逐文件更新且没有 rollback，同时完全遗漏 `membership_origins` 的 key rename。
+- **开放问题：** 无。
