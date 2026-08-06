@@ -88,7 +88,7 @@
 - V2-PROJ-04 — INTEGRATED — Context review 的 Suggested/Added/Excluded、reason、Add/Remove/Exclude/Undo exclusion。
 - V2-PROJ-05 — INTEGRATED — Context review 区分 Auto-added / Added / Suggested / Excluded / Duplicate-linked；Change Project 使用 bundle 级 Host 合同，重复 Source 保留但 Run/Project retrieval 不重复加权。
 - V2-PROJ-06 — INTEGRATED — 本次 Run Sources 可 Pin/Exclude/补充，不改变 membership。
-- V2-PROJ-07 — INTEGRATED — Web Project Ask/Draft Candidate、实际 Sources、Copy 与 Save as Document。
+- V2-PROJ-07 — INTEGRATED — production-owned Project Composer 以真实 submit 连接 Ask/Draft Candidate、实际 Sources、Copy 与 Save as Document；不显示无 handler 的重复 Mic。
 - V2-PROJ-08 — INTEGRATED — Compare 独立选择 Sources/Topics并要求结构化差异与证据缺口；Continue/Retry 从历史 Run frozen snapshots 与 model context 创建带 lineage 的新 Run，即使 Source 已从当前 Library 删除也不失效；持久 model context 与 provider 实际输入逐字段一致，不覆盖旧 Candidate。
 - V2-PROJ-09 — INTEGRATED — Ask/Compare/Draft/Continue 的 prompt 先成为永久 You Activity Source，再创建带同一 lineage 的 Run。
 - V2-PROJ-10 — INTEGRATED — Project History 打开 Run、Candidate、Sources、Skill revision 与 adopted target。
@@ -152,7 +152,7 @@
 - V2-SET-04 — INTEGRATED — Host、数据目录、storage 使用量、pending captures、模型处理边界。
 - V2-SET-05 — INTEGRATED — paired Extension clients 查看/命名/撤销。
 - V2-SET-06 — INTEGRATED — Settings 使用内容列表消费 Host-managed snapshots，支持 fresh/default workspace 创建备份、下载当前 schema `.logue-backup`、安全迁入另一台 Host、明确确认与恢复；Host 在 snapshot staging 物化默认 settings，并以 opaque ID、archive 白名单、workspace barrier/generation、Restore 前备份、可回滚 swap 和 runtime reload 闭合真实 producer-consumer。
-- V2-SET-07 — CODED — scope-safe Export 已接；Phase 2 已修正 Project classification outcomes 投影，统一 deletion / backup 缺口闭合后再恢复 INTEGRATED。
+- V2-SET-07 — INTEGRATED — V2 Settings 与 Project 使用稳定 Project ID 选择 All saved data / Library / Project；scope-safe Export、classification outcomes 投影、统一 deletion 与 backup 静态合同已闭合。
 - V2-SET-08 — INTEGRATED — `Include activity history and unused AI drafts` 明确控制 scope 内 Activity Sources / unadopted Runs；默认只含 Saved content 与 adopted lineage，Project frozen snapshots 不扩权到其他 Project 当前对象。
 - V2-SET-09 — INTEGRATED — Host-owned dependency preview / fingerprint / terminal result 已接；普通 Source、Comment bundle、Project classification memory、fresh workspace backup 与失败回滚的静态合同已统一。
 - V2-SET-10 — INTEGRATED — 新 Run 在 provider 调用前冻结实际 instruction、Skill instructions/revision、Project/Personal/Page Context 与 Sources；Settings → Privacy 以内容列表打开共享可调宽 Run inspector，不复制第二套 Run 状态。

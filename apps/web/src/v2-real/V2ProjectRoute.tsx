@@ -55,7 +55,7 @@ import {
 } from "../skillApi";
 import { Button, IconButton } from "../components/ui";
 import { OriginLabel } from "../v2-mock/primitives/OriginLabel";
-import { ProjectComposer } from "../v2-mock/primitives/ProjectComposer";
+import { ProjectComposer } from "../components/ProjectComposer";
 import { ProjectShell, type V2PrimaryRoute } from "../v2-mock/web/ProjectShell";
 import { RunInspector } from "./V2LibraryRoute";
 import { DocumentContent } from "./DocumentContent";

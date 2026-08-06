@@ -866,3 +866,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 未 Ready 时始终强制 Setup；违反本地内容不被 provider 状态阻断的既定合同。
 - **已有证据：** Phase 2 spec 审查确认 `V2SetupRoute` 完全未被 production import，root 无论 `ai_configured` 都直接进入 Projects。
 - **开放问题：** 无。
+
+### DR-081 — Projects Composer 只显示真实 production actions
+
+- **优先级：** V2 Projects / Phase 2 P1
+- **状态：** 已实现；Web typecheck 与 diff check 通过，真实 click 旅程留到 Phase 5
+- **决定：** Ask/Compare/Draft composer 提升为 production-owned 组件；Run 是明确的 form submit，Enter 与按钮共用同一 handler。删除没有任何 handler 的内嵌 Mic；Web textarea 仍可由已确认的 Extension Voice Write 操作，不保留第二套虚假 Web recorder。
+- **用户可见影响：** 点击 Run 与按 Enter 都真实启动当前模式；界面不再展示点击后无结果的 Voice 控件。
+- **替代方案：** 为 Web 临时再造一套 microphone recorder；会重复 Extension 的 capture、pending queue、Profile 与 lineage 合同。
+- **已有证据：** Goal Supervisor 与 Phase 2 leakage 审查确认 production V2 route 直接 import mock composer，Run 按钮默认 `type=button`，Mic 没有 handler。
+- **开放问题：** 无。
