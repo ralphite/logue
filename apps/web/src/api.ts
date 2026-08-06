@@ -1,4 +1,10 @@
-import type { AppliedContext, Material, MaterialKind, MaterialStatus, SourceInfo } from "@logue/ui";
+import type {
+  AppliedContext,
+  Material,
+  MaterialKind,
+  MaterialStatus,
+  SourceInfo,
+} from "@logue/ui";
 import { logueApiBase } from "./apiBase";
 
 const apiBase = logueApiBase;
@@ -8,6 +14,7 @@ interface ApiMaterial {
   kind: MaterialKind;
   status: MaterialStatus;
   content: string;
+  raw_transcript?: string;
   transcript?: string;
   annotation?: string;
   source?: SourceInfo;
@@ -18,19 +25,66 @@ interface ApiMaterial {
   parent_ids?: string[];
   capture_id?: string;
   transcript_revision?: number;
+  revision?: number;
   created_at: string;
   actor?: string;
+  activity_type?: Material["activityType"];
+  adopted_revisions?: Material["adoptedRevisions"];
   applied_context?: AppliedContext;
   organization?: Material["organization"];
+  tombstone?: boolean;
+  deleted_at?: string;
 }
 
 export type MaterialSearchMatch =
-  | { id: string; match: "content" | "annotation" | "source" | "tag" | "project"; reason?: string }
+  | {
+      id: string;
+      match: "content" | "annotation" | "source" | "tag" | "project";
+      reason?: string;
+    }
   | { id: string; match: "related"; reason: string };
 
 export interface MaterialSearchResponse {
   matches: MaterialSearchMatch[];
   strategy: "semantic" | "local";
+}
+
+export interface MaterialDependencies {
+  projects: string[];
+  derived_items: Array<{
+    id: string;
+    content: string;
+    kind: MaterialKind;
+    actor: string;
+    projects: string[];
+  }>;
+  documents: Array<{
+    id: string;
+    title: string;
+    project: string;
+    revision: number;
+    current: boolean;
+  }>;
+  runs: Array<{
+    id: string;
+    skill_name: string;
+    instruction: string;
+    status: string;
+    adopted: boolean;
+  }>;
+}
+
+export interface SourceRevision {
+  material_id: string;
+  revision: number;
+  current: boolean;
+  content: string;
+  parent_ids?: string[];
+  source?: SourceInfo;
+  sources?: SkillRunSourceSnapshot[];
+  created_at: string;
+  updated_at?: string;
+  archived_at?: string;
 }
 
 export type DocumentSearchMatch =
@@ -47,8 +101,41 @@ export interface ServiceStatus {
   api_version: number;
   ai_configured: boolean;
   model: string;
+  provider?: "gemini" | "openai-compatible";
   storage_root: string;
   version: string;
+}
+
+export interface LogueClient {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at?: string;
+  last_seen_at: string;
+  revoked: boolean;
+}
+
+export interface PairingCode {
+  code: string;
+  expires_at: string;
+}
+
+export interface AIConnection {
+  provider: "gemini" | "openai-compatible";
+  model: string;
+  transcription_model: string;
+  base_url: string;
+  configured: boolean;
+  has_api_key: boolean;
+}
+
+export interface AIConnectionInput {
+  provider: AIConnection["provider"];
+  model: string;
+  transcription_model?: string;
+  base_url?: string;
+  api_key?: string;
+  keep_api_key?: boolean;
 }
 
 export interface LogueDocument {
@@ -57,6 +144,9 @@ export interface LogueDocument {
   content: string;
   project?: string;
   source_ids: string[];
+  context_source_ids?: string[];
+  sources?: SkillRunSourceSnapshot[];
+  context_sources?: SkillRunSourceSnapshot[];
   revision: number;
   created_at: string;
   updated_at: string;
@@ -76,6 +166,14 @@ export interface ProjectSummary {
   count: number;
   created_at?: string;
   updated_at?: string;
+  archived_at?: string;
+}
+
+export interface ProjectDependencies {
+  project: string;
+  sources: number;
+  documents: number;
+  runs: number;
 }
 
 export interface ProjectSkillBindings {
@@ -99,6 +197,9 @@ export interface VoiceProfile {
   primary_language: string;
   mixed_languages: string[];
   custom_instructions: string;
+  phrases: string[];
+  avoid_terms: string[];
+  formatting_preference: string;
   vocabulary: VoiceProfileVocabulary;
 }
 
@@ -111,12 +212,22 @@ export function createVoiceProfile(): VoiceProfile {
     primary_language: "Auto-detect",
     mixed_languages: [],
     custom_instructions: "",
-    vocabulary: { people: [], companies: [], products: [], places: [], acronyms: [], preferred_spellings: [] },
+    phrases: [],
+    avoid_terms: [],
+    formatting_preference: "",
+    vocabulary: {
+      people: [],
+      companies: [],
+      products: [],
+      places: [],
+      acronyms: [],
+      preferred_spellings: [],
+    },
   };
 }
 
 export function createProjectVoiceProfile(): ProjectVoiceProfile {
-  return { ...createVoiceProfile(), mode: "inherited" };
+  return { ...createVoiceProfile(), primary_language: "", mode: "inherited" };
 }
 
 export interface TopicVocabulary {
@@ -127,10 +238,23 @@ export interface TopicVocabulary {
   updated_at: string;
 }
 
+export interface DiscoveredTopic {
+  id: string;
+  name: string;
+  source_ids: string[];
+  reason: string;
+  automatic: boolean;
+  hidden: boolean;
+  converted_project?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TranscriptRevision {
   material_id: string;
   capture_id: string;
   revision: number;
+  raw_transcript: string;
   transcript: string;
   applied_context: AppliedContext;
   created_at: string;
@@ -155,13 +279,39 @@ export interface SkillRun {
   skill_name: string;
   instruction: string;
   project?: string;
-  status: "running" | "complete" | "failed" | "cancelled";
+  continue_run_id?: string;
+  retry_run_id?: string;
+  page_title?: string;
+  page_url?: string;
+  target_text?: string;
+  selection?: string;
+  output_type?: "insert" | "material" | "qa" | "document";
+  pinned?: boolean;
+  status: "running" | "complete" | "failed" | "cancelled" | "deleted";
   sources: SkillRunSourceSnapshot[];
   original_output?: string;
   adopted_output?: string;
   error?: string;
   created_at: string;
   updated_at: string;
+  document_id?: string;
+  material_id?: string;
+  activity_source_id?: string;
+  adoption?: "copy" | "insert" | "replace" | "keep" | "document";
+  adoption_undone?: boolean;
+  adoption_target?: { surface?: string; url?: string; target_key?: string };
+  tombstone?: boolean;
+}
+
+export interface SkillRunDependencies {
+  run: string;
+  document_id: string;
+  material_id: string;
+  activity_source_id: string;
+  adopted: boolean;
+  frozen_sources: number;
+  downstream_runs: number;
+  requires_lineage: boolean;
 }
 
 export interface WorkspaceSettings {
@@ -186,6 +336,7 @@ export function fromApiMaterial(item: ApiMaterial): Material {
     kind: item.kind,
     status: item.status,
     content: item.content,
+    rawTranscript: item.raw_transcript,
     transcript: item.transcript,
     annotation: item.annotation,
     source: item.source,
@@ -196,10 +347,15 @@ export function fromApiMaterial(item: ApiMaterial): Material {
     parentIds: item.parent_ids ?? [],
     captureId: item.capture_id,
     transcriptRevision: item.transcript_revision,
+    revision: item.revision,
     createdAt: item.created_at,
     actor: item.actor,
+    activityType: item.activity_type,
+    adoptedRevisions: item.adopted_revisions,
     appliedContext: item.applied_context,
     organization: item.organization,
+    tombstone: item.tombstone,
+    deletedAt: item.deleted_at,
   };
 }
 
@@ -222,26 +378,115 @@ export async function getStatus() {
   return parseResponse<ServiceStatus>(await fetch(`${apiBase}/v1/status`));
 }
 
+export async function getClients() {
+  const result = await parseResponse<{ clients: LogueClient[] }>(
+    await fetch(`${apiBase}/v1/clients`),
+  );
+  return result.clients;
+}
+
+export async function createPairingCode() {
+  return parseResponse<PairingCode>(
+    await fetch(`${apiBase}/v1/pairing-code`, { method: "POST" }),
+  );
+}
+
+export async function updateClient(id: string, name: string) {
+  return parseResponse<LogueClient>(
+    await fetch(`${apiBase}/v1/clients/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }),
+  );
+}
+
+export async function revokeClient(id: string) {
+  return parseResponse<LogueClient>(
+    await fetch(`${apiBase}/v1/clients/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+  );
+}
+
+export async function getAIConnection() {
+  return parseResponse<AIConnection>(
+    await fetch(`${apiBase}/v1/ai-connection`),
+  );
+}
+
+export async function testAIConnection(input: AIConnectionInput) {
+  return parseResponse<AIConnection & { ok: true }>(
+    await fetch(`${apiBase}/v1/ai-connection/test`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  );
+}
+
+export async function saveAIConnection(input: AIConnectionInput) {
+  return parseResponse<AIConnection>(
+    await fetch(`${apiBase}/v1/ai-connection`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  );
+}
+
 export async function getMaterials() {
-  const result = await parseResponse<{ items: ApiMaterial[] }>(await fetch(`${apiBase}/v1/items`));
+  const result = await parseResponse<{ items: ApiMaterial[] }>(
+    await fetch(`${apiBase}/v1/items`),
+  );
   return result.items.map(fromApiMaterial);
 }
 
 export async function getTranscriptRevisions(id: string) {
   const result = await parseResponse<{ revisions: TranscriptRevision[] }>(
-    await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}/transcript-revisions`),
+    await fetch(
+      `${apiBase}/v1/items/${encodeURIComponent(id)}/transcript-revisions`,
+    ),
   );
   return result.revisions;
 }
 
-export async function retranscribeMaterial(id: string, options: {
-  referenceProject?: string;
-  disableProjectProfile?: boolean;
-  primaryLanguage?: string;
-  topicVocabularyId?: string;
-  correction?: { spoken: string; preferred: string; scope: "only" | "topic" | "project" | "global" };
-}) {
-  const result = await parseResponse<{ material: ApiMaterial; revision: TranscriptRevision }>(
+export async function getMaterialRevisions(id: string) {
+  const result = await parseResponse<{ revisions: SourceRevision[] }>(
+    await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}/revisions`),
+  );
+  return result.revisions;
+}
+
+export async function restoreMaterialRevision(id: string, revision: number) {
+  const result = await parseResponse<ApiMaterial>(
+    await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}/restore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ revision }),
+    }),
+  );
+  return fromApiMaterial(result);
+}
+
+export async function retranscribeMaterial(
+  id: string,
+  options: {
+    referenceProject?: string;
+    disableProjectProfile?: boolean;
+    primaryLanguage?: string;
+    topicVocabularyId?: string;
+    correction?: {
+      spoken: string;
+      preferred: string;
+      scope: "only" | "topic" | "project" | "global";
+    };
+  },
+) {
+  const result = await parseResponse<{
+    material: ApiMaterial;
+    revision: TranscriptRevision;
+  }>(
     await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}/retranscribe`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -254,12 +499,18 @@ export async function retranscribeMaterial(id: string, options: {
       }),
     }),
   );
-  return { material: fromApiMaterial(result.material), revision: result.revision };
+  return {
+    material: fromApiMaterial(result.material),
+    revision: result.revision,
+  };
 }
 
 export async function searchMaterials(query: string, signal?: AbortSignal) {
   return parseResponse<MaterialSearchResponse>(
-    await fetch(`${apiBase}/v1/material-search?query=${encodeURIComponent(query)}`, { signal }),
+    await fetch(
+      `${apiBase}/v1/material-search?query=${encodeURIComponent(query)}`,
+      { signal },
+    ),
   );
 }
 
@@ -271,6 +522,10 @@ export async function createMaterial(input: {
   tags?: string[];
   parentIds?: string[];
   source?: SourceInfo;
+  actor?: string;
+  requestId?: string;
+  activityType?: "voice-command" | "text-command" | "ask" | "draft";
+  runId?: string;
 }) {
   const result = await parseResponse<ApiMaterial>(
     await fetch(`${apiBase}/v1/items`, {
@@ -284,6 +539,10 @@ export async function createMaterial(input: {
         tags: input.tags,
         parent_ids: input.parentIds,
         source: input.source,
+        actor: input.actor,
+        request_id: input.requestId,
+        activity_type: input.activityType,
+        run_id: input.runId,
       }),
     }),
   );
@@ -291,7 +550,9 @@ export async function createMaterial(input: {
 }
 
 export async function getDocuments() {
-  const result = await parseResponse<{ documents: LogueDocument[] }>(await fetch(`${apiBase}/v1/docs`));
+  const result = await parseResponse<{ documents: LogueDocument[] }>(
+    await fetch(`${apiBase}/v1/docs`),
+  );
   return result.documents;
 }
 
@@ -302,9 +563,22 @@ export async function getDocumentRevisions(id: string) {
   return result.revisions;
 }
 
+export async function restoreDocumentRevision(id: string, revision: number) {
+  return parseResponse<LogueDocument>(
+    await fetch(`${apiBase}/v1/docs/${encodeURIComponent(id)}/restore`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ revision }),
+    }),
+  );
+}
+
 export async function searchDocuments(query: string, signal?: AbortSignal) {
   return parseResponse<DocumentSearchResponse>(
-    await fetch(`${apiBase}/v1/document-search?query=${encodeURIComponent(query)}`, { signal }),
+    await fetch(
+      `${apiBase}/v1/document-search?query=${encodeURIComponent(query)}`,
+      { signal },
+    ),
   );
 }
 
@@ -330,7 +604,14 @@ export async function createDocument(input: {
 
 export async function updateDocument(
   id: string,
-  changes: { title?: string; content?: string; project?: string; sourceIds?: string[]; expectedRevision?: number },
+  changes: {
+    title?: string;
+    content?: string;
+    project?: string;
+    sourceIds?: string[];
+    contextSourceIds?: string[];
+    expectedRevision?: number;
+  },
 ) {
   return parseResponse<LogueDocument>(
     await fetch(`${apiBase}/v1/docs/${encodeURIComponent(id)}`, {
@@ -340,16 +621,28 @@ export async function updateDocument(
         ...(changes.title !== undefined ? { title: changes.title } : {}),
         ...(changes.content !== undefined ? { content: changes.content } : {}),
         ...(changes.project !== undefined ? { project: changes.project } : {}),
-        ...(changes.sourceIds !== undefined ? { source_ids: changes.sourceIds } : {}),
-        ...(changes.expectedRevision !== undefined ? { expected_revision: changes.expectedRevision } : {}),
+        ...(changes.sourceIds !== undefined
+          ? { source_ids: changes.sourceIds }
+          : {}),
+        ...(changes.contextSourceIds !== undefined
+          ? { context_source_ids: changes.contextSourceIds }
+          : {}),
+        ...(changes.expectedRevision !== undefined
+          ? { expected_revision: changes.expectedRevision }
+          : {}),
       }),
     }),
   );
 }
 
 export async function deleteDocument(id: string) {
-  const response = await fetch(`${apiBase}/v1/docs/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!response.ok) throw new Error((await response.text()) || `Request failed (${response.status})`);
+  const response = await fetch(`${apiBase}/v1/docs/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!response.ok)
+    throw new Error(
+      (await response.text()) || `Request failed (${response.status})`,
+    );
 }
 
 export async function generateDocument(input: {
@@ -373,39 +666,100 @@ export async function generateDocument(input: {
 }
 
 export async function getProjects() {
-  const result = await parseResponse<{ projects: ProjectSummary[] }>(await fetch(`${apiBase}/v1/projects`));
+  const result = await parseResponse<{ projects: ProjectSummary[] }>(
+    await fetch(`${apiBase}/v1/projects`),
+  );
   return result.projects;
 }
 
+export async function getProjectDependencies(name: string) {
+  return parseResponse<ProjectDependencies>(
+    await fetch(
+      `${apiBase}/v1/projects/${encodeURIComponent(name)}/dependencies`,
+    ),
+  );
+}
+
+export async function deleteProject(name: string) {
+  return parseResponse<ProjectDependencies>(
+    await fetch(`${apiBase}/v1/projects/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    }),
+  );
+}
+
 export async function getSkillRuns() {
-  const result = await parseResponse<{ runs: SkillRun[] }>(await fetch(`${apiBase}/v1/skill-runs`));
+  const result = await parseResponse<{ runs: SkillRun[] }>(
+    await fetch(`${apiBase}/v1/skill-runs`),
+  );
   return result.runs;
 }
 
 export async function retrySkillRun(run: SkillRun) {
-  return parseResponse<SkillRun>(await fetch(`${apiBase}/v1/skill-runs`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      request_id: globalThis.crypto?.randomUUID?.() ?? `retry-${Date.now()}`,
-      skill_id: run.skill_id,
-      instruction: run.instruction,
-      project: run.project ?? "",
-      source_ids: run.sources.map((source) => source.id),
+  return parseResponse<SkillRun>(
+    await fetch(`${apiBase}/v1/skill-runs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        request_id: globalThis.crypto?.randomUUID?.() ?? `retry-${Date.now()}`,
+        skill_id: run.skill_id,
+        instruction: run.instruction,
+        project: run.project ?? "",
+        source_ids: run.sources.map((source) => source.id),
+        page_title: run.page_title ?? "",
+        page_url: run.page_url ?? "",
+        target_text: run.target_text ?? "",
+        selection: run.selection ?? "",
+        retry_run_id: run.id,
+        auto_search: false,
+      }),
     }),
-  }));
+  );
 }
 
-export async function deleteSkillRun(id: string) {
-  const response = await fetch(`${apiBase}/v1/skill-runs/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!response.ok) throw new Error((await response.text()) || `Request failed (${response.status})`);
+export async function setSkillRunPinned(id: string, pinned: boolean) {
+  return parseResponse<SkillRun>(
+    await fetch(`${apiBase}/v1/skill-runs/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinned }),
+    }),
+  );
+}
+
+export async function getSkillRunDependencies(id: string) {
+  return parseResponse<SkillRunDependencies>(
+    await fetch(
+      `${apiBase}/v1/skill-runs/${encodeURIComponent(id)}/dependencies`,
+    ),
+  );
+}
+
+export async function deleteSkillRun(id: string, preserveLineage = false) {
+  const suffix = preserveLineage ? "?preserve_lineage=true" : "";
+  const response = await fetch(
+    `${apiBase}/v1/skill-runs/${encodeURIComponent(id)}${suffix}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok)
+    throw new Error(
+      (await response.text()) || `Request failed (${response.status})`,
+    );
 }
 
 export async function saveProject(
   currentName: string,
-  input: { name?: string; overview: string; transcriptionProfile: ProjectVoiceProfile; skillBindings?: ProjectSkillBindings },
+  input: {
+    name?: string;
+    overview: string;
+    transcriptionProfile: ProjectVoiceProfile;
+    skillBindings?: ProjectSkillBindings;
+    archived?: boolean;
+  },
 ) {
-  const path = currentName ? `${apiBase}/v1/projects/${encodeURIComponent(currentName)}` : `${apiBase}/v1/projects`;
+  const path = currentName
+    ? `${apiBase}/v1/projects/${encodeURIComponent(currentName)}`
+    : `${apiBase}/v1/projects`;
   return parseResponse<ProjectSummary>(
     await fetch(path, {
       method: currentName ? "PATCH" : "POST",
@@ -414,7 +768,10 @@ export async function saveProject(
         name: input.name,
         overview: input.overview,
         transcription_profile: input.transcriptionProfile,
-        ...(input.skillBindings !== undefined ? { skill_bindings: input.skillBindings } : {}),
+        ...(input.skillBindings !== undefined
+          ? { skill_bindings: input.skillBindings }
+          : {}),
+        ...(input.archived !== undefined ? { archived: input.archived } : {}),
       }),
     }),
   );
@@ -422,17 +779,30 @@ export async function saveProject(
 
 export async function generateProjectOverviewDraft(project: string) {
   return parseResponse<{ draft: string; source_ids: string[] }>(
-    await fetch(`${apiBase}/v1/project-overview-drafts/${encodeURIComponent(project)}`, { method: "POST" }),
+    await fetch(
+      `${apiBase}/v1/project-overview-drafts/${encodeURIComponent(project)}`,
+      { method: "POST" },
+    ),
   );
 }
 
-export async function updateMaterialMetadata(id: string, projects: string[], tags: string[]) {
-	return updateMaterial(id, { projects, tags });
+export async function updateMaterialMetadata(
+  id: string,
+  projects: string[],
+  tags: string[],
+) {
+  return updateMaterial(id, { projects, tags });
 }
 
 export async function updateMaterial(
   id: string,
-  changes: { content?: string; projects?: string[]; excludedProjects?: string[]; savedOnlyProjects?: string[]; tags?: string[] },
+  changes: {
+    content?: string;
+    projects?: string[];
+    excludedProjects?: string[];
+    savedOnlyProjects?: string[];
+    tags?: string[];
+  },
 ) {
   const result = await parseResponse<ApiMaterial>(
     await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}`, {
@@ -440,9 +810,15 @@ export async function updateMaterial(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...(changes.content !== undefined ? { content: changes.content } : {}),
-        ...(changes.projects !== undefined ? { projects: changes.projects } : {}),
-        ...(changes.excludedProjects !== undefined ? { excluded_projects: changes.excludedProjects } : {}),
-        ...(changes.savedOnlyProjects !== undefined ? { saved_only_projects: changes.savedOnlyProjects } : {}),
+        ...(changes.projects !== undefined
+          ? { projects: changes.projects }
+          : {}),
+        ...(changes.excludedProjects !== undefined
+          ? { excluded_projects: changes.excludedProjects }
+          : {}),
+        ...(changes.savedOnlyProjects !== undefined
+          ? { saved_only_projects: changes.savedOnlyProjects }
+          : {}),
         ...(changes.tags !== undefined ? { tags: changes.tags } : {}),
       }),
     }),
@@ -450,31 +826,159 @@ export async function updateMaterial(
   return fromApiMaterial(result);
 }
 
-export async function deleteMaterial(id: string) {
-  const response = await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!response.ok) throw new Error((await response.text()) || `Request failed (${response.status})`);
+export async function updateMaterialMembership(
+  id: string,
+  input: {
+    action: "add" | "remove" | "exclude" | "undo" | "change";
+    project: string;
+    targetProject?: string;
+  },
+) {
+  const result = await parseResponse<{ bundle_root_id: string; items: ApiMaterial[] }>(
+    await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}/membership`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: input.action,
+        project: input.project,
+        target_project: input.targetProject,
+      }),
+    }),
+  );
+  return {
+    bundleRootId: result.bundle_root_id,
+    items: result.items.map(fromApiMaterial),
+  };
+}
+
+export async function forgetClassificationMemory(bundleRootId: string) {
+  return parseResponse<{ bundle_root_id: string; source_ids: string[] }>(
+    await fetch(
+      `${apiBase}/v1/classification-memories/${encodeURIComponent(bundleRootId)}`,
+      { method: "DELETE" },
+    ),
+  );
+}
+
+export async function deleteMaterial(
+  id: string,
+  options?: { preserveLineage?: boolean },
+) {
+  const suffix = options?.preserveLineage ? "?preserve_lineage=true" : "";
+  const response = await fetch(
+    `${apiBase}/v1/items/${encodeURIComponent(id)}${suffix}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok)
+    throw new Error(
+      (await response.text()) || `Request failed (${response.status})`,
+    );
+}
+
+export async function getMaterialDependencies(id: string) {
+  return parseResponse<MaterialDependencies>(
+    await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}/dependencies`),
+  );
 }
 
 export async function getWorkspaceSettings() {
-  return parseResponse<WorkspaceSettings>(await fetch(`${apiBase}/v1/settings`));
+  return parseResponse<WorkspaceSettings>(
+    await fetch(`${apiBase}/v1/settings`),
+  );
 }
 
 export async function getTopicVocabularies() {
-  const result = await parseResponse<{ topic_vocabularies: TopicVocabulary[] }>(await fetch(`${apiBase}/v1/topic-vocabularies`));
+  const result = await parseResponse<{ topic_vocabularies: TopicVocabulary[] }>(
+    await fetch(`${apiBase}/v1/topic-vocabularies`),
+  );
   return result.topic_vocabularies;
 }
 
-export async function saveTopicVocabulary(id: string | undefined, value: { name: string; vocabulary: VoiceProfileVocabulary }) {
-  return parseResponse<TopicVocabulary>(await fetch(`${apiBase}/v1/topic-vocabularies${id ? `/${encodeURIComponent(id)}` : ""}`, {
-    method: id ? "PATCH" : "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(value),
-  }));
+export async function saveTopicVocabulary(
+  id: string | undefined,
+  value: { name: string; vocabulary: VoiceProfileVocabulary },
+) {
+  return parseResponse<TopicVocabulary>(
+    await fetch(
+      `${apiBase}/v1/topic-vocabularies${id ? `/${encodeURIComponent(id)}` : ""}`,
+      {
+        method: id ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(value),
+      },
+    ),
+  );
 }
 
 export async function deleteTopicVocabulary(id: string) {
-  const response = await fetch(`${apiBase}/v1/topic-vocabularies/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!response.ok) throw new Error((await response.text()) || `Request failed (${response.status})`);
+  const response = await fetch(
+    `${apiBase}/v1/topic-vocabularies/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok)
+    throw new Error(
+      (await response.text()) || `Request failed (${response.status})`,
+    );
+}
+
+export async function getTopics() {
+  const result = await parseResponse<{ topics: DiscoveredTopic[] }>(
+    await fetch(`${apiBase}/v1/topics`),
+  );
+  return result.topics;
+}
+
+export async function updateTopic(
+  id: string,
+  changes: { name?: string; hidden?: boolean; sourceIds?: string[] },
+) {
+  return parseResponse<DiscoveredTopic>(
+    await fetch(`${apiBase}/v1/topics/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...(changes.name !== undefined ? { name: changes.name } : {}),
+        ...(changes.hidden !== undefined ? { hidden: changes.hidden } : {}),
+        ...(changes.sourceIds !== undefined
+          ? { source_ids: changes.sourceIds }
+          : {}),
+      }),
+    }),
+  );
+}
+
+export async function mergeTopics(topicIds: string[], name: string) {
+  return parseResponse<DiscoveredTopic>(
+    await fetch(`${apiBase}/v1/topics/merge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic_ids: topicIds, name }),
+    }),
+  );
+}
+
+export async function splitTopic(
+  id: string,
+  sourceIds: string[],
+  name: string,
+) {
+  return parseResponse<DiscoveredTopic>(
+    await fetch(`${apiBase}/v1/topics/${encodeURIComponent(id)}/split`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source_ids: sourceIds, name }),
+    }),
+  );
+}
+
+export async function convertTopicToProject(id: string, name: string) {
+  return parseResponse<ProjectSummary>(
+    await fetch(`${apiBase}/v1/topics/${encodeURIComponent(id)}/convert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    }),
+  );
 }
 
 export async function saveWorkspaceSettings(settings: WorkspaceSettings) {
@@ -488,12 +992,45 @@ export async function saveWorkspaceSettings(settings: WorkspaceSettings) {
 }
 
 export async function getGlossarySuggestions() {
-  const result = await parseResponse<{ suggestions: GlossarySuggestion[] }>(await fetch(`${apiBase}/v1/glossary-suggestions`));
+  const result = await parseResponse<{ suggestions: GlossarySuggestion[] }>(
+    await fetch(`${apiBase}/v1/glossary-suggestions`),
+  );
   return result.suggestions;
 }
 
-export function exportWorkspaceURL() {
-  return `${apiBase}/v1/export`;
+export interface ExportPreview {
+  project: string;
+  include_audio: boolean;
+  materials: number;
+  documents: number;
+  activity: number;
+  audio: number;
+}
+
+function exportQuery(options?: { project?: string; includeAudio?: boolean }) {
+  const query = new URLSearchParams();
+  if (options?.project) query.set("project", options.project);
+  query.set(
+    "include_audio",
+    options?.includeAudio === false ? "false" : "true",
+  );
+  return query.toString();
+}
+
+export function exportWorkspaceURL(options?: {
+  project?: string;
+  includeAudio?: boolean;
+}) {
+  return `${apiBase}/v1/export?${exportQuery(options)}`;
+}
+
+export async function getExportPreview(options?: {
+  project?: string;
+  includeAudio?: boolean;
+}) {
+  return parseResponse<ExportPreview>(
+    await fetch(`${apiBase}/v1/export-preview?${exportQuery(options)}`),
+  );
 }
 
 export function captureAudioURL(captureId: string) {

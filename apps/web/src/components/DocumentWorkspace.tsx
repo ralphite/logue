@@ -15,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { OverlayMenu, SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type Material, type SelectionSkillApplyTransaction } from "@logue/ui";
+import { OverlayMenu, SelectionActionCandidate, SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type Material, type SelectionActionBusy, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSerialTaskQueue } from "../documentSaveQueue";
 import { groupIdenticalMaterials } from "../materialGroups";
@@ -28,7 +28,7 @@ import {
   updateDocument,
   type LogueDocument,
 } from "../api";
-import { adoptSkillRun, createSkillRun, getSkills, type LogueSkill } from "../skillApi";
+import { adoptSkillRun, createSkillRun, getSkills, saveSkillRunAsDocument, type LogueSkill } from "../skillApi";
 import { MaterialGroupAddList, MaterialGroupPicker } from "./MaterialGroupPicker";
 import { PanelResizer, usePersistentPanelSize } from "./PanelResizer";
 import { SearchPending } from "./SearchPending";
@@ -141,7 +141,7 @@ export function markdownToEditorHTML(value: string, title: string) {
   return html.join("") || "<p><br></p>";
 }
 
-function sanitizeEditorHTML(value: string) {
+export function sanitizeEditorHTML(value: string) {
   const template = document.createElement("template");
   template.innerHTML = value;
   const clean = (node: Node) => {
@@ -307,7 +307,7 @@ function withoutDuplicateTitle(value: string, title: string) {
   return template.innerHTML;
 }
 
-function toEditorHTML(value: string, title: string) {
+export function toEditorHTML(value: string, title: string) {
   const html = value.trimStart().startsWith("<") ? sanitizeEditorHTML(value) : markdownToEditorHTML(value, title);
   return withoutDuplicateTitle(html.replace(citationPattern(), "[Source $1]"), title);
 }
@@ -499,6 +499,7 @@ export function ViewWorkspace({
   initialProject,
   onSelectedDocumentChange,
   onOpenMaterials,
+  onOpenMaterial,
   onLeaveGuardChange,
   onOpenGenerate,
   onManageSkills,
@@ -513,6 +514,7 @@ export function ViewWorkspace({
   initialProject?: string;
   onSelectedDocumentChange: (documentId?: string, replace?: boolean) => void;
   onOpenMaterials: () => void;
+  onOpenMaterial?: (materialId: string) => void;
   onLeaveGuardChange?: (guard?: () => Promise<boolean>) => void;
   onOpenGenerate?: () => void;
   onManageSkills?: () => void;
@@ -557,6 +559,17 @@ export function ViewWorkspace({
     message: string;
     history?: SelectionSkillApplyTransaction;
   }>();
+  const [selectionActionCandidate, setSelectionActionCandidate] = useState<{
+    runId: string;
+    skillName: string;
+    text: string;
+    snapshot: EditableSelectionSnapshot;
+    documentId: string;
+    anchor: { left: number; top: number };
+    sourceIds: string[];
+  }>();
+  const [selectionActionBusy, setSelectionActionBusy] = useState<SelectionActionBusy>();
+  const [selectionActionError, setSelectionActionError] = useState("");
   const [focusSelectionSkillTrigger, setFocusSelectionSkillTrigger] = useState(false);
   const [mobileListOpen, setMobileListOpen] = useState(!initialDocumentId);
   const effectiveMobileListOpen = showDocumentSidebar && mobileListOpen;
@@ -830,6 +843,10 @@ export function ViewWorkspace({
   );
 
   const linkedSources = sourceIds
+    .map((id) => materials.find((material) => material.id === id))
+    .filter((material): material is Material => Boolean(material));
+  const frozenContextSources = (selected?.context_source_ids ?? [])
+    .filter((id) => !sourceIds.includes(id))
     .map((id) => materials.find((material) => material.id === id))
     .filter((material): material is Material => Boolean(material));
 
@@ -1168,6 +1185,7 @@ export function ViewWorkspace({
       page_url: `logue://document/${selectedDocument}`,
       target_text: editor.innerText,
       selection: snapshot.text,
+      auto_search: false,
     });
     const currentSelectionDocument = selectionDocumentRef.current;
     if (!selectionSnapshotRef.current || !currentSelectionDocument) return;
@@ -1183,29 +1201,109 @@ export function ViewWorkspace({
     }
     const replacement = normalizeSelectionSkillReplacement(run.original_output);
     if (!replacement) throw new Error("This skill returned no text.");
-    const beforeContent = editor.innerHTML;
-    const beforeSourceIds = [...sourceIds];
-    const beforeEditorState = readEditorState(editor);
-    if (!replaceSelectionIfUnchanged(snapshot, replacement)) {
-      showSelectionSkillNotice({ message: "Selection changed — choose a skill again." });
-      return;
-    }
-    const next = reconcileDocumentCitations(sanitizeEditorHTML(editor.innerHTML), sourceIds);
-    const afterContent = next.content;
-    recordEditorTransaction(beforeEditorState, next);
-    contentRef.current = next.content;
-    sourceIdsRef.current = [...next.sourceIds];
-    setContent(next.content);
-    setSourceIds(next.sourceIds);
-    markDirty();
-    if (selectionUndoTimerRef.current) window.clearTimeout(selectionUndoTimerRef.current);
-    setSelectionUndo({ documentId: selectedDocument, beforeContent, afterContent, sourceIds: beforeSourceIds });
-    selectionUndoTimerRef.current = window.setTimeout(() => setSelectionUndo(undefined), 8000);
-    const history = await saveSelectionSkillHistory({ runId: run.id, replacement }, adoptSkillRun);
-    if (history) showSelectionSkillNotice({ message: "Applied", history });
+    setSelectionActionError("");
+    setSelectionActionCandidate({
+      runId: run.id,
+      skillName: skill.name,
+      text: replacement,
+      snapshot,
+      documentId: selectedDocument,
+      anchor: snapshot.anchor,
+      sourceIds: [...sourceIds],
+    });
+  }
+
+  function dismissDocumentSelectionCandidate() {
+    setSelectionActionCandidate(undefined);
+    setSelectionActionError("");
     selectionSnapshotRef.current = undefined;
     selectionDocumentRef.current = undefined;
     setSelectionSnapshot(undefined);
+  }
+
+  async function applyDocumentSelectionCandidate() {
+    const candidate = selectionActionCandidate;
+    const editor = editorRef.current;
+    if (!candidate || !editor || selectionActionBusy) return;
+    if (candidate.documentId !== selectedIdRef.current || !documentSelectionSkillIsCurrent(editor, candidate.snapshot)) {
+      setSelectionActionError("Selection changed. Run the Skill again on the current text.");
+      return;
+    }
+    setSelectionActionBusy("primary");
+    setSelectionActionError("");
+    const beforeContent = editor.innerHTML;
+    const beforeSourceIds = [...candidate.sourceIds];
+    const beforeEditorState = readEditorState(editor);
+    try {
+      if (!replaceSelectionIfUnchanged(candidate.snapshot, candidate.text)) throw new Error("Selection changed. Run the Skill again on the current text.");
+      const next = reconcileDocumentCitations(sanitizeEditorHTML(editor.innerHTML), sourceIds);
+      const afterContent = next.content;
+      recordEditorTransaction(beforeEditorState, next);
+      contentRef.current = next.content;
+      sourceIdsRef.current = [...next.sourceIds];
+      setContent(next.content);
+      setSourceIds(next.sourceIds);
+      markDirty();
+      if (selectionUndoTimerRef.current) window.clearTimeout(selectionUndoTimerRef.current);
+      setSelectionUndo({ documentId: candidate.documentId, beforeContent, afterContent, sourceIds: beforeSourceIds });
+      selectionUndoTimerRef.current = window.setTimeout(() => setSelectionUndo(undefined), 8000);
+      const history = await saveSelectionSkillHistory({ runId: candidate.runId, replacement: candidate.text }, adoptSkillRun);
+      if (history) showSelectionSkillNotice({ message: "Applied", history });
+      dismissDocumentSelectionCandidate();
+    } catch (cause) {
+      setSelectionActionError(cause instanceof Error ? cause.message : "Could not replace this selection.");
+    } finally {
+      setSelectionActionBusy(undefined);
+    }
+  }
+
+  async function copyDocumentSelectionCandidate() {
+    const candidate = selectionActionCandidate;
+    if (!candidate || selectionActionBusy) return;
+    setSelectionActionBusy("copy");
+    setSelectionActionError("");
+    try {
+      await navigator.clipboard.writeText(candidate.text);
+      await adoptSkillRun(candidate.runId, candidate.text, { action: "copy", target: { surface: "document-editor", target_key: `document:${candidate.documentId}` } });
+      dismissDocumentSelectionCandidate();
+    } catch (cause) {
+      setSelectionActionError(cause instanceof Error ? cause.message : "Could not copy this result.");
+    } finally {
+      setSelectionActionBusy(undefined);
+    }
+  }
+
+  async function keepDocumentSelectionCandidate() {
+    const candidate = selectionActionCandidate;
+    if (!candidate || selectionActionBusy) return;
+    setSelectionActionBusy("keep");
+    setSelectionActionError("");
+    try {
+      await adoptSkillRun(candidate.runId, candidate.text, { action: "keep", target: { surface: "document-editor", target_key: `document:${candidate.documentId}` } });
+      dismissDocumentSelectionCandidate();
+    } catch (cause) {
+      setSelectionActionError(cause instanceof Error ? cause.message : "Could not keep this result.");
+    } finally {
+      setSelectionActionBusy(undefined);
+    }
+  }
+
+  async function saveDocumentSelectionCandidate() {
+    const candidate = selectionActionCandidate;
+    if (!candidate || selectionActionBusy) return;
+    setSelectionActionBusy("document");
+    setSelectionActionError("");
+    try {
+      const reconciled = reconcileDocumentCitations(candidate.text, candidate.sourceIds);
+      const { document: created } = await saveSkillRunAsDocument(candidate.runId, { title: `${candidate.skillName} result`, content: reconciled.content, project, sourceIds: reconciled.sourceIds, contextSourceIds: candidate.sourceIds });
+      setDocumentCollection((current) => [created, ...current.filter((item) => item.id !== created.id)]);
+      dismissDocumentSelectionCandidate();
+      await selectDocument(created.id);
+    } catch (cause) {
+      setSelectionActionError(cause instanceof Error ? cause.message : "Could not save this document.");
+    } finally {
+      setSelectionActionBusy(undefined);
+    }
   }
 
   function undoSelectionSkill() {
@@ -1518,6 +1616,20 @@ export function ViewWorkspace({
                 dismissDocumentSelectionSkills();
               }}
             />}
+            {selectionActionCandidate && <SelectionActionCandidate
+              skillName={selectionActionCandidate.skillName}
+              text={selectionActionCandidate.text}
+              primaryAction="Replace"
+              anchor={selectionActionCandidate.anchor}
+              busyAction={selectionActionBusy}
+              error={selectionActionError}
+              onTextChange={(text) => setSelectionActionCandidate((current) => current ? { ...current, text } : current)}
+              onPrimary={() => void applyDocumentSelectionCandidate()}
+              onCopy={() => void copyDocumentSelectionCandidate()}
+              onKeep={() => void keepDocumentSelectionCandidate()}
+              onSaveDocument={() => void saveDocumentSelectionCandidate()}
+              onCancel={dismissDocumentSelectionCandidate}
+            />}
             {selectionUndo?.documentId === selectedId && <div role="status" className="fixed bottom-5 left-1/2 z-30 -translate-x-1/2 rounded-md border border-[#ddddda] bg-white px-2.5 py-1.5 text-[13px] text-[#5b5c57] shadow-[0_8px_24px_rgba(20,21,18,0.12)]">
               Applied <button type="button" onClick={undoSelectionSkill} className="ml-1.5 font-medium text-[#4f57cd] underline underline-offset-2">Undo</button>
             </div>}
@@ -1564,6 +1676,22 @@ export function ViewWorkspace({
           </div>
           {linkedSources.length > 0 && <section className="px-3 pb-3 pt-1"><div className="mb-1.5 flex items-center justify-between px-1"><p className="text-[14px] font-semibold text-[#7d7e79]">Citations</p><span className="text-[14px] text-[#a0a19c]">{countLabel(linkedSources.length, "item")}</span></div><div>{linkedSources.map((material, index) => { const excerpt = sourceExcerpt(material); const active = material.id === activeSourceId; return <div id={`linked-source-${material.id}`} key={material.id} className={`group relative border-l-2 transition ${active ? "border-[#777dd9] bg-[#f3f3fa]" : "border-transparent hover:bg-[#f4f4f1]"}`}><button type="button" onClick={() => focusSourceCitation(material.id)} title="Find citation in document" className="flex w-full items-start gap-2 px-2 py-2 pr-14 text-left"><span className={`mt-0.5 inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded px-1 text-[12px] font-semibold ${active ? "bg-[#6d73d7] text-white" : "bg-[#eeeefa] text-[#666dda]"}`}>#{index + 1}</span><span className="min-w-0"><span className="block truncate text-[15px] font-medium text-[#494a46]">{sourceLabel(material)}</span><span className="mt-0.5 block truncate text-[14px] text-[#8b8c87]">{sourceMeta(material)}</span>{excerpt && <span className={`mt-1 text-[14px] leading-4 text-[#777873] ${active ? "line-clamp-2" : "line-clamp-1"}`}>{excerpt}</span>}</span></button><button type="button" onClick={() => removeSource(material.id)} aria-label={`Remove citation ${sourceLabel(material)}`} title="Remove citation and source" className="absolute right-1 top-1 inline-flex size-6 items-center justify-center rounded text-[#9a9b96] opacity-0 transition hover:bg-[#f7e9e6] hover:text-[#a54b42] focus:opacity-100 group-hover:opacity-100 max-[900px]:opacity-100"><X size={12} /></button>{material.source?.url && <a href={material.source.url} target="_blank" rel="noreferrer" aria-label={`Open original source ${sourceLabel(material)}`} title="Open original source" className="absolute right-7 top-1 inline-flex size-6 items-center justify-center rounded text-[#9a9b96] opacity-0 transition hover:bg-[#ecece8] hover:text-[#5c5d58] focus:opacity-100 group-hover:opacity-100 max-[900px]:opacity-100"><ArrowUpRight size={12} /></a>}</div>; })}</div></section>}
           <section className="scroll-surface flex-1 overflow-y-auto border-t border-[#eeeeeb] px-3 py-3"><div className="mb-1.5 flex items-center justify-between px-1"><p className="text-[14px] font-semibold text-[#7d7e79]">Materials</p><span className="text-[14px] text-[#a0a19c]">{availableSourceGroupCount === availableSources.length ? countLabel(availableSources.length, "item") : `${countLabel(availableSourceGroupCount, "group")} / ${countLabel(availableSources.length, "capture")}`}</span></div>{sourceSearch.pending ? <SearchPending label="materials" className="min-h-16" /> : <MaterialGroupAddList materials={availableSources} onAdd={insertSourceCitation} getLabel={sourceLabel} getDescription={sourceExcerpt} getMeta={sourceMeta} getSearchReason={sourceSearchReason} />}</section>
+          {frozenContextSources.length > 0 && (
+            <section className="shrink-0 border-t border-[#eeeeeb] px-3 py-3">
+              <div className="mb-1.5 flex items-center justify-between px-1">
+                <p className="text-[14px] font-semibold text-[#7d7e79]">Used to create this document</p>
+                <span className="text-[14px] text-[#a0a19c]">{countLabel(frozenContextSources.length, "item")}</span>
+              </div>
+              <div className="scroll-surface max-h-36 overflow-y-auto">
+                {frozenContextSources.map((material) => (
+                  <button key={material.id} type="button" onClick={() => onOpenMaterial?.(material.id)} disabled={!onOpenMaterial} className="block w-full rounded-md px-2 py-2 text-left enabled:hover:bg-[#f4f4f1] disabled:cursor-default">
+                    <span className="block truncate text-[14px] font-medium text-[#555651]">{sourceLabel(material)}</span>
+                    <span className="mt-0.5 block truncate text-[13px] text-[#8b8c87]">{sourceMeta(material)}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
         </aside>
         </>
       )}

@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import type { Material } from "@logue/ui";
 import { useEffect, useState, type CSSProperties } from "react";
-import { captureAudioURL, getProjects, getTopicVocabularies, getTranscriptRevisions, type TopicVocabulary, type TranscriptRevision } from "../api";
+import { captureAudioURL, getDocuments, getMaterialDependencies, getProjects, getTopicVocabularies, getTranscriptRevisions, updateDocument, type LogueDocument, type MaterialDependencies, type TopicVocabulary, type TranscriptRevision } from "../api";
 import { RecordingAudioPlayer } from "./RecordingAudioPlayer";
 import { readingColumnClass } from "./layout";
 
@@ -43,6 +43,7 @@ export function MaterialDetail({
   onUpdateOrganization,
   onDelete,
   onOpenParent,
+  onOpenDocument,
   onExpand,
   originLabel = "Library",
   mode = "peek",
@@ -58,6 +59,7 @@ export function MaterialDetail({
   onUpdateOrganization: (id: string, projects: string[], tags: string[]) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onOpenParent: (id: string) => void;
+  onOpenDocument?: (id: string) => void;
   onExpand: () => void;
   originLabel?: string;
   mode?: "peek" | "page";
@@ -80,6 +82,13 @@ export function MaterialDetail({
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [deleteError, setDeleteError] = useState<string>();
+  const [deleteDependencies, setDeleteDependencies] = useState<MaterialDependencies>();
+  const [deleteDependenciesLoading, setDeleteDependenciesLoading] = useState(false);
+  const [documentPickerOpen, setDocumentPickerOpen] = useState(false);
+  const [documents, setDocuments] = useState<LogueDocument[]>([]);
+  const [documentPickerLoading, setDocumentPickerLoading] = useState(false);
+  const [documentUseError, setDocumentUseError] = useState<string>();
+  const [documentUseBusyId, setDocumentUseBusyId] = useState<string>();
   const [transcriptRevisions, setTranscriptRevisions] = useState<TranscriptRevision[]>([]);
   const [transcriptHistoryError, setTranscriptHistoryError] = useState<string>();
   const [topicVocabularies, setTopicVocabularies] = useState<TopicVocabulary[]>([]);
@@ -149,6 +158,18 @@ export function MaterialDetail({
     setCorrectionPreferred("");
     setCorrectionScope("only");
   }, [material.id, material.transcriptRevision]);
+
+  useEffect(() => {
+    if (!deleteConfirming) return;
+    let cancelled = false;
+    setDeleteDependenciesLoading(true);
+    setDeleteError(undefined);
+    void getMaterialDependencies(material.id)
+      .then((value) => { if (!cancelled) setDeleteDependencies(value); })
+      .catch((cause) => { if (!cancelled) setDeleteError(cause instanceof Error ? cause.message : "Could not review deletion impact"); })
+      .finally(() => { if (!cancelled) setDeleteDependenciesLoading(false); });
+    return () => { cancelled = true; };
+  }, [deleteConfirming, material.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -260,6 +281,41 @@ export function MaterialDetail({
       ? Array.from(new Set([...tagsDraft, ...suggestedTags]))
       : tagsDraft;
     void saveOrganization(nextProjects, nextTags, projectsDraft, tagsDraft);
+  }
+
+  function openDocumentPicker() {
+    const next = !documentPickerOpen;
+    setDocumentPickerOpen(next);
+    setDocumentUseError(undefined);
+    if (!next || documents.length) return;
+    setDocumentPickerLoading(true);
+    void getDocuments()
+      .then(setDocuments)
+      .catch((cause) => setDocumentUseError(cause instanceof Error ? cause.message : "Could not load documents"))
+      .finally(() => setDocumentPickerLoading(false));
+  }
+
+  async function useInDocument(document: LogueDocument) {
+    if (documentUseBusyId) return;
+    setDocumentUseBusyId(document.id);
+    setDocumentUseError(undefined);
+    try {
+      if (!document.source_ids.includes(material.id)) {
+        const sourceNumber = document.source_ids.length + 1;
+        const citation = `<p><mark>[Source ${sourceNumber}]</mark>&nbsp;</p>`;
+        const updated = await updateDocument(document.id, {
+          content: `${document.content}${document.content.trim() ? "\n" : ""}${citation}`,
+          sourceIds: [...document.source_ids, material.id],
+          expectedRevision: document.revision,
+        });
+        setDocuments((current) => current.map((item) => item.id === updated.id ? updated : item));
+      }
+      onOpenDocument?.(document.id);
+    } catch (cause) {
+      setDocumentUseError(cause instanceof Error ? cause.message : "Could not add this Source to the document");
+    } finally {
+      setDocumentUseBusyId(undefined);
+    }
   }
 
   async function remove() {
@@ -383,6 +439,7 @@ export function MaterialDetail({
                 <span className={`absolute -left-3 top-0 inline-flex size-6 items-center justify-center rounded-full border bg-white ${revision.current ? "border-[#bfc8bc] text-[#557057]" : "border-[#d7d7d2] text-[#6f706b]"}`}><FileText size={12} /></span>
                 <div className="flex items-baseline justify-between gap-3"><h3 className="text-[15px] font-semibold text-[#4c4d49]">Transcript r{revision.revision}</h3><span className={`text-[14px] ${revision.current ? "font-medium text-[#638064]" : "text-[#9a9b96]"}`}>{revision.current ? "Current" : new Date(revision.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></div>
                 <p className="mt-2 whitespace-pre-wrap text-[14px] leading-5 text-[#747570]">{revision.transcript}</p>
+                {revision.raw_transcript ? <details className="mt-2"><summary className="cursor-pointer text-[14px] font-medium text-[#747570]">Raw transcript</summary><p className="mt-1.5 whitespace-pre-wrap border-l-2 border-[#e5e5e1] pl-3 text-[14px] leading-5 text-[#8a8b86]">{revision.raw_transcript}</p></details> : null}
                 <details className="mt-2"><summary className="cursor-pointer text-[14px] font-medium text-[#6c70be]">Exact profile used</summary><div className="mt-1.5 space-y-1 border-l-2 border-[#e2e2ef] pl-3 text-[14px] leading-4 text-[#858680]"><p>{revision.applied_context.voice_profile_label || "Default voice profile"}{revision.applied_context.transcription_skill_name ? ` · ${revision.applied_context.transcription_skill_name}` : ""}{revision.applied_context.transcription_skill_revision ? ` r${revision.applied_context.transcription_skill_revision}` : ""}</p><p>{revision.applied_context.primary_language || "Auto-detect"}{revision.applied_context.topic_vocabulary_name ? ` · ${revision.applied_context.topic_vocabulary_name}` : ""}</p>{revision.applied_context.correction_spoken && <p>Correction: {revision.applied_context.correction_spoken} → {revision.applied_context.correction_preferred} · {revision.applied_context.correction_scope === "only" ? "Only this time" : revision.applied_context.correction_scope === "topic" ? "Topic" : revision.applied_context.correction_scope === "project" ? "Project" : "Global"}</p>}</div></details>
               </li>)}
               {transcriptHistoryError && <li className="relative pb-7 pl-6"><span className="absolute -left-3 top-0 inline-flex size-6 items-center justify-center rounded-full border border-[#e3c8c2] bg-white text-[#a34b42]"><CircleAlert size={12} /></span><p role="alert" className="text-[14px] text-[#a34b42]">{transcriptHistoryError}</p></li>}
@@ -472,6 +529,16 @@ export function MaterialDetail({
           </section>
         )}
 
+        <section className="mt-5 border-y border-[#eeeeeb] py-3">
+          <button type="button" onClick={openDocumentPicker} aria-expanded={documentPickerOpen} className="flex min-h-9 w-full items-center justify-between rounded-md px-1 text-left text-[15px] font-medium text-[#5f615b] hover:text-[#343630]"><span className="inline-flex items-center gap-2"><FileText size={14} /> Use in a document</span><span className="text-[14px] font-normal text-[#92938e]">{documentPickerOpen ? "Close" : "Choose"}</span></button>
+          {documentPickerOpen && <div className="mt-2 max-h-52 space-y-1 overflow-y-auto rounded-md border border-[#e2e2de] bg-[#fafaf8] p-1.5">
+            {documentPickerLoading && <p className="px-2 py-3 text-[14px] text-[#92938e]">Loading documents…</p>}
+            {!documentPickerLoading && documents.length === 0 && !documentUseError && <p className="px-2 py-3 text-[14px] text-[#92938e]">Create a document first, then add this Source.</p>}
+            {documents.map((document) => <button type="button" key={document.id} disabled={Boolean(documentUseBusyId)} onClick={() => void useInDocument(document)} className="flex min-h-10 w-full items-center justify-between gap-3 rounded px-2 text-left hover:bg-white disabled:opacity-55"><span className="min-w-0"><span className="line-clamp-1 block text-[14px] font-medium text-[#555651]">{document.title}</span><span className="block text-[13px] text-[#92938e]">{document.project || "No Project"}</span></span><span className="shrink-0 text-[13px] text-[#858680]">{document.source_ids.includes(material.id) ? "Open" : documentUseBusyId === document.id ? "Adding…" : "Add"}</span></button>)}
+          </div>}
+          {documentUseError && <p role="alert" className="mt-2 rounded-md bg-[#fbefec] px-2.5 py-2 text-[14px] text-[#a34b42]">{documentUseError}</p>}
+        </section>
+
         <section className="mt-5">
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-[15px] font-semibold uppercase tracking-[0.12em] text-[#858980]">Organization</h3>
@@ -529,9 +596,17 @@ export function MaterialDetail({
         {annotationError && <p className="mt-2 rounded-md bg-[#fbefec] px-2.5 py-2 text-[14px] leading-4 text-[#a34b42]">{annotationError}</p>}
         {deleteConfirming ? (
           <div className="mt-2 rounded-md border border-[#efd3ce] bg-[#fff8f6] p-3">
-            <p className="text-[14px] leading-4 text-[#8e4a43]">Delete this {detailTitle.toLowerCase()}? Its original audio will also be deleted when nothing else references it. {dependentCount > 0 ? `${dependentCount} derived ${dependentCount === 1 ? "item will" : "items will"} remain.` : ""}</p>
+            <p className="text-[14px] leading-5 text-[#8e4a43]">Delete this {detailTitle.toLowerCase()}? Its original audio will also be deleted when nothing else references it.</p>
+            {deleteDependenciesLoading && <p className="mt-2 text-[14px] text-[#9a7772]">Reviewing where this Source is used…</p>}
+            {deleteDependencies && <div className="mt-2 space-y-1.5 text-[14px] leading-5 text-[#795c57]">
+              {deleteDependencies.projects.length > 0 && <p><strong>Projects:</strong> {deleteDependencies.projects.join(", ")}</p>}
+              {deleteDependencies.documents.length > 0 && <p><strong>Documents:</strong> {Array.from(new Set(deleteDependencies.documents.map((item) => item.title))).join(", ")}. Remove current citations before deleting.</p>}
+              {deleteDependencies.derived_items.length > 0 && <p><strong>Derived content:</strong> {deleteDependencies.derived_items.length} item{deleteDependencies.derived_items.length === 1 ? "" : "s"} will remain, but this evidence will no longer open.</p>}
+              {deleteDependencies.runs.length > 0 && <p><strong>Activity:</strong> {deleteDependencies.runs.length} Run snapshot{deleteDependencies.runs.length === 1 ? "" : "s"} will remain in history.</p>}
+              {!deleteDependencies.projects.length && !deleteDependencies.documents.length && !deleteDependencies.derived_items.length && !deleteDependencies.runs.length && <p>This Source is not used elsewhere.</p>}
+            </div>}
             {deleteError && <p className="mt-1 text-[14px] text-[#b0443a]">{deleteError}</p>}
-            <div className="mt-2 flex justify-end gap-1.5"><button type="button" disabled={removing} onClick={() => { setDeleteConfirming(false); setDeleteError(undefined); }} className="h-7 rounded px-2.5 text-[14px] text-[#6d6e69] hover:bg-white">Cancel</button><button type="button" disabled={removing} onClick={() => void remove()} className="inline-flex h-7 items-center gap-1.5 rounded bg-[#b2483f] px-2.5 text-[14px] font-medium text-white disabled:bg-[#cf9a95]">{removing && <LoaderCircle size={11} className="animate-spin motion-reduce:animate-none" />}{removing ? "Deleting…" : "Confirm delete"}</button></div>
+            <div className="mt-2 flex justify-end gap-1.5"><button type="button" disabled={removing} onClick={() => { setDeleteConfirming(false); setDeleteError(undefined); setDeleteDependencies(undefined); }} className="h-7 rounded px-2.5 text-[14px] text-[#6d6e69] hover:bg-white">Cancel</button><button type="button" disabled={removing || deleteDependenciesLoading || !deleteDependencies || deleteDependencies.documents.some((item) => item.current)} onClick={() => void remove()} className="inline-flex h-7 items-center gap-1.5 rounded bg-[#b2483f] px-2.5 text-[14px] font-medium text-white disabled:bg-[#cf9a95]">{removing && <LoaderCircle size={11} className="animate-spin motion-reduce:animate-none" />}{removing ? "Deleting…" : deleteDependencies?.documents.some((item) => item.current) ? "Remove citations first" : "Confirm delete"}</button></div>
           </div>
         ) : (
           <button type="button" onClick={() => setDeleteConfirming(true)} className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md text-[14px] font-medium text-[#a54b42] hover:bg-[#f9ece9] max-[640px]:h-11"><Trash2 size={12} /> Delete this {detailTitle.toLowerCase()}{dependentCount > 0 ? ` · ${dependentCount} derived ${dependentCount === 1 ? "relationship" : "relationships"}` : ""}</button>

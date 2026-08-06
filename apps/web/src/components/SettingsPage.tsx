@@ -1,14 +1,19 @@
-import { Archive, Clipboard, Download, KeyRound, Trash2, Upload, X } from "lucide-react";
+import { Archive, ChevronDown, Clipboard, Download, KeyRound, Trash2, Upload, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   backupWorkspace,
   deleteWorkspace,
   exportWorkspaceURL,
+  getExportPreview,
+  getAIConnection,
   getGlossarySuggestions,
+  getProjects,
   getWorkspaceSettings,
   getTopicVocabularies,
   restoreWorkspace,
   saveWorkspaceSettings,
+  saveAIConnection,
+  testAIConnection,
   saveTopicVocabulary,
   deleteTopicVocabulary,
   createVoiceProfile,
@@ -17,6 +22,9 @@ import {
   type TopicVocabulary,
   type WorkspaceSettings,
   type GlossarySuggestion,
+  type ExportPreview,
+  type AIConnection,
+  type AIConnectionInput,
 } from "../api";
 import { logueApiBase } from "../apiBase";
 import { getSkills, type LogueSkill } from "../skillApi";
@@ -66,19 +74,32 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
   const [topicVocabularyName, setTopicVocabularyName] = useState("");
   const [topicVocabularyTerms, setTopicVocabularyTerms] = useState("");
   const [topicVocabularySaving, setTopicVocabularySaving] = useState(false);
+  const [projectNames, setProjectNames] = useState<string[]>([]);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportProject, setExportProject] = useState("");
+  const [exportAudio, setExportAudio] = useState(true);
+  const [exportPreview, setExportPreview] = useState<ExportPreview>();
+  const [exportPreviewError, setExportPreviewError] = useState<string>();
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [loadError, setLoadError] = useState<string>();
+  const [aiConnection, setAIConnection] = useState<AIConnection>({ provider: "gemini", model: "gemini-2.5-flash", transcription_model: "gemini-2.5-flash", base_url: "https://generativelanguage.googleapis.com/v1beta", configured: false, has_api_key: false });
+  const [aiKey, setAIKey] = useState("");
+  const [aiAction, setAIAction] = useState<"testing" | "saving">();
+  const [aiNotice, setAINotice] = useState<string>();
+  const [aiError, setAIError] = useState<string>();
   const initialized = useRef(false);
 
   async function loadSettings() {
     setLoadState("loading");
     setLoadError(undefined);
     try {
-      const [value, terms, nextSkills, nextTopics] = await Promise.all([getWorkspaceSettings(), getGlossarySuggestions(), getSkills(), getTopicVocabularies()]);
+      const [value, terms, nextSkills, nextTopics, nextProjects, nextAIConnection] = await Promise.all([getWorkspaceSettings(), getGlossarySuggestions(), getSkills(), getTopicVocabularies(), getProjects(), getAIConnection()]);
       setSettings(value);
       setSuggestions(terms.filter((item) => item.count >= 2));
       setSkills(nextSkills);
       setTopicVocabularies(nextTopics);
+      setProjectNames(nextProjects.map((project) => project.name));
+      setAIConnection(nextAIConnection);
       initialized.current = true;
       setLoadState("ready");
     } catch (cause) {
@@ -99,6 +120,17 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
     }, 650);
     return () => window.clearTimeout(timer);
   }, [saveState, settings]);
+
+  useEffect(() => {
+    if (!exportOpen) return;
+    let cancelled = false;
+    setExportPreview(undefined);
+    setExportPreviewError(undefined);
+    void getExportPreview({ project: exportProject || undefined, includeAudio: exportAudio })
+      .then((value) => { if (!cancelled) setExportPreview(value); })
+      .catch((cause) => { if (!cancelled) setExportPreviewError(cause instanceof Error ? cause.message : "Could not preview this export"); });
+    return () => { cancelled = true; };
+  }, [exportAudio, exportOpen, exportProject]);
 
   function update(next: WorkspaceSettings) {
     setSettings(next);
@@ -174,6 +206,47 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
       setNotice(cause instanceof Error ? cause.message : "Backup failed");
     } finally {
       setBackingUp(false);
+    }
+  }
+
+  function aiConnectionInput(): AIConnectionInput {
+    return {
+      provider: aiConnection.provider,
+      model: aiConnection.model.trim(),
+      transcription_model: aiConnection.provider === "openai-compatible" ? aiConnection.transcription_model.trim() : aiConnection.model.trim(),
+      base_url: aiConnection.base_url.trim(),
+      api_key: aiKey.trim(),
+      keep_api_key: !aiKey.trim() && aiConnection.has_api_key,
+    };
+  }
+
+  async function testConnection() {
+    setAIAction("testing");
+    setAIError(undefined);
+    setAINotice(undefined);
+    try {
+      await testAIConnection(aiConnectionInput());
+      setAINotice("Connection ready. Save it to use across Logue.");
+    } catch (cause) {
+      setAIError(cause instanceof Error ? cause.message : "Could not reach this model");
+    } finally {
+      setAIAction(undefined);
+    }
+  }
+
+  async function persistAIConnection() {
+    setAIAction("saving");
+    setAIError(undefined);
+    setAINotice(undefined);
+    try {
+      const saved = await saveAIConnection(aiConnectionInput());
+      setAIConnection(saved);
+      setAIKey("");
+      setAINotice("Voice and AI are ready on this Mac.");
+    } catch (cause) {
+      setAIError(cause instanceof Error ? cause.message : "Could not save this connection");
+    } finally {
+      setAIAction(undefined);
     }
   }
 
@@ -280,12 +353,39 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
         <div className="mt-8 border-t border-[#e8e8e5] pb-2 pt-8"><h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[#30312d]">System</h2></div>
 
         <SettingsRow label="AI" border={false}>
-          {!status?.ai_configured && <div className="mb-2 flex items-center gap-2 rounded-md border border-[#ead3ce] bg-[#fbefec] px-3 py-2.5 text-[14px] text-[#a04b43]"><KeyRound size={14} /> GEMINI_API_KEY is not configured</div>}
-          <details className="text-[14px] text-[#999a95]"><summary className="cursor-pointer select-none rounded py-1 hover:text-[#666762]">Advanced</summary><div className="mt-2 flex min-h-11 items-center justify-between rounded-md border border-[#deded9] px-3"><span className="text-[15px] text-[#555651]">Transcription model</span><code className="text-[14px] text-[#777873]">{status?.model || "—"}</code></div><p className="mt-2 break-words font-mono leading-5">GEMINI_API_KEY · LOGUE_TRANSCRIPTION_MODEL · LOGUE_DICTATION_SKILL · LOGUE_TRANSCRIPTION_CONTEXT_LIMIT</p></details>
+          <div className={`mb-4 flex items-center gap-2 rounded-md border px-3 py-2.5 text-[14px] ${aiConnection.configured ? "border-[#d7e0d3] bg-[#f5f8f3] text-[#537052]" : "border-[#ead3ce] bg-[#fbefec] text-[#a04b43]"}`}><KeyRound size={14} />{aiConnection.configured ? `Ready · ${aiConnection.model}` : "Connect a model before using Voice or AI"}</div>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 max-[700px]:grid-cols-1">
+              <label className="text-[14px] font-medium text-[#555651]">Provider<select value={aiConnection.provider} onChange={(event) => {
+                const provider = event.target.value as AIConnection["provider"];
+                setAIConnection((current) => ({ ...current, provider, configured: false, model: provider === "gemini" ? "gemini-2.5-flash" : "gpt-4.1-mini", transcription_model: provider === "gemini" ? "gemini-2.5-flash" : "whisper-1", base_url: provider === "gemini" ? "https://generativelanguage.googleapis.com/v1beta" : "https://api.openai.com/v1" }));
+                setAIKey(""); setAINotice(undefined); setAIError(undefined);
+              }} className={`mt-2 h-10 w-full rounded-md border border-[#deded9] bg-white px-3 text-[14px] outline-none ${fieldFocusClass}`}><option value="gemini">Gemini</option><option value="openai-compatible">OpenAI-compatible provider</option></select></label>
+              <label className="text-[14px] font-medium text-[#555651]">API key<input type="password" value={aiKey} onChange={(event) => setAIKey(event.target.value)} placeholder={aiConnection.has_api_key ? "Keep current key" : "Stored only on this Host"} className={`mt-2 h-10 w-full rounded-md border border-[#deded9] px-3 text-[14px] outline-none ${fieldFocusClass}`} autoComplete="off" /></label>
+            </div>
+            <label className="block text-[14px] font-medium text-[#555651]">Endpoint<input value={aiConnection.base_url} onChange={(event) => setAIConnection((current) => ({ ...current, base_url: event.target.value, configured: false }))} className={`mt-2 h-10 w-full rounded-md border border-[#deded9] px-3 text-[14px] outline-none ${fieldFocusClass}`} /></label>
+            <div className={`grid gap-3 ${aiConnection.provider === "openai-compatible" ? "grid-cols-2 max-[700px]:grid-cols-1" : "grid-cols-1"}`}>
+              <label className="text-[14px] font-medium text-[#555651]">Generation model<input value={aiConnection.model} onChange={(event) => setAIConnection((current) => ({ ...current, model: event.target.value, configured: false }))} className={`mt-2 h-10 w-full rounded-md border border-[#deded9] px-3 text-[14px] outline-none ${fieldFocusClass}`} /></label>
+              {aiConnection.provider === "openai-compatible" && <label className="text-[14px] font-medium text-[#555651]">Transcription model<input value={aiConnection.transcription_model} onChange={(event) => setAIConnection((current) => ({ ...current, transcription_model: event.target.value, configured: false }))} className={`mt-2 h-10 w-full rounded-md border border-[#deded9] px-3 text-[14px] outline-none ${fieldFocusClass}`} /></label>}
+            </div>
+            {aiError && <p role="alert" className="rounded-md bg-[#fbefec] px-3 py-2 text-[14px] leading-5 text-[#a04b43]">{aiError}</p>}
+            {aiNotice && <p role="status" className="rounded-md bg-[#f3f6f1] px-3 py-2 text-[14px] leading-5 text-[#557054]">{aiNotice}</p>}
+            <div className="flex justify-end gap-2"><button type="button" onClick={() => void testConnection()} disabled={Boolean(aiAction) || !aiConnection.model.trim() || !aiConnection.base_url.trim() || (aiConnection.provider === "gemini" && !aiKey.trim() && !aiConnection.has_api_key)} className="h-9 rounded-md border border-[#d8d8d3] px-3 text-[14px] font-medium text-[#62635e] hover:bg-[#f4f4f1] disabled:opacity-50">{aiAction === "testing" ? "Testing…" : "Test connection"}</button><button type="button" onClick={() => void persistAIConnection()} disabled={Boolean(aiAction) || !aiConnection.model.trim() || !aiConnection.base_url.trim() || (aiConnection.provider === "gemini" && !aiKey.trim() && !aiConnection.has_api_key)} className="h-9 rounded-md bg-[#242522] px-3 text-[14px] font-medium text-white disabled:bg-[#bdbdb8]">{aiAction === "saving" ? "Saving…" : "Save and use"}</button></div>
+          </div>
         </SettingsRow>
 
         <SettingsRow label="Library">
-          <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void backUp()} disabled={backingUp} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1] disabled:opacity-55"><Archive size={14} />{backingUp ? "Backing up…" : "Back up now"}</button><a href={exportWorkspaceURL()} download={`logue-export-${new Date().toISOString().slice(0, 10)}.json`} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Download size={14} /> Export</a><label className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Upload size={14} /> {restoring ? "Restoring…" : "Restore"}<input type="file" accept="application/json,.json" disabled={restoring} className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void restore(file); event.currentTarget.value = ""; }} /></label></div>
+          <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void backUp()} disabled={backingUp} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1] disabled:opacity-55"><Archive size={14} />{backingUp ? "Backing up…" : "Back up now"}</button><button type="button" onClick={() => setExportOpen((value) => !value)} aria-expanded={exportOpen} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Download size={14} /> Export <ChevronDown size={13} /></button><label className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Upload size={14} /> {restoring ? "Restoring…" : "Restore"}<input type="file" accept="application/json,.json" disabled={restoring} className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void restore(file); event.currentTarget.value = ""; }} /></label></div>
+          {exportOpen && <div className="mt-3 rounded-md border border-[#deded9] bg-[#fafaf8] p-4">
+            <div className="grid grid-cols-2 gap-3 max-[700px]:grid-cols-1">
+              <label className="text-[14px] font-medium text-[#555651]">Scope<select value={exportProject} onChange={(event) => setExportProject(event.target.value)} className={`mt-2 h-10 w-full rounded-md border border-[#deded9] bg-white px-3 text-[14px] outline-none ${fieldFocusClass}`}><option value="">All private Library</option>{projectNames.map((project) => <option key={project} value={project}>{project}</option>)}</select></label>
+              <label className="flex min-h-10 items-center gap-2 self-end rounded-md border border-[#deded9] bg-white px-3 text-[14px] text-[#555651]"><input type="checkbox" checked={exportAudio} onChange={(event) => setExportAudio(event.target.checked)} /> Include original audio</label>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[14px] text-[#858680]">{exportPreview ? `${exportPreview.materials} Sources · ${exportPreview.documents} Documents · ${exportPreview.activity} Runs${exportAudio ? ` · ${exportPreview.audio} recordings` : ""}` : exportPreviewError || "Preparing scope…"}</p>
+              <a href={exportWorkspaceURL({ project: exportProject || undefined, includeAudio: exportAudio })} download={`logue-${exportProject ? exportProject.toLowerCase().replace(/[^a-z0-9]+/g, "-") : "library"}-${new Date().toISOString().slice(0, 10)}.json`} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3 text-[14px] font-medium text-white"><Download size={13} /> Create local copy</a>
+            </div>
+          </div>}
         </SettingsRow>
 
         <SettingsRow label="Delete local data">

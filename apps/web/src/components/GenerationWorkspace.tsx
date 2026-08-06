@@ -1,7 +1,7 @@
 import type { Material } from "@logue/ui";
 import { CheckCircle2, ChevronDown, Clipboard, Copy, FileText, LoaderCircle, Plus, Search, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { adoptSkillRun, createSkill, createSkillRun, defaultSkillPurpose, getSkillRuns, getSkills, updateSkill, type LogueSkill, type LogueSkillRun, type SkillContext, type SkillOutput, type SkillSurface, type SkillTask } from "../skillApi";
+import { adoptSkillRun, createSkill, createSkillRun, defaultSkillPurpose, getSkillRuns, getSkills, saveSkillRunAsDocument, updateSkill, type LogueSkill, type LogueSkillRun, type SkillContext, type SkillOutput, type SkillSurface, type SkillTask } from "../skillApi";
 import { createDocument, getDocuments, getWorkspaceSettings, saveWorkspaceSettings, type LogueDocument } from "../api";
 import { groupIdenticalMaterials } from "../materialGroups";
 import { matchesMaterialSearchText, orderMaterialSearchResults, useDocumentSearch, useMaterialSearch } from "../materialSearch";
@@ -41,7 +41,7 @@ function shortDate(value: string) {
   });
 }
 
-export function GenerationWorkspace({ materials, initialMode = "documents", initialDocumentId, initialProject, onModeChange, onSelectedDocumentChange, onOpenMaterials, onLeaveGuardChange }: { materials: Material[]; initialMode?: WorkspaceSection; initialDocumentId?: string; initialProject?: string; onModeChange: (mode: WorkspaceSection) => void; onSelectedDocumentChange: (documentId?: string, replace?: boolean) => void; onOpenMaterials: () => void; onLeaveGuardChange?: (guard?: () => Promise<boolean>) => void }) {
+export function GenerationWorkspace({ materials, initialMode = "documents", initialDocumentId, initialProject, onModeChange, onSelectedDocumentChange, onOpenMaterials, onOpenMaterial, onLeaveGuardChange }: { materials: Material[]; initialMode?: WorkspaceSection; initialDocumentId?: string; initialProject?: string; onModeChange: (mode: WorkspaceSection) => void; onSelectedDocumentChange: (documentId?: string, replace?: boolean) => void; onOpenMaterials: () => void; onOpenMaterial?: (materialId: string) => void; onLeaveGuardChange?: (guard?: () => Promise<boolean>) => void }) {
   const [mode, setMode] = useState<WorkspaceMode>(initialMode);
   const [skills, setSkills] = useState<LogueSkill[]>([]);
   const [runs, setRuns] = useState<LogueSkillRun[]>([]);
@@ -295,6 +295,7 @@ export function GenerationWorkspace({ materials, initialMode = "documents", init
             onSelectedDocumentChange(id, replace);
           }}
           onOpenMaterials={onOpenMaterials}
+          onOpenMaterial={onOpenMaterial}
           onLeaveGuardChange={registerDocumentLeaveGuard}
           onOpenGenerate={() => void startGeneration()}
           onManageSkills={() => void openSkills(false)}
@@ -307,7 +308,17 @@ export function GenerationWorkspace({ materials, initialMode = "documents", init
       ) : mode === "skills" ? (
         skillsLoading ? <WorkspaceEditorLoading label="Loading skills" /> : <SkillEditor skills={skills} selectedSkillId={selectedSkillId} onSelect={setSelectedSkillId} onSkillsChange={setSkills} />
       ) : selectedRun ? (
-        <RunResult run={selectedRun} onRunChange={(updated) => setRuns((current) => current.map((run) => (run.id === updated.id ? updated : run)))} onOpenDocument={(id) => void openDocument(id)} onBack={() => setSelectedRunId(undefined)} />
+        <RunResult
+          run={selectedRun}
+          onRunChange={(updated) => setRuns((current) => current.map((run) => (run.id === updated.id ? updated : run)))}
+          onDocumentCreated={(document) => {
+            setDocuments((current) => [document, ...current.filter((item) => item.id !== document.id)]);
+            void openDocument(document.id);
+          }}
+          onOpenDocument={(id) => void openDocument(id)}
+          onOpenMaterial={onOpenMaterial}
+          onBack={() => setSelectedRunId(undefined)}
+        />
       ) : (
         <NewGeneration
           skills={skills}
@@ -532,9 +543,11 @@ function NewGeneration({ skills, materials, initialProject, onCreated }: { skill
   );
 }
 
-function RunResult({ run, onRunChange, onOpenDocument, onBack }: { run: LogueSkillRun; onRunChange: (run: LogueSkillRun) => void; onOpenDocument: (id: string) => void; onBack: () => void }) {
+function RunResult({ run, onRunChange, onDocumentCreated, onOpenDocument, onOpenMaterial, onBack }: { run: LogueSkillRun; onRunChange: (run: LogueSkillRun) => void; onDocumentCreated: (document: LogueDocument) => void; onOpenDocument: (id: string) => void; onOpenMaterial?: (materialId: string) => void; onBack: () => void }) {
   const [draft, setDraft] = useState(run.adopted_output || run.original_output || "");
   const [copied, setCopied] = useState(false);
+  const [savingDocument, setSavingDocument] = useState(false);
+  const [saveError, setSaveError] = useState<string>();
   useEffect(() => {
     setDraft(run.adopted_output || run.original_output || "");
   }, [run]);
@@ -544,6 +557,23 @@ function RunResult({ run, onRunChange, onOpenDocument, onBack }: { run: LogueSki
     await navigator.clipboard.writeText(draft);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
+  }
+  async function saveAsDocument() {
+    if (!draft.trim() || savingDocument) return;
+    setSavingDocument(true);
+    setSaveError(undefined);
+    try {
+      const result = await saveSkillRunAsDocument(run.id, {
+        title: run.instruction.split("\n")[0]?.trim().slice(0, 72) || "Untitled",
+        content: draft,
+      });
+      onRunChange(result.run);
+      onDocumentCreated(result.document);
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : "Could not save this document.");
+    } finally {
+      setSavingDocument(false);
+    }
   }
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
@@ -586,21 +616,25 @@ function RunResult({ run, onRunChange, onOpenDocument, onBack }: { run: LogueSki
             {copied ? <CheckCircle2 size={13} className="text-[#5e835f]" /> : <Clipboard size={13} />}
             {copied ? "Copied" : "Copy"}
           </button>
-          {run.document_id && (
+          {run.document_id ? (
             <button type="button" onClick={() => onOpenDocument(run.document_id!)} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[15px] font-medium text-white">
               <FileText size={13} /> Open document
             </button>
-          )}
+          ) : <button type="button" onClick={() => void saveAsDocument()} disabled={!draft.trim() || savingDocument} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[15px] font-medium text-white disabled:cursor-wait disabled:bg-[#c9cac5]">
+            {savingDocument ? <LoaderCircle size={13} className="animate-spin motion-reduce:animate-none" /> : <FileText size={13} />}
+            {savingDocument ? "Saving…" : "Save as document"}
+          </button>}
         </div>
+        {saveError && <p role="alert" className="mt-3 rounded-md bg-[#fbefec] px-3 py-2 text-[14px] text-[#a34b42]">{saveError}</p>}
         {run.sources.length > 0 && (
           <details className="mt-8 border-t border-[#eeeeeb] pt-4">
             <summary className="cursor-pointer text-[15px] font-medium text-[#666762]">View materials actually used</summary>
             <div className="mt-3 space-y-2">
               {run.sources.map((source, index) => (
-                <div key={source.id} className="border-l-2 border-[#dedeea] pl-3">
-                  <p className="text-[14px] font-medium text-[#696a65]">Source {index + 1}</p>
+                <button key={source.id} type="button" onClick={() => onOpenMaterial?.(source.id)} disabled={!onOpenMaterial} className="block w-full border-l-2 border-[#dedeea] py-0.5 pl-3 text-left enabled:hover:border-[#9f9f99] disabled:cursor-default">
+                  <p className="text-[14px] font-medium text-[#696a65]">Source {index + 1}{source.source?.title ? ` · ${source.source.title}` : source.actor === "user" ? " · You" : ""}</p>
                   <p className="mt-1 line-clamp-3 text-[15px] leading-5 text-[#858680]">{source.content}</p>
-                </div>
+                </button>
               ))}
             </div>
           </details>
