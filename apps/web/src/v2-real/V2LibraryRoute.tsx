@@ -54,6 +54,7 @@ import {
 } from "../v2-mock/primitives/OriginLabel";
 import { ProjectShell, type V2PrimaryRoute } from "../v2-mock/web/ProjectShell";
 import { V2TopicsPanel } from "./V2TopicsPanel";
+import { updateNavigationState } from "./navigationState";
 
 type LibraryTab = "saved" | "activity" | "topics";
 type OriginFilter = "all" | "web" | "you" | "ai";
@@ -1523,36 +1524,11 @@ export function V2LibraryRoute({
     setError("");
     try {
       await Promise.all(
-        selectedGroups.flatMap((group) =>
-          group.items.map((item) =>
-            updateMaterial(
-              item.id,
-              mode === "add"
-                ? {
-                    projects: [...new Set([...item.projects, bulkProject])],
-                    excludedProjects: (item.excludedProjects ?? []).filter(
-                      (name) => name !== bulkProject,
-                    ),
-                    savedOnlyProjects: (item.savedOnlyProjects ?? []).filter(
-                      (name) => name !== bulkProject,
-                    ),
-                  }
-                : {
-                    projects: item.projects.filter(
-                      (name) => name !== bulkProject,
-                    ),
-                    excludedProjects: [
-                      ...new Set([
-                        ...(item.excludedProjects ?? []),
-                        bulkProject,
-                      ]),
-                    ],
-                    savedOnlyProjects: (item.savedOnlyProjects ?? []).filter(
-                      (name) => name !== bulkProject,
-                    ),
-                  },
-            ),
-          ),
+        selectedGroups.map((group) =>
+          updateMaterialMembership(group.representative.id, {
+            action: mode,
+            project: bulkProject,
+          }),
         ),
       );
       await onRefresh();
@@ -1566,6 +1542,26 @@ export function V2LibraryRoute({
     } finally {
       setBusy(false);
     }
+  }
+
+  function draftWithSelectedSources() {
+    if (!bulkProject || !selectedGroups.length) return;
+    const sourceIds = [
+      ...new Set(
+        selectedGroups.flatMap((group) => group.items.map((item) => item.id)),
+      ),
+    ];
+    updateNavigationState((current) => ({
+      ...current,
+      project: {
+        ...current.project,
+        name: bulkProject,
+        mode: "draft",
+        view: "workspace",
+      },
+      draftHandoff: { projectName: bulkProject, sourceIds },
+    }));
+    onRoute("projects");
   }
 
   async function reviewDeletion(targets: LibraryMaterialGroup[]) {
@@ -2015,6 +2011,15 @@ export function V2LibraryRoute({
                     onClick={() => void applyMembership("exclude")}
                   >
                     Exclude
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    disabled={!bulkProject || busy}
+                    onClick={draftWithSelectedSources}
+                  >
+                    <FilePlus2 size={14} />
+                    Draft
                   </Button>
                   <Button
                     size="sm"

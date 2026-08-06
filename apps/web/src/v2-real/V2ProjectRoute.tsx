@@ -285,11 +285,12 @@ export function V2ProjectRoute({
   onRefresh: () => Promise<void>;
 }) {
   const [projectName, setProjectName] = useState(() => {
-    const saved = readNavigationState().project;
+    const navigation = readNavigationState();
+    const saved = navigation.project;
+    const targetName = navigation.draftHandoff?.projectName ?? saved?.name;
     return (
-      projects.find(
-        (item) => item.id === saved?.id || item.name === saved?.name,
-      )?.name ??
+      projects.find((item) => item.id === saved?.id || item.name === targetName)
+        ?.name ??
       projects[0]?.name ??
       ""
     );
@@ -298,7 +299,10 @@ export function V2ProjectRoute({
     () => readNavigationState().project?.view ?? "workspace",
   );
   const [mode, setMode] = useState<RequestMode>(
-    () => readNavigationState().project?.mode ?? "ask",
+    () =>
+      (readNavigationState().draftHandoff ? "draft" : undefined) ??
+      readNavigationState().project?.mode ??
+      "ask",
   );
   const [request, setRequest] = useState("");
   const [run, setRun] = useState<LogueSkillRun>();
@@ -314,6 +318,9 @@ export function V2ProjectRoute({
   const [runError, setRunError] = useState("");
   const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
   const [selectedSourceIds, setSelectedSourceIds] = useState<string[]>([]);
+  const [handoffSourceIds, setHandoffSourceIds] = useState<string[]>(
+    () => readNavigationState().draftHandoff?.sourceIds ?? [],
+  );
   const [topics, setTopics] = useState<DiscoveredTopic[]>([]);
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const [pinnedSourceIds, setPinnedSourceIds] = useState<string[]>([]);
@@ -365,6 +372,17 @@ export function V2ProjectRoute({
         !projectSourceIds.has(item.organization.duplicate_of),
     );
   }, [projectMaterials]);
+  const availableRunMaterials = useMemo(
+    () => [
+      ...effectiveProjectMaterials,
+      ...materials.filter(
+        (item) =>
+          handoffSourceIds.includes(item.id) &&
+          !effectiveProjectMaterials.some((current) => current.id === item.id),
+      ),
+    ],
+    [effectiveProjectMaterials, handoffSourceIds, materials],
+  );
   const projectDocuments = useMemo(
     () =>
       documents
@@ -405,12 +423,22 @@ export function V2ProjectRoute({
   }, []);
   useEffect(() => {
     if (!project) return;
+    const navigation = readNavigationState();
+    const handoff =
+      navigation.draftHandoff?.projectName === project.name
+        ? navigation.draftHandoff
+        : undefined;
     setProfileDraft(project.transcription_profile);
     setBindingsDraft(project.skill_bindings ?? {});
     setRun(undefined);
     setCandidate("");
     setContinuation(undefined);
-    setSelectedSourceIds(effectiveProjectMaterials.map((item) => item.id));
+    setHandoffSourceIds(handoff?.sourceIds ?? []);
+    setSelectedSourceIds(
+      handoff?.sourceIds.filter((id) =>
+        materials.some((item) => item.id === id),
+      ) ?? effectiveProjectMaterials.map((item) => item.id),
+    );
     setSelectedTopicIds([]);
     setPinnedSourceIds([]);
     const saved = readNavigationState().project;
@@ -426,6 +454,12 @@ export function V2ProjectRoute({
     setClassificationMemoryError("");
     setOpenHistoryRunId(undefined);
     setOpenCitationSourceId(undefined);
+    if (handoff) {
+      updateNavigationState((current) => {
+        const { draftHandoff: _consumed, ...rest } = current;
+        return rest;
+      });
+    }
   }, [project?.name]);
   useEffect(() => {
     if (!project) return;
@@ -441,14 +475,14 @@ export function V2ProjectRoute({
     }));
   }, [documentId, mode, project, view]);
   useEffect(() => {
-    const available = new Set(projectMaterials.map((item) => item.id));
+    const available = new Set(availableRunMaterials.map((item) => item.id));
     setSelectedSourceIds((current) =>
       current.length
         ? current.filter((id) => available.has(id))
-        : effectiveProjectMaterials.map((item) => item.id),
+        : availableRunMaterials.map((item) => item.id),
     );
     setPinnedSourceIds((current) => current.filter((id) => available.has(id)));
-  }, [effectiveProjectMaterials, projectMaterials]);
+  }, [availableRunMaterials]);
   useEffect(() => {
     if (!project || view !== "settings") return;
     setExportPreview(undefined);
@@ -483,6 +517,10 @@ export function V2ProjectRoute({
   const projectGroups = useMemo(
     () => groupLibraryMaterials(projectMaterials, materials),
     [projectMaterials, materials],
+  );
+  const availableRunGroups = useMemo(
+    () => groupLibraryMaterials(availableRunMaterials, materials),
+    [availableRunMaterials, materials],
   );
   const relatedTopics = useMemo(() => {
     const sourceIds = new Set(projectMaterials.map((material) => material.id));
@@ -1252,13 +1290,20 @@ export function V2ProjectRoute({
                         </IconButton>
                       </div>
                       <div className="v2-context-picker-list">
-                        {projectGroups.map((group) => {
+                        {availableRunGroups.map((group) => {
                           const ids = group.items.map((item) => item.id);
                           const checked = ids.every((id) =>
                             selectedSourceIds.includes(id),
                           );
                           const pinned = ids.some((id) =>
                             pinnedSourceIds.includes(id),
+                          );
+                          const thisRunOnly = ids.some(
+                            (id) =>
+                              handoffSourceIds.includes(id) &&
+                              !projectMaterials.some(
+                                (material) => material.id === id,
+                              ),
                           );
                           const item =
                             group.bundle?.primaryComment ??
@@ -1294,7 +1339,10 @@ export function V2ProjectRoute({
                                         group.representative,
                                     )}
                                   </strong>
-                                  <small>{item.content}</small>
+                                  <small>
+                                    {thisRunOnly ? "This Run only · " : ""}
+                                    {item.content}
+                                  </small>
                                 </span>
                               </label>
                               <button

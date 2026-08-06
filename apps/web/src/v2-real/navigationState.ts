@@ -18,6 +18,10 @@ export interface V2NavigationState {
     selectedId?: string;
     positions?: Record<string, DocumentPosition>;
   };
+  draftHandoff?: {
+    projectName: string;
+    sourceIds: string[];
+  };
 }
 
 const storageKey = "logue:v2-navigation-state";
