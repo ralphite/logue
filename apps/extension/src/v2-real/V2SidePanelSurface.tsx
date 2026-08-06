@@ -19,7 +19,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { OverlayMenu } from "@logue/ui";
+import { OverlayMenu, ProductStatus } from "@logue/ui";
 import { useState, type ButtonHTMLAttributes, type Ref } from "react";
 import type { CorrectionScope } from "../api";
 import {
@@ -598,6 +598,25 @@ export function V2SidePanelSurface({
       tabIndex={-1}
       data-logue-extension="off"
     >
+      <ProductStatus
+        message={
+          generating
+            ? "Creating sourced result…"
+            : insertingGenerated
+              ? "Inserting result…"
+              : savingGeneratedDocument
+                ? "Saving result as a Document…"
+                : insertingPending
+                  ? "Inserting saved text…"
+                  : serverConnecting
+                    ? "Connecting to Logue Host…"
+                    : generatedText
+                      ? "Sourced result ready."
+                      : voiceCandidate
+                        ? "Transcript ready."
+                        : undefined
+        }
+      />
       <aside className="v2-side-panel" aria-label="Logue side panel">
         <header className="v2-panel-header">
           <button
@@ -806,12 +825,12 @@ export function V2SidePanelSurface({
           </section>
         ) : null}
         {pendingVoiceQueueFull ? (
-          <div className="v2-warning-bar">
+          <div className="v2-warning-bar" role="alert">
             Saved recording storage is full. Export or delete one before
             recording again.
           </div>
         ) : pendingVoices.length ? (
-          <div className="v2-offline-bar">
+          <div className="v2-offline-bar" role="status">
             <strong>
               {pendingVoices.length} recording
               {pendingVoices.length === 1 ? "" : "s"} saved on this Mac.
@@ -819,14 +838,14 @@ export function V2SidePanelSurface({
             Retry when the Host is available.
           </div>
         ) : error?.kind === "service" ? (
-          <div className="v2-offline-bar">
+          <div className="v2-offline-bar" role="alert">
             Host unavailable · new recordings stay on this Mac.
           </div>
         ) : null}
         {error?.kind === "target" ? (
-          <div className="v2-warning-bar">{error.message}</div>
+          <div className="v2-warning-bar" role="alert">{error.message}</div>
         ) : error && error.kind !== "service" ? (
-          <div className="v2-warning-bar">{error.message}</div>
+          <div className="v2-warning-bar" role="alert">{error.message}</div>
         ) : null}
         <div className="v2-panel-scroll">
           {serverSettingsOpen ? (
@@ -1620,7 +1639,7 @@ export function V2SidePanelSurface({
               ) : null}
               {pendingInsert ? (
                 <section className="v2-panel-section">
-                  <div className="v2-recovery-card">
+                  <div className="v2-recovery-card" role="status">
                     <p>
                       The original input is unavailable. Your text is saved in
                       Logue.

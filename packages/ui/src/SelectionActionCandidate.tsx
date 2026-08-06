@@ -1,5 +1,6 @@
 import { Clipboard, FileText, LoaderCircle, Save, Sparkles, X } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { ProductStatus } from "./ProductStatus";
 
 export type SelectionActionBusy = "primary" | "copy" | "keep" | "document";
 
@@ -26,6 +27,19 @@ export function SelectionActionCandidate({ skillName, text, primaryAction, ancho
     aria-label={`${skillName} result`}
     onPointerDown={(event) => event.stopPropagation()}
   >
+    <ProductStatus
+      message={
+        busyAction
+          ? busyAction === "document"
+            ? "Saving result as a Document…"
+            : busyAction === "keep"
+              ? "Saving result in Logue…"
+              : busyAction === "copy"
+                ? "Copying result…"
+                : `${primaryAction} in progress…`
+          : `${skillName} result ready.`
+      }
+    />
     <header className="mb-2 flex items-center justify-between gap-3">
       <span className="inline-flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-[#666762]"><Sparkles size={13} /><span className="truncate">{skillName}</span></span>
       <button type="button" onClick={onCancel} disabled={busy} className="inline-flex size-7 items-center justify-center rounded text-[#8b8c87] hover:bg-[#f1f1ee]" aria-label="Cancel result"><X size={15} /></button>

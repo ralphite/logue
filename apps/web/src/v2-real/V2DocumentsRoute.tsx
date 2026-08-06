@@ -1,4 +1,4 @@
-import type { ExtensionInputTarget, Material } from "@logue/ui";
+import { ProductStatus, type ExtensionInputTarget, type Material } from "@logue/ui";
 import {
   Clock3,
   Copy,
@@ -957,6 +957,21 @@ export function V2DocumentsRoute({
       }}
       inspector={inspector ? inspectorContent : undefined}
     >
+      <ProductStatus
+        message={
+          actionBusy
+            ? actionRun?.status === "failed"
+              ? "Retrying Document action…"
+              : "Running Document action…"
+            : targetBusy
+              ? targetUndo
+                ? "Undoing external insert…"
+                : "Sending Document to the selected input…"
+              : actionRun?.status === "complete"
+                ? "Document action result ready."
+                : undefined
+        }
+      />
       <div className="v2-document-layout">
         <aside className="v2-document-list">
           <div className="v2-document-list-heading">

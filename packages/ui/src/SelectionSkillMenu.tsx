@@ -1,6 +1,7 @@
 import { LoaderCircle, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { OverlayMenu, PRODUCT_OVERLAY_LAYER } from "./OverlayMenu";
+import { ProductStatus } from "./ProductStatus";
 
 export interface SelectionSkillOption {
   id: string;
@@ -77,6 +78,13 @@ export function SelectionSkillMenu({
       onPointerDown={preserveSelection}
       onMouseDown={preserveSelection}
     >
+      <ProductStatus
+        message={
+          runningSkillId
+            ? `Running ${skills.find((skill) => skill.id === runningSkillId)?.name ?? "Skill"}…`
+            : undefined
+        }
+      />
       <div className="flex items-center gap-1 rounded-lg border border-[#ddddda] bg-white p-1 shadow-[0_4px_14px_rgba(20,21,18,0.12)]">
         {directSkills.map((skill, index) => <button
           ref={index === 0 ? firstSkillRef : undefined}

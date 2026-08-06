@@ -1,5 +1,5 @@
 import { Bookmark, Check, ChevronDown, LoaderCircle, MessageSquarePlus, Mic, Sparkles, X } from "lucide-react";
-import { OverlayMenu } from "@logue/ui";
+import { OverlayMenu, ProductStatus } from "@logue/ui";
 import { useState, type CSSProperties, type SyntheticEvent } from "react";
 import type { CaptureContext, VoiceProfileOverrides } from "../voiceProfileModels";
 import { VoiceProfilePicker } from "../VoiceProfilePicker";
@@ -76,6 +76,13 @@ export function V2SelectionSurface({
     aria-label="Actions for selected text"
     onPointerDown={textOpen ? undefined : preserveSelection}
   >
+    <ProductStatus
+      message={
+        runningSkillId
+          ? `Running ${skills.find((skill) => skill.id === runningSkillId)?.name ?? "Skill"}…`
+          : undefined
+      }
+    />
     {textOpen ? <div className="v2-selection-text-comment">
       <div className="v2-selection-text-heading"><span>Comment on selected text</span><button type="button" aria-label="Cancel text comment" onClick={onCancel}><X size={15} /></button></div>
       <textarea autoFocus value={textValue} onChange={(event) => onTextChange(event.target.value)} onKeyDown={(event) => {

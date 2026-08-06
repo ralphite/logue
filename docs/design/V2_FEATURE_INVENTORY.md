@@ -181,13 +181,13 @@
 - V2-FAIL-02 — INTEGRATED — Enter mode-local、Esc/Cancel、阻止宿主 Submit 的 Inline/Command/Comment 键盘合同。
 - V2-FAIL-03 — INTEGRATED — Voice Write 与 Voice Command 是独立 Chrome Commands；Settings → Voice 显示实际 shortcut，键盘录入后由 Extension 原子更新，冲突/无效组合保留旧值，并可恢复 manifest 默认值。
 - V2-FAIL-04 — INTEGRATED — production V2 OverlayMenu、modal Project dialogs 与共享 inspector 使用统一 focus 合同：键盘打开进入有效控件、Esc 只关当前层、modal 循环焦点，关闭后返回原触发控件。
-- V2-FAIL-05 — CODED — recording/progress/error screen-reader status 已有；全部状态覆盖未完成。
+- V2-FAIL-05 — INTEGRATED — shared ProductStatus 覆盖 Web/Extension 的 AI Run、transcript Candidate、Document action、external Insert、Setup 与显式保存进度；Recording/Transcribing 保留就地 status，失败统一 alert，正常 autosave 不反复播报。
 - V2-FAIL-06 — INTEGRATED — Origin/selected/error 不只依赖颜色，主要按钮有 accessible name。
 - V2-FAIL-07 — CODED — reduced motion 已有样式基础；所有动画路径未统一。
 - V2-FAIL-08 — INTEGRATED — Source/Activity inspector 使用共享原始音频播放/暂停/进度/时长控件，并并列 raw/transformed/saved transcript。
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-FAIL-05`
-- 完成条件：所有 production V2 的录音、转写、AI Run、保存、插入与失败恢复过程，在视觉状态之外同步提供简短、不重复、不过度播报的 screen-reader status；永久完成与局部错误使用正确的 live role。
+- `ACTIVE: V2-FAIL-07`
+- 完成条件：production V2 所有 spinner、pulse、smooth scroll 与 transition 尊重 `prefers-reduced-motion`；关停不承载信息的动画，同时保留清晰的静态状态，不改变功能或布局。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

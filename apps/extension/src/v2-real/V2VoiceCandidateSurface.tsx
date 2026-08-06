@@ -1,4 +1,5 @@
 import { Check, ChevronDown, Copy, History, LoaderCircle, Undo2, X } from "lucide-react";
+import { ProductStatus } from "@logue/ui";
 import { useState, type CSSProperties } from "react";
 import type { CaptureContext, CorrectionScope, VoiceProfileOverrides } from "../api";
 import { VoiceProfilePicker } from "../VoiceProfilePicker";
@@ -65,6 +66,21 @@ export function V2VoiceCandidateSurface({
   const invalidScope = (scope === "project" && (!selectedProject || projectProfileDisabled)) || (scope === "topic" && !selectedTopic);
 
   return <section className={`v2-voice-candidate${embedded ? " is-embedded" : ""}`} style={style} aria-label="Voice input candidate">
+    <ProductStatus
+      message={
+        candidate.busy
+          ? candidate.adoptionPending === "insert"
+            ? "Inserting transcript…"
+            : candidate.adoptionPending === "undo"
+              ? "Undoing transcript insert…"
+              : "Updating transcript…"
+          : candidate.inserted
+            ? "Transcript inserted."
+            : candidate.copied
+              ? "Transcript copied."
+              : "Transcript ready."
+      }
+    />
     <header className="v2-candidate-heading"><span>Voice · {context?.resolved_voice_profile.label || candidate.profileLabel} · revision {candidate.revision}</span><button type="button" onClick={onDismiss} aria-label="Close candidate" title={`Close — revision ${candidate.revision} stays in Library`}><X size={15} /></button></header>
     {candidate.inserted || candidate.copied ? <div className="v2-candidate-inserted"><Check size={16} /><span>{candidate.copied ? "Copied" : "Inserted"}</span></div> : <textarea
       value={candidate.text}

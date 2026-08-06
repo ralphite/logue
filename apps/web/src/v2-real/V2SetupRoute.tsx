@@ -1,4 +1,5 @@
 import { Check, Mic, Sparkles } from "lucide-react";
+import { ProductStatus } from "@logue/ui";
 import { useEffect, useState } from "react";
 import { getAIConnection, saveAIConnection, testAIConnection, type AIConnection, type AIConnectionInput, type ServiceStatus } from "../api";
 import { Button } from "../components/ui";
@@ -40,6 +41,7 @@ export function V2SetupRoute({ status, onReady }: { status: ServiceStatus; onRea
   }
 
   return <div className="logue-v2 v2-setup-page"><main className="v2-setup-card">
+    <ProductStatus message={busy === "test" ? "Checking voice and AI connection…" : busy === "save" ? "Saving connection…" : tested ? "Voice and AI connection ready." : undefined} />
     <div className="v2-setup-brand">Logue</div><div className="v2-editor-eyebrow">Set up this Mac</div>
     <h1>Connect voice and AI</h1>
     <p className="v2-setup-lead">No account is required. Your Library stays on this Host; only the Context needed for a task is sent to the provider you connect.</p>

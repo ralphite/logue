@@ -1,4 +1,4 @@
-import { useFocusBoundary, type Material, type MaterialOrganization } from "@logue/ui";
+import { ProductStatus, useFocusBoundary, type Material, type MaterialOrganization } from "@logue/ui";
 import {
   Archive,
   ArchiveRestore,
@@ -198,6 +198,15 @@ function ProjectDialog({
         aria-labelledby="project-dialog-title"
         tabIndex={-1}
       >
+        <ProductStatus
+          message={
+            busy
+              ? project
+                ? "Saving Project changes…"
+                : "Creating Project…"
+              : undefined
+          }
+        />
         <div className="v2-panel-section-heading">
           <div>
             <OriginLabel
@@ -1172,6 +1181,17 @@ export function V2ProjectRoute({
       }}
       inspector={inspector}
     >
+      <ProductStatus
+        message={
+          running
+            ? run?.status === "failed"
+              ? "Retrying failed Run…"
+              : "Creating sourced result…"
+            : run?.status === "complete"
+              ? `${run.skill_name} result ready.`
+              : undefined
+        }
+      />
       {!project ? (
         <EmptyProject onCreate={() => setCreateOpen(true)} />
       ) : (
