@@ -102,8 +102,14 @@ export interface ExtensionSkill {
   task: "transcribe" | "organize" | "generate";
   output: "insert" | "material" | "qa" | "document";
   surfaces: Array<"web" | "extension" | "background">;
-  contexts: Array<"page" | "target" | "selection" | "project" | "materials" | "personal">;
+  contexts: Array<
+    "page" | "target" | "selection" | "project" | "materials" | "personal"
+  >;
   enabled: boolean;
+  system?: boolean;
+  pinned?: boolean;
+  hidden?: boolean;
+  updated_at?: string;
 }
 
 export interface PageMaterial {

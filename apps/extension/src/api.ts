@@ -12,11 +12,35 @@ import {
   type LogueServerStatus,
 } from "./serverConnection";
 import type { ExtensionSkill, PageMaterial } from "./sidePanelModels";
-import type { CaptureContext, ExtensionProjectSkillBindings, ProjectAssociation, ProjectVoiceProfile, ResolvedVoiceProfile, TopicVocabulary, VoiceProfile, VoiceProfileOverrides, VoiceProfileVocabulary } from "./voiceProfileModels";
-import type { PendingVoicePlan, PendingVoiceQueueStatus, PendingVoiceSummary } from "./pendingVoice";
+import type {
+  CaptureContext,
+  ExtensionProjectSkillBindings,
+  ProjectAssociation,
+  ProjectVoiceProfile,
+  ResolvedVoiceProfile,
+  TopicVocabulary,
+  VoiceProfile,
+  VoiceProfileOverrides,
+  VoiceProfileVocabulary,
+} from "./voiceProfileModels";
+import type {
+  PendingVoicePlan,
+  PendingVoiceQueueStatus,
+  PendingVoiceSummary,
+} from "./pendingVoice";
 
 export type { ExtensionSkill, PageMaterial } from "./sidePanelModels";
-export type { CaptureContext, ExtensionProjectSkillBindings, ProjectAssociation, ProjectVoiceProfile, ResolvedVoiceProfile, TopicVocabulary, VoiceProfile, VoiceProfileOverrides, VoiceProfileVocabulary } from "./voiceProfileModels";
+export type {
+  CaptureContext,
+  ExtensionProjectSkillBindings,
+  ProjectAssociation,
+  ProjectVoiceProfile,
+  ResolvedVoiceProfile,
+  TopicVocabulary,
+  VoiceProfile,
+  VoiceProfileOverrides,
+  VoiceProfileVocabulary,
+} from "./voiceProfileModels";
 
 interface ApiResponse<T> {
   ok: boolean;
@@ -42,7 +66,10 @@ async function request<T>(action: string, payload?: Record<string, unknown>) {
     payload,
   })) as ApiResponse<T>;
   if (!response?.ok) {
-    throw new ExtensionApiError(response?.error || "Could not connect to the Logue service.", response?.captureId);
+    throw new ExtensionApiError(
+      response?.error || "Could not connect to the Logue service.",
+      response?.captureId,
+    );
   }
   return response.value as T;
 }
@@ -52,7 +79,9 @@ async function blobToBase64(blob: Blob) {
   let binary = "";
   const chunkSize = 0x8000;
   for (let offset = 0; offset < buffer.length; offset += chunkSize) {
-    binary += String.fromCharCode(...buffer.subarray(offset, offset + chunkSize));
+    binary += String.fromCharCode(
+      ...buffer.subarray(offset, offset + chunkSize),
+    );
   }
   return btoa(binary);
 }
@@ -70,13 +99,21 @@ export async function connectServer(value: string, pairingCode = "") {
   await requestServerPermission(normalized);
   let status: LogueServerStatus;
   try {
-    status = await request<LogueServerStatus>("test-server", { serverURL: normalized, pairingCode });
+    status = await request<LogueServerStatus>("test-server", {
+      serverURL: normalized,
+      pairingCode,
+    });
     assertLogueServerStatus(status);
   } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause ?? "");
+    const message =
+      cause instanceof Error ? cause.message : String(cause ?? "");
     const previous = await getServerURL();
     if (previous !== normalized) await removeServerPermission(normalized);
-    if (/failed to fetch|network|timed out|connection|name not resolved/i.test(message)) {
+    if (
+      /failed to fetch|network|timed out|connection|name not resolved/i.test(
+        message,
+      )
+    ) {
       throw new Error("Can’t reach this address.");
     }
     if (/pairing|paired/i.test(message)) throw cause;
@@ -124,7 +161,13 @@ export interface ExtensionSkillRun {
 
 export async function getExtensionSkills() {
   const response = await request<{ skills: ExtensionSkill[] }>("skills");
-  return response.skills.filter((skill) => skill.enabled && skill.task === "generate" && skill.surfaces.includes("extension"));
+  return response.skills.filter(
+    (skill) =>
+      !skill.hidden &&
+      skill.enabled &&
+      skill.task === "generate" &&
+      skill.surfaces.includes("extension"),
+  );
 }
 
 export async function getExtensionSettings() {
@@ -154,12 +197,29 @@ export async function createExtensionSkillRun(input: {
     target_text: input.targetText,
     selection: input.selection,
     activity_source_id: input.activitySourceId,
-    ...(input.autoSearch !== undefined ? { auto_search: input.autoSearch } : {}),
+    ...(input.autoSearch !== undefined
+      ? { auto_search: input.autoSearch }
+      : {}),
   });
 }
 
-export async function adoptExtensionSkillRun(id: string, adoptedOutput: string, result: { action?: "insert" | "copy" | "replace" | "keep" | "undo"; target?: { surface?: string; url?: string; target_key?: string } } = {}) {
-  const response = await request<{ run: ExtensionSkillRun }>("adopt-skill-run", { id, adoptedOutput, action: result.action ?? "copy", target: result.target });
+export async function adoptExtensionSkillRun(
+  id: string,
+  adoptedOutput: string,
+  result: {
+    action?: "insert" | "copy" | "replace" | "keep" | "undo";
+    target?: { surface?: string; url?: string; target_key?: string };
+  } = {},
+) {
+  const response = await request<{ run: ExtensionSkillRun }>(
+    "adopt-skill-run",
+    {
+      id,
+      adoptedOutput,
+      action: result.action ?? "copy",
+      target: result.target,
+    },
+  );
   return response.run;
 }
 
@@ -192,18 +252,29 @@ export interface AppliedContext {
   topic_vocabulary_name?: string;
 }
 
-export async function getCaptureContext(pageUrl: string, project = "", overrides: VoiceProfileOverrides = {}) {
+export async function getCaptureContext(
+  pageUrl: string,
+  project = "",
+  overrides: VoiceProfileOverrides = {},
+) {
   return request<CaptureContext>("context", { pageUrl, project, ...overrides });
 }
 
 export async function createExtensionProject(name: string, overview = "") {
-  return request<{ id: string; name: string; overview?: string }>("create-project", {
-    name,
-    overview,
-  });
+  return request<{ id: string; name: string; overview?: string }>(
+    "create-project",
+    {
+      name,
+      overview,
+    },
+  );
 }
 
-export async function saveProjectAssociation(input: { scope: "page" | "site"; pageUrl: string; project: string }) {
+export async function saveProjectAssociation(input: {
+  scope: "page" | "site";
+  pageUrl: string;
+  project: string;
+}) {
   return request<ProjectAssociation>("save-project-association", input);
 }
 
@@ -253,28 +324,40 @@ export async function getPageMaterials(pageUrl: string) {
       excludedProjects: item.excluded_projects ?? [],
       savedOnlyProjects: item.saved_only_projects ?? [],
       tags: item.tags ?? [],
-      organization: item.organization ? {
-        status: item.organization.status,
-        reason: item.organization.reason,
-        suggestedProjects: item.organization.suggested_projects ?? [],
-        membershipOrigins: item.organization.membership_origins,
-        duplicateOf: item.organization.duplicate_of,
-      } : undefined,
+      organization: item.organization
+        ? {
+            status: item.organization.status,
+            reason: item.organization.reason,
+            suggestedProjects: item.organization.suggested_projects ?? [],
+            membershipOrigins: item.organization.membership_origins,
+            duplicateOf: item.organization.duplicate_of,
+          }
+        : undefined,
     }))
-    .sort((first, second) => Date.parse(second.createdAt) - Date.parse(first.createdAt));
+    .sort(
+      (first, second) =>
+        Date.parse(second.createdAt) - Date.parse(first.createdAt),
+    );
 }
 
 export async function getProjectSources(project: string, query: string) {
-  const result = await request<{ items?: Array<{
-    id: string;
-    kind?: string;
-    actor?: string;
-    content: string;
-    projects?: string[];
-    tags?: string[];
-    created_at?: string;
-    source?: { url?: string; title?: string; domain?: string; selection?: string } | null;
-  }> }>("project-sources", { project, query });
+  const result = await request<{
+    items?: Array<{
+      id: string;
+      kind?: string;
+      actor?: string;
+      content: string;
+      projects?: string[];
+      tags?: string[];
+      created_at?: string;
+      source?: {
+        url?: string;
+        title?: string;
+        domain?: string;
+        selection?: string;
+      } | null;
+    }>;
+  }>("project-sources", { project, query });
   return (result.items ?? []).map((source) => ({
     id: source.id,
     kind: source.kind,
@@ -288,7 +371,6 @@ export async function getProjectSources(project: string, query: string) {
 }
 
 export async function transcribeAudio(input: {
-
   requestId?: string;
   audio: Blob;
   source: SourceInfo;
@@ -299,7 +381,15 @@ export async function transcribeAudio(input: {
   instructions?: string;
   appliedContext?: AppliedContext;
 }) {
-  return request<{ capture_id: string; raw_transcript: string; text: string; skill_id: string; skill_name: string; skill_revision: number; applied_context: AppliedContext }>("transcribe", {
+  return request<{
+    capture_id: string;
+    raw_transcript: string;
+    text: string;
+    skill_id: string;
+    skill_name: string;
+    skill_revision: number;
+    applied_context: AppliedContext;
+  }>("transcribe", {
     requestId: input.requestId,
     audioBase64: await blobToBase64(input.audio),
     mimeType: input.audio.type || "audio/webm",
@@ -325,10 +415,12 @@ export async function queuePendingVoice(input: {
 }) {
   return request<PendingVoiceSummary>("pending-voice-queue", {
     id: input.id,
-    ...(input.audio ? {
-      audioBase64: await blobToBase64(input.audio),
-      mimeType: input.audio.type || "audio/webm",
-    } : {}),
+    ...(input.audio
+      ? {
+          audioBase64: await blobToBase64(input.audio),
+          mimeType: input.audio.type || "audio/webm",
+        }
+      : {}),
     tabId: input.tabId,
     frameId: input.frameId,
     pageUrl: input.pageUrl,
@@ -360,7 +452,9 @@ export async function completePendingVoice(id: string) {
 }
 
 export async function getPendingVoices() {
-  const result = await request<{ items: PendingVoiceSummary[] }>("pending-voice-list");
+  const result = await request<{ items: PendingVoiceSummary[] }>(
+    "pending-voice-list",
+  );
   return result.items;
 }
 
@@ -373,14 +467,23 @@ export async function retryPendingVoice(id: string) {
 }
 
 export async function exportPendingVoice(id: string) {
-  return request<{ audioBase64: string; mimeType: string; pageTitle?: string; createdAt: number }>("pending-voice-export", { id });
+  return request<{
+    audioBase64: string;
+    mimeType: string;
+    pageTitle?: string;
+    createdAt: number;
+  }>("pending-voice-export", { id });
 }
 
 export async function deletePendingVoice(id: string) {
   await request<null>("pending-voice-delete", { id });
 }
 
-export type { PendingVoicePlan, PendingVoiceQueueStatus, PendingVoiceSummary } from "./pendingVoice";
+export type {
+  PendingVoicePlan,
+  PendingVoiceQueueStatus,
+  PendingVoiceSummary,
+} from "./pendingVoice";
 
 export async function saveMaterial(input: {
   requestId: string;
@@ -432,7 +535,12 @@ export interface ExtensionDocument {
   revision: number;
 }
 
-export async function createExtensionDocument(input: { title: string; content: string; project?: string; sourceIds?: string[] }) {
+export async function createExtensionDocument(input: {
+  title: string;
+  content: string;
+  project?: string;
+  sourceIds?: string[];
+}) {
   return request<ExtensionDocument>("create-document", {
     title: input.title,
     content: input.content,
@@ -441,17 +549,31 @@ export async function createExtensionDocument(input: { title: string; content: s
   });
 }
 
-export async function saveExtensionSkillRunAsDocument(id: string, input: { title: string; content: string; documentId?: string; project?: string; sourceIds?: string[]; contextSourceIds?: string[]; expectedRevision?: number }) {
-  return request<{ run: ExtensionSkillRun; document: ExtensionDocument }>("adopt-skill-run-document", {
-    id,
-    title: input.title,
-    content: input.content,
-    documentId: input.documentId,
-    project: input.project,
-    sourceIds: input.sourceIds,
-    contextSourceIds: input.contextSourceIds,
-    expectedRevision: input.expectedRevision,
-  });
+export async function saveExtensionSkillRunAsDocument(
+  id: string,
+  input: {
+    title: string;
+    content: string;
+    documentId?: string;
+    project?: string;
+    sourceIds?: string[];
+    contextSourceIds?: string[];
+    expectedRevision?: number;
+  },
+) {
+  return request<{ run: ExtensionSkillRun; document: ExtensionDocument }>(
+    "adopt-skill-run-document",
+    {
+      id,
+      title: input.title,
+      content: input.content,
+      documentId: input.documentId,
+      project: input.project,
+      sourceIds: input.sourceIds,
+      contextSourceIds: input.contextSourceIds,
+      expectedRevision: input.expectedRevision,
+    },
+  );
 }
 
 export interface VoiceMaterialResult {
@@ -475,52 +597,74 @@ export interface TranscriptRevisionResult {
 
 export type CorrectionScope = "only" | "topic" | "project" | "global";
 
-export async function updateMaterial(id: string, changes: {
-  content?: string;
-  projects?: string[];
-  excludedProjects?: string[];
-  savedOnlyProjects?: string[];
-  tags?: string[];
-}) {
+export async function updateMaterial(
+  id: string,
+  changes: {
+    content?: string;
+    projects?: string[];
+    excludedProjects?: string[];
+    savedOnlyProjects?: string[];
+    tags?: string[];
+  },
+) {
   return request<VoiceMaterialResult>("update-material", {
     id,
     changes: {
       ...(changes.content !== undefined ? { content: changes.content } : {}),
       ...(changes.projects !== undefined ? { projects: changes.projects } : {}),
-      ...(changes.excludedProjects !== undefined ? { excluded_projects: changes.excludedProjects } : {}),
-      ...(changes.savedOnlyProjects !== undefined ? { saved_only_projects: changes.savedOnlyProjects } : {}),
+      ...(changes.excludedProjects !== undefined
+        ? { excluded_projects: changes.excludedProjects }
+        : {}),
+      ...(changes.savedOnlyProjects !== undefined
+        ? { saved_only_projects: changes.savedOnlyProjects }
+        : {}),
       ...(changes.tags !== undefined ? { tags: changes.tags } : {}),
     },
   });
 }
 
-export async function updateCommentBundle(id: string, changes: {
-  content?: string;
-  projects?: string[];
-  excludedProjects?: string[];
-  savedOnlyProjects?: string[];
-  tags?: string[];
-}) {
-  return request<{ bundle_root_id: string; items: VoiceMaterialResult[] }>("update-comment-bundle", {
-    id,
-    changes: {
-      ...(changes.content !== undefined ? { content: changes.content } : {}),
-      ...(changes.projects !== undefined ? { projects: changes.projects } : {}),
-      ...(changes.excludedProjects !== undefined ? { excluded_projects: changes.excludedProjects } : {}),
-      ...(changes.savedOnlyProjects !== undefined ? { saved_only_projects: changes.savedOnlyProjects } : {}),
-      ...(changes.tags !== undefined ? { tags: changes.tags } : {}),
+export async function updateCommentBundle(
+  id: string,
+  changes: {
+    content?: string;
+    projects?: string[];
+    excludedProjects?: string[];
+    savedOnlyProjects?: string[];
+    tags?: string[];
+  },
+) {
+  return request<{ bundle_root_id: string; items: VoiceMaterialResult[] }>(
+    "update-comment-bundle",
+    {
+      id,
+      changes: {
+        ...(changes.content !== undefined ? { content: changes.content } : {}),
+        ...(changes.projects !== undefined
+          ? { projects: changes.projects }
+          : {}),
+        ...(changes.excludedProjects !== undefined
+          ? { excluded_projects: changes.excludedProjects }
+          : {}),
+        ...(changes.savedOnlyProjects !== undefined
+          ? { saved_only_projects: changes.savedOnlyProjects }
+          : {}),
+        ...(changes.tags !== undefined ? { tags: changes.tags } : {}),
+      },
     },
-  });
+  );
 }
 
-export async function updateSourceAnchor(id: string, input: {
-  action: "resolve" | "reanchor" | "snapshot_only";
-  expectedRevision: number;
-  status?: "anchored" | "page_changed";
-  quote?: string;
-  contextBefore?: string;
-  contextAfter?: string;
-}) {
+export async function updateSourceAnchor(
+  id: string,
+  input: {
+    action: "resolve" | "reanchor" | "snapshot_only";
+    expectedRevision: number;
+    status?: "anchored" | "page_changed";
+    quote?: string;
+    contextBefore?: string;
+    contextAfter?: string;
+  },
+) {
   return request<VoiceMaterialResult>("update-source-anchor", {
     id,
     input: {
@@ -534,29 +678,61 @@ export async function updateSourceAnchor(id: string, input: {
   });
 }
 
-export async function adoptVoiceMaterial(id: string, input: { adoptionId: string; content?: string; target?: { surface?: string; url?: string; target_key?: string }; undone?: boolean }) {
-  return request<VoiceMaterialResult>("adopt-voice-material", { id, adoptionId: input.adoptionId, content: input.content, target: input.target, undone: input.undone });
+export async function adoptVoiceMaterial(
+  id: string,
+  input: {
+    adoptionId: string;
+    content?: string;
+    target?: { surface?: string; url?: string; target_key?: string };
+    undone?: boolean;
+  },
+) {
+  return request<VoiceMaterialResult>("adopt-voice-material", {
+    id,
+    adoptionId: input.adoptionId,
+    content: input.content,
+    target: input.target,
+    undone: input.undone,
+  });
 }
 
-export async function linkVoiceComment(id: string, input: { content: string; sourceContent: string; source: SourceInfo; projects?: string[]; tags?: string[] }) {
-  return request<{ source: { id: string }; comment: VoiceMaterialResult }>("link-voice-comment", {
-    id,
-    ...input,
-    membership_origin: input.projects?.length ? "auto_added" : undefined,
-  });
+export async function linkVoiceComment(
+  id: string,
+  input: {
+    content: string;
+    sourceContent: string;
+    source: SourceInfo;
+    projects?: string[];
+    tags?: string[];
+  },
+) {
+  return request<{ source: { id: string }; comment: VoiceMaterialResult }>(
+    "link-voice-comment",
+    {
+      id,
+      ...input,
+      membership_origin: input.projects?.length ? "auto_added" : undefined,
+    },
+  );
 }
 
 export async function deleteMaterial(id: string) {
   await request<null>("delete-material", { id });
 }
 
-export async function retranscribeMaterial(id: string, options: {
-  referenceProject?: string;
-  profileOverrides?: VoiceProfileOverrides;
-  correction?: { spoken: string; preferred: string; scope: CorrectionScope };
-}) {
+export async function retranscribeMaterial(
+  id: string,
+  options: {
+    referenceProject?: string;
+    profileOverrides?: VoiceProfileOverrides;
+    correction?: { spoken: string; preferred: string; scope: CorrectionScope };
+  },
+) {
   const overrides = options.profileOverrides ?? {};
-  return request<{ material: VoiceMaterialResult; revision: TranscriptRevisionResult }>("retranscribe-material", {
+  return request<{
+    material: VoiceMaterialResult;
+    revision: TranscriptRevisionResult;
+  }>("retranscribe-material", {
     id,
     options: {
       reference_project: options.referenceProject ?? "",
@@ -586,19 +762,22 @@ export async function saveSelection(input: {
   captureId?: string;
   appliedContext?: AppliedContext;
 }) {
-  return request<{ source: { id: string }; annotation?: { id: string } }>("save-selection", {
-    request_id: input.requestId,
-    source_content: input.sourceContent,
-    annotation: input.annotation,
-    raw_transcript: input.rawTranscript,
-    transcript: input.transcript,
-    source: input.source,
-    projects: input.projects ?? [],
-    tags: input.tags ?? [],
-    capture_id: input.captureId,
-    applied_context: input.appliedContext,
-    membership_origin: input.projects?.length ? "auto_added" : undefined,
-  });
+  return request<{ source: { id: string }; annotation?: { id: string } }>(
+    "save-selection",
+    {
+      request_id: input.requestId,
+      source_content: input.sourceContent,
+      annotation: input.annotation,
+      raw_transcript: input.rawTranscript,
+      transcript: input.transcript,
+      source: input.source,
+      projects: input.projects ?? [],
+      tags: input.tags ?? [],
+      capture_id: input.captureId,
+      applied_context: input.appliedContext,
+      membership_origin: input.projects?.length ? "auto_added" : undefined,
+    },
+  );
 }
 
 export async function deleteCapture(id: string) {

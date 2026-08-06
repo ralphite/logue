@@ -79,6 +79,7 @@ interface ExternalInputTargetSession {
 }
 
 const externalTargetLifetime = 15 * 60 * 1_000;
+const selectionSkillRecencyKey = "logue:selection-skill-recency";
 
 function editableTargetLabel(target: HTMLElement) {
   const explicit = target.getAttribute("aria-label")?.trim()
@@ -304,6 +305,9 @@ function ExtensionLauncher() {
   const [selectionTextComment, setSelectionTextComment] = useState("");
   const [selectionTextCommentSaving, setSelectionTextCommentSaving] = useState(false);
   const [selectionSkills, setSelectionSkills] = useState<ExtensionSkill[]>([]);
+  const [recentSelectionSkillIds, setRecentSelectionSkillIds] = useState<
+    string[]
+  >([]);
   const [selectionSkillNotice, setSelectionSkillNotice] = useState<{
     anchor: { left: number; top: number };
     message: string;
@@ -336,7 +340,32 @@ function ExtensionLauncher() {
   const selectionRefreshFrameRef = useRef<number | undefined>(undefined);
   const selectionSkillsLoadedRef = useRef(false);
   const selectionNoticeTimerRef = useRef<number | undefined>(undefined);
-  const eligibleSelectionSkills = selectionSkillEligibility(selectionSkills, "extension");
+  const eligibleSelectionSkills = selectionSkillEligibility(
+    selectionSkills,
+    "extension",
+  ).sort((left, right) => {
+    const pinOrder = Number(Boolean(right.pinned)) - Number(Boolean(left.pinned));
+    if (pinOrder) return pinOrder;
+    const leftRecent = recentSelectionSkillIds.indexOf(left.id);
+    const rightRecent = recentSelectionSkillIds.indexOf(right.id);
+    if (leftRecent === -1 && rightRecent === -1) return 0;
+    if (leftRecent === -1) return 1;
+    if (rightRecent === -1) return -1;
+    return leftRecent - rightRecent;
+  });
+
+  useEffect(() => {
+    void chrome.storage.local
+      .get(selectionSkillRecencyKey)
+      .then((stored) => {
+        const value = stored[selectionSkillRecencyKey];
+        if (Array.isArray(value))
+          setRecentSelectionSkillIds(
+            value.filter((id): id is string => typeof id === "string"),
+          );
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if ((!targetRect && !pageSelectionSnapshot) || voiceSessionRef.current || selectionCommentSessionRef.current) return;
@@ -1681,6 +1710,17 @@ function ExtensionLauncher() {
       .catch(showError);
   }
 
+  function rememberSelectionSkill(skillId: string) {
+    const next = [
+      skillId,
+      ...recentSelectionSkillIds.filter((id) => id !== skillId),
+    ].slice(0, 8);
+    setRecentSelectionSkillIds(next);
+    void chrome.storage.local
+      .set({ [selectionSkillRecencyKey]: next })
+      .catch(() => undefined);
+  }
+
   async function applySelectionSkill(skillId: string) {
     const editableSnapshot = selectionSnapshotRef.current;
     const pageSnapshot = pageSelectionSnapshotRef.current;
@@ -1724,6 +1764,7 @@ function ExtensionLauncher() {
     const anchor = editableSnapshot?.anchor ?? { left: pageSnapshot!.anchor.left, top: pageSnapshot!.anchor.bottom + 8 };
     setSelectionActionError("");
     setSelectionActionCandidate({ runId: run.id, skillName: skill.name, text: replacement, originalText: selectedText, source, projects, anchor, editableSnapshot });
+    rememberSelectionSkill(skill.id);
   }
 
   function dismissSelectionActionCandidate() {
