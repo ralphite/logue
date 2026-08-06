@@ -1885,15 +1885,15 @@ class Store:
     def update_skill_preferences(self, identifier: str, value: dict[str, Any]) -> dict[str, Any]:
         with self.lock:
             skill = self.get("skills", identifier)
-            if not skill.get("system"):
-                raise ValueError("Built-in preferences only apply to Built-in Skills")
-            hidden = bool(value.get("hidden", skill.get("hidden", False)))
+            if "hidden" in value and not skill.get("system"):
+                raise ValueError("My Skills can be deleted instead of hidden")
+            hidden = bool(value.get("hidden", skill.get("hidden", False))) if skill.get("system") else False
             pinned = bool(value.get("pinned", skill.get("pinned", False)))
             supports_pin = skill.get("task") == "generate" and "extension" in normalize(skill.get("surfaces")) and bool({"page", "selection"} & set(normalize(skill.get("contexts"))))
             if hidden:
                 pinned = False
             if pinned and not supports_pin:
-                raise ValueError("only page and selection Built-in Skills can be pinned")
+                raise ValueError("only page and selection Skills can be pinned")
             skill["hidden"] = hidden
             skill["pinned"] = pinned
             skill["preference_updated_at"] = now()
