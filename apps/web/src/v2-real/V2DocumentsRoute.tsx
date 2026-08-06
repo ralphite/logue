@@ -112,6 +112,10 @@ export function V2DocumentsRoute({
   const [openCitationSourceId, setOpenCitationSourceId] = useState<string>();
   const [revisions, setRevisions] = useState<DocumentRevision[]>([]);
   const [preview, setPreview] = useState<DocumentRevision>();
+  const [revisionDeletePreview, setRevisionDeletePreview] =
+    useState<DeletionPreview>();
+  const [revisionDeleteConfirm, setRevisionDeleteConfirm] = useState("");
+  const [revisionNotice, setRevisionNotice] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePreview, setDeletePreview] = useState<DeletionPreview>();
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -178,6 +182,9 @@ export function V2DocumentsRoute({
     setDirty(false);
     setPreview(undefined);
     setRevisions([]);
+    setRevisionDeletePreview(undefined);
+    setRevisionDeleteConfirm("");
+    setRevisionNotice("");
     setDeleteOpen(false);
     setActionRun(undefined);
     setOpenCitationSourceId(undefined);
@@ -279,7 +286,7 @@ export function V2DocumentsRoute({
   }
 
   async function restoreRevision() {
-    if (!selected || !preview) return;
+    if (!selected || !preview || preview.tombstone) return;
     setSaving(true);
     setError("");
     try {
@@ -292,6 +299,77 @@ export function V2DocumentsRoute({
         cause instanceof Error
           ? cause.message
           : "Could not restore this revision.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function reviewRevisionDeletion() {
+    if (!selected || !preview || preview.current || preview.tombstone) return;
+    setRevisionDeletePreview(undefined);
+    setRevisionDeleteConfirm("");
+    setRevisionNotice("");
+    setError("");
+    try {
+      setRevisionDeletePreview(
+        await getDeletionPreview({
+          scope: "document_revision",
+          documentId: selected.id,
+          documentRevision: preview.revision,
+        }),
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not review this revision deletion.",
+      );
+    }
+  }
+
+  async function removeRevision() {
+    if (
+      !selected ||
+      !preview ||
+      !revisionDeletePreview ||
+      revisionDeleteConfirm !== "DELETE"
+    )
+      return;
+    const deletedRevision = preview.revision;
+    setSaving(true);
+    setError("");
+    try {
+      const outcome = await executeDeletion(
+        {
+          scope: "document_revision",
+          documentId: selected.id,
+          documentRevision: deletedRevision,
+        },
+        revisionDeletePreview,
+      );
+      if (outcome.preview) {
+        setRevisionDeletePreview(outcome.preview);
+        setRevisionDeleteConfirm("");
+        setError(
+          "Dependencies changed. Review the updated summary, then delete again.",
+        );
+        return;
+      }
+      setRevisionNotice(
+        outcome.result?.status === "tombstoned"
+          ? `Revision ${deletedRevision} details were deleted. A minimal lineage marker remains for ${revisionDeletePreview.summary.sources} pinned ${revisionDeletePreview.summary.sources === 1 ? "Source" : "Sources"}.`
+          : `Revision ${deletedRevision} was permanently deleted.`,
+      );
+      setPreview(undefined);
+      setRevisionDeletePreview(undefined);
+      setRevisionDeleteConfirm("");
+      setRevisions(await getDocumentRevisions(selected.id));
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not delete this revision.",
       );
     } finally {
       setSaving(false);
@@ -359,17 +437,23 @@ export function V2DocumentsRoute({
 
   async function pinRevisionAsSource() {
     if (!selected) return;
+    const revision = preview ?? selected;
+    if (preview?.tombstone) return;
     setSaving(true);
     setError("");
     try {
       await createMaterial({
         kind: "derived",
-        content,
-        projects: project ? [project] : [],
-        parentIds: selected.context_source_ids ?? selected.source_ids,
+        content: revision.content,
+        projects: revision.project ? [revision.project] : [],
+        parentIds: revision.context_source_ids ?? revision.source_ids,
         actor: "Logue AI",
-        source: { title: `${title} · revision ${selected.revision}` },
-        requestId: `document-revision:${selected.id}:${selected.revision}`,
+        source: {
+          title: `${revision.title} · revision ${revision.revision}`,
+          document_id: selected.id,
+          document_revision: revision.revision,
+        },
+        requestId: `document-revision:${selected.id}:${revision.revision}`,
       });
       await onRefresh();
     } catch (cause) {
@@ -592,12 +676,22 @@ export function V2DocumentsRoute({
                   preview?.revision === revision.revision ? "is-active" : ""
                 }
                 onClick={() =>
-                  setPreview(revision.current ? undefined : revision)
+                  setPreview((current) => {
+                    setRevisionDeletePreview(undefined);
+                    setRevisionDeleteConfirm("");
+                    return revision.current
+                      ? undefined
+                      : current?.revision === revision.revision
+                        ? undefined
+                        : revision;
+                  })
                 }
               >
                 <span>
                   <strong>
-                    {revision.current
+                    {revision.tombstone
+                      ? `Deleted revision ${revision.revision}`
+                      : revision.current
                       ? "Current"
                       : `Revision ${revision.revision}`}
                   </strong>
@@ -609,36 +703,112 @@ export function V2DocumentsRoute({
                   </small>
                 </span>
                 <span>
-                  {(revision.context_source_ids ?? revision.source_ids).length}{" "}
-                  Sources
+                  {revision.tombstone
+                    ? "Lineage only"
+                    : `${(revision.context_source_ids ?? revision.source_ids).length} Sources`}
                 </span>
               </button>
             ))}
           </div>
+          {revisionNotice ? (
+            <div className="v2-library-meta" role="status">
+              {revisionNotice}
+            </div>
+          ) : null}
           {preview ? (
             <div className="v2-recovery-card">
               <OriginLabel
                 origin="you"
-                detail={`Revision ${preview.revision} · read only`}
+                detail={
+                  preview.tombstone
+                    ? `Revision ${preview.revision} · lineage only`
+                    : `Revision ${preview.revision} · read only`
+                }
               />
-              <h3>{preview.title}</h3>
-              <DocumentContent
-                value={preview.content}
-                title={preview.title}
-                readOnly
-                onCitationClick={(sourceNumber) => {
-                  setOpenCitationSourceId(preview.source_ids[sourceNumber - 1]);
-                  setInspector("sources");
-                }}
-              />
-              <Button
-                variant="primary"
-                disabled={saving}
-                onClick={() => void restoreRevision()}
-              >
-                <RotateCcw size={14} />
-                Restore as new revision
-              </Button>
+              {preview.tombstone ? (
+                <>
+                  <h3>Revision details deleted</h3>
+                  <p>
+                    A minimal marker remains because a pinned Source still
+                    refers to this revision. The current Document and other
+                    revisions are unchanged.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3>{preview.title}</h3>
+                  <DocumentContent
+                    value={preview.content}
+                    title={preview.title}
+                    readOnly
+                    onCitationClick={(sourceNumber) => {
+                      setOpenCitationSourceId(
+                        preview.source_ids[sourceNumber - 1],
+                      );
+                      setInspector("sources");
+                    }}
+                  />
+                  <div className="v2-inline-actions">
+                    <Button
+                      variant="primary"
+                      disabled={saving}
+                      onClick={() => void restoreRevision()}
+                    >
+                      <RotateCcw size={14} />
+                      Restore as new revision
+                    </Button>
+                    <Button
+                      disabled={saving}
+                      onClick={() => void reviewRevisionDeletion()}
+                    >
+                      <Trash2 size={14} />
+                      Review deletion
+                    </Button>
+                  </div>
+                  {revisionDeletePreview ? (
+                    <div className="v2-danger-card">
+                      <p>
+                        {revisionDeletePreview.requires_lineage
+                          ? `${revisionDeletePreview.summary.sources} pinned ${revisionDeletePreview.summary.sources === 1 ? "Source keeps" : "Sources keep"} its frozen content. This revision becomes a minimal lineage marker.`
+                          : "No saved Source depends on this revision. Its historical details will be permanently deleted."}
+                      </p>
+                      <p>
+                        The current Document and every other frozen revision
+                        stay unchanged.
+                      </p>
+                      <label>
+                        Type DELETE to continue
+                        <input
+                          className="v2-input"
+                          value={revisionDeleteConfirm}
+                          onChange={(event) =>
+                            setRevisionDeleteConfirm(event.target.value)
+                          }
+                        />
+                      </label>
+                      <div className="v2-inline-actions">
+                        <Button
+                          onClick={() => {
+                            setRevisionDeletePreview(undefined);
+                            setRevisionDeleteConfirm("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="primary"
+                          disabled={
+                            saving || revisionDeleteConfirm !== "DELETE"
+                          }
+                          onClick={() => void removeRevision()}
+                        >
+                          Delete revision
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              )}
             </div>
           ) : null}
         </div>
@@ -734,7 +904,7 @@ export function V2DocumentsRoute({
               </Button>
               <Button
                 size="sm"
-                disabled={saving || Boolean(preview)}
+                disabled={saving || Boolean(preview?.tombstone)}
                 onClick={() => void pinRevisionAsSource()}
               >
                 <Sparkles size={14} />

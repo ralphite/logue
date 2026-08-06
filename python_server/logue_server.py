@@ -1841,6 +1841,8 @@ class Store:
         if not path.exists():
             raise FileNotFoundError(path.name)
         snapshot = read_json(path)
+        if snapshot.get("tombstone"):
+            raise ValueError("a deleted revision cannot be restored")
         current = self.get("docs", identifier)
         return self.update_document(identifier, {
             "title": snapshot.get("title", "Untitled"),
@@ -1852,6 +1854,55 @@ class Store:
             "context_sources": snapshot.get("context_sources", snapshot.get("sources", [])),
             "expected_revision": current.get("revision", 1),
         })
+
+    def document_revision_dependencies(self, identifier: str, revision: int) -> dict[str, Any]:
+        document = self.get("docs", identifier)
+        if int(document.get("revision", 1)) == revision:
+            raise ValueError("the current revision cannot be deleted")
+        path = self.root / "doc-revisions" / f"{identifier}-r{revision}.json"
+        if not path.exists():
+            raise FileNotFoundError(path.name)
+        snapshot = read_json(path)
+        if snapshot.get("tombstone"):
+            raise ValueError("this revision was already deleted")
+        pinned_sources = [
+            item
+            for item in self.items()
+            if not item.get("tombstone")
+            and str((item.get("source") or {}).get("document_id", "")) == identifier
+            and str((item.get("source") or {}).get("document_revision", "")) == str(revision)
+        ]
+        return {
+            "document": document,
+            "snapshot": snapshot,
+            "pinned_sources": pinned_sources,
+        }
+
+    def delete_document_revision(self, identifier: str, revision: int, *, preserve_lineage: bool) -> None:
+        with self.lock:
+            dependencies = self.document_revision_dependencies(identifier, revision)
+            path = self.root / "doc-revisions" / f"{identifier}-r{revision}.json"
+            snapshot = dependencies["snapshot"]
+            if preserve_lineage:
+                timestamp = now()
+                atomic_json(path, {
+                    "document_id": identifier,
+                    "revision": revision,
+                    "current": False,
+                    "title": "Deleted revision",
+                    "content": "",
+                    "project": "",
+                    "source_ids": [],
+                    "context_source_ids": [],
+                    "sources": [],
+                    "context_sources": [],
+                    "created_at": snapshot.get("created_at", timestamp),
+                    "updated_at": timestamp,
+                    "deleted_at": timestamp,
+                    "tombstone": True,
+                })
+            else:
+                path.unlink()
 
     def save_skill(self, identifier: str | None, value: dict[str, Any]) -> dict[str, Any]:
         with self.lock:
@@ -3703,7 +3754,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def deletion_preview(self, value: dict[str, Any]) -> dict[str, Any]:
         scope = str(value.get("scope", "")).strip()
-        if scope not in {"source", "project", "document", "run", "workspace"}:
+        if scope not in {"source", "project", "document", "document_revision", "run", "workspace"}:
             raise ValueError("invalid deletion scope")
         store = self.server.store
         with store.lock:
@@ -3817,6 +3868,22 @@ class Handler(BaseHTTPRequestHandler):
                 target_ids_out = target_ids
                 target_labels = [str(document.get("title", "Untitled"))]
                 state.update({"document": document, "revisions": revisions, "runs": linked_runs})
+            elif scope == "document_revision":
+                document_id = str(value.get("document_id", "")).strip()
+                revision = int(value.get("document_revision", 0) or 0)
+                if not document_id or revision < 1:
+                    raise ValueError("choose one historical Document revision")
+                dependencies = store.document_revision_dependencies(document_id, revision)
+                pinned_sources = dependencies["pinned_sources"]
+                summary.update({"sources": len(pinned_sources), "revisions": 1})
+                requires_lineage = bool(pinned_sources)
+                target_ids_out = [f"{document_id}:r{revision}"]
+                target_labels = [f"{dependencies['snapshot'].get('title', 'Untitled')} · revision {revision}"]
+                state.update({
+                    "document": dependencies["document"],
+                    "revision": dependencies["snapshot"],
+                    "pinned_sources": pinned_sources,
+                })
             elif scope == "run":
                 if len(target_ids) != 1:
                     raise ValueError("choose one Run")
@@ -3848,7 +3915,7 @@ class Handler(BaseHTTPRequestHandler):
             fingerprint = hashlib.sha256(
                 json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
             ).hexdigest()
-            return {
+            result = {
                 "scope": scope,
                 "target_ids": target_ids_out,
                 "target_labels": target_labels,
@@ -3857,6 +3924,10 @@ class Handler(BaseHTTPRequestHandler):
                 "backup_created": backup_created,
                 "fingerprint": fingerprint,
             }
+            if scope == "document_revision":
+                result["document_id"] = str(value.get("document_id", "")).strip()
+                result["document_revision"] = int(value.get("document_revision", 0) or 0)
+            return result
 
     def execute_deletion(self, preview: dict[str, Any]) -> dict[str, Any]:
         store = self.server.store
@@ -3911,6 +3982,14 @@ class Handler(BaseHTTPRequestHandler):
                         (store.root / "docs" / f"{identifier}.json").unlink()
                         for revision in (store.root / "doc-revisions").glob(f"{identifier}-r*.json"):
                             revision.unlink()
+                    elif scope == "document_revision":
+                        document_id = str(preview.get("document_id", "")).strip()
+                        revision = int(preview.get("document_revision", 0) or 0)
+                        store.delete_document_revision(
+                            document_id,
+                            revision,
+                            preserve_lineage=bool(preview.get("requires_lineage")),
+                        )
                     elif scope == "run":
                         dependencies = store.skill_run_dependencies(target_ids[0])
                         store.delete_skill_run(target_ids[0], preserve_lineage=bool(dependencies["requires_lineage"]))
@@ -3923,7 +4002,7 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     shutil.rmtree(snapshot)
         return {
-            "status": "deleted",
+            "status": "tombstoned" if preview.get("requires_lineage") else "deleted",
             "scope": scope,
             "target_ids": target_ids,
             "tombstoned": bool(preview.get("requires_lineage")),

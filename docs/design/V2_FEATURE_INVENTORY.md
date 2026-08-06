@@ -130,8 +130,8 @@
 - V2-DOC-06 — INTEGRATED — revision history 与 Restore as new revision endpoint。
 - V2-DOC-07 — INTEGRATED — frozen exact IDs/snapshots producer-consumer 已接。
 - V2-DOC-08 — INTEGRATED — citation inspector 区分 Origin并打开 frozen Source/URL。
-- V2-DOC-09 — INTEGRATED — Export Markdown、Delete Document、Pin revision as Source。
-- V2-DOC-10 — CODED — delete revision 与 dependency preview 尚未完整。
+- V2-DOC-09 — INTEGRATED — Export Markdown、Delete Document、Pin revision as Source；Pin 会冻结目标 revision 正文并记录 exact Document ID + revision。
+- V2-DOC-10 — INTEGRATED — 历史 revision 使用统一 dependency preview / fingerprint / terminal state；无 Pin 依赖时物理删除，有依赖时保留最小 lineage marker，当前版与其他 frozen revision 不改写。
 
 ## Web — Skills
 
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-DOC-10`
-- 完成条件：Document revision history 对可删除历史显示 dependency preview；删除不会改写当前版或其他 frozen revision，仍被 lineage 引用时保留最小 tombstone，并返回明确 terminal state。
+- `ACTIVE: V2-TOP-02`
+- 完成条件：Topics 对 related Sources 显示 duplicate / conflict / supplement 关系及理由，并把 Project suggestion 与 Topic Vocabulary suggestion 作为用户确认动作；它们不得自动授予 Project Context 或写入 vocabulary。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

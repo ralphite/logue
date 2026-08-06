@@ -569,11 +569,11 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **已有证据：** 权威 V2 J8 与 §11.2 明确规定 Global Find 打开 Library 结果，且 Library 必须支持 filter、批量 Project membership、export、delete 与 Activity 管理。
 - **开放问题：** 排序质量与视觉密度在功能齐全后统一审查；当前先连接所有真实终态。
 
-### DR-054 — 删除 Project 只删除边界，不删除私人 Source 或 Document
+### DR-054 — 依赖感知删除只移除目标内容，并保留必要 lineage
 
 - **优先级：** V2 产品 / P0 数据安全
-- **状态：** Source bundle / Project / Document / Run / workspace 统一 preview-fingerprint-terminal state 已静态集成；所有功能完成后统一验收
-- **决定：** 删除 Project 前显示受影响的 Source、Document 与 Run 数量。确认后删除该 Project 的 goal、Transcription Profile、Skill overrides 与分类边界；Sources 永久留在私人 Library 并移除该 Project 的 included/excluded/saved-only 状态，Documents 变为 No Project，历史 Run 保留原 Project 名作为 provenance。删除 Source 则采用另一条依赖预览：无依赖时物理删除，有冻结 citation/derived/Run 依赖时清除内容与音频并留下最小 tombstone。
+- **状态：** Source bundle / Project / Document / Document revision / Run / workspace 统一 preview-fingerprint-terminal state 已静态集成；所有功能完成后统一验收
+- **决定：** 删除 Project 前显示受影响的 Source、Document 与 Run 数量。确认后删除该 Project 的 goal、Transcription Profile、Skill overrides 与分类边界；Sources 永久留在私人 Library 并移除该 Project 的 included/excluded/saved-only 状态，Documents 变为 No Project，历史 Run 保留原 Project 名作为 provenance。删除 Source 则采用另一条依赖预览：无依赖时物理删除，有冻结 citation/derived/Run 依赖时清除内容与音频并留下最小 tombstone。删除历史 Document revision 前同样预览精确依赖；没有 Pin revision Source 时物理删除该历史文件，有 Pin 时清除正文与 frozen Sources、只保留 Document ID + revision 的最小 marker。当前 revision 永不可走此入口，当前版与其他 frozen revision 均不改写；Pin revision Source 自身冻结正文并记录精确 Document ID + revision。
 - **用户可见影响：** 用户不会因删除一个工作目标而意外丢掉原始输入，也能真正删除敏感 Source 内容而不破坏历史引用。
 - **替代方案：** 级联删除全部 Project 内容，或禁止删除任何仍被引用的 Source。前者违背永久私人 Library，后者让数据删除不可完成。
 - **已有证据：** V2 J9 要求删除前展示依赖；Source、Project Context、Document revision 与 Run lineage 是不同生命周期。

@@ -30,6 +30,8 @@ export interface SourceInfo {
   url?: string;
   title?: string;
   domain?: string;
+  document_id?: string;
+  document_revision?: number;
   selection?: string;
   context_before?: string;
   context_after?: string;

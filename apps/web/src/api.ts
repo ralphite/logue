@@ -78,6 +78,7 @@ export type DeletionScope =
   | "source"
   | "project"
   | "document"
+  | "document_revision"
   | "run"
   | "workspace";
 
@@ -85,6 +86,8 @@ export interface DeletionPreview {
   scope: DeletionScope;
   target_ids: string[];
   target_labels: string[];
+  document_id?: string;
+  document_revision?: number;
   summary: {
     sources: number;
     projects: number;
@@ -105,10 +108,12 @@ export interface DeletionRequest {
   scope: DeletionScope;
   ids?: string[];
   projectId?: string;
+  documentId?: string;
+  documentRevision?: number;
 }
 
 export interface DeletionResult {
-  status: "deleted";
+  status: "deleted" | "tombstoned";
   scope: DeletionScope;
   target_ids: string[];
   tombstoned: boolean;
@@ -196,6 +201,8 @@ export interface LogueDocument {
 export interface DocumentRevision extends LogueDocument {
   document_id: string;
   current: boolean;
+  tombstone?: boolean;
+  deleted_at?: string;
 }
 
 export interface ProjectSummary {
@@ -707,6 +714,8 @@ function deletionBody(request: DeletionRequest) {
     scope: request.scope,
     ids: request.ids ?? [],
     project_id: request.projectId ?? "",
+    document_id: request.documentId ?? "",
+    document_revision: request.documentRevision ?? 0,
   };
 }
 
