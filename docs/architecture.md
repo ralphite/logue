@@ -52,16 +52,15 @@ Release 同时包含 macOS/Linux 的 amd64 与 arm64 完整资产，每个资产
 - `POST /v1/transcribe`：multipart 音频、页面、目标文字、选区、项目说明、术语和技能指令。
 - `GET /v1/context?url=...`：个人说明/术语、项目说明/术语及按域名建议的项目。
 
-### 项目、生成结果与 Agent
+### 项目、Run 与生成结果
 
 - `GET|POST /v1/projects`
 - `PATCH /v1/projects/{name}`
-- `POST /v1/project-overview-drafts/{name}`
+- `GET|POST /v1/skill-runs`
+- `POST /v1/skill-runs/{id}/adopt`
+- `POST /v1/skill-runs/{id}/document`
 - `GET|POST /v1/docs`
 - `GET|PATCH|DELETE /v1/docs/{id}`
-- `POST /v1/docs/generate`
-- `GET /v1/project-bundles/{name}`：只读项目包。
-- `POST /v1/external-agent/import`：追加带 `source_ids`、`actor`、`request_id` 的外部自主 Agent 派生资料。
 
 ### 设置与可移植性
 

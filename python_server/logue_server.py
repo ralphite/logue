@@ -2975,11 +2975,6 @@ class Handler(BaseHTTPRequestHandler):
             self.serve_backup_archive(snapshot_id)
         elif path.startswith("/v1/captures/"):
             self.serve_capture(path.removeprefix("/v1/captures/"))
-        elif path.startswith("/v1/project-bundles/"):
-            name = urllib.parse.unquote(path.removeprefix("/v1/project-bundles/"))
-            project = store.get_project(name)
-            materials = [item for item in store.items() if name in item.get("projects", [])]
-            self.json(HTTPStatus.OK, {"schema_version": 1, "read_only": True, "project": project, "materials": materials, "transcript_revisions": [revision for item in materials for revision in store.transcript_revisions(item["id"])], "documents": [document for document in store.documents() if document.get("project") == name]})
         elif path == "/v1/export":
             scope = (query.get("scope") or [""])[0].strip()
             project_id = (query.get("project_id") or [""])[0].strip()
@@ -3258,21 +3253,6 @@ class Handler(BaseHTTPRequestHandler):
             self.empty(HTTPStatus.NO_CONTENT)
         elif path == "/v1/docs" and method == "POST":
             self.json(HTTPStatus.CREATED, store.create_document(self.body_json()))
-        elif path == "/v1/docs/generate" and method == "POST":
-            value = self.body_json()
-            source_ids = normalize(value.get("source_ids"))
-            if not source_ids:
-                raise ValueError("at least one source is required")
-            skill_id = str(store.settings().get("default_document_skill", "sk_document"))
-            project_name = str(value.get("project", "")).strip()
-            if project_name:
-                try:
-                    project = store.get_project(project_name)
-                    skill_id = str((project.get("skill_bindings") or {}).get("draft") or skill_id)
-                except FileNotFoundError:
-                    pass
-            skill = store.get("skills", skill_id)
-            self.generate_document(value, skill)
         elif path.startswith("/v1/docs/"):
             identifier = path.removeprefix("/v1/docs/")
             if identifier.endswith("/restore") and method == "POST":
@@ -3314,13 +3294,6 @@ class Handler(BaseHTTPRequestHandler):
             if existing:
                 store.delete_item(existing["id"])
             self.json(HTTPStatus.OK, {"ok": True})
-        elif path == "/v1/external-agent/import" and method == "POST":
-            value = self.body_json()
-            if not str(value.get("actor", "")).strip() or not normalize(value.get("source_ids")):
-                raise ValueError("actor and source_ids are required")
-            item = store.create_item({"request_id": value.get("request_id"), "kind": "derived", "content": value.get("content"), "projects": [value["project"]] if value.get("project") else [], "parent_ids": value.get("source_ids"), "source": value.get("source"), "actor": value.get("actor")})
-            self.json(HTTPStatus.CREATED, item)
-            self.server.schedule_organization(item)
         elif path == "/v1/backups/import" and method == "POST":
             self.json(HTTPStatus.CREATED, self.import_backup_archive())
         elif path == "/v1/restore" and method == "POST":
@@ -3345,14 +3318,6 @@ class Handler(BaseHTTPRequestHandler):
                 self.server.cancelled.clear()
                 self.server.gemini = Gemini(store.root)
             self.json(HTTPStatus.OK, {"status": "deleted", "backup": self.snapshot_metadata(backup)})
-        elif path.startswith("/v1/project-overview-drafts/") and method == "POST":
-            name = urllib.parse.unquote(path.removeprefix("/v1/project-overview-drafts/"))
-            project = store.get_project(name)
-            sources = [item for item in store.items() if name in item.get("projects", [])][:12]
-            if not sources:
-                raise ValueError("project has no materials")
-            output = self.server.gemini.run_skill(store.get("skills", "sk_document"), {"instruction": "Draft a concise project overview update.", "project": name}, [{"id": source["id"], "content": source["content"]} for source in sources], store.settings(), str(project.get("overview", "")))
-            self.json(HTTPStatus.OK, {"draft": output, "source_ids": [source["id"] for source in sources]})
         else:
             self.error(HTTPStatus.NOT_FOUND, "not found")
 
@@ -3503,22 +3468,6 @@ class Handler(BaseHTTPRequestHandler):
         run["updated_at"] = now()
         atomic_json(store.root / "skill-runs" / f"{run['id']}.json", run)
         self.json(HTTPStatus.CREATED, run)
-
-    def generate_document(self, value: dict[str, Any], skill: dict[str, Any]) -> None:
-        store = self.server.store
-        by_id = {item["id"]: item for item in store.items()}
-        source_ids = [identifier for identifier in normalize(value.get("source_ids")) if identifier in by_id]
-        if not source_ids:
-            raise ValueError("selected sources no longer exist")
-        sources = [{"id": identifier, "content": by_id[identifier]["content"]} for identifier in source_ids]
-        project_overview = ""
-        if value.get("project"):
-            try:
-                project_overview = str(store.get_project(str(value["project"])).get("overview", ""))
-            except FileNotFoundError:
-                pass
-        output = self.server.gemini.run_skill(skill, {"instruction": value.get("instruction") or "Draft a document", "project": value.get("project")}, sources, store.settings(), project_overview)
-        self.json(HTTPStatus.CREATED, store.create_document({"title": value.get("title") or "Untitled", "content": output, "project": value.get("project"), "source_ids": source_ids}, preserve_sources=True))
 
     def retranscribe_material(self, identifier: str, value: dict[str, Any]) -> None:
         store = self.server.store

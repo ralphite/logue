@@ -12,7 +12,7 @@ import type { Material } from "@logue/ui";
 import { useEffect, useMemo, useState } from "react";
 import {
   createDocument,
-  generateDocument,
+  createMaterial,
   getDocumentRevisions,
   updateDocument,
   type DocumentRevision,
@@ -285,32 +285,49 @@ export function RealProjectWorkspace({
     setGenerating(true);
     setGenerationError(undefined);
     try {
-      if (requestMode === "ask") {
-        const skillId =
-          skillBindings.ask ||
-          globalDefaults.default_qa_skill ||
-          skills.find((skill) => skill.output === "qa" && skill.enabled)?.id;
-        if (!skillId) throw new Error("No Ask Skill is available.");
-        const run = await createSkillRun({
-          skill_id: skillId,
-          instruction,
-          project: project.name,
-          source_ids: projectMaterials.map((material) => material.id),
-        });
-        setAnswerRun(run);
-        setRequest("");
-        setInspectorOpen(true);
-        return;
-      }
-      const created = await generateDocument({
-        title: documentTitle || `${project.name} brief`,
-        project: project.name,
-        sourceIds: projectMaterials.map((material) => material.id),
-        instruction,
+      const output = requestMode === "ask" ? "qa" : "document";
+      const binding =
+        requestMode === "ask" ? skillBindings.ask : skillBindings.draft;
+      const globalBinding =
+        requestMode === "ask"
+          ? globalDefaults.default_qa_skill
+          : globalDefaults.default_document_skill;
+      const skill =
+        skills.find(
+          (item) =>
+            item.id === binding && item.enabled && item.output === output,
+        ) ||
+        skills.find(
+          (item) =>
+            item.id === globalBinding && item.enabled && item.output === output,
+        ) ||
+        skills.find(
+          (item) =>
+            item.enabled && item.task === "generate" && item.output === output,
+        );
+      if (!skill)
+        throw new Error(
+          requestMode === "ask"
+            ? "No Ask Skill is available."
+            : "No Draft Skill is available.",
+        );
+      const activity = await createMaterial({
+        kind: "text",
+        content: instruction,
+        projects: [],
+        actor: "user",
+        activityType: requestMode,
+        source: { title: `${project.name} ${requestMode} request` },
       });
-      onDocumentsChange([created, ...documents]);
-      setActiveDocumentId(created.id);
-      setAnswerRun(undefined);
+      const run = await createSkillRun({
+        skill_id: skill.id,
+        instruction,
+        project: project.name,
+        source_ids: projectMaterials.map((material) => material.id),
+        activity_source_id: activity.id,
+        auto_search: false,
+      });
+      setAnswerRun(run);
       setRequest("");
       setInspectorOpen(true);
     } catch (cause) {

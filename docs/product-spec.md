@@ -81,14 +81,9 @@ Extension 在聚焦输入框时默认只展示一键麦克风；生成入口通�
 ### 项目与文档
 
 1. 用户把一条资料直接点选到一个或多个项目，无需逗号格式或额外保存按钮。
-2. 项目页聚合资料与文档，并提供基于资料起草概览。
-3. 文档生成器只发送用户选择的资料和项目概览给 Gemini。
-4. 生成结果进入可编辑文档；来源可增删，原始资料不被修改。
-
-### 外部自动化
-
-- `GET /v1/project-bundles/{项目名}` 返回只读项目、资料和文档包。
-- `POST /v1/external-agent/import` 只追加 `derived` 资料，要求保留 `source_ids`、`actor`，并支持稳定 `request_id` 防止重试重复。
+2. 项目页聚合 Context、Runs 与 Documents；Project overview 由用户直接编辑。
+3. Ask/Draft 只把本次明确选择或检索到的 Sources、Project overview 与实际 Skill revision 发送给远程 provider。
+4. 生成先成为可编辑 Candidate；用户明确 Copy、Keep 或 Save as document 后才物化采用结果，原始资料不被修改。
 
 ## 数据与隐私
 

@@ -7,7 +7,6 @@ import {
   ArrowUpRight,
   Link2,
   MoreHorizontal,
-  LoaderCircle,
   PanelRightClose,
   PanelRightOpen,
   Search,
@@ -24,12 +23,11 @@ import {
   createDocument,
   deleteDocument,
   getDocuments,
-  generateDocument,
   updateDocument,
   type LogueDocument,
 } from "../api";
 import { adoptSkillRun, createSkillRun, getSkills, saveSkillRunAsDocument, type LogueSkill } from "../skillApi";
-import { MaterialGroupAddList, MaterialGroupPicker } from "./MaterialGroupPicker";
+import { MaterialGroupAddList } from "./MaterialGroupPicker";
 import { PanelResizer, usePersistentPanelSize } from "./PanelResizer";
 import { SearchPending } from "./SearchPending";
 import { readingColumnClass } from "./layout";
@@ -540,13 +538,6 @@ export function ViewWorkspace({
   const [sourceQuery, setSourceQuery] = useState("");
   const [sourceMessage, setSourceMessage] = useState<string>();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [generatorOpen, setGeneratorOpen] = useState(false);
-  const [generationTitle, setGenerationTitle] = useState("");
-  const [generationProject, setGenerationProject] = useState("");
-  const [generationInstruction, setGenerationInstruction] = useState("Summarize the key conclusions, evidence, and next steps while preserving source citations.");
-  const [generationSourceIds, setGenerationSourceIds] = useState<string[]>([]);
-  const [generating, setGenerating] = useState(false);
-  const [generationError, setGenerationError] = useState<string>();
   const [selectionSnapshot, setSelectionSnapshot] = useState<EditableSelectionSnapshot>();
   const [selectionSkills, setSelectionSkills] = useState<LogueSkill[]>([]);
   const [selectionUndo, setSelectionUndo] = useState<{
@@ -580,8 +571,6 @@ export function ViewWorkspace({
     max: 360,
   });
   const workspaceRef = useRef<HTMLDivElement | null>(null);
-  const generatorTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const restoreGeneratorFocusRef = useRef(false);
   const [workspaceWidth, setWorkspaceWidth] = useState(() => window.innerWidth);
   const sourcePanelMaxWidth = availableSourcePanelWidth(workspaceWidth, showDocumentSidebar ? documentListWidth : 0);
   const { size: sourcePanelWidth, setSize: setSourcePanelWidth } = usePersistentPanelSize({
@@ -613,12 +602,6 @@ export function ViewWorkspace({
   const revisionByDocumentRef = useRef(new Map<string, number>());
   const saveQueueRef = useRef(createSerialTaskQueue());
   const saveByVersionRef = useRef(new Map<string, Promise<boolean>>());
-
-  useEffect(() => {
-    if (generatorOpen || !restoreGeneratorFocusRef.current) return;
-    restoreGeneratorFocusRef.current = false;
-    generatorTriggerRef.current?.focus();
-  }, [generatorOpen]);
 
   documentsRef.current = documents;
   contentRef.current = content;
@@ -999,51 +982,6 @@ export function ViewWorkspace({
     setSelectedId(remaining[0]?.id);
     onSelectedDocumentChange(remaining[0]?.id, true);
     setMenuOpen(false);
-  }
-
-  function openGenerator() {
-    generatorTriggerRef.current = document.activeElement instanceof HTMLButtonElement ? document.activeElement : null;
-    setGenerationTitle("");
-    setGenerationProject(project);
-    setGenerationSourceIds(sourceIds.length ? sourceIds : groupIdenticalMaterials(materials).slice(0, 3).map((group) => group.representative.id));
-    setGenerationError(undefined);
-    setGeneratorOpen(true);
-  }
-
-  function closeGenerator() {
-    if (generating) return;
-    restoreGeneratorFocusRef.current = true;
-    setGeneratorOpen(false);
-  }
-
-  async function runGeneration() {
-    if (!generationSourceIds.length || generating) return;
-    setGenerating(true);
-    setGenerationError(undefined);
-    try {
-      if (!(await flushCurrentDocument())) {
-        setGenerationError("This document has not been saved. Resolve the save error before generating.");
-        return;
-      }
-      const created = await generateDocument({
-        title: generationTitle,
-        project: generationProject,
-        sourceIds: generationSourceIds,
-        instruction: generationInstruction,
-      });
-      revisionByDocumentRef.current.set(created.id, created.revision);
-      setDocumentCollection((current) => [created, ...current.filter((document) => document.id !== created.id)]);
-      loadedRef.current = undefined;
-      selectedIdRef.current = created.id;
-      setSelectedId(created.id);
-      onSelectedDocumentChange(created.id);
-      setMobileListOpen(false);
-      setGeneratorOpen(false);
-    } catch (cause) {
-      setGenerationError(cause instanceof Error ? cause.message : "Generation failed");
-    } finally {
-      setGenerating(false);
-    }
   }
 
   function rememberEditorSelection() {
@@ -1431,7 +1369,6 @@ export function ViewWorkspace({
           <div className="flex items-center gap-1.5 text-[14px]"><button type="button" onClick={onOpenGenerate} className="font-medium text-[#858681] hover:text-[#4e4f4b]">Generate</button><span className="text-[#b0b1ad]">/</span><h1 className="font-semibold text-[#555651]">Documents</h1></div>
           <span className="flex items-center gap-0.5">
             {onManageSkills && <button type="button" onClick={onManageSkills} className="inline-flex size-8 items-center justify-center rounded text-[#777873] hover:bg-[#e8e8e5] hover:text-[#444541] max-[640px]:size-11" aria-label="Manage skills" title="Manage skills"><Sparkles size={14} /></button>}
-            <button type="button" onClick={openGenerator} className="inline-flex size-8 items-center justify-center rounded text-[#777873] hover:bg-[#e8e8e5] hover:text-[#444541] max-[640px]:size-11" aria-label="Generate document from materials" title="Generate document from materials"><Sparkles size={14} /></button>
             <button type="button" onClick={() => void addDocument()} className="inline-flex size-8 items-center justify-center rounded text-[#858681] hover:bg-[#e8e8e5] hover:text-[#444541] max-[640px]:size-11" aria-label="New blank document" title="New blank document"><FilePlus2 size={14} /></button>
           </span>
         </header>
@@ -1462,7 +1399,7 @@ export function ViewWorkspace({
             <div className="mx-2 mt-3 rounded-md border border-dashed border-[#d5d5d1] px-2 py-3 text-center">
               <p className="text-[14px] leading-4 text-[#8d8e89]">Your documents will appear here</p>
               <button type="button" onClick={() => void addDocument()} className="mt-2 w-full rounded-md bg-white px-2 py-2 text-[15px] font-medium text-[#5e605a] shadow-[0_0_0_1px_#deded9] hover:bg-[#fafaf8]">New blank document</button>
-              <button type="button" onClick={materials.length > 0 ? openGenerator : onOpenMaterials} className="mt-1 w-full rounded-md px-2 py-2 text-[15px] font-medium text-[#777873] hover:bg-white">{materials.length > 0 ? "Generate from materials" : "Add materials first"}</button>
+              <button type="button" onClick={onOpenMaterials} className="mt-1 w-full rounded-md px-2 py-2 text-[15px] font-medium text-[#777873] hover:bg-white">Open Library</button>
             </div>
           ) : documentSearch.pending ? (
             <SearchPending label="documents" className="min-h-16" />
@@ -1643,10 +1580,10 @@ export function ViewWorkspace({
           <section className="w-full max-w-lg text-center">
             <span className="inline-flex size-11 items-center justify-center rounded-lg bg-[#f0f0ed] text-[#71736d]"><BookOpenText size={20} /></span>
             <h1 className="mt-4 text-[19px] font-semibold tracking-[-0.025em] text-[#343631]">Create your first document</h1>
-            <p className="mx-auto mt-1.5 max-w-sm text-[14px] leading-5 text-[#858780]">Write directly in a familiar editor, or let Gemini create an editable draft with source citations.</p>
+            <p className="mx-auto mt-1.5 max-w-sm text-[14px] leading-5 text-[#858780]">Write directly in a familiar editor, or save a Project Draft as a document.</p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
               {showEmptyDocumentAction && <button type="button" onClick={() => void addDocument()} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[14px] font-medium text-white hover:bg-[#3a3b37]"><FilePlus2 size={14} /> New blank document</button>}
-              <button type="button" onClick={materials.length > 0 ? openGenerator : onOpenMaterials} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#d9d9d5] px-3.5 text-[14px] font-medium text-[#656761] hover:bg-[#f5f5f2]"><Sparkles size={14} /> {materials.length > 0 ? "Generate from materials" : "Add materials first"}</button>
+              <button type="button" onClick={onOpenMaterials} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#d9d9d5] px-3.5 text-[14px] font-medium text-[#656761] hover:bg-[#f5f5f2]">Open Library</button>
             </div>
           </section>
         </main>
@@ -1696,29 +1633,6 @@ export function ViewWorkspace({
         </>
       )}
 
-      {generatorOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#20211e]/25 p-4 backdrop-blur-[1px]" onMouseDown={(event) => { if (event.currentTarget === event.target) closeGenerator(); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="generate-document-title" onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeGenerator(); } }} className="flex max-h-[82vh] w-full max-w-[620px] flex-col overflow-hidden rounded-xl border border-[#deded9] bg-white shadow-[0_24px_80px_rgba(20,21,18,0.22)]">
-            <header className="flex items-center justify-between border-b border-[#e8e8e5] px-5 py-4">
-              <div className="flex items-center gap-2.5"><span className="inline-flex size-8 items-center justify-center rounded-md bg-[#eeece8] text-[#5e605a]"><Sparkles size={15} /></span><div><h2 id="generate-document-title" className="text-[14px] font-semibold text-[#30312d]">Generate document</h2><p className="mt-0.5 text-[14px] text-[#8b8c87]">Create an editable draft that preserves source citations.</p></div></div>
-              <button type="button" disabled={generating} onClick={closeGenerator} className="inline-flex size-8 items-center justify-center rounded-md text-[#888984] hover:bg-[#f0f0ed] max-[640px]:size-11" aria-label="Close"><X size={16} /></button>
-            </header>
-            <div className="grid min-h-0 flex-1 grid-cols-[1fr_230px] max-[620px]:grid-cols-1">
-              <div className="space-y-4 overflow-y-auto p-5">
-                <label className="block"><span className="mb-1.5 block text-[15px] font-medium text-[#666762]">Title <span className="font-normal text-[#999a95]">(optional)</span></span><input autoFocus value={generationTitle} onChange={(event) => setGenerationTitle(event.target.value)} placeholder={generationProject ? `${generationProject} document` : "New document"} className="h-9 w-full rounded-md border border-[#dcdcd7] px-3 text-[14px] outline-none focus:border-[#aaa]" /></label>
-                <label className="block"><span className="mb-1.5 block text-[15px] font-medium text-[#666762]">Project</span><select value={generationProject} onChange={(event) => setGenerationProject(event.target.value)} className="h-9 w-full rounded-md border border-[#dcdcd7] bg-white px-3 text-[14px] outline-none focus:border-[#aaa]"><option value="">Unfiled</option>{projects.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-                <label className="block"><span className="mb-1.5 block text-[15px] font-medium text-[#666762]">What should this document accomplish?</span><textarea value={generationInstruction} onChange={(event) => setGenerationInstruction(event.target.value)} className="min-h-28 w-full resize-y rounded-md border border-[#dcdcd7] px-3 py-2.5 text-[14px] leading-5 outline-none focus:border-[#aaa]" /></label>
-                {generationError && <p className="rounded-md bg-[#fbefec] px-3 py-2 text-[15px] leading-4 text-[#a34b42]">{generationError}</p>}
-              </div>
-              <div className="min-h-0 border-l border-[#e8e8e5] bg-[#fafaf8] p-3 max-[620px]:max-h-52 max-[620px]:border-l-0 max-[620px]:border-t">
-                <div className="mb-2 flex items-center justify-between px-1"><p className="text-[14px] font-semibold text-[#767772]">Source materials</p><span className="text-[14px] text-[#999a95]">{generationSourceIds.length} selected</span></div>
-                <div className="h-full overflow-y-auto pb-6"><MaterialGroupPicker materials={materials} selectedIds={generationSourceIds} onChange={setGenerationSourceIds} getLabel={sourceLabel} getDescription={sourceExcerpt} getMeta={sourceMeta} /></div>
-              </div>
-            </div>
-            <footer className="flex items-center justify-between gap-3 border-t border-[#e8e8e5] bg-[#fcfcfa] px-5 py-3.5"><p className="min-w-0 text-[14px] text-[#999a95]">Gemini receives only the selected materials and project overview.</p><div className="flex shrink-0 gap-2"><button type="button" disabled={generating} onClick={closeGenerator} className="h-8 whitespace-nowrap rounded-md px-3 text-[15px] font-medium text-[#6f706b] hover:bg-[#eeeeeb]">Cancel</button><button type="button" disabled={!generationSourceIds.length || generating} onClick={() => void runGeneration()} className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md bg-[#242522] px-3 text-[15px] font-medium text-white hover:bg-[#393a36] disabled:cursor-not-allowed disabled:bg-[#bdbdb8]">{generating ? <LoaderCircle size={13} className="animate-spin" /> : <Sparkles size={13} />}{generating ? "Generating…" : "Generate document"}</button></div></footer>
-          </section>
-        </div>
-      )}
     </div>
   );
 }

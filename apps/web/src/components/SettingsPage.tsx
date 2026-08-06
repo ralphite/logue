@@ -1,4 +1,4 @@
-import { Archive, Clipboard, KeyRound, Trash2, X } from "lucide-react";
+import { Archive, KeyRound, Trash2, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   backupWorkspace,
@@ -21,7 +21,6 @@ import {
   type AIConnection,
   type AIConnectionInput,
 } from "../api";
-import { logueApiBase } from "../apiBase";
 import { getSkills, type LogueSkill } from "../skillApi";
 import { editorColumnClass } from "./layout";
 import { PageHeader } from "./ui";
@@ -143,12 +142,6 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
   function ignoreSuggestion(value: string) {
     update({ ...settings, ignored_terms: settings.ignored_terms.includes(value) ? settings.ignored_terms : [...settings.ignored_terms, value] });
     setSuggestions((current) => current.filter((item) => item.term !== value));
-  }
-
-  async function copy(value: string) {
-    await navigator.clipboard.writeText(value);
-    setNotice("Copied");
-    window.setTimeout(() => setNotice(undefined), 1800);
   }
 
   const globalSkillRows: Array<{ key: keyof Pick<WorkspaceSettings, "default_organization_skill" | "default_extension_skill" | "default_qa_skill" | "default_document_skill">; label: string; accepts: (skill: LogueSkill) => boolean }> = [
@@ -343,13 +336,6 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
           {!deleteOpen ? <button type="button" onClick={() => setDeleteOpen(true)} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#e4cbc6] px-3 text-[15px] font-medium text-[#a04b43] hover:bg-[#fbefec]"><Trash2 size={14} />Review deletion</button> : <div className="rounded-md border border-[#ead3ce] bg-[#fff8f6] p-4"><p className="text-[15px] leading-6 text-[#6d4b46]">This removes Sources, original audio, Projects, Documents, Activity, and My Skills from this Mac. Logue creates a full local backup first.</p><label className="mt-3 block text-[14px] font-medium text-[#75534f]">Type DELETE to continue<input value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} className={`mt-2 h-10 w-full rounded-md border border-[#e0c7c2] bg-white px-3 text-[15px] outline-none ${fieldFocusClass}`} /></label><div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => { setDeleteOpen(false); setDeleteConfirmation(""); }} className="h-9 rounded-md px-3 text-[14px] text-[#777873] hover:bg-white">Cancel</button><button type="button" disabled={deleteConfirmation !== "DELETE"} onClick={() => void deleteAllData()} className="h-9 rounded-md bg-[#a04b43] px-3 text-[14px] font-medium text-white disabled:bg-[#d7b6b1]">Delete all local data</button></div></div>}
         </SettingsRow>
 
-        <details className="border-t border-[#e8e8e5] py-5">
-          <summary className="cursor-pointer select-none rounded py-1 text-[14px] font-medium text-[#777873] hover:text-[#555651]">Developer tools</summary>
-          <div className="mt-4 grid grid-cols-[200px_minmax(0,1fr)] gap-10 max-[700px]:grid-cols-1 max-[700px]:gap-3">
-            <h3 className="pt-1 text-[14px] font-semibold text-[#484945]">Developer API</h3>
-            <div className="space-y-2"><button type="button" onClick={() => void copy(`GET ${logueApiBase}/v1/project-bundles/{projectName}`)} className="flex min-h-11 w-full items-center justify-between rounded-md border border-[#deded9] px-3 py-2.5 text-left hover:bg-[#fafaf8]"><span><span className="block text-[15px] font-medium text-[#4d4e49]">Project bundle</span><code className="mt-0.5 block text-[14px] text-[#92938e]">GET /v1/project-bundles/&#123;projectName&#125;</code></span><Clipboard size={14} className="text-[#898a85]" /></button><button type="button" onClick={() => void copy(`POST ${logueApiBase}/v1/external-agent/import`)} className="flex min-h-11 w-full items-center justify-between rounded-md border border-[#deded9] px-3 py-2.5 text-left hover:bg-[#fafaf8]"><span><span className="block text-[15px] font-medium text-[#4d4e49]">Import external result</span><code className="mt-0.5 block text-[14px] text-[#92938e]">POST /v1/external-agent/import</code></span><Clipboard size={14} className="text-[#898a85]" /></button></div>
-          </div>
-        </details>
         </fieldset>
       </div>
       </div>

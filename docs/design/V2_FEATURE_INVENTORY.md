@@ -169,7 +169,7 @@
 
 - V2-OPS-01 — INTEGRATED — Host 数据目录为唯一权威；Extension 仅持有 tab/target/pending 状态。
 - V2-OPS-02 — INTEGRATED — Source/membership/comment/run/document/profile/topic/skill API 主链及 adoption 互斥/幂等已接。
-- V2-OPS-03 — CODED — 当前 `.logue-data` 的 Voice/Profile/revision schema 已完成显式备份和一次性更新；production Python Host 不再运行 startup migration，当前 schema 是唯一权威。但 production Web/API/Settings/DocumentWorkspace/RealProjectWorkspace 仍调用待迁移的 V1 Host 路由，V2-only runtime 合同尚未闭合。
+- V2-OPS-03 — CODED — 当前 `.logue-data` 的 Voice/Profile/revision schema 已完成显式备份和一次性更新；production Python Host 与 Web callers 已删除四条绕过 Run/adoption 的旧 route，当前 schema/production API 是唯一权威。仓库仍保留无 production 入口且语义冲突的 Go Host，V2-only repository 合同尚未闭合。
 - V2-OPS-04 — INTEGRATED — 不保留 V1 route/schema alias 或永久 migration path。
 - V2-OPS-05 — INTEGRATED — installer 在 managed 写入前拒绝 data/snapshot 路径重叠；旧 Linux 默认 workspace 与全部 Host snapshots 使用需确认、停服冻结校验、失败恢复旧 version/unit/path/active/enabled 的一次性迁移；程序 rollback 永不接管 data root。真实安装验收留 Phase 5。
 - V2-OPS-06 — INTEGRATED — workspace packages、release tag、Host VERSION、Extension version/version_name、split installer、fixtures 与 remote smoke 已使用同一 release identity；首次 Load 与升级 Reload 状态准确。真实 artifact 发布验收留 Phase 5。

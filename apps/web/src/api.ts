@@ -769,26 +769,6 @@ export async function executeDeletion(
   return { result: await parseResponse<DeletionResult>(response) };
 }
 
-export async function generateDocument(input: {
-  title?: string;
-  project?: string;
-  sourceIds: string[];
-  instruction?: string;
-}) {
-  return parseResponse<LogueDocument>(
-    await fetch(`${apiBase}/v1/docs/generate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: input.title ?? "",
-        project: input.project ?? "",
-        source_ids: input.sourceIds,
-        instruction: input.instruction ?? "",
-      }),
-    }),
-  );
-}
-
 export async function getProjects() {
   const result = await parseResponse<{ projects: ProjectSummary[] }>(
     await fetch(`${apiBase}/v1/projects`),
@@ -898,15 +878,6 @@ export async function saveProject(
         ...(input.archived !== undefined ? { archived: input.archived } : {}),
       }),
     }),
-  );
-}
-
-export async function generateProjectOverviewDraft(project: string) {
-  return parseResponse<{ draft: string; source_ids: string[] }>(
-    await fetch(
-      `${apiBase}/v1/project-overview-drafts/${encodeURIComponent(project)}`,
-      { method: "POST" },
-    ),
   );
 }
 

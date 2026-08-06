@@ -776,3 +776,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** Continue 重新从当前 Project/Library 检索（会丢失或改变历史证据）；只冻结 Source 正文但继续读取当前 Project/Personal/Skill（持久证据与真实 provider 输入不一致）。
 - **已有证据：** Goal Supervisor 检查发现 `V2ProjectRoute` 会把 continuation Source IDs 再按当前 `materials` 过滤，Host 也会为 Continue/Retry 重新读取当前 Project overview、Personal settings 与 Skill。Store 已能从历史 Run snapshots 构造 Sources，因此本批只移除 Web 当前 Library 依赖，并让 Handler 的 model/provider 输入共同复用 frozen context。
 - **开放问题：** 旧 Python routes/callers/docs、旧 Web surface 与无 production 入口的 Go Host 清理已冻结并保存在独立 WIP，不进入本批；它们必须拆成后续独立批次。
+
+### DR-072 — 删除绕过 Run / Candidate / adoption 的旧 Python API
+
+- **优先级：** V2 Host / 单一生成合同
+- **状态：** scope / product / engineering fresh gate 已 PASS；Python Host/Web callers 已移除并通过 Web typecheck、Python compile 与 diff check
+- **决定：** 删除 Python Host 的 `/v1/docs/generate`、`/v1/project-overview-drafts/*`、`/v1/project-bundles/*`、`/v1/external-agent/import`，以及对应 Web API wrapper、未挂载调用入口、Developer API 文案和陈旧 API 文档。Project Ask/Draft 继续使用 Activity → Skill Run → Candidate → 显式 adoption；Project 导出使用 scope-safe Export；当前 V2 不提供 External Agent import。不得保留 alias 或改名后的重复语义。
+- **用户可见影响：** 当前挂载 V2 流程不变；未挂载旧 workspace 不再保留可绕过 Run lineage、直接创建 Document/AI Source 或暴露原始 Project bundle 的入口。
+- **替代方案：** 保留兼容 alias（违反当前 route/schema 唯一权威）；把旧路径改成 `/v2/*`（仍保留重复对象语义）；在未定义权限/provenance/adoption 前继续公开 external import（扩大未确认范围）。
+- **已有证据：** production 挂载链是 `main → App → RealLogueV2App → V2 routes`；`V2ProjectRoute` 已使用 canonical Run/adoption。三路 gate 已确认四条旧 route 只有未挂载 caller/技术按钮，删除不缩减确认 V2 能力。Go Host 与 audio fixtures 不进入本批，按 Goal Supervisor 要求保持独立。
+- **开放问题：** 无；本批只处理 Python routes、Web callers 与对应文档，Go Host 删除另做下一原子批次。
