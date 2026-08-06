@@ -452,11 +452,11 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 ### DR-044 — Library 分离永久内容与运行活动，但共享来源证据
 
 - **优先级：** V2 产品 / P0
-- **状态：** 真实 Web App 实现中；完整功能完成后统一验证
-- **决定：** Library 的一级视图固定为 `Saved content` 与 `All activity`。前者展示永久 Web/You/AI Source 和 Comment bundle；后者展示 Voice Command、Skill Run、失败/完成状态、adopted output 与本次 Run 冻结的 Source snapshots。Run prompt 与失败 Candidate 不自动进入 Project Context，但始终可从 Activity 恢复和核验。
+- **状态：** Saved content content-first 已完成并通过真实运行时验证；All activity 随完整产品统一验收
+- **决定：** Library 的一级视图固定为 `Saved content` 与 `All activity`。前者展示永久 Web/You/AI Source 和 Comment bundle；后者展示 Voice Command、Skill Run、失败/完成状态、adopted output 与本次 Run 冻结的 Source snapshots。Run prompt 与失败 Candidate 不自动进入 Project Context，但始终可从 Activity 恢复和核验。Saved content 不使用 `Content / Project / Source / Date` 固定列的数据表；采用 content-first list，以内容/摘要为主阅读轴，Project、来源、状态、时间作为弱化的行内 metadata，可按时间或来源分组，点击进入可调整的详情面板。
 - **用户可见影响：** 用户不会把一次命令误认为长期知识，也不会因为结果尚未采用就失去原始活动；打开 Run 可看到当时真正使用的来源，而不是后来变化的 Project 当前内容。
 - **替代方案：** 将 Source、Comment、Command、Run 和 Candidate 平铺在同一列表，或只保留成功生成结果。前者破坏对象理解，后者丢失失败恢复与证据链。
-- **已有证据：** V2 产品合同明确区分永久 Library、Project Context 和 Activity/Run；真实 Host 已保存 frozen source snapshots。
+- **已有证据：** V2 产品合同明确区分永久 Library、Project Context 和 Activity/Run；真实 Host 已保存 frozen source snapshots。2026-08-05 在 `http://127.0.0.1:5173/?view=stream`、Host `127.0.0.1:8787` 与 storage root `/Users/yadong/dev2/logue/.logue-data` 上完成窄门：现有 Comment bundle 与普通 Saved content 均按时间分组为单一 content-first 条目；搜索可找到两类内容，点击打开共享的可调宽详情；页面 reload 与显式使用同一 storage root 的 Host restart 后内容和详情路径保持可用，页面无相关 console error。fresh read-only `logue_product_designer` 与当前 Notion 同视口对照后给出 PASS 9.1/10，无 P0/P1。
 - **开放问题：** Retry、删除未采用 Run 与跨表面恢复在后续完整性批次连接；本批先建立真实对象分区与证据阅读路径。
 
 ### DR-045 — Global defaults 与 Project overrides 解析同一个 Skill 对象

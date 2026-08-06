@@ -67,6 +67,18 @@ function shortDate(value: string) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function libraryDateGroup(value: string) {
+  const date = new Date(value);
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const daysAgo = Math.round((startOfToday - startOfDate) / 86_400_000);
+  if (daysAgo <= 0) return "Today";
+  if (daysAgo === 1) return "Yesterday";
+  if (daysAgo < 7) return "Previous 7 days";
+  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
 function sourceName(material: Material) {
   const value = material.source?.domain || material.actor || "User";
   return value === "127.0.0.1" || value === "localhost" ? "Logue local page" : value;
@@ -232,6 +244,17 @@ export function App() {
     return orderMaterialSearchResults(materials, activeMaterialSearch).filter((item) => matchesMaterialFilter(item, filter));
   }, [activeMaterialSearch, filter, materials, normalizedQuery]);
   const materialGroups = useMemo(() => groupLibraryMaterials(filtered, materials), [filtered, materials]);
+  const materialSections = useMemo(() => {
+    const sections = new Map<string, typeof materialGroups>();
+    for (const group of materialGroups) {
+      const displayMaterial = group.bundle?.primaryComment ?? group.representative;
+      const label = libraryDateGroup(displayMaterial.createdAt);
+      const values = sections.get(label) ?? [];
+      values.push(group);
+      sections.set(label, values);
+    }
+    return Array.from(sections, ([label, groups]) => ({ label, groups }));
+  }, [materialGroups]);
   const visibleRuns = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return skillRuns;
@@ -462,12 +485,12 @@ export function App() {
                 })}
               </div> : <div className="flex items-center gap-2 px-3 py-5 text-[14px] text-[#8d8f89]">No activity matches</div>
             ) : materialGroups.length ? (
-              <>
-                <div className="mb-1 grid grid-cols-[minmax(0,1fr)_150px_150px_70px] gap-3 border-b border-[#e8e8e5] px-3 py-2 text-[14px] font-medium text-[#92938e] max-[800px]:grid-cols-[minmax(0,1fr)_100px_60px] max-[480px]:grid-cols-[minmax(0,1fr)_50px]">
-                  <span>Content</span><span className="max-[480px]:hidden">Project</span><span className="max-[800px]:hidden">Source</span><span>Date</span>
-                </div>
-                <div>
-                  {materialGroups.map((group) => {
+              <div className="space-y-7" aria-label="Saved content">
+                {materialSections.map((section, sectionIndex) => (
+                  <section key={section.label} aria-labelledby={`library-section-${sectionIndex}`}>
+                    <h2 id={`library-section-${sectionIndex}`} className="mb-2 px-1 text-[13px] font-medium text-[#8b8d87]">{section.label}</h2>
+                    <div className="overflow-hidden rounded-xl border border-[#e7e7e3] bg-white">
+                  {section.groups.map((group, groupIndex) => {
                     const material = group.representative;
                     const bundle = group.bundle;
                     const displayMaterial = bundle?.primaryComment ?? material;
@@ -482,7 +505,7 @@ export function App() {
                         ? group.projects[0]
                         : `${group.projects[0]} +${group.projects.length - 1}`;
                     return (
-                      <div key={group.key}>
+                      <div key={group.key} className={groupIndex ? "border-t border-[#eeeeeb]" : ""}>
                         <button
                           type="button"
                           onClick={() => {
@@ -500,38 +523,41 @@ export function App() {
                           }}
                           data-testid={bundle ? "comment-bundle-row" : undefined}
                           aria-expanded={duplicate ? expanded : undefined}
-                          className={`grid w-full grid-cols-[minmax(0,1fr)_150px_150px_70px] items-center gap-3 border-b border-[#eeeeeb] px-3 text-left transition hover:bg-[#f7f7f5] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5b64f4] max-[800px]:grid-cols-[minmax(0,1fr)_100px_60px] max-[480px]:grid-cols-[minmax(0,1fr)_50px] ${bundle ? "min-h-14 py-2" : "min-h-11 py-2.5"} ${selectedInGroup ? "bg-[#f2f2ef]" : ""}`}
+                          className={`group flex w-full items-start gap-3 px-3.5 py-3 text-left transition hover:bg-[#f7f7f5] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5b64f4] ${selectedInGroup ? "bg-[#f2f2ef]" : ""}`}
                         >
-                          <span className="flex min-w-0 items-center gap-2.5">
-                            {duplicate ? <ChevronRight size={14} className={`shrink-0 text-[#969792] transition ${expanded ? "rotate-90" : ""}`} /> : <Icon size={15} className="shrink-0 text-[#7b7c77]" />}
-                            <span className="min-w-0">
-                              <span className="block truncate text-[14px] text-[#3d3e3a]">{displayMaterial.content}</span>
-                              {bundle && <span className="mt-0.5 block truncate text-[12px] text-[#8b8d87]">On “{material.content}”</span>}
-                              {searchMatch?.reason && searchMatch.match !== "content" && <span className="mt-0.5 block truncate text-[12px] text-[#8b8d87]">{searchMatch.reason}</span>}
+                          <span className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#f1f1ee] text-[#6f716b]">
+                            <Icon size={15} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="line-clamp-2 block text-[15px] leading-5 text-[#3d3e3a]">{displayMaterial.content}</span>
+                            {bundle && <span className="mt-1 line-clamp-1 block text-[13px] leading-5 text-[#858781]">On “{material.content}”</span>}
+                            {searchMatch?.reason && searchMatch.match !== "content" && <span className="mt-1 line-clamp-1 block text-[13px] leading-5 text-[#858781]">{searchMatch.reason}</span>}
+                            <span className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] leading-5 text-[#8b8d87]">
+                              <span>{bundle ? "Web + You" : duplicate ? `${group.items.length} Sources` : sourceName(material)}</span>
+                              <span aria-hidden="true">·</span>
+                              <span className="max-w-48 truncate">{projectLabel}</span>
+                              <span aria-hidden="true">·</span>
+                              <span>{shortDate(displayMaterial.createdAt)}</span>
+                              {group.needsReview && <span className="inline-flex items-center gap-1 text-[#9a7325]"><span className="size-1.5 rounded-full bg-[#d3a244]" />Review</span>}
+                              {duplicate && <span className="rounded bg-[#efefeb] px-1.5 text-[12px] font-medium text-[#777873]">{group.items.length} items</span>}
                             </span>
-                            {duplicate && <span className="hidden shrink-0 rounded bg-[#eeeeea] px-1.5 py-0.5 text-[12px] font-medium text-[#777873] max-[800px]:inline-flex">{group.items.length} items</span>}
-                            {group.needsReview && <span aria-label="Needs review" title="Needs review" className="hidden size-2 shrink-0 rounded-full bg-[#d3a244] max-[480px]:inline-flex" />}
                           </span>
-                          <span className="flex min-w-0 items-center gap-1.5 max-[480px]:hidden">
-                            <span className="truncate text-[15px] text-[#73746f]">{projectLabel}</span>
-                            {group.needsReview && <span aria-label="Needs review" title="Needs review" className="size-2 shrink-0 rounded-full bg-[#d3a244]" />}
-                          </span>
-                          <span className="truncate text-[15px] text-[#7f807b] max-[800px]:hidden">{bundle ? "Web + You" : duplicate ? `${group.items.length} sources` : sourceName(material)}</span>
-                          <span className="text-[14px] text-[#9b9c97]">{shortDate(displayMaterial.createdAt)}</span>
+                          <ChevronRight size={15} className={`mt-2 shrink-0 text-[#a4a5a0] transition group-hover:translate-x-0.5 ${duplicate && expanded ? "rotate-90" : ""}`} />
                         </button>
                         {duplicate && expanded && (
-                          <div className="border-b border-[#e9e9e5] bg-[#fafaf8] px-3 py-1.5">
+                          <div className="border-t border-[#ecece8] bg-[#fafaf8] px-3 py-1.5">
                             {group.items.map((instance, index) => (
                               <button
                                 key={instance.id}
                                 type="button"
                                 onClick={() => { setMaterialMode("peek"); navigate({ section: "stream", materialId: instance.id }); }}
-                                className={`flex min-h-11 w-full items-center gap-2 rounded-md px-2.5 py-2 text-left hover:bg-[#f0f0ed] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5b64f4] ${instance.id === selectedId ? "bg-[#eeeeea]" : ""}`}
+                                className={`flex min-h-12 w-full items-start gap-2 rounded-lg px-2.5 py-2.5 text-left hover:bg-[#f0f0ed] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5b64f4] ${instance.id === selectedId ? "bg-[#eeeeea]" : ""}`}
                               >
-                                <span className="w-6 shrink-0 text-right text-[14px] font-medium text-[#aaaba6]">{index + 1}</span>
-                                <span className="min-w-0 flex-1 truncate text-[15px] text-[#595a56]">{instance.source?.title || sourceName(instance)}</span>
-                                <span className="max-w-32 truncate text-[14px] text-[#8a8b86] max-[480px]:hidden">{instance.projects[0] || "Unfiled"}</span>
-                                <span className="shrink-0 text-[14px] text-[#a0a19c]">{shortDate(instance.createdAt)}</span>
+                                <span className="w-6 shrink-0 pt-0.5 text-right text-[13px] font-medium text-[#aaaba6]">{index + 1}</span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="line-clamp-1 block text-[14px] text-[#595a56]">{instance.source?.title || sourceName(instance)}</span>
+                                  <span className="mt-0.5 block text-[13px] text-[#92938e]">{instance.projects[0] || "Unfiled"} · {shortDate(instance.createdAt)}</span>
+                                </span>
                               </button>
                             ))}
                           </div>
@@ -539,8 +565,10 @@ export function App() {
                       </div>
                     );
                   })}
-                </div>
-              </>
+                    </div>
+                  </section>
+                ))}
+              </div>
             ) : !error && materials.length === 0 ? (
               <section className="mx-auto flex max-w-lg flex-col items-center px-6 py-20 text-center">
                 <span className="inline-flex size-10 items-center justify-center rounded-lg bg-[#f0f0ed] text-[#71736d]"><LibraryBig size={19} /></span>
