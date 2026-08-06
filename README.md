@@ -2,7 +2,7 @@
 
 Logue is a local-first tool for capturing and organizing information across the web. The browser extension enters text on the current page, captures selections, and appends annotations. A Python 3.13 service stores content, maintains source relationships, and processes audio with Gemini. The React Web App organizes content and projects.
 
-The released product described below is **V1**. LOGUE.ai V2 is currently in whole-product design iteration; no V2 implementation has started. The single authoritative V2 design is [`docs/design/logue-ai-product-positioning-2026-08-04.md`](./docs/design/logue-ai-product-positioning-2026-08-04.md).
+The released product described below is **V1**. LOGUE.ai V2 is now being built end to end across the real Chrome Extension, local Host/API, Web App, persisted data, and release pipeline. Storybook is supporting design evidence, not the product deliverable. The single authoritative V2 design is [`docs/design/logue-ai-product-positioning-2026-08-04.md`](./docs/design/logue-ai-product-positioning-2026-08-04.md).
 
 ## Install and upgrade
 

@@ -2,16 +2,16 @@
 
 创建：2026-08-04
 重写：2026-08-05
-状态：V2 产品设计的唯一权威稿；用户已授权基于本文重建 UI mock；不构成生产实现冻结
+状态：V2 产品与实现的唯一权威稿；用户已授权构建真实端到端产品；实现继续允许按真实证据修订本文
 
 ## 0. 文档角色
 
 - 已发布产品统一视为 V1。V1 的代码、界面、数据和设计不限制 V2。
 - 本文先定义 Logue 要解决什么问题、为谁解决、为什么值得存在，再定义功能与交互合同。
 - 竞品研究、独立审查和 mock 只是支持证据。它们不能覆盖本文，也不能反向决定产品。
-- 现有 Storybook V2 mock 已被用户否决，降级为历史探索。新 mock 只能在本文经用户确认后重新设计。
-- 当前不定义 Release、MVP、排期或兼容方案，也不开始实现。
-- V2 的 reference platform 是 Mac + Chrome Extension + Logue Host/Web App；Host 默认在当前 Mac，也可显式连接自有 LAN Host。其他桌面浏览器、Windows、Linux client 与 Mobile 属于后续平台扩展，不进入下一版 mock。
+- 当前已审查的 Storybook V2 mock 是真实产品的结构、关键流程、状态与视觉基准；真实 Extension、Logue Host/API、Web App、本机数据和安装发布才是产品完成证据。V1 中仍符合 V2 的成熟部件可以保留，不延续与 V2 冲突的 IA、对象或交互。
+- V2 已进入真实端到端实现。按可独立使用的 vertical slice 交付，不用缩减产品范围冒充完成，也不等待一次性整体重写后才验证。
+- V2 的 reference platform 是 Mac + Chrome Extension + Logue Host/Web App；Host 默认在当前 Mac，也可显式连接自有 LAN Host。其他桌面浏览器、Windows、Linux client 与 Mobile 属于后续平台扩展，不阻断当前实现。
 
 ---
 

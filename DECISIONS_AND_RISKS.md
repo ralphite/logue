@@ -13,6 +13,20 @@
 
 ## 未解决
 
+### DR-043 — V2 从可操作 mock 转入真实端到端产品构建
+
+- **优先级：** V2 产品 / P0
+- **状态：** 用户已授权；首个真实 vertical slice 已在真实 Chrome、Host 与 Web App 闭环验证，完整 V2 继续实施
+- **决定：** 旧 Goal 中的功能范围、canonical sourced round trip、完整性优先级和独立审查标准继续作为产品合同，但交付物从 Storybook UI mock 升级为真实可安装产品：Chrome Extension、Logue Host/API、Web App、本机持久数据与发布链路。当前已审查 V2 mock 是产品结构、关键流程、状态与视觉语言的实现蓝图；Storybook 仍用于设计核验，但不能单独作为完成证据。真实产品选择性复用 V1 中仍符合 V2 的成熟部件，例如 resizer、录音桥、目标丢失恢复、文件存储、引用和 installer rollback；不因来源是 V1 而删除，也不因可以复用而保留不符合 V2 的 IA、对象或交互。
+- **首个用户可见结果：** 在任意普通网页选择文字后，直接点击轻量 Mic 开始录音；录音态只显示 `Accept ↵` 与 `Cancel Esc`。Accept 原子地永久保存 Web Source、原始录音、转写与 Voice Comment；只有当前 tab 已由用户显式选择一个 Project 时才进入该 Project，默认 `Saved only` 不进入任何 Project。Cancel 不创建 Source。高级文字编辑、标签与 Project 调整只在 Side Panel/Web 渐进披露。
+- **本批 UI/对象设计：** 延续现有安静表格行、可调宽详情面板和音频 History，而不新增卡片式总览。Library 与 Project 都把 `Web Source + You Comment` 显示为一条 Comment bundle：评论是主要可读内容，选区是次级证据；打开后直接进入评论详情，提供原音、raw transcript、采用文本、选区及网页链接。搜索命中 Source 或 Comment 都返回同一 bundle；同一 bundle 不因 Source/Comment 两个持久对象而重复计数或平铺。普通非 Comment 内容继续沿用现有列表分组。
+- **同 tab Project 合同：** Side Panel 顶部只提供 `Saved only` 或一个显式 Project，选择按 tab session 保存并只作用于该 tab 的 Capture/Comment/Command；录音中隐藏 picker，避免改变正在进行的 capture 归属。background 只信任消息发送者的 `sender.tab.id`，不接受页面伪造 tab id。Voice Command 带显式 Project 时，Host 的自动检索候选也必须限定在该 Project，并把实际 Source ID 与生成时内容快照固化到 Run；无 Project 才使用私人 Library 的全局 Saved 范围。
+- **风险与内容处理：** Source 与 Comment 仍是两个可追溯持久对象，但默认界面必须表现为一个用户概念；删除、Project 调整和多评论仍需在后续批次定义 bundle 级行为，当前不得通过隐藏关系制造假成功。转写失败保留可重试终态与原音，成功后才安静消失；不得用 UI toast 代替 Web 中可核验的持久记录。
+- **数据与交付边界：** 当前机器是唯一受支持安装；改动 schema 前备份并验证当前 `.logue-data`，不保留完成迁移后的兼容代码。每个批次必须由真实 Extension → API → 本机数据 → Web 用户流程证明；针对性测试随实现运行，完整 CI/build 只在集成节点运行。验证后在 `main` 做小 commit 并立即 push。
+- **替代方案：** 继续扩 Storybook 全功能 mock，或先整体重写全部 V2 后再运行。前者不产生真实产品价值；后者延迟真实反馈且容易同时破坏多个表面。采用可独立使用的 vertical slice，逐步替换 V1 行为并保持每批可验证。
+- **已有证据：** 用户明确要求停止继续制作 mock，直接实现端到端产品，并再次强调功能完整性、用户旅程与 UX 高于 UI 边角优化。2026-08-05 已把工作区 Extension 构建安装到真实 Chrome，完成 `选区 → Mic → Accept → 安静消失`；Host 原子保存可追溯的 Selection Source、Voice Comment、原音、转写与 `comments-on` 父子关系，默认无 Project 且组织状态为 `confirmed`；真实 Web Library 只显示一条 `Web + You` bundle，详情可核验 Source page、Selected text、Original audio、Machine transcript、Comment 与 Actual context。Host 重启前创建的两条 QA 记录曾因旧进程仍加载旧代码而显示 `pending`，已先备份到 `.logue-data/backups/2026-08-05-selection-comment-runtime-reload/`，再显式修正并于重启后复验新记录为 `confirmed`。原音 API 返回 248273-byte WebM。独立产品设计复审 PASS 9.2/10，无 P0/P1。
+- **开放问题：** Comment bundle 的 bundle 级删除、多评论排序与后续团队 Publication 仍待真实使用验证；这些不阻断首个单评论闭环。后续若证明现有数据对象阻断完整产品合同，直接修改并做一次性本机数据更新，不为旧格式保留永久兼容层。
+
 ### DR-035 — V2 产品定义必须先于 UI，并废止当前 mock 的产品依据
 
 - **优先级：** 产品基础 / P0
