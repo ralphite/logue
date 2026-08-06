@@ -1,24 +1,33 @@
-import type { InlineVoicePhase } from "./InlineVoiceControls";
-import type { VoiceProfileOverrides } from "./api";
+import type { InlineVoicePhase } from "./v2-real/V2InlineVoiceSurface";
+import type { CaptureContext, VoiceProfileOverrides } from "./api";
+import type { VoiceCandidateRetranscribeInput, VoiceCandidateState } from "./v2-real/V2VoiceCandidateSurface";
 
 const messageType = "logue:google-docs-launcher";
 
-export type GoogleDocsLauncherAction = "start" | "stop" | "cancel";
-export interface GoogleDocsLauncherCommand { action: GoogleDocsLauncherAction; overrides?: VoiceProfileOverrides; }
+export type GoogleDocsLauncherAction = "start" | "stop" | "cancel" | "candidate-text" | "candidate-copy" | "candidate-insert" | "candidate-undo" | "candidate-retry" | "candidate-dismiss" | "candidate-retranscribe" | "candidate-overrides";
+export interface GoogleDocsLauncherCommand {
+  action: GoogleDocsLauncherAction;
+  overrides?: VoiceProfileOverrides;
+  text?: string;
+  retranscribeInput?: VoiceCandidateRetranscribeInput;
+}
 
 export interface GoogleDocsLauncherState {
   visible: boolean;
   phase: InlineVoicePhase;
   error: string;
   pendingCopyText: string;
+  candidate?: VoiceCandidateState;
+  profileContext?: CaptureContext;
+  profileOverrides?: VoiceProfileOverrides;
 }
 
 export function googleDocsLauncherStateMessage(state: GoogleDocsLauncherState) {
   return { type: messageType, kind: "state" as const, state };
 }
 
-export function googleDocsLauncherActionMessage(action: GoogleDocsLauncherAction, overrides?: VoiceProfileOverrides) {
-  return { type: messageType, kind: "action" as const, action, overrides };
+export function googleDocsLauncherActionMessage(action: GoogleDocsLauncherAction, values: Omit<GoogleDocsLauncherCommand, "action"> = {}) {
+  return { type: messageType, kind: "action" as const, action, ...values };
 }
 
 export function readGoogleDocsLauncherState(value: unknown): GoogleDocsLauncherState | undefined {
@@ -38,7 +47,12 @@ export function readGoogleDocsLauncherAction(value: unknown): GoogleDocsLauncher
   if (!value || typeof value !== "object") return undefined;
   const message = value as Partial<{ type: string; kind: string; action: string }>;
   if (message.type !== messageType || message.kind !== "action") return undefined;
-  return message.action === "start" || message.action === "stop" || message.action === "cancel"
-    ? { action: message.action, overrides: (value as { overrides?: VoiceProfileOverrides }).overrides }
+  return ["start", "stop", "cancel", "candidate-text", "candidate-copy", "candidate-insert", "candidate-undo", "candidate-retry", "candidate-dismiss", "candidate-retranscribe", "candidate-overrides"].includes(String(message.action))
+    ? {
+      action: message.action as GoogleDocsLauncherAction,
+      overrides: (value as GoogleDocsLauncherCommand).overrides,
+      text: (value as GoogleDocsLauncherCommand).text,
+      retranscribeInput: (value as GoogleDocsLauncherCommand).retranscribeInput,
+    }
     : undefined;
 }

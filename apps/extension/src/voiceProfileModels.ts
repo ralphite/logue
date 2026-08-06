@@ -19,6 +19,9 @@ export interface VoiceProfile {
   primary_language: string;
   mixed_languages: string[];
   custom_instructions: string;
+  phrases: string[];
+  avoid_terms: string[];
+  formatting_preference: string;
   vocabulary: VoiceProfileVocabulary;
 }
 
@@ -33,6 +36,9 @@ export interface ResolvedVoiceProfile {
   primary_language: string;
   mixed_languages: string[];
   custom_instructions: string;
+  phrases: string[];
+  avoid_terms: string[];
+  formatting_preference: string;
   vocabulary: string[];
   skill_id: string;
   skill_name: string;
@@ -52,8 +58,19 @@ export interface TopicVocabulary {
 
 export interface VoiceProfileOverrides {
   disable_project_profile?: boolean;
+  use_default_profile?: boolean;
+  profile_project?: string;
   primary_language?: string;
   topic_vocabulary_id?: string;
+}
+
+export interface ProjectAssociation {
+  id: string;
+  scope: "page" | "site";
+  key: string;
+  project_id: string;
+  project_name: string;
+  created_at: string;
 }
 
 export interface CaptureContext {
@@ -64,5 +81,6 @@ export interface CaptureContext {
   recent_adopted: string[];
   recent_adopted_refs?: Array<{ id: string; text: string }>;
   suggested_project: string;
+  project_associations: ProjectAssociation[];
   projects: Array<{ name: string; overview?: string; transcription_profile: ProjectVoiceProfile; skill_bindings?: ExtensionProjectSkillBindings }>;
 }

@@ -18,18 +18,22 @@ export function sourceFromTab(tab: Pick<chrome.tabs.Tab, "url" | "pendingUrl" | 
 
 export function mergePanelCaptureState(
   current: PanelCaptureState,
-  patch: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">> & {
+  patch: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projectExplicit" | "tags">> & {
+    projects?: string[] | null;
+    projectAssociationId?: string | null;
+    projectAssociationScope?: PanelCaptureState["projectAssociationScope"] | null;
     pendingInsert?: PendingInsert | null;
     commandResult?: CommandResult | null;
   },
 ): PanelCaptureState {
-  const { commandResult, pendingInsert, ...rest } = patch;
+  const { commandResult, pendingInsert, projects, projectAssociationId, projectAssociationScope, ...rest } = patch;
   const next = {
     ...current,
     ...rest,
-    ...(rest.projects !== undefined ? { projects: explicitProjects({ projects: rest.projects }) } : {}),
+    ...(projects !== undefined && projects !== null ? { projects: explicitProjects({ projects }) } : {}),
     updatedAt: Date.now(),
   };
+  if (projects === null) delete next.projects;
   if (pendingInsert === null) {
     delete next.pendingInsert;
   } else if (pendingInsert) {
@@ -40,6 +44,10 @@ export function mergePanelCaptureState(
   } else if (commandResult) {
     next.commandResult = commandResult;
   }
+  if (projectAssociationId === null) delete next.projectAssociationId;
+  else if (projectAssociationId) next.projectAssociationId = projectAssociationId;
+  if (projectAssociationScope === null) delete next.projectAssociationScope;
+  else if (projectAssociationScope) next.projectAssociationScope = projectAssociationScope;
   return next;
 }
 
@@ -51,7 +59,7 @@ export function explicitProjects(state?: Pick<PanelCaptureState, "projects">): s
 
 export function captureOrganization(state?: Pick<PanelCaptureState, "projects" | "tags">): CaptureOrganization {
   return {
-    projects: explicitProjects(state),
+    projects: Array.from(new Set(state?.projects?.filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim()) ?? [])),
     tags: state?.tags?.filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim()) ?? [],
   };
 }
@@ -59,7 +67,13 @@ export function captureOrganization(state?: Pick<PanelCaptureState, "projects" |
 /** Project authorization belongs to the tab, not to a URL or capture intent. */
 export function preserveTabProjects(next: PanelCaptureState, current?: PanelCaptureState): PanelCaptureState {
   if (!current || current.tabId !== next.tabId || current.projects === undefined) return next;
-  return { ...next, projects: explicitProjects(current) };
+  return {
+    ...next,
+    projects: explicitProjects(current),
+    projectExplicit: current.projectExplicit,
+    projectAssociationId: current.projectAssociationId,
+    projectAssociationScope: current.projectAssociationScope,
+  };
 }
 
 /** Content scripts cannot choose the tab whose Project authorization they read. */

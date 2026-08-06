@@ -14,15 +14,15 @@ interface LauncherAnchor {
 }
 
 const LAUNCHER_INSET = 8;
-const DEFAULT_CONTROL_WIDTH = 46;
-const DEFAULT_CONTROL_HEIGHT = 46;
+const DEFAULT_CONTROL_WIDTH = 220;
+const DEFAULT_CONTROL_HEIGHT = 44;
 
 export const inlineVoiceControlMetrics = {
-  idle: { width: 46, height: 46 },
-  error: { width: 46, height: 46 },
-  starting: { width: 86, height: 46 },
-  processing: { width: 86, height: 46 },
-  recording: { width: 86, height: 46 },
+  idle: { width: 220, height: 44 },
+  error: { width: 220, height: 44 },
+  starting: { width: 214, height: 44 },
+  processing: { width: 214, height: 44 },
+  recording: { width: 286, height: 44 },
 } as const;
 
 const ERROR_ESTIMATED_HEIGHT = 84;

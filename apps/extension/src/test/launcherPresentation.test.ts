@@ -11,7 +11,7 @@ describe("page launcher presentation", () => {
     expect(content).toContain("<InlineVoiceControls");
     expect(controls).toContain('aria-label="Start voice input"');
     expect(controls).toContain('aria-label="Cancel voice input"');
-    expect(controls).toContain('aria-label="Stop and insert voice input"');
+    expect(controls).toContain('aria-label="Stop voice input"');
     expect(controls).toContain('aria-keyshortcuts="Escape"');
     expect(controls).toContain('aria-keyshortcuts="Enter"');
     expect(content).toContain("startInlineVoice");

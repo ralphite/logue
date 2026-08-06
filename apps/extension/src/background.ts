@@ -1,3 +1,4 @@
+import type { ExtensionInputTarget, ExtensionTargetBridgeRequest, ExtensionTargetBridgeResponse } from "@logue/ui";
 import {
   explicitProjects,
   mergePanelCaptureState,
@@ -35,6 +36,15 @@ import {
   readGoogleDocsLauncherAction,
   readGoogleDocsLauncherState,
 } from "./googleDocsLauncherBridge";
+import type {
+  PendingVoicePlan,
+  PendingVoiceQueueStatus,
+  PendingVoiceRecord,
+  PendingVoiceSummary,
+  PendingVoiceTranscription,
+} from "./pendingVoice";
+import { PENDING_VOICE_CAPACITY } from "./pendingVoice";
+import type { CaptureContext } from "./voiceProfileModels";
 
 const panelStoragePrefix = "logue:panel:";
 // This is session-only Chrome UI state, not restored product data. Chrome can
@@ -42,6 +52,11 @@ const panelStoragePrefix = "logue:panel:";
 // needs this one bit to keep the toolbar command behaving as a real toggle.
 const openPanelStoragePrefix = "logue:side-panel:open:";
 const activeTabStoragePrefix = "logue:active-tab:";
+const pendingVoiceStoragePrefix = "logue:pending-voice:";
+const pairingCredentialStoragePrefix = "logue:pairing:";
+const pairingCodeStoragePrefix = "logue:pairing-code:";
+const extensionClientIdStorageKey = "logue:client-id";
+const voiceCommandShortcut = "start-voice-command";
 const openPanelTabs = new Set<number>();
 const openingPanelTabs = new Set<number>();
 const panelStates = new Map<number, PanelCaptureState>();
@@ -50,9 +65,54 @@ const inlineRecorderSessions = new Map<string, { tabId: number; frameId: number 
 let inlineRecorderDocument: Promise<void> | undefined;
 let inlineRecorderPermission: { token: string; sessionId: string } | undefined;
 
+interface PairingCredential { clientId: string; credential: string; }
+
+async function extensionClientId() {
+  const stored = await chrome.storage.local.get(extensionClientIdStorageKey);
+  const existing = stored[extensionClientIdStorageKey];
+  if (typeof existing === "string" && existing.length >= 8) return existing;
+  const created = `chrome-${crypto.randomUUID()}`;
+  await chrome.storage.local.set({ [extensionClientIdStorageKey]: created });
+  return created;
+}
+
+async function pairWithHost(origin: string) {
+  const clientId = await extensionClientId();
+  const pairingCodeKey = `${pairingCodeStoragePrefix}${origin}`;
+  const pairingCodeValue = (await chrome.storage.local.get(pairingCodeKey))[pairingCodeKey];
+  const response = await globalThis.fetch(`${origin}/v1/pairings`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ client_id: clientId, name: "Logue Chrome Extension", pairing_code: typeof pairingCodeValue === "string" ? pairingCodeValue : "" }) });
+  if (!response.ok) throw new Error((await response.text()) || "This Extension could not pair with the Logue Host.");
+  const value = await response.json() as { credential: string };
+  const pairing: PairingCredential = { clientId, credential: value.credential };
+  await chrome.storage.local.set({ [`${pairingCredentialStoragePrefix}${origin}`]: pairing });
+  await chrome.storage.local.remove(pairingCodeKey);
+  return pairing;
+}
+
+async function logueFetch(input: RequestInfo | URL, init?: RequestInit) {
+  const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+  if (url.pathname === "/v1/status" || url.pathname === "/v1/pairings") return globalThis.fetch(input, init);
+  const key = `${pairingCredentialStoragePrefix}${url.origin}`;
+  let pairing = (await chrome.storage.local.get(key))[key] as PairingCredential | undefined;
+  if (!pairing?.clientId || !pairing.credential) pairing = await pairWithHost(url.origin);
+  const authorized = (value: PairingCredential) => {
+    const headers = new Headers(init?.headers);
+    headers.set("X-Logue-Client", value.clientId);
+    headers.set("Authorization", `Bearer ${value.credential}`);
+    return globalThis.fetch(input, { ...init, headers });
+  };
+  let response = await authorized(pairing);
+  if (response.status === 401) {
+    await chrome.storage.local.remove(key);
+    pairing = await pairWithHost(url.origin);
+    response = await authorized(pairing);
+  }
+  return response;
+}
+
 interface ApiMessage {
   type: "logue:api";
-  action: "status" | "test-server" | "context" | "page-materials" | "transcribe" | "save-material" | "cancel-material-save" | "save-selection" | "delete-capture" | "skills" | "settings" | "skill-run" | "adopt-skill-run";
+  action: "status" | "test-server" | "context" | "create-project" | "save-project-association" | "delete-project-association" | "page-materials" | "project-sources" | "transcribe" | "save-material" | "update-material" | "update-comment-bundle" | "update-source-anchor" | "adopt-voice-material" | "link-voice-comment" | "delete-material" | "retranscribe-material" | "cancel-material-save" | "save-selection" | "delete-capture" | "skills" | "settings" | "skill-run" | "adopt-skill-run" | "adopt-skill-run-document" | "create-document" | "pending-voice-status" | "pending-voice-queue" | "pending-voice-list" | "pending-voice-mark-transcribed" | "pending-voice-complete" | "pending-voice-retry" | "pending-voice-export" | "pending-voice-delete";
   payload?: Record<string, unknown>;
 }
 
@@ -67,9 +127,12 @@ interface OpenPanelMessage {
 }
 
 interface PanelStateMessage {
-  type: "logue:get-panel-state" | "logue:update-panel-state" | "logue:close-side-panel" | "logue:consume-panel-autostart" | "logue:request-panel-generate" | "logue:return-panel-to-page";
+  type: "logue:get-panel-state" | "logue:resolve-tab-projects" | "logue:update-panel-state" | "logue:close-side-panel" | "logue:consume-panel-autostart" | "logue:request-panel-generate" | "logue:return-panel-to-page";
   tabId?: number;
-  patch?: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">> & {
+  patch?: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projectExplicit" | "tags" | "generationSourceIds" | "pinnedSourceIds">> & {
+    projects?: string[] | null;
+    projectAssociationId?: string | null;
+    projectAssociationScope?: PanelCaptureState["projectAssociationScope"] | null;
     pendingInsert?: PanelCaptureState["pendingInsert"] | null;
     commandResult?: PanelCaptureState["commandResult"] | null;
   };
@@ -101,7 +164,12 @@ interface MicrophonePermissionResult {
   error?: string;
 }
 
-type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage | RecordingBridgeEvent | PageContextReadyMessage | TabProjectsMessage | InlineRecorderControlMessage | ExtensionRecorderEvent | MicrophonePermissionResult;
+interface WebTargetBridgeMessage {
+  type: "logue:web-target-bridge";
+  request: ExtensionTargetBridgeRequest;
+}
+
+type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage | RecordingBridgeEvent | PageContextReadyMessage | TabProjectsMessage | InlineRecorderControlMessage | ExtensionRecorderEvent | MicrophonePermissionResult | WebTargetBridgeMessage;
 
 const nativeSidePanel = chrome.sidePanel as unknown as SidePanelChrome & {
   onOpened?: chrome.events.Event<(info: { tabId?: number; windowId?: number }) => void>;
@@ -135,6 +203,135 @@ function openPanelStorageKey(tabId: number) {
 
 function activeTabStorageKey(windowId: number) {
   return `${activeTabStoragePrefix}${windowId}`;
+}
+
+function pendingVoiceStorageKey(id: string) {
+  return `${pendingVoiceStoragePrefix}${id}`;
+}
+
+function pendingVoiceSummary(record: PendingVoiceRecord): PendingVoiceSummary {
+  const { audioBase64: _audioBase64, ...summary } = record;
+  return summary;
+}
+
+function broadcastPendingVoicesChanged() {
+  void chrome.runtime.sendMessage({ type: "logue:pending-voices-changed" }).catch(() => undefined);
+}
+
+async function readPendingVoice(id: string) {
+  const key = pendingVoiceStorageKey(id);
+  const stored = await chrome.storage.local.get(key);
+  return stored[key] as PendingVoiceRecord | undefined;
+}
+
+async function writePendingVoice(record: PendingVoiceRecord) {
+  await chrome.storage.local.set({ [pendingVoiceStorageKey(record.id)]: record });
+  broadcastPendingVoicesChanged();
+  return record;
+}
+
+async function removePendingVoice(id: string) {
+  await chrome.storage.local.remove(pendingVoiceStorageKey(id));
+  broadcastPendingVoicesChanged();
+}
+
+async function listPendingVoices() {
+  const stored = await chrome.storage.local.get(null);
+  return Object.entries(stored)
+    .filter(([key]) => key.startsWith(pendingVoiceStoragePrefix))
+    .map(([, value]) => pendingVoiceSummary(value as PendingVoiceRecord))
+    .sort((first, second) => second.createdAt - first.createdAt);
+}
+
+async function pendingVoiceQueueStatus(): Promise<PendingVoiceQueueStatus> {
+  const items = await listPendingVoices();
+  if (items.length >= PENDING_VOICE_CAPACITY) {
+    return {
+      writable: false,
+      count: items.length,
+      capacity: PENDING_VOICE_CAPACITY,
+      reason: `Saved recordings are full (${items.length}/${PENDING_VOICE_CAPACITY}). Open Logue and delete one before recording again.`,
+    };
+  }
+  const probeKey = "logue:storage-write-probe";
+  try {
+    await chrome.storage.local.set({ [probeKey]: { checkedAt: Date.now() } });
+    await chrome.storage.local.remove(probeKey);
+    return { writable: true, count: items.length, capacity: PENDING_VOICE_CAPACITY };
+  } catch {
+    await chrome.storage.local.remove(probeKey).catch(() => undefined);
+    return {
+      writable: false,
+      count: items.length,
+      capacity: PENDING_VOICE_CAPACITY,
+      reason: "Logue cannot save another recording on this Mac. Open Logue and clear a saved recording before trying again.",
+    };
+  }
+}
+
+async function queuePendingVoice(input: {
+  id: string;
+  audioBase64?: string;
+  mimeType?: string;
+  tabId?: number;
+  frameId?: number;
+  pageUrl?: string;
+  pageTitle?: string;
+  plan?: PendingVoicePlan;
+}) {
+  if (!input.id.trim()) throw new Error("The recording is missing its local identifier.");
+  const existing = await readPendingVoice(input.id);
+  if (!existing) {
+    const status = await pendingVoiceQueueStatus();
+    if (!status.writable) throw new Error(status.reason);
+  }
+  const audioBase64 = input.audioBase64 || existing?.audioBase64;
+  if (!audioBase64) throw new Error("The recording could not be saved locally.");
+  const now = Date.now();
+  return writePendingVoice({
+    id: input.id,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+    audioBase64,
+    mimeType: input.mimeType || existing?.mimeType || "audio/webm",
+    tabId: input.tabId ?? existing?.tabId,
+    frameId: input.frameId ?? existing?.frameId,
+    pageUrl: input.pageUrl ?? existing?.pageUrl,
+    pageTitle: input.pageTitle ?? existing?.pageTitle,
+    state: "pending",
+    attempts: existing?.attempts ?? 0,
+    plan: input.plan ?? existing?.plan,
+    transcription: existing?.transcription,
+  });
+}
+
+async function markPendingVoiceTranscribed(id: string, transcription: PendingVoiceTranscription) {
+  const existing = await readPendingVoice(id);
+  if (!existing) throw new Error("The locally saved recording is no longer available.");
+  return writePendingVoice({
+    ...existing,
+    updatedAt: Date.now(),
+    state: "pending",
+    error: undefined,
+    transcription,
+  });
+}
+
+async function persistStoppedRecording(
+  event: Pick<ExtensionRecorderEvent, "sessionId" | "audioBase64" | "mimeType">,
+  target: { tabId: number; frameId: number },
+) {
+  if (!event.audioBase64) throw new Error("The recording is empty.");
+  const tab = await chrome.tabs.get(target.tabId).catch(() => undefined);
+  await queuePendingVoice({
+    id: event.sessionId,
+    audioBase64: event.audioBase64,
+    mimeType: event.mimeType,
+    tabId: target.tabId,
+    frameId: target.frameId,
+    pageUrl: tab?.url,
+    pageTitle: tab?.title,
+  });
 }
 
 function disposeTabCapture(tabId: number) {
@@ -291,6 +488,93 @@ async function routeGoogleDocsLauncherAction(tabId: number, message: unknown) {
   }
 }
 
+interface LiveExtensionTarget {
+  descriptor: ExtensionInputTarget;
+  tabId: number;
+  frameId: number;
+}
+
+type TargetBridgeResult = Omit<ExtensionTargetBridgeResponse, "source" | "type" | "requestId">;
+
+async function isConfiguredLogueWebSender(sender: chrome.runtime.MessageSender) {
+  if (sender.frameId !== 0 || !sender.tab?.url) return false;
+  try {
+    const configuredOrigin = new URL(await getServerURL()).origin;
+    return new URL(sender.tab.url).origin === configuredOrigin;
+  } catch {
+    return false;
+  }
+}
+
+async function discoverLiveInputTargets(excludedTabId?: number) {
+  const tabs = await chrome.tabs.query({});
+  const discovered = await Promise.all(tabs.flatMap((tab) => {
+    if (typeof tab.id !== "number" || tab.id === excludedTabId || !tab.url || !/^https?:/i.test(tab.url)) return [];
+    return [chrome.webNavigation.getAllFrames({ tabId: tab.id }).then((frames) => Promise.all((frames ?? []).map(async (frame) => {
+      try {
+        const response = await chrome.tabs.sendMessage(tab.id!, { type: "logue:discover-input-target" }, { frameId: frame.frameId }) as { ok?: boolean; value?: ExtensionInputTarget } | undefined;
+        if (!response?.ok || !response.value?.id || !response.value.label) return undefined;
+        const trustedURL = tab.url!;
+        const descriptor: ExtensionInputTarget = {
+          id: response.value.id,
+          label: response.value.label,
+          pageTitle: tab.title?.trim() || new URL(trustedURL).hostname,
+          domain: new URL(trustedURL).hostname,
+          url: trustedURL,
+          lastFocusedAt: Number(response.value.lastFocusedAt) || 0,
+        };
+        return { descriptor, tabId: tab.id!, frameId: frame.frameId } satisfies LiveExtensionTarget;
+      } catch {
+        return undefined;
+      }
+    }))).catch(() => [] as Array<LiveExtensionTarget | undefined>)];
+  }));
+  const byId = new Map<string, LiveExtensionTarget>();
+  for (const target of discovered.flat()) if (target) byId.set(target.descriptor.id, target);
+  return [...byId.values()].sort((left, right) => right.descriptor.lastFocusedAt - left.descriptor.lastFocusedAt);
+}
+
+async function handleWebTargetBridge(message: WebTargetBridgeMessage, sender: chrome.runtime.MessageSender): Promise<TargetBridgeResult> {
+  if (!await isConfiguredLogueWebSender(sender)) return { ok: false, error: "This request did not come from the current Logue Host." };
+  const request = message.request;
+  if (
+    request?.source !== "logue-web" || request.type !== "logue:target-bridge-request" ||
+    !["list", "insert", "undo"].includes(request.action)
+  ) return { ok: false, error: "Invalid input request." };
+  const targets = await discoverLiveInputTargets(sender.tab?.id);
+  if (request.action === "list") return { ok: true, targets: targets.map((target) => target.descriptor) };
+  const target = targets.find((candidate) => candidate.descriptor.id === request.sessionId);
+  if (!target) return { ok: false, error: "This input is no longer available." };
+  if (request.action === "insert") {
+    if (!request.text) return { ok: false, error: "The Document is empty." };
+    try {
+      const response = await chrome.tabs.sendMessage(target.tabId, {
+        type: "logue:insert-external-document",
+        sessionId: target.descriptor.id,
+        text: request.text,
+      }, { frameId: target.frameId }) as { ok?: boolean; undoToken?: string; error?: string } | undefined;
+      return response?.ok && response.undoToken
+        ? { ok: true, target: target.descriptor, undoToken: response.undoToken }
+        : { ok: false, error: response?.error || "Could not write to this input." };
+    } catch {
+      return { ok: false, error: "This input is no longer available." };
+    }
+  }
+  if (!request.undoToken) return { ok: false, error: "This insert can no longer be undone." };
+  try {
+    const response = await chrome.tabs.sendMessage(target.tabId, {
+      type: "logue:undo-external-document",
+      sessionId: target.descriptor.id,
+      token: request.undoToken,
+    }, { frameId: target.frameId }) as { ok?: boolean; error?: string } | undefined;
+    return response?.ok
+      ? { ok: true, target: target.descriptor }
+      : { ok: false, error: response?.error || "This insert can no longer be undone." };
+  } catch {
+    return { ok: false, error: "This input is no longer available." };
+  }
+}
+
 function stagePanelState(state: PanelCaptureState) {
   const cached = panelStates.get(state.tabId);
   const storageKey = `${panelStoragePrefix}${state.tabId}`;
@@ -317,8 +601,13 @@ function stagePanelState(state: PanelCaptureState) {
         ...(current.draft !== undefined ? { draft: current.draft } : {}),
         ...(current.transcript !== undefined ? { transcript: current.transcript } : {}),
         ...(current.projects !== undefined ? { projects: current.projects } : {}),
+        ...(current.projectExplicit !== undefined ? { projectExplicit: current.projectExplicit } : {}),
+        ...(current.projectAssociationId !== undefined ? { projectAssociationId: current.projectAssociationId } : {}),
+        ...(current.projectAssociationScope !== undefined ? { projectAssociationScope: current.projectAssociationScope } : {}),
         ...(current.tags !== undefined ? { tags: current.tags } : {}),
         ...(current.commandResult !== undefined ? { commandResult: current.commandResult } : {}),
+        ...(current.generationSourceIds !== undefined ? { generationSourceIds: current.generationSourceIds } : {}),
+        ...(current.pinnedSourceIds !== undefined ? { pinnedSourceIds: current.pinnedSourceIds } : {}),
       };
       await persistPanelState(restored);
       broadcastPanelState(restored);
@@ -413,10 +702,12 @@ async function readPageCaptureContext(tab: chrome.tabs.Tab): Promise<PageCapture
 
 async function startPanelGenerate(tabId: number) {
   const current = await restorePanelState(tabId);
-  if (!current?.targetAvailable) return false;
+  if (!current) return false;
   const next: PanelCaptureState = {
     ...current,
     intent: "generate",
+    generationSourceIds: undefined,
+    pinnedSourceIds: undefined,
     updatedAt: Date.now(),
   };
   await persistPanelState(next);
@@ -473,11 +764,12 @@ async function toggleTabPanel(tab?: chrome.tabs.Tab) {
   void readPageCaptureContext(tab).then((context) => setPanelContext(
     tab,
     "page",
-    undefined,
+    context.selectionText,
     context.targetText,
     context.source,
     context.targetAvailable,
     context.candidateServerURL,
+    context.pageText,
   )).catch(() => undefined);
   const wasOpen = (await priorOpen)[openPanelStorageKey(tabId)] === true;
   if (wasOpen && nativeSidePanel.close) {
@@ -502,11 +794,12 @@ async function setPanelContext(
   source = sourceFromTab(tab),
   targetAvailable = false,
   candidateServerURL?: string,
+  pageText?: string,
 ) {
   const state = panelStateForTab(tab, intent, source, selectionText, targetText, undefined, targetAvailable, candidateServerURL);
   if (!state) return;
   const current = await restorePanelState(state.tabId);
-  const merged = preserveTabProjects(preserveMatchingPanelDraft(state, current), current);
+  const merged = preserveTabProjects(preserveMatchingPanelDraft({ ...state, pageText }, current), current);
   await persistPanelState(merged);
   broadcastPanelState(merged);
 }
@@ -524,6 +817,7 @@ async function refreshPanelContextFromPage(tab: chrome.tabs.Tab) {
     context.source,
     context.targetAvailable,
     context.candidateServerURL,
+    context.pageText,
   );
 }
 
@@ -533,6 +827,33 @@ function openTabPanel(tab: chrome.tabs.Tab, intent: CaptureIntent, selectionText
   if (!state) return Promise.resolve();
   return openPanelWithPreparedState(
     () => { stagePanelState(state); },
+    () => openPanel(tab.id!),
+  );
+}
+
+async function openVoiceCommandPanel(tab?: chrome.tabs.Tab) {
+  if (!tab || typeof tab.id !== "number") return;
+  const context = await readPageCaptureContext(tab);
+  const current = await restorePanelState(tab.id);
+  const base = panelStateForTab(
+    tab,
+    "generate",
+    context.source,
+    context.selectionText,
+    context.targetText,
+    undefined,
+    context.targetAvailable,
+    context.candidateServerURL,
+  );
+  if (!base) return;
+  const next: PanelCaptureState = {
+    ...preserveTabProjects(base, current),
+    pageText: context.pageText,
+    autoStartToken: createRequestId(),
+    updatedAt: Date.now(),
+  };
+  await openPanelWithPreparedState(
+    () => { stagePanelState(next); },
     () => openPanel(tab.id!),
   );
 }
@@ -567,17 +888,202 @@ function decodeBase64(value: string) {
   return bytes;
 }
 
+function pendingVoiceFallbackPlan(record: PendingVoiceRecord): PendingVoicePlan {
+  let domain = "";
+  try {
+    domain = record.pageUrl ? new URL(record.pageUrl).hostname : "";
+  } catch {
+    // A recovered note can keep an opaque page URL without inventing a domain.
+  }
+  return {
+    kind: "material",
+    transcription: {
+      pageUrl: record.pageUrl ?? "",
+      pageTitle: record.pageTitle ?? "Recovered voice note",
+      instructions: "Transcribe this recording faithfully as a saved voice note.",
+    },
+    save: {
+      kind: "voice",
+      source: {
+        url: record.pageUrl ?? "",
+        title: record.pageTitle ?? "Recovered voice note",
+        domain,
+      },
+      projects: [],
+      suggested_projects: [],
+      tags: [],
+    },
+  };
+}
+
+async function transcribePendingVoice(apiBase: string, record: PendingVoiceRecord, plan: PendingVoicePlan) {
+  if (record.transcription) return record.transcription;
+  let request = plan.transcription;
+  if (request.profileRequest && !request.appliedContext) {
+    const profileRequest = request.profileRequest;
+    const query = new URLSearchParams({
+      url: request.pageUrl,
+      project: profileRequest.project ?? "",
+      disable_project_profile: String(Boolean(profileRequest.disable_project_profile)),
+      use_default_profile: String(Boolean(profileRequest.use_default_profile)),
+      profile_project: profileRequest.profile_project ?? "",
+      language: profileRequest.primary_language ?? "",
+      topic_vocabulary_id: profileRequest.topic_vocabulary_id ?? "",
+    });
+    const context = await parseResponse(await logueFetch(`${apiBase}/v1/context?${query.toString()}`)) as CaptureContext;
+    const profile = context.resolved_voice_profile;
+    request = {
+      ...request,
+      projectContext: [profile.personal_context, profile.project_overview].filter(Boolean).join("\n\n"),
+      glossary: profile.vocabulary.join("\n"),
+      appliedContext: {
+        page_url: request.pageUrl,
+        page_title: request.pageTitle,
+        reference_project: profileRequest.project || undefined,
+        profile_project: profile.project_name || undefined,
+        personal_context: profile.personal_context || undefined,
+        project_overview: profile.project_overview || undefined,
+        glossary: profile.vocabulary,
+        voice_profile_label: profile.label,
+        project_profile_mode: profile.project_mode,
+        primary_language: profile.primary_language,
+        mixed_languages: profile.mixed_languages,
+        custom_instructions: profile.custom_instructions || undefined,
+        transcription_skill_id: profile.skill_id,
+        transcription_skill_name: profile.skill_name,
+        transcription_skill_revision: profile.skill_revision,
+        transcription_skill_instructions: profile.skill_instructions,
+        disable_project_profile: Boolean(profileRequest.disable_project_profile),
+        use_default_profile: Boolean(profileRequest.use_default_profile),
+        language_override: profileRequest.primary_language || undefined,
+        topic_vocabulary_id: profile.topic_vocabulary_id || undefined,
+        topic_vocabulary_name: profile.topic_vocabulary_name || undefined,
+        recent_adopted_ids: context.recent_adopted_refs?.map((item) => item.id) ?? [],
+        recent_adopted_texts: context.recent_adopted_refs?.map((item) => item.text) ?? context.recent_adopted,
+      },
+    };
+  }
+  const form = new FormData();
+  form.append("request_id", record.id);
+  form.append("audio", new Blob([decodeBase64(record.audioBase64)], { type: record.mimeType }), "logue-recording.webm");
+  form.append("page_url", request.pageUrl ?? "");
+  form.append("page_title", request.pageTitle ?? "");
+  form.append("target_text", request.targetText ?? "");
+  form.append("selected_text", request.selectedText ?? "");
+  form.append("project_context", request.projectContext ?? "");
+  form.append("glossary", request.glossary ?? "");
+  form.append("instructions", request.instructions ?? "");
+  if (request.appliedContext) form.append("applied_context", JSON.stringify(request.appliedContext));
+  const value = await parseResponse(await logueFetch(`${apiBase}/v1/transcribe`, { method: "POST", body: form })) as {
+    capture_id: string;
+    raw_transcript: string;
+    text: string;
+    applied_context?: Record<string, unknown>;
+  };
+  const transcription = {
+    captureId: value.capture_id,
+    rawTranscript: value.raw_transcript,
+    text: value.text,
+    appliedContext: value.applied_context,
+  };
+  await markPendingVoiceTranscribed(record.id, transcription);
+  return transcription;
+}
+
+async function retryPendingVoice(apiBase: string, id: string) {
+  const record = await readPendingVoice(id);
+  if (!record) throw new Error("The locally saved recording is no longer available.");
+  const plan = record.plan ?? pendingVoiceFallbackPlan(record);
+  await writePendingVoice({
+    ...record,
+    state: "retrying",
+    attempts: record.attempts + 1,
+    updatedAt: Date.now(),
+    error: undefined,
+  });
+  try {
+    const transcription = await transcribePendingVoice(apiBase, record, plan);
+    const voiceFields = {
+      request_id: record.id,
+      raw_transcript: transcription.rawTranscript,
+      transcript: transcription.text,
+      capture_id: transcription.captureId,
+      applied_context: transcription.appliedContext,
+    };
+    const endpoint = plan.kind === "selection" ? "/v1/selections" : "/v1/items";
+    const body = plan.kind === "selection"
+      ? { ...plan.save, ...voiceFields, annotation: transcription.text }
+      : { ...plan.save, ...voiceFields, content: transcription.text };
+    const result = await parseResponse(await logueFetch(`${apiBase}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }));
+    await removePendingVoice(id);
+    return result;
+  } catch (cause) {
+    const current = await readPendingVoice(id);
+    if (current) {
+      await writePendingVoice({
+        ...current,
+        state: "failed",
+        updatedAt: Date.now(),
+        error: cause instanceof Error ? cause.message : "Could not save this recording.",
+      });
+    }
+    throw cause;
+  }
+}
+
 async function handleApiMessage(message: ApiMessage) {
   const payload = message.payload ?? {};
+  if (message.action === "pending-voice-status") return pendingVoiceQueueStatus();
+  if (message.action === "pending-voice-list") return { items: await listPendingVoices() };
+  if (message.action === "pending-voice-export") {
+    const record = await readPendingVoice(String(payload.id ?? ""));
+    if (!record) throw new Error("The locally saved recording is no longer available.");
+    return { audioBase64: record.audioBase64, mimeType: record.mimeType, pageTitle: record.pageTitle, createdAt: record.createdAt };
+  }
+  if (message.action === "pending-voice-delete") {
+    await removePendingVoice(String(payload.id ?? ""));
+    return null;
+  }
+  if (message.action === "pending-voice-queue") {
+    const record = await queuePendingVoice({
+      id: String(payload.id ?? ""),
+      audioBase64: typeof payload.audioBase64 === "string" ? payload.audioBase64 : undefined,
+      mimeType: typeof payload.mimeType === "string" ? payload.mimeType : undefined,
+      tabId: typeof payload.tabId === "number" ? payload.tabId : undefined,
+      frameId: typeof payload.frameId === "number" ? payload.frameId : undefined,
+      pageUrl: typeof payload.pageUrl === "string" ? payload.pageUrl : undefined,
+      pageTitle: typeof payload.pageTitle === "string" ? payload.pageTitle : undefined,
+      plan: payload.plan as PendingVoicePlan | undefined,
+    });
+    return pendingVoiceSummary(record);
+  }
+  if (message.action === "pending-voice-mark-transcribed") {
+    const record = await markPendingVoiceTranscribed(String(payload.id ?? ""), payload.transcription as PendingVoiceTranscription);
+    return pendingVoiceSummary(record);
+  }
+  if (message.action === "pending-voice-complete") {
+    await removePendingVoice(String(payload.id ?? ""));
+    return null;
+  }
   const apiBase = message.action === "test-server"
     ? normalizeServerURL(String(payload.serverURL ?? ""))
     : await getServerURL();
+  if (message.action === "pending-voice-retry") return retryPendingVoice(apiBase, String(payload.id ?? ""));
   if (message.action === "test-server") {
+    const pairingCode = String(payload.pairingCode ?? "").trim();
+    if (pairingCode) {
+      await chrome.storage.local.set({ [`${pairingCodeStoragePrefix}${new URL(apiBase).origin}`]: pairingCode });
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     try {
-      const status = await parseResponse(await fetch(`${apiBase}/v1/status`, { signal: controller.signal }));
+      const status = await parseResponse(await logueFetch(`${apiBase}/v1/status`, { signal: controller.signal }));
       assertLogueServerStatus(status);
+      await parseResponse(await logueFetch(`${apiBase}/v1/settings`, { signal: controller.signal }));
       return status;
     } catch (cause) {
       if (cause instanceof DOMException && cause.name === "AbortError") {
@@ -589,7 +1095,7 @@ async function handleApiMessage(message: ApiMessage) {
     }
   }
   if (message.action === "status") {
-    const status = await parseResponse(await fetch(`${apiBase}/v1/status`));
+    const status = await parseResponse(await logueFetch(`${apiBase}/v1/status`));
     assertLogueServerStatus(status);
     return status;
   }
@@ -598,24 +1104,47 @@ async function handleApiMessage(message: ApiMessage) {
       url: String(payload.pageUrl ?? ""),
       project: String(payload.project ?? ""),
       disable_project_profile: String(Boolean(payload.disable_project_profile)),
+      use_default_profile: String(Boolean(payload.use_default_profile)),
+      profile_project: String(payload.profile_project ?? ""),
       language: String(payload.primary_language ?? ""),
       topic_vocabulary_id: String(payload.topic_vocabulary_id ?? ""),
     });
-    return parseResponse(await fetch(`${apiBase}/v1/context?${query.toString()}`));
+    return parseResponse(await logueFetch(`${apiBase}/v1/context?${query.toString()}`));
+  }
+  if (message.action === "save-project-association") {
+    return parseResponse(await logueFetch(`${apiBase}/v1/project-associations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope: payload.scope, url: payload.pageUrl, project: payload.project }),
+    }));
+  }
+  if (message.action === "create-project") {
+    return parseResponse(await logueFetch(`${apiBase}/v1/projects`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: payload.name, overview: payload.overview }),
+    }));
+  }
+  if (message.action === "delete-project-association") {
+    return parseResponse(await logueFetch(`${apiBase}/v1/project-associations/${encodeURIComponent(String(payload.id ?? ""))}`, { method: "DELETE" }));
   }
   if (message.action === "skills") {
-    return parseResponse(await fetch(`${apiBase}/v1/skills`));
+    return parseResponse(await logueFetch(`${apiBase}/v1/skills`));
   }
   if (message.action === "settings") {
-    return parseResponse(await fetch(`${apiBase}/v1/settings`));
+    return parseResponse(await logueFetch(`${apiBase}/v1/settings`));
   }
   if (message.action === "page-materials") {
     const query = new URLSearchParams({ source_url: String(payload.pageUrl ?? "") });
-    return parseResponse(await fetch(`${apiBase}/v1/items?${query.toString()}`));
+    return parseResponse(await logueFetch(`${apiBase}/v1/items?${query.toString()}`));
+  }
+  if (message.action === "project-sources") {
+    const query = new URLSearchParams({ project: String(payload.project ?? ""), query: String(payload.query ?? "") });
+    return parseResponse(await logueFetch(`${apiBase}/v1/project-sources?${query.toString()}`));
   }
   if (message.action === "skill-run") {
     return parseResponse(
-      await fetch(`${apiBase}/v1/skill-runs`, {
+      await logueFetch(`${apiBase}/v1/skill-runs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -625,16 +1154,47 @@ async function handleApiMessage(message: ApiMessage) {
   if (message.action === "adopt-skill-run") {
     const id = encodeURIComponent(String(payload.id ?? ""));
     return parseResponse(
-      await fetch(`${apiBase}/v1/skill-runs/${id}`, {
-        method: "PATCH",
+      await logueFetch(`${apiBase}/v1/skill-runs/${id}/adopt`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adopted_output: payload.adoptedOutput }),
+        body: JSON.stringify({
+          output: payload.adoptedOutput,
+          action: payload.action,
+          target: payload.target,
+        }),
+      }),
+    );
+  }
+  if (message.action === "adopt-skill-run-document") {
+    const id = encodeURIComponent(String(payload.id ?? ""));
+    return parseResponse(
+      await logueFetch(`${apiBase}/v1/skill-runs/${id}/document`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: payload.title,
+          content: payload.content,
+          document_id: payload.documentId,
+          project: payload.project,
+          source_ids: payload.sourceIds,
+          context_source_ids: payload.contextSourceIds,
+          expected_revision: payload.expectedRevision,
+        }),
+      }),
+    );
+  }
+  if (message.action === "create-document") {
+    return parseResponse(
+      await logueFetch(`${apiBase}/v1/docs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       }),
     );
   }
   if (message.action === "cancel-material-save") {
     const requestId = encodeURIComponent(String(payload.requestId ?? ""));
-    return parseResponse(await fetch(`${apiBase}/v1/cancellations/${requestId}`, { method: "POST" }));
+    return parseResponse(await logueFetch(`${apiBase}/v1/cancellations/${requestId}`, { method: "POST" }));
   }
   if (message.action === "transcribe") {
     const audioBase64 = String(payload.audioBase64 ?? "");
@@ -651,20 +1211,85 @@ async function handleApiMessage(message: ApiMessage) {
     form.append("glossary", String(payload.glossary ?? ""));
     form.append("instructions", String(payload.instructions ?? ""));
     if (payload.appliedContext) form.append("applied_context", JSON.stringify(payload.appliedContext));
-    return parseResponse(await fetch(`${apiBase}/v1/transcribe`, { method: "POST", body: form }));
+    return parseResponse(await logueFetch(`${apiBase}/v1/transcribe`, { method: "POST", body: form }));
   }
   if (message.action === "save-material") {
     return parseResponse(
-      await fetch(`${apiBase}/v1/items`, {
+      await logueFetch(`${apiBase}/v1/items`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       }),
     );
   }
+  if (message.action === "update-material") {
+    const id = encodeURIComponent(String(payload.id ?? ""));
+    return parseResponse(
+      await logueFetch(`${apiBase}/v1/items/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload.changes ?? {}),
+      }),
+    );
+  }
+  if (message.action === "update-comment-bundle") {
+    const id = encodeURIComponent(String(payload.id ?? ""));
+    return parseResponse(
+      await logueFetch(`${apiBase}/v1/items/${id}/bundle`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload.changes ?? {}),
+      }),
+    );
+  }
+  if (message.action === "update-source-anchor") {
+    const id = encodeURIComponent(String(payload.id ?? ""));
+    return parseResponse(await logueFetch(`${apiBase}/v1/items/${id}/anchor`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload.input ?? {}),
+    }));
+  }
+  if (message.action === "adopt-voice-material") {
+    const id = encodeURIComponent(String(payload.id ?? ""));
+    return parseResponse(
+      await logueFetch(`${apiBase}/v1/items/${id}/adopt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adoption_id: payload.adoptionId,
+          content: payload.content,
+          target: payload.target,
+          undone: payload.undone,
+        }),
+      }),
+    );
+  }
+  if (message.action === "link-voice-comment") {
+    const id = encodeURIComponent(String(payload.id ?? ""));
+    return parseResponse(await logueFetch(`${apiBase}/v1/items/${id}/link-comment`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: payload.content, source_content: payload.sourceContent, source: payload.source, projects: payload.projects ?? [], tags: payload.tags ?? [] }),
+    }));
+  }
+  if (message.action === "delete-material") {
+    const id = encodeURIComponent(String(payload.id ?? ""));
+    return parseResponse(await logueFetch(`${apiBase}/v1/items/${id}`, { method: "DELETE" }));
+  }
+  if (message.action === "retranscribe-material") {
+    const id = encodeURIComponent(String(payload.id ?? ""));
+    return parseResponse(
+      await logueFetch(`${apiBase}/v1/items/${id}/retranscribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload.options ?? {}),
+      }),
+    );
+  }
   if (message.action === "save-selection") {
     return parseResponse(
-      await fetch(`${apiBase}/v1/selections`, {
+      await logueFetch(`${apiBase}/v1/selections`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -673,12 +1298,105 @@ async function handleApiMessage(message: ApiMessage) {
   }
   if (message.action === "delete-capture") {
     return parseResponse(
-      await fetch(`${apiBase}/v1/captures/${encodeURIComponent(String(payload.id ?? ""))}`, {
+      await logueFetch(`${apiBase}/v1/captures/${encodeURIComponent(String(payload.id ?? ""))}`, {
         method: "DELETE",
       }),
     );
   }
   throw new Error("Unknown Logue API action.");
+}
+
+async function resolveTabProjects(tab: chrome.tabs.Tab): Promise<string[]> {
+  if (typeof tab.id !== "number") return [];
+  const tabId = tab.id;
+  const current = await restorePanelState(tabId);
+  const selectedProject = explicitProjects(current)[0] ?? "";
+  if (current?.projectExplicit && !selectedProject) return [];
+  const pageUrl = tab.url ?? tab.pendingUrl ?? current?.source.url ?? "";
+  let context: CaptureContext;
+  try {
+    context = await handleApiMessage({
+      type: "logue:api",
+      action: "context",
+      payload: { pageUrl, project: selectedProject },
+    }) as CaptureContext;
+  } catch {
+    // Existing tab intent remains usable while the Host is offline. A new tab
+    // has no resolvable rule until the Host returns.
+    return explicitProjects(current);
+  }
+
+  const latest = await restorePanelState(tabId);
+  const liveTab = await chrome.tabs.get(tabId).catch(() => tab);
+  const liveURL = liveTab.url ?? liveTab.pendingUrl ?? "";
+  const tabChanged = Boolean(liveURL && liveURL !== pageUrl);
+  const association = context.project_associations?.[0];
+  if ((latest?.updatedAt ?? 0) !== (current?.updatedAt ?? 0)) {
+    if (tabChanged) {
+      if (selectedProject && context.projects.some((project) => project.name === selectedProject)) return [selectedProject];
+      return current?.projectExplicit ? [] : association ? [association.project_name] : [];
+    }
+    return explicitProjects(latest);
+  }
+
+  if (selectedProject && context.projects.some((project) => project.name === selectedProject)) return [selectedProject];
+  if (current?.projectExplicit) {
+    if (tabChanged) return [];
+    const next: PanelCaptureState = {
+      ...current,
+      projects: [],
+      projectAssociationId: undefined,
+      projectAssociationScope: undefined,
+      generationSourceIds: undefined,
+      pinnedSourceIds: undefined,
+      updatedAt: Date.now(),
+    };
+    await persistPanelState(next);
+    broadcastPanelState(next);
+    return [];
+  }
+
+  if (tabChanged) return association ? [association.project_name] : [];
+  if (!association) {
+    if (current?.projects !== undefined || current?.projectAssociationId) {
+      const next: PanelCaptureState = {
+        ...current,
+        projects: undefined,
+        projectExplicit: false,
+        projectAssociationId: undefined,
+        projectAssociationScope: undefined,
+        generationSourceIds: undefined,
+        pinnedSourceIds: undefined,
+        updatedAt: Date.now(),
+      };
+      await persistPanelState(next);
+      broadcastPanelState(next);
+    }
+    return [];
+  }
+  const next: PanelCaptureState = current ? {
+    ...current,
+    projects: [association.project_name],
+    projectExplicit: false,
+    projectAssociationId: association.id,
+    projectAssociationScope: association.scope,
+    generationSourceIds: selectedProject === association.project_name ? current.generationSourceIds : undefined,
+    pinnedSourceIds: selectedProject === association.project_name ? current.pinnedSourceIds : undefined,
+    updatedAt: Date.now(),
+  } : {
+    tabId,
+    intent: "page",
+    source: sourceFromTab(liveTab),
+    targetAvailable: false,
+    projects: [association.project_name],
+    projectExplicit: false,
+    projectAssociationId: association.id,
+    projectAssociationScope: association.scope,
+    updatedAt: Date.now(),
+  };
+  await persistPanelState(next);
+  broadcastPanelState(next);
+  return [association.project_name];
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -699,11 +1417,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     !tab || typeof tab.id !== "number" || !info.selectionText
   ) return;
   if (isSaveSelectionMenu(info.menuItemId)) {
-    void handleApiMessage({
-      type: "logue:api",
-      action: "save-selection",
-      payload: selectionSavePayload(tab, info.selectionText, createRequestId()),
-    }).catch(() => undefined);
+    const captureTab = info.pageUrl ? { ...tab, url: info.pageUrl } : tab;
+    void resolveTabProjects(captureTab).then((projects) => handleApiMessage({
+        type: "logue:api",
+        action: "save-selection",
+        payload: { ...selectionSavePayload(captureTab, info.selectionText!, createRequestId()), projects },
+      })).catch(() => undefined);
     return;
   }
   if (isOpenSelectionMenu(info.menuItemId)) {
@@ -716,10 +1435,11 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 chrome.commands.onCommand.addListener((command, tab) => {
-  if (command !== sidePanelCommand) return;
-  if (tab) {
-    void toggleTabPanel(tab).catch(() => undefined);
+  if (command === voiceCommandShortcut) {
+    void openVoiceCommandPanel(tab).catch(() => undefined);
+    return;
   }
+  if (command === sidePanelCommand && tab) void toggleTabPanel(tab).catch(() => undefined);
 });
 
 nativeSidePanel.onOpened?.addListener((info) => {
@@ -815,10 +1535,16 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
+  if (message?.type === "logue:web-target-bridge") {
+    void handleWebTargetBridge(message, sender)
+      .then(sendResponse)
+      .catch((cause: unknown) => sendResponse({ ok: false, error: cause instanceof Error ? cause.message : "Could not reach the selected input." }));
+    return true;
+  }
   const projectRequestTabId = tabProjectRequestSender(message, sender.tab?.id);
   if (projectRequestTabId !== undefined) {
-    void restorePanelState(projectRequestTabId)
-      .then((state) => sendResponse({ ok: true, value: explicitProjects(state) }))
+    void resolveTabProjects(sender.tab!)
+      .then((projects) => sendResponse({ ok: true, value: projects }))
       .catch(() => sendResponse({ ok: true, value: [] }));
     return true;
   }
@@ -853,6 +1579,19 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
   if (isExtensionRecorderEvent(message)) {
     if (message.event === "error" && needsMicrophonePermission(message.error)) {
       void requestInlineRecorderPermission(message.sessionId);
+      return false;
+    }
+    if (message.event === "stopped") {
+      const target = inlineRecorderSessions.get(message.sessionId);
+      if (!target) return false;
+      void persistStoppedRecording(message, target)
+        .then(() => forwardInlineRecorderEvent(message))
+        .catch((cause: unknown) => forwardInlineRecorderEvent({
+          type: "logue:extension-recorder-event",
+          event: "error",
+          sessionId: message.sessionId,
+          error: cause instanceof Error ? cause.message : "The recording could not be saved locally.",
+        }));
       return false;
     }
     forwardInlineRecorderEvent(message);
@@ -906,12 +1645,28 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
 
   if (message?.type === "logue:recording-bridge-event") {
     if (typeof sender.tab?.id === "number") {
-      const panelEvent: RecordingPanelEvent = {
-        ...message,
-        type: "logue:recording-event",
-        tabId: sender.tab.id,
+      const tabId = sender.tab.id;
+      const forward = (event: RecordingBridgeEvent) => {
+        const panelEvent: RecordingPanelEvent = {
+          ...event,
+          type: "logue:recording-event",
+          tabId,
+        };
+        void chrome.runtime.sendMessage(panelEvent).catch(() => undefined);
       };
-      void chrome.runtime.sendMessage(panelEvent).catch(() => undefined);
+      if (message.event === "stopped") {
+        void persistStoppedRecording(
+          message,
+          { tabId, frameId: typeof sender.frameId === "number" ? sender.frameId : 0 },
+        ).then(() => forward(message)).catch((cause: unknown) => forward({
+          type: "logue:recording-bridge-event",
+          event: "error",
+          sessionId: message.sessionId,
+          error: cause instanceof Error ? cause.message : "The recording could not be saved locally.",
+        }));
+      } else {
+        forward(message);
+      }
     }
     return false;
   }
@@ -919,20 +1674,22 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
   if (message?.type === "logue:open-side-panel") {
     const tab = sender.tab;
     if (!tab || typeof tab.id !== "number") return false;
-    const nextState: PanelCaptureState = {
-      tabId: tab.id,
-      intent: message.intent,
-      source: message.source,
-      selectionText: message.selectionText?.trim() || undefined,
-      targetText: message.targetAvailable ? message.targetText ?? "" : undefined,
-      targetAvailable: Boolean(message.targetAvailable),
-      autoStartToken: message.autoStartRecording ? createRequestId() : undefined,
-      updatedAt: Date.now(),
-    };
-    void openPanelWithPreparedState(
-      () => { stagePanelState(nextState); },
-      () => openPanel(tab.id!),
-    ).then(() => sendResponse({ ok: true })).catch((error: unknown) => sendResponse({
+    void restorePanelState(tab.id).then((current) => {
+      const nextState = preserveTabProjects({
+        tabId: tab.id!,
+        intent: message.intent,
+        source: message.source,
+        selectionText: message.selectionText?.trim() || undefined,
+        targetText: message.targetAvailable ? message.targetText ?? "" : undefined,
+        targetAvailable: Boolean(message.targetAvailable),
+        autoStartToken: message.autoStartRecording ? createRequestId() : undefined,
+        updatedAt: Date.now(),
+      }, current);
+      return openPanelWithPreparedState(
+        () => { stagePanelState(nextState); },
+        () => openPanel(tab.id!),
+      );
+    }).then(() => sendResponse({ ok: true })).catch((error: unknown) => sendResponse({
       ok: false,
       error: error instanceof Error ? error.message : "Could not open Logue.",
     }));
@@ -945,6 +1702,21 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
       return false;
     }
     void restorePanelState(message.tabId).then((value) => sendResponse({ ok: true, value }));
+    return true;
+  }
+
+  if (message?.type === "logue:resolve-tab-projects") {
+    if (typeof message.tabId !== "number") {
+      sendResponse({ ok: true, value: undefined });
+      return false;
+    }
+    void chrome.tabs.get(message.tabId).then(async (tab) => {
+      await resolveTabProjects(tab);
+      return restorePanelState(message.tabId!);
+    }).then((value) => sendResponse({ ok: true, value })).catch((cause: unknown) => sendResponse({
+      ok: false,
+      error: cause instanceof Error ? cause.message : "Could not resolve the active Project.",
+    }));
     return true;
   }
 

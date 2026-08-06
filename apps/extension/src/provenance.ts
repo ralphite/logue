@@ -5,6 +5,7 @@ export function adoptedVoiceText(draft: string, reviewedTranscript: string) {
 export function voiceMaterialPayload(adoptedText: string, rawTranscript: string) {
   return {
     content: adoptedText,
-    transcript: rawTranscript.trim(),
+    rawTranscript: rawTranscript.trim(),
+    transcript: adoptedText.trim(),
   };
 }

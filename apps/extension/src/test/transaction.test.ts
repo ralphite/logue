@@ -39,7 +39,7 @@ describe("automatic voice input transaction", () => {
     const result = await completeVoiceInput({
       transcribe: async () => {
         order.push("transcribe");
-        return { text: "  自动插入的文字  ", captureId: "cap_1" };
+        return { text: "  自动插入的文字  ", rawTranscript: "  自动插入的文字  ", captureId: "cap_1" };
       },
       save: async (transcription) => {
         order.push(`save:${transcription.text}`);
@@ -55,14 +55,14 @@ describe("automatic voice input transaction", () => {
     expect(result).toEqual({
       materialId: "mat_1",
       inserted: true,
-      transcription: { text: "自动插入的文字", captureId: "cap_1" },
+      transcription: { text: "自动插入的文字", rawTranscript: "  自动插入的文字  ", captureId: "cap_1" },
     });
   });
 
   it("never inserts when the automatic save fails", async () => {
     const insert = vi.fn(() => true);
     await expect(completeVoiceInput({
-      transcribe: async () => ({ text: "保留的转写", captureId: "cap_1" }),
+      transcribe: async () => ({ text: "保留的转写", rawTranscript: "保留的转写", captureId: "cap_1" }),
       save: async () => { throw new Error("offline"); },
       insert,
     })).rejects.toMatchObject({
@@ -85,7 +85,7 @@ describe("automatic voice input transaction", () => {
 
   it("returns the saved material when the original target disappeared", async () => {
     const result = await completeVoiceInput({
-      transcribe: async () => ({ text: "已保存文字", captureId: "cap_1" }),
+      transcribe: async () => ({ text: "已保存文字", rawTranscript: "已保存文字", captureId: "cap_1" }),
       save: async () => ({ id: "mat_1" }),
       insert: () => false,
     });
@@ -101,7 +101,7 @@ describe("automatic selection voice annotation", () => {
     const result = await completeSelectionVoiceInput({
       transcribe: async () => {
         order.push("transcribe");
-        return { text: "  这是语音批注  ", captureId: "cap_selection" };
+        return { text: "  这是语音批注  ", rawTranscript: "  这是语音批注  ", captureId: "cap_selection" };
       },
       save: async (transcription) => {
         order.push(`save:${transcription.text}`);
@@ -109,12 +109,12 @@ describe("automatic selection voice annotation", () => {
     });
 
     expect(order).toEqual(["transcribe", "save:这是语音批注"]);
-    expect(result.transcription).toEqual({ text: "这是语音批注", captureId: "cap_selection" });
+    expect(result.transcription).toEqual({ text: "这是语音批注", rawTranscript: "  这是语音批注  ", captureId: "cap_selection" });
   });
 
   it("keeps the transcription recoverable when the automatic save is offline", async () => {
     await expect(completeSelectionVoiceInput({
-      transcribe: async () => ({ text: "断线后仍可恢复", captureId: "cap_selection" }),
+      transcribe: async () => ({ text: "断线后仍可恢复", rawTranscript: "断线后仍可恢复", captureId: "cap_selection" }),
       save: async () => { throw new Error("offline"); },
     })).rejects.toMatchObject({
       step: "save",

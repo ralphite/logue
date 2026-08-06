@@ -14,7 +14,7 @@ describe("Google Docs launcher bridge", () => {
   });
 
   it("round-trips only supported actions", () => {
-    expect(readGoogleDocsLauncherAction(googleDocsLauncherActionMessage("start"))).toBe("start");
+    expect(readGoogleDocsLauncherAction(googleDocsLauncherActionMessage("start"))).toEqual({ action: "start", overrides: undefined, text: undefined, retranscribeInput: undefined });
     expect(readGoogleDocsLauncherAction({ type: "logue:google-docs-launcher", kind: "action", action: "pause" })).toBeUndefined();
   });
 });

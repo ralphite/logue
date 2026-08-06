@@ -9,6 +9,7 @@ export async function saveBeforeInsert(input: {
 
 export interface VoiceTranscription {
   text: string;
+  rawTranscript: string;
   captureId: string;
 }
 
