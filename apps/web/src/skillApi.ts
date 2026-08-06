@@ -81,6 +81,17 @@ export interface LogueSkillRun {
   adoption?: "copy" | "insert" | "replace" | "keep" | "document";
   adoption_undone?: boolean;
   adoption_target?: { surface?: string; url?: string; target_key?: string };
+  adoption_revisions?: Array<{
+    id: string;
+    revision: number;
+    action: "copy" | "insert" | "replace" | "keep" | "document";
+    content: string;
+    material_id?: string;
+    document_id?: string;
+    document_revision?: number;
+    target?: { surface?: string; url?: string; target_key?: string };
+    undone?: boolean;
+  }>;
   status: "running" | "complete" | "failed";
   error?: string;
   created_at: string;
@@ -278,6 +289,7 @@ export async function adoptSkillRun(
   adoptedOutput: string,
   result: {
     action?: "copy" | "insert" | "replace" | "keep" | "undo";
+    adoptionId?: string;
     target?: { surface?: string; url?: string; target_key?: string };
   } = {},
 ) {
@@ -288,6 +300,7 @@ export async function adoptSkillRun(
       body: JSON.stringify({
         output: adoptedOutput,
         action: result.action ?? "copy",
+        adoption_id: result.adoptionId ?? (result.action === "undo" ? undefined : globalThis.crypto?.randomUUID?.() ?? `adopt-${Date.now()}`),
         target: result.target,
       }),
     }),
@@ -305,6 +318,7 @@ export async function saveSkillRunAsDocument(
     sourceIds?: string[];
     contextSourceIds?: string[];
     expectedRevision?: number;
+    adoptionId?: string;
   },
 ) {
   return parse<{ run: LogueSkillRun; document: LogueDocument }>(
@@ -319,6 +333,7 @@ export async function saveSkillRunAsDocument(
         source_ids: input.sourceIds,
         context_source_ids: input.contextSourceIds,
         expected_revision: input.expectedRevision,
+        adoption_id: input.adoptionId ?? globalThis.crypto?.randomUUID?.() ?? `adopt-${Date.now()}`,
       }),
     }),
   );

@@ -1224,6 +1224,7 @@ async function handleApiMessage(message: ApiMessage) {
         body: JSON.stringify({
           output: payload.adoptedOutput,
           action: payload.action,
+          adoption_id: payload.adoptionId,
           target: payload.target,
         }),
       }),
@@ -1243,6 +1244,7 @@ async function handleApiMessage(message: ApiMessage) {
           source_ids: payload.sourceIds,
           context_source_ids: payload.contextSourceIds,
           expected_revision: payload.expectedRevision,
+          adoption_id: payload.adoptionId,
         }),
       }),
     );
@@ -1322,6 +1324,7 @@ async function handleApiMessage(message: ApiMessage) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           adoption_id: payload.adoptionId,
+          action: payload.action,
           content: payload.content,
           target: payload.target,
           undone: payload.undone,

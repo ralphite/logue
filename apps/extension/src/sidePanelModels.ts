@@ -62,6 +62,7 @@ export interface CommandResult {
   materialId?: string;
   adopted?: boolean;
   adoptionPending?: "insert";
+  adoptionId?: string;
   allowInsert?: boolean;
 }
 

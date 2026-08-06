@@ -972,7 +972,7 @@ function ExtensionLauncher() {
     const adoptionId = createRequestId();
     lastInsertUndoRef.current = { token: adoptionId, transaction };
     setVoiceCandidate((current) => current ? { ...current, text, busy: true, inserted: true, canUndo: true, adoptionId, adoptionPending: "insert", error: undefined } : current);
-    void adoptVoiceMaterial(candidate.materialId, { adoptionId, content: text, target: { surface: "inline-voice", url: session.source.url, target_key: session.id } }).then(() => {
+    void adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "insert", content: text, target: { surface: "inline-voice", url: session.source.url, target_key: session.id } }).then(() => {
       setVoiceCandidate((current) => current && current.adoptionId === adoptionId ? { ...current, busy: false, adoptionPending: undefined, error: undefined } : current);
     }).catch((cause: unknown) => {
       setVoiceCandidate((current) => current && current.adoptionId === adoptionId ? { ...current, busy: false, adoptionPending: "insert", error: cause instanceof Error ? `Inserted, but Logue could not record it: ${cause.message}` : "Inserted, but Logue could not record it." } : current);
@@ -988,7 +988,7 @@ function ExtensionLauncher() {
     const copy = clipboardAlreadyWritten ? Promise.resolve() : navigator.clipboard.writeText(candidate.text);
     void copy.then(() => {
       setVoiceCandidate((current) => current ? { ...current, copied: true, inserted: false, canUndo: false, adoptionId, adoptionPending: "copy", error: undefined } : current);
-      return adoptVoiceMaterial(candidate.materialId, { adoptionId, content: candidate.text, target: { surface: "clipboard", url: session.source.url, target_key: session.id } });
+      return adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "copy", content: candidate.text, target: { surface: "clipboard", url: session.source.url, target_key: session.id } });
     }).then(() => {
       setVoiceCandidate((current) => current && current.adoptionId === adoptionId ? { ...current, busy: false, adoptionPending: undefined, error: undefined } : current);
     }).catch((cause: unknown) => {
@@ -1021,7 +1021,7 @@ function ExtensionLauncher() {
     setVoiceCandidate((current) => current ? { ...current, busy: true, error: undefined } : current);
     const request = candidate.adoptionPending === "undo"
       ? adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, undone: true })
-      : adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, content: candidate.text, target: { surface: candidate.adoptionPending === "copy" ? "clipboard" : "inline-voice", url: session.source.url, target_key: session.id } });
+      : adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, action: candidate.adoptionPending === "copy" ? "copy" : "insert", content: candidate.text, target: { surface: candidate.adoptionPending === "copy" ? "clipboard" : "inline-voice", url: session.source.url, target_key: session.id } });
     void request.then(() => setVoiceCandidate((current) => current && current.adoptionId === candidate.adoptionId ? { ...current, busy: false, adoptionPending: undefined, error: undefined } : current)).catch((cause: unknown) => setVoiceCandidate((current) => current && current.adoptionId === candidate.adoptionId ? { ...current, busy: false, error: cause instanceof Error ? cause.message : "Could not record this adoption." } : current));
   }, [voiceCandidate]);
 

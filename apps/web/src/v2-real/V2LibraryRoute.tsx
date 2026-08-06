@@ -742,6 +742,7 @@ function SourceInspector({
                       <p>{revision.content}</p>
                       <div className="v2-library-meta">
                         {shortDate(revision.created_at)}
+                        {revision.action ? ` · ${revision.action === "insert" ? "Inserted" : "Copied"}` : ""}
                         {revision.target?.surface
                           ? ` · ${revision.target.surface}`
                           : ""}

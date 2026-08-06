@@ -819,7 +819,7 @@ function SidePanelApp() {
       const adoptionId = createRequestId();
       setVoiceCandidate((value) => value ? { ...value, text, busy: true, inserted: true, copied: false, canUndo: true, adoptionId, adoptionPending: "insert", error: undefined } : value);
       try {
-        await adoptVoiceMaterial(candidate.materialId, { adoptionId, content: text, target: { surface: "side-panel-voice", url: current.source.url, target_key: generationTargetKey(current) } });
+        await adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "insert", content: text, target: { surface: "side-panel-voice", url: current.source.url, target_key: generationTargetKey(current) } });
         setVoiceCandidate((value) => value && value.adoptionId === adoptionId ? { ...value, busy: false, adoptionPending: undefined, error: undefined } : value);
       } catch (cause) {
         setVoiceCandidate((value) => value && value.adoptionId === adoptionId ? { ...value, busy: false, adoptionPending: "insert", error: cause instanceof Error ? `Inserted, but Logue could not record it: ${cause.message}` : "Inserted, but Logue could not record it." } : value);
@@ -839,7 +839,7 @@ function SidePanelApp() {
       const adoptionId = createRequestId();
       setVoiceCandidate((value) => value ? { ...value, copied: true, inserted: false, canUndo: false, adoptionId, adoptionPending: "copy", error: undefined } : value);
       try {
-        await adoptVoiceMaterial(candidate.materialId, { adoptionId, content: candidate.text, target: { surface: "clipboard", url: current.source.url, target_key: generationTargetKey(current) } });
+        await adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "copy", content: candidate.text, target: { surface: "clipboard", url: current.source.url, target_key: generationTargetKey(current) } });
         setVoiceCandidate((value) => value && value.adoptionId === adoptionId ? { ...value, busy: false, adoptionPending: undefined, error: undefined } : value);
       } catch (cause) {
         setVoiceCandidate((value) => value && value.adoptionId === adoptionId ? { ...value, busy: false, adoptionPending: "copy", error: cause instanceof Error ? `Copied, but Logue could not record it: ${cause.message}` : "Copied, but Logue could not record it." } : value);
@@ -880,7 +880,7 @@ function SidePanelApp() {
       if (candidate.adoptionPending === "undo") {
         await adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, undone: true });
       } else {
-        await adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, content: candidate.text, target: { surface: candidate.adoptionPending === "copy" ? "clipboard" : "side-panel-voice", url: current.source.url, target_key: generationTargetKey(current) } });
+        await adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, action: candidate.adoptionPending === "copy" ? "copy" : "insert", content: candidate.text, target: { surface: candidate.adoptionPending === "copy" ? "clipboard" : "side-panel-voice", url: current.source.url, target_key: generationTargetKey(current) } });
       }
       setVoiceCandidate((value) => value && value.adoptionId === candidate.adoptionId ? { ...value, busy: false, adoptionPending: undefined, error: undefined } : value);
     } catch (cause) {
@@ -1224,10 +1224,10 @@ function SidePanelApp() {
         text: result.text.trim(),
       }) as { ok?: boolean; undoToken?: string } | undefined;
       if (!response?.ok || !response.undoToken) throw new Error("target unavailable");
-      const inserted = { ...result, undoToken: response.undoToken, adoptionPending: "insert" as const };
+      const inserted = { ...result, undoToken: response.undoToken, adoptionId: response.undoToken, adoptionPending: "insert" as const };
       commitCommandResult(inserted);
       try {
-        const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
+        const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", adoptionId: inserted.adoptionId, target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
         const adopted = { ...inserted, materialId: adoptedRun.material_id, adopted: true, adoptionPending: undefined };
         commitCommandResult(adopted);
       } catch (cause) {
@@ -1250,7 +1250,7 @@ function SidePanelApp() {
     setInsertingGenerated(true);
     setError(undefined);
     try {
-      const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
+      const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", adoptionId: result.adoptionId, target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
       commitCommandResult({ ...result, materialId: adoptedRun.material_id, adopted: true, adoptionPending: undefined });
     } catch (cause) {
       setError(friendlyLocalError(cause, "save"));
@@ -1279,7 +1279,7 @@ function SidePanelApp() {
     try {
       let adoptedResult = result;
       if (result.adoptionPending) {
-        const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
+        const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", adoptionId: result.adoptionId, target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
         adoptedResult = { ...result, materialId: adoptedRun.material_id, adopted: true, adoptionPending: undefined };
         commitCommandResult(adoptedResult);
       }
@@ -1289,7 +1289,7 @@ function SidePanelApp() {
       }) as { ok?: boolean } | undefined;
       if (!response?.ok) throw new Error("target unavailable");
       const { undoToken: _consumed, adoptionPending: _pending, ...restored } = adoptedResult;
-      await adoptExtensionSkillRun(adoptedResult.runId, adoptedResult.text.trim(), { action: "undo", target: { surface: "side-panel", url: current.source.url, target_key: adoptedResult.targetKey } });
+      await adoptExtensionSkillRun(adoptedResult.runId, adoptedResult.text.trim(), { action: "undo", adoptionId: adoptedResult.adoptionId, target: { surface: "side-panel", url: current.source.url, target_key: adoptedResult.targetKey } });
       commitCommandResult(restored);
       setError(undefined);
     } catch (cause) {

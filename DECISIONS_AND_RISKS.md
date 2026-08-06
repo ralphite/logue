@@ -846,3 +846,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 仅保存表单参数并重新创建 Run；会生成新的 Activity/Source，且可能读取已变化的 Project Context。
 - **已有证据：** Phase 2 spec 审查确认 Host 已随 502 返回 failed Run，但 Side Panel catch 丢弃它，Retry 又从 `saveMaterial` 开始创建全新 lineage。
 - **开放问题：** 无。
+
+### DR-079 — Adoption 是追加事件，不是 Run 上可覆盖的单一终态
+
+- **优先级：** V2 Lineage / Phase 2 P1
+- **状态：** 已实现；Python compile、Web/Extension typecheck 与 diff check 通过，真实 Insert/Undo/Document 旅程留到 Phase 5
+- **决定：** Copy、Insert、Replace、Keep 与 Document 每次采用都追加稳定 ID 的 adoption event；Run 与物化的 AI Source 或 Document 共享事件，Undo 只标记指定 Insert/Replace event。保留产品已定义的顺序动作：用户可以先 Insert/Copy，之后再 Save as Document；两种结果都存在，但不再互相覆盖 lineage。Voice adopted revision 同时记录 Copy/Insert action。
+- **用户可见影响：** History 与 Inspector 能核验每次采用、目标、内容版本和 Undo；同一 Candidate 后续写入 Document 不会让先前 Insert/Copy 看似消失。
+- **替代方案：** 强制 Run 只能有一个 AI Source 或 Document 终态；与权威 V2 明确允许“Insert 后可选 Save as Document”冲突。
+- **已有证据：** Phase 2 审查确认 Run 的单一 `adoption` 字段会被后一次动作覆盖；权威 V2 canonical journey 与 §10.12 明确要求 adopted revision 和顺序 adoption。
+- **开放问题：** 无。

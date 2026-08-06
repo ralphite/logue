@@ -147,9 +147,20 @@ export interface ExtensionSkillRun {
   status: "running" | "complete" | "failed";
   error?: string;
   material_id?: string;
-  adoption?: "insert" | "copy" | "keep" | "document";
+  adoption?: "insert" | "copy" | "replace" | "keep" | "document";
   adoption_undone?: boolean;
   adoption_target?: { surface?: string; url?: string; target_key?: string };
+  adoption_revisions?: Array<{
+    id: string;
+    revision: number;
+    action: "copy" | "insert" | "replace" | "keep" | "document";
+    content: string;
+    material_id?: string;
+    document_id?: string;
+    document_revision?: number;
+    target?: { surface?: string; url?: string; target_key?: string };
+    undone?: boolean;
+  }>;
   sources?: Array<{
     id: string;
     kind?: string;
@@ -229,6 +240,7 @@ export async function adoptExtensionSkillRun(
   adoptedOutput: string,
   result: {
     action?: "insert" | "copy" | "replace" | "keep" | "undo";
+    adoptionId?: string;
     target?: { surface?: string; url?: string; target_key?: string };
   } = {},
 ) {
@@ -238,6 +250,7 @@ export async function adoptExtensionSkillRun(
       id,
       adoptedOutput,
       action: result.action ?? "copy",
+      adoptionId: result.adoptionId ?? (result.action === "undo" ? undefined : createRequestId()),
       target: result.target,
     },
   );
@@ -580,6 +593,7 @@ export async function saveExtensionSkillRunAsDocument(
     sourceIds?: string[];
     contextSourceIds?: string[];
     expectedRevision?: number;
+    adoptionId?: string;
   },
 ) {
   return request<{ run: ExtensionSkillRun; document: ExtensionDocument }>(
@@ -593,6 +607,7 @@ export async function saveExtensionSkillRunAsDocument(
       sourceIds: input.sourceIds,
       contextSourceIds: input.contextSourceIds,
       expectedRevision: input.expectedRevision,
+      adoptionId: input.adoptionId ?? createRequestId(),
     },
   );
 }
@@ -703,6 +718,7 @@ export async function adoptVoiceMaterial(
   id: string,
   input: {
     adoptionId: string;
+    action?: "copy" | "insert";
     content?: string;
     target?: { surface?: string; url?: string; target_key?: string };
     undone?: boolean;
@@ -711,6 +727,7 @@ export async function adoptVoiceMaterial(
   return request<VoiceMaterialResult>("adopt-voice-material", {
     id,
     adoptionId: input.adoptionId,
+    action: input.action,
     content: input.content,
     target: input.target,
     undone: input.undone,

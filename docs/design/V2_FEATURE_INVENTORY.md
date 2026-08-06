@@ -27,7 +27,7 @@
 - V2-LIN-05 — INTEGRATED — Saved only / Suggested / Added / Excluded 与 included/excluded Host 互斥。
 - V2-LIN-06 — INTEGRATED — Comment bundle 作为单一用户概念显示并共享 membership 决定。
 - V2-LIN-07 — INTEGRATED — Run 冻结 actual Sources、Skill revision、Context 与 Candidate；未采用 Candidate 不成为 Source。
-- V2-LIN-08 — INTEGRATED — 统一 adopted lineage：Copy/Insert/Replace/Undo/Keep/Document 同步持久化 AI Source 或 Document revision、Run adoption、target 与 undone lineage；Host 禁止孤立 `adopted_output`。
+- V2-LIN-08 — INTEGRATED — Copy/Insert/Replace/Keep/Document 追加稳定 adoption event，Run 与 AI Source / Document revision 共享同一事件；Undo 精确标记对应 Insert/Replace event，不覆盖此前 adoption。允许产品已定义的 Insert/Copy 后继续 Save as Document，同时保留两条 target lineage。
 - V2-LIN-09 — INTEGRATED — inline citation 编号使用 frozen `source_ids`；完整 Run Context 独立保存。
 - V2-LIN-10 — INTEGRATED — Document revision 保存 frozen source snapshots；restore endpoint 与 production consumers 已接。
 - V2-LIN-11 — INTEGRATED — AI Source 每次编辑冻结正文、parent IDs 与 exact Source snapshots；历史可核验 Web/You/AI evidence，Restore 始终创建更高 revision 且不改变 membership。
@@ -39,7 +39,7 @@
 - V2-VW-02 — INTEGRATED — Password/支付/敏感字段不启动 Voice Write。
 - V2-VW-03 — INTEGRATED — Recording → Saved raw → Transcribing → Candidate；Recording Cancel 零写入。
 - V2-VW-04 — INTEGRATED — Candidate 编辑、Insert、Esc dismiss、target lost Copy/Open、局部 Undo，且不触发宿主 Submit。
-- V2-VW-05 — INTEGRATED — Voice Write Insert/Copy/Undo 使用永久 Adopted revision，并保留失败重试。
+- V2-VW-05 — INTEGRATED — Voice Write Insert/Copy/Undo 使用永久 Adopted revision，明确持久化 Copy/Insert action 与 target，并保留失败重试。
 - V2-VW-06 — INTEGRATED — active Project 只影响 transcription，并产生 Suggested membership，不自动入 Context。
 - V2-VW-07 — INTEGRATED — 录音前显示 Profile，并可选 Default/Disabled/另一 Project、一次性语言与 Topic Vocabulary。
 - V2-VW-08 — INTEGRATED — 同一原音 Re-transcribe 产生新 revision，保留 Profile/Topic/Skill lineage且不改 membership。
@@ -53,7 +53,7 @@
 - V2-CMD-04 — INTEGRATED — parse/Model failure 保留可恢复 failed Run/Candidate；Side Panel 的 Voice/Text Command 与 Page/Selection Action 都从同一原 Run Retry，不虚假成功或重建 Source。
 - V2-CMD-05 — INTEGRATED — 多来源结果进入同 tab Side Panel，显示 actual Sources，支持 Pin/Exclude 本次 Context。
 - V2-CMD-06 — INTEGRATED — Side Panel Candidate 编辑与 Insert/Copy/Keep/Document 使用统一 adoption 合同。
-- V2-CMD-07 — INTEGRATED — Insert 采用单一 AI Source，Undo 保留 target 与 persistent undone lineage；插入后保存失败可重试。
+- V2-CMD-07 — INTEGRATED — Insert 采用单一 AI Source 并追加稳定 adoption event；Undo 按 event ID 保留 target 与 persistent undone lineage，插入后保存失败可用同 ID 幂等重试。
 - V2-CMD-08 — INTEGRATED — target expired 禁用 Insert并保留 Copy/Open in Logue。
 - V2-CMD-09 — INTEGRATED — citation inspector 打开 frozen Web/You/AI snapshot 与原 URL。
 
@@ -142,7 +142,7 @@
 - V2-SKILL-05 — INTEGRATED — resolver explicit → Project → Global → system。
 - V2-SKILL-06 — INTEGRATED — Selection 快捷条先显示用户配置的 pinned Skills，再按当前 Extension recent use 排序；Built-in 与 My Skills 都可配置 pin，隐藏 Skill 不进入 More Skills，选择后立即运行。
 - V2-SKILL-07 — INTEGRATED — Run details 显示 Skill ID/revision、解析来源、actual Context/state。
-- V2-SKILL-08 — INTEGRATED — Copy/Replace/Insert/Keep/Document consumers 复用统一 adoption 合同。
+- V2-SKILL-08 — INTEGRATED — Copy/Replace/Insert/Keep/Document consumers 复用统一 adoption event/revision 合同与稳定 action union。
 
 ## Web — Settings / Provider / data controls (J1/J9)
 
@@ -168,7 +168,7 @@
 ## Host/API、install、release
 
 - V2-OPS-01 — INTEGRATED — Host 数据目录为唯一权威；Extension 仅持有 tab/target/pending 状态。
-- V2-OPS-02 — INTEGRATED — Source/membership/comment/run/document/profile/topic/skill API 主链及 adoption 互斥/幂等已接。
+- V2-OPS-02 — INTEGRATED — Source/membership/comment/run/document/profile/topic/skill API 主链已接；adoption 使用稳定 ID 幂等，Run 同时记录 AI Source 与后续 Document adoption，不再用单一字段互相覆盖。
 - V2-OPS-03 — INTEGRATED — 当前 `.logue-data` 的 Voice/Profile/revision schema 已完成显式备份和一次性更新；production Python Host 与 Web callers 已删除四条绕过 Run/adoption 的旧 route，无 production 入口且语义冲突的 Go Host 已移除，当前 schema/API/runtime 是唯一权威。
 - V2-OPS-04 — INTEGRATED — 不保留 V1 route/schema alias 或永久 migration path。
 - V2-OPS-05 — INTEGRATED — installer 在 managed 写入前拒绝 data/snapshot 路径重叠；旧 Linux 默认 workspace 与全部 Host snapshots 使用需确认、停服冻结校验、失败恢复旧 version/unit/path/active/enabled 的一次性迁移；程序 rollback 永不接管 data root。真实安装验收留 Phase 5。

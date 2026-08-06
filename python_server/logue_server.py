@@ -242,6 +242,23 @@ class Store:
             if not path.exists():
                 atomic_json(path, skill)
 
+    def transaction_snapshot(self, prefix: str) -> Path:
+        snapshot = Path(tempfile.mkdtemp(prefix=prefix, dir=self.root.parent))
+        shutil.rmtree(snapshot)
+        try:
+            shutil.copytree(self.root, snapshot, copy_function=os.link)
+        except BaseException:
+            shutil.rmtree(snapshot, ignore_errors=True)
+            raise
+        return snapshot
+
+    def finish_transaction(self, snapshot: Path, error: BaseException | None = None) -> None:
+        if error is None:
+            shutil.rmtree(snapshot)
+            return
+        shutil.rmtree(self.root)
+        os.replace(snapshot, self.root)
+
     def _list(self, directory: str, order: str) -> list[dict[str, Any]]:
         with self.lock:
             values = [read_json(path) for path in (self.root / directory).glob("*.json")]
@@ -1329,6 +1346,9 @@ class Store:
                 content = str(value.get("content", "")).strip()
                 if not content:
                     raise ValueError("adopted content is required")
+                action = str(value.get("action", "")).strip()
+                if action not in {"copy", "insert"}:
+                    raise ValueError("voice adoption action must be copy or insert")
                 target = value.get("target") if isinstance(value.get("target"), dict) else {}
                 target = {
                     key: str(target.get(key, "")).strip()
@@ -1338,6 +1358,7 @@ class Store:
                 revisions.append({
                     "id": adoption_id,
                     "revision": len(revisions) + 1,
+                    "action": action,
                     "content": content,
                     "target": target,
                     "undone": False,
@@ -2066,52 +2087,82 @@ class Store:
             run = self.get("skill-runs", identifier)
             if run.get("status") != "complete":
                 raise ValueError("only a completed result can be saved as a document")
+            adoption_id = str(value.get("adoption_id", "")).strip() or make_id("adp_")
+            revisions = list(run.get("adoption_revisions")) if isinstance(run.get("adoption_revisions"), list) else []
+            existing_event = next(
+                (entry for entry in revisions if isinstance(entry, dict) and entry.get("id") == adoption_id),
+                None,
+            )
+            if existing_event:
+                if existing_event.get("action") != "document":
+                    raise Conflict("this adoption id already belongs to another action")
+                document_id = str(existing_event.get("document_id", "")).strip()
+                if not document_id:
+                    raise ValueError("the adopted Document is unavailable")
+                return run, self.get("docs", document_id)
             existing_document_id = str(run.get("document_id", "")).strip()
             if existing_document_id:
                 return run, self.get("docs", existing_document_id)
             content = str(value.get("content", "")).strip()
             if not content:
                 raise ValueError("document content is required")
-            target_document_id = str(value.get("document_id", "")).strip()
-            if target_document_id:
-                target = self.get("docs", target_document_id)
-                document = self.update_document(target_document_id, {
-                    "title": value.get("title", target.get("title", "Untitled")),
-                    "content": content,
-                    "project": value.get("project", target.get("project", "")),
-                    "source_ids": value.get("source_ids", target.get("source_ids", [])),
-                    "context_source_ids": value.get("context_source_ids", target.get("context_source_ids", target.get("source_ids", []))),
-                    "sources": value.get("sources", target.get("sources", run.get("sources", []))),
-                    "context_sources": value.get("context_sources", target.get("context_sources", run.get("sources", []))),
-                    "expected_revision": value.get("expected_revision", target.get("revision", 1)),
-                })
+            snapshot = self.transaction_snapshot("logue-document-adoption-")
+            try:
+                target_document_id = str(value.get("document_id", "")).strip()
+                if target_document_id:
+                    target = self.get("docs", target_document_id)
+                    document = self.update_document(target_document_id, {
+                        "title": value.get("title", target.get("title", "Untitled")),
+                        "content": content,
+                        "project": value.get("project", target.get("project", "")),
+                        "source_ids": value.get("source_ids", target.get("source_ids", [])),
+                        "context_source_ids": value.get("context_source_ids", target.get("context_source_ids", target.get("source_ids", []))),
+                        "sources": value.get("sources", target.get("sources", run.get("sources", []))),
+                        "context_sources": value.get("context_sources", target.get("context_sources", run.get("sources", []))),
+                        "expected_revision": value.get("expected_revision", target.get("revision", 1)),
+                    })
+                else:
+                    document_id = f"doc_{identifier.removeprefix('run_')}"
+                    document_path = self.root / "docs" / f"{document_id}.json"
+                    if document_path.exists():
+                        document = read_json(document_path)
+                    else:
+                        document = self.create_document({
+                            "title": value.get("title") or str(run.get("instruction", "")).split("\n")[0][:72] or "Untitled",
+                            "content": content,
+                            "project": run.get("project", ""),
+                            "source_ids": run.get("source_ids", []),
+                            "sources": run.get("sources", []),
+                            "context_sources": run.get("sources", []),
+                        }, identifier=document_id, preserve_sources=True)
+                event = {
+                    "id": adoption_id,
+                    "revision": len(revisions) + 1,
+                    "action": "document",
+                    "content": document["content"],
+                    "document_id": document["id"],
+                    "document_revision": int(document.get("revision", 1)),
+                    "undone": False,
+                    "created_at": now(),
+                }
+                revisions.append(event)
+                document_revisions = list(document.get("adoption_revisions")) if isinstance(document.get("adoption_revisions"), list) else []
+                document_revisions.append(event)
+                document["adoption_revisions"] = document_revisions
+                atomic_json(self.root / "docs" / f"{document['id']}.json", document)
                 run["adopted_output"] = document["content"]
                 run["document_id"] = document["id"]
                 run["adoption"] = "document"
                 run["adoption_undone"] = False
+                run["adoption_revisions"] = revisions
                 run["updated_at"] = now()
                 atomic_json(self.root / "skill-runs" / f"{identifier}.json", run)
-                return run, document
-            document_id = f"doc_{identifier.removeprefix('run_')}"
-            document_path = self.root / "docs" / f"{document_id}.json"
-            if document_path.exists():
-                document = read_json(document_path)
+            except BaseException as error:
+                self.finish_transaction(snapshot, error)
+                raise
             else:
-                document = self.create_document({
-                    "title": value.get("title") or str(run.get("instruction", "")).split("\n")[0][:72] or "Untitled",
-                    "content": content,
-                    "project": run.get("project", ""),
-                    "source_ids": run.get("source_ids", []),
-                    "sources": run.get("sources", []),
-                    "context_sources": run.get("sources", []),
-                }, identifier=document_id, preserve_sources=True)
-            run["adopted_output"] = document["content"]
-            run["document_id"] = document["id"]
-            run["adoption"] = "document"
-            run["adoption_undone"] = False
-            run["updated_at"] = now()
-            atomic_json(self.root / "skill-runs" / f"{identifier}.json", run)
-            return run, document
+                self.finish_transaction(snapshot)
+                return run, document
 
     def update_document(self, identifier: str, changes: dict[str, Any]) -> dict[str, Any]:
         with self.lock:
@@ -2382,6 +2433,8 @@ class Store:
             action = str(value.get("action", "")).strip()
             if action not in {"copy", "insert", "replace", "keep", "undo"}:
                 raise ValueError("invalid adoption action")
+            revisions = list(run.get("adoption_revisions")) if isinstance(run.get("adoption_revisions"), list) else []
+            adoption_id = str(value.get("adoption_id", "")).strip()
             target = value.get("target") if isinstance(value.get("target"), dict) else {}
             target = {
                 key: str(target.get(key, "")).strip()
@@ -2389,75 +2442,144 @@ class Store:
                 if str(target.get(key, "")).strip()
             }
             if action == "undo":
-                material_id = str(run.get("material_id", "")).strip()
+                existing = next(
+                    (
+                        entry
+                        for entry in reversed(revisions)
+                        if isinstance(entry, dict)
+                        and not entry.get("undone")
+                        and entry.get("action") in {"insert", "replace"}
+                        and (not adoption_id or entry.get("id") == adoption_id)
+                    ),
+                    None,
+                )
+                if not existing:
+                    raise ValueError("adopted revision not found")
+                material_id = str(existing.get("material_id", run.get("material_id", ""))).strip()
                 if not material_id:
                     raise ValueError("this Run has no adopted AI Source to undo")
                 material = self.get("items", material_id)
-                run["adoption_undone"] = True
-                if target:
-                    run["adoption_target"] = target
-                run["updated_at"] = now()
-                atomic_json(self.root / "skill-runs" / f"{identifier}.json", run)
-                return run, material
+                snapshot = self.transaction_snapshot("logue-adoption-undo-")
+                try:
+                    existing["undone"] = True
+                    existing["undone_at"] = now()
+                    if target:
+                        existing["undo_target"] = target
+                    material_revisions = list(material.get("adoption_revisions")) if isinstance(material.get("adoption_revisions"), list) else []
+                    material_event = next(
+                        (entry for entry in material_revisions if isinstance(entry, dict) and entry.get("id") == existing.get("id")),
+                        None,
+                    )
+                    if material_event:
+                        material_event.update({key: existing[key] for key in ("undone", "undone_at", "undo_target") if key in existing})
+                    material["adoption_revisions"] = material_revisions
+                    material["updated_at"] = now()
+                    atomic_json(self.root / "items" / f"{material_id}.json", material)
+                    run["adoption_revisions"] = revisions
+                    run["adoption_undone"] = True
+                    if target:
+                        run["adoption_target"] = target
+                    run["updated_at"] = now()
+                    atomic_json(self.root / "skill-runs" / f"{identifier}.json", run)
+                except BaseException as error:
+                    self.finish_transaction(snapshot, error)
+                    raise
+                else:
+                    self.finish_transaction(snapshot)
+                    return run, material
 
             output = str(value.get("output", "")).strip()
             if not output:
                 raise ValueError("adopted output is required")
-            parent_ids = normalize(run.get("source_ids"))
-            activity_source_id = str(run.get("activity_source_id", "")).strip()
-            if activity_source_id and activity_source_id not in parent_ids:
-                parent_ids.append(activity_source_id)
-            if not parent_ids and str(run.get("selection", "")).strip():
-                selection = str(run["selection"]).strip()
-                source = self.create_item({
-                    "request_id": f"skill-run:{identifier}:input-source",
-                    "kind": "text" if str(run.get("target_text", "")).strip() else "selection",
-                    "content": selection,
-                    "source": {
-                        "url": str(run.get("page_url", "")),
-                        "title": str(run.get("page_title", "")),
-                        "selection": selection,
-                    },
-                    "projects": [str(run.get("project", "")).strip()] if str(run.get("project", "")).strip() else [],
-                    "actor": "user",
-                }, organization_status="confirmed")
-                parent_ids.append(source["id"])
-            material_id = str(run.get("material_id", "")).strip()
-            if material_id:
-                material = self.get("items", material_id)
-                if str(material.get("content", "")) != output:
-                    material = self.update_item(material_id, {
+            adoption_id = adoption_id or make_id("adp_")
+            existing = next((entry for entry in revisions if isinstance(entry, dict) and entry.get("id") == adoption_id), None)
+            if existing:
+                if existing.get("action") != action or str(existing.get("content", "")) != output or existing.get("target", {}) != target:
+                    raise Conflict("this adoption id already belongs to another result")
+                material_id = str(existing.get("material_id", run.get("material_id", ""))).strip()
+                if not material_id:
+                    raise ValueError("the adopted AI Source is unavailable")
+                return run, self.get("items", material_id)
+            snapshot = self.transaction_snapshot("logue-run-adoption-")
+            try:
+                parent_ids = normalize(run.get("source_ids"))
+                activity_source_id = str(run.get("activity_source_id", "")).strip()
+                if activity_source_id and activity_source_id not in parent_ids:
+                    parent_ids.append(activity_source_id)
+                if not parent_ids and str(run.get("selection", "")).strip():
+                    selection = str(run["selection"]).strip()
+                    source = self.create_item({
+                        "request_id": f"skill-run:{identifier}:input-source",
+                        "kind": "text" if str(run.get("target_text", "")).strip() else "selection",
+                        "content": selection,
+                        "source": {
+                            "url": str(run.get("page_url", "")),
+                            "title": str(run.get("page_title", "")),
+                            "selection": selection,
+                        },
+                        "projects": [str(run.get("project", "")).strip()] if str(run.get("project", "")).strip() else [],
+                        "actor": "user",
+                    }, organization_status="confirmed")
+                    parent_ids.append(source["id"])
+                material_id = str(run.get("material_id", "")).strip()
+                if material_id:
+                    material = self.get("items", material_id)
+                    if str(material.get("content", "")) != output:
+                        material = self.update_item(material_id, {
+                            "content": output,
+                            "parent_ids": parent_ids,
+                            "sources": run.get("sources", []),
+                        })
+                else:
+                    project = str(run.get("project", "")).strip()
+                    material = self.create_item({
+                        "request_id": f"skill-run:{identifier}:adopted-source",
+                        "kind": "derived",
                         "content": output,
+                        "source": {
+                            "url": str(run.get("page_url", "")),
+                            "title": str(run.get("page_title", "")).strip() or f"{run.get('skill_name', 'Skill')} result",
+                            "selection": str(run.get("selection", "")),
+                        },
+                        "projects": [project] if project else [],
+                        "actor": "Logue AI",
                         "parent_ids": parent_ids,
                         "sources": run.get("sources", []),
-                    })
-            else:
-                project = str(run.get("project", "")).strip()
-                material = self.create_item({
-                    "request_id": f"skill-run:{identifier}:adopted-source",
-                    "kind": "derived",
+                        "run_id": identifier,
+                    }, organization_status="confirmed")
+                    material_id = material["id"]
+                event = {
+                    "id": adoption_id,
+                    "revision": len(revisions) + 1,
+                    "action": action,
                     "content": output,
-                    "source": {
-                        "url": str(run.get("page_url", "")),
-                        "title": str(run.get("page_title", "")).strip() or f"{run.get('skill_name', 'Skill')} result",
-                        "selection": str(run.get("selection", "")),
-                    },
-                    "projects": [project] if project else [],
-                    "actor": "Logue AI",
-                    "parent_ids": parent_ids,
-                    "sources": run.get("sources", []),
-                    "run_id": identifier,
-                }, organization_status="confirmed")
-                material_id = material["id"]
-            run["adopted_output"] = output
-            run["material_id"] = material_id
-            run["adoption"] = action
-            run["adoption_undone"] = False
-            if target:
-                run["adoption_target"] = target
-            run["updated_at"] = now()
-            atomic_json(self.root / "skill-runs" / f"{identifier}.json", run)
-            return run, material
+                    "target": target,
+                    "material_id": material_id,
+                    "material_revision": int(material.get("revision", 1)),
+                    "undone": False,
+                    "created_at": now(),
+                }
+                revisions.append(event)
+                material_revisions = list(material.get("adoption_revisions")) if isinstance(material.get("adoption_revisions"), list) else []
+                material_revisions.append(event)
+                material["adoption_revisions"] = material_revisions
+                material["updated_at"] = now()
+                atomic_json(self.root / "items" / f"{material_id}.json", material)
+                run["adopted_output"] = output
+                run["material_id"] = material_id
+                run["adoption"] = action
+                run["adoption_undone"] = False
+                run["adoption_revisions"] = revisions
+                if target:
+                    run["adoption_target"] = target
+                run["updated_at"] = now()
+                atomic_json(self.root / "skill-runs" / f"{identifier}.json", run)
+            except BaseException as error:
+                self.finish_transaction(snapshot, error)
+                raise
+            else:
+                self.finish_transaction(snapshot)
+                return run, material
 
     def save_capture(self, data: bytes, mime_type: str, context: dict[str, Any] | None) -> str:
         if not data:
