@@ -32,6 +32,7 @@ import { V2ProjectRoute } from "./V2ProjectRoute";
 import { V2SkillsRoute } from "./V2SkillsRoute";
 import { V2DocumentsRoute } from "./V2DocumentsRoute";
 import { V2LibraryRoute } from "./V2LibraryRoute";
+import { V2SetupRoute } from "./V2SetupRoute";
 import "../v2-mock/styles/surfaces.css";
 
 type LibraryTab = "saved" | "activity";
@@ -149,6 +150,10 @@ export function RealLogueV2App() {
   const navigate = useCallback((next: V2PrimaryRoute) => { const url = new URL(window.location.href); url.searchParams.set("view", next === "library" ? "stream" : next); window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`); setRoute(next); }, []);
 
   if (error) return <ProjectShell route={route} onRouteChange={navigate}><div className="v2-editor-scroll"><div className="v2-list-axis"><div className="v2-page-heading-copy"><h1>Logue Host</h1><p>Your interface is ready, but the local Host needs attention.</p></div><div className="v2-recovery-card"><p>{error}</p><Button variant="primary" onClick={() => void refresh()}>Retry</Button></div></div></div></ProjectShell>;
+  const hasExplicitLocalRoute = new URLSearchParams(window.location.search).has("view");
+  if (status && !status.ai_configured && !hasExplicitLocalRoute) {
+    return <V2SetupRoute status={status} onReady={refresh} onBrowseLocal={() => navigate("library")} />;
+  }
   if (route === "projects") return <V2ProjectRoute projects={projects} materials={materials} documents={documents} runs={runs} skills={skills} settings={settings} aiReady={Boolean(status?.ai_configured)} onRoute={navigate} onRefresh={refresh} />;
   if (route === "documents") return <V2DocumentsRoute documents={documents} projects={projects} materials={materials} skills={skills} aiReady={Boolean(status?.ai_configured)} onRoute={navigate} onRefresh={refresh} />;
   if (route === "skills") return <V2SkillsRoute skills={skills} settings={settings} onRoute={navigate} onRefresh={refresh} />;

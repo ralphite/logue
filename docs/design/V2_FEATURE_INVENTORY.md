@@ -146,7 +146,7 @@
 
 ## Web — Settings / Provider / data controls (J1/J9)
 
-- V2-SET-01 — INTEGRATED — 首次 Setup 远程 provider Connect/Test/Save，无账号、本地模型。
+- V2-SET-01 — INTEGRATED — 无显式 route 的首次打开挂载远程 provider Connect/Test/Save Setup；无账号、无本地模型，并可直接 Browse local Library，不阻断本机内容。
 - V2-SET-02 — INTEGRATED — Voice/AI Ready 与 credential Needs attention。
 - V2-SET-03 — INTEGRATED — provider 未 Ready 不阻断本地内容浏览，AI/Voice 使用时提示 Settings → Models。
 - V2-SET-04 — INTEGRATED — Host、数据目录、storage 使用量、pending captures、模型处理边界。

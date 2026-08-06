@@ -856,3 +856,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 强制 Run 只能有一个 AI Source 或 Document 终态；与权威 V2 明确允许“Insert 后可选 Save as Document”冲突。
 - **已有证据：** Phase 2 审查确认 Run 的单一 `adoption` 字段会被后一次动作覆盖；权威 V2 canonical journey 与 §10.12 明确要求 adopted revision 和顺序 adoption。
 - **开放问题：** 无。
+
+### DR-080 — 首次 Setup 只占默认入口，不阻断本地内容
+
+- **优先级：** V2 Setup / Phase 2 P1
+- **状态：** 已实现；Web typecheck 与 diff check 通过，真实首次启动留到 Phase 5
+- **决定：** Host 尚未配置远程 provider 且 URL 没有显式 `view` 时显示 V2 Setup；用户可以 Connect/Test/Save，也可以直接进入 local Library。任何显式 Projects/Library/Documents/Skills/Settings route 都继续打开本地产品，AI/Voice 动作在使用点恢复。
+- **用户可见影响：** 新用户会看到明确的首次连接流程，但不需要账号，也不会因暂未配置 provider 而无法查看自己的本机资料。
+- **替代方案：** 未 Ready 时始终强制 Setup；违反本地内容不被 provider 状态阻断的既定合同。
+- **已有证据：** Phase 2 spec 审查确认 `V2SetupRoute` 完全未被 production import，root 无论 `ai_configured` 都直接进入 Projects。
+- **开放问题：** 无。
