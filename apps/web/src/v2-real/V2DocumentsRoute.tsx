@@ -7,9 +7,11 @@ import {
   History,
   PanelRightClose,
   RotateCcw,
+  Redo2,
   Send,
   Sparkles,
   Trash2,
+  Undo2,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -33,6 +35,7 @@ import {
   type LogueSkillRun,
 } from "../skillApi";
 import { Button, IconButton } from "../components/ui";
+import { sanitizeEditorHTML } from "../components/DocumentWorkspace";
 import { OriginLabel } from "../v2-mock/primitives/OriginLabel";
 import { ProjectShell, type V2PrimaryRoute } from "../v2-mock/web/ProjectShell";
 import {
@@ -119,6 +122,10 @@ export function V2DocumentsRoute({
     useState<ExtensionInputTarget>();
   const [targetBusy, setTargetBusy] = useState(false);
   const [targetError, setTargetError] = useState("");
+  const [editorHistory, setEditorHistory] = useState({
+    undo: false,
+    redo: false,
+  });
   const [targetUndo, setTargetUndo] = useState<{
     target: ExtensionInputTarget;
     token: string;
@@ -172,6 +179,7 @@ export function V2DocumentsRoute({
     setOpenCitationSourceId(undefined);
     setTargetUndo(undefined);
     setTargetError("");
+    setEditorHistory({ undo: false, redo: false });
     setError("");
     const saved = selected?.id
       ? readNavigationState().documents?.positions?.[selected.id]
@@ -189,6 +197,23 @@ export function V2DocumentsRoute({
       });
     }
   }, [selected?.id, selected?.revision]);
+
+  function refreshEditorHistory() {
+    setEditorHistory({
+      undo: document.queryCommandEnabled("undo"),
+      redo: document.queryCommandEnabled("redo"),
+    });
+  }
+
+  function applyEditorHistory(direction: "undo" | "redo") {
+    const editor = editorRef.current;
+    if (!editor || preview) return;
+    editor.focus({ preventScroll: true });
+    document.execCommand(direction);
+    setContent(sanitizeEditorHTML(editor.innerHTML));
+    setDirty(true);
+    window.requestAnimationFrame(refreshEditorHistory);
+  }
   useEffect(() => {
     if (!actionSkillId)
       setActionSkillId(
@@ -793,6 +818,22 @@ export function V2DocumentsRoute({
                   <Sparkles size={14} />
                   Apply
                 </Button>
+                <IconButton
+                  label="Undo edit"
+                  variant="ghost"
+                  disabled={Boolean(preview) || !editorHistory.undo}
+                  onClick={() => applyEditorHistory("undo")}
+                >
+                  <Undo2 size={15} />
+                </IconButton>
+                <IconButton
+                  label="Redo edit"
+                  variant="ghost"
+                  disabled={Boolean(preview) || !editorHistory.redo}
+                  onClick={() => applyEditorHistory("redo")}
+                >
+                  <Redo2 size={15} />
+                </IconButton>
                 <Button
                   size="sm"
                   onClick={() =>
@@ -942,10 +983,12 @@ export function V2DocumentsRoute({
                   onChange={(value) => {
                     setContent(value);
                     setDirty(true);
+                    window.requestAnimationFrame(refreshEditorHistory);
                   }}
                   onCaretChange={(caret) => {
                     if (selected?.id)
                       saveDocumentPosition(selected.id, { caret });
+                    refreshEditorHistory();
                   }}
                 />
               )}
