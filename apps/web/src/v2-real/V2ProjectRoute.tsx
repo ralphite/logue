@@ -47,7 +47,9 @@ import { groupLibraryMaterials } from "../commentBundles";
 import {
   adoptSkillRun,
   createSkillRun,
+  retrySkillRun,
   saveSkillRunAsDocument,
+  SkillRunFailure,
   type LogueSkill,
   type LogueSkillRun,
 } from "../skillApi";
@@ -663,11 +665,44 @@ export function V2ProjectRoute({
       setSourcePickerOpen(false);
       setOpenSourceId(undefined);
     } catch (cause) {
+      if (cause instanceof SkillRunFailure) {
+        setRun(cause.run);
+        setResultMode(mode);
+        setCandidate(cause.run.original_output ?? "");
+        setRunError(`${cause.message} The failed Run and its Sources are saved.`);
+        await onRefresh();
+        return;
+      }
       setRunError(
         cause instanceof Error
           ? cause.message
           : "Could not create this result.",
       );
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function retryCurrentRun() {
+    if (!run || run.status !== "failed" || running) return;
+    setRunning(true);
+    setRunError("");
+    try {
+      const retried = await retrySkillRun(run);
+      setRun(retried);
+      setCandidate(retried.original_output ?? "");
+      await onRefresh();
+    } catch (cause) {
+      if (cause instanceof SkillRunFailure) {
+        setRun(cause.run);
+        setCandidate(cause.run.original_output ?? "");
+        setRunError(`${cause.message} The failed Run and its Sources are saved.`);
+        await onRefresh();
+      } else {
+        setRunError(
+          cause instanceof Error ? cause.message : "Could not retry this Run.",
+        );
+      }
     } finally {
       setRunning(false);
     }
@@ -990,23 +1025,37 @@ export function V2ProjectRoute({
             ))}
           </div>
           <div className="v2-inline-actions v2-actions-end">
-            <Button size="sm" onClick={() => void copyCandidate()}>
-              <Copy size={14} />
-              Copy
-            </Button>
-            {run.output_type === "document" ? (
-              <Button size="sm" onClick={() => beginContinuation(run)}>
-                Continue
+            {run.status === "failed" ? (
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={running}
+                onClick={() => void retryCurrentRun()}
+              >
+                {running ? "Retrying…" : "Retry"}
               </Button>
             ) : null}
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={() => void saveCandidateDocument()}
-            >
-              <FilePlus2 size={14} />
-              Save as document
-            </Button>
+            {run.status === "complete" ? (
+              <>
+                <Button size="sm" onClick={() => void copyCandidate()}>
+                  <Copy size={14} />
+                  Copy
+                </Button>
+                {run.output_type === "document" ? (
+                  <Button size="sm" onClick={() => beginContinuation(run)}>
+                    Continue
+                  </Button>
+                ) : null}
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => void saveCandidateDocument()}
+                >
+                  <FilePlus2 size={14} />
+                  Save as document
+                </Button>
+              </>
+            ) : null}
           </div>
           {run.adopted_output ? (
             <div className="v2-local-ready">

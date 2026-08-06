@@ -172,7 +172,10 @@ export function SettingsRoute({
   onRoute: (route: V2PrimaryRoute) => void;
   onRefresh: () => Promise<void>;
 }) {
-  const [tab, setTab] = useState<SettingsTab>("Host");
+  const [tab, setTab] = useState<SettingsTab>(() => {
+    const requested = new URLSearchParams(window.location.search).get("section");
+    return requested?.toLowerCase() === "models" ? "Models" : "Host";
+  });
   const [draft, setDraft] = useState<WorkspaceSettings>(
     settings ?? {
       personal_context: "",

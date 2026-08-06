@@ -872,9 +872,15 @@ async function parseResponse(response: Response) {
       typeof value === "object" && value && "error" in value
         ? String((value as { error: unknown }).error)
         : text || `The Logue service returned an error (${response.status}).`;
-    const error = new Error(message) as Error & { captureId?: string };
+    const error = new Error(message) as Error & {
+      captureId?: string;
+      run?: unknown;
+    };
     if (typeof value === "object" && value && "capture_id" in value) {
       error.captureId = String((value as { capture_id: unknown }).capture_id);
+    }
+    if (typeof value === "object" && value && "run" in value) {
+      error.run = (value as { run: unknown }).run;
     }
     throw error;
   }
@@ -1794,6 +1800,10 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
         captureId:
           error instanceof Error && "captureId" in error
             ? String((error as Error & { captureId?: string }).captureId ?? "")
+            : undefined,
+        run:
+          error instanceof Error && "run" in error
+            ? (error as Error & { run?: unknown }).run
             : undefined,
       }),
     );

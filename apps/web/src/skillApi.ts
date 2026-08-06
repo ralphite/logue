@@ -87,6 +87,16 @@ export interface LogueSkillRun {
   updated_at: string;
 }
 
+export class SkillRunFailure extends Error {
+  run: LogueSkillRun;
+
+  constructor(message: string, run: LogueSkillRun) {
+    super(message);
+    this.name = "SkillRunFailure";
+    this.run = run;
+  }
+}
+
 async function parse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const body = await response.text();
@@ -100,6 +110,23 @@ async function parse<T>(response: Response): Promise<T> {
     throw new Error(message || `Request failed (${response.status})`);
   }
   return response.json() as Promise<T>;
+}
+
+async function parseSkillRun(response: Response): Promise<LogueSkillRun> {
+  const body = await response.text();
+  let value: { error?: string; run?: LogueSkillRun } | LogueSkillRun | undefined;
+  try {
+    value = body ? (JSON.parse(body) as typeof value) : undefined;
+  } catch {
+    // A plain-text failure still becomes an actionable request error below.
+  }
+  if (!response.ok) {
+    const failure = value as { error?: string; run?: LogueSkillRun } | undefined;
+    const message = failure?.error || body || `Request failed (${response.status})`;
+    if (failure?.run) throw new SkillRunFailure(message, failure.run);
+    throw new Error(message);
+  }
+  return value as LogueSkillRun;
 }
 
 export async function getSkills() {
@@ -222,11 +249,26 @@ export async function createSkillRun(input: {
   const requestId =
     globalThis.crypto?.randomUUID?.() ??
     `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  return parse<LogueSkillRun>(
+  return parseSkillRun(
     await fetch(`${apiBase}/v1/skill-runs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...input, request_id: requestId }),
+    }),
+  );
+}
+
+export async function retrySkillRun(run: LogueSkillRun) {
+  return parseSkillRun(
+    await fetch(`${apiBase}/v1/skill-runs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        retry_run_id: run.id,
+        request_id:
+          globalThis.crypto?.randomUUID?.() ??
+          `web-retry-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      }),
     }),
   );
 }

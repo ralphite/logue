@@ -47,15 +47,18 @@ interface ApiResponse<T> {
   value?: T;
   error?: string;
   captureId?: string;
+  run?: ExtensionSkillRun;
 }
 
 export class ExtensionApiError extends Error {
   captureId?: string;
+  run?: ExtensionSkillRun;
 
-  constructor(message: string, captureId?: string) {
+  constructor(message: string, captureId?: string, run?: ExtensionSkillRun) {
     super(message);
     this.name = "ExtensionApiError";
     this.captureId = captureId;
+    this.run = run;
   }
 }
 
@@ -69,6 +72,7 @@ async function request<T>(action: string, payload?: Record<string, unknown>) {
     throw new ExtensionApiError(
       response?.error || "Could not connect to the Logue service.",
       response?.captureId,
+      response?.run,
     );
   }
   return response.value as T;

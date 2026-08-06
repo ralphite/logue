@@ -177,7 +177,7 @@
 
 ## Failure recovery / keyboard / accessibility
 
-- V2-FAIL-01 — CODED — §14 Host/offline/transcription/model/target/insert 主要恢复状态已分散实现，未逐项闭合。
+- V2-FAIL-01 — INTEGRATED — Host offline 与 transcription failure 保留本地录音并提供 Retry/Reconnect/Export/Delete；provider 未 Ready 指向 Settings，失败 Run 与 Sources 在 Web/Side Panel 保留并可直接 Retry；target lost / insert changed 保留 Candidate/Document 并只提供 Copy、改选 target 或安全局部 Undo。
 - V2-FAIL-02 — INTEGRATED — Enter mode-local、Esc/Cancel、阻止宿主 Submit 的 Inline/Command/Comment 键盘合同。
 - V2-FAIL-03 — CODED — 可发现且可修改的全局快捷键管理尚不完整。
 - V2-FAIL-04 — CODED — menu/dialog/drawer focus 与返回焦点已有共享原语，所有新 V2 surface 尚未统一。
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-FAIL-01`
-- 完成条件：把 Host offline、transcription failure、model not ready/failed、target lost 与 insert changed 五类核心失败收敛为可见、可恢复且不产生虚假成功的真实生产状态；保留已保存 Source/Document/Candidate，并只提供当下有效的 Retry、Reconnect、Copy、Choose another target 或 Settings 动作。
+- `ACTIVE: V2-FAIL-03`
+- 完成条件：把 Voice Write 与 Voice Command 的全局快捷键作为 Settings 中可发现、可修改、可恢复默认值的真实 Extension 合同；变更后立即更新 Chrome Commands，冲突/无效组合明确保留旧值，不制造虚假保存。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

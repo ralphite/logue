@@ -450,6 +450,8 @@ export interface V2SidePanelSurfaceProps {
   onConnectServer: () => void;
   onConnectCandidateServer: () => void;
   onRetryServer: () => void;
+  onRetryModel: () => void;
+  onOpenModelSettings: () => void;
   onVoiceProfileOverridesChange?: (value: VoiceProfileOverrides) => void;
   onVoiceProfilePickerOpenChange?: (value: boolean) => void;
   onVoiceCandidateTextChange?: (value: string) => void;
@@ -543,6 +545,8 @@ export function V2SidePanelSurface({
   onConnectServer,
   onConnectCandidateServer,
   onRetryServer,
+  onRetryModel,
+  onOpenModelSettings,
   onVoiceProfileOverridesChange = () => undefined,
   onVoiceProfilePickerOpenChange = () => undefined,
   onVoiceCandidateTextChange = () => undefined,
@@ -1640,7 +1644,11 @@ export function V2SidePanelSurface({
             </>
           )}
         </div>
-        {!serverSettingsOpen && !voiceCandidate && !generatedText ? (
+        {!serverSettingsOpen &&
+        !voiceCandidate &&
+        !generatedText &&
+        error?.kind !== "service" &&
+        error?.kind !== "model" ? (
           <footer className="v2-panel-footer">
             {phase === "recording" ? (
               <div className="v2-panel-composer">
@@ -1766,6 +1774,18 @@ export function V2SidePanelSurface({
                 {serverConnecting ? "Retrying…" : "Retry Host"}
               </V2Button>
               <V2Button onClick={onOpenServerSettings}>Change Host…</V2Button>
+            </div>
+          </footer>
+        ) : null}
+        {error?.kind === "model" && !serverSettingsOpen ? (
+          <footer className="v2-panel-footer">
+            <div className="v2-inline-actions">
+              <V2Button onClick={onRetryModel} disabled={generating}>
+                {generating ? "Retrying…" : "Retry"}
+              </V2Button>
+              <V2Button onClick={onOpenModelSettings}>
+                Model settings…
+              </V2Button>
             </div>
           </footer>
         ) : null}

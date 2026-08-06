@@ -90,7 +90,13 @@ export interface PanelCaptureState {
 }
 
 export interface LocalError {
-  kind: "microphone" | "transcription" | "save" | "target" | "service";
+  kind:
+    | "microphone"
+    | "transcription"
+    | "save"
+    | "target"
+    | "service"
+    | "model";
   message: string;
   action: "retry" | "copy" | "change-server";
 }

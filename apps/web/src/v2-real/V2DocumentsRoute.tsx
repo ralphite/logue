@@ -32,7 +32,9 @@ import {
 import {
   adoptSkillRun,
   createSkillRun,
+  retrySkillRun,
   saveSkillRunAsDocument,
+  SkillRunFailure,
   type LogueSkill,
   type LogueSkillRun,
 } from "../skillApi";
@@ -277,11 +279,43 @@ export function V2DocumentsRoute({
     try {
       setRevisions(await getDocumentRevisions(selected.id));
     } catch (cause) {
+      if (cause instanceof SkillRunFailure) {
+        setActionRun(cause.run);
+        setActionText(cause.run.original_output ?? "");
+        setError(`${cause.message} The failed Run and its Sources are saved.`);
+        await onRefresh();
+        return;
+      }
       setError(
         cause instanceof Error
           ? cause.message
           : "Could not load revision history.",
       );
+    }
+  }
+
+  async function retryDocumentAction() {
+    if (!actionRun || actionRun.status !== "failed" || actionBusy) return;
+    setActionBusy(true);
+    setError("");
+    try {
+      const retried = await retrySkillRun(actionRun);
+      setActionRun(retried);
+      setActionText(retried.original_output ?? "");
+      await onRefresh();
+    } catch (cause) {
+      if (cause instanceof SkillRunFailure) {
+        setActionRun(cause.run);
+        setActionText(cause.run.original_output ?? "");
+        setError(`${cause.message} The failed Run and its Sources are saved.`);
+        await onRefresh();
+      } else {
+        setError(
+          cause instanceof Error ? cause.message : "Could not retry this Run.",
+        );
+      }
+    } finally {
+      setActionBusy(false);
     }
   }
 
@@ -1206,33 +1240,46 @@ export function V2DocumentsRoute({
                     onChange={(event) => setActionText(event.target.value)}
                   />
                   <div className="v2-inline-actions v2-actions-end">
+                    {actionRun.status === "failed" ? (
+                      <Button
+                        variant="primary"
+                        disabled={actionBusy}
+                        onClick={() => void retryDocumentAction()}
+                      >
+                        {actionBusy ? "Retrying…" : "Retry"}
+                      </Button>
+                    ) : null}
                     <Button
                       disabled={actionBusy}
                       onClick={() => setActionRun(undefined)}
                     >
                       Cancel
                     </Button>
-                    <Button
-                      disabled={actionBusy || !actionText.trim()}
-                      onClick={() => void adoptAction("copy")}
-                    >
-                      <Copy size={14} />
-                      Copy
-                    </Button>
-                    <Button
-                      disabled={actionBusy || !actionText.trim()}
-                      onClick={() => void adoptAction("keep")}
-                    >
-                      <Sparkles size={14} />
-                      Keep in Logue
-                    </Button>
-                    <Button
-                      variant="primary"
-                      disabled={actionBusy || !actionText.trim()}
-                      onClick={() => void adoptAction("replace")}
-                    >
-                      Replace selection
-                    </Button>
+                    {actionRun.status === "complete" ? (
+                      <>
+                        <Button
+                          disabled={actionBusy || !actionText.trim()}
+                          onClick={() => void adoptAction("copy")}
+                        >
+                          <Copy size={14} />
+                          Copy
+                        </Button>
+                        <Button
+                          disabled={actionBusy || !actionText.trim()}
+                          onClick={() => void adoptAction("keep")}
+                        >
+                          <Sparkles size={14} />
+                          Keep in Logue
+                        </Button>
+                        <Button
+                          variant="primary"
+                          disabled={actionBusy || !actionText.trim()}
+                          onClick={() => void adoptAction("replace")}
+                        >
+                          Replace selection
+                        </Button>
+                      </>
+                    ) : null}
                   </div>
                 </section>
               ) : null}

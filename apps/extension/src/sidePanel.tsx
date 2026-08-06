@@ -125,6 +125,7 @@ function SidePanelApp() {
   const [pageMaterials, setPageMaterials] = useState<PageMaterial[]>([]);
   const [generationSources, setGenerationSources] = useState<CommandResult["sources"]>([]);
   const [error, setError] = useState<LocalError>();
+  const [failedPageSkillId, setFailedPageSkillId] = useState<string>();
   const [elapsed, setElapsed] = useState(0);
   const [skills, setSkills] = useState<ExtensionSkill[]>([]);
   const [skillId, setSkillId] = useState("");
@@ -653,6 +654,11 @@ function SidePanelApp() {
             || availableSkills.find((item) => item.output === "insert");
           if (!resolvedSkill) throw new Error("No Voice Command Skill is available.");
           const targetKey = generationTargetKey(current);
+          const nextState = { ...current, generationSourceIds: projectSources.map((source) => source.id), pinnedSourceIds: [], updatedAt: Date.now() };
+          stateRef.current = nextState;
+          setState(nextState);
+          setSkillId(resolvedSkill.id);
+          persistDraft({ generationSourceIds: nextState.generationSourceIds, pinnedSourceIds: [] });
           const run = await createExtensionSkillRun({
             skillId: resolvedSkill.id,
             instruction: result.text,
@@ -666,10 +672,6 @@ function SidePanelApp() {
             activitySourceId: activity.id,
           });
           if (run.status !== "complete" || !run.original_output?.trim()) throw new Error(run.error || "No result returned.");
-          const nextState = { ...current, generationSourceIds: projectSources.map((source) => source.id), pinnedSourceIds: [], updatedAt: Date.now() };
-          stateRef.current = nextState;
-          setState(nextState);
-          persistDraft({ generationSourceIds: nextState.generationSourceIds, pinnedSourceIds: [] });
           commitCommandResult({
             runId: run.id,
             originalText: run.original_output,
@@ -692,7 +694,8 @@ function SidePanelApp() {
           persistDraft({ draft: "" });
           setError(undefined);
         } catch (cause) {
-          setError({ kind: "service", message: cause instanceof Error ? cause.message : "Could not create this sourced draft.", action: "retry" });
+          setFailedPageSkillId(undefined);
+          setError(friendlyLocalError(cause, "model"));
         } finally {
           setGenerating(false);
         }
@@ -1017,8 +1020,10 @@ function SidePanelApp() {
           source: source.source ?? undefined,
         })),
       });
+      setFailedPageSkillId(undefined);
     } catch (cause) {
-      setError(friendlyLocalError(cause, "service"));
+      setFailedPageSkillId(undefined);
+      setError(friendlyLocalError(cause, "model"));
     } finally {
       setGenerating(false);
     }
@@ -1081,8 +1086,10 @@ function SidePanelApp() {
           source: source.source ?? undefined,
         })),
       });
+      setFailedPageSkillId(undefined);
     } catch (cause) {
-      setError(friendlyLocalError(cause, "service"));
+      setFailedPageSkillId(requestedSkillId);
+      setError(friendlyLocalError(cause, "model"));
     } finally {
       setGenerating(false);
     }
@@ -1883,6 +1890,17 @@ function SidePanelApp() {
       onConnectServer={connectConfiguredServer}
       onConnectCandidateServer={connectCandidateServer}
       onRetryServer={() => void refreshServerConnection()}
+      onRetryModel={() => {
+        if (failedPageSkillId) void runPageSkill(failedPageSkillId);
+        else void runGeneration();
+      }}
+      onOpenModelSettings={() => {
+        void getServerURL().then((serverURL) =>
+          chrome.tabs.create({
+            url: `${serverURL.replace(/\/$/, "")}/?view=settings&section=models`,
+          }),
+        );
+      }}
       onVoiceProfileOverridesChange={setVoiceProfileOverrides}
       onVoiceProfilePickerOpenChange={setVoiceProfilePickerOpen}
       onVoiceCandidateTextChange={(text) => {

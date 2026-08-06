@@ -105,6 +105,19 @@ export function friendlyLocalError(cause: unknown, kind: LocalError["kind"]): Lo
   if (kind === "transcription") {
     return { kind, message: "Transcription failed. The recording is still available.", action: "retry" };
   }
+  if (kind === "model") {
+    const runSaved =
+      cause instanceof Error &&
+      "run" in cause &&
+      Boolean((cause as Error & { run?: unknown }).run);
+    return {
+      kind,
+      message: runSaved
+        ? `${message || "Generation failed."} The failed Run and its Sources are saved.`
+        : message || "Generation failed. Check the provider in Logue Settings.",
+      action: "retry",
+    };
+  }
   return { kind, message: kind === "save" ? "Not saved yet. Try again." : "Could not start recording.", action: "retry" };
 }
 
