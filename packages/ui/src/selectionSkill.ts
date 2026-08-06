@@ -19,6 +19,12 @@ export interface SelectionSkillAnchor {
 export interface SelectionSkillApplyTransaction {
   runId: string;
   replacement: string;
+  adoptionId: string;
+  target: { surface: string; url?: string; target_key?: string };
+}
+
+export interface SelectionSkillReplacementTransaction {
+  undo: () => boolean;
 }
 
 export type EditableSelectionSnapshot =
@@ -137,10 +143,10 @@ export function captureStableEditableSelection(
 
 export async function saveSelectionSkillHistory(
   transaction: SelectionSkillApplyTransaction,
-  adopt: (runId: string, replacement: string) => Promise<unknown>,
+  adopt: (runId: string, replacement: string, adoptionId: string, target: SelectionSkillApplyTransaction["target"]) => Promise<unknown>,
 ) {
   try {
-    await adopt(transaction.runId, transaction.replacement);
+    await adopt(transaction.runId, transaction.replacement, transaction.adoptionId, transaction.target);
     return undefined;
   } catch {
     return transaction;
@@ -161,16 +167,29 @@ export function selectionSnapshotStillMatches(snapshot: EditableSelectionSnapsho
   return snapshot.target.contains(snapshot.range.commonAncestorContainer) && snapshot.range.toString() === snapshot.text;
 }
 
-export function replaceSelectionIfUnchanged(snapshot: EditableSelectionSnapshot, replacement: string) {
-  if (!selectionSnapshotStillMatches(snapshot)) return false;
+export function replaceSelectionWithUndoIfUnchanged(snapshot: EditableSelectionSnapshot, replacement: string): SelectionSkillReplacementTransaction | undefined {
+  if (!selectionSnapshotStillMatches(snapshot)) return undefined;
   const normalized = replacement.replace(/\r\n?/g, "\n");
   if (snapshot.kind === "input") {
+    const beforeValue = snapshot.target.value;
     snapshot.target.focus({ preventScroll: true });
     snapshot.target.setRangeText(normalized, snapshot.start, snapshot.end, "end");
+    const afterValue = snapshot.target.value;
     snapshot.target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: normalized }));
     snapshot.target.dispatchEvent(new Event("change", { bubbles: true }));
-    return true;
+    return {
+      undo: () => {
+        if (!snapshot.target.isConnected || snapshot.target.value !== afterValue) return false;
+        snapshot.target.focus({ preventScroll: true });
+        snapshot.target.value = beforeValue;
+        snapshot.target.setSelectionRange(snapshot.start, snapshot.end);
+        snapshot.target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "historyUndo", data: null }));
+        snapshot.target.dispatchEvent(new Event("change", { bubbles: true }));
+        return true;
+      },
+    };
   }
+  const beforeHTML = snapshot.target.innerHTML;
   snapshot.target.focus({ preventScroll: true });
   const selection = window.getSelection();
   selection?.removeAllRanges();
@@ -195,5 +214,18 @@ export function replaceSelectionIfUnchanged(snapshot: EditableSelectionSnapshot,
   selection?.removeAllRanges();
   selection?.addRange(snapshot.range);
   snapshot.target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: normalized }));
-  return true;
+  const afterHTML = snapshot.target.innerHTML;
+  return {
+    undo: () => {
+      if (!snapshot.target.isConnected || snapshot.target.innerHTML !== afterHTML) return false;
+      snapshot.target.focus({ preventScroll: true });
+      snapshot.target.innerHTML = beforeHTML;
+      snapshot.target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "historyUndo", data: null }));
+      return true;
+    },
+  };
+}
+
+export function replaceSelectionIfUnchanged(snapshot: EditableSelectionSnapshot, replacement: string) {
+  return Boolean(replaceSelectionWithUndoIfUnchanged(snapshot, replacement));
 }

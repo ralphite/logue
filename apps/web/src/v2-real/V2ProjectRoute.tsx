@@ -18,7 +18,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createProjectVoiceProfile,
   createMaterial,
@@ -46,6 +46,7 @@ import {
 import { groupLibraryMaterials } from "../commentBundles";
 import {
   adoptSkillRun,
+  createAdoptionId,
   createSkillRun,
   retrySkillRun,
   saveSkillRunAsDocument,
@@ -82,6 +83,24 @@ const vocabularyCategories: Array<{ key: VocabularyCategory; label: string }> =
   ];
 
 type DisplaySource = Material | SkillRunSourceSnapshot;
+
+function activityLabel(activityType: Material["activityType"]) {
+  if (activityType === "voice-command") return "Voice Command";
+  if (activityType === "text-command") return "Text Command";
+  if (activityType === "ask") return "Ask";
+  if (activityType === "compare") return "Compare";
+  if (activityType === "draft") return "Draft";
+  return "Run";
+}
+
+function adoptionActionLabel(action?: string) {
+  if (action === "copy") return "Copy";
+  if (action === "insert") return "Insert";
+  if (action === "replace") return "Replace";
+  if (action === "keep") return "Keep";
+  if (action === "document") return "Document";
+  return "Adopted";
+}
 
 function materialTitle(material: DisplaySource) {
   return (
@@ -345,6 +364,7 @@ export function V2ProjectRoute({
   const [run, setRun] = useState<LogueSkillRun>();
   const [resultMode, setResultMode] = useState<RequestMode>("ask");
   const [candidate, setCandidate] = useState("");
+  const candidateAdoptionAttempts = useRef<Partial<Record<"copy" | "document", { id: string; content: string }>>>({});
   const [continuation, setContinuation] = useState<{
     runId: string;
     output: string;
@@ -804,10 +824,15 @@ export function V2ProjectRoute({
 
   async function copyCandidate() {
     if (!run || !candidate.trim()) return;
+    const content = candidate.trim();
+    const previousAttempt = candidateAdoptionAttempts.current.copy;
+    const adoptionId = previousAttempt?.content === content ? previousAttempt.id : createAdoptionId();
+    candidateAdoptionAttempts.current.copy = { id: adoptionId, content };
     await navigator.clipboard.writeText(candidate.trim());
     setRun(
       await adoptSkillRun(run.id, candidate.trim(), {
         action: "copy",
+        adoptionId,
         target: {
           surface: "clipboard",
           target_key: `project:${project?.name ?? ""}`,
@@ -815,15 +840,22 @@ export function V2ProjectRoute({
       }),
     );
     await onRefresh();
+    delete candidateAdoptionAttempts.current.copy;
   }
 
   async function saveCandidateDocument() {
     if (!run || !candidate.trim()) return;
+    const content = candidate.trim();
+    const previousAttempt = candidateAdoptionAttempts.current.document;
+    const adoptionId = previousAttempt?.content === content ? previousAttempt.id : createAdoptionId();
+    candidateAdoptionAttempts.current.document = { id: adoptionId, content };
     const result = await saveSkillRunAsDocument(run.id, {
       title: run.instruction.slice(0, 72),
       content: candidate.trim(),
+      adoptionId,
     });
     await onRefresh();
+    delete candidateAdoptionAttempts.current.document;
     setDocumentId(result.document.id);
     setRun(undefined);
     setCandidate("");
@@ -1767,7 +1799,7 @@ export function V2ProjectRoute({
                 <div className="v2-page-heading-copy">
                   <h1>Project History</h1>
                   <p>
-                    Every Ask, Draft, Command, and Skill Run keeps the exact
+                    Every Ask, Compare, Draft, Command, and Skill Run keeps the exact
                     Sources and Skill revision it used.
                   </p>
                 </div>
@@ -1777,12 +1809,19 @@ export function V2ProjectRoute({
                   </div>
                 ) : null}
                 <div className="v2-review-list">
-                  {projectRuns.map((item) => (
+                  {projectRuns.map((item) => {
+                    const activity = materials.find(
+                      (material) => material.id === item.activity_source_id,
+                    );
+                    const adoptionTrail = item.adoption_revisions
+                      ?.map((revision) => adoptionActionLabel(revision.action))
+                      .join(" → ");
+                    return (
                     <article className="v2-review-row" key={item.id}>
                       <div>
                         <OriginLabel
                           origin="ai"
-                          detail={`${item.skill_name} · ${item.status}`}
+                          detail={`${activityLabel(activity?.activityType)} · ${item.skill_name} · ${item.status}`}
                         />
                         <h3>{item.instruction}</h3>
                         <ContentSummary
@@ -1804,6 +1843,7 @@ export function V2ProjectRoute({
                             : item.status === "failed"
                               ? " · recoverable"
                               : " · candidate"}
+                          {adoptionTrail ? ` · ${adoptionTrail}` : ""}
                           {item.continue_run_id ? " · continued Draft" : ""}
                           {item.retry_run_id ? " · retry" : ""}
                           {item.pinned ? " · pinned" : ""}
@@ -1841,7 +1881,8 @@ export function V2ProjectRoute({
                         </Button>
                       </div>
                     </article>
-                  ))}
+                    );
+                  })}
                   {!projectRuns.length ? (
                     <div className="v2-recovery-card">
                       <p>

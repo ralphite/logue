@@ -18,6 +18,8 @@ export interface VoiceCandidateState {
   error?: string;
   adoptionId?: string;
   adoptionPending?: "copy" | "insert" | "undo";
+  adoptionTarget?: { surface?: string; url?: string; target_key?: string };
+  undoNeedsInsert?: boolean;
 }
 
 export interface VoiceCandidateRetranscribeInput {

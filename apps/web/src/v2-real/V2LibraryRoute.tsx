@@ -14,7 +14,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   captureAudioURL,
   executeDeletion,
@@ -42,7 +42,7 @@ import {
   groupLibraryMaterials,
   type LibraryMaterialGroup,
 } from "../commentBundles";
-import { adoptSkillRun, saveSkillRunAsDocument } from "../skillApi";
+import { adoptSkillRun, createAdoptionId, saveSkillRunAsDocument } from "../skillApi";
 import { Button, IconButton } from "../components/ui";
 import { RecordingAudioPlayer } from "../components/RecordingAudioPlayer";
 import {
@@ -127,6 +127,24 @@ function shortDate(value: string) {
         ? undefined
         : "numeric",
   });
+}
+
+function activityLabel(activityType: Material["activityType"]) {
+  if (activityType === "voice-command") return "Voice Command";
+  if (activityType === "text-command") return "Text Command";
+  if (activityType === "ask") return "Ask";
+  if (activityType === "compare") return "Compare";
+  if (activityType === "draft") return "Draft";
+  return "Activity";
+}
+
+function adoptionActionLabel(action?: string) {
+  if (action === "copy") return "Copy";
+  if (action === "insert") return "Insert";
+  if (action === "replace") return "Replace";
+  if (action === "keep") return "Keep";
+  if (action === "document") return "Document";
+  return "Adopted";
 }
 
 function anchorStatusLabel(
@@ -738,12 +756,11 @@ function SourceInspector({
                     <div>
                       <OriginLabel
                         origin="ai"
-                        detail={`Revision ${revision.revision}${revision.undone ? " · Undone" : ""}`}
+                        detail={`${adoptionActionLabel(revision.action)} · Revision ${revision.revision}${revision.undone ? " · Undone" : ""}`}
                       />
                       <p>{contentSummary(revision.content)}</p>
                       <div className="v2-library-meta">
                         {shortDate(revision.created_at)}
-                        {revision.action ? ` · ${revision.action === "insert" ? "Inserted" : "Copied"}` : ""}
                         {revision.target?.surface
                           ? ` · ${revision.target.surface}`
                           : ""}
@@ -906,6 +923,7 @@ export function RunInspector({
   const [error, setError] = useState("");
   const [deletePreview, setDeletePreview] = useState<DeletionPreview>();
   const [deleteConfirm, setDeleteConfirm] = useState("");
+  const adoptionAttempts = useRef<Partial<Record<"copy" | "document", { id: string; content: string }>>>({});
   const adopted = Boolean(
     run.adopted_output || run.document_id || run.material_id,
   );
@@ -913,14 +931,18 @@ export function RunInspector({
   const copy = async () => {
     setBusy(true);
     setError("");
+    const previousAttempt = adoptionAttempts.current.copy;
+    const adoptionId = previousAttempt?.content === draft ? previousAttempt.id : createAdoptionId();
+    adoptionAttempts.current.copy = { id: adoptionId, content: draft };
     try {
       await navigator.clipboard.writeText(draft);
-      if (!adopted)
-        await adoptSkillRun(run.id, draft, {
-          action: "copy",
-          target: { surface: "clipboard", target_key: `activity:${run.id}` },
-        });
+      await adoptSkillRun(run.id, draft, {
+        action: "copy",
+        adoptionId,
+        target: { surface: "clipboard", target_key: `activity:${run.id}` },
+      });
       await onRefresh();
+      delete adoptionAttempts.current.copy;
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not copy this result.",
@@ -932,12 +954,17 @@ export function RunInspector({
   const saveDocument = async () => {
     setBusy(true);
     setError("");
+    const previousAttempt = adoptionAttempts.current.document;
+    const adoptionId = previousAttempt?.content === draft ? previousAttempt.id : createAdoptionId();
+    adoptionAttempts.current.document = { id: adoptionId, content: draft };
     try {
       await saveSkillRunAsDocument(run.id, {
         title: run.skill_name,
         content: draft,
+        adoptionId,
       });
       await onRefresh();
+      delete adoptionAttempts.current.document;
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not create a Document.",
@@ -1077,6 +1104,31 @@ export function RunInspector({
                 <FilePlus2 size={14} />
                 Save as Document
               </Button>
+            </div>
+          </section>
+        ) : null}
+        {run.adoption_revisions?.length ? (
+          <section className="v2-settings-section">
+            <h2>Adoption history</h2>
+            <div className="v2-review-list">
+              {[...run.adoption_revisions]
+                .sort((left, right) => right.revision - left.revision)
+                .map((revision) => (
+                  <article className="v2-review-row" key={revision.id}>
+                    <div>
+                      <OriginLabel
+                        origin="ai"
+                        detail={`${adoptionActionLabel(revision.action)} · Revision ${revision.revision}${revision.undone ? " · Undone" : ""}`}
+                      />
+                      <ContentSummary value={revision.content} />
+                      <div className="v2-library-meta">
+                        {revision.created_at ? shortDate(revision.created_at) : "Saved"}
+                        {revision.document_revision ? ` · Document revision ${revision.document_revision}` : ""}
+                        {revision.target?.surface ? ` · ${revision.target.surface}` : ""}
+                      </div>
+                    </div>
+                  </article>
+                ))}
             </div>
           </section>
         ) : null}
@@ -1243,11 +1295,7 @@ function ActivityInspector({
         <div>
           <OriginLabel
             origin="you"
-            detail={
-              item.activityType === "voice-command"
-                ? "Voice Command"
-                : "Activity"
-            }
+            detail={activityLabel(item.activityType)}
           />
           <h2>Activity</h2>
         </div>
@@ -2220,13 +2268,7 @@ export function V2LibraryRoute({
                     <div>
                       <OriginLabel
                         origin="you"
-                        detail={
-                          item.activityType === "voice-command"
-                            ? "Voice Command"
-                            : item.activityType === "text-command"
-                              ? "Text Command"
-                              : item.activityType || "Activity"
-                        }
+                        detail={activityLabel(item.activityType)}
                       />
                       <h3>{materialTitle(item)}</h3>
                       <ContentSummary value={item.content} />

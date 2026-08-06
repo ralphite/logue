@@ -376,6 +376,7 @@ export interface V2SidePanelSurfaceProps {
   generationSourceIds?: string[];
   pinnedSourceIds?: string[];
   generatedUndoAvailable?: boolean;
+  generatedInsertAvailable?: boolean;
   generatedAdoptionPending?: boolean;
   insertingGenerated?: boolean;
   savingGeneratedDocument?: boolean;
@@ -476,6 +477,7 @@ export function V2SidePanelSurface({
   generationSourceIds = [],
   pinnedSourceIds = [],
   generatedUndoAvailable = false,
+  generatedInsertAvailable = false,
   generatedAdoptionPending = false,
   insertingGenerated = false,
   savingGeneratedDocument = false,
@@ -971,7 +973,7 @@ export function V2SidePanelSurface({
                   <div className="v2-draft-card">
                     <textarea
                       value={generatedText}
-                      readOnly={generatedUndoAvailable}
+                      readOnly={generatedUndoAvailable || generatedAdoptionPending}
                       onChange={(event) =>
                         onGeneratedTextChange(event.target.value)
                       }
@@ -997,18 +999,18 @@ export function V2SidePanelSurface({
                       ))}
                     </div>
                     <div className="v2-inline-actions v2x-candidate-actions">
-                      <V2Button onClick={onCopyGenerated}>
+                      <V2Button disabled={generatedAdoptionPending} onClick={onCopyGenerated}>
                         <Copy size={14} />
                         Copy
                       </V2Button>
                       {!generated ? (
-                        <V2Button onClick={onKeepGenerated}>
+                        <V2Button disabled={generatedAdoptionPending} onClick={onKeepGenerated}>
                           <Sparkles size={14} />
                           Keep in Logue
                         </V2Button>
                       ) : null}
                       <V2Button
-                        disabled={savingGeneratedDocument}
+                        disabled={savingGeneratedDocument || generatedAdoptionPending}
                         onClick={onSaveGeneratedDocument}
                       >
                         <FileText size={14} />
@@ -1022,7 +1024,7 @@ export function V2SidePanelSurface({
                           {insertingGenerated ? "Saving…" : "Retry save"}
                         </V2Button>
                       ) : null}
-                      {generatedUndoAvailable ? (
+                      {!generatedAdoptionPending && generatedUndoAvailable ? (
                         <V2Button
                           primary
                           disabled={insertingGenerated}
@@ -1031,7 +1033,7 @@ export function V2SidePanelSurface({
                           <RotateCcw size={14} />
                           Undo
                         </V2Button>
-                      ) : generated && state.targetAvailable ? (
+                      ) : !generatedAdoptionPending && generated && generatedInsertAvailable ? (
                         <V2Button
                           primary
                           disabled={insertingGenerated}

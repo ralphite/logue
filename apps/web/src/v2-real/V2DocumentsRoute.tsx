@@ -31,6 +31,7 @@ import {
 } from "../api";
 import {
   adoptSkillRun,
+  createAdoptionId,
   createSkillRun,
   retrySkillRun,
   saveSkillRunAsDocument,
@@ -127,8 +128,23 @@ export function V2DocumentsRoute({
   const [actionSkillId, setActionSkillId] = useState("");
   const [actionRun, setActionRun] = useState<LogueSkillRun>();
   const [actionText, setActionText] = useState("");
-  const [actionRange, setActionRange] = useState({ start: 0, end: 0 });
+  const [actionSnapshot, setActionSnapshot] = useState<{
+    content: string;
+    revision: number;
+    start: number;
+    end: number;
+  }>();
   const [actionBusy, setActionBusy] = useState(false);
+  const [actionUndo, setActionUndo] = useState<{
+    runId: string;
+    adoptionId: string;
+    documentId: string;
+    expectedRevision: number;
+    content: string;
+    title: string;
+    project: string;
+  }>();
+  const actionAdoptionAttempts = useRef<Partial<Record<"replace" | "copy" | "keep", { id: string; content: string }>>>({});
   const [targetPickerOpen, setTargetPickerOpen] = useState(false);
   const [inputTargets, setInputTargets] = useState<ExtensionInputTarget[]>([]);
   const [selectedInputTarget, setSelectedInputTarget] =
@@ -192,6 +208,7 @@ export function V2DocumentsRoute({
     setRevisionNotice("");
     setDeleteOpen(false);
     setActionRun(undefined);
+    setActionSnapshot(undefined);
     setOpenCitationSourceId(undefined);
     setTargetUndo(undefined);
     setTargetError("");
@@ -213,6 +230,9 @@ export function V2DocumentsRoute({
       });
     }
   }, [selected?.id, selected?.revision]);
+  useEffect(() => {
+    setActionUndo(undefined);
+  }, [selected?.id]);
 
   function refreshEditorHistory() {
     setEditorHistory({
@@ -282,13 +302,6 @@ export function V2DocumentsRoute({
     try {
       setRevisions(await getDocumentRevisions(selected.id));
     } catch (cause) {
-      if (cause instanceof SkillRunFailure) {
-        setActionRun(cause.run);
-        setActionText(cause.run.original_output ?? "");
-        setError(`${cause.message} The failed Run and its Sources are saved.`);
-        await onRefresh();
-        return;
-      }
       setError(
         cause instanceof Error
           ? cause.message
@@ -614,30 +627,50 @@ export function V2DocumentsRoute({
       });
       setActionRun(run);
       setActionText(run.original_output ?? "");
-      setActionRange({
+      setActionSnapshot({
+        content,
+        revision: selected.revision,
         start: end > start ? start : 0,
         end: end > start ? end : content.length,
       });
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Could not run this Skill.",
-      );
+      if (cause instanceof SkillRunFailure) {
+        setActionRun(cause.run);
+        setActionText(cause.run.original_output ?? "");
+        setActionSnapshot({
+          content,
+          revision: selected.revision,
+          start: end > start ? start : 0,
+          end: end > start ? end : content.length,
+        });
+        setError(`${cause.message} The failed Run and its Sources are saved.`);
+        await onRefresh();
+      } else {
+        setError(cause instanceof Error ? cause.message : "Could not run this Skill.");
+      }
     } finally {
       setActionBusy(false);
     }
   }
 
   async function adoptAction(mode: "replace" | "copy" | "keep") {
-    if (!actionRun || !actionText.trim()) return;
+    if (!actionRun || !actionText.trim() || !actionSnapshot) return;
+    const attemptContent = actionText.trim();
+    const previousAttempt = actionAdoptionAttempts.current[mode];
+    const adoptionId = previousAttempt?.content === attemptContent ? previousAttempt.id : createAdoptionId();
+    actionAdoptionAttempts.current[mode] = { id: adoptionId, content: attemptContent };
     setActionBusy(true);
     setError("");
     try {
       if (mode === "replace") {
+        if (content !== actionSnapshot.content) {
+          throw new Error("The Document changed after this Skill ran. Run it again on the current text.");
+        }
         const nextContent = replaceDocumentTextRange(
-          content,
+          actionSnapshot.content,
           title,
-          actionRange.start,
-          actionRange.end,
+          actionSnapshot.start,
+          actionSnapshot.end,
           actionText.trim(),
         );
         const result = await saveSkillRunAsDocument(actionRun.id, {
@@ -647,16 +680,32 @@ export function V2DocumentsRoute({
           project,
           sourceIds: selected.source_ids,
           contextSourceIds: selected.context_source_ids,
-          expectedRevision: selected.revision,
+          expectedRevision: actionSnapshot.revision,
+          adoptionId,
+          adoptionAction: "replace",
+          target: {
+            surface: "web-document",
+            target_key: `document:${selected.id}`,
+          },
         });
         setContent(result.document.content);
         setDirty(false);
+        setActionUndo({
+          runId: actionRun.id,
+          adoptionId,
+          documentId: result.document.id,
+          expectedRevision: result.document.revision,
+          content: result.document.content,
+          title: result.document.title,
+          project: result.document.project ?? "",
+        });
         await onRefresh();
       }
       if (mode === "copy") {
         await navigator.clipboard.writeText(actionText.trim());
         await adoptSkillRun(actionRun.id, actionText.trim(), {
           action: "copy",
+          adoptionId,
           target: {
             surface: "clipboard",
             target_key: `document:${selected.id}`,
@@ -667,6 +716,7 @@ export function V2DocumentsRoute({
       if (mode === "keep") {
         await adoptSkillRun(actionRun.id, actionText.trim(), {
           action: "keep",
+          adoptionId,
           target: {
             surface: "web-document",
             target_key: `document:${selected.id}`,
@@ -674,11 +724,48 @@ export function V2DocumentsRoute({
         });
         await onRefresh();
       }
+      delete actionAdoptionAttempts.current[mode];
       setActionRun(undefined);
+      setActionSnapshot(undefined);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not adopt this result.",
       );
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function undoActionReplacement() {
+    if (!selected || !actionUndo || actionBusy) return;
+    if (dirty || content !== actionUndo.content || title !== actionUndo.title || project !== actionUndo.project) {
+      setError("The Document changed after this Skill edit. Undo it from revision history instead.");
+      return;
+    }
+    setActionBusy(true);
+    setError("");
+    try {
+      const result = await saveSkillRunAsDocument(actionUndo.runId, {
+        title,
+        content,
+        documentId: actionUndo.documentId,
+        project,
+        sourceIds: selected.source_ids,
+        contextSourceIds: selected.context_source_ids,
+        expectedRevision: actionUndo.expectedRevision,
+        adoptionId: actionUndo.adoptionId,
+        adoptionAction: "undo",
+        target: {
+          surface: "web-document",
+          target_key: `document:${actionUndo.documentId}`,
+        },
+      });
+      setContent(result.document.content);
+      setDirty(false);
+      setActionUndo(undefined);
+      await onRefresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not undo this Skill edit.");
     } finally {
       setActionBusy(false);
     }
@@ -1071,6 +1158,16 @@ export function V2DocumentsRoute({
                   <Sparkles size={14} />
                   Apply
                 </Button>
+                {actionUndo?.documentId === selected.id && actionUndo.content === content && actionUndo.title === title && actionUndo.project === project ? (
+                  <Button
+                    size="sm"
+                    disabled={Boolean(preview) || actionBusy || dirty}
+                    onClick={() => void undoActionReplacement()}
+                  >
+                    <RotateCcw size={14} />
+                    Undo Skill edit
+                  </Button>
+                ) : null}
                 <IconButton
                   label="Undo edit"
                   variant="ghost"
@@ -1269,7 +1366,7 @@ export function V2DocumentsRoute({
                     ) : null}
                     <Button
                       disabled={actionBusy}
-                      onClick={() => setActionRun(undefined)}
+                      onClick={() => { setActionRun(undefined); setActionSnapshot(undefined); }}
                     >
                       Cancel
                     </Button>

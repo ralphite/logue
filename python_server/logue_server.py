@@ -1335,14 +1335,14 @@ class Store:
             adoption_id = str(value.get("adoption_id", "")).strip()
             if not adoption_id:
                 raise ValueError("adoption_id is required")
-            revisions = list(item.get("adopted_revisions")) if isinstance(item.get("adopted_revisions"), list) else []
+            revisions = list(item.get("adoption_revisions")) if isinstance(item.get("adoption_revisions"), list) else []
             existing = next((entry for entry in revisions if isinstance(entry, dict) and entry.get("id") == adoption_id), None)
             if bool(value.get("undone")):
                 if not existing:
                     raise ValueError("adopted revision not found")
                 existing["undone"] = True
                 existing["undone_at"] = now()
-            elif not existing:
+            else:
                 content = str(value.get("content", "")).strip()
                 if not content:
                     raise ValueError("adopted content is required")
@@ -1355,16 +1355,20 @@ class Store:
                     for key in ("surface", "url", "target_key")
                     if str(target.get(key, "")).strip()
                 }
-                revisions.append({
-                    "id": adoption_id,
-                    "revision": len(revisions) + 1,
-                    "action": action,
-                    "content": content,
-                    "target": target,
-                    "undone": False,
-                    "created_at": now(),
-                })
-            item["adopted_revisions"] = revisions
+                if existing:
+                    if existing.get("action") != action or str(existing.get("content", "")) != content or existing.get("target", {}) != target:
+                        raise Conflict("this adoption id already belongs to another Voice revision")
+                else:
+                    revisions.append({
+                        "id": adoption_id,
+                        "revision": len(revisions) + 1,
+                        "action": action,
+                        "content": content,
+                        "target": target,
+                        "undone": False,
+                        "created_at": now(),
+                    })
+            item["adoption_revisions"] = revisions
             item["updated_at"] = now()
             atomic_json(self.root / "items" / f"{identifier}.json", item)
             return item
@@ -2088,41 +2092,105 @@ class Store:
             if run.get("status") != "complete":
                 raise ValueError("only a completed result can be saved as a document")
             adoption_id = str(value.get("adoption_id", "")).strip() or make_id("adp_")
+            action = str(value.get("action", "document")).strip() or "document"
+            if action not in {"document", "replace", "undo"}:
+                raise ValueError("invalid Document adoption action")
+            adoption_target = value.get("target") if isinstance(value.get("target"), dict) else {}
+            adoption_target = {
+                key: str(adoption_target.get(key, "")).strip()
+                for key in ("surface", "url", "target_key")
+                if str(adoption_target.get(key, "")).strip()
+            }
             revisions = list(run.get("adoption_revisions")) if isinstance(run.get("adoption_revisions"), list) else []
             existing_event = next(
                 (entry for entry in revisions if isinstance(entry, dict) and entry.get("id") == adoption_id),
                 None,
             )
+            if action == "undo":
+                if not existing_event or existing_event.get("action") != "replace":
+                    raise ValueError("replace adoption not found")
+                document_id = str(existing_event.get("document_id", "")).strip()
+                if not document_id:
+                    raise ValueError("the adopted Document is unavailable")
+                if existing_event.get("undone"):
+                    return run, self.get("docs", document_id)
+                previous_document = existing_event.get("previous_document") if isinstance(existing_event.get("previous_document"), dict) else None
+                if not previous_document:
+                    raise ValueError("the previous Document revision is unavailable")
+                if value.get("expected_revision") is None:
+                    raise Conflict("expected_revision is required to undo a Document replacement")
+                snapshot = self.transaction_snapshot("logue-document-adoption-undo-")
+                try:
+                    document = self.update_document(document_id, {
+                        "title": previous_document.get("title", "Untitled"),
+                        "content": previous_document.get("content", ""),
+                        "project": previous_document.get("project", ""),
+                        "source_ids": previous_document.get("source_ids", []),
+                        "context_source_ids": previous_document.get("context_source_ids", previous_document.get("source_ids", [])),
+                        "sources": previous_document.get("sources", []),
+                        "context_sources": previous_document.get("context_sources", previous_document.get("sources", [])),
+                        "expected_revision": value.get("expected_revision"),
+                    })
+                    existing_event["undone"] = True
+                    existing_event["undone_at"] = now()
+                    document_revisions = list(document.get("adoption_revisions")) if isinstance(document.get("adoption_revisions"), list) else []
+                    document_event = next((entry for entry in document_revisions if isinstance(entry, dict) and entry.get("id") == adoption_id), None)
+                    if document_event:
+                        document_event["undone"] = True
+                        document_event["undone_at"] = existing_event["undone_at"]
+                    document["adoption_revisions"] = document_revisions
+                    atomic_json(self.root / "docs" / f"{document_id}.json", document)
+                    run["adoption_revisions"] = revisions
+                    run["adoption_undone"] = True
+                    run["updated_at"] = now()
+                    atomic_json(self.root / "skill-runs" / f"{identifier}.json", run)
+                except BaseException as error:
+                    self.finish_transaction(snapshot, error)
+                    raise
+                else:
+                    self.finish_transaction(snapshot)
+                    return run, document
             if existing_event:
-                if existing_event.get("action") != "document":
+                if existing_event.get("action") != action or existing_event.get("target", {}) != adoption_target:
                     raise Conflict("this adoption id already belongs to another action")
+                requested_content = str(value.get("content", "")).strip()
+                if requested_content and str(existing_event.get("content", "")) != requested_content:
+                    raise Conflict("this adoption id already belongs to another Document revision")
                 document_id = str(existing_event.get("document_id", "")).strip()
                 if not document_id:
                     raise ValueError("the adopted Document is unavailable")
                 return run, self.get("docs", document_id)
             existing_document_id = str(run.get("document_id", "")).strip()
-            if existing_document_id:
-                return run, self.get("docs", existing_document_id)
             content = str(value.get("content", "")).strip()
             if not content:
                 raise ValueError("document content is required")
             snapshot = self.transaction_snapshot("logue-document-adoption-")
             try:
                 target_document_id = str(value.get("document_id", "")).strip()
+                previous_document_snapshot = None
                 if target_document_id:
-                    target = self.get("docs", target_document_id)
+                    if value.get("expected_revision") is None:
+                        raise Conflict("expected_revision is required to update an existing Document")
+                    target_document = self.get("docs", target_document_id)
+                    previous_document_snapshot = {
+                        key: json.loads(json.dumps(target_document.get(key)))
+                        for key in ("title", "content", "project", "source_ids", "context_source_ids", "sources", "context_sources", "revision")
+                        if key in target_document
+                    }
                     document = self.update_document(target_document_id, {
-                        "title": value.get("title", target.get("title", "Untitled")),
+                        "title": value.get("title", target_document.get("title", "Untitled")),
                         "content": content,
-                        "project": value.get("project", target.get("project", "")),
-                        "source_ids": value.get("source_ids", target.get("source_ids", [])),
-                        "context_source_ids": value.get("context_source_ids", target.get("context_source_ids", target.get("source_ids", []))),
-                        "sources": value.get("sources", target.get("sources", run.get("sources", []))),
-                        "context_sources": value.get("context_sources", target.get("context_sources", run.get("sources", []))),
-                        "expected_revision": value.get("expected_revision", target.get("revision", 1)),
+                        "project": value.get("project", target_document.get("project", "")),
+                        "source_ids": value.get("source_ids", target_document.get("source_ids", [])),
+                        "context_source_ids": value.get("context_source_ids", target_document.get("context_source_ids", target_document.get("source_ids", []))),
+                        "sources": value.get("sources", target_document.get("sources", run.get("sources", []))),
+                        "context_sources": value.get("context_sources", target_document.get("context_sources", run.get("sources", []))),
+                        "expected_revision": value.get("expected_revision", target_document.get("revision", 1)),
                     })
                 else:
                     document_id = f"doc_{identifier.removeprefix('run_')}"
+                    if existing_document_id or (self.root / "docs" / f"{document_id}.json").exists():
+                        document_id = f"doc_{hashlib.sha256(adoption_id.encode()).hexdigest()[:24]}"
                     document_path = self.root / "docs" / f"{document_id}.json"
                     if document_path.exists():
                         document = read_json(document_path)
@@ -2138,13 +2206,17 @@ class Store:
                 event = {
                     "id": adoption_id,
                     "revision": len(revisions) + 1,
-                    "action": "document",
+                    "action": action,
                     "content": document["content"],
                     "document_id": document["id"],
                     "document_revision": int(document.get("revision", 1)),
                     "undone": False,
                     "created_at": now(),
                 }
+                if adoption_target:
+                    event["target"] = adoption_target
+                if action == "replace" and previous_document_snapshot:
+                    event["previous_document"] = previous_document_snapshot
                 revisions.append(event)
                 document_revisions = list(document.get("adoption_revisions")) if isinstance(document.get("adoption_revisions"), list) else []
                 document_revisions.append(event)
@@ -2152,7 +2224,7 @@ class Store:
                 atomic_json(self.root / "docs" / f"{document['id']}.json", document)
                 run["adopted_output"] = document["content"]
                 run["document_id"] = document["id"]
-                run["adoption"] = "document"
+                run["adoption"] = action
                 run["adoption_undone"] = False
                 run["adoption_revisions"] = revisions
                 run["updated_at"] = now()
@@ -2442,6 +2514,23 @@ class Store:
                 if str(target.get(key, "")).strip()
             }
             if action == "undo":
+                already_undone = next(
+                    (
+                        entry
+                        for entry in reversed(revisions)
+                        if isinstance(entry, dict)
+                        and entry.get("undone")
+                        and entry.get("action") in {"insert", "replace"}
+                        and adoption_id
+                        and entry.get("id") == adoption_id
+                    ),
+                    None,
+                )
+                if already_undone:
+                    material_id = str(already_undone.get("material_id", run.get("material_id", ""))).strip()
+                    if not material_id:
+                        raise ValueError("this Run has no adopted AI Source to undo")
+                    return run, self.get("items", material_id)
                 existing = next(
                     (
                         entry

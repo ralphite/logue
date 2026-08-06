@@ -25,6 +25,7 @@ import {
 } from "../api";
 import {
   adoptSkillRun,
+  createAdoptionId,
   createSkillRun,
   saveSkillRunAsDocument,
   type LogueSkill,
@@ -347,6 +348,7 @@ export function RealProjectWorkspace({
       const adopted = await adoptSkillRun(
         answerRun.id,
         answerRun.original_output,
+        { action: "copy", adoptionId: createAdoptionId(), target: { surface: "clipboard", target_key: `project:${project.name}` } },
       );
       setAnswerRun(adopted);
       await navigator.clipboard.writeText(answerRun.original_output);
@@ -355,6 +357,7 @@ export function RealProjectWorkspace({
     const result = await saveSkillRunAsDocument(answerRun.id, {
       title: answerRun.instruction.slice(0, 64) || `${project.name} answer`,
       content: answerRun.original_output,
+      adoptionId: createAdoptionId(),
     });
     onDocumentsChange([
       result.document,

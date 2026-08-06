@@ -1,7 +1,7 @@
 import type { Material } from "@logue/ui";
 import { CheckCircle2, ChevronDown, Clipboard, Copy, FileText, LoaderCircle, Plus, Search, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { adoptSkillRun, createSkill, createSkillRun, defaultSkillPurpose, getSkillRuns, getSkills, saveSkillRunAsDocument, updateSkill, type LogueSkill, type LogueSkillRun, type SkillContext, type SkillOutput, type SkillSurface, type SkillTask } from "../skillApi";
+import { adoptSkillRun, createAdoptionId, createSkill, createSkillRun, defaultSkillPurpose, getSkillRuns, getSkills, saveSkillRunAsDocument, updateSkill, type LogueSkill, type LogueSkillRun, type SkillContext, type SkillOutput, type SkillSurface, type SkillTask } from "../skillApi";
 import { createDocument, getDocuments, getWorkspaceSettings, saveWorkspaceSettings, type LogueDocument } from "../api";
 import { groupIdenticalMaterials } from "../materialGroups";
 import { matchesMaterialSearchText, orderMaterialSearchResults, useDocumentSearch, useMaterialSearch } from "../materialSearch";
@@ -552,7 +552,7 @@ function RunResult({ run, onRunChange, onDocumentCreated, onOpenDocument, onOpen
     setDraft(run.adopted_output || run.original_output || "");
   }, [run]);
   async function copy() {
-    const updated = await adoptSkillRun(run.id, draft);
+    const updated = await adoptSkillRun(run.id, draft, { action: "copy", adoptionId: createAdoptionId(), target: { surface: "clipboard" } });
     onRunChange(updated);
     await navigator.clipboard.writeText(draft);
     setCopied(true);
@@ -566,6 +566,7 @@ function RunResult({ run, onRunChange, onDocumentCreated, onOpenDocument, onOpen
       const result = await saveSkillRunAsDocument(run.id, {
         title: run.instruction.split("\n")[0]?.trim().slice(0, 72) || "Untitled",
         content: draft,
+        adoptionId: createAdoptionId(),
       });
       onRunChange(result.run);
       onDocumentCreated(result.document);

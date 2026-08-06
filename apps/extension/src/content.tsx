@@ -1,4 +1,4 @@
-import { SelectionActionCandidate, SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type ExtensionInputTarget, type ExtensionTargetBridgeRequest, type ExtensionTargetBridgeResponse, type SelectionSkillApplyTransaction, type SourceInfo } from "@logue/ui";
+import { SelectionActionCandidate, SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionWithUndoIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type ExtensionInputTarget, type ExtensionTargetBridgeRequest, type ExtensionTargetBridgeResponse, type SelectionSkillApplyTransaction, type SelectionSkillReplacementTransaction, type SourceInfo } from "@logue/ui";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { adoptExtensionSkillRun, adoptVoiceMaterial, cancelMaterialSave, completePendingVoice, createExtensionSkillRun, getCaptureContext, getExtensionSkills, getPageMaterials, getPendingVoiceQueueStatus, getServerURL, markPendingVoiceTranscribed, queuePendingVoice, retranscribeMaterial, saveExtensionSkillRunAsDocument, saveMaterial, saveSelection, transcribeAudio, updateMaterial, updateSourceAnchor, type AppliedContext, type CaptureContext, type ExtensionSkill, type PendingVoicePlan, type VoiceProfileOverrides } from "./api";
@@ -31,6 +31,7 @@ import styles from "./v2-real/v2ExtensionSurface.css?inline";
 interface ContentRequestMessage {
   type: "logue:insert-text" | "logue:undo-insert" | "logue:get-page-context" | "logue:locate-page-anchor" | "logue:get-current-selection-anchor" | "logue:discover-input-target" | "logue:insert-external-document" | "logue:undo-external-document" | "logue:start-inline-voice";
   text?: string;
+  expectedTargetSessionId?: string;
   token?: string;
   sessionId?: string;
   source?: SourceInfo;
@@ -125,6 +126,7 @@ interface SelectionActionCandidateState {
   projects: string[];
   anchor: { left: number; top: number };
   editableSnapshot?: EditableSelectionSnapshot;
+  adoptionAttempts?: Partial<Record<"copy" | "keep" | "document", { id: string; content: string }>>;
 }
 
 function topLevelWindow() {
@@ -149,6 +151,17 @@ function pageSource(): CaptureSource {
     title: page.document.title || page.location.hostname,
     domain: page.location.hostname,
   };
+}
+
+const targetSessionIds = new WeakMap<HTMLElement, string>();
+
+function targetSessionId(target: HTMLElement | null | undefined) {
+  if (!target || !isEditableTargetAvailable(target)) return undefined;
+  const existing = targetSessionIds.get(target);
+  if (existing) return existing;
+  const created = createRequestId();
+  targetSessionIds.set(target, created);
+  return created;
 }
 
 async function requireWritablePendingVoiceQueue(selectionText?: string) {
@@ -312,6 +325,11 @@ function ExtensionLauncher() {
     anchor: { left: number; top: number };
     message: string;
     history?: SelectionSkillApplyTransaction;
+    undo?: {
+      adoption: SelectionSkillApplyTransaction;
+      replacement: SelectionSkillReplacementTransaction;
+      localApplied?: boolean;
+    };
   }>();
   const [focusSelectionSkillTrigger, setFocusSelectionSkillTrigger] = useState(false);
   const [voiceProfileContext, setVoiceProfileContext] = useState<CaptureContext>();
@@ -550,10 +568,15 @@ function ExtensionLauncher() {
     anchor: { left: number; top: number };
     message: string;
     history?: SelectionSkillApplyTransaction;
+    undo?: {
+      adoption: SelectionSkillApplyTransaction;
+      replacement: SelectionSkillReplacementTransaction;
+      localApplied?: boolean;
+    };
   }) => {
     if (selectionNoticeTimerRef.current) window.clearTimeout(selectionNoticeTimerRef.current);
     setSelectionSkillNotice(notice);
-    if (!notice.history) {
+    if (!notice.history && !notice.undo) {
       selectionNoticeTimerRef.current = window.setTimeout(() => setSelectionSkillNotice(undefined), 4500);
     }
   }, []);
@@ -949,6 +972,7 @@ function ExtensionLauncher() {
       intent: "generate",
       source,
       targetText: isEditableTargetAvailable(target) ? getEditableText(target) : "",
+      targetSessionId: targetSessionId(target),
       targetAvailable: isEditableTargetAvailable(target),
       autoStartRecording: true,
     });
@@ -971,8 +995,9 @@ function ExtensionLauncher() {
     }
     const adoptionId = createRequestId();
     lastInsertUndoRef.current = { token: adoptionId, transaction };
-    setVoiceCandidate((current) => current ? { ...current, text, busy: true, inserted: true, canUndo: true, adoptionId, adoptionPending: "insert", error: undefined } : current);
-    void adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "insert", content: text, target: { surface: "inline-voice", url: session.source.url, target_key: session.id } }).then(() => {
+    const adoptionTarget = { surface: "inline-voice", url: session.source.url, target_key: session.id };
+    setVoiceCandidate((current) => current ? { ...current, text, busy: true, inserted: true, canUndo: true, adoptionId, adoptionPending: "insert", adoptionTarget, undoNeedsInsert: false, error: undefined } : current);
+    void adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "insert", content: text, target: adoptionTarget }).then(() => {
       setVoiceCandidate((current) => current && current.adoptionId === adoptionId ? { ...current, busy: false, adoptionPending: undefined, error: undefined } : current);
     }).catch((cause: unknown) => {
       setVoiceCandidate((current) => current && current.adoptionId === adoptionId ? { ...current, busy: false, adoptionPending: "insert", error: cause instanceof Error ? `Inserted, but Logue could not record it: ${cause.message}` : "Inserted, but Logue could not record it." } : current);
@@ -984,11 +1009,12 @@ function ExtensionLauncher() {
     const candidate = voiceCandidate;
     if (!session || !candidate || !candidate.text.trim() || candidate.busy) return;
     const adoptionId = createRequestId();
+    const adoptionTarget = { surface: "clipboard", url: session.source.url, target_key: session.id };
     setVoiceCandidate((current) => current ? { ...current, busy: true, error: undefined } : current);
     const copy = clipboardAlreadyWritten ? Promise.resolve() : navigator.clipboard.writeText(candidate.text);
     void copy.then(() => {
-      setVoiceCandidate((current) => current ? { ...current, copied: true, inserted: false, canUndo: false, adoptionId, adoptionPending: "copy", error: undefined } : current);
-      return adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "copy", content: candidate.text, target: { surface: "clipboard", url: session.source.url, target_key: session.id } });
+      setVoiceCandidate((current) => current ? { ...current, copied: true, inserted: false, canUndo: false, adoptionId, adoptionPending: "copy", adoptionTarget, undoNeedsInsert: false, error: undefined } : current);
+      return adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "copy", content: candidate.text, target: adoptionTarget });
     }).then(() => {
       setVoiceCandidate((current) => current && current.adoptionId === adoptionId ? { ...current, busy: false, adoptionPending: undefined, error: undefined } : current);
     }).catch((cause: unknown) => {
@@ -1000,17 +1026,22 @@ function ExtensionLauncher() {
     const pending = lastInsertUndoRef.current;
     const candidate = voiceCandidate;
     if (!pending || !candidate?.adoptionId) return;
+    const adoptionId = candidate.adoptionId;
     lastInsertUndoRef.current = undefined;
     const restored = pending.transaction.undo();
     if (!restored) {
       setVoiceCandidate((current) => current ? { ...current, inserted: false, canUndo: false, error: "The page changed, so this insert can’t be undone." } : current);
       return;
     }
-    setVoiceCandidate((current) => current ? { ...current, busy: true, inserted: false, canUndo: false, adoptionPending: "undo", error: undefined } : current);
-    void adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, undone: true }).then(() => {
-      setVoiceCandidate((current) => current && current.adoptionId === candidate.adoptionId ? { ...current, busy: false, adoptionPending: undefined, error: undefined } : current);
+    const undoNeedsInsert = candidate.adoptionPending === "insert";
+    setVoiceCandidate((current) => current ? { ...current, busy: true, inserted: false, canUndo: false, adoptionPending: "undo", undoNeedsInsert, error: undefined } : current);
+    const ensureInsert = undoNeedsInsert
+      ? adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "insert", content: candidate.text, target: candidate.adoptionTarget })
+      : Promise.resolve();
+    void ensureInsert.then(() => adoptVoiceMaterial(candidate.materialId, { adoptionId, undone: true })).then(() => {
+      setVoiceCandidate((current) => current && current.adoptionId === adoptionId ? { ...current, busy: false, adoptionPending: undefined, undoNeedsInsert: false, error: undefined } : current);
     }).catch((cause: unknown) => {
-      setVoiceCandidate((current) => current && current.adoptionId === candidate.adoptionId ? { ...current, busy: false, adoptionPending: "undo", error: cause instanceof Error ? `Text was removed, but Logue could not record Undo: ${cause.message}` : "Text was removed, but Logue could not record Undo." } : current);
+      setVoiceCandidate((current) => current && current.adoptionId === adoptionId ? { ...current, busy: false, adoptionPending: "undo", error: cause instanceof Error ? `Text was removed, but Logue could not record Undo: ${cause.message}` : "Text was removed, but Logue could not record Undo." } : current);
     });
   }, [voiceCandidate]);
 
@@ -1018,11 +1049,14 @@ function ExtensionLauncher() {
     const candidate = voiceCandidate;
     const session = voiceSessionRef.current;
     if (!candidate?.adoptionId || !candidate.adoptionPending || !session || candidate.busy) return;
+    const adoptionId = candidate.adoptionId;
     setVoiceCandidate((current) => current ? { ...current, busy: true, error: undefined } : current);
     const request = candidate.adoptionPending === "undo"
-      ? adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, undone: true })
-      : adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, action: candidate.adoptionPending === "copy" ? "copy" : "insert", content: candidate.text, target: { surface: candidate.adoptionPending === "copy" ? "clipboard" : "inline-voice", url: session.source.url, target_key: session.id } });
-    void request.then(() => setVoiceCandidate((current) => current && current.adoptionId === candidate.adoptionId ? { ...current, busy: false, adoptionPending: undefined, error: undefined } : current)).catch((cause: unknown) => setVoiceCandidate((current) => current && current.adoptionId === candidate.adoptionId ? { ...current, busy: false, error: cause instanceof Error ? cause.message : "Could not record this adoption." } : current));
+      ? (candidate.undoNeedsInsert
+          ? adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "insert", content: candidate.text, target: candidate.adoptionTarget })
+          : Promise.resolve()).then(() => adoptVoiceMaterial(candidate.materialId, { adoptionId, undone: true }))
+      : adoptVoiceMaterial(candidate.materialId, { adoptionId, action: candidate.adoptionPending === "copy" ? "copy" : "insert", content: candidate.text, target: candidate.adoptionTarget });
+    void request.then(() => setVoiceCandidate((current) => current && current.adoptionId === adoptionId ? { ...current, busy: false, adoptionPending: undefined, undoNeedsInsert: false, error: undefined } : current)).catch((cause: unknown) => setVoiceCandidate((current) => current && current.adoptionId === adoptionId ? { ...current, busy: false, error: cause instanceof Error ? cause.message : "Could not record this adoption." } : current));
   }, [voiceCandidate]);
 
   const retranscribeVoiceCandidate = useCallback((input: VoiceCandidateRetranscribeInput, overridesOverride?: VoiceProfileOverrides) => {
@@ -1037,7 +1071,7 @@ function ExtensionLauncher() {
     ]).then(([result, nextContext]) => {
       if (voiceSessionRef.current?.id !== session.id) return;
       setVoiceProfileContext(nextContext);
-      setVoiceCandidate((current) => current ? { ...current, text: result.revision.transcript, revision: result.revision.revision, profileLabel: result.revision.applied_context.voice_profile_label || current.profileLabel, busy: false, inserted: false, copied: false, canUndo: false, adoptionId: undefined, adoptionPending: undefined, error: undefined } : current);
+      setVoiceCandidate((current) => current ? { ...current, text: result.revision.transcript, revision: result.revision.revision, profileLabel: result.revision.applied_context.voice_profile_label || current.profileLabel, busy: false, inserted: false, copied: false, canUndo: false, adoptionId: undefined, adoptionPending: undefined, adoptionTarget: undefined, undoNeedsInsert: false, error: undefined } : current);
       lastInsertUndoRef.current = undefined;
     }).catch((cause: unknown) => {
       setVoiceCandidate((current) => current ? { ...current, busy: false, error: cause instanceof Error ? cause.message : "Could not re-transcribe this recording." } : current);
@@ -1170,6 +1204,14 @@ function ExtensionLauncher() {
 
   useEffect(() => {
     const host = document.getElementById("logue-extension-host");
+    let pageContextFrame: number | undefined;
+    const schedulePageContextChanged = () => {
+      if (pageContextFrame !== undefined) window.cancelAnimationFrame(pageContextFrame);
+      pageContextFrame = window.requestAnimationFrame(() => {
+        pageContextFrame = undefined;
+        void chrome.runtime.sendMessage({ type: "logue:page-context-changed" }).catch(() => undefined);
+      });
+    };
     const activateTarget = (candidate: EventTarget | null | undefined) => {
       if (voiceSessionRef.current) return;
       const target = candidate ?? null;
@@ -1189,6 +1231,7 @@ function ExtensionLauncher() {
         return;
       }
       activateTarget(event.target);
+      schedulePageContextChanged();
       scheduleSelectionSkillRefresh();
     };
     const onViewport = () => {
@@ -1228,10 +1271,12 @@ function ExtensionLauncher() {
       const target = targetRef.current;
       if (!isEditableTargetAvailable(target)) {
         clearTarget();
+        schedulePageContextChanged();
         return;
       }
       rememberExternalTarget(target);
       setTargetRect(target.getBoundingClientRect());
+      schedulePageContextChanged();
     };
     let href = window.location.href;
     const routeTimer = window.setInterval(() => {
@@ -1240,13 +1285,17 @@ function ExtensionLauncher() {
       onRoute();
     }, 250);
     const observer = new MutationObserver(() => {
-      if (targetRef.current && !targetRef.current.isConnected) clearTarget();
+      if (targetRef.current && !targetRef.current.isConnected) {
+        clearTarget();
+        schedulePageContextChanged();
+      }
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
     document.addEventListener("focusin", onFocusIn, true);
     const onSelectionInteraction = (event: Event) => {
       if (host && event.composedPath().includes(host)) return;
       refreshTarget();
+      schedulePageContextChanged();
       scheduleSelectionSkillRefresh();
       schedulePageSelectionRefresh();
     };
@@ -1258,6 +1307,7 @@ function ExtensionLauncher() {
     };
     document.addEventListener("selectionchange", scheduleSelectionSkillRefresh);
     document.addEventListener("selectionchange", schedulePageSelectionRefresh);
+    document.addEventListener("input", schedulePageContextChanged, true);
     document.addEventListener("select", onSelectionInteraction, true);
     document.addEventListener("pointerdown", onPointerDownOutsideSelection, true);
     document.addEventListener("pointerup", onSelectionInteraction, true);
@@ -1277,10 +1327,12 @@ function ExtensionLauncher() {
     return () => {
       observer.disconnect();
       window.cancelAnimationFrame(initialLayoutFrame);
+      if (pageContextFrame !== undefined) window.cancelAnimationFrame(pageContextFrame);
       window.clearInterval(routeTimer);
       document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("selectionchange", scheduleSelectionSkillRefresh);
       document.removeEventListener("selectionchange", schedulePageSelectionRefresh);
+      document.removeEventListener("input", schedulePageContextChanged, true);
       document.removeEventListener("select", onSelectionInteraction, true);
       document.removeEventListener("pointerdown", onPointerDownOutsideSelection, true);
       document.removeEventListener("pointerup", onSelectionInteraction, true);
@@ -1582,7 +1634,11 @@ function ExtensionLauncher() {
       }
       if (contentMessage?.type === "logue:insert-text") {
         const target = targetRef.current;
-        const transaction = contentMessage.text && isEditableTargetAvailable(target)
+        const matchesExpectedTarget = Boolean(
+          contentMessage.expectedTargetSessionId &&
+          contentMessage.expectedTargetSessionId === targetSessionId(target),
+        );
+        const transaction = contentMessage.text && matchesExpectedTarget && isEditableTargetAvailable(target)
           ? insertIntoElementWithUndo(target, contentMessage.text)
           : undefined;
         const token = transaction ? createRequestId() : undefined;
@@ -1633,6 +1689,7 @@ function ExtensionLauncher() {
           candidateServerURL: logueServerCandidate(document, window.location.href),
           selectionText: (selection?.text ?? window.getSelection()?.toString().trim()) || undefined,
           targetText: targetAvailable ? getEditableText(target) : undefined,
+          targetSessionId: targetAvailable ? targetSessionId(target) : undefined,
           targetAvailable,
           pageText: document.body?.innerText?.trim().slice(0, 80_000) || undefined,
         };
@@ -1797,9 +1854,13 @@ function ExtensionLauncher() {
     if (!candidate || selectionActionBusy) return;
     setSelectionActionBusy("copy");
     setSelectionActionError("");
+    const previousAttempt = candidate.adoptionAttempts?.copy;
+    const adoptionId = previousAttempt?.content === candidate.text ? previousAttempt.id : createRequestId();
+    const pendingCandidate = { ...candidate, adoptionAttempts: { ...candidate.adoptionAttempts, copy: { id: adoptionId, content: candidate.text } } };
+    setSelectionActionCandidate(pendingCandidate);
     try {
       await navigator.clipboard.writeText(candidate.text);
-      await adoptExtensionSkillRun(candidate.runId, candidate.text, { action: "copy", target: { surface: "clipboard", url: candidate.source.url, target_key: `selection:${candidate.runId}` } });
+      await adoptExtensionSkillRun(candidate.runId, candidate.text, { action: "copy", adoptionId, target: { surface: "clipboard", url: candidate.source.url, target_key: `selection:${candidate.runId}` } });
       dismissSelectionActionCandidate();
     } catch (cause) {
       setSelectionActionError(cause instanceof Error ? cause.message : "Could not copy this result.");
@@ -1815,12 +1876,20 @@ function ExtensionLauncher() {
     setSelectionActionBusy("primary");
     setSelectionActionError("");
     try {
-      if (!replaceSelectionIfUnchanged(candidate.editableSnapshot, candidate.text)) throw new Error("Selection changed. Run the Skill again on the current text.");
+      const replacement = replaceSelectionWithUndoIfUnchanged(candidate.editableSnapshot, candidate.text);
+      if (!replacement) throw new Error("Selection changed. Run the Skill again on the current text.");
+      const target = { surface: "inline-selection", url: candidate.source.url, target_key: `selection:${candidate.runId}` };
+      const adoption = { runId: candidate.runId, replacement: candidate.text, adoptionId: createRequestId(), target };
       const history = await saveSelectionSkillHistory(
-        { runId: candidate.runId, replacement: candidate.text },
-        (id, text) => adoptExtensionSkillRun(id, text, { action: "replace", target: { surface: "inline-selection", url: candidate.source.url, target_key: `selection:${candidate.runId}` } }),
+        adoption,
+        (id, text, adoptionId, frozenTarget) => adoptExtensionSkillRun(id, text, { action: "replace", adoptionId, target: frozenTarget }),
       );
-      if (history) showSelectionSkillNotice({ anchor: candidate.anchor, message: "Applied", history });
+      showSelectionSkillNotice({
+        anchor: candidate.anchor,
+        message: history ? "Text replaced, but history wasn’t saved." : "Applied",
+        history,
+        undo: { adoption, replacement },
+      });
       dismissSelectionActionCandidate();
     } catch (cause) {
       setSelectionActionError(cause instanceof Error ? cause.message : "Could not replace this selection.");
@@ -1834,8 +1903,12 @@ function ExtensionLauncher() {
     if (!candidate || selectionActionBusy) return;
     setSelectionActionBusy("keep");
     setSelectionActionError("");
+    const previousAttempt = candidate.adoptionAttempts?.keep;
+    const adoptionId = previousAttempt?.content === candidate.text ? previousAttempt.id : createRequestId();
+    const pendingCandidate = { ...candidate, adoptionAttempts: { ...candidate.adoptionAttempts, keep: { id: adoptionId, content: candidate.text } } };
+    setSelectionActionCandidate(pendingCandidate);
     try {
-      await adoptExtensionSkillRun(candidate.runId, candidate.text, { action: "keep", target: { surface: "inline-selection", url: candidate.source.url, target_key: `selection:${candidate.runId}` } });
+      await adoptExtensionSkillRun(candidate.runId, candidate.text, { action: "keep", adoptionId, target: { surface: "inline-selection", url: candidate.source.url, target_key: `selection:${candidate.runId}` } });
       dismissSelectionActionCandidate();
     } catch (cause) {
       setSelectionActionError(cause instanceof Error ? cause.message : "Could not keep this result.");
@@ -1849,11 +1922,16 @@ function ExtensionLauncher() {
     if (!candidate || selectionActionBusy) return;
     setSelectionActionBusy("document");
     setSelectionActionError("");
+    const previousAttempt = candidate.adoptionAttempts?.document;
+    const adoptionId = previousAttempt?.content === candidate.text ? previousAttempt.id : createRequestId();
+    const pendingCandidate = { ...candidate, adoptionAttempts: { ...candidate.adoptionAttempts, document: { id: adoptionId, content: candidate.text } } };
+    setSelectionActionCandidate(pendingCandidate);
     try {
       await saveExtensionSkillRunAsDocument(candidate.runId, {
         title: `${candidate.skillName} result`,
         content: `${candidate.text}\n\n[Source 1]`,
         project: candidate.projects[0],
+        adoptionId,
       });
       dismissSelectionActionCandidate();
     } catch (cause) {
@@ -1868,13 +1946,44 @@ function ExtensionLauncher() {
     if (!notice?.history) return;
     const retry = await saveSelectionSkillHistory(
       notice.history,
-      (id, text) => adoptExtensionSkillRun(id, text, { action: "replace", target: { surface: "inline-selection", url: window.location.href, target_key: `selection:${id}` } }),
+      (id, text, adoptionId, target) => adoptExtensionSkillRun(id, text, { action: "replace", adoptionId, target }),
     );
     if (retry) {
       setSelectionSkillNotice({ ...notice, history: retry });
       return;
     }
-    setSelectionSkillNotice(undefined);
+    showSelectionSkillNotice({ ...notice, history: undefined });
+  }
+
+  async function undoSelectionSkill() {
+    const notice = selectionSkillNotice;
+    if (!notice?.undo) return;
+    const undo = notice.undo;
+    if (!undo.localApplied && !undo.replacement.undo()) {
+      setSelectionSkillNotice({ ...notice, message: "The editor changed, so Logue didn’t overwrite it." });
+      return;
+    }
+    const locallyUndone = { ...undo, localApplied: true };
+    if (notice.history) {
+      const retry = await saveSelectionSkillHistory(
+        notice.history,
+        (id, text, adoptionId, target) => adoptExtensionSkillRun(id, text, { action: "replace", adoptionId, target }),
+      );
+      if (retry) {
+        setSelectionSkillNotice({ ...notice, message: "Text restored, but Logue could not save Undo.", history: retry, undo: locallyUndone });
+        return;
+      }
+    }
+    try {
+      await adoptExtensionSkillRun(undo.adoption.runId, undo.adoption.replacement, {
+        action: "undo",
+        adoptionId: undo.adoption.adoptionId,
+        target: undo.adoption.target,
+      });
+      setSelectionSkillNotice(undefined);
+    } catch {
+      setSelectionSkillNotice({ ...notice, message: "Text restored, but Logue could not save Undo.", history: undefined, undo: locallyUndone });
+    }
   }
 
   if (!visible && !hasSelectionSkillMenu && !googleDocsProxyVisible && !hasPageSelectionComment) return null;
@@ -1935,7 +2044,9 @@ function ExtensionLauncher() {
         role={selectionSkillNotice.history ? "status" : "alert"}
         style={{ left: selectionSkillNotice.anchor.left, top: selectionSkillNotice.anchor.top }}
       >
-        {selectionSkillNotice.message}{selectionSkillNotice.history && <button type="button" onClick={() => void retrySelectionSkillHistory()}>Retry saving history</button>}
+        {selectionSkillNotice.message}
+        {selectionSkillNotice.history ? <button type="button" onClick={() => void retrySelectionSkillHistory()}>Retry save</button> : null}
+        {selectionSkillNotice.undo ? <button type="button" onClick={() => void undoSelectionSkill()}>{selectionSkillNotice.undo.localApplied ? "Retry saving Undo" : "Undo"}</button> : null}
       </div>}
       {visible && !voiceCandidate && !selectionCommentActive && !hasPageSelectionComment && <V2InlineVoiceSurface
         phase={voicePhase}

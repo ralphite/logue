@@ -147,6 +147,7 @@ function SidePanelApp() {
   const [error, setError] = useState<LocalError>();
   const [failedPageSkillId, setFailedPageSkillId] = useState<string>();
   const [failedRun, setFailedRun] = useState<ExtensionSkillRun>();
+  const [failedRunTargetKey, setFailedRunTargetKey] = useState<string>();
   const [elapsed, setElapsed] = useState(0);
   const [skills, setSkills] = useState<ExtensionSkill[]>([]);
   const [skillId, setSkillId] = useState("");
@@ -180,6 +181,7 @@ function SidePanelApp() {
   const activeCaptureScopeRef = useRef<ActivePanelCaptureScope | undefined>(undefined);
   const phaseRef = useRef<Phase>("idle");
   const commandResultRef = useRef<CommandResult | undefined>(undefined);
+  const failedRunRef = useRef<ExtensionSkillRun | undefined>(undefined);
   const pendingInsertInFlightRef = useRef(false);
   const voiceCandidateUndoTokenRef = useRef<string | undefined>(undefined);
   const panelMainRef = useRef<HTMLElement>(null);
@@ -203,6 +205,7 @@ function SidePanelApp() {
   transcriptRef.current = transcript;
   phaseRef.current = phase;
   commandResultRef.current = commandResult;
+  failedRunRef.current = failedRun;
 
   const persistDraft = useCallback((patch: Record<string, unknown>) => {
     if (typeof panelTabId !== "number") return;
@@ -515,7 +518,7 @@ function SidePanelApp() {
       );
       savedId = saved.id;
       if (current.intent === "input" && !deferFinalization) {
-        const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:insert-text", text: content }) as { ok?: boolean } | undefined;
+        const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:insert-text", text: content, expectedTargetSessionId: current.targetSessionId }) as { ok?: boolean } | undefined;
         if (!response?.ok) {
           const pending: PendingInsert = {
             text: content,
@@ -664,6 +667,7 @@ function SidePanelApp() {
         }
         try {
           setGenerating(true);
+          const targetKey = generationTargetKey(current);
           const [projectSources, availableSkills, extensionSettings] = await Promise.all([
             getProjectSources(project, result.text),
             getExtensionSkills(),
@@ -674,7 +678,6 @@ function SidePanelApp() {
           const resolvedSkill = availableSkills.find((item) => item.id === (binding || extensionSettings.default_extension_skill))
             || availableSkills.find((item) => item.output === "insert");
           if (!resolvedSkill) throw new Error("No Voice Command Skill is available.");
-          const targetKey = generationTargetKey(current);
           const nextState = { ...current, generationSourceIds: projectSources.map((source) => source.id), pinnedSourceIds: [], updatedAt: Date.now() };
           stateRef.current = nextState;
           setState(nextState);
@@ -714,10 +717,12 @@ function SidePanelApp() {
           setDraft("");
           persistDraft({ draft: "" });
           setFailedRun(undefined);
+          setFailedRunTargetKey(undefined);
           setError(undefined);
         } catch (cause) {
           setFailedPageSkillId(undefined);
           setFailedRun(failedSkillRun(cause));
+          setFailedRunTargetKey(generationTargetKey(current));
           setError(friendlyLocalError(cause, "model"));
         } finally {
           setGenerating(false);
@@ -813,13 +818,14 @@ function SidePanelApp() {
     if (!current || !candidate || !text || candidate.busy) return;
     setVoiceCandidate((value) => value ? { ...value, busy: true, error: undefined } : value);
     try {
-      const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:insert-text", text }) as { ok?: boolean; undoToken?: string } | undefined;
+      const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:insert-text", text, expectedTargetSessionId: current.targetSessionId }) as { ok?: boolean; undoToken?: string } | undefined;
       if (!response?.ok || !response.undoToken) throw new Error("The original input is no longer available. Copy the saved text instead.");
       voiceCandidateUndoTokenRef.current = response.undoToken;
       const adoptionId = createRequestId();
-      setVoiceCandidate((value) => value ? { ...value, text, busy: true, inserted: true, copied: false, canUndo: true, adoptionId, adoptionPending: "insert", error: undefined } : value);
+      const adoptionTarget = { surface: "side-panel-voice", url: current.source.url, target_key: generationTargetKey(current) };
+      setVoiceCandidate((value) => value ? { ...value, text, busy: true, inserted: true, copied: false, canUndo: true, adoptionId, adoptionPending: "insert", adoptionTarget, undoNeedsInsert: false, error: undefined } : value);
       try {
-        await adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "insert", content: text, target: { surface: "side-panel-voice", url: current.source.url, target_key: generationTargetKey(current) } });
+        await adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "insert", content: text, target: adoptionTarget });
         setVoiceCandidate((value) => value && value.adoptionId === adoptionId ? { ...value, busy: false, adoptionPending: undefined, error: undefined } : value);
       } catch (cause) {
         setVoiceCandidate((value) => value && value.adoptionId === adoptionId ? { ...value, busy: false, adoptionPending: "insert", error: cause instanceof Error ? `Inserted, but Logue could not record it: ${cause.message}` : "Inserted, but Logue could not record it." } : value);
@@ -837,9 +843,10 @@ function SidePanelApp() {
     try {
       await navigator.clipboard.writeText(candidate.text);
       const adoptionId = createRequestId();
-      setVoiceCandidate((value) => value ? { ...value, copied: true, inserted: false, canUndo: false, adoptionId, adoptionPending: "copy", error: undefined } : value);
+      const adoptionTarget = { surface: "clipboard", url: current.source.url, target_key: generationTargetKey(current) };
+      setVoiceCandidate((value) => value ? { ...value, copied: true, inserted: false, canUndo: false, adoptionId, adoptionPending: "copy", adoptionTarget, undoNeedsInsert: false, error: undefined } : value);
       try {
-        await adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "copy", content: candidate.text, target: { surface: "clipboard", url: current.source.url, target_key: generationTargetKey(current) } });
+        await adoptVoiceMaterial(candidate.materialId, { adoptionId, action: "copy", content: candidate.text, target: adoptionTarget });
         setVoiceCandidate((value) => value && value.adoptionId === adoptionId ? { ...value, busy: false, adoptionPending: undefined, error: undefined } : value);
       } catch (cause) {
         setVoiceCandidate((value) => value && value.adoptionId === adoptionId ? { ...value, busy: false, adoptionPending: "copy", error: cause instanceof Error ? `Copied, but Logue could not record it: ${cause.message}` : "Copied, but Logue could not record it." } : value);
@@ -859,10 +866,14 @@ function SidePanelApp() {
       const response = await chrome.tabs.sendMessage(current.tabId, { type: "logue:undo-insert", token }) as { ok?: boolean } | undefined;
       if (!response?.ok) throw new Error("The page changed, so this insert can’t be undone.");
       voiceCandidateUndoTokenRef.current = undefined;
-      setVoiceCandidate((value) => value ? { ...value, inserted: false, canUndo: false, adoptionPending: "undo", error: undefined } : value);
+      const undoNeedsInsert = candidate.adoptionPending === "insert";
+      setVoiceCandidate((value) => value ? { ...value, inserted: false, canUndo: false, adoptionPending: "undo", undoNeedsInsert, error: undefined } : value);
       try {
+        if (undoNeedsInsert) {
+          await adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, action: "insert", content: candidate.text, target: candidate.adoptionTarget });
+        }
         await adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, undone: true });
-        setVoiceCandidate((value) => value && value.adoptionId === candidate.adoptionId ? { ...value, busy: false, adoptionPending: undefined, error: undefined } : value);
+        setVoiceCandidate((value) => value && value.adoptionId === candidate.adoptionId ? { ...value, busy: false, adoptionPending: undefined, undoNeedsInsert: false, error: undefined } : value);
       } catch (cause) {
         setVoiceCandidate((value) => value && value.adoptionId === candidate.adoptionId ? { ...value, busy: false, adoptionPending: "undo", error: cause instanceof Error ? `Text was removed, but Logue could not record Undo: ${cause.message}` : "Text was removed, but Logue could not record Undo." } : value);
       }
@@ -878,11 +889,14 @@ function SidePanelApp() {
     setVoiceCandidate((value) => value ? { ...value, busy: true, error: undefined } : value);
     try {
       if (candidate.adoptionPending === "undo") {
+        if (candidate.undoNeedsInsert) {
+          await adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, action: "insert", content: candidate.text, target: candidate.adoptionTarget });
+        }
         await adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, undone: true });
       } else {
-        await adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, action: candidate.adoptionPending === "copy" ? "copy" : "insert", content: candidate.text, target: { surface: candidate.adoptionPending === "copy" ? "clipboard" : "side-panel-voice", url: current.source.url, target_key: generationTargetKey(current) } });
+        await adoptVoiceMaterial(candidate.materialId, { adoptionId: candidate.adoptionId, action: candidate.adoptionPending === "copy" ? "copy" : "insert", content: candidate.text, target: candidate.adoptionTarget });
       }
-      setVoiceCandidate((value) => value && value.adoptionId === candidate.adoptionId ? { ...value, busy: false, adoptionPending: undefined, error: undefined } : value);
+      setVoiceCandidate((value) => value && value.adoptionId === candidate.adoptionId ? { ...value, busy: false, adoptionPending: undefined, undoNeedsInsert: false, error: undefined } : value);
     } catch (cause) {
       setVoiceCandidate((value) => value && value.adoptionId === candidate.adoptionId ? { ...value, busy: false, error: cause instanceof Error ? cause.message : "Could not record this adoption." } : value);
     }
@@ -903,7 +917,7 @@ function SidePanelApp() {
       setTranscript(result.revision.transcript);
       persistDraft({ draft: result.revision.transcript, transcript: result.revision.transcript });
       voiceCandidateUndoTokenRef.current = undefined;
-      setVoiceCandidate((value) => value ? { ...value, text: result.revision.transcript, revision: result.revision.revision, profileLabel: result.revision.applied_context.voice_profile_label || value.profileLabel, busy: false, inserted: false, copied: false, canUndo: false, adoptionId: undefined, adoptionPending: undefined, error: undefined } : value);
+      setVoiceCandidate((value) => value ? { ...value, text: result.revision.transcript, revision: result.revision.revision, profileLabel: result.revision.applied_context.voice_profile_label || value.profileLabel, busy: false, inserted: false, copied: false, canUndo: false, adoptionId: undefined, adoptionPending: undefined, adoptionTarget: undefined, undoNeedsInsert: false, error: undefined } : value);
     } catch (cause) {
       setVoiceCandidate((value) => value ? { ...value, busy: false, error: cause instanceof Error ? cause.message : "Could not re-transcribe this recording." } : value);
     }
@@ -996,10 +1010,11 @@ function SidePanelApp() {
     if (!snapshot || !skillId || !draft.trim()) return;
     setGenerating(true);
     setError(undefined);
+    let targetKey = generationTargetKey(snapshot);
     try {
       const current = await resolveActiveProject(snapshot);
       if (!current || current.source.url !== snapshot.source.url) throw new Error("The page changed before this Draft started.");
-      const targetKey = generationTargetKey(current);
+      targetKey = generationTargetKey(current);
       const activity = await saveMaterial({
         requestId: createRequestId(),
         kind: "text",
@@ -1045,9 +1060,11 @@ function SidePanelApp() {
       });
       setFailedPageSkillId(undefined);
       setFailedRun(undefined);
+      setFailedRunTargetKey(undefined);
     } catch (cause) {
       setFailedPageSkillId(undefined);
       setFailedRun(failedSkillRun(cause));
+      setFailedRunTargetKey(targetKey);
       setError(friendlyLocalError(cause, "model"));
     } finally {
       setGenerating(false);
@@ -1113,9 +1130,11 @@ function SidePanelApp() {
       });
       setFailedPageSkillId(undefined);
       setFailedRun(undefined);
+      setFailedRunTargetKey(undefined);
     } catch (cause) {
       setFailedPageSkillId(requestedSkillId);
       setFailedRun(failedSkillRun(cause));
+      setFailedRunTargetKey(`page-action:${snapshot.source.url}`);
       setError(friendlyLocalError(cause, "model"));
     } finally {
       setGenerating(false);
@@ -1128,33 +1147,32 @@ function SidePanelApp() {
     setGenerating(true);
     setError(undefined);
     try {
-      const current = await resolveActiveProject(snapshot);
-      if (!current || (failedRun.page_url && current.source.url !== failedRun.page_url)) {
-        throw new Error("Return to the original page before retrying this Run.");
-      }
+      const current = (await resolveActiveProject(snapshot)) ?? snapshot;
       const run = await retryExtensionSkillRun(failedRun);
       if (run.status !== "complete" || !run.original_output?.trim()) {
         throw new Error(run.error || "No result returned.");
       }
       const isPageAction = Boolean(failedPageSkillId);
+      const targetMatches = Boolean(failedRunTargetKey) && canInsertGeneratedText(current, failedRunTargetKey);
       commitCommandResult({
         runId: run.id,
         originalText: run.original_output,
         text: run.original_output,
-        targetKey: isPageAction ? `page-action:${current.source.url}` : generationTargetKey(current),
-        sourceURL: current.source.url,
-        allowInsert: !isPageAction,
+        targetKey: failedRunTargetKey ?? (isPageAction ? `page-action:${failedRun.page_url || current.source.url}` : generationTargetKey(current)),
+        sourceURL: failedRun.page_url || current.source.url,
+        allowInsert: !isPageAction && targetMatches,
         sources: commandSources(run),
       });
       setFailedRun(undefined);
       setFailedPageSkillId(undefined);
+      setFailedRunTargetKey(undefined);
     } catch (cause) {
       setFailedRun(failedSkillRun(cause) ?? failedRun);
       setError(friendlyLocalError(cause, "model"));
     } finally {
       setGenerating(false);
     }
-  }, [commitCommandResult, failedPageSkillId, failedRun, resolveActiveProject]);
+  }, [commitCommandResult, failedPageSkillId, failedRun, failedRunTargetKey, resolveActiveProject]);
 
   const captureCurrentPage = useCallback(async () => {
     const snapshot = stateRef.current;
@@ -1201,7 +1219,7 @@ function SidePanelApp() {
   const useGeneratedText = useCallback(async () => {
     const current = stateRef.current;
     const result = commandResultRef.current;
-    if (!current || !result?.text.trim() || result.allowInsert === false || insertingGenerated) return;
+    if (!current || !result?.text.trim() || result.allowInsert === false || result.adoptionPending || insertingGenerated) return;
     setInsertingGenerated(true);
     setError(undefined);
     try {
@@ -1214,6 +1232,7 @@ function SidePanelApp() {
         source: pageContext.source,
         selectionText: pageContext.selectionText,
         targetText: pageContext.targetText,
+        targetSessionId: pageContext.targetSessionId,
         targetAvailable: pageContext.targetAvailable,
       } : undefined;
       if (!liveTarget || !canInsertGeneratedText(liveTarget, result.targetKey)) {
@@ -1222,12 +1241,13 @@ function SidePanelApp() {
       const response = await chrome.tabs.sendMessage(current.tabId, {
         type: "logue:insert-text",
         text: result.text.trim(),
+        expectedTargetSessionId: liveTarget.targetSessionId,
       }) as { ok?: boolean; undoToken?: string } | undefined;
       if (!response?.ok || !response.undoToken) throw new Error("target unavailable");
-      const inserted = { ...result, undoToken: response.undoToken, adoptionId: response.undoToken, adoptionPending: "insert" as const };
+      const inserted = { ...result, undoToken: response.undoToken, adoptionId: response.undoToken, adoptionPending: "insert" as const, undoNeedsInsert: false };
       commitCommandResult(inserted);
       try {
-        const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", adoptionId: inserted.adoptionId, target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
+        const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", adoptionId: inserted.adoptionId, target: { surface: "side-panel", url: result.sourceURL, target_key: result.targetKey } });
         const adopted = { ...inserted, materialId: adoptedRun.material_id, adopted: true, adoptionPending: undefined };
         commitCommandResult(adopted);
       } catch (cause) {
@@ -1246,12 +1266,21 @@ function SidePanelApp() {
   const retryGeneratedAdoption = useCallback(async () => {
     const current = stateRef.current;
     const result = commandResultRef.current;
-    if (!current || !result?.adoptionPending || !result.undoToken || insertingGenerated) return;
+    if (!current || !result?.adoptionPending || !result.adoptionId || insertingGenerated) return;
+    if (result.adoptionPending === "insert" && !result.undoToken) return;
     setInsertingGenerated(true);
     setError(undefined);
     try {
-      const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", adoptionId: result.adoptionId, target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
-      commitCommandResult({ ...result, materialId: adoptedRun.material_id, adopted: true, adoptionPending: undefined });
+      let adoptedRun;
+      if (result.adoptionPending === "undo") {
+        if (result.undoNeedsInsert) {
+          adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", adoptionId: result.adoptionId, target: { surface: "side-panel", url: result.sourceURL, target_key: result.targetKey } });
+        }
+        adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "undo", adoptionId: result.adoptionId, target: { surface: "side-panel", url: result.sourceURL, target_key: result.targetKey } });
+      } else {
+        adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", adoptionId: result.adoptionId, target: { surface: "side-panel", url: result.sourceURL, target_key: result.targetKey } });
+      }
+      commitCommandResult({ ...result, materialId: adoptedRun.material_id, adopted: true, adoptionPending: undefined, undoNeedsInsert: false });
     } catch (cause) {
       setError(friendlyLocalError(cause, "save"));
     } finally {
@@ -1262,11 +1291,16 @@ function SidePanelApp() {
   const keepGeneratedText = useCallback(async () => {
     const current = stateRef.current;
     const result = commandResultRef.current;
-    if (!current || !result?.text.trim()) return;
+    if (!current || !result?.text.trim() || result.adoptionPending) return;
     setError(undefined);
+    const content = result.text.trim();
+    const previousAttempt = result.adoptionAttempts?.keep;
+    const adoptionId = previousAttempt?.content === content ? previousAttempt.id : createRequestId();
+    const pendingResult = { ...result, adoptionAttempts: { ...result.adoptionAttempts, keep: { id: adoptionId, content } } };
+    commitCommandResult(pendingResult);
     try {
-      const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "keep", target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
-      commitCommandResult({ ...result, materialId: adoptedRun.material_id, adopted: true });
+      const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "keep", adoptionId, target: { surface: "side-panel", url: result.sourceURL, target_key: result.targetKey } });
+      commitCommandResult({ ...pendingResult, materialId: adoptedRun.material_id, adopted: true, adoptionAttempts: { ...pendingResult.adoptionAttempts, keep: undefined } });
     } catch (cause) {
       setError(friendlyLocalError(cause, "save"));
     }
@@ -1275,22 +1309,27 @@ function SidePanelApp() {
   const undoGeneratedText = useCallback(async () => {
     const current = stateRef.current;
     const result = commandResultRef.current;
-    if (!current || !result?.undoToken) return;
+    if (!current || !result?.undoToken || !result.adoptionId) return;
+    const adoptionId = result.adoptionId;
     try {
-      let adoptedResult = result;
-      if (result.adoptionPending) {
-        const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", adoptionId: result.adoptionId, target: { surface: "side-panel", url: current.source.url, target_key: result.targetKey } });
-        adoptedResult = { ...result, materialId: adoptedRun.material_id, adopted: true, adoptionPending: undefined };
-        commitCommandResult(adoptedResult);
-      }
       const response = await chrome.tabs.sendMessage(current.tabId, {
         type: "logue:undo-insert",
-        token: adoptedResult.undoToken,
+        token: result.undoToken,
       }) as { ok?: boolean } | undefined;
-      if (!response?.ok) throw new Error("target unavailable");
-      const { undoToken: _consumed, adoptionPending: _pending, ...restored } = adoptedResult;
-      await adoptExtensionSkillRun(adoptedResult.runId, adoptedResult.text.trim(), { action: "undo", adoptionId: adoptedResult.adoptionId, target: { surface: "side-panel", url: current.source.url, target_key: adoptedResult.targetKey } });
-      commitCommandResult(restored);
+      if (!response?.ok) {
+        const { undoToken: _expired, ...withoutUndo } = result;
+        commitCommandResult(withoutUndo);
+        throw new Error("target unavailable");
+      }
+      const undoNeedsInsert = result.adoptionPending === "insert";
+      const { undoToken: _consumed, adoptionPending: _pending, ...restored } = result;
+      const pendingUndo = { ...restored, adoptionPending: "undo" as const, undoNeedsInsert };
+      commitCommandResult(pendingUndo);
+      if (undoNeedsInsert) {
+        await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "insert", adoptionId, target: { surface: "side-panel", url: result.sourceURL, target_key: result.targetKey } });
+      }
+      await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "undo", adoptionId, target: { surface: "side-panel", url: result.sourceURL, target_key: result.targetKey } });
+      commitCommandResult({ ...pendingUndo, adoptionPending: undefined, undoNeedsInsert: false });
       setError(undefined);
     } catch (cause) {
       setError(/target unavailable/i.test(String(cause)) ? { kind: "target", message: "The editor changed, so Logue didn’t undo it. Your draft is still saved here.", action: "copy" } : friendlyLocalError(cause, "save"));
@@ -1299,13 +1338,18 @@ function SidePanelApp() {
 
   const copyGeneratedText = useCallback(async () => {
     const result = commandResultRef.current;
-    if (!result?.text.trim()) return;
+    if (!result?.text.trim() || result.adoptionPending) return;
     try {
       await navigator.clipboard.writeText(result.text.trim());
       const current = stateRef.current;
       if (!current) return;
-      const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "copy", target: { surface: "clipboard", url: current.source.url, target_key: result.targetKey } });
-      commitCommandResult({ ...result, materialId: adoptedRun.material_id, adopted: true });
+      const content = result.text.trim();
+      const previousAttempt = result.adoptionAttempts?.copy;
+      const adoptionId = previousAttempt?.content === content ? previousAttempt.id : createRequestId();
+      const pendingResult = { ...result, adoptionAttempts: { ...result.adoptionAttempts, copy: { id: adoptionId, content } } };
+      commitCommandResult(pendingResult);
+      const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "copy", adoptionId, target: { surface: "clipboard", url: result.sourceURL, target_key: result.targetKey } });
+      commitCommandResult({ ...pendingResult, materialId: adoptedRun.material_id, adopted: true, adoptionAttempts: { ...pendingResult.adoptionAttempts, copy: undefined } });
     } catch (cause) {
       setError(friendlyLocalError(cause, "target"));
     }
@@ -1314,16 +1358,22 @@ function SidePanelApp() {
   const saveGeneratedDocument = useCallback(async () => {
     const current = stateRef.current;
     const result = commandResultRef.current;
-    if (!current || !result?.text.trim() || savingGeneratedDocument) return;
+    if (!current || !result?.text.trim() || result.adoptionPending || savingGeneratedDocument) return;
     setSavingGeneratedDocument(true);
     setError(undefined);
+    const content = result.text.trim();
+    const previousAttempt = result.adoptionAttempts?.document;
+    const adoptionId = previousAttempt?.content === content ? previousAttempt.id : createRequestId();
+    const pendingResult = { ...result, adoptionAttempts: { ...result.adoptionAttempts, document: { id: adoptionId, content } } };
+    commitCommandResult(pendingResult);
     try {
       const created = await saveExtensionSkillRunAsDocument(result.runId, {
         title: draft.trim().split("\n")[0]?.slice(0, 72) || `${current.source.title || "Logue"} draft`,
         content: result.text.trim(),
+        adoptionId,
       });
       if (!created.document.id) throw new Error("Could not save this Document.");
-      commitCommandResult({ ...result, adopted: true });
+      commitCommandResult({ ...pendingResult, adopted: true, adoptionAttempts: { ...pendingResult.adoptionAttempts, document: undefined } });
     } catch (cause) {
       setError(friendlyLocalError(cause, "save"));
     } finally {
@@ -1366,6 +1416,7 @@ function SidePanelApp() {
       const response = await chrome.tabs.sendMessage(current.tabId, {
         type: "logue:insert-text",
         text: pendingInsert.text,
+        expectedTargetSessionId: current.targetSessionId,
       }) as { ok?: boolean } | undefined;
       if (!response?.ok) throw new Error("The original editor is still unavailable.");
       setPendingInsert(undefined);
@@ -1729,10 +1780,14 @@ function SidePanelApp() {
       }
       if (!preserveActiveCapture) {
         setPhase("idle");
-        setError(next.pendingInsert ? {
+        setError((currentError) => next.pendingInsert ? {
           kind: "target",
           message: "The original editor is no longer available. Your text is saved in Logue.",
           action: "copy",
+        } : failedRunRef.current ? currentError ?? {
+          kind: "model",
+          message: "This Run failed. Retry keeps its original Sources and activity.",
+          action: "retry",
         } : next.commandResult && !canInsertGeneratedText(next, next.commandResult.targetKey) ? {
           kind: "target",
           message: "The original editor is unavailable. Your draft is still saved here.",
@@ -1877,6 +1932,7 @@ function SidePanelApp() {
       generationSourceIds={state?.generationSourceIds ?? []}
       pinnedSourceIds={state?.pinnedSourceIds ?? []}
       generatedUndoAvailable={Boolean(commandResult?.undoToken)}
+      generatedInsertAvailable={Boolean(commandResult?.allowInsert && state && canInsertGeneratedText(state, commandResult.targetKey))}
       generatedAdoptionPending={Boolean(commandResult?.adoptionPending)}
       insertingGenerated={insertingGenerated}
       savingGeneratedDocument={savingGeneratedDocument}
@@ -1907,7 +1963,7 @@ function SidePanelApp() {
       onDraftChange={(value) => { setDraft(value); persistDraft({ draft: value }); }}
       onGeneratedTextChange={(text) => {
         const current = commandResultRef.current;
-        if (current) commitCommandResult({ ...current, text, adopted: false });
+        if (current && !current.adoptionPending) commitCommandResult({ ...current, text, adopted: false });
       }}
       onCopyGenerated={() => void copyGeneratedText()}
       onKeepGenerated={() => void keepGeneratedText()}

@@ -91,6 +91,8 @@ export interface LogueSkillRun {
     document_revision?: number;
     target?: { surface?: string; url?: string; target_key?: string };
     undone?: boolean;
+    created_at?: string;
+    undone_at?: string;
   }>;
   status: "running" | "complete" | "failed";
   error?: string;
@@ -284,14 +286,19 @@ export async function retrySkillRun(run: LogueSkillRun) {
   );
 }
 
+/** Create an adoption attempt id at the UI action boundary so retries can reuse it. */
+export function createAdoptionId() {
+  return globalThis.crypto?.randomUUID?.() ?? `adopt-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export async function adoptSkillRun(
   id: string,
   adoptedOutput: string,
   result: {
     action?: "copy" | "insert" | "replace" | "keep" | "undo";
-    adoptionId?: string;
+    adoptionId: string;
     target?: { surface?: string; url?: string; target_key?: string };
-  } = {},
+  },
 ) {
   const response = await parse<{ run: LogueSkillRun }>(
     await fetch(`${apiBase}/v1/skill-runs/${encodeURIComponent(id)}/adopt`, {
@@ -300,7 +307,7 @@ export async function adoptSkillRun(
       body: JSON.stringify({
         output: adoptedOutput,
         action: result.action ?? "copy",
-        adoption_id: result.adoptionId ?? (result.action === "undo" ? undefined : globalThis.crypto?.randomUUID?.() ?? `adopt-${Date.now()}`),
+        adoption_id: result.adoptionId,
         target: result.target,
       }),
     }),
@@ -318,7 +325,9 @@ export async function saveSkillRunAsDocument(
     sourceIds?: string[];
     contextSourceIds?: string[];
     expectedRevision?: number;
-    adoptionId?: string;
+    adoptionId: string;
+    adoptionAction?: "document" | "replace" | "undo";
+    target?: { surface?: string; url?: string; target_key?: string };
   },
 ) {
   return parse<{ run: LogueSkillRun; document: LogueDocument }>(
@@ -333,7 +342,9 @@ export async function saveSkillRunAsDocument(
         source_ids: input.sourceIds,
         context_source_ids: input.contextSourceIds,
         expected_revision: input.expectedRevision,
-        adoption_id: input.adoptionId ?? globalThis.crypto?.randomUUID?.() ?? `adopt-${Date.now()}`,
+        adoption_id: input.adoptionId,
+        action: input.adoptionAction ?? "document",
+        target: input.target,
       }),
     }),
   );

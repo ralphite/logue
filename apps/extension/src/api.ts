@@ -160,6 +160,8 @@ export interface ExtensionSkillRun {
     document_revision?: number;
     target?: { surface?: string; url?: string; target_key?: string };
     undone?: boolean;
+    created_at?: string;
+    undone_at?: string;
   }>;
   sources?: Array<{
     id: string;
@@ -240,9 +242,9 @@ export async function adoptExtensionSkillRun(
   adoptedOutput: string,
   result: {
     action?: "insert" | "copy" | "replace" | "keep" | "undo";
-    adoptionId?: string;
+    adoptionId: string;
     target?: { surface?: string; url?: string; target_key?: string };
-  } = {},
+  },
 ) {
   const response = await request<{ run: ExtensionSkillRun }>(
     "adopt-skill-run",
@@ -250,7 +252,7 @@ export async function adoptExtensionSkillRun(
       id,
       adoptedOutput,
       action: result.action ?? "copy",
-      adoptionId: result.adoptionId ?? (result.action === "undo" ? undefined : createRequestId()),
+      adoptionId: result.adoptionId,
       target: result.target,
     },
   );
@@ -593,7 +595,9 @@ export async function saveExtensionSkillRunAsDocument(
     sourceIds?: string[];
     contextSourceIds?: string[];
     expectedRevision?: number;
-    adoptionId?: string;
+    adoptionId: string;
+    adoptionAction?: "document" | "replace" | "undo";
+    target?: { surface?: string; url?: string; target_key?: string };
   },
 ) {
   return request<{ run: ExtensionSkillRun; document: ExtensionDocument }>(
@@ -607,7 +611,9 @@ export async function saveExtensionSkillRunAsDocument(
       sourceIds: input.sourceIds,
       contextSourceIds: input.contextSourceIds,
       expectedRevision: input.expectedRevision,
-      adoptionId: input.adoptionId ?? createRequestId(),
+      adoptionId: input.adoptionId,
+      adoptionAction: input.adoptionAction ?? "document",
+      target: input.target,
     },
   );
 }

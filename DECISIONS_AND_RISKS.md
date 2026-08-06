@@ -840,21 +840,21 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 ### DR-078 — Extension Retry 复用 Host 已保存的 failed Run
 
 - **优先级：** V2 Lineage / Phase 2 P1
-- **状态：** 已实现；Extension typecheck 与 diff check 通过，真实 provider failure 留到 Phase 5
+- **状态：** 已实现并通过 scope / product / engineering 三路 final 静态 gate；真实 provider failure 留到 Phase 5
 - **决定：** Side Panel 保存 `ExtensionApiError.run`。Voice/Text Command 与 Page/Selection Action 的 Retry 直接以该 Run ID 调用 `retry_run_id`，由 Host 复用 frozen Skill、Sources、model context 与原 `activity_source_id`；不得重新保存 Activity、Source 或 Comment。
 - **用户可见影响：** Provider 失败后点击 Retry 不会在 Library 留下重复输入，也不会丢失“这次 Run 使用了什么”的证据链。
 - **替代方案：** 仅保存表单参数并重新创建 Run；会生成新的 Activity/Source，且可能读取已变化的 Project Context。
-- **已有证据：** Phase 2 spec 审查确认 Host 已随 502 返回 failed Run，但 Side Panel catch 丢弃它，Retry 又从 `saveMaterial` 开始创建全新 lineage。
+- **已有证据：** Phase 2 spec 审查确认 Host 已随 502 返回 failed Run，但 Side Panel catch 丢弃它，Retry 又从 `saveMaterial` 开始创建全新 lineage。多轮 gate 继续发现 URL/文本相同也不足以证明原输入目标仍在；当前 content script 为真实 DOM target 分配稳定 session ID，并在 focus/input/selection/route 变化时刷新 generate state。失败时冻结完整 `targetKey`，Retry、Surface 与点击前实时检查均比较 tab、URL、selection、target text 与 target session；失配时只保留 Candidate，不显示虚假 Insert。final gate 进一步修正页面导航/reload 的 target-changed refresh，以及旧 Candidate warning 隐藏 failed Run Retry 的状态优先级；三路复审均无剩余 P0/P1。
 - **开放问题：** 无。
 
 ### DR-079 — Adoption 是追加事件，不是 Run 上可覆盖的单一终态
 
 - **优先级：** V2 Lineage / Phase 2 P1
-- **状态：** 已实现；Python compile、Web/Extension typecheck 与 diff check 通过，真实 Insert/Undo/Document 旅程留到 Phase 5
+- **状态：** 已实现并通过 scope / product / engineering 三路 final 静态 gate；真实跨表面旅程留到 Phase 5
 - **决定：** Copy、Insert、Replace、Keep 与 Document 每次采用都追加稳定 ID 的 adoption event；Run 与物化的 AI Source 或 Document 共享事件，Undo 只标记指定 Insert/Replace event。保留产品已定义的顺序动作：用户可以先 Insert/Copy，之后再 Save as Document；两种结果都存在，但不再互相覆盖 lineage。Voice adopted revision 同时记录 Copy/Insert action。
 - **用户可见影响：** History 与 Inspector 能核验每次采用、目标、内容版本和 Undo；同一 Candidate 后续写入 Document 不会让先前 Insert/Copy 看似消失。
 - **替代方案：** 强制 Run 只能有一个 AI Source 或 Document 终态；与权威 V2 明确允许“Insert 后可选 Save as Document”冲突。
-- **已有证据：** Phase 2 审查确认 Run 的单一 `adoption` 字段会被后一次动作覆盖；权威 V2 canonical journey 与 §10.12 明确要求 adopted revision 和顺序 adoption。
+- **已有证据：** Phase 2 审查确认 Run 的单一 `adoption` 字段会被后一次动作覆盖；权威 V2 canonical journey 与 §10.12 明确要求 adopted revision 和顺序 adoption。多轮 gate 发现并修正：Document 新 ID 的提前返回、network helper 内部生成 ID、编辑 Candidate 后误复用旧 ID、refresh 失败前过早清 ID、Selection Replace 重试重建当前页面 target，以及 History 仍隐藏事件。当前 pending ID 同时绑定内容与原 target，整个动作含 refresh 成功后才清除；同 ID 改内容由 Host 明确冲突；Run Inspector 显示摘要化 adoption history，Project History 显示 Copy → Document 等事件序列，所有 Source 统一使用 `adoption_revisions`。Document Action 冻结正文、标题、Project、revision 与 selection range；Replace/Insert 的本地 Undo 先完成用户动作，再以同 ID 幂等补写原 adoption 与 Undo；pending 期间冻结 Candidate 并只保留 Retry save。Run Inspector 不再用旧 Candidate 静默覆盖已有 Document。final 三路复审均无剩余 P0/P1。
 - **开放问题：** 无。
 
 ### DR-080 — 首次 Setup 只占默认入口，不阻断本地内容
@@ -880,11 +880,11 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 ### DR-082 — Compare 使用独立 Activity subtype
 
 - **优先级：** V2 Project History / Phase 2 P2
-- **状态：** 已实现；Python compile、Web/Extension typecheck 与 diff check 通过，真实 History 留到 Phase 5
+- **状态：** 已实现并通过 scope / product / engineering 三路 final 静态 gate；真实 History 旅程留到 Phase 5
 - **决定：** Activity schema 增加 `compare`，Project composer 按实际 mode 原样持久化；不再把 Compare 降级为 Ask。
 - **用户可见影响：** All activity 与 Project History 能准确区分问题、比较和起草，后续恢复/审计不会误解这次 Run 的意图。
 - **替代方案：** 继续从 title 或 selection prompt 猜测 Compare；会让数据语义依赖 UI 文案。
-- **已有证据：** Phase 2 runtime 审查确认 producer 固定把非 Draft 写为 Ask，Host union 也不接受 Compare。
+- **已有证据：** Phase 2 runtime 审查确认 producer 固定把非 Draft 写为 Ask，Host union 也不接受 Compare。首轮 scope gate 发现 inventory 更新意外删掉 frozen `model_context`/provider 输入一致与不覆盖旧 Candidate 两项合同，product/UX gate 发现 Project History 与 All activity 没有使用 Compare 产品标签；两处均已修正。final scope / product / engineering 静态复审均 PASS，无剩余 P0/P1。
 - **开放问题：** 无。
 
 ### DR-083 — 先批量恢复 Web App 可用性，再恢复 Phase 2 lineage 工作

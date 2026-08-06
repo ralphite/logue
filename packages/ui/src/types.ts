@@ -106,8 +106,11 @@ export interface Material {
   adoptedRevisions?: Array<{
     id: string;
     revision: number;
-    action?: "copy" | "insert";
+    action?: "copy" | "insert" | "replace" | "keep" | "document";
     content: string;
+    material_id?: string;
+    document_id?: string;
+    document_revision?: number;
     target?: { surface?: string; url?: string; target_key?: string };
     undone: boolean;
     created_at: string;

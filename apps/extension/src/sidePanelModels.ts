@@ -25,6 +25,7 @@ export interface PageCaptureContext {
   candidateServerURL?: string;
   selectionText?: string;
   targetText?: string;
+  targetSessionId?: string;
   targetAvailable: boolean;
   pageText?: string;
 }
@@ -61,8 +62,10 @@ export interface CommandResult {
   undoToken?: string;
   materialId?: string;
   adopted?: boolean;
-  adoptionPending?: "insert";
+  adoptionPending?: "insert" | "undo";
+  undoNeedsInsert?: boolean;
   adoptionId?: string;
+  adoptionAttempts?: Partial<Record<"copy" | "keep" | "document", { id: string; content: string }>>;
   allowInsert?: boolean;
 }
 
@@ -73,6 +76,7 @@ export interface PanelCaptureState {
   candidateServerURL?: string;
   selectionText?: string;
   targetText?: string;
+  targetSessionId?: string;
   targetAvailable: boolean;
   pageText?: string;
   draft?: string;

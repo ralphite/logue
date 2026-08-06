@@ -29,7 +29,7 @@ interface ApiMaterial {
   created_at: string;
   actor?: string;
   activity_type?: Material["activityType"];
-  adopted_revisions?: Material["adoptedRevisions"];
+  adoption_revisions?: Material["adoptedRevisions"];
   applied_context?: AppliedContext;
   organization?: Material["organization"];
   tombstone?: boolean;
@@ -449,6 +449,8 @@ export interface SkillRun {
     document_revision?: number;
     target?: { surface?: string; url?: string; target_key?: string };
     undone?: boolean;
+    created_at?: string;
+    undone_at?: string;
   }>;
   tombstone?: boolean;
 }
@@ -501,7 +503,7 @@ export function fromApiMaterial(item: ApiMaterial): Material {
     createdAt: item.created_at,
     actor: item.actor,
     activityType: item.activity_type,
-    adoptedRevisions: item.adopted_revisions,
+    adoptedRevisions: item.adoption_revisions,
     appliedContext: item.applied_context,
     organization: item.organization,
     tombstone: item.tombstone,

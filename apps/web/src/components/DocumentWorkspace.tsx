@@ -26,7 +26,7 @@ import {
   updateDocument,
   type LogueDocument,
 } from "../api";
-import { adoptSkillRun, createSkillRun, getSkills, saveSkillRunAsDocument, type LogueSkill } from "../skillApi";
+import { adoptSkillRun, createAdoptionId, createSkillRun, getSkills, saveSkillRunAsDocument, type LogueSkill } from "../skillApi";
 import { MaterialGroupAddList } from "./MaterialGroupPicker";
 import { PanelResizer, usePersistentPanelSize } from "./PanelResizer";
 import { SearchPending } from "./SearchPending";
@@ -1210,7 +1210,10 @@ export function ViewWorkspace({
       if (selectionUndoTimerRef.current) window.clearTimeout(selectionUndoTimerRef.current);
       setSelectionUndo({ documentId: candidate.documentId, beforeContent, afterContent, sourceIds: beforeSourceIds });
       selectionUndoTimerRef.current = window.setTimeout(() => setSelectionUndo(undefined), 8000);
-      const history = await saveSelectionSkillHistory({ runId: candidate.runId, replacement: candidate.text }, adoptSkillRun);
+      const history = await saveSelectionSkillHistory(
+        { runId: candidate.runId, replacement: candidate.text, adoptionId: createAdoptionId(), target: { surface: "document-editor", target_key: `document:${candidate.documentId}` } },
+        (runId, replacement, adoptionId, target) => adoptSkillRun(runId, replacement, { action: "replace", adoptionId, target }),
+      );
       if (history) showSelectionSkillNotice({ message: "Applied", history });
       dismissDocumentSelectionCandidate();
     } catch (cause) {
@@ -1227,7 +1230,7 @@ export function ViewWorkspace({
     setSelectionActionError("");
     try {
       await navigator.clipboard.writeText(candidate.text);
-      await adoptSkillRun(candidate.runId, candidate.text, { action: "copy", target: { surface: "document-editor", target_key: `document:${candidate.documentId}` } });
+      await adoptSkillRun(candidate.runId, candidate.text, { action: "copy", adoptionId: createAdoptionId(), target: { surface: "document-editor", target_key: `document:${candidate.documentId}` } });
       dismissDocumentSelectionCandidate();
     } catch (cause) {
       setSelectionActionError(cause instanceof Error ? cause.message : "Could not copy this result.");
@@ -1242,7 +1245,7 @@ export function ViewWorkspace({
     setSelectionActionBusy("keep");
     setSelectionActionError("");
     try {
-      await adoptSkillRun(candidate.runId, candidate.text, { action: "keep", target: { surface: "document-editor", target_key: `document:${candidate.documentId}` } });
+      await adoptSkillRun(candidate.runId, candidate.text, { action: "keep", adoptionId: createAdoptionId(), target: { surface: "document-editor", target_key: `document:${candidate.documentId}` } });
       dismissDocumentSelectionCandidate();
     } catch (cause) {
       setSelectionActionError(cause instanceof Error ? cause.message : "Could not keep this result.");
@@ -1258,7 +1261,7 @@ export function ViewWorkspace({
     setSelectionActionError("");
     try {
       const reconciled = reconcileDocumentCitations(candidate.text, candidate.sourceIds);
-      const { document: created } = await saveSkillRunAsDocument(candidate.runId, { title: `${candidate.skillName} result`, content: reconciled.content, project, sourceIds: reconciled.sourceIds, contextSourceIds: candidate.sourceIds });
+      const { document: created } = await saveSkillRunAsDocument(candidate.runId, { title: `${candidate.skillName} result`, content: reconciled.content, project, sourceIds: reconciled.sourceIds, contextSourceIds: candidate.sourceIds, adoptionId: createAdoptionId() });
       setDocumentCollection((current) => [created, ...current.filter((item) => item.id !== created.id)]);
       dismissDocumentSelectionCandidate();
       await selectDocument(created.id);
@@ -1289,7 +1292,10 @@ export function ViewWorkspace({
   async function retrySelectionSkillHistory() {
     const history = selectionSkillNotice?.history;
     if (!history) return;
-    const retry = await saveSelectionSkillHistory(history, adoptSkillRun);
+    const retry = await saveSelectionSkillHistory(
+      history,
+      (runId, replacement, adoptionId, target) => adoptSkillRun(runId, replacement, { action: "replace", adoptionId, target }),
+    );
     if (retry) {
       setSelectionSkillNotice({ message: "Applied", history: retry });
       return;

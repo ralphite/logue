@@ -131,6 +131,7 @@ interface OpenPanelMessage {
   source: PanelCaptureState["source"];
   selectionText?: string;
   targetText?: string;
+  targetSessionId?: string;
   targetAvailable?: boolean;
   autoStartRecording?: boolean;
 }
@@ -149,7 +150,7 @@ interface PanelStateMessage {
 }
 
 interface PageContextReadyMessage {
-  type: "logue:page-context-ready";
+  type: "logue:page-context-ready" | "logue:page-context-changed";
 }
 
 interface TabProjectsMessage {
@@ -786,6 +787,7 @@ async function returnPanelToPage(tabId: number) {
     undefined,
     context.targetAvailable,
     context.candidateServerURL,
+    context.targetSessionId,
   );
   if (!next) return false;
   const preserved = preserveTabProjects(next, current);
@@ -828,6 +830,7 @@ async function toggleTabPanel(tab?: chrome.tabs.Tab) {
     context.targetAvailable,
     context.candidateServerURL,
     context.pageText,
+    context.targetSessionId,
   )).catch(() => undefined);
   const wasOpen = (await priorOpen)[openPanelStorageKey(tabId)] === true;
   if (wasOpen && nativeSidePanel.close) {
@@ -853,8 +856,9 @@ async function setPanelContext(
   targetAvailable = false,
   candidateServerURL?: string,
   pageText?: string,
+  targetSessionId?: string,
 ) {
-  const state = panelStateForTab(tab, intent, source, selectionText, targetText, undefined, targetAvailable, candidateServerURL);
+  const state = panelStateForTab(tab, intent, source, selectionText, targetText, undefined, targetAvailable, candidateServerURL, targetSessionId);
   if (!state) return;
   const current = await restorePanelState(state.tabId);
   const merged = preserveTabProjects(preserveMatchingPanelDraft({ ...state, pageText }, current), current);
@@ -862,11 +866,27 @@ async function setPanelContext(
   broadcastPanelState(merged);
 }
 
-async function refreshPanelContextFromPage(tab: chrome.tabs.Tab) {
+async function refreshPanelContextFromPage(tab: chrome.tabs.Tab, targetChanged = false) {
   if (typeof tab.id !== "number") return;
   const current = await restorePanelState(tab.id);
-  if (!acceptsPassivePageContext(current)) return;
   const context = await readPageCaptureContext(tab);
+  if (targetChanged && current?.intent === "generate") {
+    const next: PanelCaptureState = {
+      ...current,
+      source: context.source,
+      selectionText: context.selectionText,
+      targetText: context.targetAvailable ? context.targetText ?? "" : undefined,
+      targetSessionId: context.targetAvailable ? context.targetSessionId : undefined,
+      targetAvailable: context.targetAvailable,
+      pageText: context.pageText,
+      candidateServerURL: context.candidateServerURL,
+      updatedAt: Date.now(),
+    };
+    await persistPanelState(next);
+    broadcastPanelState(next);
+    return;
+  }
+  if (!acceptsPassivePageContext(current)) return;
   await setPanelContext(
     tab,
     "page",
@@ -876,6 +896,7 @@ async function refreshPanelContextFromPage(tab: chrome.tabs.Tab) {
     context.targetAvailable,
     context.candidateServerURL,
     context.pageText,
+    context.targetSessionId,
   );
 }
 
@@ -902,6 +923,7 @@ async function openVoiceCommandPanel(tab?: chrome.tabs.Tab) {
     undefined,
     context.targetAvailable,
     context.candidateServerURL,
+    context.targetSessionId,
   );
   if (!base) return;
   const next: PanelCaptureState = {
@@ -1245,6 +1267,8 @@ async function handleApiMessage(message: ApiMessage) {
           context_source_ids: payload.contextSourceIds,
           expected_revision: payload.expectedRevision,
           adoption_id: payload.adoptionId,
+          action: payload.adoptionAction,
+          target: payload.target,
         }),
       }),
     );
@@ -1614,8 +1638,8 @@ chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === "loading") disposeInlineRecorderForTab(tabId);
   if (changeInfo.status || changeInfo.url) syncSidePanelOption(tabId);
-  if (!changeInfo.url || !openPanelTabs.has(tabId)) return;
-  void refreshPanelContextFromPage(tab);
+  if ((!changeInfo.url && changeInfo.status !== "loading") || !openPanelTabs.has(tabId)) return;
+  void refreshPanelContextFromPage(tab, true);
 });
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
@@ -1716,13 +1740,13 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
     return false;
   }
 
-  if (message?.type === "logue:page-context-ready") {
+  if (message?.type === "logue:page-context-ready" || message?.type === "logue:page-context-changed") {
     const tab = sender.tab;
     if (tab && typeof tab.id === "number") {
       syncSidePanelOption(tab.id);
     }
     if (tab && typeof tab.id === "number" && openPanelTabs.has(tab.id)) {
-      void refreshPanelContextFromPage(tab).catch(() => undefined);
+      void refreshPanelContextFromPage(tab, true).catch(() => undefined);
     }
     return false;
   }
@@ -1765,6 +1789,7 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
         source: message.source,
         selectionText: message.selectionText?.trim() || undefined,
         targetText: message.targetAvailable ? message.targetText ?? "" : undefined,
+        targetSessionId: message.targetAvailable ? message.targetSessionId : undefined,
         targetAvailable: Boolean(message.targetAvailable),
         autoStartToken: message.autoStartRecording ? createRequestId() : undefined,
         updatedAt: Date.now(),

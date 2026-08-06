@@ -312,11 +312,11 @@ describe("editable integration", () => {
   });
 
   it("keeps a completed replacement retryable when provenance saving fails", async () => {
-    const transaction = { runId: "run_123", replacement: "Rewritten text" };
+    const transaction = { runId: "run_123", replacement: "Rewritten text", adoptionId: "adopt_123", target: { surface: "inline-selection", url: "https://example.com" } };
     const failingAdoption = vi.fn().mockRejectedValue(new Error("offline"));
 
     await expect(saveSelectionSkillHistory(transaction, failingAdoption)).resolves.toEqual(transaction);
-    expect(failingAdoption).toHaveBeenCalledWith("run_123", "Rewritten text");
+    expect(failingAdoption).toHaveBeenCalledWith("run_123", "Rewritten text", "adopt_123", transaction.target);
 
     await expect(saveSelectionSkillHistory(transaction, vi.fn().mockResolvedValue(undefined))).resolves.toBeUndefined();
   });
