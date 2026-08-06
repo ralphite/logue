@@ -373,6 +373,7 @@ export function MaterialDetail({
               <p><span className="font-medium text-[#4d4e4a]">Project: </span>{material.appliedContext.reference_project || "No project"}</p>
               {(material.appliedContext.voice_profile_label || material.appliedContext.transcription_skill_name) && <p><span className="font-medium text-[#4d4e4a]">Voice profile: </span>{material.appliedContext.voice_profile_label || "Default voice profile"}{material.appliedContext.transcription_skill_name ? ` · ${material.appliedContext.transcription_skill_name}` : ""}{material.appliedContext.transcription_skill_revision ? ` r${material.appliedContext.transcription_skill_revision}` : ""}</p>}
               {material.appliedContext.primary_language && <p><span className="font-medium text-[#4d4e4a]">Language: </span>{material.appliedContext.primary_language}{material.appliedContext.mixed_languages?.length ? ` + ${material.appliedContext.mixed_languages.join(", ")}` : ""}</p>}
+              {material.appliedContext.topic_vocabulary_name && <p><span className="font-medium text-[#4d4e4a]">Topic Vocabulary: </span>{material.appliedContext.topic_vocabulary_name}</p>}
               <p><span className="font-medium text-[#4d4e4a]">Confirmed terms: </span>{material.appliedContext.glossary?.length ?? 0}</p>
               <p><span className="font-medium text-[#4d4e4a]">Recent adopted phrases: </span>{material.appliedContext.recent_adopted_ids?.length ?? 0}</p>
             </div>

@@ -1,8 +1,10 @@
 import type { InlineVoicePhase } from "./InlineVoiceControls";
+import type { VoiceProfileOverrides } from "./api";
 
 const messageType = "logue:google-docs-launcher";
 
 export type GoogleDocsLauncherAction = "start" | "stop" | "cancel";
+export interface GoogleDocsLauncherCommand { action: GoogleDocsLauncherAction; overrides?: VoiceProfileOverrides; }
 
 export interface GoogleDocsLauncherState {
   visible: boolean;
@@ -15,8 +17,8 @@ export function googleDocsLauncherStateMessage(state: GoogleDocsLauncherState) {
   return { type: messageType, kind: "state" as const, state };
 }
 
-export function googleDocsLauncherActionMessage(action: GoogleDocsLauncherAction) {
-  return { type: messageType, kind: "action" as const, action };
+export function googleDocsLauncherActionMessage(action: GoogleDocsLauncherAction, overrides?: VoiceProfileOverrides) {
+  return { type: messageType, kind: "action" as const, action, overrides };
 }
 
 export function readGoogleDocsLauncherState(value: unknown): GoogleDocsLauncherState | undefined {
@@ -32,11 +34,11 @@ export function readGoogleDocsLauncherState(value: unknown): GoogleDocsLauncherS
   return state as GoogleDocsLauncherState;
 }
 
-export function readGoogleDocsLauncherAction(value: unknown): GoogleDocsLauncherAction | undefined {
+export function readGoogleDocsLauncherAction(value: unknown): GoogleDocsLauncherCommand | undefined {
   if (!value || typeof value !== "object") return undefined;
   const message = value as Partial<{ type: string; kind: string; action: string }>;
   if (message.type !== messageType || message.kind !== "action") return undefined;
   return message.action === "start" || message.action === "stop" || message.action === "cancel"
-    ? message.action
+    ? { action: message.action, overrides: (value as { overrides?: VoiceProfileOverrides }).overrides }
     : undefined;
 }

@@ -1,7 +1,7 @@
 import { SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { adoptExtensionSkillRun, cancelMaterialSave, createExtensionSkillRun, getCaptureContext, getExtensionSkills, getServiceStatus, saveMaterial, saveSelection, transcribeAudio, type AppliedContext, type ExtensionSkill } from "./api";
+import { adoptExtensionSkillRun, cancelMaterialSave, createExtensionSkillRun, getCaptureContext, getExtensionSkills, getServiceStatus, saveMaterial, saveSelection, transcribeAudio, type AppliedContext, type CaptureContext, type ExtensionSkill, type VoiceProfileOverrides } from "./api";
 import { activeEditableElement, getEditableText, googleDocsEditableTarget, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElement, insertIntoElementWithUndo, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused, type LocalInsertTransaction } from "./dom";
 import { hasNativeSelectionSkillOwner, isLogueExtensionDisabledDocument, logueServerCandidate } from "./eligibility";
 import {
@@ -61,7 +61,9 @@ interface InlineVoiceSession {
   target: HTMLElement;
   source: CaptureSource;
   targetText: string;
-  projectPromise: Promise<string[]>;
+  projects: string[];
+  context?: CaptureContext;
+  overrides: VoiceProfileOverrides;
 }
 
 interface PageSelectionSnapshot {
@@ -79,6 +81,8 @@ interface SelectionCommentSession {
   id: string;
   snapshot: PageSelectionSnapshot;
   projects: string[];
+  context?: CaptureContext;
+  overrides: VoiceProfileOverrides;
   audio?: Blob;
 }
 
@@ -107,6 +111,33 @@ function pageSource(): CaptureSource {
     url: page.location.href,
     title: page.document.title || page.location.hostname,
     domain: page.location.hostname,
+  };
+}
+
+function frozenAppliedContext(source: CaptureSource, project: string, context: CaptureContext, overrides: VoiceProfileOverrides): AppliedContext {
+  const profile = context.resolved_voice_profile;
+  return {
+    page_url: source.url,
+    page_title: source.title,
+    reference_project: project || undefined,
+    personal_context: profile.personal_context || undefined,
+    project_overview: profile.project_overview || undefined,
+    glossary: profile.vocabulary,
+    voice_profile_label: profile.label,
+    project_profile_mode: profile.project_mode,
+    primary_language: profile.primary_language,
+    mixed_languages: profile.mixed_languages,
+    custom_instructions: profile.custom_instructions || undefined,
+    transcription_skill_id: profile.skill_id,
+    transcription_skill_name: profile.skill_name,
+    transcription_skill_revision: profile.skill_revision,
+    transcription_skill_instructions: profile.skill_instructions,
+    disable_project_profile: Boolean(overrides.disable_project_profile),
+    language_override: overrides.primary_language || undefined,
+    topic_vocabulary_id: profile.topic_vocabulary_id || undefined,
+    topic_vocabulary_name: profile.topic_vocabulary_name || undefined,
+    recent_adopted_ids: context.recent_adopted_refs?.map((item) => item.id) ?? [],
+    recent_adopted_texts: context.recent_adopted_refs?.map((item) => item.text) ?? context.recent_adopted,
   };
 }
 
@@ -171,6 +202,9 @@ function ExtensionLauncher() {
     history?: SelectionSkillApplyTransaction;
   }>();
   const [focusSelectionSkillTrigger, setFocusSelectionSkillTrigger] = useState(false);
+  const [voiceProfileContext, setVoiceProfileContext] = useState<CaptureContext>();
+  const [voiceProfileOverrides, setVoiceProfileOverrides] = useState<VoiceProfileOverrides>({});
+  const [voiceProfilePickerOpen, setVoiceProfilePickerOpen] = useState(false);
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
   const targetRef = useRef<HTMLElement | null>(null);
   const lastInsertUndoRef = useRef<{ token: string; transaction: LocalInsertTransaction } | undefined>(undefined);
@@ -187,6 +221,18 @@ function ExtensionLauncher() {
   const selectionSkillsLoadedRef = useRef(false);
   const selectionNoticeTimerRef = useRef<number | undefined>(undefined);
   const eligibleSelectionSkills = selectionSkillEligibility(selectionSkills, "extension");
+
+  useEffect(() => {
+    if ((!targetRect && !pageSelectionSnapshot) || voiceSessionRef.current || selectionCommentSessionRef.current) return;
+    let cancelled = false;
+    void (async () => {
+      const response = await chrome.runtime.sendMessage({ type: "logue:get-tab-projects" }) as { ok?: boolean; value?: string[] } | undefined;
+      const project = response?.ok && Array.isArray(response.value) ? response.value[0] ?? "" : "";
+      const next = await getCaptureContext(pageSource().url ?? "", project, voiceProfileOverrides);
+      if (!cancelled) setVoiceProfileContext(next);
+    })().catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [pageSelectionSnapshot, targetRect, voiceProfileOverrides]);
 
   const setSelectionCommentPhaseValue = useCallback((phase: SelectionCommentPhase) => {
     selectionCommentPhaseRef.current = phase;
@@ -353,23 +399,10 @@ function ExtensionLauncher() {
         await completeSelectionVoiceInput({
           transcribe: async () => {
             const activeProject = session.projects[0] ?? "";
-            const context = await getCaptureContext(session.snapshot.source.url, activeProject);
+            const context = session.context;
+            if (!context) throw new Error("Voice profile was not ready when recording started.");
             const profile = context.resolved_voice_profile;
-            appliedContext = {
-              page_url: session.snapshot.source.url,
-              page_title: session.snapshot.source.title,
-              reference_project: activeProject || undefined,
-              personal_context: profile.personal_context || undefined,
-              project_overview: profile.project_overview || undefined,
-              glossary: profile.vocabulary,
-              voice_profile_label: profile.label,
-              project_profile_mode: profile.project_mode,
-              primary_language: profile.primary_language,
-              mixed_languages: profile.mixed_languages,
-              custom_instructions: profile.custom_instructions || undefined,
-              recent_adopted_ids: context.recent_adopted_refs?.map((item) => item.id) ?? [],
-              recent_adopted_texts: context.recent_adopted_refs?.map((item) => item.text) ?? context.recent_adopted,
-            };
+            appliedContext = frozenAppliedContext(session.snapshot.source, activeProject, context, session.overrides);
             const transcription = await transcribeAudio({
               requestId: session.id,
               audio,
@@ -400,6 +433,7 @@ function ExtensionLauncher() {
         setPageSelectionSnapshot(undefined);
         setSelectionCommentError("");
         setSelectionCommentPhaseValue("ready");
+        setVoiceProfileOverrides({});
         window.getSelection()?.removeAllRanges();
       } catch (cause) {
         if (selectionCommentSessionRef.current?.id !== session.id) return;
@@ -424,6 +458,7 @@ function ExtensionLauncher() {
       id: createRequestId(),
       snapshot,
       projects: [],
+      overrides: { ...voiceProfileOverrides },
     };
     selectionCommentSessionRef.current = session;
     setSelectionCommentError("");
@@ -431,13 +466,16 @@ function ExtensionLauncher() {
     void Promise.all([
       getServiceStatus(),
       chrome.runtime.sendMessage({ type: "logue:get-tab-projects" }) as Promise<{ ok?: boolean; value?: string[] } | undefined>,
-    ]).then(([status, projectResponse]) => {
+    ]).then(async ([status, projectResponse]) => {
       if (selectionCommentSessionRef.current?.id !== session.id) return;
       if (!status.ai_configured) throw new Error("Set up Voice in Logue before recording.");
       if (!projectResponse?.ok || !Array.isArray(projectResponse.value)) {
         throw new Error("Could not read the Project for this tab.");
       }
       session.projects = projectResponse.value.slice(0, 1);
+      session.context = await getCaptureContext(session.snapshot.source.url, session.projects[0] ?? "", session.overrides);
+      setVoiceProfileContext(session.context);
+      setVoiceProfilePickerOpen(false);
       return sendInlineRecorderControl(session.id, "start");
     }).catch((cause: unknown) => {
       if (selectionCommentSessionRef.current?.id !== session.id) return;
@@ -445,7 +483,7 @@ function ExtensionLauncher() {
       setSelectionCommentError(cause instanceof Error ? cause.message : "Could not start voice comment.");
       setSelectionCommentPhaseValue("error");
     });
-  }, [commitSelectionComment, sendInlineRecorderControl, setSelectionCommentPhaseValue]);
+  }, [commitSelectionComment, sendInlineRecorderControl, setSelectionCommentPhaseValue, voiceProfileOverrides]);
 
   const acceptSelectionComment = useCallback(() => {
     const session = selectionCommentSessionRef.current;
@@ -520,25 +558,11 @@ function ExtensionLauncher() {
         let appliedContext: AppliedContext | undefined;
         const result = await completeVoiceInput({
           transcribe: async () => {
-            const projects = await session.projectPromise;
-            const activeProject = projects[0] ?? "";
-            const context = await getCaptureContext(session.source.url ?? "", activeProject);
+            const activeProject = session.projects[0] ?? "";
+            const context = session.context;
+            if (!context) throw new Error("Voice profile was not ready when recording started.");
             const profile = context.resolved_voice_profile;
-            appliedContext = {
-              page_url: session.source.url,
-              page_title: session.source.title,
-              reference_project: activeProject || undefined,
-              personal_context: profile.personal_context || undefined,
-              project_overview: profile.project_overview || undefined,
-              glossary: profile.vocabulary,
-              voice_profile_label: profile.label,
-              project_profile_mode: profile.project_mode,
-              primary_language: profile.primary_language,
-              mixed_languages: profile.mixed_languages,
-              custom_instructions: profile.custom_instructions || undefined,
-              recent_adopted_ids: context.recent_adopted_refs?.map((item) => item.id) ?? [],
-              recent_adopted_texts: context.recent_adopted_refs?.map((item) => item.text) ?? context.recent_adopted,
-            };
+            appliedContext = frozenAppliedContext(session.source, activeProject, context, session.overrides);
             const transcription = await transcribeAudio({
               requestId: session.id,
               audio: audioBlobFromEvent(event),
@@ -572,6 +596,7 @@ function ExtensionLauncher() {
         });
         if (voiceSessionRef.current?.id !== session.id) return;
         voiceSessionRef.current = undefined;
+        setVoiceProfileOverrides({});
         if (result.inserted) {
           setVoiceError("");
           setPendingCopyText("");
@@ -595,7 +620,7 @@ function ExtensionLauncher() {
     })();
   }, [restoreTargetFocus, setInlineVoicePhase]);
 
-  const startInlineVoice = useCallback(() => {
+  const startInlineVoice = useCallback((override?: VoiceProfileOverrides) => {
     const target = targetRef.current;
     if (!target || !isEditableTargetAvailable(target)) return;
     const session: InlineVoiceSession = {
@@ -603,27 +628,29 @@ function ExtensionLauncher() {
       target,
       source: pageSource(),
       targetText: getEditableText(target),
-      projectPromise: (chrome.runtime.sendMessage({ type: "logue:get-tab-projects" }) as Promise<{ ok?: boolean; value?: string[] } | undefined>)
-        .then((response) => response?.ok && Array.isArray(response.value) ? response.value.slice(0, 1) : [])
-        .catch(() => []),
+      projects: [],
+      overrides: { ...(override ?? voiceProfileOverrides) },
     };
     voiceSessionRef.current = session;
+    setInlineVoicePhase("starting");
     setVoiceError("");
     setPendingCopyText("");
-    void sendInlineRecorderControl(session.id, "start").then(() => {
+    void (async () => {
+      const projectResponse = await chrome.runtime.sendMessage({ type: "logue:get-tab-projects" }) as { ok?: boolean; value?: string[] } | undefined;
+      session.projects = projectResponse?.ok && Array.isArray(projectResponse.value) ? projectResponse.value.slice(0, 1) : [];
+      session.context = await getCaptureContext(session.source.url ?? "", session.projects[0] ?? "", session.overrides);
       if (voiceSessionRef.current?.id !== session.id) return;
-      // The extension recorder has acknowledged the command. This is the
-      // first point at which the UI may truthfully show a start-in-progress
-      // state; a click alone must not manufacture one.
-      setInlineVoicePhase("starting");
-    }).catch((cause: unknown) => {
+      setVoiceProfileContext(session.context);
+      setVoiceProfilePickerOpen(false);
+      await sendInlineRecorderControl(session.id, "start");
+    })().catch((cause: unknown) => {
       if (voiceSessionRef.current?.id !== session.id) return;
       voiceSessionRef.current = undefined;
       setVoiceError(cause instanceof Error ? cause.message : "Could not start voice input.");
       setInlineVoicePhase("error");
       restoreTargetFocus(session);
     });
-  }, [restoreTargetFocus, sendInlineRecorderControl, setInlineVoicePhase]);
+  }, [restoreTargetFocus, sendInlineRecorderControl, setInlineVoicePhase, voiceProfileOverrides]);
 
   const stopAndInsertInlineVoice = useCallback(() => {
     const session = voiceSessionRef.current;
@@ -637,7 +664,7 @@ function ExtensionLauncher() {
     });
   }, [restoreTargetFocus, sendInlineRecorderControl, setInlineVoicePhase]);
 
-  const controlGoogleDocsEditor = useCallback((action: GoogleDocsLauncherAction) => {
+  const controlGoogleDocsEditor = useCallback((action: GoogleDocsLauncherAction, overrides?: VoiceProfileOverrides) => {
     // Google Docs routinely replaces this hidden event iframe. Resolve the
     // document target at the moment of the action, rather than retaining a
     // frame-local reference from an earlier focus event.
@@ -646,7 +673,7 @@ function ExtensionLauncher() {
     targetRef.current = docsTarget;
     targetPageHrefRef.current = window.location.href;
     setTargetRect(docsTarget.getBoundingClientRect());
-    if (action === "start") startInlineVoice();
+    if (action === "start") startInlineVoice(overrides);
     if (action === "stop") stopAndInsertInlineVoice();
     if (action === "cancel") cancelInlineVoice();
     return true;
@@ -1005,7 +1032,7 @@ function ExtensionLauncher() {
     const listener = (message: unknown, _sender: chrome.runtime.MessageSender, sendResponse: (value: unknown) => void) => {
       const googleDocsAction = readGoogleDocsLauncherAction(message);
       if (googleDocsAction) {
-        sendResponse({ ok: controlGoogleDocsEditor(googleDocsAction) });
+        sendResponse({ ok: controlGoogleDocsEditor(googleDocsAction.action, googleDocsAction.overrides) });
         return false;
       }
       const contentMessage = message as ContentMessage;
@@ -1119,7 +1146,7 @@ function ExtensionLauncher() {
         pendingCopyText: "",
       });
     };
-    void chrome.runtime.sendMessage(googleDocsLauncherActionMessage(action))
+    void chrome.runtime.sendMessage(googleDocsLauncherActionMessage(action, action === "start" ? voiceProfileOverrides : undefined))
       .then((response: { ok?: boolean } | undefined) => {
         if (!response?.ok) showError();
       })
@@ -1195,6 +1222,11 @@ function ExtensionLauncher() {
         onStart={startSelectionComment}
         onAccept={acceptSelectionComment}
         onCancel={cancelSelectionComment}
+        profileContext={voiceProfileContext}
+        profileOverrides={voiceProfileOverrides}
+        profilePickerOpen={voiceProfilePickerOpen}
+        onProfileOverridesChange={setVoiceProfileOverrides}
+        onProfilePickerOpenChange={setVoiceProfilePickerOpen}
       />}
       {hasSelectionSkillMenu && selectionSnapshot && <SelectionSkillMenu
         anchor={selectionSnapshot.anchor}
@@ -1223,6 +1255,11 @@ function ExtensionLauncher() {
         pendingCopyText={pendingCopyText}
         onCopy={() => void navigator.clipboard.writeText(pendingCopyText)}
         errorPlacement={errorPlacement}
+        profileContext={voiceProfileContext}
+        profileOverrides={voiceProfileOverrides}
+        profilePickerOpen={voiceProfilePickerOpen}
+        onProfileOverridesChange={setVoiceProfileOverrides}
+        onProfilePickerOpenChange={setVoiceProfilePickerOpen}
       />}
       {googleDocsProxyVisible && googleDocsProxy && <InlineVoiceControls
         phase={googleDocsProxy.phase}
@@ -1234,6 +1271,11 @@ function ExtensionLauncher() {
         pendingCopyText={googleDocsProxy.pendingCopyText}
         onCopy={() => void navigator.clipboard.writeText(googleDocsProxy.pendingCopyText)}
         errorPlacement={googleDocsErrorPlacement}
+        profileContext={voiceProfileContext}
+        profileOverrides={voiceProfileOverrides}
+        profilePickerOpen={voiceProfilePickerOpen}
+        onProfileOverridesChange={setVoiceProfileOverrides}
+        onProfilePickerOpenChange={setVoiceProfilePickerOpen}
       />}
     </>
   );

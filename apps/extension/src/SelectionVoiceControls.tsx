@@ -1,5 +1,7 @@
-import { AudioLines, Check, LoaderCircle, X } from "lucide-react";
+import { AudioLines, Check, ChevronDown, LoaderCircle, X } from "lucide-react";
 import type { CSSProperties } from "react";
+import type { CaptureContext, VoiceProfileOverrides } from "./voiceProfileModels";
+import { VoiceProfilePicker } from "./VoiceProfilePicker";
 
 export type SelectionCommentPhase = "ready" | "starting" | "recording" | "committing" | "error";
 
@@ -10,6 +12,11 @@ export function SelectionVoiceControls({
   onStart,
   onAccept,
   onCancel,
+  profileContext,
+  profileOverrides = {},
+  profilePickerOpen = false,
+  onProfileOverridesChange = () => undefined,
+  onProfilePickerOpenChange = () => undefined,
 }: {
   phase: SelectionCommentPhase;
   style?: CSSProperties;
@@ -17,6 +24,11 @@ export function SelectionVoiceControls({
   onStart: () => void;
   onAccept: () => void;
   onCancel: () => void;
+  profileContext?: CaptureContext;
+  profileOverrides?: VoiceProfileOverrides;
+  profilePickerOpen?: boolean;
+  onProfileOverridesChange?: (value: VoiceProfileOverrides) => void;
+  onProfilePickerOpenChange?: (value: boolean) => void;
 }) {
   const busy = phase === "starting" || phase === "committing";
   return (
@@ -66,6 +78,8 @@ export function SelectionVoiceControls({
         onPointerDown={(event) => event.preventDefault()}
         onClick={onStart}
       ><AudioLines size={17} strokeWidth={2.1} /></button>}
+      {!busy && phase !== "recording" && <button type="button" className="logue-profile-trigger" aria-expanded={profilePickerOpen} onPointerDown={(event) => event.preventDefault()} onClick={() => onProfilePickerOpenChange(!profilePickerOpen)} title={profileContext?.resolved_voice_profile.label || "Default voice profile"}><span>{profileContext?.resolved_voice_profile.label || "Default"}</span><ChevronDown size={12} /></button>}
+      {profilePickerOpen && !busy && phase !== "recording" && <VoiceProfilePicker context={profileContext} overrides={profileOverrides} onChange={onProfileOverridesChange} onClose={() => onProfilePickerOpenChange(false)} />}
       {error && <div className="logue-selection-voice-error" role="alert">{error}</div>}
     </div>
   );

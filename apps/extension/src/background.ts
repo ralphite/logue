@@ -594,7 +594,13 @@ async function handleApiMessage(message: ApiMessage) {
     return status;
   }
   if (message.action === "context") {
-    const query = new URLSearchParams({ url: String(payload.pageUrl ?? ""), project: String(payload.project ?? "") });
+    const query = new URLSearchParams({
+      url: String(payload.pageUrl ?? ""),
+      project: String(payload.project ?? ""),
+      disable_project_profile: String(Boolean(payload.disable_project_profile)),
+      language: String(payload.primary_language ?? ""),
+      topic_vocabulary_id: String(payload.topic_vocabulary_id ?? ""),
+    });
     return parseResponse(await fetch(`${apiBase}/v1/context?${query.toString()}`));
   }
   if (message.action === "skills") {

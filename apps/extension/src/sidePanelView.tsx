@@ -1,9 +1,11 @@
-import { ArrowLeft, Ellipsis, Mic, Sparkles, Square } from "lucide-react";
+import { ArrowLeft, ChevronDown, Ellipsis, Mic, Sparkles, Square } from "lucide-react";
 import { OverlayMenu } from "@logue/ui";
 import { useState, type Ref } from "react";
 import type { CommandSourceSnapshot, ExtensionSkill, LocalError, PageMaterial, PanelCaptureState, PanelProject, PendingInsert } from "./sidePanelModels";
 import { capturePhasePresentation, type CapturePhase } from "./sidePanelPresentation";
 import { shouldShowPageHistory } from "./sidePanelPageHistory";
+import type { CaptureContext, VoiceProfileOverrides } from "./voiceProfileModels";
+import { VoiceProfilePicker } from "./VoiceProfilePicker";
 
 function sourceTitle(state: PanelCaptureState) {
   if (state.source.title.trim()) return state.source.title;
@@ -51,6 +53,9 @@ export function SidePanelView({
   serverSettingsOpen,
   serverConnecting,
   serverSettingsError,
+  voiceProfileContext,
+  voiceProfileOverrides = {},
+  voiceProfilePickerOpen = false,
   panelRef,
   onDraftChange,
   onGeneratedTextChange,
@@ -75,6 +80,8 @@ export function SidePanelView({
   onConnectServer,
   onConnectCandidateServer,
   onRetryServer,
+  onVoiceProfileOverridesChange = () => undefined,
+  onVoiceProfilePickerOpenChange = () => undefined,
 }: {
   state?: PanelCaptureState;
   phase: CapturePhase;
@@ -98,6 +105,9 @@ export function SidePanelView({
   serverSettingsOpen: boolean;
   serverConnecting: boolean;
   serverSettingsError?: string;
+  voiceProfileContext?: CaptureContext;
+  voiceProfileOverrides?: VoiceProfileOverrides;
+  voiceProfilePickerOpen?: boolean;
   panelRef?: Ref<HTMLElement>;
   onDraftChange: (value: string) => void;
   onGeneratedTextChange: (value: string) => void;
@@ -122,6 +132,8 @@ export function SidePanelView({
   onConnectServer: () => void;
   onConnectCandidateServer: () => void;
   onRetryServer: () => void;
+  onVoiceProfileOverridesChange?: (value: VoiceProfileOverrides) => void;
+  onVoiceProfilePickerOpenChange?: (value: boolean) => void;
 }) {
   const [serverMenuOpen, setServerMenuOpen] = useState(false);
   const [openSourceId, setOpenSourceId] = useState<string>();
@@ -277,6 +289,7 @@ export function SidePanelView({
             <button type="button" className="icon-button" onClick={onReturnToPage} aria-label="Back to page capture" title="Back to page capture"><ArrowLeft size={17} /></button>
           ) : pendingInsert ? null : (
             <>
+              <span style={{ position: "relative", display: "inline-flex" }}><button type="button" className="logue-profile-trigger" aria-expanded={voiceProfilePickerOpen} onClick={() => onVoiceProfilePickerOpenChange(!voiceProfilePickerOpen)} title={voiceProfileContext?.resolved_voice_profile.label || "Default voice profile"}><span>{voiceProfileContext?.resolved_voice_profile.label || "Default"}</span><ChevronDown size={12} /></button>{voiceProfilePickerOpen && <VoiceProfilePicker context={voiceProfileContext} overrides={voiceProfileOverrides} onChange={onVoiceProfileOverridesChange} onClose={() => onVoiceProfilePickerOpenChange(false)} />}</span>
               <button type="button" className="record-button" onClick={onStartRecording} aria-keyshortcuts="R" title="Record — R when this sidebar is focused"><Mic size={17} /> Record</button>
               {state.targetAvailable && <button type="button" className="icon-button" onClick={onRequestGeneration} aria-label="Generate reply" title="Generate reply"><Sparkles size={17} /></button>}
             </>

@@ -12,8 +12,10 @@ import {
   type LogueServerStatus,
 } from "./serverConnection";
 import type { ExtensionSkill, PageMaterial } from "./sidePanelModels";
+import type { CaptureContext, ExtensionProjectSkillBindings, ProjectVoiceProfile, ResolvedVoiceProfile, TopicVocabulary, VoiceProfile, VoiceProfileOverrides, VoiceProfileVocabulary } from "./voiceProfileModels";
 
 export type { ExtensionSkill, PageMaterial } from "./sidePanelModels";
+export type { CaptureContext, ExtensionProjectSkillBindings, ProjectVoiceProfile, ResolvedVoiceProfile, TopicVocabulary, VoiceProfile, VoiceProfileOverrides, VoiceProfileVocabulary } from "./voiceProfileModels";
 
 interface ApiResponse<T> {
   ok: boolean;
@@ -89,14 +91,6 @@ export interface ExtensionSettings {
   default_extension_skill: string;
 }
 
-export interface ExtensionProjectSkillBindings {
-  transcription?: string;
-  organization?: string;
-  command?: string;
-  ask?: string;
-  draft?: string;
-}
-
 export interface ExtensionSkillRun {
   id: string;
   skill_id: string;
@@ -158,49 +152,6 @@ export async function adoptExtensionSkillRun(id: string, adoptedOutput: string) 
   return request<ExtensionSkillRun>("adopt-skill-run", { id, adoptedOutput });
 }
 
-export interface CaptureContext {
-  personal_context: string;
-  voice_profile: VoiceProfile;
-  resolved_voice_profile: ResolvedVoiceProfile;
-  recent_adopted: string[];
-  recent_adopted_refs?: Array<{ id: string; text: string }>;
-  suggested_project: string;
-  projects: Array<{ name: string; overview?: string; transcription_profile: ProjectVoiceProfile; skill_bindings?: ExtensionProjectSkillBindings }>;
-}
-
-export interface VoiceProfileVocabulary {
-  people: string[];
-  companies: string[];
-  products: string[];
-  places: string[];
-  acronyms: string[];
-  preferred_spellings: Array<{ spoken: string; preferred: string }>;
-}
-
-export interface VoiceProfile {
-  primary_language: string;
-  mixed_languages: string[];
-  custom_instructions: string;
-  vocabulary: VoiceProfileVocabulary;
-}
-
-export interface ProjectVoiceProfile extends VoiceProfile {
-  mode: "inherited" | "customized" | "disabled";
-}
-
-export interface ResolvedVoiceProfile {
-  label: string;
-  project_mode: "default" | "inherited" | "customized" | "disabled";
-  project_name: string;
-  primary_language: string;
-  mixed_languages: string[];
-  custom_instructions: string;
-  vocabulary: string[];
-  skill_id: string;
-  personal_context: string;
-  project_overview: string;
-}
-
 export interface AppliedContext {
   page_url: string;
   page_title: string;
@@ -213,15 +164,20 @@ export interface AppliedContext {
   transcription_skill_id?: string;
   transcription_skill_name?: string;
   transcription_skill_revision?: number;
+  transcription_skill_instructions?: string;
   voice_profile_label?: string;
   project_profile_mode?: string;
   primary_language?: string;
   mixed_languages?: string[];
   custom_instructions?: string;
+  disable_project_profile?: boolean;
+  language_override?: string;
+  topic_vocabulary_id?: string;
+  topic_vocabulary_name?: string;
 }
 
-export async function getCaptureContext(pageUrl: string, project = "") {
-  return request<CaptureContext>("context", { pageUrl, project });
+export async function getCaptureContext(pageUrl: string, project = "", overrides: VoiceProfileOverrides = {}) {
+  return request<CaptureContext>("context", { pageUrl, project, ...overrides });
 }
 
 export async function getPageMaterials(pageUrl: string) {

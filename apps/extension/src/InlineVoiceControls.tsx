@@ -1,5 +1,7 @@
-import { AudioLines, Check, LoaderCircle, X } from "lucide-react";
+import { AudioLines, Check, ChevronDown, LoaderCircle, X } from "lucide-react";
 import type { CSSProperties } from "react";
+import type { CaptureContext, VoiceProfileOverrides } from "./voiceProfileModels";
+import { VoiceProfilePicker } from "./VoiceProfilePicker";
 
 export type InlineVoicePhase = "idle" | "starting" | "recording" | "processing" | "error";
 
@@ -13,6 +15,11 @@ export function InlineVoiceControls({
   onCopy,
   errorPlacement = { vertical: "above", horizontal: "right" },
   style,
+  profileContext,
+  profileOverrides = {},
+  profilePickerOpen = false,
+  onProfileOverridesChange = () => undefined,
+  onProfilePickerOpenChange = () => undefined,
 }: {
   phase: InlineVoicePhase;
   onStart: () => void;
@@ -23,6 +30,11 @@ export function InlineVoiceControls({
   onCopy?: () => void;
   errorPlacement?: { vertical: "above" | "below"; horizontal: "left" | "right" };
   style?: CSSProperties;
+  profileContext?: CaptureContext;
+  profileOverrides?: VoiceProfileOverrides;
+  profilePickerOpen?: boolean;
+  onProfileOverridesChange?: (value: VoiceProfileOverrides) => void;
+  onProfilePickerOpenChange?: (value: boolean) => void;
 }) {
   const captureActive = phase === "starting" || phase === "recording" || phase === "processing";
 
@@ -49,6 +61,8 @@ export function InlineVoiceControls({
       >
         <AudioLines size={17} strokeWidth={2.1} />
       </button>}
+      {!captureActive && <button type="button" className="logue-profile-trigger" aria-expanded={profilePickerOpen} onPointerDown={(event) => event.preventDefault()} onClick={() => onProfilePickerOpenChange(!profilePickerOpen)} title={profileContext?.resolved_voice_profile.label || "Default voice profile"}><span>{profileContext?.resolved_voice_profile.label || "Default"}</span><ChevronDown size={12} /></button>}
+      {profilePickerOpen && !captureActive && <VoiceProfilePicker context={profileContext} overrides={profileOverrides} onChange={onProfileOverridesChange} onClose={() => onProfilePickerOpenChange(false)} />}
       {error && <div className={`logue-launcher-error is-${errorPlacement.vertical} is-${errorPlacement.horizontal}`} role="alert"><span>{error}</span>{pendingCopyText && onCopy && <button type="button" onClick={onCopy}>Copy</button>}</div>}
     </div>
   );

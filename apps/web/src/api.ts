@@ -118,6 +118,14 @@ export function createProjectVoiceProfile(): ProjectVoiceProfile {
   return { ...createVoiceProfile(), mode: "inherited" };
 }
 
+export interface TopicVocabulary {
+  id: string;
+  name: string;
+  vocabulary: VoiceProfileVocabulary;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SkillRunSourceSnapshot {
   id: string;
   content: string;
@@ -407,6 +415,24 @@ export async function deleteMaterial(id: string) {
 
 export async function getWorkspaceSettings() {
   return parseResponse<WorkspaceSettings>(await fetch(`${apiBase}/v1/settings`));
+}
+
+export async function getTopicVocabularies() {
+  const result = await parseResponse<{ topic_vocabularies: TopicVocabulary[] }>(await fetch(`${apiBase}/v1/topic-vocabularies`));
+  return result.topic_vocabularies;
+}
+
+export async function saveTopicVocabulary(id: string | undefined, value: { name: string; vocabulary: VoiceProfileVocabulary }) {
+  return parseResponse<TopicVocabulary>(await fetch(`${apiBase}/v1/topic-vocabularies${id ? `/${encodeURIComponent(id)}` : ""}`, {
+    method: id ? "PATCH" : "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(value),
+  }));
+}
+
+export async function deleteTopicVocabulary(id: string) {
+  const response = await fetch(`${apiBase}/v1/topic-vocabularies/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!response.ok) throw new Error((await response.text()) || `Request failed (${response.status})`);
 }
 
 export async function saveWorkspaceSettings(settings: WorkspaceSettings) {

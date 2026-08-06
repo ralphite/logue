@@ -6,11 +6,15 @@ import {
   exportWorkspaceURL,
   getGlossarySuggestions,
   getWorkspaceSettings,
+  getTopicVocabularies,
   restoreWorkspace,
   saveWorkspaceSettings,
+  saveTopicVocabulary,
+  deleteTopicVocabulary,
   createVoiceProfile,
   type ServiceStatus,
   type VoiceProfileVocabulary,
+  type TopicVocabulary,
   type WorkspaceSettings,
   type GlossarySuggestion,
 } from "../api";
@@ -57,6 +61,11 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [suggestions, setSuggestions] = useState<GlossarySuggestion[]>([]);
   const [skills, setSkills] = useState<LogueSkill[]>([]);
+  const [topicVocabularies, setTopicVocabularies] = useState<TopicVocabulary[]>([]);
+  const [topicVocabularyId, setTopicVocabularyId] = useState("");
+  const [topicVocabularyName, setTopicVocabularyName] = useState("");
+  const [topicVocabularyTerms, setTopicVocabularyTerms] = useState("");
+  const [topicVocabularySaving, setTopicVocabularySaving] = useState(false);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [loadError, setLoadError] = useState<string>();
   const initialized = useRef(false);
@@ -65,10 +74,11 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
     setLoadState("loading");
     setLoadError(undefined);
     try {
-      const [value, terms, nextSkills] = await Promise.all([getWorkspaceSettings(), getGlossarySuggestions(), getSkills()]);
+      const [value, terms, nextSkills, nextTopics] = await Promise.all([getWorkspaceSettings(), getGlossarySuggestions(), getSkills(), getTopicVocabularies()]);
       setSettings(value);
       setSuggestions(terms.filter((item) => item.count >= 2));
       setSkills(nextSkills);
+      setTopicVocabularies(nextTopics);
       initialized.current = true;
       setLoadState("ready");
     } catch (cause) {
@@ -178,6 +188,50 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
     }
   }
 
+  function chooseTopicVocabulary(id: string) {
+    const selected = topicVocabularies.find((item) => item.id === id);
+    setTopicVocabularyId(id);
+    setTopicVocabularyName(selected?.name ?? "");
+    setTopicVocabularyTerms(selected ? [...selected.vocabulary.people, ...selected.vocabulary.companies, ...selected.vocabulary.products, ...selected.vocabulary.places, ...selected.vocabulary.acronyms].join("\n") : "");
+  }
+
+  async function persistTopicVocabulary() {
+    const name = topicVocabularyName.trim();
+    const terms = topicVocabularyTerms.split(/[\n,]/).map((value) => value.trim()).filter(Boolean);
+    if (!name || topicVocabularySaving) return;
+    setTopicVocabularySaving(true);
+    try {
+      const current = topicVocabularies.find((item) => item.id === topicVocabularyId);
+      const saved = await saveTopicVocabulary(current?.id, {
+        name,
+        vocabulary: { people: [], companies: [], products: Array.from(new Set(terms)), places: [], acronyms: [], preferred_spellings: current?.vocabulary.preferred_spellings ?? [] },
+      });
+      setTopicVocabularies((items) => current ? items.map((item) => item.id === saved.id ? saved : item) : [saved, ...items]);
+      chooseTopicVocabulary(saved.id);
+      setTopicVocabularyId(saved.id);
+      setTopicVocabularyName(saved.name);
+      setTopicVocabularyTerms(saved.vocabulary.products.join("\n"));
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Could not save Topic Vocabulary");
+    } finally {
+      setTopicVocabularySaving(false);
+    }
+  }
+
+  async function removeTopicVocabulary() {
+    if (!topicVocabularyId || topicVocabularySaving) return;
+    setTopicVocabularySaving(true);
+    try {
+      await deleteTopicVocabulary(topicVocabularyId);
+      setTopicVocabularies((items) => items.filter((item) => item.id !== topicVocabularyId));
+      setTopicVocabularyId(""); setTopicVocabularyName(""); setTopicVocabularyTerms("");
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Could not delete Topic Vocabulary");
+    } finally {
+      setTopicVocabularySaving(false);
+    }
+  }
+
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
       <PageHeader title="Settings" axis="editor" testId="settings-header-column" actions={saveState === "error" ? <span className="text-[14px] text-[#a84d44]">Save failed</span> : undefined} />
@@ -199,6 +253,15 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
             <div><p className="text-[14px] font-medium text-[#555651]">Personal vocabulary</p><div className="mt-2 space-y-2">{vocabularyCategories.map((category) => settings.voice_profile.vocabulary[category.key].length ? <div key={category.key} className="flex flex-wrap items-center gap-1.5"><span className="w-20 text-[13px] text-[#999a95]">{category.label}</span>{settings.voice_profile.vocabulary[category.key].map((value) => <span key={value} className="inline-flex h-8 items-center gap-1 rounded-md bg-[#f0f0ed] px-2.5 text-[14px] text-[#555651]">{value}<button type="button" onClick={() => removeTerm(category.key, value)} className="inline-flex size-6 items-center justify-center rounded text-[#999a95] hover:bg-[#e4e4e0]" aria-label={`Remove ${value}`}><X size={12} /></button></span>)}</div> : null)}</div><div className="mt-3 flex gap-2 max-[700px]:flex-wrap"><select className={`h-10 rounded-md border border-[#deded9] bg-white px-3 text-[14px] ${fieldFocusClass}`} value={termCategory} onChange={(event) => setTermCategory(event.target.value as VocabularyCategory)}>{vocabularyCategories.map((category) => <option key={category.key} value={category.key}>{category.label}</option>)}</select><input value={term} onChange={(event) => setTerm(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addTerm(); } }} placeholder="Add a term" className={`h-10 min-w-0 flex-1 rounded-md border border-[#deded9] px-3 text-[15px] outline-none ${fieldFocusClass}`} /><button type="button" onClick={addTerm} className="h-10 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#62635e] hover:bg-[#f4f4f1]">Add</button></div></div>
             <div><p className="text-[14px] font-medium text-[#555651]">Acronym and preferred spelling</p><div className="mt-2 flex flex-wrap gap-1.5">{settings.voice_profile.vocabulary.preferred_spellings.map((entry) => <button type="button" key={entry.spoken} onClick={() => update({ ...settings, voice_profile: { ...settings.voice_profile, vocabulary: { ...settings.voice_profile.vocabulary, preferred_spellings: settings.voice_profile.vocabulary.preferred_spellings.filter((value) => value.spoken !== entry.spoken) } } })} className="h-8 rounded-md bg-[#f0f0ed] px-2.5 text-[14px] text-[#555651]">{entry.spoken} → {entry.preferred} ×</button>)}</div><div className="mt-3 flex gap-2 max-[700px]:flex-wrap"><input className={`h-10 min-w-0 flex-1 rounded-md border border-[#deded9] px-3 text-[15px] outline-none ${fieldFocusClass}`} value={spokenTerm} onChange={(event) => setSpokenTerm(event.target.value)} placeholder="What Logue may hear" /><input className={`h-10 min-w-0 flex-1 rounded-md border border-[#deded9] px-3 text-[15px] outline-none ${fieldFocusClass}`} value={preferredTerm} onChange={(event) => setPreferredTerm(event.target.value)} placeholder="Preferred spelling" /><button type="button" onClick={addPreferredSpelling} disabled={!spokenTerm.trim() || !preferredTerm.trim()} className="h-10 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#62635e] hover:bg-[#f4f4f1] disabled:opacity-50">Add</button></div></div>
             <label className="block text-[14px] font-medium text-[#555651]">Custom instructions<textarea value={settings.voice_profile.custom_instructions} onChange={(event) => update({ ...settings, voice_profile: { ...settings.voice_profile, custom_instructions: event.target.value } })} placeholder="Optional transcription instructions that apply everywhere…" className={`mt-2 min-h-20 w-full resize-y rounded-md border border-[#deded9] px-3 py-2.5 text-[15px] leading-6 outline-none ${fieldFocusClass}`} /></label>
+          </div>
+        </SettingsRow>
+
+        <SettingsRow label="Topic vocabularies">
+          <div className="space-y-3">
+            <div className="flex gap-2 max-[700px]:flex-wrap"><select className={`h-10 min-w-0 flex-1 rounded-md border border-[#deded9] bg-white px-3 text-[14px] ${fieldFocusClass}`} value={topicVocabularyId} onChange={(event) => chooseTopicVocabulary(event.target.value)} aria-label="Topic Vocabulary"><option value="">New Topic Vocabulary</option>{topicVocabularies.map((topic) => <option key={topic.id} value={topic.id}>{topic.name}</option>)}</select>{topicVocabularyId && <button type="button" onClick={() => void removeTopicVocabulary()} disabled={topicVocabularySaving} className="h-10 rounded-md border border-[#e4cbc6] px-3 text-[14px] font-medium text-[#a04b43] hover:bg-[#fbefec]">Delete</button>}</div>
+            <input className={`h-10 w-full rounded-md border border-[#deded9] px-3 text-[15px] outline-none ${fieldFocusClass}`} value={topicVocabularyName} onChange={(event) => setTopicVocabularyName(event.target.value)} placeholder="Topic name, for example Investor interview" aria-label="Topic Vocabulary name" />
+            <textarea className={`min-h-24 w-full resize-y rounded-md border border-[#deded9] px-3 py-2.5 text-[15px] leading-6 outline-none ${fieldFocusClass}`} value={topicVocabularyTerms} onChange={(event) => setTopicVocabularyTerms(event.target.value)} placeholder="One term per line" aria-label="Topic Vocabulary terms" />
+            <div className="flex items-center justify-between gap-3"><p className="text-[14px] text-[#92938e]">Used only for transcription. It never adds Sources or Project Context.</p><button type="button" onClick={() => void persistTopicVocabulary()} disabled={!topicVocabularyName.trim() || topicVocabularySaving} className="h-9 shrink-0 rounded-md bg-[#242522] px-3 text-[14px] font-medium text-white disabled:bg-[#bdbdb8]">{topicVocabularySaving ? "Saving…" : "Save"}</button></div>
           </div>
         </SettingsRow>
 

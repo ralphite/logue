@@ -41,7 +41,7 @@ VALID_TASKS = {"transcribe", "organize", "generate"}
 VALID_OUTPUTS = {"insert", "material", "qa", "document"}
 VALID_SURFACES = {"web", "extension", "background"}
 VALID_CONTEXTS = {"page", "target", "selection", "project", "materials", "personal"}
-ID_RE = re.compile(r"^(?:mat|doc|prj|sk|run|cap)_[A-Za-z0-9]+$")
+ID_RE = re.compile(r"^(?:mat|doc|prj|sk|run|cap|voc)_[A-Za-z0-9]+$")
 CITATION_RE = re.compile(r"\[Source (\d+)\]")
 GLOSSARY_RE = re.compile(r"\b[A-Z][A-Za-z0-9.-]{2,}\b")
 VOCABULARY_CATEGORIES = ("people", "companies", "products", "places", "acronyms")
@@ -150,7 +150,7 @@ class Store:
     def __init__(self, root: Path):
         self.root = root.resolve()
         self.lock = threading.RLock()
-        for name in ("items", "audio", "docs", "doc-revisions", "projects", "skills", "skill-runs"):
+        for name in ("items", "audio", "docs", "doc-revisions", "projects", "skills", "skill-runs", "topic-vocabularies"):
             (self.root / name).mkdir(parents=True, exist_ok=True, mode=0o700)
         for skill in default_skills():
             path = self.root / "skills" / f"{skill['id']}.json"
@@ -182,6 +182,25 @@ class Store:
 
     def skill_runs(self) -> list[dict[str, Any]]:
         return self._list("skill-runs", "created_at")
+
+    def topic_vocabularies(self) -> list[dict[str, Any]]:
+        return self._list("topic-vocabularies", "updated_at")
+
+    def save_topic_vocabulary(self, identifier: str | None, value: dict[str, Any]) -> dict[str, Any]:
+        timestamp = now()
+        if identifier:
+            vocabulary = self.get("topic-vocabularies", identifier)
+        else:
+            vocabulary = {"id": make_id("voc_"), "created_at": timestamp}
+        name = str(value.get("name", vocabulary.get("name", ""))).strip()
+        if not name:
+            raise ValueError("topic vocabulary name is required")
+        duplicate = next((entry for entry in self.topic_vocabularies() if entry.get("name", "").casefold() == name.casefold() and entry.get("id") != vocabulary.get("id")), None)
+        if duplicate:
+            raise ValueError("topic vocabulary name already exists")
+        vocabulary.update({"name": name, "vocabulary": normalize_vocabulary(value.get("vocabulary", vocabulary.get("vocabulary"))), "updated_at": timestamp})
+        atomic_json(self.root / "topic-vocabularies" / f"{vocabulary['id']}.json", vocabulary)
+        return vocabulary
 
     def get(self, directory: str, identifier: str) -> dict[str, Any]:
         if not ID_RE.match(identifier):
@@ -379,10 +398,11 @@ class Store:
         applied_context = value.get("applied_context")
         if applied_context is not None and not isinstance(applied_context, dict):
             raise ValueError("applied_context must be an object")
-        context_strings = {"page_url", "page_title", "reference_project", "personal_context", "project_overview", "transcription_skill_id", "transcription_skill_name", "voice_profile_label", "project_profile_mode", "primary_language", "custom_instructions"}
+        context_strings = {"page_url", "page_title", "reference_project", "personal_context", "project_overview", "transcription_skill_id", "transcription_skill_name", "transcription_skill_instructions", "voice_profile_label", "project_profile_mode", "primary_language", "language_override", "topic_vocabulary_id", "topic_vocabulary_name", "custom_instructions"}
         context_arrays = {"glossary", "mixed_languages", "recent_adopted_ids", "recent_adopted_texts"}
         context_integers = {"transcription_skill_revision"}
-        unknown_context = sorted(set(applied_context or {}) - context_strings - context_arrays - context_integers)
+        context_booleans = {"disable_project_profile"}
+        unknown_context = sorted(set(applied_context or {}) - context_strings - context_arrays - context_integers - context_booleans)
         if unknown_context:
             raise ValueError(f"unsupported applied_context field {unknown_context[0]!r}")
         if any(not isinstance((applied_context or {})[name], str) for name in context_strings & set(applied_context or {})):
@@ -393,6 +413,8 @@ class Store:
                 raise ValueError(f"applied_context {name} must be an array of strings")
         if any(not isinstance((applied_context or {})[name], int) for name in context_integers & set(applied_context or {})):
             raise ValueError("applied_context revision fields must be integers")
+        if any(not isinstance((applied_context or {})[name], bool) for name in context_booleans & set(applied_context or {})):
+            raise ValueError("applied_context profile switches must be booleans")
 
         source_info = dict(source_value or {})
         source_info.setdefault("selection", source_content)
@@ -492,8 +514,9 @@ class Store:
         atomic_json(self.root / "settings.json", result)
         return result
 
-    def resolve_voice_profile(self, reference_project: str = "") -> dict[str, Any]:
+    def resolve_voice_profile(self, reference_project: str = "", overrides: dict[str, Any] | None = None) -> dict[str, Any]:
         settings = self.settings()
+        overrides = overrides if isinstance(overrides, dict) else {}
         default_profile = normalize_voice_profile(settings.get("voice_profile"))
         project = None
         if reference_project:
@@ -502,29 +525,54 @@ class Store:
             except FileNotFoundError:
                 pass
         project_profile = normalize_voice_profile((project or {}).get("transcription_profile"), project=True)
-        mode = project_profile["mode"] if project else "default"
+        mode = "disabled" if overrides.get("disable_project_profile") and project else project_profile["mode"] if project else "default"
         customized = bool(project and mode == "customized")
         selected_profile = project_profile if customized else default_profile
         vocabulary = vocabulary_terms(default_profile.get("vocabulary"))
         if customized and project:
             vocabulary = normalize(vocabulary + vocabulary_terms(project_profile.get("vocabulary")))
+        topic = None
+        topic_id = str(overrides.get("topic_vocabulary_id", "")).strip()
+        if topic_id:
+            try:
+                topic = self.get("topic-vocabularies", topic_id)
+                vocabulary = normalize(vocabulary + vocabulary_terms(topic.get("vocabulary")))
+            except FileNotFoundError:
+                pass
         custom_instructions = default_profile["custom_instructions"]
         if customized and project_profile["custom_instructions"]:
             custom_instructions = "\n\n".join(filter(None, [custom_instructions, project_profile["custom_instructions"]]))
         skill_id = str(settings.get("default_transcription_skill", "sk_transcribe"))
         if customized and project:
             skill_id = str((project.get("skill_bindings") or {}).get("transcription") or skill_id)
+        skill = None
+        for candidate in dict.fromkeys([skill_id, str(settings.get("default_transcription_skill", "sk_transcribe")), "sk_transcribe"]):
+            try:
+                current = self.get("skills", candidate)
+            except FileNotFoundError:
+                continue
+            if current.get("task") == "transcribe" and current.get("enabled", True):
+                skill = current
+                break
+        if skill is None:
+            raise RuntimeError("no enabled transcription Skill is available")
+        language_override = str(overrides.get("primary_language", "")).strip()
         return {
             "label": f"{reference_project} · Customized" if customized else "Default voice profile",
             "project_mode": mode,
             "project_name": reference_project,
-            "primary_language": selected_profile["primary_language"],
+            "primary_language": language_override or selected_profile["primary_language"],
             "mixed_languages": selected_profile["mixed_languages"],
             "custom_instructions": custom_instructions,
             "vocabulary": vocabulary,
-            "skill_id": skill_id,
+            "skill_id": str(skill["id"]),
+            "skill_name": str(skill["name"]),
+            "skill_revision": int(skill.get("revision", 1)),
+            "skill_instructions": str(skill.get("instructions", DICTATION_INSTRUCTIONS)),
             "personal_context": str(settings.get("personal_context", "")),
             "project_overview": str(project.get("overview", "")) if project and mode != "disabled" else "",
+            "topic_vocabulary_id": str((topic or {}).get("id", "")),
+            "topic_vocabulary_name": str((topic or {}).get("name", "")),
         }
 
     def create_document(self, value: dict[str, Any]) -> dict[str, Any]:
@@ -948,6 +996,10 @@ class Handler(BaseHTTPRequestHandler):
             self.json(HTTPStatus.OK, store.get_project(urllib.parse.unquote(path.removeprefix("/v1/projects/"))))
         elif path == "/v1/settings":
             self.json(HTTPStatus.OK, store.settings())
+        elif path == "/v1/topic-vocabularies":
+            self.json(HTTPStatus.OK, {"topic_vocabularies": store.topic_vocabularies()})
+        elif path.startswith("/v1/topic-vocabularies/"):
+            self.json(HTTPStatus.OK, store.get("topic-vocabularies", path.removeprefix("/v1/topic-vocabularies/")))
         elif path == "/v1/skills":
             self.json(HTTPStatus.OK, {"skills": store.skills()})
         elif path.startswith("/v1/skills/"):
@@ -1058,6 +1110,18 @@ class Handler(BaseHTTPRequestHandler):
             self.json(HTTPStatus.OK, store.save_project(name, self.body_json()))
         elif path == "/v1/settings" and method == "PATCH":
             self.json(HTTPStatus.OK, store.save_settings(self.body_json()))
+        elif path == "/v1/topic-vocabularies" and method == "POST":
+            self.json(HTTPStatus.CREATED, store.save_topic_vocabulary(None, self.body_json()))
+        elif path.startswith("/v1/topic-vocabularies/"):
+            identifier = path.removeprefix("/v1/topic-vocabularies/")
+            if method == "PATCH":
+                self.json(HTTPStatus.OK, store.save_topic_vocabulary(identifier, self.body_json()))
+            elif method == "DELETE":
+                store.get("topic-vocabularies", identifier)
+                (store.root / "topic-vocabularies" / f"{identifier}.json").unlink()
+                self.empty(HTTPStatus.NO_CONTENT)
+            else:
+                self.method_error()
         elif path == "/v1/skills" and method == "POST":
             self.json(HTTPStatus.CREATED, store.save_skill(None, self.body_json()))
         elif path.startswith("/v1/skills/"):
@@ -1153,7 +1217,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("type DELETE to confirm")
             backup = self.backup_workspace()
             with store.lock:
-                for directory in ("items", "audio", "docs", "doc-revisions", "projects", "skills", "skill-runs"):
+                for directory in ("items", "audio", "docs", "doc-revisions", "projects", "skills", "skill-runs", "topic-vocabularies"):
                     shutil.rmtree(store.root / directory)
                     (store.root / directory).mkdir(mode=0o700)
                 (store.root / "settings.json").unlink(missing_ok=True)
@@ -1258,36 +1322,32 @@ class Handler(BaseHTTPRequestHandler):
         context = context_value if isinstance(context_value, dict) else None
         capture_id = self.server.store.save_capture(audio, mime_type, context)
         try:
-            settings = self.server.store.settings()
             reference_project = str((context or {}).get("reference_project", "")).strip()
-            profile = self.server.store.resolve_voice_profile(reference_project)
-            skill_candidates = [str(profile.get("skill_id", "")), str(settings.get("default_transcription_skill", "sk_transcribe")), "sk_transcribe"]
-            skill = None
-            for candidate in dict.fromkeys(skill_candidates):
-                try:
-                    current = self.server.store.get("skills", candidate)
-                except FileNotFoundError:
-                    continue
-                if current.get("task") == "transcribe" and current.get("enabled", True):
-                    skill = current
-                    break
-            if skill is None:
-                raise RuntimeError("no enabled transcription Skill is available")
-            skill_revision = int(skill.get("revision", 1))
-            resolved_context = {
-                **(context or {}),
-                "personal_context": profile["personal_context"],
-                "project_overview": profile["project_overview"],
-                "glossary": profile["vocabulary"],
-                "voice_profile_label": profile["label"],
-                "project_profile_mode": profile["project_mode"],
-                "primary_language": profile["primary_language"],
-                "mixed_languages": profile["mixed_languages"],
-                "custom_instructions": profile["custom_instructions"],
-                "transcription_skill_id": str(skill["id"]),
-                "transcription_skill_name": str(skill["name"]),
-                "transcription_skill_revision": skill_revision,
+            profile_overrides = {
+                "disable_project_profile": bool((context or {}).get("disable_project_profile")),
+                "primary_language": str((context or {}).get("language_override", "")).strip(),
+                "topic_vocabulary_id": str((context or {}).get("topic_vocabulary_id", "")).strip(),
             }
+            frozen = bool((context or {}).get("transcription_skill_id") and (context or {}).get("transcription_skill_instructions"))
+            if frozen:
+                resolved_context = dict(context or {})
+                skill = {
+                    "id": resolved_context["transcription_skill_id"],
+                    "name": resolved_context.get("transcription_skill_name", "Transcription Skill"),
+                    "revision": int(resolved_context.get("transcription_skill_revision", 1)),
+                    "instructions": resolved_context["transcription_skill_instructions"],
+                }
+            else:
+                profile = self.server.store.resolve_voice_profile(reference_project, profile_overrides)
+                skill = {"id": profile["skill_id"], "name": profile["skill_name"], "revision": profile["skill_revision"], "instructions": profile["skill_instructions"]}
+                resolved_context = {
+                    **(context or {}),
+                    "personal_context": profile["personal_context"], "project_overview": profile["project_overview"], "glossary": profile["vocabulary"],
+                    "voice_profile_label": profile["label"], "project_profile_mode": profile["project_mode"], "primary_language": profile["primary_language"], "mixed_languages": profile["mixed_languages"], "custom_instructions": profile["custom_instructions"],
+                    "disable_project_profile": profile_overrides["disable_project_profile"], "language_override": profile_overrides["primary_language"], "topic_vocabulary_id": profile["topic_vocabulary_id"], "topic_vocabulary_name": profile["topic_vocabulary_name"],
+                    "transcription_skill_id": profile["skill_id"], "transcription_skill_name": profile["skill_name"], "transcription_skill_revision": profile["skill_revision"], "transcription_skill_instructions": profile["skill_instructions"],
+                }
+            skill_revision = int(skill.get("revision", 1))
             atomic_json(self.server.store.root / "audio" / f"{capture_id}.context.json", resolved_context)
             fields["page_url"] = str(resolved_context.get("page_url") or fields.get("page_url", ""))
             fields["page_title"] = str(resolved_context.get("page_title") or fields.get("page_title", ""))
@@ -1300,8 +1360,8 @@ class Handler(BaseHTTPRequestHandler):
             fields["primary_language"] = str(resolved_context.get("primary_language", "Auto-detect"))
             fields["mixed_languages"] = ", ".join(resolved_context.get("mixed_languages", []))
             skill_instructions = str(skill.get("instructions", DICTATION_INSTRUCTIONS))
-            if profile["custom_instructions"]:
-                skill_instructions = f"{skill_instructions}\n\nProfile instructions:\n{profile['custom_instructions']}"
+            if resolved_context.get("custom_instructions"):
+                skill_instructions = f"{skill_instructions}\n\nProfile instructions:\n{resolved_context['custom_instructions']}"
             text = self.server.gemini.transcribe(audio, mime_type, fields, skill_instructions)
         except Exception as error:
             self.error(HTTPStatus.BAD_GATEWAY, f"transcription failed; capture remains saved: {error}", capture_id=capture_id)
@@ -1319,7 +1379,12 @@ class Handler(BaseHTTPRequestHandler):
         store = self.server.store
         settings = store.settings()
         project = (query.get("project") or [""])[0].strip()
-        resolved_voice_profile = store.resolve_voice_profile(project)
+        profile_overrides = {
+            "disable_project_profile": (query.get("disable_project_profile") or [""])[0].lower() == "true",
+            "primary_language": (query.get("language") or [""])[0].strip(),
+            "topic_vocabulary_id": (query.get("topic_vocabulary_id") or [""])[0].strip(),
+        }
+        resolved_voice_profile = store.resolve_voice_profile(project, profile_overrides)
         recent, refs, seen = [], [], set()
         for item in store.items():
             if project and project not in item.get("projects", []):
@@ -1333,7 +1398,7 @@ class Handler(BaseHTTPRequestHandler):
                 recent.append(text); refs.append({"id": item["id"], "text": text})
             if len(recent) == 5:
                 break
-        return {"personal_context": settings.get("personal_context", ""), "voice_profile": settings.get("voice_profile"), "resolved_voice_profile": resolved_voice_profile, "recent_adopted": recent, "recent_adopted_refs": refs, "projects": store.projects(), "suggested_project": ""}
+        return {"personal_context": settings.get("personal_context", ""), "voice_profile": settings.get("voice_profile"), "resolved_voice_profile": resolved_voice_profile, "topic_vocabularies": store.topic_vocabularies(), "recent_adopted": recent, "recent_adopted_refs": refs, "projects": store.projects(), "suggested_project": ""}
 
     def glossary_suggestions(self) -> list[dict[str, Any]]:
         store = self.server.store
@@ -1352,7 +1417,7 @@ class Handler(BaseHTTPRequestHandler):
         store = self.server.store
         audio = [{"name": path.name, "data_base64": base64.b64encode(path.read_bytes()).decode("ascii")} for path in sorted((store.root / "audio").iterdir()) if path.is_file()]
         document_revisions = [read_json(path) for path in sorted((store.root / "doc-revisions").glob("*.json"))]
-        return {"schema_version": 2, "exported_at": now(), "materials": store.items(), "documents": store.documents(), "document_revisions": document_revisions, "projects": store.projects(), "settings": store.settings(), "skills": store.skills(), "skill_runs": store.skill_runs(), "audio": audio}
+        return {"schema_version": 2, "exported_at": now(), "materials": store.items(), "documents": store.documents(), "document_revisions": document_revisions, "projects": store.projects(), "settings": store.settings(), "skills": store.skills(), "skill_runs": store.skill_runs(), "topic_vocabularies": store.topic_vocabularies(), "audio": audio}
 
     def backup_workspace(self) -> Path:
         store = self.server.store
@@ -1372,9 +1437,9 @@ class Handler(BaseHTTPRequestHandler):
         backup = self.backup_workspace()
         staging = Path(tempfile.mkdtemp(prefix="logue-restore-", dir=store.root.parent))
         try:
-            for name in ("items", "audio", "docs", "doc-revisions", "projects", "skills", "skill-runs"):
+            for name in ("items", "audio", "docs", "doc-revisions", "projects", "skills", "skill-runs", "topic-vocabularies"):
                 (staging / name).mkdir(mode=0o700)
-            mappings = (("materials", "items"), ("documents", "docs"), ("projects", "projects"), ("skills", "skills"), ("skill_runs", "skill-runs"))
+            mappings = (("materials", "items"), ("documents", "docs"), ("projects", "projects"), ("skills", "skills"), ("skill_runs", "skill-runs"), ("topic_vocabularies", "topic-vocabularies"))
             for key, directory in mappings:
                 for entry in value.get(key, []):
                     if not isinstance(entry, dict) or not ID_RE.match(str(entry.get("id", ""))):

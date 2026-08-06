@@ -18,6 +18,7 @@ import {
   type CaptureContext,
   type ExtensionSkill,
   type PageMaterial,
+  type VoiceProfileOverrides,
 } from "./api";
 import {
   captureOrganization,
@@ -51,7 +52,7 @@ import "./sidePanel.css";
 type Phase = CapturePhase;
 
 interface RuntimeResponse<T> { ok: boolean; value?: T; }
-interface RecordingSession extends ActivePanelCaptureScope { id: string; }
+interface RecordingSession extends ActivePanelCaptureScope { id: string; contextPromise: Promise<CaptureContext>; overrides: VoiceProfileOverrides; }
 interface MicrophonePermissionResult {
   type: "logue:microphone-permission-result";
   token: string;
@@ -92,6 +93,8 @@ function SidePanelApp() {
   const [draft, setDraft] = useState("");
   const [transcript, setTranscript] = useState("");
   const [context, setContext] = useState<CaptureContext>();
+  const [voiceProfileOverrides, setVoiceProfileOverrides] = useState<VoiceProfileOverrides>({});
+  const [voiceProfilePickerOpen, setVoiceProfilePickerOpen] = useState(false);
   const [pageMaterials, setPageMaterials] = useState<PageMaterial[]>([]);
   const [error, setError] = useState<LocalError>();
   const [elapsed, setElapsed] = useState(0);
@@ -113,7 +116,8 @@ function SidePanelApp() {
   const stateRef = useRef<PanelCaptureState | undefined>(undefined);
   const draftRef = useRef("");
   const transcriptRef = useRef("");
-  const transcribeAndSaveRef = useRef<(blob: Blob) => Promise<void>>(async () => undefined);
+  const transcribeAndSaveRef = useRef<(blob: Blob, session?: RecordingSession) => Promise<void>>(async () => undefined);
+  const lastVoiceContextRef = useRef<{ context: CaptureContext; overrides: VoiceProfileOverrides } | undefined>(undefined);
   const startRecordingRef = useRef<() => void>(() => undefined);
   const recordingSessionRef = useRef<RecordingSession | undefined>(undefined);
   const recorderRef = useRef<AudioRecorderController | undefined>(undefined);
@@ -200,7 +204,7 @@ function SidePanelApp() {
     return promise;
   }, []);
 
-  const appliedContext = useCallback((captureContext: CaptureContext): AppliedContext => {
+  const appliedContext = useCallback((captureContext: CaptureContext, overrides: VoiceProfileOverrides = {}): AppliedContext => {
     const referenceProject = explicitProjects(stateRef.current)[0];
     const profile = captureContext.resolved_voice_profile;
     return {
@@ -215,6 +219,14 @@ function SidePanelApp() {
       primary_language: profile.primary_language,
       mixed_languages: profile.mixed_languages,
       custom_instructions: profile.custom_instructions || undefined,
+      transcription_skill_id: profile.skill_id,
+      transcription_skill_name: profile.skill_name,
+      transcription_skill_revision: profile.skill_revision,
+      transcription_skill_instructions: profile.skill_instructions,
+      disable_project_profile: Boolean(overrides.disable_project_profile),
+      language_override: overrides.primary_language || undefined,
+      topic_vocabulary_id: profile.topic_vocabulary_id || undefined,
+      topic_vocabulary_name: profile.topic_vocabulary_name || undefined,
       recent_adopted_ids: captureContext.recent_adopted_refs?.map((item) => item.id) ?? [],
       recent_adopted_texts: captureContext.recent_adopted_refs?.map((item) => item.text) ?? captureContext.recent_adopted,
     };
@@ -236,7 +248,7 @@ function SidePanelApp() {
       await getServiceStatus();
       if (stateRef.current?.tabId !== current.tabId) return;
       setError((active) => active?.kind === "service" ? undefined : active);
-      const captureContext = await getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "");
+      const captureContext = await getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "", voiceProfileOverrides);
       if (stateRef.current?.tabId === current.tabId) setContext(captureContext);
       if (shouldLoadPageHistory(current.intent)) await refreshPageMaterials(current.source.url);
       if (current.intent === "generate") {
@@ -256,7 +268,7 @@ function SidePanelApp() {
     } finally {
       setServerConnecting(false);
     }
-  }, [refreshPageMaterials]);
+  }, [refreshPageMaterials, voiceProfileOverrides]);
 
   const openServerSettings = useCallback(() => {
     setServerURLDraft(serverURL);
@@ -380,16 +392,20 @@ function SidePanelApp() {
     persistDraft({ draft: "", transcript: "", pendingInsert: null });
   }, [appliedContext, context, persistDraft, refreshPageMaterials]);
 
-  const transcribeAndSave = useCallback(async (blob: Blob) => {
+  const transcribeAndSave = useCallback(async (blob: Blob, session?: RecordingSession) => {
     const current = stateRef.current;
     if (!current) return;
     setPhase("processing");
     setError(undefined);
     try {
       const referenceProject = explicitProjects(current)[0];
-      const currentContext = context ?? await getCaptureContext(current.source.url, referenceProject ?? "");
+      const frozen = session
+        ? { context: await session.contextPromise, overrides: session.overrides }
+        : lastVoiceContextRef.current ?? { context: context ?? await getCaptureContext(current.source.url, referenceProject ?? "", voiceProfileOverrides), overrides: voiceProfileOverrides };
+      lastVoiceContextRef.current = frozen;
+      const currentContext = frozen.context;
       const profile = currentContext.resolved_voice_profile;
-      let provenance = appliedContext(currentContext);
+      let provenance = appliedContext(currentContext, frozen.overrides);
       const result = await transcribeAudio({
         audio: blob,
         source: current.source,
@@ -407,12 +423,14 @@ function SidePanelApp() {
       setDraft(result.text);
       persistDraft({ draft: result.text, transcript: result.text });
       await saveContent(result.text, result.capture_id, result.text, provenance);
+      setVoiceProfileOverrides({});
+      setVoiceProfilePickerOpen(false);
       setPhase("idle");
     } catch (cause) {
       setError(friendlyLocalError(cause, /target unavailable/i.test(String(cause)) ? "target" : "transcription"));
       setPhase("error");
     }
-  }, [appliedContext, context, persistDraft, saveContent]);
+  }, [appliedContext, context, persistDraft, saveContent, voiceProfileOverrides]);
 
   transcribeAndSaveRef.current = transcribeAndSave;
 
@@ -447,7 +465,7 @@ function SidePanelApp() {
         stopTimer();
         if (!session) return;
         lastBlobRef.current = blob;
-        void transcribeAndSaveRef.current(blob).finally(() => {
+        void transcribeAndSaveRef.current(blob, session).finally(() => {
           activeCaptureScopeRef.current = undefined;
         });
       },
@@ -468,15 +486,26 @@ function SidePanelApp() {
     if (phaseRef.current === "starting" || phaseRef.current === "recording" || phaseRef.current === "processing") return;
     const current = stateRef.current;
     if (!current) return;
-    const session = { id: createRequestId(), tabId: current.tabId, intent: current.intent };
+    const overrides = { ...voiceProfileOverrides };
+    const contextPromise = getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "", overrides);
+    const session = { id: createRequestId(), tabId: current.tabId, intent: current.intent, contextPromise, overrides };
     recordingSessionRef.current = session;
     activeCaptureScopeRef.current = session;
     stopRequestedRef.current = false;
     setPhase("starting");
     setError(undefined);
     setPendingInsert(undefined);
-    void recorder().start();
-  }, [recorder]);
+    setVoiceProfilePickerOpen(false);
+    void contextPromise.then(() => {
+      if (recordingSessionRef.current?.id === session.id) return recorder().start();
+    }).catch((cause: unknown) => {
+      if (recordingSessionRef.current?.id !== session.id) return;
+      recordingSessionRef.current = undefined;
+      activeCaptureScopeRef.current = undefined;
+      setError(friendlyLocalError(cause, "service"));
+      setPhase("error");
+    });
+  }, [recorder, voiceProfileOverrides]);
 
   startRecordingRef.current = startRecording;
 
@@ -680,7 +709,7 @@ function SidePanelApp() {
     stateRef.current = next;
     setState(next);
     persistDraft({ projects });
-    void getCaptureContext(next.source.url, project).then((captureContext) => {
+    void getCaptureContext(next.source.url, project, voiceProfileOverrides).then((captureContext) => {
       if (
         stateRef.current?.tabId === next.tabId &&
         explicitProjects(stateRef.current)[0] === (project || undefined)
@@ -698,7 +727,7 @@ function SidePanelApp() {
     }).catch((cause: unknown) => {
       if (stateRef.current?.tabId === next.tabId) setError(friendlyLocalError(cause, "service"));
     });
-  }, [persistDraft, skills]);
+  }, [persistDraft, skills, voiceProfileOverrides]);
 
   const returnToPage = useCallback(() => {
     if (typeof panelTabId !== "number") return;
@@ -814,6 +843,14 @@ function SidePanelApp() {
   }, []);
 
   useEffect(() => {
+    const current = stateRef.current;
+    if (!current || phaseRef.current === "starting" || phaseRef.current === "recording" || phaseRef.current === "processing") return;
+    void getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "", voiceProfileOverrides)
+      .then((value) => { if (stateRef.current?.tabId === current.tabId) setContext(value); })
+      .catch(() => undefined);
+  }, [voiceProfileOverrides]);
+
+  useEffect(() => {
     if (!state || !focusPanelOnHydrationRef.current) return;
     focusPanelOnHydrationRef.current = false;
     panelFocusControllerRef.current?.request();
@@ -890,6 +927,9 @@ function SidePanelApp() {
       serverSettingsOpen={serverSettingsOpen}
       serverConnecting={serverConnecting}
       serverSettingsError={serverSettingsError}
+      voiceProfileContext={context}
+      voiceProfileOverrides={voiceProfileOverrides}
+      voiceProfilePickerOpen={voiceProfilePickerOpen}
       panelRef={panelMainRef}
       onDraftChange={(value) => { setDraft(value); persistDraft({ draft: value }); }}
       onGeneratedTextChange={(text) => {
@@ -917,6 +957,8 @@ function SidePanelApp() {
       onConnectServer={connectConfiguredServer}
       onConnectCandidateServer={connectCandidateServer}
       onRetryServer={() => void refreshServerConnection()}
+      onVoiceProfileOverridesChange={setVoiceProfileOverrides}
+      onVoiceProfilePickerOpenChange={setVoiceProfilePickerOpen}
     />
   );
 }

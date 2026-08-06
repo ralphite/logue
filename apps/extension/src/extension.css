@@ -226,6 +226,20 @@ textarea {
   line-height: 1.4;
 }
 
+.logue-profile-trigger { position: absolute; right: calc(100% + 6px); top: 5px; display: inline-flex; max-width: 172px; min-height: 32px; align-items: center; gap: 5px; border: 1px solid rgba(35,36,32,.1); border-radius: 999px; background: rgba(255,255,255,.96); padding: 0 9px; color: #686a64; font: 500 12px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; box-shadow: 0 3px 12px rgba(20,21,18,.08); }
+.logue-profile-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logue-profile-picker { position: absolute; z-index: 2147483647; right: 0; bottom: calc(100% + 8px); width: 276px; border: 1px solid rgba(40,41,37,.13); border-radius: 12px; background: #fff; padding: 12px; color: #3f413c; font: 500 12px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; box-shadow: 0 18px 48px rgba(20,21,18,.18); }
+.logue-profile-picker-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.logue-profile-picker-heading strong,.logue-profile-picker-heading span { display: block; }
+.logue-profile-picker-heading strong { font-size: 13px; }
+.logue-profile-picker-heading span { margin-top: 2px; color: #8c8e88; font-weight: 400; }
+.logue-profile-picker button { display: inline-flex; border: 0; background: transparent; color: #858781; }
+.logue-profile-picker label { display: block; margin-top: 9px; color: #696b65; }
+.logue-profile-picker input:not([type="checkbox"]),.logue-profile-picker select { box-sizing: border-box; width: 100%; height: 34px; margin-top: 5px; border: 1px solid #deded9; border-radius: 7px; background: #fff; padding: 0 8px; color: #434540; font: inherit; }
+.logue-profile-picker .logue-profile-switch { display: flex; align-items: center; gap: 7px; }
+.logue-profile-picker .logue-profile-switch input { margin: 0; }
+.logue-profile-picker p { margin: 10px 0 0; color: #969892; font-weight: 400; }
+
 .logue-inline-spinner { animation: logue-spin 800ms linear infinite; }
 
 @keyframes logue-spin { to { transform: rotate(360deg); } }
