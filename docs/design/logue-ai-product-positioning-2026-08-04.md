@@ -1030,14 +1030,9 @@ Logue 没有账号，因此不能假装首启时已有一个不可解释的云�
 - 一个 transcription provider；
 - 一个 generation provider。
 
-首次设置提供两条平级路径：
+首次设置只提供一条清晰路径：**Connect a provider**。用户连接 Gemini 或受支持的远程 OpenAI-compatible endpoint，并把凭据保存在 owner-controlled Host。Logue 不下载、运行或管理本地模型；`local-first` 只描述 Host、数据与控制权，不描述模型运行位置。全程不需要 Logue account。Setup 必须在把页面、选区或录音发给远程模型前说明 provider、发送范围和存储边界。
 
-1. **Use recommended local models：** 下载并运行 Logue 验证过的本地转写和生成模型；
-2. **Connect my provider：** 连接用户控制的 OpenAI/Anthropic-compatible endpoint 或其他受支持 provider，并保存到 Host。
-
-默认推荐本地模型；设备不满足要求或用户更看重质量时选择自己的 provider。全程不需要 Logue account。Setup 必须在把页面、选区或录音发给远程模型前说明 provider、发送范围和存储边界。
-
-J1 的 10 分钟产品证明从 Host 显示 Voice ready / AI ready 后开始；另行测量从安装到 Model ready 的 setup completion time，不用跳过下载/配置时间来伪装 activation。
+J1 的 10 分钟产品证明从 Host 显示 Voice ready / AI ready 后开始；另行测量从安装到 Provider ready 的 setup completion time。
 
 ---
 
@@ -1191,7 +1186,7 @@ Anchored → Page changed → Re-anchored / Snapshot only
 **目标：** 10 分钟内证明核心价值。
 
 1. 用户从 logue.ai 安装本地 Logue 与 Extension；
-2. Host 检查 Voice / AI readiness；未配置时选择 recommended local models 或连接自己的 provider；
+2. Host 检查 Voice / AI readiness；未配置时连接自己的远程 provider；
 3. Extension 自动发现当前 Mac 的默认 Logue Host 并完成本地配对；自有 LAN Host 只从 Advanced connection 显式选择；
 4. 用户只授予一次 Extension 麦克风权限；
 5. 在文章 A 先创建/选择 Project A 作为当前 tab 的 active Project；选中段落后点击就近 Mic，说出判断，再用 Accept 或 Enter 完成，首条 Web + You bundle 直接进入 Project A；
@@ -1599,7 +1594,7 @@ Logue 必须在切换次数、重复解释、找回准确度、来源核验和�
 - Selection Comment 创建相互关联的 Web Source 与 You Comment Source；AI Adopted 是 AI Source/Document revision 的状态，不是第二个对象；
 - 未采用 AI output 属于可恢复、可删除、可选导出的 Run；
 - Logue Host 的数据目录是权威来源，Extension/Web App 是单 owner clients；
-- Host 必须有 Ready 的 transcription/generation providers；首设选择 recommended local models 或连接自己的 provider，不需要 Logue account；
+- Host 必须有 Ready 的 transcription/generation providers；首设连接自己的远程 provider，不需要 Logue account，也不提供本地模型路径；
 - North Star 默认在 Host 本地计算，不强制上传 Source 或行为 telemetry；
 - 当前不做团队 UI，但保留显式 Publication 边界；
 - 现有 V2 mock 无效，不作为后续约束。
@@ -1615,6 +1610,6 @@ Logue 必须在切换次数、重复解释、找回准确度、来源核验和�
 - 这套体验是否真的优于 Wispr + Readwise + ChatGPT 的组合；
 - 面对 Dia、Comet、Gemini in Chrome 与 ChatGPT 内置浏览器，owner-controlled Project evidence 和 adopted lineage 是否足够形成独立价值；
 - 用户是否愿意安装、长期依赖、推荐、贡献或付费支持；商业模式不预设为订阅 SaaS；
-- recommended local models 与 BYOK/provider setup 能否在首用中达到可接受的时间与质量。
+- provider setup 能否在首用中达到可接受的时间、质量与处理边界理解度。
 
 本文将在用户继续提供想法时直接重写相应章节，保持一份可理解、无历史补丁堆叠的产品定义。

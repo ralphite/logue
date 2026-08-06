@@ -1,0 +1,193 @@
+# Logue V2 Feature Inventory
+
+唯一依据：[`logue-ai-product-positioning-2026-08-04.md`](./logue-ai-product-positioning-2026-08-04.md)。用户最新明确决定优先。此文件只用于 PHASE 1 burn-down，不是完成证据。
+
+状态定义：
+
+- `MISSING`：没有可映射的 production 实现。
+- `CODED`：已有代码，但 production import、API producer-consumer 或跨表面链仍断裂。
+- `INTEGRATED`：静态可确认 production consumer 已挂载且 API/Host producer 已连接；仍未做 runtime 验证，不等于 `WORKING`。
+- `ACTIVE`：当前唯一 writer 批次。WIP 无法映射到以下 ID 时冻结但不丢弃。
+
+## Platform
+
+- V2-PLAT-01 — INTEGRATED — 产品名 Logue、官网 logue.ai、五个一级入口 Projects / Library / Documents / Skills / Settings。
+- V2-PLAT-02 — INTEGRATED — local-first、single-owner、无账号/成员/Workspace/套餐。
+- V2-PLAT-03 — INTEGRATED — Web 与 Extension 连接同一个 owner-controlled Host。
+- V2-PLAT-04 — INTEGRATED — 仅远程 Gemini / OpenAI-compatible provider；无本地模型产品路径。
+- V2-PLAT-05 — INTEGRATED — provider 未 Ready 时仍可浏览本地五个 V2 入口；AI/Voice 动作显示局部恢复并从 Settings 连接。
+- V2-PLAT-06 — INTEGRATED — Web、Side Panel、Inline Voice、Selection 的 production root 均挂载 V2 surface；V1 只保留不可见工程原语。
+
+## Source、Context 与 lineage
+
+- V2-LIN-01 — INTEGRATED — Web / You / AI Origin 与 Comment bundle topology。
+- V2-LIN-02 — INTEGRATED — Voice audio / raw transcript / normalized transcript / transcript revisions 永久分层。
+- V2-LIN-03 — INTEGRATED — Voice/Text/Capture input 永久保存；Extension Voice/Text Command 与 Web Ask/Compare/Draft/Continue 先保存永久 You Activity，再由 Run 链接；Retry 复用原 Activity lineage，Host 强制 Activity 不进入 Project Context。
+- V2-LIN-04 — INTEGRATED — 永久保存与 Project Context membership 分离；Voice Write/Activity 不自动进入 Context。
+- V2-LIN-05 — INTEGRATED — Saved only / Suggested / Added / Excluded 与 included/excluded Host 互斥。
+- V2-LIN-06 — INTEGRATED — Comment bundle 作为单一用户概念显示并共享 membership 决定。
+- V2-LIN-07 — INTEGRATED — Run 冻结 actual Sources、Skill revision、Context 与 Candidate；未采用 Candidate 不成为 Source。
+- V2-LIN-08 — INTEGRATED — 统一 adopted lineage：Copy/Insert/Replace/Undo/Keep/Document 同步持久化 AI Source 或 Document revision、Run adoption、target 与 undone lineage；Host 禁止孤立 `adopted_output`。
+- V2-LIN-09 — INTEGRATED — inline citation 编号使用 frozen `source_ids`；完整 Run Context 独立保存。
+- V2-LIN-10 — INTEGRATED — Document revision 保存 frozen source snapshots；restore endpoint 与 production consumers 已接。
+- V2-LIN-11 — INTEGRATED — AI Source 每次编辑冻结正文、parent IDs 与 exact Source snapshots；历史可核验 Web/You/AI evidence，Restore 始终创建更高 revision 且不改变 membership。
+- V2-LIN-12 — INTEGRATED — Page anchor 保留 immutable evidence snapshot；Host 强制 Comment parent identity 与 revision CAS，贯通 Anchored / Page changed / Re-anchored / Snapshot only 及同 Source 重锚。
+
+## Extension — Universal Voice Write (J2)
+
+- V2-VW-01 — INTEGRATED — 支持输入目标的 Inline mic 与 Voice Write shortcut。
+- V2-VW-02 — INTEGRATED — Password/支付/敏感字段不启动 Voice Write。
+- V2-VW-03 — INTEGRATED — Recording → Saved raw → Transcribing → Candidate；Recording Cancel 零写入。
+- V2-VW-04 — INTEGRATED — Candidate 编辑、Insert、Esc dismiss、target lost Copy/Open、局部 Undo，且不触发宿主 Submit。
+- V2-VW-05 — INTEGRATED — Voice Write Insert/Copy/Undo 使用永久 Adopted revision，并保留失败重试。
+- V2-VW-06 — INTEGRATED — active Project 只影响 transcription，并产生 Suggested membership，不自动入 Context。
+- V2-VW-07 — INTEGRATED — 录音前显示 Profile，并可选 Default/Disabled/另一 Project、一次性语言与 Topic Vocabulary。
+- V2-VW-08 — INTEGRATED — 同一原音 Re-transcribe 产生新 revision，保留 Profile/Topic/Skill lineage且不改 membership。
+- V2-VW-09 — INTEGRATED — Only this time / Topic / Project / Global 纠词与 Project delta 继承。
+
+## Extension — Voice Command / sourced Draft (J1/J6)
+
+- V2-CMD-01 — INTEGRATED — 独立 Command shortcut/明确 mode；显示 scope、Project 与 current target。
+- V2-CMD-02 — INTEGRATED — Voice/Text command、一次 Enter 执行、冲突 clarification、Esc 返回原焦点。
+- V2-CMD-03 — INTEGRATED — Voice/Text Command 每次提交先创建永久 You Activity Source，Run 强制链接真实 Activity；失败仍保留用户输入。
+- V2-CMD-04 — INTEGRATED — parse/Model failure 保留可恢复 Run/Candidate，不虚假成功。
+- V2-CMD-05 — INTEGRATED — 多来源结果进入同 tab Side Panel，显示 actual Sources，支持 Pin/Exclude 本次 Context。
+- V2-CMD-06 — INTEGRATED — Side Panel Candidate 编辑与 Insert/Copy/Keep/Document 使用统一 adoption 合同。
+- V2-CMD-07 — INTEGRATED — Insert 采用单一 AI Source，Undo 保留 target 与 persistent undone lineage；插入后保存失败可重试。
+- V2-CMD-08 — INTEGRATED — target expired 禁用 Insert并保留 Copy/Open in Logue。
+- V2-CMD-09 — INTEGRATED — citation inspector 打开 frozen Web/You/AI snapshot 与原 URL。
+
+## Extension — Capture、Comment、Actions (J3/J5)
+
+- V2-CAP-01 — INTEGRATED — Page / Selection Capture 保存 Web Source，并应用 tab-scoped Project/Saved-only 规则。
+- V2-CAP-02 — INTEGRATED — Selection Voice Comment 默认 `Mic → Accept/Enter`，原子 Web+You bundle；Cancel/Esc 零写入。
+- V2-CAP-03 — INTEGRATED — Page/Selection Text Comment 建立 Web+You bundle。
+- V2-CAP-04 — INTEGRATED — Side Panel Comment 可编辑正文、tags 与多 Project membership，并显示 Auto-added / Suggested / Excluded / Duplicate-linked reason；保存复用现有 bundle members，不创建重复 Comment。
+- V2-CAP-05 — INTEGRATED — Advanced Voice Comment Stop 先存 Unlinked You Comment；Candidate 与重开页面都可 Finish linking/Delete，同一 Comment identity 成为 Web+You bundle。
+- V2-CAP-06 — INTEGRATED — Page/Selection scope 与 Save / Translate / Rewrite / Summarize / Explain 等 Skill 动作。
+- V2-CAP-07 — INTEGRATED — pinned/recent 具体 Skills 一击运行，More Skills 选择后立即运行。
+- V2-CAP-08 — INTEGRATED — editable selection Replace/Undo 与静态 Copy/Keep 使用统一 adoption 合同。
+- V2-CAP-09 — INTEGRATED — 原文不被 Candidate 静默覆盖；Cancel 不改原文。
+
+## Extension — Active Project、Side Panel、offline
+
+- V2-PANEL-01 — INTEGRATED — active Project 按 tab 保存并随同 tab 导航保持；新 tab 默认 No project。
+- V2-PANEL-02 — INTEGRATED — Host-owned Remember for page/site 规则可见、可删；page > site，新 tab 自动解析，显式 Project/No project 与同-tab保持优先，Archived/Deleted 不应用。
+- V2-PANEL-03 — INTEGRATED — No Project 时 Side Panel 用 Name + 可选 goal 创建真实 Host Project，并立即设为当前 tab 的显式 Active Project。
+- V2-PANEL-04 — INTEGRATED — Side Panel 当前页/选区、Comments、Project、classification、Ask/Draft、Source inspector 与 target recovery。
+- V2-PANEL-05 — INTEGRATED — 开始前离线只在 pending queue 可写时允许录音；中途断线保存并重连上传。
+- V2-PANEL-06 — INTEGRATED — pending capture 的 Retry / Export audio / Delete。
+- V2-PANEL-07 — CODED — pending queue 容量/不可写的开始前阻止已有 provisional WIP；按 Goal Governor REPLAN 冻结，待 DR-064 原子性与可恢复提交完成后再收口。
+- V2-PANEL-08 — INTEGRATED — 单次麦克风授权、本地 Host发现/配对、Reconnect 与 LAN Advanced connection。
+
+## Web — Projects (J4/J6/J7)
+
+- V2-PROJ-01 — INTEGRATED — 创建、切换、稳定 ID rename、archive/restore、依赖预览 delete 已接；rename 同步当前 Source/Document/Run 引用。
+- V2-PROJ-02 — INTEGRATED — Project name、goal/overview、instructions 的 Host/Web 数据链。
+- V2-PROJ-03 — CODED — workspace 显示最近 Document/Ask-Draft；最近编辑位置恢复尚缺。
+- V2-PROJ-04 — INTEGRATED — Context review 的 Suggested/Added/Excluded、reason、Add/Remove/Exclude/Undo exclusion。
+- V2-PROJ-05 — INTEGRATED — Context review 区分 Auto-added / Added / Suggested / Excluded / Duplicate-linked；Change Project 使用 bundle 级 Host 合同，重复 Source 保留但 Run/Project retrieval 不重复加权。
+- V2-PROJ-06 — INTEGRATED — 本次 Run Sources 可 Pin/Exclude/补充，不改变 membership。
+- V2-PROJ-07 — INTEGRATED — Web Project Ask/Draft Candidate、实际 Sources、Copy 与 Save as Document。
+- V2-PROJ-08 — INTEGRATED — Compare 独立选择 Sources/Topics 并要求结构化差异与证据缺口；Continue 从选定历史 Draft 的 frozen Context 创建带 lineage 的新 Run，不覆盖旧 Candidate。
+- V2-PROJ-09 — INTEGRATED — Ask/Compare/Draft/Continue 的 prompt 先成为永久 You Activity Source，再创建带同一 lineage 的 Run。
+- V2-PROJ-10 — INTEGRATED — Project History 打开 Run、Candidate、Sources、Skill revision 与 adopted target。
+- V2-PROJ-11 — INTEGRATED — Project History 已接 Pin/Unpin、frozen retry lineage、依赖预览与 adopted/downstream-aware 安全删除。
+- V2-PROJ-12 — INTEGRATED — Project settings 汇总 Voice Profile、Skill overrides、相关 Topics、Archive/Restore、Project-scope Export 与依赖预览 Delete。
+- V2-PROJ-13 — INTEGRATED — Source-linked Classification memory、bundle 去重、单一 Host 事务更新、原子 Forget 与失败 Delete 不变更 memory 已接通；最终 runtime 留到 Phase 5。
+
+## Web — Transcription Profile / Topic Vocabulary (J4)
+
+- V2-VOICE-01 — INTEGRATED — Global Transcription Skill、Personal context/vocabulary、primary/mixed language、preferred spelling。
+- V2-VOICE-02 — INTEGRATED — Project Profile Inherited / Customized / Disabled 与 language/custom instructions/Skill override。
+- V2-VOICE-03 — INTEGRATED — Default 与 Project Profile 都可管理 phrases / avoid terms / formatting preference；Host 按继承 delta 解析并冻结 applied context，Extension 录音前显示实际 Profile 摘要，Disabled 不读取 Project 字段。
+- V2-VOICE-04 — INTEGRATED — Project override 只保存 delta；Global 其他字段继续继承，同词 Project 覆盖不泄漏。
+- V2-VOICE-05 — INTEGRATED — Topic Vocabulary 独立词汇集合，不携带 Sources、不授予 Project Context。
+- V2-VOICE-06 — INTEGRATED — Web Term suggestions 可逐条 Ignore，或选择 Global / Project / Topic Vocabulary 后 Remember；Project 写入 profile delta，Topic/Global 写入各自 vocabulary，均不改 Source membership。
+- V2-VOICE-07 — INTEGRATED — Inline/Side Panel Profile picker 与 one-shot Topic/language。
+- V2-VOICE-08 — INTEGRATED — Re-transcribe revision、原音、Profile/Topic/Skill lineage 与 membership 不变。
+
+## Web — Library / Find (J7/J8)
+
+- V2-LIB-01 — INTEGRATED — Saved content / All activity 分区与 content-first list；Comment bundle 单条显示。
+- V2-LIB-02 — INTEGRATED — 无查询浏览与本地 exact search。
+- V2-LIB-03 — CODED — Host search 返回 match/reason；真正 semantic ranking 尚未实现。
+- V2-LIB-04 — CODED — Project/Topic/origin/time/site/type/adopted filters 的 API/控件未完整贯通。
+- V2-LIB-05 — CODED — 可调宽 Source inspector 已挂载；raw/normalized/adopted/audio/parents/Profile Context 仍有详情缺口。
+- V2-LIB-06 — INTEGRATED — Source 打开、回原 URL、Project membership、Exclude/Undo。
+- V2-LIB-07 — CODED — 批量 membership、用于 Draft、scope export/delete 未完整接入 content-first UI。
+- V2-LIB-08 — CODED — All activity 可浏览 Activity/Run；reopen Candidate/Retry/Pin/Delete/dependency actions 未完整。
+- V2-LIB-09 — INTEGRATED — Global Find 打开并在 Library 定位真实结果。
+- V2-LIB-10 — CODED — AI Source revision/history/restore 由 V2-LIN-11 收口。
+
+## Web — Documents
+
+- V2-DOC-01 — INTEGRATED — 可编辑 rich text/Markdown、heading/list/quote/code/link 与 autosave。
+- V2-DOC-02 — CODED — browser native undo 可用；显式 undo/redo 与最近 caret/scroll 恢复未实现。
+- V2-DOC-03 — INTEGRATED — Web Document 默认 Copy；显式选择 live Extension target 后 Send，Extension 逐次复验并局部 Undo，失效时保留 Document 并回退改选。
+- V2-DOC-04 — INTEGRATED — 选区/全文 Action 与指定 Project Sources。
+- V2-DOC-05 — INTEGRATED — Action Replace/Copy/Keep 使用统一 AI Source / Document revision adoption 合同。
+- V2-DOC-06 — INTEGRATED — revision history 与 Restore as new revision endpoint。
+- V2-DOC-07 — INTEGRATED — frozen exact IDs/snapshots producer-consumer 已接。
+- V2-DOC-08 — INTEGRATED — citation inspector 区分 Origin并打开 frozen Source/URL。
+- V2-DOC-09 — INTEGRATED — Export Markdown、Delete Document、Pin revision as Source。
+- V2-DOC-10 — CODED — delete revision 与 dependency preview 尚未完整。
+
+## Web — Skills
+
+- V2-SKILL-01 — INTEGRATED — Built-in / My Skills 两种来源与五类执行合同。
+- V2-SKILL-02 — INTEGRATED — My Skill create/edit new revision/copy/archive 与 Built-in copy/bind。
+- V2-SKILL-03 — INTEGRATED — My Skill revision history/restore 与 Built-in Pin/Hide 已接真实 Host/Web 状态；最终 runtime 验证留到 Phase 5。
+- V2-SKILL-04 — INTEGRATED — Global default bindings 与 Project inherit/override/reset。
+- V2-SKILL-05 — INTEGRATED — resolver explicit → Project → Global → system。
+- V2-SKILL-06 — CODED — Selection pinned/recent 排序与可配置 pinned actions 未完整。
+- V2-SKILL-07 — INTEGRATED — Run details 显示 Skill ID/revision、解析来源、actual Context/state。
+- V2-SKILL-08 — INTEGRATED — Copy/Replace/Insert/Keep/Document consumers 复用统一 adoption 合同。
+
+## Web — Settings / Provider / data controls (J1/J9)
+
+- V2-SET-01 — INTEGRATED — 首次 Setup 远程 provider Connect/Test/Save，无账号、本地模型。
+- V2-SET-02 — INTEGRATED — Voice/AI Ready 与 credential Needs attention。
+- V2-SET-03 — INTEGRATED — provider 未 Ready 不阻断本地内容浏览，AI/Voice 使用时提示 Settings → Models。
+- V2-SET-04 — INTEGRATED — Host、数据目录、storage 使用量、pending captures、模型处理边界。
+- V2-SET-05 — INTEGRATED — paired Extension clients 查看/命名/撤销。
+- V2-SET-06 — INTEGRATED — Backup 与 Restore 当前 Host。
+- V2-SET-07 — CODED — Export Project/Library/all local data 与 include audio preview 已有 API/UI WIP，scope UI 未全接。
+- V2-SET-08 — CODED — Include all activity/unadopted Runs 导出选项尚缺。
+- V2-SET-09 — CODED — Delete Source/Project/Document/Run/workspace dependency preview 已分散实现，统一 scope/terminal state 未闭合。
+- V2-SET-10 — CODED — 查看一次模型任务实际发送 Context 已在 Run/Material详情部分存在，Settings 统一入口尚缺。
+
+## Topics / PKM
+
+- V2-TOP-01 — CODED — dynamic Topics Host/API 与 Web panel 已写，但 production 入口未挂载完整。
+- V2-TOP-02 — CODED — 重复/冲突/补充关系与 Project/vocabulary suggestions 尚未完整。
+- V2-TOP-03 — CODED — rename/merge/hide/split/convert API/UI 已写，未完成 production consumer 链。
+- V2-TOP-04 — INTEGRATED — Topic Vocabulary 与 Project Context 权限隔离。
+- V2-TOP-05 — INTEGRATED — Duplicate-linked 保留原 Source；Project retrieval 过滤已链接副本，Host 在同 Run 同时选择 canonical/duplicate 时只冻结一次 evidence。
+
+## Host/API、install、release
+
+- V2-OPS-01 — INTEGRATED — Host 数据目录为唯一权威；Extension 仅持有 tab/target/pending 状态。
+- V2-OPS-02 — INTEGRATED — Source/membership/comment/run/document/profile/topic/skill API 主链及 adoption 互斥/幂等已接。
+- V2-OPS-03 — CODED — 当前 `.logue-data` 一次性 schema backup/update 已有，但 WIP schema 的最终一次性收口未完成。
+- V2-OPS-04 — INTEGRATED — 不保留 V1 route/schema alias 或永久 migration path。
+- V2-OPS-05 — CODED — installer overwrite/rollback 与 data preservation 原语存在；V2 artifact/version chain 未统一验收前只算 CODED。
+- V2-OPS-06 — CODED — Host/Web 与 Chrome Extension release artifacts 存在；V2-only production artifact chain 尚未最终收口。
+- V2-OPS-07 — MISSING — logue.ai 真实下载/安装/文档/隐私/许可证页面的当前交付。
+
+## Failure recovery / keyboard / accessibility
+
+- V2-FAIL-01 — CODED — §14 Host/offline/transcription/model/target/insert 主要恢复状态已分散实现，未逐项闭合。
+- V2-FAIL-02 — INTEGRATED — Enter mode-local、Esc/Cancel、阻止宿主 Submit 的 Inline/Command/Comment 键盘合同。
+- V2-FAIL-03 — CODED — 可发现且可修改的全局快捷键管理尚不完整。
+- V2-FAIL-04 — CODED — menu/dialog/drawer focus 与返回焦点已有共享原语，所有新 V2 surface 尚未统一。
+- V2-FAIL-05 — CODED — recording/progress/error screen-reader status 已有；全部状态覆盖未完成。
+- V2-FAIL-06 — INTEGRATED — Origin/selected/error 不只依赖颜色，主要按钮有 accessible name。
+- V2-FAIL-07 — CODED — reduced motion 已有样式基础；所有动画路径未统一。
+- V2-FAIL-08 — INTEGRATED — Source/Activity inspector 使用共享原始音频播放/暂停/进度/时长控件，并并列 raw/transformed/saved transcript。
+
+## 当前唯一实施批次
+
+- `ACTIVE: RECOVERY-COMMITS`
+- 完成条件：不丢弃任何 WIP，把已经静态闭合的独立产品边界拆为可恢复提交并逐个 push；未闭合的 V2-PANEL-07 保持 CODED，不混入完成声明。
+- 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

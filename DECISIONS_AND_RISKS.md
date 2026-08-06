@@ -28,6 +28,26 @@
 - **已有证据：** 用户明确要求停止继续制作 mock，直接实现端到端产品，并再次强调功能完整性、用户旅程与 UX 高于 UI 边角优化。2026-08-05 已把工作区 Extension 构建安装到真实 Chrome，完成 `选区 → Mic → Accept → 安静消失`；Host 原子保存可追溯的 Selection Source、Voice Comment、原音、转写与 `comments-on` 父子关系，默认无 Project 且组织状态为 `confirmed`；真实 Web Library 只显示一条 `Web + You` bundle，详情可核验 Source page、Selected text、Original audio、Machine transcript、Comment 与 Actual context。Host 重启前创建的两条 QA 记录曾因旧进程仍加载旧代码而显示 `pending`，已先备份到 `.logue-data/backups/2026-08-05-selection-comment-runtime-reload/`，再显式修正并于重启后复验新记录为 `confirmed`。原音 API 返回 248273-byte WebM。独立产品设计复审 PASS 9.2/10，无 P0/P1。
 - **开放问题：** Comment bundle 的 bundle 级删除、多评论排序与后续团队 Publication 仍待真实使用验证；这些不阻断首个单评论闭环。后续若证明现有数据对象阻断完整产品合同，直接修改并做一次性本机数据更新，不为旧格式保留永久兼容层。
 
+### DR-053 — 生产 UI 直接生产化 V2 mock，不再把 V2 能力接入 V1 界面
+
+- **优先级：** V2 产品 / P0
+- **状态：** 生产挂载已替换为 V2-only；全部功能完成后统一验证
+- **决定：** `apps/web/src/v2-mock/` 与 `stories/v2/` 中已审查的 Extension、Side Panel、Web App 结构、对象语言、阅读轴、层级与交互是生产 UI 的直接来源。现有生产 `NavRail`、旧 `App` 页面编排、旧 `SidePanelView`、旧组织入口、旧卡片/列表语言和其局部 CSS 不再作为 V2 容器，也不得通过换色或包裹继续保留。生产实现将真实 Host/API 与本机状态接到 V2 组件合同；当前 Goal 已确认的 `Projects / Library / Documents / Skills / Settings` 使用 V2 Shell 呈现。Web 左侧栏以 2026-08-05 当前真实 chatgpt.com 的约 260px 安静导航为直接层级基准：顶部产品与 Search/折叠动作、一级任务入口、低噪音选中态、底部本机入口；Logue 不复制 ChatGPT 的 Chat/Work 对象，也不引入账号。V1 仅允许保留不可见且符合 V2 的工程原语，例如 recorder/permission bridge、resizer、稳定 request ID、本地持久化、citation/undo transaction 与 installer rollback。
+- **用户可见影响：** 用户只会看到一套 V2 产品，不再在不同页面或表面遭遇 V1/V2 两套导航、密度、术语和操作顺序；离线 pending、Profile、Context、Skills 等新能力必须在 V2 的渐进界面中表达，而不是继续堆入旧 Side Panel。
+- **替代方案：** 在旧生产组件中逐项补 V2 功能，或先用 V2 Shell 包住旧页面。两者都会保留用户已拒绝的 IA 和交互，并造成长期双设计系统，因此拒绝。
+- **已有证据：** 用户在 2026-08-05 直接指出当前实现仍在使用 V1 design/features，并要求删除 V1、构建 V2；随后明确指定 Web 左侧栏采用 chatgpt.com 设计。当前登录 Chrome 的真实 ChatGPT 首页已只读捕获，确认 260px 左栏、44px 顶部产品轴、36px 安静行级导航、单一浅灰选中态与底部账户槽；Logue 只复用信息层级和密度，不复用账号或产品对象。代码现状也显示真实 Web 仍从旧 `App.tsx` 编排 `NavRail/ProjectPage/GenerationWorkspace`，真实 Extension Side Panel 仍从旧 `sidePanelView.tsx` 扩展新功能，而 V2 mock 已有独立 `LogueWebApp/ProjectShell/SidePanel/ExtensionSurface` 与共享 V2 tokens。
+- **开放问题：** 无需用户再次选择视觉方向；功能未完整前不做全面视觉 QA。旧文件中仍有未挂载的工程逻辑，后续按功能迁入 V2 后删除，不能重新进入 mounted tree。
+
+### DR-054 — Ask / Draft 先产生可编辑 Candidate，只有明确采用才物化长期结果
+
+- **优先级：** V2 产品 / P0
+- **状态：** 实现中；全部功能完成且 UX 通过审查后统一验证
+- **决定：** Project Ask / Draft 统一创建冻结实际 Source snapshots 的 Run 和可编辑 Candidate；Host 不再因 Skill 的 output 类型而在运行成功时自动创建 Document 或 AI Source。用户明确 `Copy`、`Save as document`、`Keep in Logue` 或真实 `Insert` 后才记录 adopted output，并在需要长期对象时物化对应 Document / AI Source。Project composer 必须允许用户查看实际 Context、Pin 关键 Source、排除不相关 Source，再运行；未采用 Candidate 只保留在 Activity，不进入 Project Context。Voice Write 永不参与后台自动加入；非用户 AI output 也不进行自动分类，避免 Context 自我污染。
+- **用户可见影响：** 生成不会悄悄制造文档或污染 Project；用户能在采用前核验并调整来源，采用后的 Document、Copy 或 Insert 又能返回本次冻结的 Web / You / AI 具体来源。
+- **替代方案：** 保留 `output=document` 即自动创建 Document，或把 Project 全部 Sources 无选择地塞进每次 Run。前者制造未采用内容，后者降低相关性并让引用选择不可解释。
+- **已有证据：** 权威 V2 §10.10 与 J6 明确要求 Candidate、实际 Sources、Pin/Exclude、编辑、采用与 citation 回跳；fresh Goal Supervisor 也把 `Project Context → Ask/Draft → adopted result` 判为当前最高 ROI。当前 Host 会对 document/material output 自动物化，真实 V2 Project Route 也没有本次 Context review，因此合同尚未闭合。
+- **开放问题：** 当前先连接 Project Web 的完整闭环与共享 Host 语义；外部 target 的 Extension Insert/Undo 复用同一 Run/adoption 合同，在后续 J6 跨表面批次闭合。
+
 ### DR-035 — V2 产品定义必须先于 UI，并废止当前 mock 的产品依据
 
 - **优先级：** 产品基础 / P0
@@ -502,9 +522,162 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 ### DR-049 — Transcription Profile 是可继承、可临时覆盖且可核验的完整语音合同
 
 - **优先级：** V2 产品 / P0
-- **状态：** 实现完成；真实 Host/Data 窄门通过，correction UI 的 fresh designer runtime post-gate 因未到达目标面板而留到功能齐全后的统一验收
-- **决定：** `Default voice profile` 包含 Global Transcription Skill、Personal context/vocabulary、primary language 与 mixed languages。每个 Project 的 Transcription Profile 有 `Inherited / Customized / Disabled` 三态；Customized 可设置语言、people/company/product/place、acronym/preferred spelling、custom instructions 与 Project Skill override。Topic Vocabulary 是用户确认的独立词汇集合，只向本次转写提供词汇，不携带 Topic Sources、也不授予 Project Context。录音前轻量展示当前解析后的 Profile，并通过渐进 picker 允许临时关闭 Project Profile、选择一次性语言或一个 Topic Vocabulary；日常录音不弹完整设置。Inline Voice Write 在录音开始时冻结同-tab Active Project，Host 解析并冻结实际 Skill/Profile/Topic lineage；Active Project 只产生 provenance 与 Suggested membership，不自动进入 Project Context。每个含原始录音的 Source 使用独立 `transcript-revisions` 不可变快照；新转写只推进 `transcript_revision`、`transcript` 与 `applied_context`，用户编辑后的 `content` 以及 `projects / excluded_projects / saved_only_projects / tags / organization` 均不改变。
+- **状态：** 已实现；全产品功能完成后统一做跨表面 QA
+- **决定：** `Default voice profile` 包含 Global Transcription Skill、Personal context/vocabulary、primary language 与 mixed languages。每个 Project 的 Transcription Profile 有 `Inherited / Customized / Disabled` 三态；Customized 只保存相对 Global 的 override/delta，可设置语言、people/company/product/place、acronym/preferred spelling、custom instructions 与 Project Skill override；Remember for Project 只追加/替换这一条 preferred spelling，不复制当时完整 Global Profile，因此 Global 其他字段的后续更新仍会继承。Topic Vocabulary 是用户确认的独立词汇集合，只向本次转写提供词汇，不携带 Topic Sources、也不授予 Project Context。录音前轻量展示当前解析后的 Profile，并通过渐进 picker 允许显式选择另一个 Project Profile、Disabled/Default、一次性语言或一个 Topic Vocabulary；日常录音不弹完整设置。Inline Voice Write 在录音开始时冻结同-tab Active Project，Host 解析并冻结实际 Skill/Profile/Topic lineage；Active Project 只产生 provenance 与 Suggested membership，不自动进入 Project Context。每个含原始录音的 Source 使用独立 `transcript-revisions` 不可变快照；新转写只推进 `transcript_revision`、`transcript` 与 `applied_context`，用户编辑后的 `content` 以及 `projects / excluded_projects / saved_only_projects / tags / organization` 均不改变。Extension Voice Write Candidate、Side Panel、Google Docs 与 Web history/recovery 必须复用同一 Host 合同；Candidate 可直接从同一原音输入术语纠正、选择四级记忆范围并生成新 revision，不要求先打开 Web App。
 - **用户可见影响：** 用户在高频路径中始终知道 Logue 当前会怎样理解语音，又不需要每次配置；需要时可在录音前局部覆盖。切换 Profile/Topic 后可从同一原始音频生成新的 transcript revision，旧 transcript、raw/original audio 与每版实际 lineage 永久保留，Source membership 不变。术语纠正可选择 `Only this time / Remember for Topic / Project / Global`；同一术语可在不同 Project 使用不同 preferred spelling，无 Project 时不得读取其他 Project 的词汇。
 - **替代方案：** 仅根据 Active Project 静默套用现有 glossary/Skill，或新建完全自由组合的通用 Profile 对象。前者无法覆盖 J2/J4 的临时选择、Re-transcribe 和纠正范围，也缺少可解释 lineage；后者会在高频录音前引入不必要的对象管理。当前采用 Default + Project 三态 + 独立 Topic Vocabulary + one-shot override 的受限模型。
-- **已有证据：** 现有 Selection Comment 与 Side Panel 已部分应用 Personal + Project context/glossary；fresh pre-gate 确认 Inline Voice Write 未读取 Active Project。权威 V2 §9、J2、J4 与最新完整性审查进一步确认：只做自动解析会遗漏 picker、语言、独立 Topic、Re-transcribe 和纠正记忆范围，不能作为完整交付。当前真实 `.logue-data` 已显式迁移到 Default/Project Profile schema；迁移前 settings/projects 备份在 `/Users/yadong/dev2/logue-data-backups/voice-profile-schema-2026-08-05`。真实 Host 已返回 `Logue · Customized`、合并后的 Personal/Project vocabulary、language、Skill 与 Project context。独立 Topic runtime gate 进一步确认：临时关闭 Logue Project Profile 后，结果只含 Default vocabulary + 选中的 `Northstar` Topic，Project 专属 `Context/Glossary` 未泄漏；一次性 English 与 frozen Skill revision/instructions 同时解析，临时 Topic 已删除。Re-transcribe schema 更新前的真实数据备份在 `/Users/yadong/dev2/logue-data-backups/transcript-revisions-2026-08-05`；63 个现有 Voice Material 已一次性建立 r1。真实 Host `http://127.0.0.1:8787` 使用 storage root `/Users/yadong/dev2/logue/.logue-data`，测试 Material `mat_06a1cfa8eb48d70d` 已从同一 `cap_98ee230a51c4592e` 生成 English r2，冻结 `Logue · Customized / Accurate transcription r2`，而最终 content、Project membership、排除/保存规则、标签、organization 与原始 audio 全部不变；fresh designer 对 r1/r2、渐进 Re-transcribe 与 final text 分离给出 9.1/10、无 P0/P1。该 Material 的 r3 进一步冻结 `atomic → Atomic / Only this time`，并证明所有 profile memory 文件不变。隔离 Store 窄门证明 Global、Topic、Project A/Project B 可分别记忆 preferred spelling，默认/无 Project 解析不读取任一 Project 词汇；Project inherited 在用户选择 Remember for Project 后显式转为 Customized。Correction UI 的 fresh designer 两次尝试均因没有在时限内到达目标面板而未给出视觉结论，不能冒充通过，留到统一 runtime QA。
-- **开放问题：** 无产品范围开放项；实现可拆成原子批次，但 1–7 全部属于本次 V2 完整交付。
+- **已有证据：** 现有 Selection Comment 与 Side Panel 已部分应用 Personal + Project context/glossary；fresh pre-gate 确认 Inline Voice Write 未读取 Active Project。权威 V2 §9、J2、J4 与最新完整性审查进一步确认：只做自动解析会遗漏 picker、语言、独立 Topic、Re-transcribe 和纠正记忆范围，不能作为完整交付。当前真实 `.logue-data` 已显式迁移到 Default/Project Profile schema；迁移前 settings/projects 备份在 `/Users/yadong/dev2/logue-data-backups/voice-profile-schema-2026-08-05`。真实 Host 已返回 `Logue · Customized`、合并后的 Personal/Project vocabulary、language、Skill 与 Project context。独立 Topic runtime gate 进一步确认：临时关闭 Logue Project Profile 后，结果只含 Default vocabulary + 选中的 `Northstar` Topic，Project 专属 `Context/Glossary` 未泄漏；一次性 English 与 frozen Skill revision/instructions 同时解析，临时 Topic 已删除。Re-transcribe schema 更新前的真实数据备份在 `/Users/yadong/dev2/logue-data-backups/transcript-revisions-2026-08-05`；63 个现有 Voice Material 已一次性建立 r1。真实 Host `http://127.0.0.1:8787` 使用 storage root `/Users/yadong/dev2/logue/.logue-data`，测试 Material `mat_06a1cfa8eb48d70d` 已从同一 `cap_98ee230a51c4592e` 生成 English r2，冻结 `Logue · Customized / Accurate transcription r2`，而最终 content、Project membership、排除/保存规则、标签、organization 与原始 audio 全部不变。2026-08-05 当前真实安装 Extension 进一步完成同一原音的 `Only this time / Topic / Project A / Project B / Global` 四级纠正；Default 与 Disabled 均未读取 Project 词汇，Project delta 在 Global language 更新后继续继承，Candidate 可直接 Insert/Undo，Host restart 后十个 transcript revisions 仍共享同一 capture，原始 audio hash 与 Source membership 未改变。审计副本在 `/Users/yadong/dev2/logue-data-backups/dr049-voice-candidate-2026-08-05`；QA Source、Topic 和临时 corrections 已从用户 Library 清理。
+- **开放问题：** 不再扩展本条测试；Google Docs、Side Panel 与完整错误矩阵随全产品功能完成后的统一 QA 复核。
+
+### DR-050 — 生成结果只有在用户采用后才成为 Document，并保留本次冻结来源
+
+- **优先级：** V2 产品 / P0
+- **状态：** 实现中；全部功能完成并通过 UX 验收后统一验证
+- **决定：** Ask/Draft Run 默认保留为可编辑 Candidate。用户可直接 Copy，或选择 `Save as document`；保存通过一个可重试的 Host adoption 动作完成，以 Run ID 派生稳定 Document ID，避免“Document 已创建但 Run 未关联”的半成功。Document 使用用户编辑后的正文，把可编辑的行内 `source_ids` 与不可被普通编辑悄悄删除的 `context_source_ids` 分开：前者只跟随仍存在的 citation，后者冻结该 Run 实际使用的全部 Sources，并随每个 Document revision 保存。Document ID 与 adopted output 一起回写 Run；Run 和 Document 均可直接返回对应 Library Source。Skill 的 output 类型只决定推荐采用动作，不再在运行成功时自动物化长期对象。
+- **用户可见影响：** 用户不需要先理解 Run 才能把结果继续写成文档；以后打开 Activity、Document 或 citation 都能核验当时真实使用的资料，Project 后续变化不会改写历史。
+- **替代方案：** 每次生成都自动创建 Document，或只允许 Copy。前者制造大量未采用内容，后者切断 Draft → Document → frozen citation 的核心闭环。
+- **已有证据：** Host 已保存 Run 的 frozen Source snapshots，Document 已支持 frozen `source_ids` 与 revision；当前通用 Run UI 只有 Copy，非 Document Skill 无法物化为可继续编辑的真实 Document。
+- **开放问题：** 本批只闭合真实保存与来源回跳；完整 Activity/Run、错误恢复和视觉审查按用户要求推迟到所有功能实现后。
+
+### DR-051 — Provider readiness 只阻断 Voice/AI 动作，不阻断本地数据产品
+
+- **优先级：** V2 产品 / P0
+- **状态：** 实现中；全部功能完成并通过 UX 验收后统一验证
+- **决定：** `local-first` 只描述 Logue Host、私人数据、原音、Source 和控制权的归属，不代表在用户设备下载或运行 AI 模型。Logue 不提供 Local Model、模型下载、模型进程或本地 runtime 管理。Host 只保存用户选择的远程 provider 连接；当前 UI 提供 Gemini 与远程 OpenAI-compatible endpoint，用户填写 endpoint/model/API key，先 Test，再保存。密钥只写入当前 Logue 数据目录的受限文件，不进入 Export、浏览器存储、Project 或 Source。Provider 未 Ready 时仍可进入五个 V2 一级入口，浏览和管理本地 Projects、Library、Documents、Skills 与数据控制；只有 Ask、Draft、Skills 执行和语音转写显示局部恢复并引导到 Settings → Models。
+- **用户可见影响：** 新安装或 provider 故障不会锁住用户自己的本地资料；需要 Voice/AI 时才连接已有模型服务，不会看到下载模型、硬件要求或本地模型状态。
+- **替代方案：** 继续要求用户手动设置进程环境变量，或把模型配置做成云账号。前者不是完整产品 Journey，后者违反 local-first、single-owner、无账号边界。
+- **已有证据：** 用户明确指出 Logue 是 local product、没有账号、本地数据浏览不能依赖模型连接；V2 的 Model-not-ready 合同要求局部可恢复状态，而不是全屏阻断。Settings 已提供 Test/Save。
+- **开放问题：** 后续 provider 扩展必须由真实产品需求驱动；安装器明确不承担模型下载或模型进程管理。
+
+### DR-052 — Stop 后先在 Extension 本地持久化原音，成功进入 Host Library 后才清除
+
+- **优先级：** V2 产品 / P0
+- **状态：** 实现中；全部功能完成并通过 UX 验收后统一验证
+- **决定：** 所有 Extension Voice Write、Voice Comment 与 Side Panel 录音在 Stop 后、转写前，先以稳定 request ID 将原始音频写入 `chrome.storage.local` 的持久待处理队列；Extension 请求 `unlimitedStorage`，避免正常长录音被默认配额截断。队列同时冻结页面来源、转写 Profile lineage 与最终保存动作；转写成功后立即保存 capture/result，Host Library 幂等保存成功后才删除本地副本。Host 不可用、页面关闭或目标丢失时保留原音和已完成阶段，用户可从 Side Panel 重试；缺失页面计划的孤立录音按原来源恢复为 Saved-only voice note。Cancel 在 recorder Stop 前清理，不写入队列。
+- **用户可见影响：** 用户停止录音后即使 Host 离线、页面刷新或浏览器回收 content script，语音也不会消失；恢复连接后可继续转写并永久进入私人 Library，且不会因为重试生成重复 Source。Voice Write 的 Active Project 仍只形成 Suggested membership，不自动进入 Context。
+- **替代方案：** 仅在页面 React state 保存 Blob、只保留 Side Panel 的 `lastBlob`，或直接依赖 Host `/v1/transcribe` 的 capture。前两者会随页面、Panel 或浏览器生命周期丢失；后者无法覆盖 Host 在 Stop 时已经离线的情况。IndexedDB 可保存二进制但会引入另一套生命周期与访问层；当前 Extension 已使用 Chrome storage，因此采用每条录音独立 key 的最小直接实现。
+- **已有证据：** 当前 Inline/Selection 的原音只存在于 recorder event，Side Panel 只保留内存 `lastBlobRef`；Host 离线、页面关闭或 MV3 回收都会使尚未保存的输入不可恢复，违反“所有用户语音输入永久保存”的产品合同。
+- **开放问题：** 队列容量管理、批量操作与详细诊断属于完整功能后的运行时 QA；当前只展示需要用户行动的 pending 状态，不把正常成功和后台组织噪音带入主流程。
+
+### DR-053 — Global Find 是 Library 的搜索状态，Library 同时承担完整内容管理
+
+- **优先级：** V2 产品 / P0
+- **状态：** 实现中；所有功能完成后统一做 UX 与运行时验收
+- **决定：** 左侧 Search 直接打开 Library 的搜索状态，不新增聊天页或独立技术搜索页。搜索同时使用 Host 的 Source 与 Document 检索，Comment bundle 始终只显示一个结果，并展示匹配原因；结果可以打开原始证据、加入 Project 或用于 Document。Library 的普通浏览继续是 content-first list，并补齐按来源/Project/状态筛选、批量 membership、局部导出与依赖感知删除。`All activity` 打开真实 Activity/Run，可恢复未采用 Candidate、Retry 失败 Run 或在无 adopted dependency 时删除。
+- **用户可见影响：** 用户从任何页面一键找回原话、网页证据或 Document，不需要理解 Source/Run 内部模型；搜索与管理使用同一详情和永久数据语义。
+- **替代方案：** 保留仅做前端 substring 的搜索框，或新增独立 Find 页面。前者不能解释语义匹配，后者会重复 Library 的打开、归类和删除能力。
+- **已有证据：** 权威 V2 J8 与 §11.2 明确规定 Global Find 打开 Library 结果，且 Library 必须支持 filter、批量 Project membership、export、delete 与 Activity 管理。
+- **开放问题：** 排序质量与视觉密度在功能齐全后统一审查；当前先连接所有真实终态。
+
+### DR-054 — 删除 Project 只删除边界，不删除私人 Source 或 Document
+
+- **优先级：** V2 产品 / P0 数据安全
+- **状态：** 实现中；所有功能完成后统一验收
+- **决定：** 删除 Project 前显示受影响的 Source、Document 与 Run 数量。确认后删除该 Project 的 goal、Transcription Profile、Skill overrides 与分类边界；Sources 永久留在私人 Library 并移除该 Project 的 included/excluded/saved-only 状态，Documents 变为 No Project，历史 Run 保留原 Project 名作为 provenance。删除 Source 则采用另一条依赖预览：无依赖时物理删除，有冻结 citation/derived/Run 依赖时清除内容与音频并留下最小 tombstone。
+- **用户可见影响：** 用户不会因删除一个工作目标而意外丢掉原始输入，也能真正删除敏感 Source 内容而不破坏历史引用。
+- **替代方案：** 级联删除全部 Project 内容，或禁止删除任何仍被引用的 Source。前者违背永久私人 Library，后者让数据删除不可完成。
+- **已有证据：** V2 J9 要求删除前展示依赖；Source、Project Context、Document revision 与 Run lineage 是不同生命周期。
+- **开放问题：** 全面恢复与边界数据组合在功能完成后统一运行时验证。
+
+### DR-055 — 原始转写与 Transcription Skill 结果必须分别永久保存
+
+- **优先级：** V2 产品 / P0 数据完整性
+- **状态：** 实现中；所有功能完成后统一验收
+- **决定：** 每次语音处理先生成不可编辑的 `raw transcript`，再把该文本交给本次冻结 revision 的 Transcription Skill、Project/Topic Vocabulary 与用户指令生成 `transformed transcript`。Source 的可编辑 `content`、处理结果 `transcript` 和原始识别 `raw_transcript` 分开保存；每次 Re-transcribe revision 同时冻结两者、原始 audio/capture 与实际 Profile/Skill lineage。Voice Write、Voice Comment、Voice Command、Side Panel 和离线 pending retry 使用同一合同。
+- **用户可见影响：** 用户可随时核验“模型听到了什么”和“Skill 如何整理”，修改最终文字不会覆盖原始证据；自定义精简、整合或格式化 Skill 不再破坏 source of truth。
+- **替代方案：** 继续把 Skill 直接混入音频转写 prompt，只保存一个结果。这样无法区分识别错误与转换错误，也不能从原始输入恢复。
+- **已有证据：** fresh Goal Governor 对当前 V2 worktree 的独立审查确认，全栈只有单一 `transcript`，自定义 Transcription Skill 会覆盖不可恢复的原始转写；这直接违反用户对所有原始语音输入永久保存的要求。
+- **开放问题：** 现有历史录音没有可重建的 raw transcript 时保持明确缺失，不用当前结果伪造原始证据。
+
+### DR-056 — Local product 使用 Host-owned Extension 配对，不引入用户账号
+
+- **优先级：** V2 产品 / P0 权限边界
+- **状态：** 实现中；全部功能完成后统一验收
+- **决定：** 同机 Chrome Extension 首次访问本机 Host 时自动获得 device credential；通过 LAN 连接另一台设备时，用户必须先在该 Host 的 Web App 生成 10 分钟有效的一次性 pairing code。Host 只保存 token hash；Extension 在本机 Chrome storage 保存 credential 并对后续请求签名。Settings 展示、重命名和撤销已配对 Extension，不创建 Logue 用户、团队或云账号。
+- **用户可见影响：** 单机默认路径保持零配置；需要跨设备时有明确、可撤销的授权，而不是开放 LAN API 或虚构账号体系。
+- **替代方案：** 所有本地/LAN 请求无鉴权，或为 local-first 产品引入登录账号。前者暴露私人资料，后者违背当前 single-owner、无账号定位。
+- **已有证据：** 用户明确指出本地产品当前没有用户账号，并要求识别不合理的用户管理；V2 同时要求可用 LAN/远程连接。
+- **开放问题：** TLS/反向代理属于用户主动暴露 Host 后的部署配置，不进入默认本机路径。
+
+### DR-057 — AI Source 的每次编辑与恢复都创建不可变 revision
+
+- **优先级：** V2 产品 / P0 来源可信度
+- **状态：** 实现中；全部功能完成后统一验收
+- **决定：** 只有已物化的 AI Source（`derived` 且 actor 不是用户）使用独立 Source revision。每次正文编辑前冻结上一版正文、parent Source IDs、来源标签和 revision；Restore 基于旧版创建更高的新 revision，不覆盖历史。普通 Web/You Source 继续使用各自的原始证据与 transcript revision，不混用 AI revision 模型。
+- **用户可见影响：** 用户可编辑、回看和恢复 AI 生成资料，同时精确知道每版基于哪些原始 Sources；恢复不会伪造历史或改变 Project membership。
+- **替代方案：** 直接覆盖 AI Source，或把所有 Source 都套入同一 revision 机制。前者破坏生成证据，后者把 Comment、Web capture 和 audio 的不同生命周期混为一谈。
+- **已有证据：** V2 产品合同明确要求 AI Source/Document revision 与 frozen citation；Document revision 已独立实现，Library 仍缺 AI Source 的同等结果。
+- **开放问题：** revision diff 视觉比较属于功能完整后的 UX 审查，不阻塞查看与恢复。
+
+### DR-058 — V2 功能实现必须以已确认产品合同为范围来源
+
+- **优先级：** V2 产品 / P0
+- **状态：** 对齐中；功能完整后统一验证
+- **决定：** 新功能不得仅因为技术上可实现、旧代码存在或 `local-first` 等术语可被扩张解释就进入产品。实现前必须能映射到已确认 V2 产品定义或用户最新明确纠正；发生冲突时以用户最新纠正为准并直接重写产品定义的相关章节，避免文档和 UI 同时保留两套含义。本次明确删除所有 Local Model / Download Model / local runtime 产品能力；模型未 Ready 仍是必要状态，但只表示远程 provider 尚未连接或连接失败。
+- **用户可见影响：** Setup、Settings、错误状态和安装流程只呈现 Logue 实际支持的能力，不会把基础设施选项冒充产品功能，也不会因实现期追求“完整”而继续扩张范围。
+- **替代方案：** 保留本地模型为 Advanced 选项，或只隐藏 UI 而保留产品合同。两者都会继续制造错误范围和后续实现负担。
+- **已有证据：** 用户明确指出 Logue 不使用本地模型，并要求实现严格遵循已有产品设计；当前 Setup、Settings、mock 与 DR-051 已错误加入本地模型路径。
+- **开放问题：** 无；远程 provider 的具体支持列表在现有模型连接合同内演进。
+
+### DR-059 — Side Panel 高级语音 Comment 先保存为 Unlinked You Comment
+
+- **优先级：** V2 产品 / P0 数据完整性
+- **状态：** 实现中；全部功能完成后统一验收
+- **决定：** Side Panel 的 Page/Selection Voice Comment 在 Stop 后先永久保存原音、raw/transformed transcript 与一个无 parent 的 You Comment，不立刻伪造已完成 bundle。Candidate 允许编辑；`Finish comment` 原子创建或复用 Web Source，并把同一 You Comment 链接为 Comment bundle、应用当前 Project/tags。`Delete comment` 删除该未链接 Comment 及其无共享依赖的原音。Inline 选区的两步高频路径继续一次 Accept 原子完成，不增加此高级确认步骤。
+- **用户可见影响：** 高级路径中即使用户离开或连接中断，录音也不会丢；界面明确区分“已保存但尚未链接”与完成 Comment，不再把 `Insert` 错当成页面批注终态。
+- **替代方案：** Stop 时直接创建 bundle，或重新创建第二条 annotation 后删除临时 Source。前者无法提供明确 Finish/Delete，后者会复制 capture 与 lineage。
+- **已有证据：** 权威 V2 §8.4 / J3 与用户对渐进披露的明确要求；当前 Side Panel 已提前链接 Comment，却错误展示 Voice Write 的 Insert/Undo。
+- **开放问题：** 无；同一 Host link endpoint 同时覆盖 Page 与 Selection，UI 只显示产品语言。
+
+### DR-060 — Project rename 保留边界身份，Archive 不改变 Context
+
+- **优先级：** V2 产品 / P0 数据一致性
+- **状态：** 实现中；全部功能完成后统一验收
+- **决定：** Project 使用稳定 `id`，rename 原子更新当前 Source membership、Document Project 与 Run Project 引用，不创建第二个同名/旧名 Project；frozen Source snapshots 与历史 revision 正文不改写。Archive 只隐藏日常 Project 选择并保留 Context、Documents、Runs、Profile 与 Skill overrides；Restore 恢复可见。Delete 继续使用 DR-054 的独立边界删除合同。
+- **用户可见影响：** 用户可以修改 Project 名称而不丢失资料或产生幽灵 Project，也可收起已结束工作而无需删除私人知识。
+- **替代方案：** rename 只改 Project 文件，或 Archive 同时移出所有 Sources。前者会由旧 membership 自动再造重复 Project，后者混淆收起与删除。
+- **已有证据：** V2 §10 要求 rename、active/inactive、archive；当前 Host 只改 Project 文件中的名称，已有 Source/Document/Run 仍引用旧名。
+- **开放问题：** 无；历史 Run 可继续展示当时 Source snapshots，Project selector 使用当前名称。
+
+### DR-061 — Page/Site Project 关联是 Host-owned 显式规则
+
+- **优先级：** V2 产品 / P0 可预测性
+- **状态：** 实现中；全部功能完成后统一验收
+- **决定：** `Remember for this page` 与 `Remember for this site` 保存为 Host-owned 规则，引用稳定 Project ID。匹配优先级为 page 高于 site；同 tab 已显式选择 Project 或 No project 时优先于规则，同 tab 导航继续保持。规则只为没有 tab 决定的新页面提供 Active Project，可在 Side Panel 当前页面查看和删除；Archived/Deleted Project 的规则不再应用。
+- **用户可见影响：** 用户可以让特定文档或站点自动使用正确 Project，同时始终知道规则从哪里来，也能用 No project 覆盖，不会出现全局“最近 Project”泄漏。
+- **替代方案：** 存在 Extension local storage 或静默使用最近 Project。前者违反 Host 权威并难以备份，后者违反 Active Project 可预测性。
+- **已有证据：** V2 §8.5 明确要求 tab-scoped Active Project 以及可见、可删除的 page/site 关联规则。
+- **开放问题：** 无；一次性多 Project 只影响当次动作，不写规则。
+
+### DR-062 — Page anchor 保留证据快照，重锚只更新定位层
+
+- **优先级：** V2 产品 / Source 可核验性
+- **状态：** 三路 fresh gate PASS；静态 production 链已集成，最终 runtime 留到 Phase 5
+- **决定：** Selection Source 的 `content` 与初始 `source.selection` 是永久证据快照，Host 拒绝通用 PATCH 改写它们，也拒绝改写已链接 Comment 的 parent identity。独立 anchor 层保存当前 quote、前后文、Anchored / Page changed / Re-anchored / Snapshot only、revision 与历史；每次 mutation 必须携带 expected revision，stale 写入失败，重复 resolve 幂等，只有用户 Re-anchor 冻结旧 anchor 并递增 revision。页面匹配只更新定位状态，不改证据正文；用户选择新文本 Re-anchor 时更新同一 Web Source 的 anchor revision，Comment bundle 的 parent ID 不变。
+- **用户可见影响：** 返回原网页时能定位当前证据；网页改变时仍能核验原快照，并可重新选择位置或明确只保留 Snapshot。
+- **替代方案：** Re-anchor 直接覆盖 Source 正文，或创建第二个 Web Source。前者破坏 citation 证据，后者拆散 Comment bundle identity。
+- **已有证据：** V2 §10.3、§12.4 要求页面变化时保留快照，并支持 `Anchored → Page changed → Re-anchored / Snapshot only`。
+- **开放问题：** 无；自动精确匹配只恢复 Anchored，只有用户确认新选区才标 Re-anchored。
+
+### DR-063 — Web Document 通过 Extension-owned 临时 Target Session 发送到外部输入框
+
+- **优先级：** V2 产品 / P0 跨表面采用合同
+- **状态：** 三路 fresh gate PASS；静态 production 链已集成，最终 runtime 留到 Phase 5
+- **决定：** 可写 Target Session、DOM reference 与 Undo transaction 只存在于实际目标 frame 的 content-script 内存，包含一次性 opaque session ID、document epoch、target identity 与 last-focused time；不写 Chrome storage、Host 或 Project Context。MV3 worker 每次 List/Insert/Undo 都重新向仍存活的 content scripts 查询，不从持久状态恢复 target。Web App 只通过本机 bridge 获取可展示 descriptor（tab/page、domain、field label）与 opaque ID；bridge 每次要求 `event.source === window` 且页面 origin 精确等于 Extension 当前配置的 Logue Host origin，tab/frame/URL 只取 Extension sender 与 Chrome 元数据，不信任 Web payload。Document 默认只显示 Copy；`Choose input…` 渐进打开仍有效 target，用户明确选择后才显示 `Send to …`。发送时 Extension 复验同一 document epoch/session、tab、frame、URL、DOM identity、connected/writable 与不过期状态后 Insert，永不 Submit，并返回单次 Undo token；Undo 仅在内容仍等于该次写入结果时成功，不能覆盖后续用户编辑。未安装 Extension、没有 target 或用户未选择时只提供 Copy；session 失效或 Insert 失败时保留 Document，清除旧选择，并提供 Copy + `Choose another input…`。
+- **用户可见影响：** 用户可从 Web Document 辨认并明确选择此前聚焦的真实输入框，发送后能局部 Undo；页面切换、target 替换或失效后不会显示或执行虚假 Insert，并可直接改选另一个输入框。
+- **替代方案：** 由 Host 保存/轮询 target 与插入任务，或让 Web 自动选择最近 target。Host 无法验证 DOM 实体且会制造陈旧持久状态；自动选择违反 V2 §8.6 的显式选择要求。
+- **已有证据：** V2 §8.6、§10.11、§12.5 与 §14 明确要求 Web 仅对用户选择的有效 Extension target 提供 Send/Insert，无 target 只 Copy，Insert 不 Submit，Undo 局部，失败后可重新选择目标。
+- **开放问题：** 无；这是 local single-owner 的短生命周期浏览器控制面，不新增用户账号、云同步或 Host 数据对象。
+
+### DR-064 — 分类纠正保存为 Source-linked Classification memory，而不是隐藏的全局规则
+
+- **优先级：** V2 产品 / P0 可预测性
+- **状态：** 修订合同三路 fresh gate PASS；bundle 更新、Forget 与 Delete 失败路径原子性已静态接通，最终 runtime 留到 Phase 5
+- **决定：** 用户 Add、Remove、Exclude 或 Undo exclusion 后，当前 Source membership 继续按 DR-047 立即生效；同时把最终结果作为该 Source 上可见的 `Classification memory`。Memory 按 Project 明确记录 `Added / Saved only / Excluded`，并保留原建议、内容摘要与时间；tags 只作为解释该示例的上下文，不作为自动打 tag 的规则。它只是后续 Organization Skill 的高优先级相似示例，本身不授予 auto-include：没有 tab-scoped active Project 或用户另外授权的 auto-include rule 时，后续 Source 最多进入 Suggested。Comment bundle 的 Web/You members 共享一个 bundle root 和一条 memory，Host 向模型传递前按 root 去重。
+- **用户可见影响：** Project settings 的 `Classification memory` 显示这次纠正涉及的全部 Projects 与各自终态。删除动作命名为 `Forget learning example`，跨 Project 时先列出完整影响范围，并紧邻说明：`Stops using this example for future suggestions. This Source stays Added, Saved only, or Excluded; its Projects and exclusions do not change.` Forget 只清除 bundle 全部 members 的学习子状态，不调用通用 membership 更新、不触发重新组织，也不改变永久 exclusion。删除 Source/Comment bundle 时 memory 随 Source 删除，不留下内容摘要。
+- **替代方案：** 新建独立全局 rules 数据模型；或继续把最近 20 条 `user_correction` 隐藏地塞入模型 prompt。独立规则需要额外定义匹配条件且容易制造错误自动化；隐藏反馈已存在但不可解释、不可删除，正是当前缺口。
+- **已有证据：** V2 §9/§10 要求自动分类可纠正且用户纠正永久优先；当前 Host 已把 Source 的 `organization.user_correction` 作为模型 examples，但生产 UI 无法查看或删除，Comment bundle 还可能重复提供同一纠正。
+- **实施合同：** `organization.user_correction` 是持久子状态，普通重新组织与 `complete_organization` 不得覆盖；只有明确 Forget 或 Source 删除可清除。Host 在锁内按 bundle root 清除全部 member 的 memory，并保持 `projects / saved_only_projects / excluded_projects` 原值与互斥。`saved_only_projects` 仍允许未来在用户授权的 auto-include rule 下重新归类，只有 `excluded_projects` 永久阻止同一 Source 重新加入，继续服从 DR-047。
+- **已有 gate 结论：** 首轮 scope/product/engineering 均 REPLAN：补全 per-Project Saved only 终态与 auto-include 边界；明确 tags 不自动学习；跨 Project Forget 展示完整影响；Host 保持 correction 子状态、bundle 原子清除且不触碰 membership。上述要求已并入本修订。
+- **fresh gate 结论：** scope、product/UX、engineering/runtime 三路均 PASS，无 P0/P1。确认 per-Project outcomes、auto-include 授权边界、跨 Project Forget 说明、bundle 去重与 Host membership 不变量完整。
+- **开放问题：** 无；当前仅实现 Source-linked learning example，不扩展自动规则类型。
