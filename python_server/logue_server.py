@@ -45,6 +45,7 @@ ID_RE = re.compile(r"^(?:mat|doc|prj|sk|run|cap|voc)_[A-Za-z0-9]+$")
 CITATION_RE = re.compile(r"\[Source (\d+)\]")
 GLOSSARY_RE = re.compile(r"\b[A-Z][A-Za-z0-9.-]{2,}\b")
 VOCABULARY_CATEGORIES = ("people", "companies", "products", "places", "acronyms")
+CAPTURE_MIME_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4", ".ogg": "audio/ogg", ".webm": "audio/webm"}
 
 DICTATION_INSTRUCTIONS = (
     "Transcribe exactly what the user says, word for word. Preserve the original "
@@ -150,7 +151,7 @@ class Store:
     def __init__(self, root: Path):
         self.root = root.resolve()
         self.lock = threading.RLock()
-        for name in ("items", "audio", "docs", "doc-revisions", "projects", "skills", "skill-runs", "topic-vocabularies"):
+        for name in ("items", "audio", "docs", "doc-revisions", "transcript-revisions", "projects", "skills", "skill-runs", "topic-vocabularies"):
             (self.root / name).mkdir(parents=True, exist_ok=True, mode=0o700)
         for skill in default_skills():
             path = self.root / "skills" / f"{skill['id']}.json"
@@ -185,6 +186,49 @@ class Store:
 
     def topic_vocabularies(self) -> list[dict[str, Any]]:
         return self._list("topic-vocabularies", "updated_at")
+
+    def transcript_revisions(self, material_id: str) -> list[dict[str, Any]]:
+        item = self.get("items", material_id)
+        current = int(item.get("transcript_revision", 0))
+        revisions = [
+            read_json(path)
+            for path in sorted(
+                (self.root / "transcript-revisions").glob(f"{material_id}-r*.json"),
+                key=lambda path: int(path.stem.rsplit("-r", 1)[-1]),
+                reverse=True,
+            )
+        ]
+        return [{**revision, "current": revision.get("revision") == current} for revision in revisions]
+
+    def save_transcript_revision(self, material_id: str, transcript: str, applied_context: dict[str, Any], *, created_at: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+        with self.lock:
+            item = self.get("items", material_id)
+            capture_id = str(item.get("capture_id", "")).strip()
+            if not capture_id:
+                raise ValueError("material has no original audio")
+            text = transcript.strip()
+            if not text:
+                raise ValueError("transcript is required")
+            revision = max([int(entry.get("revision", 0)) for entry in self.transcript_revisions(material_id)] or [0]) + 1
+            snapshot = {
+                "material_id": material_id,
+                "capture_id": capture_id,
+                "revision": revision,
+                "transcript": text,
+                "applied_context": dict(applied_context),
+                "created_at": created_at or now(),
+            }
+            revision_path = self.root / "transcript-revisions" / f"{material_id}-r{revision}.json"
+            atomic_json(revision_path, snapshot)
+            item["transcript_revision"] = revision
+            item["transcript"] = text
+            item["applied_context"] = dict(applied_context)
+            try:
+                atomic_json(self.root / "items" / f"{material_id}.json", item)
+            except BaseException:
+                revision_path.unlink(missing_ok=True)
+                raise
+            return item, {**snapshot, "current": True}
 
     def save_topic_vocabulary(self, identifier: str | None, value: dict[str, Any]) -> dict[str, Any]:
         timestamp = now()
@@ -271,7 +315,27 @@ class Store:
             "applied_context": value.get("applied_context") if isinstance(value.get("applied_context"), dict) else None,
         }
         item.update({key: entry for key, entry in optional.items() if entry})
-        atomic_json(self.root / "items" / f"{item['id']}.json", item)
+        revision_path = None
+        if item.get("capture_id"):
+            capture_id = str(item["capture_id"])
+            self.capture_path(capture_id)
+            context_path = self.root / "audio" / f"{capture_id}.context.json"
+            if not context_path.exists():
+                raise ValueError("captured audio has no frozen transcription context")
+            item["applied_context"] = read_json(context_path)
+        if item.get("capture_id") and item.get("transcript"):
+            item["transcript_revision"] = 1
+            revision_path = self.root / "transcript-revisions" / f"{item['id']}-r1.json"
+            atomic_json(revision_path, {
+                "material_id": item["id"], "capture_id": item["capture_id"], "revision": 1,
+                "transcript": item["transcript"], "applied_context": item["applied_context"], "created_at": timestamp,
+            })
+        try:
+            atomic_json(self.root / "items" / f"{item['id']}.json", item)
+        except BaseException:
+            if revision_path:
+                revision_path.unlink(missing_ok=True)
+            raise
         return item
 
     def update_item(self, identifier: str, changes: dict[str, Any]) -> dict[str, Any]:
@@ -352,6 +416,8 @@ class Store:
                 if identifier in document.get("source_ids", []):
                     raise ValueError(f"material is still cited by document {document.get('title')!r}; remove the citation first")
             (self.root / "items" / f"{identifier}.json").unlink()
+            for revision in (self.root / "transcript-revisions").glob(f"{identifier}-r*.json"):
+                revision.unlink(missing_ok=True)
             capture_id = item.get("capture_id")
             if capture_id and not any(other.get("capture_id") == capture_id for other in self.items()):
                 for path in (self.root / "audio").glob(f"{capture_id}.*"):
@@ -990,6 +1056,9 @@ class Handler(BaseHTTPRequestHandler):
             if source_url:
                 values = [item for item in values if (item.get("source") or {}).get("url") == source_url or (item.get("applied_context") or {}).get("page_url") == source_url]
             self.json(HTTPStatus.OK, {"items": values})
+        elif path.startswith("/v1/items/") and path.endswith("/transcript-revisions"):
+            identifier = path.removeprefix("/v1/items/").removesuffix("/transcript-revisions")
+            self.json(HTTPStatus.OK, {"revisions": store.transcript_revisions(identifier)})
         elif path == "/v1/projects":
             self.json(HTTPStatus.OK, {"projects": store.projects()})
         elif path.startswith("/v1/projects/"):
@@ -1038,7 +1107,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path.startswith("/v1/project-bundles/"):
             name = urllib.parse.unquote(path.removeprefix("/v1/project-bundles/"))
             project = store.get_project(name)
-            self.json(HTTPStatus.OK, {"schema_version": 1, "read_only": True, "project": project, "materials": [item for item in store.items() if name in item.get("projects", [])], "documents": [document for document in store.documents() if document.get("project") == name]})
+            materials = [item for item in store.items() if name in item.get("projects", [])]
+            self.json(HTTPStatus.OK, {"schema_version": 1, "read_only": True, "project": project, "materials": materials, "transcript_revisions": [revision for item in materials for revision in store.transcript_revisions(item["id"])], "documents": [document for document in store.documents() if document.get("project") == name]})
         elif path == "/v1/export":
             self.json(HTTPStatus.OK, self.export_workspace())
         elif path.startswith("/v1/") or path == "/v1":
@@ -1081,7 +1151,10 @@ class Handler(BaseHTTPRequestHandler):
             self.server.schedule_organization(item)
         elif path.startswith("/v1/items/"):
             identifier = path.removeprefix("/v1/items/")
-            if identifier.endswith("/organize") and method == "POST":
+            if identifier.endswith("/retranscribe") and method == "POST":
+                identifier = identifier.removesuffix("/retranscribe")
+                self.retranscribe_material(identifier, self.body_json())
+            elif identifier.endswith("/organize") and method == "POST":
                 identifier = identifier.removesuffix("/organize")
                 item = store.get("items", identifier)
                 item["organization"] = {"status": "pending", "updated_at": now()}
@@ -1188,6 +1261,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path.startswith("/v1/captures/") and method == "DELETE":
             identifier = path.removeprefix("/v1/captures/")
             store.capture_path(identifier)
+            if any(item.get("capture_id") == identifier for item in store.items()):
+                raise ValueError("capture is still referenced by a material")
             for capture in (store.root / "audio").glob(f"{identifier}.*"):
                 capture.unlink(missing_ok=True)
             self.empty(HTTPStatus.NO_CONTENT)
@@ -1217,7 +1292,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("type DELETE to confirm")
             backup = self.backup_workspace()
             with store.lock:
-                for directory in ("items", "audio", "docs", "doc-revisions", "projects", "skills", "skill-runs", "topic-vocabularies"):
+                for directory in ("items", "audio", "docs", "doc-revisions", "transcript-revisions", "projects", "skills", "skill-runs", "topic-vocabularies"):
                     shutil.rmtree(store.root / directory)
                     (store.root / directory).mkdir(mode=0o700)
                 (store.root / "settings.json").unlink(missing_ok=True)
@@ -1295,6 +1370,61 @@ class Handler(BaseHTTPRequestHandler):
                 pass
         output = self.server.gemini.run_skill(skill, {"instruction": value.get("instruction") or "Draft a document", "project": value.get("project")}, sources, store.settings(), project_overview)
         self.json(HTTPStatus.CREATED, store.create_document({"title": value.get("title") or "Untitled", "content": output, "project": value.get("project"), "source_ids": source_ids}))
+
+    def retranscribe_material(self, identifier: str, value: dict[str, Any]) -> None:
+        store = self.server.store
+        item = store.get("items", identifier)
+        capture_id = str(item.get("capture_id", "")).strip()
+        if not capture_id:
+            raise ValueError("material has no original audio")
+        capture_path = store.capture_path(capture_id)
+        existing_context = item.get("applied_context") if isinstance(item.get("applied_context"), dict) else {}
+        reference_project = str(value.get("reference_project", existing_context.get("reference_project", ""))).strip()
+        overrides = {
+            "disable_project_profile": bool(value.get("disable_project_profile")),
+            "primary_language": str(value.get("primary_language", "")).strip(),
+            "topic_vocabulary_id": str(value.get("topic_vocabulary_id", "")).strip(),
+        }
+        profile = store.resolve_voice_profile(reference_project, overrides)
+        source = item.get("source") if isinstance(item.get("source"), dict) else {}
+        resolved_context = {
+            "page_url": str(existing_context.get("page_url") or source.get("url", "")),
+            "page_title": str(existing_context.get("page_title") or source.get("title", "")),
+            "reference_project": reference_project,
+            "personal_context": profile["personal_context"],
+            "project_overview": profile["project_overview"],
+            "glossary": profile["vocabulary"],
+            "voice_profile_label": profile["label"],
+            "project_profile_mode": profile["project_mode"],
+            "primary_language": profile["primary_language"],
+            "mixed_languages": profile["mixed_languages"],
+            "custom_instructions": profile["custom_instructions"],
+            "disable_project_profile": overrides["disable_project_profile"],
+            "language_override": overrides["primary_language"],
+            "topic_vocabulary_id": profile["topic_vocabulary_id"],
+            "topic_vocabulary_name": profile["topic_vocabulary_name"],
+            "transcription_skill_id": profile["skill_id"],
+            "transcription_skill_name": profile["skill_name"],
+            "transcription_skill_revision": profile["skill_revision"],
+            "transcription_skill_instructions": profile["skill_instructions"],
+            "recent_adopted_ids": normalize(existing_context.get("recent_adopted_ids")),
+            "recent_adopted_texts": normalize(existing_context.get("recent_adopted_texts")),
+        }
+        fields = {
+            "page_url": resolved_context["page_url"],
+            "page_title": resolved_context["page_title"],
+            "project_context": "\n\n".join(filter(None, [profile["personal_context"].strip(), profile["project_overview"].strip()])),
+            "glossary": "\n".join(profile["vocabulary"]),
+            "primary_language": profile["primary_language"],
+            "mixed_languages": ", ".join(profile["mixed_languages"]),
+        }
+        skill_instructions = profile["skill_instructions"]
+        if profile["custom_instructions"]:
+            skill_instructions = f"{skill_instructions}\n\nProfile instructions:\n{profile['custom_instructions']}"
+        mime_type = CAPTURE_MIME_TYPES.get(capture_path.suffix.lower(), "audio/webm")
+        transcript = self.server.gemini.transcribe(capture_path.read_bytes(), mime_type, fields, skill_instructions)
+        material, revision = store.save_transcript_revision(identifier, transcript, resolved_context)
+        self.json(HTTPStatus.CREATED, {"material": material, "revision": revision})
 
     def transcribe(self) -> None:
         content_type = self.headers.get("Content-Type", "")
@@ -1417,7 +1547,8 @@ class Handler(BaseHTTPRequestHandler):
         store = self.server.store
         audio = [{"name": path.name, "data_base64": base64.b64encode(path.read_bytes()).decode("ascii")} for path in sorted((store.root / "audio").iterdir()) if path.is_file()]
         document_revisions = [read_json(path) for path in sorted((store.root / "doc-revisions").glob("*.json"))]
-        return {"schema_version": 2, "exported_at": now(), "materials": store.items(), "documents": store.documents(), "document_revisions": document_revisions, "projects": store.projects(), "settings": store.settings(), "skills": store.skills(), "skill_runs": store.skill_runs(), "topic_vocabularies": store.topic_vocabularies(), "audio": audio}
+        transcript_revisions = [read_json(path) for path in sorted((store.root / "transcript-revisions").glob("*.json"))]
+        return {"schema_version": 2, "exported_at": now(), "materials": store.items(), "documents": store.documents(), "document_revisions": document_revisions, "transcript_revisions": transcript_revisions, "projects": store.projects(), "settings": store.settings(), "skills": store.skills(), "skill_runs": store.skill_runs(), "topic_vocabularies": store.topic_vocabularies(), "audio": audio}
 
     def backup_workspace(self) -> Path:
         store = self.server.store
@@ -1437,7 +1568,7 @@ class Handler(BaseHTTPRequestHandler):
         backup = self.backup_workspace()
         staging = Path(tempfile.mkdtemp(prefix="logue-restore-", dir=store.root.parent))
         try:
-            for name in ("items", "audio", "docs", "doc-revisions", "projects", "skills", "skill-runs", "topic-vocabularies"):
+            for name in ("items", "audio", "docs", "doc-revisions", "transcript-revisions", "projects", "skills", "skill-runs", "topic-vocabularies"):
                 (staging / name).mkdir(mode=0o700)
             mappings = (("materials", "items"), ("documents", "docs"), ("projects", "projects"), ("skills", "skills"), ("skill_runs", "skill-runs"), ("topic_vocabularies", "topic-vocabularies"))
             for key, directory in mappings:
@@ -1451,12 +1582,38 @@ class Handler(BaseHTTPRequestHandler):
                 if not ID_RE.match(document_id) or revision < 1:
                     raise ValueError("invalid document revision entry")
                 atomic_json(staging / "doc-revisions" / f"{document_id}-r{revision}.json", entry)
+            seen_transcript_revisions: set[tuple[str, int]] = set()
+            for entry in value.get("transcript_revisions", []):
+                material_id = str(entry.get("material_id", "")) if isinstance(entry, dict) else ""
+                revision = int(entry.get("revision", 0)) if isinstance(entry, dict) else 0
+                if not ID_RE.match(material_id) or not material_id.startswith("mat_") or revision < 1:
+                    raise ValueError("invalid transcript revision entry")
+                key = (material_id, revision)
+                if key in seen_transcript_revisions:
+                    raise ValueError("duplicate transcript revision entry")
+                material_path = staging / "items" / f"{material_id}.json"
+                if not material_path.exists():
+                    raise ValueError("transcript revision material does not exist")
+                material = read_json(material_path)
+                if str(entry.get("capture_id", "")) != str(material.get("capture_id", "")) or not isinstance(entry.get("applied_context"), dict):
+                    raise ValueError("transcript revision lineage does not match its material")
+                seen_transcript_revisions.add(key)
+                atomic_json(staging / "transcript-revisions" / f"{material_id}-r{revision}.json", entry)
             atomic_json(staging / "settings.json", value.get("settings", {}))
             for entry in value.get("audio", []):
                 name = Path(str(entry.get("name", ""))).name
                 if not name or name != str(entry.get("name")):
                     raise ValueError("invalid audio entry")
                 (staging / "audio" / name).write_bytes(base64.b64decode(entry.get("data_base64", ""), validate=True))
+            for material_path in (staging / "items").glob("*.json"):
+                material = read_json(material_path)
+                capture_id = str(material.get("capture_id", "")).strip()
+                if not capture_id:
+                    continue
+                audio_matches = [path for path in (staging / "audio").glob(f"{capture_id}.*") if path.suffix != ".json"]
+                revision = int(material.get("transcript_revision", 0))
+                if not audio_matches or not (staging / "audio" / f"{capture_id}.context.json").exists() or revision < 1 or not (staging / "transcript-revisions" / f"{material['id']}-r{revision}.json").exists():
+                    raise ValueError("voice material has incomplete audio or transcript history")
             old = store.root.parent / f"{store.root.name}.restore-old"
             old.unlink(missing_ok=True) if old.is_file() else shutil.rmtree(old, ignore_errors=True)
             os.replace(store.root, old); os.replace(staging, store.root); shutil.rmtree(old)
@@ -1494,7 +1651,7 @@ class Handler(BaseHTTPRequestHandler):
             partial = True
         response_body = body[start:end + 1]
         self.send_response(HTTPStatus.PARTIAL_CONTENT if partial else HTTPStatus.OK)
-        self.send_header("Content-Type", mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+        self.send_header("Content-Type", CAPTURE_MIME_TYPES.get(path.suffix.lower(), "application/octet-stream"))
         self.send_header("Cache-Control", "private, no-store")
         self.send_header("Accept-Ranges", "bytes")
         if partial:

@@ -56,6 +56,7 @@ export interface Material {
   tags: string[];
   parentIds?: string[];
   captureId?: string;
+  transcriptRevision?: number;
   createdAt: string;
   actor?: string;
   appliedContext?: AppliedContext;

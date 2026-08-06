@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import type { Material } from "@logue/ui";
 import { useEffect, useState, type CSSProperties } from "react";
-import { captureAudioURL, getProjects } from "../api";
+import { captureAudioURL, getProjects, getTopicVocabularies, getTranscriptRevisions, type TopicVocabulary, type TranscriptRevision } from "../api";
 import { RecordingAudioPlayer } from "./RecordingAudioPlayer";
 import { readingColumnClass } from "./layout";
 
@@ -39,6 +39,7 @@ export function MaterialDetail({
   onClose,
   onAddAnnotation,
   onUpdateContent,
+  onRetranscribe,
   onUpdateOrganization,
   onDelete,
   onOpenParent,
@@ -53,6 +54,7 @@ export function MaterialDetail({
   onClose: () => void;
   onAddAnnotation: (text: string) => Promise<void>;
   onUpdateContent: (id: string, content: string) => Promise<void>;
+  onRetranscribe?: (id: string, options: { referenceProject?: string; disableProjectProfile?: boolean; primaryLanguage?: string; topicVocabularyId?: string }) => Promise<Material>;
   onUpdateOrganization: (id: string, projects: string[], tags: string[]) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onOpenParent: (id: string) => void;
@@ -78,6 +80,15 @@ export function MaterialDetail({
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [deleteError, setDeleteError] = useState<string>();
+  const [transcriptRevisions, setTranscriptRevisions] = useState<TranscriptRevision[]>([]);
+  const [transcriptHistoryError, setTranscriptHistoryError] = useState<string>();
+  const [topicVocabularies, setTopicVocabularies] = useState<TopicVocabulary[]>([]);
+  const [retranscribeOpen, setRetranscribeOpen] = useState(false);
+  const [retranscribeBusy, setRetranscribeBusy] = useState(false);
+  const [retranscribeError, setRetranscribeError] = useState<string>();
+  const [disableProjectProfile, setDisableProjectProfile] = useState(false);
+  const [retranscribeLanguage, setRetranscribeLanguage] = useState("");
+  const [retranscribeTopicId, setRetranscribeTopicId] = useState("");
   const commentSource = parents.find((parent) => parent.kind === "selection");
   const isComment = material.kind === "derived"
     && (!material.actor || material.actor.toLowerCase() === "user")
@@ -105,6 +116,30 @@ export function MaterialDetail({
     setContentDraft(material.content);
     setContentError(undefined);
   }, [material.content]);
+
+  useEffect(() => {
+    if (!material.captureId) return;
+    let cancelled = false;
+    setTranscriptHistoryError(undefined);
+    void Promise.all([getTranscriptRevisions(material.id), getTopicVocabularies()])
+      .then(([revisions, topics]) => {
+        if (cancelled) return;
+        setTranscriptRevisions(revisions);
+        setTopicVocabularies(topics);
+      })
+      .catch((cause) => {
+        if (!cancelled) setTranscriptHistoryError(cause instanceof Error ? cause.message : "Could not load transcript history");
+      });
+    return () => { cancelled = true; };
+  }, [material.captureId, material.id, material.transcriptRevision]);
+
+  useEffect(() => {
+    setRetranscribeOpen(false);
+    setRetranscribeError(undefined);
+    setDisableProjectProfile(material.appliedContext?.project_profile_mode === "disabled");
+    setRetranscribeLanguage(material.appliedContext?.language_override || "");
+    setRetranscribeTopicId(material.appliedContext?.topic_vocabulary_id || "");
+  }, [material.id, material.transcriptRevision]);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,6 +181,25 @@ export function MaterialDetail({
       setContentError(cause instanceof Error ? cause.message : "Could not save content");
     } finally {
       setContentSaving(false);
+    }
+  }
+
+  async function runRetranscription() {
+    if (retranscribeBusy || !onRetranscribe) return;
+    setRetranscribeBusy(true);
+    setRetranscribeError(undefined);
+    try {
+      await onRetranscribe(material.id, {
+        referenceProject: material.appliedContext?.reference_project,
+        disableProjectProfile,
+        primaryLanguage: retranscribeLanguage || undefined,
+        topicVocabularyId: retranscribeTopicId || undefined,
+      });
+      setRetranscribeOpen(false);
+    } catch (cause) {
+      setRetranscribeError(cause instanceof Error ? cause.message : "Could not re-transcribe the original audio");
+    } finally {
+      setRetranscribeBusy(false);
     }
   }
 
@@ -294,8 +348,17 @@ export function MaterialDetail({
           <section aria-label="Voice history">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-[14px] font-semibold text-[#4f504c]">{isComment ? "Voice comment" : "History"}</h2>
-              {!isComment && <span className="inline-flex items-center gap-1 text-[14px] text-[#858680]"><Check size={11} /> Original record remains unchanged</span>}
+              <button type="button" disabled={!onRetranscribe} onClick={() => { setRetranscribeOpen((value) => !value); setRetranscribeError(undefined); }} aria-expanded={retranscribeOpen} className="h-8 rounded-md border border-[#deded9] px-2.5 text-[14px] font-medium text-[#656761] hover:bg-[#f3f3f0] disabled:text-[#aaa]">Re-transcribe</button>
             </div>
+            {retranscribeOpen && <div className="mt-3 rounded-lg border border-[#deded9] bg-[#fafaf8] p-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="text-[14px] text-[#73746f]"><span className="mb-1 block">Project profile</span><select value={disableProjectProfile ? "disabled" : "enabled"} onChange={(event) => setDisableProjectProfile(event.target.value === "disabled")} disabled={!material.appliedContext?.reference_project} className="h-9 w-full rounded-md border border-[#d9dad4] bg-white px-2 text-[14px] text-[#4f504c]"><option value="enabled">Use {material.appliedContext?.reference_project || "Project"} profile</option><option value="disabled">Use Default profile</option></select></label>
+                <label className="text-[14px] text-[#73746f]"><span className="mb-1 block">Language</span><input list={`retranscribe-languages-${material.id}`} value={retranscribeLanguage} onChange={(event) => setRetranscribeLanguage(event.target.value)} placeholder="Profile default" className="h-9 w-full rounded-md border border-[#d9dad4] bg-white px-2 text-[14px] text-[#4f504c]" /><datalist id={`retranscribe-languages-${material.id}`}><option value="English" /><option value="中文" /><option value="日本語" /><option value="Español" /></datalist></label>
+                <label className="text-[14px] text-[#73746f] sm:col-span-2"><span className="mb-1 block">Topic Vocabulary</span><select value={retranscribeTopicId} onChange={(event) => setRetranscribeTopicId(event.target.value)} className="h-9 w-full rounded-md border border-[#d9dad4] bg-white px-2 text-[14px] text-[#4f504c]"><option value="">None for this revision</option>{topicVocabularies.map((topic) => <option key={topic.id} value={topic.id}>{topic.name}</option>)}</select></label>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3"><p className="text-[14px] leading-4 text-[#8d8e89]">Creates a new transcript revision from the same audio. Final text and Project membership stay unchanged.</p><button type="button" disabled={retranscribeBusy} onClick={() => void runRetranscription()} className="h-9 shrink-0 rounded-md bg-[#242522] px-3 text-[14px] font-medium text-white disabled:bg-[#bdbdb8]">{retranscribeBusy ? "Transcribing…" : "Create revision"}</button></div>
+              {retranscribeError && <p role="alert" className="mt-2 rounded-md bg-[#fbefec] px-2.5 py-2 text-[14px] text-[#a34b42]">{retranscribeError}</p>}
+            </div>}
             <ol className="mt-5 ml-3 border-l border-[#dcdcd7]">
               <li className="relative pb-7 pl-6">
                 <span className="absolute -left-3 top-0 inline-flex size-6 items-center justify-center rounded-full border border-[#d7d7d2] bg-white text-[#6f706b]"><Mic2 size={12} /></span>
@@ -303,11 +366,13 @@ export function MaterialDetail({
                 <p className="mt-0.5 text-[14px] text-[#92938e]">Saved audio for playback and verification</p>
                 <RecordingAudioPlayer src={captureAudioURL(material.captureId!)} label="Play original audio" />
               </li>
-              <li className="relative pb-7 pl-6">
-                <span className="absolute -left-3 top-0 inline-flex size-6 items-center justify-center rounded-full border border-[#d7d7d2] bg-white text-[#6f706b]"><FileText size={12} /></span>
-                <div className="flex items-baseline justify-between gap-3"><h3 className="text-[15px] font-semibold text-[#4c4d49]">Machine transcript</h3><span className="text-[14px] text-[#9a9b96]">Original result</span></div>
-                <p className="mt-2 whitespace-pre-wrap text-[14px] leading-5 text-[#747570]">{material.transcript || "No machine transcript was saved"}</p>
-              </li>
+              {transcriptRevisions.map((revision) => <li key={revision.revision} className="relative pb-7 pl-6">
+                <span className={`absolute -left-3 top-0 inline-flex size-6 items-center justify-center rounded-full border bg-white ${revision.current ? "border-[#bfc8bc] text-[#557057]" : "border-[#d7d7d2] text-[#6f706b]"}`}><FileText size={12} /></span>
+                <div className="flex items-baseline justify-between gap-3"><h3 className="text-[15px] font-semibold text-[#4c4d49]">Transcript r{revision.revision}</h3><span className={`text-[14px] ${revision.current ? "font-medium text-[#638064]" : "text-[#9a9b96]"}`}>{revision.current ? "Current" : new Date(revision.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></div>
+                <p className="mt-2 whitespace-pre-wrap text-[14px] leading-5 text-[#747570]">{revision.transcript}</p>
+                <details className="mt-2"><summary className="cursor-pointer text-[14px] font-medium text-[#6c70be]">Exact profile used</summary><div className="mt-1.5 space-y-1 border-l-2 border-[#e2e2ef] pl-3 text-[14px] leading-4 text-[#858680]"><p>{revision.applied_context.voice_profile_label || "Default voice profile"}{revision.applied_context.transcription_skill_name ? ` · ${revision.applied_context.transcription_skill_name}` : ""}{revision.applied_context.transcription_skill_revision ? ` r${revision.applied_context.transcription_skill_revision}` : ""}</p><p>{revision.applied_context.primary_language || "Auto-detect"}{revision.applied_context.topic_vocabulary_name ? ` · ${revision.applied_context.topic_vocabulary_name}` : ""}</p></div></details>
+              </li>)}
+              {transcriptHistoryError && <li className="relative pb-7 pl-6"><span className="absolute -left-3 top-0 inline-flex size-6 items-center justify-center rounded-full border border-[#e3c8c2] bg-white text-[#a34b42]"><CircleAlert size={12} /></span><p role="alert" className="text-[14px] text-[#a34b42]">{transcriptHistoryError}</p></li>}
               <li className="relative pb-7 pl-6">
                 <span className="absolute -left-3 top-0 inline-flex size-6 items-center justify-center rounded-full border border-[#bec8bc] bg-[#edf2eb] text-[#557057]"><Check size={12} /></span>
                 <div className="flex items-baseline justify-between gap-3"><h3 className="text-[15px] font-semibold text-[#42453f]">{isComment ? "Comment" : "Final text"}</h3><span className="text-[14px] font-medium text-[#638064]">{isComment ? "You" : "Adopted"}</span></div>

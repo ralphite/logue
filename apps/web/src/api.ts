@@ -17,6 +17,7 @@ interface ApiMaterial {
   tags?: string[];
   parent_ids?: string[];
   capture_id?: string;
+  transcript_revision?: number;
   created_at: string;
   actor?: string;
   applied_context?: AppliedContext;
@@ -126,6 +127,16 @@ export interface TopicVocabulary {
   updated_at: string;
 }
 
+export interface TranscriptRevision {
+  material_id: string;
+  capture_id: string;
+  revision: number;
+  transcript: string;
+  applied_context: AppliedContext;
+  created_at: string;
+  current: boolean;
+}
+
 export interface SkillRunSourceSnapshot {
   id: string;
   content: string;
@@ -184,6 +195,7 @@ export function fromApiMaterial(item: ApiMaterial): Material {
     tags: item.tags ?? [],
     parentIds: item.parent_ids ?? [],
     captureId: item.capture_id,
+    transcriptRevision: item.transcript_revision,
     createdAt: item.created_at,
     actor: item.actor,
     appliedContext: item.applied_context,
@@ -213,6 +225,34 @@ export async function getStatus() {
 export async function getMaterials() {
   const result = await parseResponse<{ items: ApiMaterial[] }>(await fetch(`${apiBase}/v1/items`));
   return result.items.map(fromApiMaterial);
+}
+
+export async function getTranscriptRevisions(id: string) {
+  const result = await parseResponse<{ revisions: TranscriptRevision[] }>(
+    await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}/transcript-revisions`),
+  );
+  return result.revisions;
+}
+
+export async function retranscribeMaterial(id: string, options: {
+  referenceProject?: string;
+  disableProjectProfile?: boolean;
+  primaryLanguage?: string;
+  topicVocabularyId?: string;
+}) {
+  const result = await parseResponse<{ material: ApiMaterial; revision: TranscriptRevision }>(
+    await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}/retranscribe`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reference_project: options.referenceProject ?? "",
+        disable_project_profile: Boolean(options.disableProjectProfile),
+        primary_language: options.primaryLanguage ?? "",
+        topic_vocabulary_id: options.topicVocabularyId ?? "",
+      }),
+    }),
+  );
+  return { material: fromApiMaterial(result.material), revision: result.revision };
 }
 
 export async function searchMaterials(query: string, signal?: AbortSignal) {

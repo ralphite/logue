@@ -19,6 +19,7 @@ import {
   getSkillRuns,
   getStatus,
   retrySkillRun,
+  retranscribeMaterial,
   updateMaterial,
   updateMaterialMetadata,
   type ServiceStatus,
@@ -292,6 +293,12 @@ export function App() {
   async function updateContent(id: string, content: string) {
     const updated = await updateMaterial(id, { content });
     setMaterials((current) => current.map((material) => material.id === id ? updated : material));
+  }
+
+  async function retranscribe(id: string, options: { referenceProject?: string; disableProjectProfile?: boolean; primaryLanguage?: string; topicVocabularyId?: string }) {
+    const result = await retranscribeMaterial(id, options);
+    setMaterials((current) => current.map((material) => material.id === id ? result.material : material));
+    return result.material;
   }
 
   async function removeMaterial(id: string) {
@@ -578,6 +585,7 @@ export function App() {
           onExpand={() => setMaterialMode("page")}
           onAddAnnotation={addAnnotation}
           onUpdateContent={updateContent}
+          onRetranscribe={retranscribe}
           onUpdateOrganization={updateOrganization}
           onDelete={removeMaterial}
           onOpenParent={(id) => navigate(materialNavigation(id))}
