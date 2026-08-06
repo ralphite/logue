@@ -2,7 +2,7 @@ import { SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionS
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { adoptExtensionSkillRun, cancelMaterialSave, createExtensionSkillRun, getCaptureContext, getExtensionSkills, getServiceStatus, saveMaterial, saveSelection, transcribeAudio, type AppliedContext, type ExtensionSkill } from "./api";
-import { activeEditableElement, getEditableText, googleDocsEditableTarget, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "./dom";
+import { activeEditableElement, getEditableText, googleDocsEditableTarget, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElement, insertIntoElementWithUndo, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused, type LocalInsertTransaction } from "./dom";
 import { hasNativeSelectionSkillOwner, isLogueExtensionDisabledDocument, logueServerCandidate } from "./eligibility";
 import {
   googleDocsLauncherActionMessage,
@@ -28,8 +28,9 @@ import { SelectionVoiceControls, type SelectionCommentPhase } from "./SelectionV
 import styles from "./extension.css?inline";
 
 interface ContentRequestMessage {
-  type: "logue:insert-text" | "logue:get-page-context";
+  type: "logue:insert-text" | "logue:undo-insert" | "logue:get-page-context";
   text?: string;
+  token?: string;
 }
 
 type InlineRecorderAction = "start" | "stop" | "cancel";
@@ -171,6 +172,7 @@ function ExtensionLauncher() {
   const [focusSelectionSkillTrigger, setFocusSelectionSkillTrigger] = useState(false);
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
   const targetRef = useRef<HTMLElement | null>(null);
+  const lastInsertUndoRef = useRef<{ token: string; transaction: LocalInsertTransaction } | undefined>(undefined);
   const targetPageHrefRef = useRef("");
   const voicePhaseRef = useRef<InlineVoicePhase>("idle");
   const voiceSessionRef = useRef<InlineVoiceSession | undefined>(undefined);
@@ -1001,12 +1003,22 @@ function ExtensionLauncher() {
       }
       if (contentMessage?.type === "logue:insert-text") {
         const target = targetRef.current;
-        const inserted = Boolean(
-          contentMessage.text &&
-          isEditableTargetAvailable(target) &&
-          insertIntoElement(target, contentMessage.text),
-        );
-        sendResponse({ ok: inserted });
+        const transaction = contentMessage.text && isEditableTargetAvailable(target)
+          ? insertIntoElementWithUndo(target, contentMessage.text)
+          : undefined;
+        const token = transaction ? createRequestId() : undefined;
+        lastInsertUndoRef.current = transaction && token ? { token, transaction } : undefined;
+        sendResponse({ ok: Boolean(transaction), undoToken: token });
+        return false;
+      }
+      if (contentMessage?.type === "logue:undo-insert") {
+        const pending = lastInsertUndoRef.current;
+        if (!pending || !contentMessage.token || pending.token !== contentMessage.token) {
+          sendResponse({ ok: false });
+          return false;
+        }
+        lastInsertUndoRef.current = undefined;
+        sendResponse({ ok: pending.transaction.undo() });
         return false;
       }
       if (contentMessage?.type === "logue:get-page-context") {

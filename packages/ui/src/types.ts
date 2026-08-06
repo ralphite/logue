@@ -38,6 +38,7 @@ export interface Material {
   annotation?: string;
   source?: SourceInfo;
   projects: string[];
+  excludedProjects?: string[];
   tags: string[];
   parentIds?: string[];
   captureId?: string;

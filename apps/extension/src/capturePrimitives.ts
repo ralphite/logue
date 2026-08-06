@@ -1,6 +1,6 @@
-import type { CaptureIntent, CaptureOrganization, CaptureSource, LocalError, PageCaptureContext, PanelCaptureState, PendingInsert } from "./sidePanelModels";
+import type { CaptureIntent, CaptureOrganization, CaptureSource, CommandResult, LocalError, PageCaptureContext, PanelCaptureState, PendingInsert } from "./sidePanelModels";
 
-export type { CaptureIntent, CaptureOrganization, CaptureSource, LocalError, PageCaptureContext, PanelCaptureState, PendingInsert } from "./sidePanelModels";
+export type { CaptureIntent, CaptureOrganization, CaptureSource, CommandResult, LocalError, PageCaptureContext, PanelCaptureState, PendingInsert } from "./sidePanelModels";
 
 export function sourceFromTab(tab: Pick<chrome.tabs.Tab, "url" | "pendingUrl" | "title">): CaptureSource {
   const url = tab.url ?? tab.pendingUrl ?? "";
@@ -18,9 +18,12 @@ export function sourceFromTab(tab: Pick<chrome.tabs.Tab, "url" | "pendingUrl" | 
 
 export function mergePanelCaptureState(
   current: PanelCaptureState,
-  patch: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">> & { pendingInsert?: PendingInsert | null },
+  patch: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">> & {
+    pendingInsert?: PendingInsert | null;
+    commandResult?: CommandResult | null;
+  },
 ): PanelCaptureState {
-  const { pendingInsert, ...rest } = patch;
+  const { commandResult, pendingInsert, ...rest } = patch;
   const next = {
     ...current,
     ...rest,
@@ -31,6 +34,11 @@ export function mergePanelCaptureState(
     delete next.pendingInsert;
   } else if (pendingInsert) {
     next.pendingInsert = pendingInsert;
+  }
+  if (commandResult === null) {
+    delete next.commandResult;
+  } else if (commandResult) {
+    next.commandResult = commandResult;
   }
   return next;
 }

@@ -69,7 +69,10 @@ interface OpenPanelMessage {
 interface PanelStateMessage {
   type: "logue:get-panel-state" | "logue:update-panel-state" | "logue:close-side-panel" | "logue:consume-panel-autostart" | "logue:request-panel-generate" | "logue:return-panel-to-page";
   tabId?: number;
-  patch?: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">> & { pendingInsert?: PanelCaptureState["pendingInsert"] | null };
+  patch?: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">> & {
+    pendingInsert?: PanelCaptureState["pendingInsert"] | null;
+    commandResult?: PanelCaptureState["commandResult"] | null;
+  };
   token?: string;
 }
 
@@ -315,6 +318,7 @@ function stagePanelState(state: PanelCaptureState) {
         ...(current.transcript !== undefined ? { transcript: current.transcript } : {}),
         ...(current.projects !== undefined ? { projects: current.projects } : {}),
         ...(current.tags !== undefined ? { tags: current.tags } : {}),
+        ...(current.commandResult !== undefined ? { commandResult: current.commandResult } : {}),
       };
       await persistPanelState(restored);
       broadcastPanelState(restored);

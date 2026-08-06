@@ -12,6 +12,7 @@ interface ApiMaterial {
   annotation?: string;
   source?: SourceInfo;
   projects?: string[];
+  excluded_projects?: string[];
   tags?: string[];
   parent_ids?: string[];
   capture_id?: string;
@@ -64,9 +65,45 @@ export interface ProjectSummary {
   name: string;
   overview?: string;
   glossary: string[];
+  skill_bindings?: ProjectSkillBindings;
   count: number;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface ProjectSkillBindings {
+  transcription?: string;
+  organization?: string;
+  command?: string;
+  ask?: string;
+  draft?: string;
+}
+
+export interface SkillRunSourceSnapshot {
+  id: string;
+  content: string;
+  kind?: MaterialKind;
+  actor?: string;
+  projects?: string[];
+  tags?: string[];
+  created_at?: string;
+  source?: SourceInfo;
+}
+
+export interface SkillRun {
+  id: string;
+  skill_id: string;
+  skill_revision: number;
+  skill_name: string;
+  instruction: string;
+  project?: string;
+  status: "running" | "complete" | "failed" | "cancelled";
+  sources: SkillRunSourceSnapshot[];
+  original_output?: string;
+  adopted_output?: string;
+  error?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface WorkspaceSettings {
@@ -76,6 +113,8 @@ export interface WorkspaceSettings {
   default_transcription_skill?: string;
   default_organization_skill?: string;
   default_extension_skill?: string;
+  default_qa_skill?: string;
+  default_document_skill?: string;
 }
 
 export interface GlossarySuggestion {
@@ -93,6 +132,7 @@ export function fromApiMaterial(item: ApiMaterial): Material {
     annotation: item.annotation,
     source: item.source,
     projects: item.projects ?? [],
+    excludedProjects: item.excluded_projects ?? [],
     tags: item.tags ?? [],
     parentIds: item.parent_ids ?? [],
     captureId: item.capture_id,
@@ -240,16 +280,43 @@ export async function getProjects() {
   return result.projects;
 }
 
+export async function getSkillRuns() {
+  const result = await parseResponse<{ runs: SkillRun[] }>(await fetch(`${apiBase}/v1/skill-runs`));
+  return result.runs;
+}
+
+export async function retrySkillRun(run: SkillRun) {
+  return parseResponse<SkillRun>(await fetch(`${apiBase}/v1/skill-runs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      request_id: globalThis.crypto?.randomUUID?.() ?? `retry-${Date.now()}`,
+      skill_id: run.skill_id,
+      instruction: run.instruction,
+      project: run.project ?? "",
+      source_ids: run.sources.map((source) => source.id),
+    }),
+  }));
+}
+
+export async function deleteSkillRun(id: string) {
+  const response = await fetch(`${apiBase}/v1/skill-runs/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!response.ok) throw new Error((await response.text()) || `Request failed (${response.status})`);
+}
+
 export async function saveProject(
   currentName: string,
-  input: { name?: string; overview: string; glossary: string[] },
+  input: { name?: string; overview: string; glossary: string[]; skillBindings?: ProjectSkillBindings },
 ) {
   const path = currentName ? `${apiBase}/v1/projects/${encodeURIComponent(currentName)}` : `${apiBase}/v1/projects`;
   return parseResponse<ProjectSummary>(
     await fetch(path, {
       method: currentName ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
+      body: JSON.stringify({
+        ...input,
+        ...(input.skillBindings !== undefined ? { skill_bindings: input.skillBindings } : {}),
+      }),
     }),
   );
 }
@@ -266,7 +333,7 @@ export async function updateMaterialMetadata(id: string, projects: string[], tag
 
 export async function updateMaterial(
   id: string,
-  changes: { content?: string; projects?: string[]; tags?: string[] },
+  changes: { content?: string; projects?: string[]; excludedProjects?: string[]; tags?: string[] },
 ) {
   const result = await parseResponse<ApiMaterial>(
     await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}`, {
@@ -275,6 +342,7 @@ export async function updateMaterial(
       body: JSON.stringify({
         ...(changes.content !== undefined ? { content: changes.content } : {}),
         ...(changes.projects !== undefined ? { projects: changes.projects } : {}),
+        ...(changes.excludedProjects !== undefined ? { excluded_projects: changes.excludedProjects } : {}),
         ...(changes.tags !== undefined ? { tags: changes.tags } : {}),
       }),
     }),
@@ -320,6 +388,22 @@ export async function restoreWorkspace(value: unknown) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(value),
+    }),
+  );
+}
+
+export async function backupWorkspace() {
+  return parseResponse<{ status: string; backup_path: string }>(
+    await fetch(`${apiBase}/v1/backup`, { method: "POST" }),
+  );
+}
+
+export async function deleteWorkspace() {
+  return parseResponse<{ status: string; backup_path: string }>(
+    await fetch(`${apiBase}/v1/workspace`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: "DELETE" }),
     }),
   );
 }

@@ -96,6 +96,95 @@ button { cursor: pointer; }
 .text-area::placeholder { color: #a0a19b; }
 .text-area:focus { outline: 0; }
 
+.command-result { padding-top: 14px; }
+.command-result-heading,
+.command-source-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.command-result-heading h2 {
+  margin: 0;
+  color: #343531;
+  font-size: 14px;
+  font-weight: 600;
+}
+.command-result-heading span {
+  color: #747570;
+  font-size: 12px;
+}
+.command-result-editor {
+  min-height: 122px;
+  margin-top: 8px;
+  border: 1px solid #deded9;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.command-result-editor:focus-visible {
+  border-color: #b8b9b3;
+  outline: 2px solid #656cf0;
+  outline-offset: 2px;
+}
+.command-citations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 10px;
+}
+.command-citation {
+  width: 26px;
+  height: 26px;
+  border: 1px solid #deded9;
+  border-radius: 6px;
+  background: #fff;
+  color: #5b5c57;
+  font-size: 12px;
+  font-weight: 600;
+}
+.command-citation:hover,
+.command-citation[aria-pressed="true"] { background: #f1f1ee; color: #30312d; }
+.command-citation:focus-visible {
+  outline: 2px solid #656cf0;
+  outline-offset: 2px;
+}
+.command-source {
+  margin-top: 10px;
+  border: 1px solid #e5e5e1;
+  border-radius: 8px;
+  background: #fafaf8;
+  padding: 10px 11px;
+}
+.command-source-heading strong {
+  overflow: hidden;
+  color: #444540;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.command-source-heading a {
+  flex: none;
+  color: #5e5f5a;
+  font-size: 12px;
+  text-underline-offset: 3px;
+}
+.command-source blockquote,
+.command-source p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  color: #565752;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.command-source blockquote {
+  border-left: 2px solid #c7c8c2;
+  padding-left: 9px;
+}
+
 .field-label { display: grid; gap: 6px; color: #71726d; font-size: 13px; }
 .field {
   width: 100%;

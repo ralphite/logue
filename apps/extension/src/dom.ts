@@ -94,21 +94,47 @@ export function isEditableTargetAvailable(
 }
 
 export function insertIntoElement(target: HTMLElement, text: string) {
-  if (!target.isConnected) return false;
+  return Boolean(insertIntoElementWithUndo(target, text));
+}
+
+export interface LocalInsertTransaction {
+  undo: () => boolean;
+}
+
+function dispatchEditorChange(target: HTMLElement, inputType: "insertText" | "historyUndo", data: string | null) {
+  target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType, data }));
+  if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
+    target.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+}
+
+export function insertIntoElementWithUndo(target: HTMLElement, text: string): LocalInsertTransaction | undefined {
+  if (!target.isConnected) return undefined;
 
   if (target instanceof HTMLTextAreaElement || target instanceof HTMLInputElement) {
+    const beforeValue = target.value;
     target.focus();
     const start = target.selectionStart ?? target.value.length;
     const end = target.selectionEnd ?? start;
     target.setRangeText(text, start, end, "end");
-    target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
-    target.dispatchEvent(new Event("change", { bubbles: true }));
-    return true;
+    const afterValue = target.value;
+    dispatchEditorChange(target, "insertText", text);
+    return {
+      undo: () => {
+        if (!target.isConnected || target.value !== afterValue) return false;
+        target.focus();
+        target.value = beforeValue;
+        target.setSelectionRange(start, end);
+        dispatchEditorChange(target, "historyUndo", null);
+        return true;
+      },
+    };
   }
 
   if (target.isContentEditable) {
+    const beforeHTML = target.innerHTML;
     const selection = window.getSelection();
-    if (!selection) return false;
+    if (!selection) return undefined;
     const selectedRange = selection.rangeCount > 0 ? selection.getRangeAt(0) : undefined;
     const preservedRange = selectedRange && target.contains(selectedRange.commonAncestorContainer)
       ? selectedRange.cloneRange()
@@ -134,11 +160,27 @@ export function insertIntoElement(target: HTMLElement, text: string) {
       selection.removeAllRanges();
       selection.addRange(range);
     }
-    target.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
-    return Boolean(inserted || target.contains(selection.anchorNode));
+    const didInsert = Boolean(inserted || target.contains(selection.anchorNode));
+    if (!didInsert) return undefined;
+    const afterHTML = target.innerHTML;
+    dispatchEditorChange(target, "insertText", text);
+    return {
+      undo: () => {
+        if (!target.isConnected || target.innerHTML !== afterHTML) return false;
+        target.focus();
+        target.innerHTML = beforeHTML;
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        dispatchEditorChange(target, "historyUndo", null);
+        return true;
+      },
+    };
   }
 
-  return false;
+  return undefined;
 }
 
 export function getEditableText(target: HTMLElement | null) {

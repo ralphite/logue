@@ -21,6 +21,7 @@
 - **首个用户可见结果：** 在任意普通网页选择文字后，直接点击轻量 Mic 开始录音；录音态只显示 `Accept ↵` 与 `Cancel Esc`。Accept 原子地永久保存 Web Source、原始录音、转写与 Voice Comment；只有当前 tab 已由用户显式选择一个 Project 时才进入该 Project，默认 `Saved only` 不进入任何 Project。Cancel 不创建 Source。高级文字编辑、标签与 Project 调整只在 Side Panel/Web 渐进披露。
 - **本批 UI/对象设计：** 延续现有安静表格行、可调宽详情面板和音频 History，而不新增卡片式总览。Library 与 Project 都把 `Web Source + You Comment` 显示为一条 Comment bundle：评论是主要可读内容，选区是次级证据；打开后直接进入评论详情，提供原音、raw transcript、采用文本、选区及网页链接。搜索命中 Source 或 Comment 都返回同一 bundle；同一 bundle 不因 Source/Comment 两个持久对象而重复计数或平铺。普通非 Comment 内容继续沿用现有列表分组。
 - **同 tab Project 合同：** Side Panel 顶部只提供 `Saved only` 或一个显式 Project，选择按 tab session 保存并只作用于该 tab 的 Capture/Comment/Command；录音中隐藏 picker，避免改变正在进行的 capture 归属。background 只信任消息发送者的 `sender.tab.id`，不接受页面伪造 tab id。Voice Command 带显式 Project 时，Host 的自动检索候选也必须限定在该 Project，并把实际 Source ID 与生成时内容快照固化到 Run；无 Project 才使用私人 Library 的全局 Saved 范围。
+- **Command / Insert 合同：** Command candidate 与 Host 冻结的 Run sources 在当前 tab session 保留，Side Panel 始终允许编辑结果与打开 citations。Insert 前重新读取真实输入目标并返回一次性 Undo transaction；只有真实 Insert 成功才把采用文本 PATCH 到 Run，Undo 只恢复宿主 DOM，不删除 Run 或已保存 lineage。target lost 不清空 candidate，只提供 Copy/Retry。冻结 Source snapshot 至少包含 `id/content/kind/actor/source(url/title/selection)`，确保后续来源变化也不破坏证据核验。
 - **风险与内容处理：** Source 与 Comment 仍是两个可追溯持久对象，但默认界面必须表现为一个用户概念；删除、Project 调整和多评论仍需在后续批次定义 bundle 级行为，当前不得通过隐藏关系制造假成功。转写失败保留可重试终态与原音，成功后才安静消失；不得用 UI toast 代替 Web 中可核验的持久记录。
 - **数据与交付边界：** 当前机器是唯一受支持安装；改动 schema 前备份并验证当前 `.logue-data`，不保留完成迁移后的兼容代码。每个批次必须由真实 Extension → API → 本机数据 → Web 用户流程证明；针对性测试随实现运行，完整 CI/build 只在集成节点运行。验证后在 `main` 做小 commit 并立即 push。
 - **替代方案：** 继续扩 Storybook 全功能 mock，或先整体重写全部 V2 后再运行。前者不产生真实产品价值；后者延迟真实反馈且容易同时破坏多个表面。采用可独立使用的 vertical slice，逐步替换 V1 行为并保持每批可验证。
@@ -447,3 +448,43 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 保留 `Parse → Generate` 两次确认，或生成后自动写入宿主。前者把系统内部阶段转嫁给高频用户；后者违反显式采用、不得自动提交和可恢复原则。
 - **已有证据：** Goal Supervisor 将 J1 的 `Parse command → Generate draft` 判为最高 ROI 缺口。2026-08-05 fresh `logue_product_designer` 预审 BLOCK 5.5/10；独立完整性 gate 随后发现 Retry 假成功、Context 越界、Text-only Command、焦点与静态 lineage 五个 P1，均已修复。真实 Chrome 已复跑双 Comment bundles、Listening → 一次 Enter、冻结 citation、编辑/Insert/Undo、target lost、无 Context Retry、Esc 焦点恢复与 Web Project lineage；22 个测试文件 139 项、typecheck 与 build 通过。fresh post-gate 为 GO/PASS 9.1/10，无 P0/P1。
 - **开放问题：** `copy-candidate` 尚未与 Insert 共用 frozen-lineage preflight；当前 mock 没有删除 revision 的入口，canonical 引用可信，因此 fresh post-gate 将其评为不阻断的 P2。后续在加入 revision 删除/失配状态时抽取共享 evidence validator。真实异步 Running 取消、clarification 与 parse error 仍属于独立错误矩阵；本批只关闭 canonical 正常路径、无 Context 失败、target-lost 恢复和 adopted lineage，不混入 Voice Write、Project Customize、Guided Demo、视觉优化或 J7–J9。
+
+### DR-044 — Library 分离永久内容与运行活动，但共享来源证据
+
+- **优先级：** V2 产品 / P0
+- **状态：** 真实 Web App 实现中；完整功能完成后统一验证
+- **决定：** Library 的一级视图固定为 `Saved content` 与 `All activity`。前者展示永久 Web/You/AI Source 和 Comment bundle；后者展示 Voice Command、Skill Run、失败/完成状态、adopted output 与本次 Run 冻结的 Source snapshots。Run prompt 与失败 Candidate 不自动进入 Project Context，但始终可从 Activity 恢复和核验。
+- **用户可见影响：** 用户不会把一次命令误认为长期知识，也不会因为结果尚未采用就失去原始活动；打开 Run 可看到当时真正使用的来源，而不是后来变化的 Project 当前内容。
+- **替代方案：** 将 Source、Comment、Command、Run 和 Candidate 平铺在同一列表，或只保留成功生成结果。前者破坏对象理解，后者丢失失败恢复与证据链。
+- **已有证据：** V2 产品合同明确区分永久 Library、Project Context 和 Activity/Run；真实 Host 已保存 frozen source snapshots。
+- **开放问题：** Retry、删除未采用 Run 与跨表面恢复在后续完整性批次连接；本批先建立真实对象分区与证据阅读路径。
+
+### DR-045 — Global defaults 与 Project overrides 解析同一个 Skill 对象
+
+- **优先级：** V2 产品 / P0
+- **状态：** 真实运行时实现中；完整功能完成后统一验证
+- **决定：** Built-in 与 My Skill 是唯一 Skill 对象来源；Global default 和 Project override 只保存 Skill ID。运行时按 `explicit choice → Project override → Global default → Built-in fallback` 解析。Project 可分别覆盖 Transcription、Organization、Command、Ask 和 Draft；未覆盖的类别安静继承 Global。
+- **用户可见影响：** 用户只维护一份 Skill，却能为特定 Project 调整术语、转写和输出方式；Extension 与 Web 使用同一解析规则，不出现两套相互矛盾的默认值。
+- **替代方案：** 为每个 Project 复制完整 Skill，或让 Project 设置只显示但不影响运行。前者制造版本漂移，后者是假设置。
+- **已有证据：** V2 Skill 合同与用户完整性反馈均要求 Built-in/My Skill、Global binding 和 Project override 同时存在且一次点击运行。
+- **开放问题：** Selection 菜单的 pinned/recent 排序在 Extension 完整性批次连接；本批先闭合真实 binding 解析。
+
+### DR-046 — Delete all local data 必须先生成机器内可恢复备份
+
+- **优先级：** V2 产品 / P0 数据安全
+- **状态：** 实现中；完整功能完成后统一验证
+- **决定：** Settings 提供真实 `Back up now`、Export、Restore 与 `Delete all local data`。删除要求用户输入 `DELETE`，Host 在清空 Sources、audio、Projects、Documents、Runs、Settings 和 My Skills 前先在数据目录旁生成完整备份；Built-in Skills 随空工作区重新初始化。
+- **用户可见影响：** single-owner 用户无需账号即可管理本机数据；误操作仍有明确备份路径可恢复，而 UI 不把下载导出冒充完整机器备份。
+- **替代方案：** 只依赖浏览器 confirm，或直接清空而不备份。两者都不足以保护当前唯一受支持安装的数据。
+- **已有证据：** Goal 明确要求 Export/Backup/Delete，项目规则要求安装、迁移和删除保护当前机器数据。
+- **开放问题：** Finder Reveal 属于 OS 集成批次；不阻塞真实备份与删除合同。
+
+### DR-047 — Project Context 的用户排除永久覆盖自动分类
+
+- **优先级：** V2 产品 / P0
+- **状态：** 真实 Host 与 Web Context review 已实现；最低构建检查通过，待完整功能完成后统一运行时验证
+- **决定：** Source 除 `projects` 外持久保存 `excluded_projects`。用户在 Context review 选择 Exclude 后，后台 Organization Skill 不得重新加入该 Project；用户显式 Add 会同时移除对应 exclusion。低置信度建议继续留在 Review，不自动进入 Context。
+- **用户可见影响：** 用户纠正一次后结果稳定，不会与后台分类反复拉扯；Saved content 仍永久保留，排除只影响特定 Project Context。
+- **替代方案：** 只从 `projects` 数组删除，或把排除存在前端状态。两者都会在重新分类或重启后丢失用户意图。
+- **已有证据：** Goal 明确规定用户显式加入、排除和纠正永久优先，且永久 Library 与 Project Context 必须分离。
+- **开放问题：** Topic merge/convert 是更高层组织能力；不阻塞 Source membership 的真实纠正合同。

@@ -1,7 +1,7 @@
 import { ArrowLeft, Ellipsis, Mic, Sparkles, Square } from "lucide-react";
 import { OverlayMenu } from "@logue/ui";
 import { useState, type Ref } from "react";
-import type { ExtensionSkill, LocalError, PageMaterial, PanelCaptureState, PanelProject, PendingInsert } from "./sidePanelModels";
+import type { CommandSourceSnapshot, ExtensionSkill, LocalError, PageMaterial, PanelCaptureState, PanelProject, PendingInsert } from "./sidePanelModels";
 import { capturePhasePresentation, type CapturePhase } from "./sidePanelPresentation";
 import { shouldShowPageHistory } from "./sidePanelPageHistory";
 
@@ -22,11 +22,20 @@ function serverCandidateLabel(value: string) {
   }
 }
 
+function commandSourceLabel(source: CommandSourceSnapshot, index: number) {
+  return source.source?.title?.trim()
+    || source.source?.domain?.trim()
+    || (source.actor === "user" ? "Your note" : `Source ${index + 1}`);
+}
+
 export function SidePanelView({
   state,
   phase,
   draft,
   generatedText,
+  commandSources = [],
+  generatedUndoAvailable = false,
+  insertingGenerated = false,
   skills,
   skillId,
   projects = [],
@@ -45,6 +54,8 @@ export function SidePanelView({
   panelRef,
   onDraftChange,
   onGeneratedTextChange,
+  onCopyGenerated,
+  onUndoGenerated,
   onSkillIdChange,
   onProjectChange = () => undefined,
   onStartRecording,
@@ -69,6 +80,9 @@ export function SidePanelView({
   phase: CapturePhase;
   draft: string;
   generatedText: string;
+  commandSources?: CommandSourceSnapshot[];
+  generatedUndoAvailable?: boolean;
+  insertingGenerated?: boolean;
   skills: ExtensionSkill[];
   skillId: string;
   projects?: PanelProject[];
@@ -87,6 +101,8 @@ export function SidePanelView({
   panelRef?: Ref<HTMLElement>;
   onDraftChange: (value: string) => void;
   onGeneratedTextChange: (value: string) => void;
+  onCopyGenerated?: () => void;
+  onUndoGenerated?: () => void;
   onSkillIdChange: (value: string) => void;
   onProjectChange?: (value: string) => void;
   onStartRecording: () => void;
@@ -108,12 +124,14 @@ export function SidePanelView({
   onRetryServer: () => void;
 }) {
   const [serverMenuOpen, setServerMenuOpen] = useState(false);
+  const [openSourceId, setOpenSourceId] = useState<string>();
 
   if (!state) return <div className="empty" data-logue-extension="off">Open Logue from a page to begin.</div>;
 
   const sourceHref = /^https?:\/\//.test(state.source.url) ? state.source.url : undefined;
   const title = sourceTitle(state);
   const presentation = capturePhasePresentation(phase);
+  const openedSource = commandSources.find((source) => source.id === openSourceId);
 
   return (
     <main ref={panelRef} className="panel" tabIndex={-1} data-logue-extension="off">
@@ -192,9 +210,33 @@ export function SidePanelView({
 
         {presentation.status && <div className="processing" role="status"><span className="spinner" />{presentation.status}</div>}
 
-        {presentation.showEditor && error?.kind !== "service" && (state.intent === "generate" && generatedText ? (
-          <textarea className="text-area" value={generatedText} onChange={(event) => onGeneratedTextChange(event.target.value)} aria-label="Generated reply" />
-        ) : (
+        {presentation.showEditor && (state.intent === "generate" && generatedText ? (
+          <section className="command-result" aria-label="Draft reply">
+            <div className="command-result-heading">
+              <h2>Draft reply</h2>
+              <span>{commandSources.length} source{commandSources.length === 1 ? "" : "s"}</span>
+            </div>
+            <textarea className="text-area command-result-editor" value={generatedText} onChange={(event) => onGeneratedTextChange(event.target.value)} aria-label="Draft reply" />
+            {commandSources.length > 0 && <div className="command-citations" aria-label="Sources used">
+              {commandSources.map((source, index) => <button
+                key={source.id}
+                type="button"
+                className="command-citation"
+                aria-label={`Open source ${index + 1}: ${commandSourceLabel(source, index)}`}
+                aria-pressed={openSourceId === source.id}
+                onClick={() => setOpenSourceId((current) => current === source.id ? undefined : source.id)}
+              >{index + 1}</button>)}
+            </div>}
+            {openedSource && <section className="command-source" aria-label="Source evidence">
+              <div className="command-source-heading">
+                <strong>{commandSourceLabel(openedSource, commandSources.indexOf(openedSource))}</strong>
+                {openedSource.source?.url && /^https?:\/\//.test(openedSource.source.url) && <a href={openedSource.source.url} target="_blank" rel="noreferrer">Open page</a>}
+              </div>
+              {openedSource.source?.selection && openedSource.source.selection.trim() !== openedSource.content.trim() && <blockquote>{openedSource.source.selection}</blockquote>}
+              <p>{openedSource.content}</p>
+            </section>}
+          </section>
+        ) : error?.kind !== "service" ? (
           <textarea
             className="text-area"
             value={draft}
@@ -202,7 +244,7 @@ export function SidePanelView({
             placeholder={state.intent === "generate" ? "What should Logue write?" : state.selectionText ? "Add a note…" : state.intent === "input" ? "Write or record…" : "Add a note to this page…"}
             aria-label={state.intent === "generate" ? "Generation instruction" : state.selectionText ? "Annotation" : "Note"}
           />
-        ))}
+        ) : null)}
 
         {presentation.showEditor && error?.kind !== "service" && state.intent === "generate" && !generatedText && (
           <label className="field-label generation-skill">Skill
@@ -223,7 +265,7 @@ export function SidePanelView({
           </div>
         </div> : presentation.showErrors && error ? <div className="error" role="alert">{error.message}</div> : null}
 
-        {presentation.showActions && error?.kind !== "service" && <div className="actions">
+        {presentation.showActions && (error?.kind !== "service" || Boolean(generatedText)) && <div className="actions">
           {phase === "starting" ? (
             <button type="button" className="button secondary" onClick={onCancelRecording} aria-keyshortcuts="Escape" title="Cancel (Esc)">Cancel</button>
           ) : phase === "recording" ? (
@@ -246,12 +288,20 @@ export function SidePanelView({
               <button type="button" className="button secondary" onClick={onCopyPendingInsert}>Copy</button>
               {state.targetAvailable && state.source.url === pendingInsert.sourceURL && <button type="button" className="button" disabled={insertingPending} onClick={onRetryInsert}>{insertingPending ? "Inserting…" : "Insert again"}</button>}
             </>}
-            {state.intent === "generate" ? <button
+            {state.intent === "generate" && generatedText ? <>
+              <button type="button" className="button secondary" onClick={onCopyGenerated}>Copy</button>
+              {generatedUndoAvailable ? <button type="button" className="button" onClick={onUndoGenerated}>Undo</button> : <button
+                type="button"
+                className="button"
+                disabled={insertingGenerated}
+                onClick={onInsertGenerated}
+              >{insertingGenerated ? "Inserting…" : error?.kind === "target" ? "Retry" : "Insert"}</button>}
+            </> : state.intent === "generate" ? <button
               type="button"
               className="button"
-              disabled={generatedText ? false : !draft.trim() || !skillId || generating}
-              onClick={generatedText ? onInsertGenerated : onGenerate}
-            >{generating ? "Generating…" : generatedText ? "Insert" : "Generate"}</button> : draft.trim() && !pendingInsert ? <button type="button" className="button" onClick={onSave}>Save</button> : null}
+              disabled={!draft.trim() || !skillId || generating}
+              onClick={onGenerate}
+            >{generating ? "Generating…" : "Generate"}</button> : draft.trim() && !pendingInsert ? <button type="button" className="button" onClick={onSave}>Save</button> : null}
           </>}
         </div>}
 

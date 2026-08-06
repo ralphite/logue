@@ -674,7 +674,15 @@ function SkillEditor({ skills, selectedSkillId, onSelect, onSkillsChange }: { sk
   async function setDefault() {
     if (!draft) return;
     const settings = await getWorkspaceSettings();
-    const changes = draft.task === "transcribe" ? { default_transcription_skill: draft.id } : draft.task === "organize" ? { default_organization_skill: draft.id } : { default_extension_skill: draft.id };
+    const changes = draft.task === "transcribe"
+      ? { default_transcription_skill: draft.id }
+      : draft.task === "organize"
+        ? { default_organization_skill: draft.id }
+        : draft.output === "qa"
+          ? { default_qa_skill: draft.id }
+          : draft.output === "document"
+            ? { default_document_skill: draft.id }
+            : { default_extension_skill: draft.id };
     await saveWorkspaceSettings({ ...settings, ...changes });
   }
   if (!draft) return <main className="flex flex-1 items-center justify-center text-[14px] text-[#999]">No skills yet</main>;

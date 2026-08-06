@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { captureEditableSelection, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility } from "@logue/ui";
-import { activeEditableElement, googleDocsEditableTarget, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "../dom";
+import { activeEditableElement, googleDocsEditableTarget, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElement, insertIntoElementWithUndo, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "../dom";
 
 describe("editable integration", () => {
   beforeEach(() => {
@@ -85,6 +85,23 @@ describe("editable integration", () => {
     expect(insertIntoElement(input, "Logue")).toBe(true);
     expect(input.value).toBe("hello Logue");
     expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("undoes only the unchanged local insertion", () => {
+    const input = document.createElement("textarea");
+    input.value = "hello world";
+    document.body.append(input);
+    input.setSelectionRange(6, 11);
+
+    const transaction = insertIntoElementWithUndo(input, "Logue");
+    expect(input.value).toBe("hello Logue");
+    expect(transaction?.undo()).toBe(true);
+    expect(input.value).toBe("hello world");
+
+    const changed = insertIntoElementWithUndo(input, "!");
+    input.value += " user edit";
+    expect(changed?.undo()).toBe(false);
+    expect(input.value).toBe("hello ! user edit");
   });
 
   it("replaces a contenteditable selection without sending its surrounding form", () => {

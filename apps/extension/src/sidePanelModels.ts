@@ -29,6 +29,33 @@ export interface PendingInsert {
   sourceURL: string;
 }
 
+export interface CommandSourceSnapshot {
+  id: string;
+  kind?: string;
+  actor?: string;
+  content: string;
+  projects: string[];
+  tags: string[];
+  createdAt?: string;
+  source?: {
+    url?: string;
+    title?: string;
+    domain?: string;
+    selection?: string;
+  };
+}
+
+export interface CommandResult {
+  runId: string;
+  originalText: string;
+  text: string;
+  sources: CommandSourceSnapshot[];
+  targetKey: string;
+  sourceURL: string;
+  undoToken?: string;
+  adopted?: boolean;
+}
+
 export interface PanelCaptureState {
   tabId: number;
   intent: CaptureIntent;
@@ -42,6 +69,7 @@ export interface PanelCaptureState {
   projects?: string[];
   tags?: string[];
   pendingInsert?: PendingInsert;
+  commandResult?: CommandResult;
   autoStartToken?: string;
   updatedAt: number;
 }

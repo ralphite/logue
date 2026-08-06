@@ -1,6 +1,7 @@
 import {
   ChevronRight,
   CirclePlus,
+  Clock3,
   FileText,
   LibraryBig,
   MessageSquareText,
@@ -13,11 +14,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createMaterial,
   deleteMaterial,
+  deleteSkillRun,
   getMaterials,
+  getSkillRuns,
   getStatus,
+  retrySkillRun,
   updateMaterial,
   updateMaterialMetadata,
   type ServiceStatus,
+  type SkillRun,
 } from "./api";
 import { MaterialDetail } from "./components/MaterialDetail";
 import { NavRail, type Section } from "./components/NavRail";
@@ -34,6 +39,7 @@ import { groupLibraryMaterials } from "./commentBundles";
 import { matchesMaterialSearchText, orderMaterialSearchResults, useMaterialSearch } from "./materialSearch";
 
 type Filter = "all" | "unfiled" | "organized";
+type LibraryView = "saved" | "activity";
 const navigationCollapsedStorageKey = "logue.navigation.collapsed";
 
 function initialNavigationCollapsed() {
@@ -76,7 +82,12 @@ export function App() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [materialMode, setMaterialMode] = useState<"peek" | "page">("peek");
   const [filter, setFilter] = useState<Filter>("all");
+  const [libraryView, setLibraryView] = useState<LibraryView>("saved");
   const [query, setQuery] = useState("");
+  const [skillRuns, setSkillRuns] = useState<SkillRun[]>([]);
+  const [openRunId, setOpenRunId] = useState<string>();
+  const [activityBusyId, setActivityBusyId] = useState<string>();
+  const [activityError, setActivityError] = useState<string>();
   const [status, setStatus] = useState<ServiceStatus>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
@@ -85,9 +96,9 @@ export function App() {
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const { size: navigationWidth, setSize: setNavigationWidth } = usePersistentPanelSize({
     storageKey: "logue.panel.navigation.width",
-    defaultSize: 252,
+    defaultSize: 232,
     min: 200,
-    max: 320,
+    max: 300,
   });
   const navigationFootprint = navigationCollapsed ? 56 : navigationWidth + 1;
   const materialDetailMaxWidth = availableMaterialDetailWidth(viewportWidth, navigationFootprint);
@@ -170,9 +181,10 @@ export function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const [nextMaterials, nextStatus] = await Promise.all([getMaterials(), getStatus()]);
+      const [nextMaterials, nextStatus, nextRuns] = await Promise.all([getMaterials(), getStatus(), getSkillRuns()]);
       setMaterials(nextMaterials);
       setStatus(nextStatus);
+      setSkillRuns(nextRuns);
       setError(undefined);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not connect to the local service");
@@ -219,6 +231,18 @@ export function App() {
     return orderMaterialSearchResults(materials, activeMaterialSearch).filter((item) => matchesMaterialFilter(item, filter));
   }, [activeMaterialSearch, filter, materials, normalizedQuery]);
   const materialGroups = useMemo(() => groupLibraryMaterials(filtered, materials), [filtered, materials]);
+  const visibleRuns = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return skillRuns;
+    return skillRuns.filter((run) => [
+      run.skill_name,
+      run.instruction,
+      run.project,
+      run.original_output,
+      run.adopted_output,
+      ...run.sources.flatMap((source) => [source.content, source.source?.title, source.source?.domain]),
+    ].filter(Boolean).some((value) => value!.toLowerCase().includes(normalized)));
+  }, [query, skillRuns]);
 
   const selectedId = section === "stream" || section === "projects" ? navigation.materialId : undefined;
   const selected = materials.find((item) => item.id === selectedId);
@@ -260,6 +284,11 @@ export function App() {
     setMaterials((current) => current.map((material) => material.id === id ? updated : material));
   }
 
+  async function updateClassification(id: string, projects: string[], tags: string[], excludedProjects: string[]) {
+    const updated = await updateMaterial(id, { projects, tags, excludedProjects });
+    setMaterials((current) => current.map((material) => material.id === id ? updated : material));
+  }
+
   async function updateContent(id: string, content: string) {
     const updated = await updateMaterial(id, { content });
     setMaterials((current) => current.map((material) => material.id === id ? updated : material));
@@ -271,8 +300,36 @@ export function App() {
     if (selectedId === id) navigate(materialNavigation(), { replace: true });
   }
 
+  async function retryRun(run: SkillRun) {
+    setActivityBusyId(run.id);
+    setActivityError(undefined);
+    try {
+      const retried = await retrySkillRun(run);
+      setSkillRuns((current) => [retried, ...current]);
+      setOpenRunId(retried.id);
+    } catch (cause) {
+      setActivityError(cause instanceof Error ? cause.message : "Could not retry this Run.");
+    } finally {
+      setActivityBusyId(undefined);
+    }
+  }
+
+  async function removeRun(run: SkillRun) {
+    setActivityBusyId(run.id);
+    setActivityError(undefined);
+    try {
+      await deleteSkillRun(run.id);
+      setSkillRuns((current) => current.filter((item) => item.id !== run.id));
+      if (openRunId === run.id) setOpenRunId(undefined);
+    } catch (cause) {
+      setActivityError(cause instanceof Error ? cause.message : "Could not delete this Run.");
+    } finally {
+      setActivityBusyId(undefined);
+    }
+  }
+
   return (
-    <div className="flex h-screen overflow-hidden bg-transparent max-[640px]:pb-16">
+    <div className="logue-v2 flex h-screen overflow-hidden bg-transparent max-[640px]:pb-16">
       <NavRail
         active={section}
         onChange={openSection}
@@ -302,7 +359,7 @@ export function App() {
           onSelectedProjectChange={openProject}
           onOpenStream={(project) => { openSection("stream"); if (project) { setQuery(project); setFilter("all"); } else { setQuery(""); setFilter("unfiled"); } }}
           onOpenMaterial={(materialId) => { setMaterialMode("peek"); navigate({ section: "projects", projectName: navigation.projectName, materialId }); }}
-          onOpenResults={(project, id) => navigate({ section: "documents", projectName: project, documentId: id })}
+          onUpdateMaterialClassification={updateClassification}
         />
         </div>
       ) : section === "settings" ? (
@@ -328,6 +385,10 @@ export function App() {
 
           <div data-testid="stream-scroll-surface" className="scroll-surface min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div data-testid="stream-content-column" className={`${pageColumnClass} pb-12 pt-7`}>
+            <div className="v2-segmented mb-5" role="tablist" aria-label="Library content">
+              <button type="button" role="tab" aria-selected={libraryView === "saved"} className={libraryView === "saved" ? "is-active" : ""} onClick={() => { setLibraryView("saved"); setOpenRunId(undefined); }}>Saved content</button>
+              <button type="button" role="tab" aria-selected={libraryView === "activity"} className={libraryView === "activity" ? "is-active" : ""} onClick={() => { setLibraryView("activity"); navigate({ section: "stream" }); }}>All activity</button>
+            </div>
             <div className="mb-4 flex items-center gap-3 max-[720px]:flex-wrap">
               <label className="relative min-w-[220px] flex-1">
                 <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#969990]" />
@@ -335,11 +396,11 @@ export function App() {
                   aria-label="Search Library"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search Library"
+                placeholder={libraryView === "saved" ? "Find saved content" : "Find activity"}
                   className="h-9 w-full rounded-md border border-[#dfdfdc] bg-white pl-9 pr-3 text-[14px] text-[#2e302b] outline-none placeholder:text-[#9b9e96] focus:border-[#aaa]"
                 />
               </label>
-              <div className="flex rounded-md border border-[#dfdfdc] bg-white p-0.5">
+              {libraryView === "saved" && <div className="flex rounded-md border border-[#dfdfdc] bg-white p-0.5">
                 {([
                   ["all", "All"],
                   ["unfiled", "Unfiled"],
@@ -354,7 +415,7 @@ export function App() {
                     {label}
                   </button>
                 ))}
-              </div>
+              </div>}
             </div>
 
             {error && (
@@ -368,6 +429,31 @@ export function App() {
               <div className="space-y-1" aria-label="Loading materials">
                 {[0, 1, 2, 3].map((value) => <div key={value} className="h-14 animate-pulse rounded-md bg-[#f3f3f0] motion-reduce:animate-none" />)}
               </div>
+            ) : libraryView === "activity" ? (
+              visibleRuns.length ? <div className="v2-review-list">
+                {activityError && <div className="rounded-md bg-[#fff4f1] px-3 py-2 text-[14px] text-[#a33d36]" role="alert">{activityError}</div>}
+                {visibleRuns.map((run) => {
+                  const open = openRunId === run.id;
+                  const result = run.adopted_output || run.original_output;
+                  return <article className="v2-review-row" key={run.id}>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="v2-quiet-pill"><Clock3 aria-hidden="true" size={13} />{run.skill_name}</span>
+                        <span className={`v2-membership-pill${run.status === "failed" ? " is-suggested" : ""}`}>{run.status}</span>
+                        {run.project && <span className="v2-membership-pill">{run.project}</span>}
+                      </div>
+                      <h3>{run.instruction || "Voice command"}</h3>
+                      <p>{result || run.error || "This run has no result yet."}</p>
+                      <div className="v2-library-meta">{run.sources.length} frozen Source{run.sources.length === 1 ? "" : "s"} · {shortDate(run.created_at)}{run.adopted_output ? " · adopted" : " · not adopted"}</div>
+                      {open && <div className="v2-citation-list mt-3">
+                        {run.sources.map((source, index) => <button type="button" className="v2-citation-chip" key={`${run.id}:${source.id}:${index}`} onClick={() => navigate({ section: "stream", materialId: source.id })}><span>{index + 1}</span>{source.source?.title || source.source?.domain || `Source ${index + 1}`}</button>)}
+                        {!run.sources.length && <span className="text-[14px] text-[#8b8d87]">No Sources were frozen for this Run.</span>}
+                      </div>}
+                    </div>
+                    <div className="v2-inline-actions"><Button size="sm" onClick={() => setOpenRunId(open ? undefined : run.id)}>{open ? "Hide evidence" : "Review evidence"}</Button>{run.status === "failed" && <Button size="sm" variant="primary" disabled={activityBusyId === run.id} onClick={() => void retryRun(run)}>Retry</Button>}{!run.adopted_output && <Button size="sm" disabled={activityBusyId === run.id} onClick={() => void removeRun(run)}>Delete run</Button>}</div>
+                  </article>;
+                })}
+              </div> : <div className="flex items-center gap-2 px-3 py-5 text-[14px] text-[#8d8f89]">No activity matches</div>
             ) : materialGroups.length ? (
               <>
                 <div className="mb-1 grid grid-cols-[minmax(0,1fr)_150px_150px_70px] gap-3 border-b border-[#e8e8e5] px-3 py-2 text-[14px] font-medium text-[#92938e] max-[800px]:grid-cols-[minmax(0,1fr)_100px_60px] max-[480px]:grid-cols-[minmax(0,1fr)_50px]">

@@ -172,6 +172,7 @@ class Store:
             "id": make_id("mat_"), "kind": kind,
             "status": "organized" if projects else "unfiled", "content": content,
             "projects": projects, "tags": normalize(value.get("tags")),
+            "excluded_projects": normalize(value.get("excluded_projects")),
             "created_at": timestamp, "actor": str(value.get("actor", "")).strip() or "user",
             "organization": {"status": organization_status, "updated_at": timestamp},
         }
@@ -198,9 +199,11 @@ class Store:
                     raise ValueError("content is required")
                 content_changed = content != item.get("content")
                 item["content"] = content
-            metadata_changed = "projects" in changes or "tags" in changes
+            metadata_changed = "projects" in changes or "excluded_projects" in changes or "tags" in changes
             if "projects" in changes:
                 item["projects"] = normalize(changes["projects"])
+            if "excluded_projects" in changes:
+                item["excluded_projects"] = normalize(changes["excluded_projects"])
             if "tags" in changes:
                 item["tags"] = normalize(changes["tags"])
             item["status"] = "organized" if item.get("projects") else "unfiled"
@@ -221,7 +224,8 @@ class Store:
             if decision is None:
                 item["organization"] = {"status": "needs_review", "confidence": 0, "reason": "Automatic organization is temporarily unavailable. Review the project and tags.", "updated_at": now()}
             else:
-                suggested_projects = normalize(decision.get("projects"))[:3]
+                excluded_projects = set(normalize(item.get("excluded_projects")))
+                suggested_projects = [name for name in normalize(decision.get("projects")) if name not in excluded_projects][:3]
                 suggested_tags = normalize(decision.get("tags"))[:5]
                 confidence = float(decision.get("confidence", 0))
                 reason = str(decision.get("reason", "")).strip()
@@ -354,10 +358,12 @@ class Store:
             for path in (self.root / "projects").glob("*.json"):
                 project = read_json(path)
                 project["glossary"] = normalize(project.get("glossary"))
+                bindings = project.get("skill_bindings") if isinstance(project.get("skill_bindings"), dict) else {}
+                project["skill_bindings"] = {str(key): str(value) for key, value in bindings.items() if str(value).strip()}
                 project["count"] = counts.get(str(project.get("name", "")), 0)
                 values[str(project.get("name", ""))] = project
         for name, count in counts.items():
-            values.setdefault(name, {"name": name, "glossary": [], "count": count})
+            values.setdefault(name, {"name": name, "glossary": [], "skill_bindings": {}, "count": count})
         return sorted(values.values(), key=lambda project: (-int(project.get("count", 0)), str(project.get("name", ""))))
 
     def get_project(self, name: str) -> dict[str, Any]:
@@ -375,20 +381,24 @@ class Store:
         except FileNotFoundError:
             project = {"id": make_id("prj_"), "created_at": now(), "count": 0}
         project.update({"name": name, "overview": str(value.get("overview", "")), "glossary": normalize(value.get("glossary")), "updated_at": now()})
+        if "skill_bindings" in value:
+            bindings = value.get("skill_bindings") if isinstance(value.get("skill_bindings"), dict) else {}
+            allowed = {"transcription", "organization", "command", "ask", "draft"}
+            project["skill_bindings"] = {str(key): str(entry).strip() for key, entry in bindings.items() if key in allowed and str(entry).strip()}
         atomic_json(self.root / "projects" / f"{project['id']}.json", project)
         return project
 
     def settings(self) -> dict[str, Any]:
         path = self.root / "settings.json"
         if not path.exists():
-            return {"personal_context": "", "glossary": [], "ignored_terms": [], "default_transcription_skill": "sk_transcribe", "default_organization_skill": "sk_organize", "default_extension_skill": "sk_reply"}
+            return {"personal_context": "", "glossary": [], "ignored_terms": [], "default_transcription_skill": "sk_transcribe", "default_organization_skill": "sk_organize", "default_extension_skill": "sk_reply", "default_qa_skill": "sk_qa", "default_document_skill": "sk_document"}
         value = read_json(path)
         value["glossary"] = normalize(value.get("glossary"))
         value["ignored_terms"] = normalize(value.get("ignored_terms"))
         return value
 
     def save_settings(self, value: dict[str, Any]) -> dict[str, Any]:
-        result = {"personal_context": str(value.get("personal_context", "")), "glossary": normalize(value.get("glossary")), "ignored_terms": normalize(value.get("ignored_terms")), "default_transcription_skill": str(value.get("default_transcription_skill", "sk_transcribe")), "default_organization_skill": str(value.get("default_organization_skill", "sk_organize")), "default_extension_skill": str(value.get("default_extension_skill", "sk_reply"))}
+        result = {"personal_context": str(value.get("personal_context", "")), "glossary": normalize(value.get("glossary")), "ignored_terms": normalize(value.get("ignored_terms")), "default_transcription_skill": str(value.get("default_transcription_skill", "sk_transcribe")), "default_organization_skill": str(value.get("default_organization_skill", "sk_organize")), "default_extension_skill": str(value.get("default_extension_skill", "sk_reply")), "default_qa_skill": str(value.get("default_qa_skill", "sk_qa")), "default_document_skill": str(value.get("default_document_skill", "sk_document"))}
         atomic_json(self.root / "settings.json", result)
         return result
 
@@ -463,7 +473,17 @@ class Store:
             if identifier not in by_id:
                 raise ValueError(f"source material not found: {identifier}")
             item = by_id[identifier]
-            sources.append({"id": identifier, "content": item["content"], "projects": item.get("projects", []), "tags": item.get("tags", []), "created_at": item["created_at"]})
+            source = item.get("source")
+            sources.append({
+                "id": identifier,
+                "kind": item.get("kind", "text"),
+                "actor": item.get("actor", "user"),
+                "content": item["content"],
+                "projects": item.get("projects", []),
+                "tags": item.get("tags", []),
+                "created_at": item["created_at"],
+                "source": dict(source) if isinstance(source, dict) else None,
+            })
         timestamp = now()
         run = {"id": make_id("run_"), "skill_id": skill["id"], "skill_revision": skill["revision"], "skill_name": skill["name"], "skill_instructions": skill["instructions"], "task": skill["task"], "output_type": skill["output"], "instruction": instruction, "source_ids": [source["id"] for source in sources], "sources": sources, "status": "running", "created_at": timestamp, "updated_at": timestamp}
         for field in ("request_id", "project", "page_title", "page_url", "target_text", "selection"):
@@ -933,6 +953,13 @@ class Handler(BaseHTTPRequestHandler):
             run["updated_at"] = now()
             atomic_json(store.root / "skill-runs" / f"{identifier}.json", run)
             self.json(HTTPStatus.OK, run)
+        elif path.startswith("/v1/skill-runs/") and method == "DELETE":
+            identifier = path.removeprefix("/v1/skill-runs/")
+            run = store.get("skill-runs", identifier)
+            if str(run.get("adopted_output", "")).strip() or run.get("document_id") or run.get("material_id"):
+                raise ValueError("adopted runs remain in Activity so their lineage can be verified")
+            (store.root / "skill-runs" / f"{identifier}.json").unlink()
+            self.empty(HTTPStatus.NO_CONTENT)
         elif path == "/v1/docs" and method == "POST":
             self.json(HTTPStatus.CREATED, store.create_document(self.body_json()))
         elif path == "/v1/docs/generate" and method == "POST":
@@ -940,7 +967,15 @@ class Handler(BaseHTTPRequestHandler):
             source_ids = normalize(value.get("source_ids"))
             if not source_ids:
                 raise ValueError("at least one source is required")
-            skill = store.get("skills", "sk_document")
+            skill_id = str(store.settings().get("default_document_skill", "sk_document"))
+            project_name = str(value.get("project", "")).strip()
+            if project_name:
+                try:
+                    project = store.get_project(project_name)
+                    skill_id = str((project.get("skill_bindings") or {}).get("draft") or skill_id)
+                except FileNotFoundError:
+                    pass
+            skill = store.get("skills", skill_id)
             self.generate_document(value, skill)
         elif path.startswith("/v1/docs/"):
             identifier = path.removeprefix("/v1/docs/")
@@ -978,6 +1013,22 @@ class Handler(BaseHTTPRequestHandler):
             self.server.schedule_organization(item)
         elif path == "/v1/restore" and method == "POST":
             self.restore_workspace(self.body_json(250 << 20))
+        elif path == "/v1/backup" and method == "POST":
+            backup = self.backup_workspace()
+            self.json(HTTPStatus.CREATED, {"status": "backed_up", "backup_path": str(backup)})
+        elif path == "/v1/workspace" and method == "DELETE":
+            if str(self.body_json().get("confirm", "")) != "DELETE":
+                raise ValueError("type DELETE to confirm")
+            backup = self.backup_workspace()
+            with store.lock:
+                for directory in ("items", "audio", "docs", "projects", "skills", "skill-runs"):
+                    shutil.rmtree(store.root / directory)
+                    (store.root / directory).mkdir(mode=0o700)
+                (store.root / "settings.json").unlink(missing_ok=True)
+                for skill in default_skills():
+                    atomic_json(store.root / "skills" / f"{skill['id']}.json", skill)
+                self.server.cancelled.clear()
+            self.json(HTTPStatus.OK, {"status": "deleted", "backup_path": str(backup)})
         elif path.startswith("/v1/project-overview-drafts/") and method == "POST":
             name = urllib.parse.unquote(path.removeprefix("/v1/project-overview-drafts/"))
             project = store.get_project(name)
@@ -1074,7 +1125,16 @@ class Handler(BaseHTTPRequestHandler):
         context = json.loads(fields["applied_context"]) if fields.get("applied_context") else None
         capture_id = self.server.store.save_capture(audio, mime_type, context)
         try:
-            skill = self.server.store.get("skills", self.server.store.settings().get("default_transcription_skill", "sk_transcribe"))
+            settings = self.server.store.settings()
+            skill_id = str(settings.get("default_transcription_skill", "sk_transcribe"))
+            reference_project = str((context or {}).get("reference_project", "")).strip()
+            if reference_project:
+                try:
+                    project = self.server.store.get_project(reference_project)
+                    skill_id = str((project.get("skill_bindings") or {}).get("transcription") or skill_id)
+                except FileNotFoundError:
+                    pass
+            skill = self.server.store.get("skills", skill_id)
             text = self.server.gemini.transcribe(audio, mime_type, fields, str(skill.get("instructions", DICTATION_INSTRUCTIONS)))
         except Exception as error:
             self.error(HTTPStatus.BAD_GATEWAY, f"transcription failed; capture remains saved: {error}", capture_id=capture_id)
@@ -1118,12 +1178,22 @@ class Handler(BaseHTTPRequestHandler):
         audio = [{"name": path.name, "data_base64": base64.b64encode(path.read_bytes()).decode("ascii")} for path in sorted((store.root / "audio").iterdir()) if path.is_file()]
         return {"schema_version": 1, "exported_at": now(), "materials": store.items(), "documents": store.documents(), "projects": store.projects(), "settings": store.settings(), "skills": store.skills(), "skill_runs": store.skill_runs(), "audio": audio}
 
+    def backup_workspace(self) -> Path:
+        store = self.server.store
+        stamp = int(time.time())
+        backup = store.root.parent / f"{store.root.name}.backup-{stamp}"
+        while backup.exists():
+            stamp += 1
+            backup = store.root.parent / f"{store.root.name}.backup-{stamp}"
+        with store.lock:
+            shutil.copytree(store.root, backup)
+        return backup
+
     def restore_workspace(self, value: dict[str, Any]) -> None:
         if value.get("schema_version") != 1:
             raise ValueError("unsupported workspace schema")
         store = self.server.store
-        backup = store.root.parent / f"{store.root.name}.backup-{int(time.time())}"
-        shutil.copytree(store.root, backup)
+        backup = self.backup_workspace()
         staging = Path(tempfile.mkdtemp(prefix="logue-restore-", dir=store.root.parent))
         try:
             for name in ("items", "audio", "docs", "projects", "skills", "skill-runs"):

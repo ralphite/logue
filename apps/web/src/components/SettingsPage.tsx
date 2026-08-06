@@ -1,6 +1,8 @@
-import { Clipboard, Download, KeyRound, Upload, X } from "lucide-react";
+import { Archive, Clipboard, Download, KeyRound, Trash2, Upload, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
+  backupWorkspace,
+  deleteWorkspace,
   exportWorkspaceURL,
   getGlossarySuggestions,
   getWorkspaceSettings,
@@ -11,6 +13,7 @@ import {
   type GlossarySuggestion,
 } from "../api";
 import { logueApiBase } from "../apiBase";
+import { getSkills, type LogueSkill } from "../skillApi";
 import { editorColumnClass } from "./layout";
 import { PageHeader } from "./ui";
 
@@ -35,7 +38,11 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [notice, setNotice] = useState<string>();
   const [restoring, setRestoring] = useState(false);
+  const [backingUp, setBackingUp] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [suggestions, setSuggestions] = useState<GlossarySuggestion[]>([]);
+  const [skills, setSkills] = useState<LogueSkill[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [loadError, setLoadError] = useState<string>();
   const initialized = useRef(false);
@@ -44,9 +51,10 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
     setLoadState("loading");
     setLoadError(undefined);
     try {
-      const [value, terms] = await Promise.all([getWorkspaceSettings(), getGlossarySuggestions()]);
+      const [value, terms, nextSkills] = await Promise.all([getWorkspaceSettings(), getGlossarySuggestions(), getSkills()]);
       setSettings(value);
       setSuggestions(terms.filter((item) => item.count >= 2));
+      setSkills(nextSkills);
       initialized.current = true;
       setLoadState("ready");
     } catch (cause) {
@@ -96,6 +104,14 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
     window.setTimeout(() => setNotice(undefined), 1800);
   }
 
+  const globalSkillRows: Array<{ key: keyof Pick<WorkspaceSettings, "default_transcription_skill" | "default_organization_skill" | "default_extension_skill" | "default_qa_skill" | "default_document_skill">; label: string; accepts: (skill: LogueSkill) => boolean }> = [
+    { key: "default_transcription_skill", label: "Transcription", accepts: (skill) => skill.task === "transcribe" },
+    { key: "default_organization_skill", label: "Organization", accepts: (skill) => skill.task === "organize" },
+    { key: "default_extension_skill", label: "Voice Command", accepts: (skill) => skill.task === "generate" && skill.output === "insert" && skill.surfaces.includes("extension") },
+    { key: "default_qa_skill", label: "Ask", accepts: (skill) => skill.task === "generate" && skill.output === "qa" },
+    { key: "default_document_skill", label: "Draft", accepts: (skill) => skill.task === "generate" && skill.output === "document" },
+  ];
+
   async function restore(file: File) {
     if (!window.confirm("Restoring replaces the current library with this export. Logue will create a complete recoverable backup first. Continue?")) return;
     setRestoring(true);
@@ -108,6 +124,29 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
       window.alert(cause instanceof Error ? cause.message : "Restore failed");
     } finally {
       setRestoring(false);
+    }
+  }
+
+  async function backUp() {
+    setBackingUp(true);
+    try {
+      const result = await backupWorkspace();
+      setNotice(`Backup created at ${result.backup_path}`);
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Backup failed");
+    } finally {
+      setBackingUp(false);
+    }
+  }
+
+  async function deleteAllData() {
+    if (deleteConfirmation !== "DELETE") return;
+    try {
+      const result = await deleteWorkspace();
+      window.alert(`Local data deleted. A recoverable backup remains at ${result.backup_path}`);
+      window.location.reload();
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : "Could not delete local data");
     }
   }
 
@@ -135,6 +174,11 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
 
         {suggestions.length > 0 && <SettingsRow label="Term suggestions"><div className="space-y-1.5">{suggestions.map((suggestion) => <div key={suggestion.term} className="flex min-h-11 items-center justify-between rounded-md border border-[#e2e2de] px-3 py-2"><span><span className="text-[15px] font-medium text-[#4d4e49]">{suggestion.term}</span><span className="ml-2 text-[14px] text-[#999a95]">{suggestion.count} uses</span></span><span className="flex gap-1"><button type="button" onClick={() => ignoreSuggestion(suggestion.term)} className="min-h-9 rounded px-2 text-[14px] text-[#8a8b86] hover:bg-[#f1f1ee]">Ignore</button><button type="button" onClick={() => acceptSuggestion(suggestion.term)} className="min-h-9 rounded bg-[#efefec] px-2 text-[14px] font-medium text-[#555651] hover:bg-[#e5e5e1]">Pin</button></span></div>)}</div></SettingsRow>}
 
+        <SettingsRow label="Global Skills">
+          <div className="divide-y divide-[#ecece8]">{globalSkillRows.map((row) => <label className="flex min-h-14 items-center justify-between gap-5 py-2" key={row.key}><span className="text-[15px] font-medium text-[#555651]">{row.label}</span><select className={`h-10 min-w-[240px] rounded-md border border-[#deded9] bg-white px-3 text-[14px] text-[#555651] outline-none ${fieldFocusClass}`} value={settings[row.key] ?? ""} onChange={(event) => update({ ...settings, [row.key]: event.target.value })}>{skills.filter((skill) => skill.enabled && row.accepts(skill)).map((skill) => <option key={skill.id} value={skill.id}>{skill.name}{skill.system ? " · Built-in" : " · My Skill"}</option>)}</select></label>)}</div>
+          <p className="mt-2 text-[14px] leading-5 text-[#92938e]">Projects inherit these defaults unless a Project override is set.</p>
+        </SettingsRow>
+
         <div className="mt-8 border-t border-[#e8e8e5] pb-2 pt-8"><h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[#30312d]">System</h2></div>
 
         <SettingsRow label="AI" border={false}>
@@ -143,7 +187,11 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
         </SettingsRow>
 
         <SettingsRow label="Library">
-          <div className="flex flex-wrap gap-2"><a href={exportWorkspaceURL()} download={`logue-export-${new Date().toISOString().slice(0, 10)}.json`} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Download size={14} /> Export</a><label className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Upload size={14} /> {restoring ? "Restoring…" : "Restore"}<input type="file" accept="application/json,.json" disabled={restoring} className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void restore(file); event.currentTarget.value = ""; }} /></label></div>
+          <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void backUp()} disabled={backingUp} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1] disabled:opacity-55"><Archive size={14} />{backingUp ? "Backing up…" : "Back up now"}</button><a href={exportWorkspaceURL()} download={`logue-export-${new Date().toISOString().slice(0, 10)}.json`} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Download size={14} /> Export</a><label className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Upload size={14} /> {restoring ? "Restoring…" : "Restore"}<input type="file" accept="application/json,.json" disabled={restoring} className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void restore(file); event.currentTarget.value = ""; }} /></label></div>
+        </SettingsRow>
+
+        <SettingsRow label="Delete local data">
+          {!deleteOpen ? <button type="button" onClick={() => setDeleteOpen(true)} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#e4cbc6] px-3 text-[15px] font-medium text-[#a04b43] hover:bg-[#fbefec]"><Trash2 size={14} />Review deletion</button> : <div className="rounded-md border border-[#ead3ce] bg-[#fff8f6] p-4"><p className="text-[15px] leading-6 text-[#6d4b46]">This removes Sources, original audio, Projects, Documents, Activity, and My Skills from this Mac. Logue creates a full local backup first.</p><label className="mt-3 block text-[14px] font-medium text-[#75534f]">Type DELETE to continue<input value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} className={`mt-2 h-10 w-full rounded-md border border-[#e0c7c2] bg-white px-3 text-[15px] outline-none ${fieldFocusClass}`} /></label><div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => { setDeleteOpen(false); setDeleteConfirmation(""); }} className="h-9 rounded-md px-3 text-[14px] text-[#777873] hover:bg-white">Cancel</button><button type="button" disabled={deleteConfirmation !== "DELETE"} onClick={() => void deleteAllData()} className="h-9 rounded-md bg-[#a04b43] px-3 text-[14px] font-medium text-white disabled:bg-[#d7b6b1]">Delete all local data</button></div></div>}
         </SettingsRow>
 
         <details className="border-t border-[#e8e8e5] py-5">

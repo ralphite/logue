@@ -89,6 +89,14 @@ export interface ExtensionSettings {
   default_extension_skill: string;
 }
 
+export interface ExtensionProjectSkillBindings {
+  transcription?: string;
+  organization?: string;
+  command?: string;
+  ask?: string;
+  draft?: string;
+}
+
 export interface ExtensionSkillRun {
   id: string;
   skill_id: string;
@@ -97,7 +105,21 @@ export interface ExtensionSkillRun {
   adopted_output?: string;
   status: "running" | "complete" | "failed";
   error?: string;
-  sources?: Array<{ id: string }>;
+  sources?: Array<{
+    id: string;
+    kind?: string;
+    actor?: string;
+    content: string;
+    projects?: string[];
+    tags?: string[];
+    created_at?: string;
+    source?: {
+      url?: string;
+      title?: string;
+      domain?: string;
+      selection?: string;
+    } | null;
+  }>;
 }
 
 export async function getExtensionSkills() {
@@ -142,7 +164,7 @@ export interface CaptureContext {
   recent_adopted: string[];
   recent_adopted_refs?: Array<{ id: string; text: string }>;
   suggested_project: string;
-  projects: Array<{ name: string; overview?: string; glossary: string[] }>;
+  projects: Array<{ name: string; overview?: string; glossary: string[]; skill_bindings?: ExtensionProjectSkillBindings }>;
 }
 
 export interface AppliedContext {

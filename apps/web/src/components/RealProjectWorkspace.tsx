@@ -1,0 +1,283 @@
+import { ArrowLeft, FilePlus2, ListChecks, PanelRightClose, PanelRightOpen, Settings2 } from "lucide-react";
+import type { Material } from "@logue/ui";
+import { useEffect, useMemo, useState } from "react";
+import { createDocument, generateDocument, updateDocument, type LogueDocument, type ProjectSkillBindings, type ProjectSummary, type WorkspaceSettings } from "../api";
+import { adoptSkillRun, createSkillRun, type LogueSkill, type LogueSkillRun } from "../skillApi";
+import { groupLibraryMaterials } from "../commentBundles";
+import { ProjectComposer } from "../v2-mock/primitives/ProjectComposer";
+import { SourceBundleView } from "../v2-mock/primitives/SourceBundleView";
+import { Button, IconButton } from "./ui";
+import { PanelResizer, usePersistentPanelSize } from "./PanelResizer";
+import { Tooltip, TooltipProvider } from "./Tooltip";
+import "../v2-mock/styles/surfaces.css";
+
+function sourceTitle(material: Material) {
+  return material.source?.title || material.source?.domain || material.actor || "Saved source";
+}
+
+export function RealProjectWorkspace({
+  project,
+  materials,
+  documents,
+  overview,
+  glossary,
+  skills,
+  globalDefaults,
+  skillBindings,
+  onOverviewChange,
+  onGlossaryChange,
+  onSkillBindingsChange,
+  onDocumentsChange,
+  onOpenMaterial,
+  onUpdateMaterialClassification,
+  onBack,
+}: {
+  project: ProjectSummary;
+  materials: Material[];
+  documents: LogueDocument[];
+  overview: string;
+  glossary: string[];
+  skills: LogueSkill[];
+  globalDefaults: WorkspaceSettings;
+  skillBindings: ProjectSkillBindings;
+  onOverviewChange: (value: string) => void;
+  onGlossaryChange: (value: string[]) => void;
+  onSkillBindingsChange: (value: ProjectSkillBindings) => void;
+  onDocumentsChange: (documents: LogueDocument[]) => void;
+  onOpenMaterial: (materialId: string) => void;
+  onUpdateMaterialClassification: (id: string, projects: string[], tags: string[], excludedProjects: string[]) => Promise<void>;
+  onBack: () => void;
+}) {
+  const projectDocuments = useMemo(() => documents.filter((document) => document.project === project.name), [documents, project.name]);
+  const projectMaterials = useMemo(() => materials.filter((material) => material.projects.includes(project.name)), [materials, project.name]);
+  const sourceGroups = useMemo(() => groupLibraryMaterials(projectMaterials, materials), [materials, projectMaterials]);
+  const [activeDocumentId, setActiveDocumentId] = useState<string | undefined>(() => projectDocuments[0]?.id);
+  const activeDocument = projectDocuments.find((document) => document.id === activeDocumentId) ?? projectDocuments[0];
+  const [documentTitle, setDocumentTitle] = useState(activeDocument?.title ?? `${project.name} brief`);
+  const [documentContent, setDocumentContent] = useState(activeDocument?.content ?? "");
+  const [request, setRequest] = useState("");
+  const [requestMode, setRequestMode] = useState<"ask" | "draft">("ask");
+  const [answerRun, setAnswerRun] = useState<LogueSkillRun>();
+  const [generating, setGenerating] = useState(false);
+  const [creatingDocument, setCreatingDocument] = useState(false);
+  const [generationError, setGenerationError] = useState<string>();
+  const [activeView, setActiveView] = useState<"document" | "context" | "settings">("document");
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+  const [term, setTerm] = useState("");
+  const [classificationBusyId, setClassificationBusyId] = useState<string>();
+  const [classificationError, setClassificationError] = useState<string>();
+  const { size: inspectorWidth, setSize: setInspectorWidth } = usePersistentPanelSize({ storageKey: "logue.panel.project.sources.width.v2", defaultSize: 400, min: 360, max: 640 });
+
+  useEffect(() => {
+    setActiveDocumentId(projectDocuments[0]?.id);
+  }, [project.name]);
+
+  useEffect(() => {
+    setDocumentTitle(activeDocument?.title ?? `${project.name} brief`);
+    setDocumentContent(activeDocument?.content ?? "");
+  }, [activeDocument?.id, activeDocument?.revision, project.name]);
+
+  useEffect(() => {
+    if (!activeDocument || (documentTitle === activeDocument.title && documentContent === activeDocument.content)) return;
+    const timer = window.setTimeout(() => {
+      void updateDocument(activeDocument.id, {
+        title: documentTitle,
+        content: documentContent,
+        expectedRevision: activeDocument.revision,
+      }).then((updated) => onDocumentsChange(documents.map((document) => document.id === updated.id ? updated : document))).catch(() => undefined);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [activeDocument, documentContent, documentTitle, documents, onDocumentsChange]);
+
+  const visibleSourceGroups = useMemo(() => {
+    const runIds = answerRun?.sources.map((source) => source.id) ?? [];
+    const sourceIds = runIds.length ? runIds : activeDocument?.source_ids ?? [];
+    if (!sourceIds.length) return sourceGroups;
+    const ids = new Set(sourceIds);
+    return sourceGroups.filter((group) => group.items.some((item) => ids.has(item.id)));
+  }, [activeDocument?.source_ids, answerRun?.sources, sourceGroups]);
+
+  async function runProjectRequest() {
+    const instruction = request.trim();
+    if (!instruction || !projectMaterials.length || generating) return;
+    setGenerating(true);
+    setGenerationError(undefined);
+    try {
+      if (requestMode === "ask") {
+        const skillId = skillBindings.ask || globalDefaults.default_qa_skill || skills.find((skill) => skill.output === "qa" && skill.enabled)?.id;
+        if (!skillId) throw new Error("No Ask Skill is available.");
+        const run = await createSkillRun({ skill_id: skillId, instruction, project: project.name, source_ids: projectMaterials.map((material) => material.id) });
+        setAnswerRun(run);
+        setRequest("");
+        setInspectorOpen(true);
+        return;
+      }
+      const created = await generateDocument({
+        title: documentTitle || `${project.name} brief`,
+        project: project.name,
+        sourceIds: projectMaterials.map((material) => material.id),
+        instruction,
+      });
+      onDocumentsChange([created, ...documents]);
+      setActiveDocumentId(created.id);
+      setAnswerRun(undefined);
+      setRequest("");
+      setInspectorOpen(true);
+    } catch (cause) {
+      setGenerationError(cause instanceof Error ? cause.message : "Could not generate from this project.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function adoptAnswer(action: "copy" | "document") {
+    if (!answerRun?.original_output) return;
+    const adopted = await adoptSkillRun(answerRun.id, answerRun.original_output);
+    setAnswerRun(adopted);
+    if (action === "copy") {
+      await navigator.clipboard.writeText(answerRun.original_output);
+      return;
+    }
+    const created = await createDocument({ title: answerRun.instruction.slice(0, 64) || `${project.name} answer`, content: answerRun.original_output, project: project.name, sourceIds: answerRun.sources.map((source) => source.id) });
+    onDocumentsChange([created, ...documents]);
+    setActiveDocumentId(created.id);
+    setAnswerRun(undefined);
+  }
+
+  async function newDocument() {
+    if (creatingDocument) return;
+    setCreatingDocument(true);
+    try {
+      const created = await createDocument({ title: `${project.name} brief`, project: project.name });
+      onDocumentsChange([created, ...documents]);
+      setActiveDocumentId(created.id);
+      setActiveView("document");
+    } finally {
+      setCreatingDocument(false);
+    }
+  }
+
+  function addTerm() {
+    const value = term.trim();
+    if (!value || glossary.includes(value)) return;
+    onGlossaryChange([...glossary, value]);
+    setTerm("");
+  }
+
+  const bindingRows: Array<{ key: keyof ProjectSkillBindings; label: string; fallback?: string; accepts: (skill: LogueSkill) => boolean }> = [
+    { key: "transcription", label: "Transcription", fallback: globalDefaults.default_transcription_skill, accepts: (skill) => skill.task === "transcribe" },
+    { key: "organization", label: "Organization", fallback: globalDefaults.default_organization_skill, accepts: (skill) => skill.task === "organize" },
+    { key: "command", label: "Voice Command", fallback: globalDefaults.default_extension_skill, accepts: (skill) => skill.task === "generate" && skill.output === "insert" && skill.surfaces.includes("extension") },
+    { key: "ask", label: "Ask", fallback: globalDefaults.default_qa_skill, accepts: (skill) => skill.task === "generate" && skill.output === "qa" },
+    { key: "draft", label: "Draft", fallback: globalDefaults.default_document_skill, accepts: (skill) => skill.task === "generate" && skill.output === "document" },
+  ];
+
+  function skillName(id?: string) {
+    return skills.find((skill) => skill.id === id)?.name ?? "System default";
+  }
+
+  const contextMaterials = useMemo(() => materials.filter((material) =>
+    material.projects.includes(project.name)
+    || material.organization?.suggested_projects?.includes(project.name)
+    || material.excludedProjects?.includes(project.name),
+  ), [materials, project.name]);
+
+  async function setProjectMembership(material: Material, next: "added" | "excluded") {
+    setClassificationBusyId(material.id);
+    setClassificationError(undefined);
+    try {
+      const projects = next === "added"
+        ? Array.from(new Set([...material.projects, project.name]))
+        : material.projects.filter((name) => name !== project.name);
+      const excludedProjects = next === "excluded"
+        ? Array.from(new Set([...(material.excludedProjects ?? []), project.name]))
+        : (material.excludedProjects ?? []).filter((name) => name !== project.name);
+      await onUpdateMaterialClassification(material.id, projects, material.tags, excludedProjects);
+    } catch (cause) {
+      setClassificationError(cause instanceof Error ? cause.message : "Could not update Project Context.");
+    } finally {
+      setClassificationBusyId(undefined);
+    }
+  }
+
+  return (
+    <main className="logue-v2 v2-project-main min-h-0 min-w-0 flex-1 overflow-hidden bg-white">
+      <header className="v2-project-topbar">
+        <div className="v2-breadcrumbs">
+          <button type="button" className="v2-source-excerpt-toggle !mt-0" onClick={onBack}><ArrowLeft aria-hidden="true" size={14} />Projects</button>
+          <span>/</span><strong>{project.name}</strong>
+        </div>
+        <div className="v2-topbar-actions">
+          <Button size="sm" onClick={() => void newDocument()} disabled={creatingDocument}><FilePlus2 aria-hidden="true" size={15} />{creatingDocument ? "Creating…" : "New document"}</Button>
+          <Button size="sm" variant={activeView === "context" ? "primary" : "secondary"} onClick={() => setActiveView(activeView === "context" ? "document" : "context")}><ListChecks aria-hidden="true" size={15} />Context</Button>
+          <Button size="sm" variant={activeView === "settings" ? "primary" : "secondary"} onClick={() => setActiveView(activeView === "settings" ? "document" : "settings")}><Settings2 aria-hidden="true" size={15} />Project settings</Button>
+          {activeView === "document" && <TooltipProvider><Tooltip content={inspectorOpen ? "Close sources" : "Open sources"}><IconButton label={inspectorOpen ? "Close sources" : "Open sources"} variant="ghost" onClick={() => setInspectorOpen((value) => !value)}>{inspectorOpen ? <PanelRightClose aria-hidden="true" size={18} /> : <PanelRightOpen aria-hidden="true" size={18} />}</IconButton></Tooltip></TooltipProvider>}
+        </div>
+      </header>
+
+      <div className="v2-project-shell min-h-0">
+        <section className="v2-project-main">
+          {activeView === "settings" ? <div className="v2-editor-scroll"><div className="v2-list-axis">
+            <div className="v2-page-heading"><div className="v2-page-heading-copy"><h1>Project settings</h1><p>Context used for transcription, classification, Ask, and Draft.</p></div></div>
+            <section className="v2-setting-section"><h2>Project context</h2><textarea className="v2-textarea" value={overview} onChange={(event) => onOverviewChange(event.target.value)} placeholder="Goals, decisions, constraints, and working context…" /></section>
+            <section className="v2-setting-section"><h2>Topic vocabulary</h2><div className="v2-inline-actions">{glossary.map((value) => <button type="button" className="v2-membership-pill" key={value} onClick={() => onGlossaryChange(glossary.filter((item) => item !== value))}>{value} ×</button>)}</div><div className="v2-filter-row" style={{ marginTop: 12 }}><input className="v2-input" value={term} onChange={(event) => setTerm(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addTerm(); } }} placeholder="Add a project term" /><Button size="sm" onClick={addTerm} disabled={!term.trim()}>Add</Button></div></section>
+            <section className="v2-setting-section"><h2>Skill overrides</h2><p className="v2-settings-lead">Only overrides set here differ from Global defaults.</p>{bindingRows.map((row) => <div className="v2-setting-row" key={row.key}><div><strong>{row.label}</strong><p>{skillBindings[row.key] ? `Project override · ${skillName(skillBindings[row.key])}` : `Inherits Global · ${skillName(row.fallback)}`}</p></div><select className="v2-input" aria-label={`${row.label} Skill`} value={skillBindings[row.key] ?? ""} onChange={(event) => onSkillBindingsChange({ ...skillBindings, [row.key]: event.target.value || undefined })}><option value="">Inherit Global</option>{skills.filter((skill) => skill.enabled && row.accepts(skill)).map((skill) => <option key={skill.id} value={skill.id}>{skill.name}{skill.system ? " · Built-in" : " · My Skill"}</option>)}</select></div>)}</section>
+          </div></div> : activeView === "context" ? <div className="v2-editor-scroll"><div className="v2-list-axis">
+            <div className="v2-page-heading"><div className="v2-page-heading-copy"><h1>Project context</h1><p>Review what this Project may use. Excluding a Source never deletes it from your private Library.</p></div></div>
+            {classificationError && <div className="rounded-md bg-[#fff4f1] px-3 py-2 text-[14px] text-[#a33d36]" role="alert">{classificationError}</div>}
+            <div className="v2-review-list">{contextMaterials.map((material) => {
+              const included = material.projects.includes(project.name);
+              const excluded = material.excludedProjects?.includes(project.name) ?? false;
+              const state = included ? "In Context" : excluded ? "Excluded" : "Suggested";
+              return <article className="v2-review-row" key={material.id}><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="v2-membership-pill">{state}</span>{material.organization?.confidence !== undefined && !included && !excluded ? <span className="v2-quiet-pill">{Math.round(material.organization.confidence * 100)}% match</span> : null}</div><h3>{sourceTitle(material)}</h3><p>{material.content}</p>{!included ? <div className="v2-library-meta">{excluded ? "Your correction prevents automatic re-adding" : material.organization?.reason || "Suggested by automatic organization"}</div> : null}</div><div className="v2-inline-actions"><Button size="sm" onClick={() => onOpenMaterial(material.id)}>Open source</Button>{included ? <Button size="sm" disabled={classificationBusyId === material.id} onClick={() => void setProjectMembership(material, "excluded")}>Exclude</Button> : <Button size="sm" variant="primary" disabled={classificationBusyId === material.id} onClick={() => void setProjectMembership(material, "added")}>Add</Button>}</div></article>;
+            })}{!contextMaterials.length && <div className="v2-recovery-card"><p>No Sources are included, suggested, or excluded for this Project yet.</p></div>}</div>
+          </div></div> : <>
+            <div className="v2-editor-scroll">
+              {answerRun ? <article className="v2-editor-axis" aria-label="Project answer">
+                <div className="v2-editor-eyebrow">Answer · {answerRun.skill_name}</div>
+                <h1 className="v2-editor-title">{answerRun.instruction}</h1>
+                <div className="v2-editor-body whitespace-pre-wrap">{answerRun.original_output || answerRun.error || "No answer was produced."}</div>
+                <div className="v2-context-summary"><span>{answerRun.sources.length} frozen Sources · Run {answerRun.status}</span><button className="v2-source-excerpt-toggle" type="button" onClick={() => setInspectorOpen(true)}>Review sources</button></div>
+                {answerRun.original_output && <div className="v2-inline-actions" style={{ marginTop: 18 }}><Button size="sm" onClick={() => void adoptAnswer("copy")}>Copy</Button><Button size="sm" variant="primary" onClick={() => void adoptAnswer("document")}>Save as document</Button><Button size="sm" onClick={() => setAnswerRun(undefined)}>Back to document</Button></div>}
+              </article> : <article className="v2-editor-axis" aria-label="Project document">
+                <div className="v2-editor-eyebrow">Document</div>
+                <input className="v2-editor-title w-full border-0 bg-transparent outline-none disabled:opacity-60" aria-label="Document title" value={documentTitle} onChange={(event) => setDocumentTitle(event.target.value)} disabled={!activeDocument} />
+                <textarea
+                  className="v2-editor-body min-h-[360px] w-full resize-none border-0 bg-transparent outline-none"
+                  aria-label="Document content"
+                  value={documentContent}
+                  onChange={(event) => setDocumentContent(event.target.value)}
+                  disabled={!activeDocument}
+                  placeholder={activeDocument ? "Start writing, or ask Logue to draft from this project's sources." : "Create a document, or ask Logue to draft from this project's sources."}
+                />
+                <div className="v2-context-summary">
+                  <span>{sourceGroups.length} project sources · {activeDocument?.source_ids.length ?? 0} sources in this revision</span>
+                  <button className="v2-source-excerpt-toggle" type="button" onClick={() => setInspectorOpen(true)}>Review sources</button>
+                </div>
+                {projectDocuments.length > 1 && <div className="v2-inline-actions" style={{ marginTop: 18 }}>{projectDocuments.map((document) => <Button key={document.id} size="sm" variant={document.id === activeDocument?.id ? "primary" : "secondary"} onClick={() => setActiveDocumentId(document.id)}>{document.title}</Button>)}</div>}
+              </article>}
+            </div>
+            {generationError && <div className="mx-auto mb-2 rounded-md bg-[#fff4f1] px-3 py-2 text-[14px] text-[#a33d36]" style={{ width: "min(calc(100% - 48px), 820px)" }} role="alert">{generationError}</div>}
+            {!projectMaterials.length && <div className="mx-auto mb-2 text-[13px] text-[#73756f]" style={{ width: "min(calc(100% - 48px), 820px)" }}>Add Sources to this Project before asking Logue to draft.</div>}
+            <div className="v2-composer-wrap"><ProjectComposer value={request} onChange={setRequest} onSubmit={() => void runProjectRequest()} disabled={generating || !projectMaterials.length} showVoice={false} mode={requestMode} onModeChange={setRequestMode} placeholder={generating ? `${requestMode === "ask" ? "Answering" : "Drafting"} from project sources…` : requestMode === "ask" ? `Ask ${project.name}` : `Draft with ${project.name}`} /></div>
+          </>}
+        </section>
+
+        {activeView === "document" && inspectorOpen && <>
+          <PanelResizer edge="left" label="Resize source inspector" value={inspectorWidth} min={360} max={640} defaultValue={400} onChange={setInspectorWidth} className="max-[980px]:hidden" />
+          <aside className="v2-inspector" style={{ width: inspectorWidth }} aria-label="Sources used">
+            <header className="v2-inspector-header"><div><h2>Sources used</h2></div><TooltipProvider><Tooltip content="Close sources"><IconButton label="Close sources" variant="ghost" onClick={() => setInspectorOpen(false)}><PanelRightClose aria-hidden="true" size={17} /></IconButton></Tooltip></TooltipProvider></header>
+            <div className="v2-inspector-scroll"><div className="v2-source-list">
+              {visibleSourceGroups.map((group, index) => {
+                const web = group.bundle?.source ?? group.representative;
+                const comment = group.bundle?.primaryComment;
+                return <SourceBundleView key={group.key} citation={index + 1} title={sourceTitle(web)} excerpt={web.content} comment={comment?.content ?? "Saved to this Project"} meta={web.source?.domain || "Logue"} onSelect={() => onOpenMaterial(comment?.id ?? web.id)} onOpenSnapshot={() => onOpenMaterial(comment?.id ?? web.id)} />;
+              })}
+              {!visibleSourceGroups.length && <p className="v2-settings-lead">No Sources are used by this document yet.</p>}
+            </div></div>
+          </aside>
+        </>}
+      </div>
+    </main>
+  );
+}

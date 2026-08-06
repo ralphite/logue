@@ -255,7 +255,7 @@ class RuntimeTest(unittest.TestCase):
 
     def test_project_generation_retrieval_is_scoped_and_freezes_actual_sources(self) -> None:
         self.request("/v1/projects", "POST", {"name": "Project A", "overview": "Use only Project A evidence"})
-        _, project_source = self.request("/v1/items", "POST", {"kind": "text", "content": "Shared evidence from Project A", "projects": ["Project A"]})
+        _, project_source = self.request("/v1/items", "POST", {"kind": "text", "content": "Shared evidence from Project A", "projects": ["Project A"], "source": {"url": "https://example.com/a", "title": "Project A evidence", "selection": "Shared evidence"}})
         _, other_project_source = self.request("/v1/items", "POST", {"kind": "text", "content": "Shared evidence from Project B", "projects": ["Project B"]})
         captured_sources = []
 
@@ -268,6 +268,7 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(run["source_ids"], [project_source["id"]])
         self.assertEqual([source["id"] for source in run["sources"]], [project_source["id"]])
         self.assertEqual([source["id"] for source in captured_sources], [project_source["id"]])
+        self.assertEqual(run["sources"][0]["source"], {"url": "https://example.com/a", "title": "Project A evidence", "domain": "example.com", "selection": "Shared evidence"})
         self.assertNotIn(other_project_source["id"], run["source_ids"])
 
         self.request(f"/v1/items/{project_source['id']}", "PATCH", {"content": "Changed after generation"})

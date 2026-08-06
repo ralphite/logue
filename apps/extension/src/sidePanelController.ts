@@ -161,9 +161,12 @@ export function preserveMatchingPanelDraft(
     // A completed insert transaction belongs to its tab. It may survive a page
     // change within that tab so the user can return to the original editor, but
     // it must never appear in an unrelated tab.
-    return current?.pendingInsert && current.tabId === next.tabId
-      ? { ...next, pendingInsert: current.pendingInsert }
-      : next;
+    if (!current || current.tabId !== next.tabId) return next;
+    return {
+      ...next,
+      ...(current.pendingInsert ? { pendingInsert: current.pendingInsert } : {}),
+      ...(current.commandResult ? { commandResult: current.commandResult } : {}),
+    };
   }
   return {
     ...next,
@@ -172,6 +175,7 @@ export function preserveMatchingPanelDraft(
     projects: current.projects,
     tags: current.tags,
     pendingInsert: current.pendingInsert,
+    commandResult: current.commandResult,
   };
 }
 

@@ -1,10 +1,12 @@
-import { ArrowLeft, ArrowRight, BookOpenText, FilePlus2, FileText, FolderKanban, Inbox, LoaderCircle, MessageSquareText, Mic2, Plus, Sparkles, X } from "lucide-react";
+import { ArrowRight, FolderKanban, Inbox, Plus } from "lucide-react";
 import type { Material } from "@logue/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createDocument, generateProjectOverviewDraft, getDocuments, getProjects, saveProject, type LogueDocument, type ProjectSummary } from "../api";
-import { editorColumnClass, pageColumnClass } from "./layout";
-import { Button, ContextHeader, PageHeader } from "./ui";
+import { getDocuments, getProjects, getWorkspaceSettings, saveProject, type LogueDocument, type ProjectSkillBindings, type ProjectSummary, type WorkspaceSettings } from "../api";
+import { getSkills, type LogueSkill } from "../skillApi";
+import { pageColumnClass } from "./layout";
+import { Button, PageHeader } from "./ui";
 import { groupLibraryMaterials } from "../commentBundles";
+import { RealProjectWorkspace } from "./RealProjectWorkspace";
 
 type SaveState = "saved" | "dirty" | "saving" | "error";
 
@@ -14,29 +16,26 @@ export function ProjectPage({
   onSelectedProjectChange,
   onOpenStream,
   onOpenMaterial,
-  onOpenResults,
+  onUpdateMaterialClassification = async () => undefined,
 }: {
   materials: Material[];
   initialProject?: string;
   onSelectedProjectChange: (project?: string, replace?: boolean) => void;
   onOpenStream: (project?: string) => void;
   onOpenMaterial: (materialId: string) => void;
-  onOpenResults: (project: string, documentId?: string) => void;
+  onUpdateMaterialClassification?: (id: string, projects: string[], tags: string[], excludedProjects: string[]) => Promise<void>;
 }) {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [documents, setDocuments] = useState<LogueDocument[]>([]);
+  const [skills, setSkills] = useState<LogueSkill[]>([]);
+  const [globalDefaults, setGlobalDefaults] = useState<WorkspaceSettings>({ personal_context: "", glossary: [], ignored_terms: [] });
   const [selectedName, setSelectedName] = useState<string | undefined>(undefined);
   const [overview, setOverview] = useState("");
   const [glossary, setGlossary] = useState<string[]>([]);
-  const [term, setTerm] = useState("");
+  const [skillBindings, setSkillBindings] = useState<ProjectSkillBindings>({});
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [newProjectOpen, setNewProjectOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
-  const [overviewDraft, setOverviewDraft] = useState("");
-  const [draftSourceCount, setDraftSourceCount] = useState(0);
-  const [draftGenerating, setDraftGenerating] = useState(false);
-  const [draftError, setDraftError] = useState<string>();
-  const [creatingDocument, setCreatingDocument] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string>();
   const loadedRef = useRef<string | undefined>(undefined);
@@ -45,9 +44,11 @@ export function ProjectPage({
     setLoading(true);
     setLoadError(undefined);
     try {
-      const [nextProjects, nextDocuments] = await Promise.all([getProjects(), getDocuments()]);
+      const [nextProjects, nextDocuments, nextSkills, nextSettings] = await Promise.all([getProjects(), getDocuments(), getSkills(), getWorkspaceSettings()]);
       setProjects(nextProjects);
       setDocuments(nextDocuments);
+      setSkills(nextSkills);
+      setGlobalDefaults(nextSettings);
     } catch (cause) {
       setLoadError(cause instanceof Error ? cause.message : "Could not load projects");
     } finally {
@@ -81,18 +82,6 @@ export function ProjectPage({
   }, [initialProject, loading, onSelectedProjectChange, projects, selectedName]);
 
   const selected = projects.find((project) => project.name === selectedName);
-  const linkedMaterials = useMemo(
-    () => (selectedName ? materials.filter((material) => material.projects.includes(selectedName)) : []),
-    [materials, selectedName],
-  );
-  const linkedSourceGroups = useMemo(
-    () => groupLibraryMaterials(linkedMaterials, materials),
-    [linkedMaterials, materials],
-  );
-  const linkedDocuments = useMemo(
-    () => (selectedName ? documents.filter((document) => document.project === selectedName) : []),
-    [documents, selectedName],
-  );
   const sourceCountByProject = useMemo(
     () => new Map(projects.map((project) => [
       project.name,
@@ -106,6 +95,7 @@ export function ProjectPage({
     loadedRef.current = selected.name;
     setOverview(selected.overview ?? "");
     setGlossary(selected.glossary ?? []);
+    setSkillBindings(selected.skill_bindings ?? {});
     setSaveState("saved");
   }, [selected]);
 
@@ -113,7 +103,7 @@ export function ProjectPage({
     if (!selected || loadedRef.current !== selected.name || saveState !== "dirty") return;
     const timer = window.setTimeout(() => {
       setSaveState("saving");
-      void saveProject(selected.name, { overview, glossary })
+      void saveProject(selected.name, { overview, glossary, skillBindings })
         .then((updated) => {
           setProjects((current) => current.map((project) => project.name === updated.name ? updated : project));
           setSaveState("saved");
@@ -121,24 +111,16 @@ export function ProjectPage({
         .catch(() => setSaveState("error"));
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [glossary, overview, saveState, selected]);
+  }, [glossary, overview, saveState, selected, skillBindings]);
 
   function markDirty() {
     if (saveState !== "dirty") setSaveState("dirty");
   }
 
-  function addTerm() {
-    const value = term.trim();
-    if (!value || glossary.includes(value)) return;
-    setGlossary((current) => [...current, value]);
-    setTerm("");
-    markDirty();
-  }
-
   async function createProject() {
     const name = newProjectName.trim();
     if (!name) return;
-    const created = await saveProject("", { name, overview: "", glossary: [] });
+    const created = await saveProject("", { name, overview: "", glossary: [], skillBindings: {} });
     setProjects((current) => [created, ...current]);
     setNewProjectOpen(false);
     setNewProjectName("");
@@ -147,83 +129,24 @@ export function ProjectPage({
     onSelectedProjectChange(created.name);
   }
 
-  async function createOverviewDraft() {
-    if (!selected || draftGenerating) return;
-    setDraftGenerating(true);
-    setDraftError(undefined);
-    try {
-      const result = await generateProjectOverviewDraft(selected.name);
-      setOverviewDraft(result.draft);
-      setDraftSourceCount(result.source_ids.length);
-    } catch (cause) {
-      setDraftError(cause instanceof Error ? cause.message : "Could not draft a project overview");
-    } finally {
-      setDraftGenerating(false);
-    }
-  }
-
-  async function createProjectDocument() {
-    if (!selected || creatingDocument) return;
-    setCreatingDocument(true);
-    try {
-      const created = await createDocument({ title: `${selected.name} document`, project: selected.name });
-      setDocuments((current) => [created, ...current]);
-      onOpenResults(selected.name, created.id);
-    } finally {
-      setCreatingDocument(false);
-    }
-  }
-
   if (selected) {
-    return (
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
-        <ContextHeader
-          testId="project-detail-header-column"
-          leading={<Button variant="ghost" size="sm" onClick={() => { setSelectedName(undefined); loadedRef.current = undefined; onSelectedProjectChange(undefined); }}><ArrowLeft size={14} /> All projects</Button>}
-          actions={saveState === "error" ? <span className="text-[14px] text-[#a84d44]">Save failed</span> : undefined}
-        />
-        <div data-testid="project-detail-scroll-surface" className="scroll-surface min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div data-testid="project-detail-content-column" className={`${editorColumnClass} pb-24 pt-14`}>
-          <div className="inline-flex size-11 items-center justify-center rounded-md bg-[#f0f0ed] text-[#666762]"><FolderKanban size={21} /></div>
-          <h1 className="mt-5 text-[38px] font-bold tracking-[-0.045em] text-[#242522]">{selected.name}</h1>
-          <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-[#8b8c87]"><span>{linkedSourceGroups.length} sources</span><span className="text-[#b8b9b4]">·</span><span>{linkedDocuments.length} documents</span><span className="text-[#b8b9b4]">·</span><span>{glossary.length} project terms</span></div>
-
-          <section className="mt-10">
-            <div className="flex items-center justify-between gap-3"><h2 className="text-[14px] font-semibold text-[#555651]">Project context</h2><button type="button" onClick={() => void createOverviewDraft()} disabled={draftGenerating || linkedMaterials.length === 0} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[14px] font-medium text-[#676863] hover:bg-[#f1f1ee] disabled:opacity-40">{draftGenerating ? <LoaderCircle size={12} className="animate-spin" /> : <Sparkles size={12} />}{draftGenerating ? "Updating…" : "Update from sources"}</button></div>
-            <textarea value={overview} onChange={(event) => { setOverview(event.target.value); markDirty(); }} placeholder="Capture the background, decisions, constraints, and goals…" className="mt-3 min-h-36 w-full resize-y rounded-md border border-transparent bg-[#f7f7f5] px-3.5 py-3 text-[15px] leading-6 text-[#3e3f3b] outline-none placeholder:text-[#b3b4af] focus:border-[#d8d8d3] focus:bg-white" />
-            {draftError && <p className="mt-2 rounded-md bg-[#f9ece9] px-3 py-2 text-[14px] text-[#a24a42]">{draftError}</p>}
-            {overviewDraft && <div className="mt-3 rounded-md bg-[#fafaf8] p-3.5"><div className="flex items-center justify-between"><span className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-[#64655f]"><Sparkles size={12} /> Draft to review</span><span className="text-[14px] text-[#999a95]">Based on {draftSourceCount} sources</span></div><pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap font-sans text-[15px] leading-5 text-[#555651]">{overviewDraft}</pre><div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => setOverviewDraft("")} className="h-7 rounded px-2 text-[14px] text-[#858680] hover:bg-[#eeeeeb]">Discard</button><button type="button" onClick={() => { setOverview((current) => [current.trim(), overviewDraft.trim()].filter(Boolean).join("\n\n")); setOverviewDraft(""); markDirty(); }} className="h-7 rounded bg-[#242522] px-2.5 text-[14px] font-medium text-white">Add to overview</button></div></div>}
-          </section>
-
-          <section className="mt-11">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-[14px] font-semibold text-[#555651]">Documents</h2>
-              <div className="flex shrink-0 items-center gap-1">
-                {linkedDocuments.length > 0 && <button type="button" onClick={() => onOpenResults(selected.name)} className="inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-[15px] font-medium text-[#62635e] hover:bg-[#f1f1ee]">View all <ArrowRight size={13} /></button>}
-                <button type="button" onClick={() => void createProjectDocument()} disabled={creatingDocument} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[#242522] px-2.5 text-[14px] font-medium text-white disabled:bg-[#bdbdb8]"><FilePlus2 size={12} /> {creatingDocument ? "Creating…" : "New document"}</button>
-              </div>
-            </div>
-            {linkedDocuments.length > 0 ? <div className="mt-3 divide-y divide-[#eeeeeb]">{linkedDocuments.slice(0, 5).map((document) => <button key={document.id} type="button" onClick={() => onOpenResults(selected.name, document.id)} className="group flex w-full items-center gap-2.5 px-2 py-2.5 text-left hover:bg-[#f7f7f5]"><BookOpenText size={14} className="shrink-0 text-[#858680]" /><span className="min-w-0 flex-1 truncate text-[14px] text-[#50514d]">{document.title || "Untitled"}</span><span className="text-[14px] text-[#999a95]">{new Date(document.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span><ArrowRight size={13} className="text-[#b1b2ad] transition group-hover:translate-x-0.5" /></button>)}</div> : <button type="button" onClick={() => void createProjectDocument()} className="mt-3 flex w-full items-center gap-2.5 rounded-md border border-dashed border-[#d7d7d2] px-3 py-4 text-left text-[15px] text-[#858680] hover:bg-[#fafaf8]"><BookOpenText size={15} /> Create the first project document</button>}
-          </section>
-
-          <section className="mt-11">
-            <div className="flex items-center justify-between"><h2 className="text-[14px] font-semibold text-[#555651]">Sources</h2><button type="button" onClick={() => onOpenStream(selected.name)} className="inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-[15px] font-medium text-[#62635e] hover:bg-[#f1f1ee]">View all <ArrowRight size={13} /></button></div>
-            <div className="mt-3 divide-y divide-[#eeeeeb]">{linkedSourceGroups.slice(0, 6).map((group) => {
-              const material = group.bundle?.primaryComment ?? group.representative;
-              const Icon = group.bundle ? (material.captureId ? Mic2 : MessageSquareText) : FileText;
-              return <button key={group.key} type="button" onClick={() => onOpenMaterial(material.id)} data-testid={group.bundle ? "project-comment-bundle-row" : undefined} className="flex min-h-11 w-full items-center gap-2.5 px-2 py-2.5 text-left hover:bg-[#f7f7f5] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5b64f4]"><Icon size={14} className="shrink-0 text-[#858680]" /><span className="min-w-0 flex-1 truncate text-[14px] text-[#50514d]">{material.content}</span><span className="text-[14px] text-[#999a95]">{group.bundle ? "Web + You" : group.representative.source?.domain || group.representative.kind}</span></button>;
-            })}</div>
-          </section>
-
-          <section className="mt-11">
-            <h2 className="text-[14px] font-semibold text-[#555651]">Terms</h2>
-            <div className="mt-3 flex flex-wrap gap-1.5">{glossary.map((value) => <span key={value} className="inline-flex h-7 items-center gap-1.5 rounded-md bg-[#f0f0ed] px-2.5 text-[15px] text-[#555651]">{value}<button type="button" onClick={() => { setGlossary((current) => current.filter((item) => item !== value)); markDirty(); }} className="text-[#999a95] hover:text-[#555]" aria-label={`Remove ${value}`}><X size={11} /></button></span>)}</div>
-            <div className="mt-3 flex max-w-md gap-2"><input value={term} onChange={(event) => setTerm(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addTerm(); } }} placeholder="Add a term and press Enter" className="h-9 min-w-0 flex-1 rounded-md border border-[#dfdfda] px-3 text-[14px] outline-none focus:border-[#aaa]" /><button type="button" onClick={addTerm} disabled={!term.trim()} className="h-9 rounded-md border border-[#dadad6] px-3 text-[15px] font-medium text-[#61625d] hover:bg-[#f4f4f1] disabled:opacity-40">Add</button></div>
-          </section>
-        </div>
-        </div>
-      </main>
-    );
+    return <RealProjectWorkspace
+      project={selected}
+      materials={materials}
+      documents={documents}
+      overview={overview}
+      glossary={glossary}
+      skills={skills}
+      globalDefaults={globalDefaults}
+      skillBindings={skillBindings}
+      onOverviewChange={(value) => { setOverview(value); markDirty(); }}
+      onGlossaryChange={(value) => { setGlossary(value); markDirty(); }}
+      onSkillBindingsChange={(value) => { setSkillBindings(value); markDirty(); }}
+      onDocumentsChange={setDocuments}
+      onOpenMaterial={onOpenMaterial}
+      onUpdateMaterialClassification={onUpdateMaterialClassification}
+      onBack={() => { setSelectedName(undefined); loadedRef.current = undefined; onSelectedProjectChange(undefined); }}
+    />;
   }
 
   const unfiled = groupLibraryMaterials(materials.filter((item) => item.projects.length === 0), materials).length;

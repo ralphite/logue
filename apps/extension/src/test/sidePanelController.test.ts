@@ -216,13 +216,16 @@ describe("native side panel controller", () => {
     const current = {
       tabId: 4, intent: "input" as const, source, targetAvailable: false, updatedAt: 1,
       pendingInsert: { text: "Saved reply", materialId: "mat_1", sourceURL: source.url },
+      commandResult: { runId: "run_1", originalText: "Draft", text: "Edited draft", sources: [], targetKey: "target", sourceURL: source.url },
     };
     const { pendingInsert: _pendingInsert, ...withoutPendingInsert } = current;
     const refreshed = { ...withoutPendingInsert, intent: "page" as const, targetAvailable: false, updatedAt: 2 };
 
     expect(preserveMatchingPanelDraft(refreshed, current).pendingInsert).toEqual(current.pendingInsert);
+    expect(preserveMatchingPanelDraft(refreshed, current).commandResult).toEqual(current.commandResult);
     expect(preserveMatchingPanelDraft({ ...refreshed, tabId: 5 }, current).pendingInsert).toBeUndefined();
     expect(mergePanelCaptureState(current, { pendingInsert: null }).pendingInsert).toBeUndefined();
+    expect(mergePanelCaptureState(current, { commandResult: null }).commandResult).toBeUndefined();
   });
 
   it("does not replace explicit capture work with a passive page update", () => {

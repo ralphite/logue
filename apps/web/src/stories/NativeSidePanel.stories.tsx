@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import type { ExtensionSkill, LocalError, PageMaterial, PanelCaptureState, PanelProject } from "../../../extension/src/sidePanelModels";
+import type { CommandSourceSnapshot, ExtensionSkill, LocalError, PageMaterial, PanelCaptureState, PanelProject } from "../../../extension/src/sidePanelModels";
 import { SidePanelView } from "../../../extension/src/sidePanelView";
 import "../../../extension/src/sidePanel.css";
 
@@ -25,6 +25,11 @@ const pageMaterials: PageMaterial[] = [
 const projects: PanelProject[] = [
   { name: "Mobile research" },
   { name: "Launch narrative" },
+];
+
+const commandSources: CommandSourceSnapshot[] = [
+  { id: "src_research", kind: "selection", actor: "user", content: "Field interviews consistently described offline access as the deciding factor.", projects: ["Mobile research"], tags: ["evidence"], source: { url: "https://example.com/research", title: "Field research", domain: "example.com", selection: "Offline access is the deciding factor for field teams." } },
+  { id: "src_note", kind: "text", actor: "user", content: "Lead with the workflow evidence, then state the rollout constraint.", projects: ["Mobile research"], tags: ["draft"], source: { url: "https://example.com/notes", title: "Launch notes", domain: "example.com" } },
 ];
 
 const currentPage: PanelCaptureState = {
@@ -81,6 +86,7 @@ function SidePanelStage({
   const [pending, setPending] = useState(pendingInsert);
   const [serverURLDraft, setServerURLDraft] = useState("https://logue.example.com");
   const [serverSettingsOpen, setServerSettingsOpen] = useState(initialServerSettingsOpen);
+  const [generatedUndoAvailable, setGeneratedUndoAvailable] = useState(false);
   const [selectedProject, setSelectedProject] = useState(state?.projects?.[0] ?? "");
   const renderedState = state ? { ...state, projects: selectedProject ? [selectedProject] : [] } : undefined;
 
@@ -89,6 +95,8 @@ function SidePanelStage({
     phase={phase}
     draft={draft}
     generatedText={generatedText}
+    commandSources={generatedText ? commandSources : []}
+    generatedUndoAvailable={generatedUndoAvailable}
     skills={skills}
     skillId={skills[0].id}
     projects={projects}
@@ -106,6 +114,8 @@ function SidePanelStage({
     serverSettingsError={initialServerSettingsError}
     onDraftChange={setDraft}
     onGeneratedTextChange={setGeneratedText}
+    onCopyGenerated={() => undefined}
+    onUndoGenerated={() => setGeneratedUndoAvailable(false)}
     onSkillIdChange={() => undefined}
     onProjectChange={setSelectedProject}
     onStartRecording={() => { setActiveError(undefined); setPending(false); setPhase("starting"); }}
@@ -116,7 +126,7 @@ function SidePanelStage({
     onRequestGeneration={() => undefined}
     onReturnToPage={() => undefined}
     onGenerate={() => setGeneratedText("A concise generated reply stays editable and is never sent automatically.")}
-    onInsertGenerated={() => setGeneratedText("")}
+    onInsertGenerated={() => { setGeneratedUndoAvailable(true); setActiveError(undefined); }}
     onRetryInsert={() => setPending(false)}
     onCopyPendingInsert={() => setPending(false)}
     onServerURLDraftChange={setServerURLDraft}
@@ -156,4 +166,5 @@ export const ServerNotLogue: Story = { args: { state: currentPage, initialServer
 export const ServerIncompatible: Story = { args: { state: currentPage, initialServerSettingsOpen: true, initialServerSettingsError: "This Logue server is not compatible with this extension." } };
 export const GenerateDraft: Story = { args: { state: generation, initialDraft: "Draft a concise reply that captures the decision." } };
 export const GeneratedReply: Story = { args: { state: generation, initialGeneratedText: "A concise generated reply stays editable and is never sent automatically." } };
+export const GeneratedTargetLost: Story = { args: { state: generation, initialGeneratedText: "A concise generated reply remains available when the editor is lost.", initialPhase: "error", error: { kind: "target", message: "The original editor is unavailable. Your draft is still saved here.", action: "copy" } } };
 export const Empty: Story = { args: { state: undefined } };

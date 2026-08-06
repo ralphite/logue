@@ -15,12 +15,15 @@ import { Tooltip, TooltipProvider } from "./Tooltip";
 export type Section = "stream" | "projects" | "documents" | "skills" | "settings";
 
 const navItems = [
-  { id: "stream" as const, label: "Library", icon: LibraryBig },
   { id: "projects" as const, label: "Projects", icon: FolderKanban },
+  { id: "stream" as const, label: "Library", icon: LibraryBig },
   { id: "documents" as const, label: "Documents", icon: FileText },
   { id: "skills" as const, label: "Skills", icon: Sparkles },
   { id: "settings" as const, label: "Settings", icon: Settings },
 ];
+
+const mainNavItems = navItems.filter((item) => item.id !== "settings");
+const settingsItem = navItems.find((item) => item.id === "settings")!;
 
 export function MobileNav({
   active,
@@ -78,14 +81,12 @@ export function NavRail({
       data-resizing={resizing ? "true" : "false"}
       style={{ width: collapsed ? 56 : width }}
       className={cn(
-        "group/sidebar flex h-screen min-h-0 shrink-0 flex-col overflow-hidden bg-[#f7f7f5] px-1.5 py-3 transition-[width] duration-200 ease-out motion-reduce:transition-none max-[640px]:hidden",
+        "group/sidebar flex h-screen min-h-0 shrink-0 flex-col overflow-hidden border-r border-[#e7e7e3] bg-[#fbfbfa] transition-[width] duration-200 ease-out motion-reduce:transition-none max-[640px]:hidden",
         resizing && "transition-none",
-        collapsed
-          ? "w-14 border-r border-[#e7e7e4] max-[900px]:w-14"
-          : "",
+        collapsed ? "w-14 max-[900px]:w-14" : "",
       )}
     >
-      <div data-testid="sidebar-header" className="flex h-11 shrink-0 items-center">
+      <div data-testid="sidebar-header" className="flex h-16 shrink-0 items-center px-2.5">
         {collapsed ? (
           <Tooltip content="Open sidebar">
             <button
@@ -95,7 +96,7 @@ export function NavRail({
               aria-expanded="false"
               aria-controls="primary-navigation"
               onClick={() => onCollapsedChange(false)}
-              className="flex size-11 shrink-0 items-center justify-center rounded-lg text-[#73756f] transition hover:bg-[#ebebe8] hover:text-[#30322d] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4]"
+              className="flex size-9 shrink-0 items-center justify-center rounded-md text-[#73756f] transition hover:bg-[#f1f1ef] hover:text-[#20211f] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#535fdb]"
             >
               <span data-testid="sidebar-brand-mark" aria-hidden="true">
                 <LogueLogo compact />
@@ -104,10 +105,7 @@ export function NavRail({
           </Tooltip>
         ) : (
           <>
-            <span data-testid="sidebar-brand-mark" className="flex size-11 shrink-0 items-center justify-center" aria-hidden="true">
-              <LogueLogo compact />
-            </span>
-            <span className="min-w-0 flex-1 truncate text-[17px] font-semibold tracking-[-0.035em] text-[#181916]">
+            <span className="min-w-0 flex-1 truncate px-1.5 text-[20px] font-semibold tracking-[-0.035em] text-[#20211f]">
               Logue
             </span>
             <Tooltip content="Close sidebar">
@@ -118,7 +116,7 @@ export function NavRail({
                 aria-expanded="true"
                 aria-controls="primary-navigation"
                 onClick={() => onCollapsedChange(true)}
-                className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[#73756f] opacity-0 transition hover:bg-[#ebebe8] hover:text-[#30322d] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4] group-hover/sidebar:opacity-100"
+                className="flex size-8 shrink-0 items-center justify-center rounded-md text-[#73756f] opacity-0 transition hover:bg-[#f1f1ef] hover:text-[#20211f] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#535fdb] group-hover/sidebar:opacity-100"
               >
                 <PanelLeftClose data-testid="sidebar-toggle-icon" size={18} strokeWidth={1.9} aria-hidden="true" />
               </button>
@@ -127,23 +125,23 @@ export function NavRail({
         )}
       </div>
 
-      <nav id="primary-navigation" className="scroll-surface mt-2 min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain pr-px" aria-label="Primary navigation">
-        {navItems.map((item) => {
+      <nav id="primary-navigation" className="scroll-surface min-h-0 flex-1 space-y-0.5 overflow-y-auto overscroll-contain px-2.5 py-1" aria-label="Primary navigation">
+        {mainNavItems.map((item) => {
           const Icon = item.icon;
           return (
             <Tooltip key={item.id} content={item.label} disabled={!collapsed}>
             <button
               onClick={() => onChange(item.id)}
               className={cn(
-                "flex h-11 w-full items-center rounded-lg text-[15px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5b64f4]",
+                "flex h-9 w-full items-center rounded-md text-[15px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#535fdb]",
                 active === item.id
-                  ? "bg-[#e9e9e6] text-[#373834]"
-                  : "text-[#686965] hover:bg-[#ededeb] hover:text-[#30322d]",
+                  ? "bg-[#ececea] text-[#20211f]"
+                  : "text-[#4e504b] hover:bg-[#f1f1ef] hover:text-[#20211f]",
               )}
               type="button"
               aria-current={active === item.id ? "page" : undefined}
             >
-              <span data-nav-icon-slot="true" className="flex size-11 shrink-0 items-center justify-center">
+              <span data-nav-icon-slot="true" className="flex size-9 shrink-0 items-center justify-center">
                 <Icon size={18} strokeWidth={active === item.id ? 2.2 : 1.8} aria-hidden="true" />
               </span>
               <span className={cn("min-w-0 flex-1 truncate pr-2 text-left", collapsed && "sr-only")}>{item.label}</span>
@@ -152,6 +150,25 @@ export function NavRail({
           );
         })}
       </nav>
+
+      <div className="shrink-0 px-2.5 pb-3 pt-1">
+        <Tooltip content={settingsItem.label} disabled={!collapsed}>
+          <button
+            onClick={() => onChange(settingsItem.id)}
+            className={cn(
+              "flex h-9 w-full items-center rounded-md text-[15px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#535fdb]",
+              active === settingsItem.id ? "bg-[#ececea] text-[#20211f]" : "text-[#4e504b] hover:bg-[#f1f1ef] hover:text-[#20211f]",
+            )}
+            type="button"
+            aria-current={active === settingsItem.id ? "page" : undefined}
+          >
+            <span data-nav-icon-slot="true" className="flex size-9 shrink-0 items-center justify-center">
+              <Settings size={18} strokeWidth={active === settingsItem.id ? 2.2 : 1.8} aria-hidden="true" />
+            </span>
+            <span className={cn("min-w-0 flex-1 truncate pr-2 text-left", collapsed && "sr-only")}>{settingsItem.label}</span>
+          </button>
+        </Tooltip>
+      </div>
 
       {!connected && <div className="mt-2 shrink-0 border-t border-[#e7e7e4] pt-2">
         <div
@@ -173,8 +190,8 @@ export function NavRail({
         label="Resize primary navigation"
         value={width}
         min={200}
-        max={320}
-        defaultValue={252}
+        max={300}
+        defaultValue={232}
         onChange={onWidthChange}
         onDraggingChange={setResizing}
         className="max-[640px]:hidden"

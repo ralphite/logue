@@ -238,6 +238,29 @@
   box-shadow: 0 4px 18px rgba(30, 31, 29, 0.06);
 }
 
+.v2-composer-mode {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  align-self: stretch;
+  padding: 4px 2px 4px 6px;
+}
+
+.v2-composer-mode button {
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 600 12px/1 var(--font-ui);
+}
+
+.v2-composer-mode button.is-active {
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+
 .v2-composer textarea {
   min-height: 38px;
   max-height: 124px;
@@ -486,6 +509,48 @@
   width: min(100%, 940px);
   margin: 0 auto;
   padding: 58px 42px 96px;
+}
+
+.v2-setting-section {
+  margin-top: 34px;
+  border-top: 1px solid var(--v2-line);
+  padding-top: 24px;
+}
+
+.v2-setting-section h2 {
+  margin: 0 0 12px;
+  color: var(--v2-ink);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.v2-textarea,
+.v2-input {
+  width: 100%;
+  border: 1px solid var(--v2-line-strong);
+  border-radius: var(--v2-radius);
+  background: var(--v2-surface);
+  color: var(--v2-ink);
+  outline: 0;
+}
+
+.v2-textarea {
+  min-height: 150px;
+  resize: vertical;
+  padding: 12px 14px;
+  line-height: 1.6;
+}
+
+.v2-input {
+  min-width: 0;
+  height: 36px;
+  padding: 0 11px;
+}
+
+.v2-textarea:focus,
+.v2-input:focus {
+  border-color: var(--v2-accent-line);
+  box-shadow: 0 0 0 2px var(--v2-accent-soft);
 }
 
 .v2-search-field {

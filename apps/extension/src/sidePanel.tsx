@@ -23,7 +23,9 @@ import {
   captureOrganization,
   explicitProjects,
   friendlyLocalError,
+  type CommandResult,
   type LocalError,
+  type PageCaptureContext,
   type PendingInsert,
   type PanelCaptureState,
 } from "./capturePrimitives";
@@ -95,9 +97,9 @@ function SidePanelApp() {
   const [elapsed, setElapsed] = useState(0);
   const [skills, setSkills] = useState<ExtensionSkill[]>([]);
   const [skillId, setSkillId] = useState("");
-  const [generatedText, setGeneratedText] = useState("");
-  const [generationRunId, setGenerationRunId] = useState<string>();
+  const [commandResult, setCommandResult] = useState<CommandResult>();
   const [generating, setGenerating] = useState(false);
+  const [insertingGenerated, setInsertingGenerated] = useState(false);
   const [pendingInsert, setPendingInsert] = useState<PendingInsert>();
   const [insertingPending, setInsertingPending] = useState(false);
   const [serverURL, setServerURL] = useState(defaultServerURL);
@@ -121,7 +123,7 @@ function SidePanelApp() {
   // cannot collapse the active UI.
   const activeCaptureScopeRef = useRef<ActivePanelCaptureScope | undefined>(undefined);
   const phaseRef = useRef<Phase>("idle");
-  const generatedForTargetRef = useRef<string | undefined>(undefined);
+  const commandResultRef = useRef<CommandResult | undefined>(undefined);
   const pendingInsertInFlightRef = useRef(false);
   const panelMainRef = useRef<HTMLElement>(null);
   const focusPanelOnHydrationRef = useRef(false);
@@ -143,11 +145,25 @@ function SidePanelApp() {
   draftRef.current = draft;
   transcriptRef.current = transcript;
   phaseRef.current = phase;
+  commandResultRef.current = commandResult;
 
   const persistDraft = useCallback((patch: Record<string, unknown>) => {
     if (typeof panelTabId !== "number") return;
     void chrome.runtime.sendMessage({ type: "logue:update-panel-state", tabId: panelTabId, patch });
   }, []);
+
+  const commitCommandResult = useCallback((result?: CommandResult) => {
+    commandResultRef.current = result;
+    setCommandResult(result);
+    const current = stateRef.current;
+    if (current) {
+      const { commandResult: _previous, ...base } = current;
+      const next = result ? { ...base, commandResult: result } : base;
+      stateRef.current = next;
+      setState(next);
+    }
+    persistDraft({ commandResult: result ?? null });
+  }, [persistDraft]);
 
   const stopTimer = useCallback(() => {
     if (timerRef.current !== undefined) window.clearInterval(timerRef.current);
@@ -224,7 +240,11 @@ function SidePanelApp() {
         const [available, settings] = await Promise.all([getExtensionSkills(), getExtensionSettings()]);
         if (stateRef.current?.tabId !== current.tabId) return;
         setSkills(available);
-        setSkillId(available.find((item) => item.id === settings.default_extension_skill)?.id ?? available[0]?.id ?? "");
+        const projectName = explicitProjects(current)[0];
+        const projectSkill = projectName
+          ? captureContext.projects.find((item) => item.name === projectName)?.skill_bindings?.command
+          : undefined;
+        setSkillId(available.find((item) => item.id === (projectSkill || settings.default_extension_skill))?.id ?? available[0]?.id ?? "");
       }
     } catch (cause) {
       if (stateRef.current?.tabId === current.tabId && !current.pendingInsert) {
@@ -472,45 +492,97 @@ function SidePanelApp() {
         selection: current.selectionText,
       });
       if (run.status !== "complete" || !run.original_output?.trim()) throw new Error(run.error || "No result returned");
-      generatedForTargetRef.current = targetKey;
-      setGenerationRunId(run.id);
-      setGeneratedText(run.original_output);
+      commitCommandResult({
+        runId: run.id,
+        originalText: run.original_output,
+        text: run.original_output,
+        targetKey,
+        sourceURL: current.source.url,
+        sources: (run.sources ?? []).map((source) => ({
+          id: source.id,
+          kind: source.kind,
+          actor: source.actor,
+          content: source.content,
+          projects: source.projects ?? [],
+          tags: source.tags ?? [],
+          createdAt: source.created_at,
+          source: source.source ?? undefined,
+        })),
+      });
     } catch (cause) {
       setError(friendlyLocalError(cause, "service"));
     } finally {
       setGenerating(false);
     }
-  }, [draft, skillId]);
+  }, [commitCommandResult, draft, skillId]);
 
   const useGeneratedText = useCallback(async () => {
     const current = stateRef.current;
-    if (!current || !generatedText.trim() || !generationRunId) return;
-    if (!canInsertGeneratedText(current, generatedForTargetRef.current)) {
-      generatedForTargetRef.current = undefined;
-      setGeneratedText("");
-      setGenerationRunId(undefined);
-      setError({ kind: "target", message: "The original editor changed. Generate again.", action: "retry" });
-      return;
-    }
+    const result = commandResultRef.current;
+    if (!current || !result?.text.trim() || insertingGenerated) return;
+    setInsertingGenerated(true);
+    setError(undefined);
     try {
-      await adoptExtensionSkillRun(generationRunId, generatedText.trim());
+      const pageResponse = await chrome.tabs.sendMessage(current.tabId, {
+        type: "logue:get-page-context",
+      }) as { ok?: boolean; value?: PageCaptureContext } | undefined;
+      const pageContext = pageResponse?.value;
+      const liveTarget = pageResponse?.ok && pageContext ? {
+        ...current,
+        source: pageContext.source,
+        selectionText: pageContext.selectionText,
+        targetText: pageContext.targetText,
+        targetAvailable: pageContext.targetAvailable,
+      } : undefined;
+      if (!liveTarget || !canInsertGeneratedText(liveTarget, result.targetKey)) {
+        throw new Error("target unavailable");
+      }
       const response = await chrome.tabs.sendMessage(current.tabId, {
         type: "logue:insert-text",
-        text: generatedText.trim(),
-      }) as { ok?: boolean } | undefined;
-      if (!response?.ok) {
-        await navigator.clipboard.writeText(generatedText.trim());
-        setError({ kind: "target", message: "The original editor is unavailable. The reply was copied.", action: "copy" });
-        return;
-      }
+        text: result.text.trim(),
+      }) as { ok?: boolean; undoToken?: string } | undefined;
+      if (!response?.ok || !response.undoToken) throw new Error("target unavailable");
+      const inserted = { ...result, undoToken: response.undoToken };
+      commitCommandResult(inserted);
+      await adoptExtensionSkillRun(result.runId, result.text.trim());
+      commitCommandResult({ ...inserted, adopted: true });
       setDraft("");
-      setGeneratedText("");
-      setGenerationRunId(undefined);
-      generatedForTargetRef.current = undefined;
+    } catch (cause) {
+      setError(/target unavailable/i.test(String(cause))
+        ? { kind: "target", message: "The original editor is unavailable. Your draft is still saved here.", action: "copy" }
+        : friendlyLocalError(cause, "save"));
+    } finally {
+      setInsertingGenerated(false);
+    }
+  }, [commitCommandResult, insertingGenerated]);
+
+  const undoGeneratedText = useCallback(async () => {
+    const current = stateRef.current;
+    const result = commandResultRef.current;
+    if (!current || !result?.undoToken) return;
+    try {
+      const response = await chrome.tabs.sendMessage(current.tabId, {
+        type: "logue:undo-insert",
+        token: result.undoToken,
+      }) as { ok?: boolean } | undefined;
+      if (!response?.ok) throw new Error("target unavailable");
+      const { undoToken: _consumed, ...restored } = result;
+      commitCommandResult(restored);
+      setError(undefined);
+    } catch {
+      setError({ kind: "target", message: "The editor changed, so Logue didn’t undo it. Your draft is still saved here.", action: "copy" });
+    }
+  }, [commitCommandResult]);
+
+  const copyGeneratedText = useCallback(async () => {
+    const result = commandResultRef.current;
+    if (!result?.text.trim()) return;
+    try {
+      await navigator.clipboard.writeText(result.text.trim());
     } catch (cause) {
       setError(friendlyLocalError(cause, "target"));
     }
-  }, [generatedText, generationRunId]);
+  }, []);
 
   const stopRecording = useCallback(() => {
     const session = recordingSessionRef.current;
@@ -580,9 +652,7 @@ function SidePanelApp() {
   }, [pendingInsert, persistDraft]);
 
   const requestGeneration = useCallback(() => {
-    generatedForTargetRef.current = undefined;
-    setGeneratedText("");
-    setGenerationRunId(undefined);
+    commitCommandResult(undefined);
     if (typeof panelTabId !== "number") return;
     void chrome.runtime.sendMessage({ type: "logue:request-panel-generate", tabId: panelTabId })
       .then((response: { ok?: boolean; error?: string } | undefined) => {
@@ -595,7 +665,7 @@ function SidePanelApp() {
         }
       })
       .catch((cause: unknown) => setError(friendlyLocalError(cause, "target")));
-  }, []);
+  }, [commitCommandResult]);
 
   const selectProject = useCallback((project: string) => {
     const current = stateRef.current;
@@ -609,16 +679,23 @@ function SidePanelApp() {
       if (
         stateRef.current?.tabId === next.tabId &&
         explicitProjects(stateRef.current)[0] === (project || undefined)
-      ) setContext(captureContext);
+      ) {
+        setContext(captureContext);
+        if (next.intent === "generate") {
+          void getExtensionSettings().then((settings) => {
+            const binding = captureContext.projects.find((item) => item.name === project)?.skill_bindings?.command;
+            setSkillId((currentSkill) => skills.some((item) => item.id === (binding || settings.default_extension_skill))
+              ? (binding || settings.default_extension_skill)
+              : currentSkill);
+          });
+        }
+      }
     }).catch((cause: unknown) => {
       if (stateRef.current?.tabId === next.tabId) setError(friendlyLocalError(cause, "service"));
     });
-  }, [persistDraft]);
+  }, [persistDraft, skills]);
 
   const returnToPage = useCallback(() => {
-    generatedForTargetRef.current = undefined;
-    setGeneratedText("");
-    setGenerationRunId(undefined);
     if (typeof panelTabId !== "number") return;
     void chrome.runtime.sendMessage({ type: "logue:return-panel-to-page", tabId: panelTabId })
       .then((response: { ok?: boolean; error?: string } | undefined) => {
@@ -651,15 +728,12 @@ function SidePanelApp() {
         recorderRef.current?.cancel();
         stopTimer();
       }
-      if (!canInsertGeneratedText(next, generatedForTargetRef.current)) {
-        generatedForTargetRef.current = undefined;
-        setGeneratedText("");
-        setGenerationRunId(undefined);
-      }
       setState(next);
       setDraft(next.draft ?? "");
       setTranscript(next.transcript ?? "");
       setPendingInsert(next.pendingInsert);
+      commandResultRef.current = next.commandResult;
+      setCommandResult(next.commandResult);
       setContext(undefined);
       setPageMaterials([]);
       if (next.intent === "generate") {
@@ -671,6 +745,10 @@ function SidePanelApp() {
         setError(next.pendingInsert ? {
           kind: "target",
           message: "The original editor is no longer available. Your text is saved in Logue.",
+          action: "copy",
+        } : next.commandResult && !canInsertGeneratedText(next, next.commandResult.targetKey) ? {
+          kind: "target",
+          message: "The original editor is unavailable. Your draft is still saved here.",
           action: "copy",
         } : undefined);
       }
@@ -788,7 +866,10 @@ function SidePanelApp() {
       state={state}
       phase={phase}
       draft={draft}
-      generatedText={generatedText}
+      generatedText={commandResult?.text ?? ""}
+      commandSources={commandResult?.sources}
+      generatedUndoAvailable={Boolean(commandResult?.undoToken)}
+      insertingGenerated={insertingGenerated}
       skills={skills}
       skillId={skillId}
       projects={context?.projects ?? []}
@@ -806,7 +887,12 @@ function SidePanelApp() {
       serverSettingsError={serverSettingsError}
       panelRef={panelMainRef}
       onDraftChange={(value) => { setDraft(value); persistDraft({ draft: value }); }}
-      onGeneratedTextChange={setGeneratedText}
+      onGeneratedTextChange={(text) => {
+        const current = commandResultRef.current;
+        if (current) commitCommandResult({ ...current, text, adopted: false });
+      }}
+      onCopyGenerated={() => void copyGeneratedText()}
+      onUndoGenerated={() => void undoGeneratedText()}
       onSkillIdChange={setSkillId}
       onProjectChange={selectProject}
       onStartRecording={startRecording}
