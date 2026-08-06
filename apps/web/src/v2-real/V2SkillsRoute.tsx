@@ -79,7 +79,6 @@ function toggleValue<T extends string>(items: T[], value: T) {
 
 function supportsPin(skill: LogueSkill) {
   return (
-    skill.system &&
     skill.task === "generate" &&
     skill.surfaces.includes("extension") &&
     skill.contexts.some(
@@ -298,7 +297,7 @@ export function V2SkillsRoute({
     }
   }
 
-  async function updateBuiltIn(
+  async function updateSkillPreference(
     skill: LogueSkill,
     changes: { pinned?: boolean; hidden?: boolean },
   ) {
@@ -309,9 +308,7 @@ export function V2SkillsRoute({
       await onRefresh();
     } catch (cause) {
       setError(
-        cause instanceof Error
-          ? cause.message
-          : "Could not update this Built-in Skill.",
+        cause instanceof Error ? cause.message : "Could not update this Skill.",
       );
     } finally {
       setBusy(false);
@@ -496,7 +493,7 @@ export function V2SkillsRoute({
                         skill.hidden
                           ? "Hidden"
                           : skill.pinned
-                            ? "Built-in · Pinned"
+                            ? `${skill.system ? "Built-in" : "My Skill"} · Pinned`
                             : skill.enabled
                               ? skill.system
                                 ? "Built-in"
@@ -534,7 +531,7 @@ export function V2SkillsRoute({
                               : selected.pinned
                                 ? "Built-in · Pinned"
                                 : "Built-in"
-                            : `My Skill · revision ${selected.revision}`
+                            : `My Skill · revision ${selected.revision}${selected.pinned ? " · Pinned" : ""}`
                         }
                       />
                       <h2>{selected.name}</h2>
@@ -567,7 +564,7 @@ export function V2SkillsRoute({
                             size="sm"
                             disabled={busy}
                             onClick={() =>
-                              void updateBuiltIn(selected, {
+                              void updateSkillPreference(selected, {
                                 pinned: !selected.pinned,
                               })
                             }
@@ -584,7 +581,7 @@ export function V2SkillsRoute({
                           size="sm"
                           disabled={busy}
                           onClick={() =>
-                            void updateBuiltIn(selected, {
+                            void updateSkillPreference(selected, {
                               hidden: !selected.hidden,
                             })
                           }
@@ -798,13 +795,32 @@ export function V2SkillsRoute({
                       ) : null}
 
                       <div className="v2-inline-actions v2-actions-between">
-                        <Button
-                          onClick={() => void removeCurrent()}
-                          disabled={busy}
-                        >
-                          <Trash2 size={14} />
-                          Delete
-                        </Button>
+                        <div className="v2-inline-actions">
+                          {supportsPin(selected) ? (
+                            <Button
+                              onClick={() =>
+                                void updateSkillPreference(selected, {
+                                  pinned: !selected.pinned,
+                                })
+                              }
+                              disabled={busy}
+                            >
+                              {selected.pinned ? (
+                                <PinOff size={14} />
+                              ) : (
+                                <Pin size={14} />
+                              )}
+                              {selected.pinned ? "Unpin" : "Pin"}
+                            </Button>
+                          ) : null}
+                          <Button
+                            onClick={() => void removeCurrent()}
+                            disabled={busy}
+                          >
+                            <Trash2 size={14} />
+                            Delete
+                          </Button>
+                        </div>
                         <Button
                           variant="primary"
                           onClick={() => void saveCurrent()}
