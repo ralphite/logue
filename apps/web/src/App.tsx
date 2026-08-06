@@ -3,6 +3,7 @@ import {
   CirclePlus,
   FileText,
   LibraryBig,
+  MessageSquareText,
   Mic2,
   Search,
   Sparkles,
@@ -29,7 +30,7 @@ import { SearchPending } from "./components/SearchPending";
 import { Button, PageHeader } from "./components/ui";
 import { pageColumnClass } from "./components/layout";
 import { navigationURL, parseNavigation, type AppNavigation } from "./navigation";
-import { groupIdenticalMaterials } from "./materialGroups";
+import { groupLibraryMaterials } from "./commentBundles";
 import { matchesMaterialSearchText, orderMaterialSearchResults, useMaterialSearch } from "./materialSearch";
 
 type Filter = "all" | "unfiled" | "organized";
@@ -119,7 +120,7 @@ export function App() {
 
   useEffect(() => {
     const sectionTitle = section === "stream"
-      ? "Stream"
+      ? "Library"
       : section === "projects"
         ? navigation.projectName || "Projects"
         : section === "documents"
@@ -217,17 +218,23 @@ export function App() {
     }
     return orderMaterialSearchResults(materials, activeMaterialSearch).filter((item) => matchesMaterialFilter(item, filter));
   }, [activeMaterialSearch, filter, materials, normalizedQuery]);
-  const materialGroups = useMemo(() => groupIdenticalMaterials(filtered), [filtered]);
+  const materialGroups = useMemo(() => groupLibraryMaterials(filtered, materials), [filtered, materials]);
 
-  const selectedId = section === "stream" ? navigation.materialId : undefined;
+  const selectedId = section === "stream" || section === "projects" ? navigation.materialId : undefined;
   const selected = materials.find((item) => item.id === selectedId);
 
+  const materialNavigation = useCallback((materialId?: string): AppNavigation => (
+    section === "projects"
+      ? { section: "projects", projectName: navigation.projectName, materialId }
+      : { section: "stream", materialId }
+  ), [navigation.projectName, section]);
+
   useEffect(() => {
-    if (loading || section !== "stream" || !navigation.materialId) return;
+    if (loading || (section !== "stream" && section !== "projects") || !navigation.materialId) return;
     if (!materials.some((item) => item.id === navigation.materialId)) {
-      navigate({ section: "stream" }, { replace: true });
+      navigate(materialNavigation(), { replace: true });
     }
-  }, [loading, materials, navigate, navigation.materialId, section]);
+  }, [loading, materialNavigation, materials, navigate, navigation.materialId, section]);
 
   async function addAnnotation(text: string) {
     if (!selected) return;
@@ -239,7 +246,7 @@ export function App() {
       source: selected.source,
     });
     setMaterials((current) => [created, ...current]);
-    navigate({ section: "stream", materialId: created.id });
+    navigate(materialNavigation(created.id));
   }
 
   async function addManualMaterial(content: string, projects: string[]) {
@@ -261,7 +268,7 @@ export function App() {
   async function removeMaterial(id: string) {
     await deleteMaterial(id);
     setMaterials((current) => current.filter((material) => material.id !== id));
-    if (selectedId === id) navigate({ section: "stream" }, { replace: true });
+    if (selectedId === id) navigate(materialNavigation(), { replace: true });
   }
 
   return (
@@ -288,31 +295,33 @@ export function App() {
           onModeChange={openWorkspaceSection}
         />
       ) : section === "projects" ? (
+        <div className={materialMode === "page" && selected ? "hidden" : "contents"}>
         <ProjectPage
           materials={materials}
           initialProject={navigation.projectName}
           onSelectedProjectChange={openProject}
           onOpenStream={(project) => { openSection("stream"); if (project) { setQuery(project); setFilter("all"); } else { setQuery(""); setFilter("unfiled"); } }}
-          onOpenMaterial={(materialId) => { setQuery(""); setFilter("all"); setMaterialMode("peek"); navigate({ section: "stream", materialId }); }}
+          onOpenMaterial={(materialId) => { setMaterialMode("peek"); navigate({ section: "projects", projectName: navigation.projectName, materialId }); }}
           onOpenResults={(project, id) => navigate({ section: "documents", projectName: project, documentId: id })}
         />
+        </div>
       ) : section === "settings" ? (
         <SettingsPage status={status} />
       ) : (
         <main className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--surface)] ${materialMode === "page" ? "hidden" : ""}`}>
           <PageHeader
-            title="Stream"
+            title="Library"
             testId="stream-header-column"
             actions={
               <Button
                 variant="primary"
                 size="sm"
                 onClick={() => setShowComposer(true)}
-                aria-label="Add material"
+                  aria-label="Add note"
                 className="max-[640px]:h-11"
               >
                 <CirclePlus size={15} />
-                <span className="max-[540px]:hidden">Add material</span>
+                <span className="max-[540px]:hidden">Add note</span>
               </Button>
             }
           />
@@ -323,10 +332,10 @@ export function App() {
               <label className="relative min-w-[220px] flex-1">
                 <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#969990]" />
                 <input
-                  aria-label="Search materials"
+                  aria-label="Search Library"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search materials"
+                  placeholder="Search Library"
                   className="h-9 w-full rounded-md border border-[#dfdfdc] bg-white pl-9 pr-3 text-[14px] text-[#2e302b] outline-none placeholder:text-[#9b9e96] focus:border-[#aaa]"
                 />
               </label>
@@ -367,11 +376,13 @@ export function App() {
                 <div>
                   {materialGroups.map((group) => {
                     const material = group.representative;
-                    const Icon = materialIcons[material.kind];
-                    const duplicate = group.items.length > 1;
+                    const bundle = group.bundle;
+                    const displayMaterial = bundle?.primaryComment ?? material;
+                    const Icon = bundle ? (displayMaterial.captureId ? Mic2 : MessageSquareText) : materialIcons[material.kind];
+                    const duplicate = !bundle && group.items.length > 1;
                     const expanded = expandedMaterialGroups.has(group.key);
                     const selectedInGroup = group.items.some((item) => item.id === selectedId);
-                    const searchMatch = materialSearchMatches.get(material.id);
+                    const searchMatch = materialSearchMatches.get(displayMaterial.id) ?? materialSearchMatches.get(material.id);
                     const projectLabel = group.projects.length === 0
                       ? "Unfiled"
                       : group.projects.length === 1
@@ -392,15 +403,17 @@ export function App() {
                               return;
                             }
                             setMaterialMode("peek");
-                            navigate({ section: "stream", materialId: material.id });
+                            navigate({ section: "stream", materialId: displayMaterial.id });
                           }}
+                          data-testid={bundle ? "comment-bundle-row" : undefined}
                           aria-expanded={duplicate ? expanded : undefined}
-                          className={`grid min-h-11 w-full grid-cols-[minmax(0,1fr)_150px_150px_70px] items-center gap-3 border-b border-[#eeeeeb] px-3 py-2.5 text-left transition hover:bg-[#f7f7f5] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5b64f4] max-[800px]:grid-cols-[minmax(0,1fr)_100px_60px] max-[480px]:grid-cols-[minmax(0,1fr)_50px] ${selectedInGroup ? "bg-[#f2f2ef]" : ""}`}
+                          className={`grid w-full grid-cols-[minmax(0,1fr)_150px_150px_70px] items-center gap-3 border-b border-[#eeeeeb] px-3 text-left transition hover:bg-[#f7f7f5] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5b64f4] max-[800px]:grid-cols-[minmax(0,1fr)_100px_60px] max-[480px]:grid-cols-[minmax(0,1fr)_50px] ${bundle ? "min-h-14 py-2" : "min-h-11 py-2.5"} ${selectedInGroup ? "bg-[#f2f2ef]" : ""}`}
                         >
                           <span className="flex min-w-0 items-center gap-2.5">
                             {duplicate ? <ChevronRight size={14} className={`shrink-0 text-[#969792] transition ${expanded ? "rotate-90" : ""}`} /> : <Icon size={15} className="shrink-0 text-[#7b7c77]" />}
                             <span className="min-w-0">
-                              <span className="block truncate text-[14px] text-[#3d3e3a]">{material.content}</span>
+                              <span className="block truncate text-[14px] text-[#3d3e3a]">{displayMaterial.content}</span>
+                              {bundle && <span className="mt-0.5 block truncate text-[12px] text-[#8b8d87]">On “{material.content}”</span>}
                               {searchMatch?.reason && searchMatch.match !== "content" && <span className="mt-0.5 block truncate text-[12px] text-[#8b8d87]">{searchMatch.reason}</span>}
                             </span>
                             {duplicate && <span className="hidden shrink-0 rounded bg-[#eeeeea] px-1.5 py-0.5 text-[12px] font-medium text-[#777873] max-[800px]:inline-flex">{group.items.length} items</span>}
@@ -410,8 +423,8 @@ export function App() {
                             <span className="truncate text-[15px] text-[#73746f]">{projectLabel}</span>
                             {group.needsReview && <span aria-label="Needs review" title="Needs review" className="size-2 shrink-0 rounded-full bg-[#d3a244]" />}
                           </span>
-                          <span className="truncate text-[15px] text-[#7f807b] max-[800px]:hidden">{duplicate ? `${group.items.length} sources` : sourceName(material)}</span>
-                          <span className="text-[14px] text-[#9b9c97]">{shortDate(material.createdAt)}</span>
+                          <span className="truncate text-[15px] text-[#7f807b] max-[800px]:hidden">{bundle ? "Web + You" : duplicate ? `${group.items.length} sources` : sourceName(material)}</span>
+                          <span className="text-[14px] text-[#9b9c97]">{shortDate(displayMaterial.createdAt)}</span>
                         </button>
                         {duplicate && expanded && (
                           <div className="border-b border-[#e9e9e5] bg-[#fafaf8] px-3 py-1.5">
@@ -438,12 +451,12 @@ export function App() {
             ) : !error && materials.length === 0 ? (
               <section className="mx-auto flex max-w-lg flex-col items-center px-6 py-20 text-center">
                 <span className="inline-flex size-10 items-center justify-center rounded-lg bg-[#f0f0ed] text-[#71736d]"><LibraryBig size={19} /></span>
-                <h2 className="mt-4 text-[16px] font-semibold tracking-[-0.02em] text-[#3f413c]">Capture your first material</h2>
+                <h2 className="mt-4 text-[16px] font-semibold tracking-[-0.02em] text-[#3f413c]">Capture your first source</h2>
                 <p className="mt-1.5 max-w-sm text-[14px] leading-5 text-[#858780]">Use Logue on any webpage to dictate or save a selection. The original, its source, and every derivative stay in one record chain.</p>
-                <button type="button" onClick={() => setShowComposer(true)} className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[14px] font-medium text-white hover:bg-[#3a3b37]"><CirclePlus size={14} /> Add first material</button>
+                <button type="button" onClick={() => setShowComposer(true)} className="mt-5 inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[14px] font-medium text-white hover:bg-[#3a3b37]"><CirclePlus size={14} /> Add first note</button>
               </section>
             ) : error ? null : materialSearchPending ? (
-              <SearchPending label="materials" className="min-h-36" />
+              <SearchPending label="sources" className="min-h-36" />
             ) : (
               <div className="flex items-center gap-2 px-3 py-5 text-[14px] text-[#8d8f89]">
                 <span>No matches</span>
@@ -455,7 +468,7 @@ export function App() {
         </main>
       )}
 
-      {section === "stream" && selected && (
+      {(section === "stream" || section === "projects") && selected && (
         <>
         {materialMode === "peek" && (
           <PanelResizer
@@ -473,14 +486,15 @@ export function App() {
           key={selected.id}
           material={selected}
           mode={materialMode}
+          originLabel={section === "projects" ? navigation.projectName || "Project" : "Library"}
           peekWidth={materialDetailWidth}
-          onClose={() => { navigate({ section: "stream" }); setMaterialMode("peek"); }}
+          onClose={() => { navigate(materialNavigation()); setMaterialMode("peek"); }}
           onExpand={() => setMaterialMode("page")}
           onAddAnnotation={addAnnotation}
           onUpdateContent={updateContent}
           onUpdateOrganization={updateOrganization}
           onDelete={removeMaterial}
-          onOpenParent={(id) => navigate({ section: "stream", materialId: id })}
+          onOpenParent={(id) => navigate(materialNavigation(id))}
           parents={(selected.parentIds ?? []).map((id) => materials.find((item) => item.id === id)).filter((item): item is Material => Boolean(item))}
           dependents={materials.filter((item) => item.parentIds?.includes(selected.id))}
         />

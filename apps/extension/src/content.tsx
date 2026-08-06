@@ -1,7 +1,7 @@
 import { SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type SelectionSkillApplyTransaction } from "@logue/ui";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { adoptExtensionSkillRun, cancelMaterialSave, createExtensionSkillRun, getCaptureContext, getExtensionSkills, saveMaterial, transcribeAudio, type AppliedContext, type ExtensionSkill } from "./api";
+import { adoptExtensionSkillRun, cancelMaterialSave, createExtensionSkillRun, getCaptureContext, getExtensionSkills, getServiceStatus, saveMaterial, saveSelection, transcribeAudio, type AppliedContext, type ExtensionSkill } from "./api";
 import { activeEditableElement, getEditableText, googleDocsEditableTarget, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElement, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused } from "./dom";
 import { hasNativeSelectionSkillOwner, isLogueExtensionDisabledDocument, logueServerCandidate } from "./eligibility";
 import {
@@ -22,8 +22,9 @@ import { recordingShortcutAction } from "./recordingShortcuts";
 import { createRequestId } from "./requestId";
 import { shouldDismissSelectionSkills } from "./selectionSkillEscape";
 import { selectionSkillInvocationState } from "./selectionSkillInvocation";
-import { completeVoiceInput, VoiceInputTransactionError } from "./transaction";
+import { completeSelectionVoiceInput, completeVoiceInput, VoiceInputTransactionError } from "./transaction";
 import { InlineVoiceControls, type InlineVoicePhase } from "./InlineVoiceControls";
+import { SelectionVoiceControls, type SelectionCommentPhase } from "./SelectionVoiceControls";
 import styles from "./extension.css?inline";
 
 interface ContentRequestMessage {
@@ -61,6 +62,24 @@ interface InlineVoiceSession {
   targetText: string;
 }
 
+interface PageSelectionSnapshot {
+  text: string;
+  source: CaptureSource & {
+    selection: string;
+    context_before?: string;
+    context_after?: string;
+  };
+  range: Range;
+  anchor: DOMRect;
+}
+
+interface SelectionCommentSession {
+  id: string;
+  snapshot: PageSelectionSnapshot;
+  projects: string[];
+  audio?: Blob;
+}
+
 interface GoogleDocsProxyState extends GoogleDocsLauncherState {
   anchor: DOMRect;
 }
@@ -89,6 +108,49 @@ function pageSource(): CaptureSource {
   };
 }
 
+function staticPageSelection(): PageSelectionSnapshot | undefined {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || selection.rangeCount !== 1) return undefined;
+  const text = selection.toString().trim();
+  if (!text) return undefined;
+  const range = selection.getRangeAt(0);
+  const node = range.commonAncestorContainer;
+  const element = node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement;
+  if (!element || element.closest("#logue-extension-host, input, textarea, [contenteditable]:not([contenteditable='false'])")) return undefined;
+  const rects = range.getClientRects();
+  const anchor = rects.length ? rects[rects.length - 1] : range.getBoundingClientRect();
+  if (!anchor.width && !anchor.height) return undefined;
+
+  const surrounding = element.textContent?.replace(/\s+/g, " ").trim() ?? "";
+  const selectedIndex = surrounding.indexOf(text);
+  const contextBefore = selectedIndex > 0 ? surrounding.slice(Math.max(0, selectedIndex - 240), selectedIndex).trim() : "";
+  const contextAfter = selectedIndex >= 0
+    ? surrounding.slice(selectedIndex + text.length, selectedIndex + text.length + 240).trim()
+    : "";
+  return {
+    text,
+    range: range.cloneRange(),
+    anchor,
+    source: {
+      ...pageSource(),
+      selection: text,
+      ...(contextBefore ? { context_before: contextBefore } : {}),
+      ...(contextAfter ? { context_after: contextAfter } : {}),
+    },
+  };
+}
+
+function refreshedSelectionAnchor(snapshot: PageSelectionSnapshot) {
+  const node = snapshot.range.commonAncestorContainer;
+  const connected = node.nodeType === Node.ELEMENT_NODE
+    ? (node as Element).isConnected
+    : Boolean(node.parentElement?.isConnected);
+  if (!connected) return undefined;
+  const rects = snapshot.range.getClientRects();
+  const anchor = rects.length ? rects[rects.length - 1] : snapshot.range.getBoundingClientRect();
+  return anchor.width || anchor.height ? anchor : undefined;
+}
+
 function ExtensionLauncher() {
   const [targetRect, setTargetRect] = useState<DOMRect>();
   const [keyboardActive, setKeyboardActive] = useState(false);
@@ -97,6 +159,9 @@ function ExtensionLauncher() {
   const [pendingCopyText, setPendingCopyText] = useState("");
   const [googleDocsProxy, setGoogleDocsProxy] = useState<GoogleDocsProxyState>();
   const [selectionSnapshot, setSelectionSnapshot] = useState<EditableSelectionSnapshot>();
+  const [pageSelectionSnapshot, setPageSelectionSnapshot] = useState<PageSelectionSnapshot>();
+  const [selectionCommentPhase, setSelectionCommentPhase] = useState<SelectionCommentPhase>("ready");
+  const [selectionCommentError, setSelectionCommentError] = useState("");
   const [selectionSkills, setSelectionSkills] = useState<ExtensionSkill[]>([]);
   const [selectionSkillNotice, setSelectionSkillNotice] = useState<{
     anchor: { left: number; top: number };
@@ -110,11 +175,20 @@ function ExtensionLauncher() {
   const voicePhaseRef = useRef<InlineVoicePhase>("idle");
   const voiceSessionRef = useRef<InlineVoiceSession | undefined>(undefined);
   const selectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
+  const pageSelectionSnapshotRef = useRef<PageSelectionSnapshot | undefined>(undefined);
+  const selectionCommentSessionRef = useRef<SelectionCommentSession | undefined>(undefined);
+  const selectionCommentPhaseRef = useRef<SelectionCommentPhase>("ready");
+  const pageSelectionRefreshFrameRef = useRef<number | undefined>(undefined);
   const dismissedSelectionSnapshotRef = useRef<EditableSelectionSnapshot | undefined>(undefined);
   const selectionRefreshFrameRef = useRef<number | undefined>(undefined);
   const selectionSkillsLoadedRef = useRef(false);
   const selectionNoticeTimerRef = useRef<number | undefined>(undefined);
   const eligibleSelectionSkills = selectionSkillEligibility(selectionSkills, "extension");
+
+  const setSelectionCommentPhaseValue = useCallback((phase: SelectionCommentPhase) => {
+    selectionCommentPhaseRef.current = phase;
+    setSelectionCommentPhase(phase);
+  }, []);
 
   const setInlineVoicePhase = useCallback((phase: InlineVoicePhase) => {
     voicePhaseRef.current = phase;
@@ -243,6 +317,174 @@ function ExtensionLauncher() {
       selectionNoticeTimerRef.current = window.setTimeout(() => setSelectionSkillNotice(undefined), 4500);
     }
   }, []);
+
+  const refreshPageSelection = useCallback(() => {
+    if (selectionCommentSessionRef.current) return;
+    const next = staticPageSelection();
+    pageSelectionSnapshotRef.current = next;
+    setPageSelectionSnapshot(next);
+    if (next) {
+      setSelectionCommentError("");
+      setSelectionCommentPhaseValue("ready");
+    }
+  }, [setSelectionCommentPhaseValue]);
+
+  const schedulePageSelectionRefresh = useCallback(() => {
+    if (pageSelectionRefreshFrameRef.current !== undefined) {
+      window.cancelAnimationFrame(pageSelectionRefreshFrameRef.current);
+    }
+    pageSelectionRefreshFrameRef.current = window.requestAnimationFrame(() => {
+      pageSelectionRefreshFrameRef.current = undefined;
+      refreshPageSelection();
+    });
+  }, [refreshPageSelection]);
+
+  const commitSelectionComment = useCallback((session: SelectionCommentSession, audio: Blob) => {
+    if (selectionCommentSessionRef.current?.id !== session.id) return;
+    session.audio = audio;
+    setSelectionCommentPhaseValue("committing");
+    setSelectionCommentError("");
+    void (async () => {
+      let appliedContext: AppliedContext | undefined;
+      try {
+        await completeSelectionVoiceInput({
+          transcribe: async () => {
+            const activeProject = session.projects[0] ?? "";
+            const context = await getCaptureContext(session.snapshot.source.url, activeProject);
+            const project = activeProject
+              ? context.projects.find((item) => item.name === activeProject)
+              : undefined;
+            const glossary = [...context.personal_glossary, ...(project?.glossary ?? [])];
+            appliedContext = {
+              page_url: session.snapshot.source.url,
+              page_title: session.snapshot.source.title,
+              reference_project: activeProject || undefined,
+              personal_context: context.personal_context || undefined,
+              project_overview: project?.overview || undefined,
+              glossary,
+              recent_adopted_ids: context.recent_adopted_refs?.map((item) => item.id) ?? [],
+              recent_adopted_texts: context.recent_adopted_refs?.map((item) => item.text) ?? context.recent_adopted,
+            };
+            const transcription = await transcribeAudio({
+              requestId: session.id,
+              audio,
+              source: session.snapshot.source,
+              selectedText: session.snapshot.text,
+              projectContext: [context.personal_context, project?.overview].filter(Boolean).join("\n\n"),
+              glossary: glossary.join("\n"),
+              instructions: "Transcribe only the spoken comment about the selected text. Preserve the speaker's meaning and wording.",
+              appliedContext,
+            });
+            return { text: transcription.text, captureId: transcription.capture_id };
+          },
+          save: (transcription) => saveSelection({
+            requestId: session.id,
+            sourceContent: session.snapshot.text,
+            annotation: transcription.text,
+            transcript: transcription.text,
+            source: session.snapshot.source,
+            projects: session.projects,
+            captureId: transcription.captureId,
+            appliedContext,
+          }),
+        });
+        if (selectionCommentSessionRef.current?.id !== session.id) return;
+        selectionCommentSessionRef.current = undefined;
+        pageSelectionSnapshotRef.current = undefined;
+        setPageSelectionSnapshot(undefined);
+        setSelectionCommentError("");
+        setSelectionCommentPhaseValue("ready");
+        window.getSelection()?.removeAllRanges();
+      } catch (cause) {
+        if (selectionCommentSessionRef.current?.id !== session.id) return;
+        const message = cause instanceof VoiceInputTransactionError
+          ? cause.message
+          : cause instanceof Error ? cause.message : "Could not save this voice comment.";
+        setSelectionCommentError(message);
+        setSelectionCommentPhaseValue("error");
+      }
+    })();
+  }, [setSelectionCommentPhaseValue]);
+
+  const startSelectionComment = useCallback(() => {
+    const retry = selectionCommentSessionRef.current;
+    if (selectionCommentPhaseRef.current === "error" && retry?.audio) {
+      commitSelectionComment(retry, retry.audio);
+      return;
+    }
+    const snapshot = pageSelectionSnapshotRef.current;
+    if (!snapshot) return;
+    const session: SelectionCommentSession = {
+      id: createRequestId(),
+      snapshot,
+      projects: [],
+    };
+    selectionCommentSessionRef.current = session;
+    setSelectionCommentError("");
+    setSelectionCommentPhaseValue("starting");
+    void Promise.all([
+      getServiceStatus(),
+      chrome.runtime.sendMessage({ type: "logue:get-tab-projects" }) as Promise<{ ok?: boolean; value?: string[] } | undefined>,
+    ]).then(([status, projectResponse]) => {
+      if (selectionCommentSessionRef.current?.id !== session.id) return;
+      if (!status.ai_configured) throw new Error("Set up Voice in Logue before recording.");
+      if (!projectResponse?.ok || !Array.isArray(projectResponse.value)) {
+        throw new Error("Could not read the Project for this tab.");
+      }
+      session.projects = projectResponse.value.slice(0, 1);
+      return sendInlineRecorderControl(session.id, "start");
+    }).catch((cause: unknown) => {
+      if (selectionCommentSessionRef.current?.id !== session.id) return;
+      selectionCommentSessionRef.current = undefined;
+      setSelectionCommentError(cause instanceof Error ? cause.message : "Could not start voice comment.");
+      setSelectionCommentPhaseValue("error");
+    });
+  }, [commitSelectionComment, sendInlineRecorderControl, setSelectionCommentPhaseValue]);
+
+  const acceptSelectionComment = useCallback(() => {
+    const session = selectionCommentSessionRef.current;
+    if (!session || selectionCommentPhaseRef.current !== "recording") return;
+    void sendInlineRecorderControl(session.id, "stop").catch((cause: unknown) => {
+      if (selectionCommentSessionRef.current?.id !== session.id) return;
+      setSelectionCommentError(cause instanceof Error ? cause.message : "Could not stop voice comment.");
+      setSelectionCommentPhaseValue("error");
+    });
+  }, [sendInlineRecorderControl, setSelectionCommentPhaseValue]);
+
+  const cancelSelectionComment = useCallback(() => {
+    const session = selectionCommentSessionRef.current;
+    if (selectionCommentPhaseRef.current === "committing") return;
+    selectionCommentSessionRef.current = undefined;
+    if (session) void sendInlineRecorderControl(session.id, "cancel").catch(() => undefined);
+    setSelectionCommentError("");
+    setSelectionCommentPhaseValue("ready");
+    refreshPageSelection();
+  }, [refreshPageSelection, sendInlineRecorderControl, setSelectionCommentPhaseValue]);
+
+  const finishSelectionComment = useCallback((event: RecordingBridgeEvent) => {
+    const session = selectionCommentSessionRef.current;
+    if (!session || event.sessionId !== session.id) return false;
+    if (event.event === "started") {
+      setSelectionCommentPhaseValue("recording");
+      return true;
+    }
+    if (event.event === "cancelled") {
+      selectionCommentSessionRef.current = undefined;
+      setSelectionCommentPhaseValue("ready");
+      return true;
+    }
+    if (event.event === "error") {
+      selectionCommentSessionRef.current = undefined;
+      setSelectionCommentError(event.error || "Could not start voice comment.");
+      setSelectionCommentPhaseValue("error");
+      return true;
+    }
+    if (event.event === "stopped") {
+      commitSelectionComment(session, audioBlobFromEvent(event));
+      return true;
+    }
+    return true;
+  }, [commitSelectionComment, setSelectionCommentPhaseValue]);
 
   const finishInlineVoice = useCallback((event: RecordingBridgeEvent) => {
     const session = voiceSessionRef.current;
@@ -466,6 +708,18 @@ function ExtensionLauncher() {
     const onViewport = () => {
       setViewport({ width: window.innerWidth, height: window.innerHeight });
       refreshTarget();
+      const pageSelection = pageSelectionSnapshotRef.current;
+      if (pageSelection) {
+        const anchor = refreshedSelectionAnchor(pageSelection);
+        if (anchor) {
+          const next = { ...pageSelection, anchor };
+          pageSelectionSnapshotRef.current = next;
+          setPageSelectionSnapshot(next);
+        } else if (!selectionCommentSessionRef.current) {
+          pageSelectionSnapshotRef.current = undefined;
+          setPageSelectionSnapshot(undefined);
+        }
+      }
     };
     const onRoute = () => {
       // A same-document route update must not cancel an in-progress voice
@@ -473,6 +727,17 @@ function ExtensionLauncher() {
       // Selection Skills are stricter: their old selection may not survive a
       // route change, so close that menu until the user makes a new selection.
       dismissSelectionSkills();
+      const selectionComment = selectionCommentSessionRef.current;
+      if (selectionComment && selectionCommentPhaseRef.current !== "committing") {
+        selectionCommentSessionRef.current = undefined;
+        void sendInlineRecorderControl(selectionComment.id, "cancel").catch(() => undefined);
+      }
+      if (selectionCommentPhaseRef.current !== "committing") {
+        pageSelectionSnapshotRef.current = undefined;
+        setPageSelectionSnapshot(undefined);
+        setSelectionCommentError("");
+        setSelectionCommentPhaseValue("ready");
+      }
       targetPageHrefRef.current = window.location.href;
       const target = targetRef.current;
       if (!isEditableTargetAvailable(target)) {
@@ -496,6 +761,7 @@ function ExtensionLauncher() {
       if (host && event.composedPath().includes(host)) return;
       refreshTarget();
       scheduleSelectionSkillRefresh();
+      schedulePageSelectionRefresh();
     };
     const onPointerDownOutsideSelection = (event: PointerEvent) => {
       const target = targetRef.current;
@@ -504,15 +770,18 @@ function ExtensionLauncher() {
       dismissSelectionSkills();
     };
     document.addEventListener("selectionchange", scheduleSelectionSkillRefresh);
+    document.addEventListener("selectionchange", schedulePageSelectionRefresh);
     document.addEventListener("select", onSelectionInteraction, true);
     document.addEventListener("pointerdown", onPointerDownOutsideSelection, true);
     document.addEventListener("pointerup", onSelectionInteraction, true);
     document.addEventListener("keyup", onSelectionInteraction, true);
     activateTarget(activeEditableElement(document));
     scheduleSelectionSkillRefresh();
+    schedulePageSelectionRefresh();
     const initialLayoutFrame = window.requestAnimationFrame(() => {
       activateTarget(activeEditableElement(document));
       scheduleSelectionSkillRefresh();
+      schedulePageSelectionRefresh();
     });
     window.addEventListener("scroll", onViewport, true);
     window.addEventListener("resize", onViewport);
@@ -524,6 +793,7 @@ function ExtensionLauncher() {
       window.clearInterval(routeTimer);
       document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("selectionchange", scheduleSelectionSkillRefresh);
+      document.removeEventListener("selectionchange", schedulePageSelectionRefresh);
       document.removeEventListener("select", onSelectionInteraction, true);
       document.removeEventListener("pointerdown", onPointerDownOutsideSelection, true);
       document.removeEventListener("pointerup", onSelectionInteraction, true);
@@ -532,12 +802,16 @@ function ExtensionLauncher() {
         window.cancelAnimationFrame(selectionRefreshFrameRef.current);
         selectionRefreshFrameRef.current = undefined;
       }
+      if (pageSelectionRefreshFrameRef.current !== undefined) {
+        window.cancelAnimationFrame(pageSelectionRefreshFrameRef.current);
+        pageSelectionRefreshFrameRef.current = undefined;
+      }
       window.removeEventListener("scroll", onViewport, true);
       window.removeEventListener("resize", onViewport);
       window.removeEventListener("hashchange", onRoute);
       window.removeEventListener("popstate", onRoute);
     };
-  }, [clearTarget, dismissSelectionSkills, refreshTarget, scheduleSelectionSkillRefresh]);
+  }, [clearTarget, dismissSelectionSkills, refreshTarget, schedulePageSelectionRefresh, scheduleSelectionSkillRefresh, sendInlineRecorderControl, setSelectionCommentPhaseValue]);
 
   useEffect(() => {
     const target = targetRef.current;
@@ -638,6 +912,26 @@ function ExtensionLauncher() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const session = selectionCommentSessionRef.current;
+      if (!pageSelectionSnapshotRef.current && !session) return;
+      if (event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      const phase = selectionCommentPhaseRef.current;
+      if (event.key === "Enter" && phase === "recording") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        acceptSelectionComment();
+      } else if (event.key === "Escape" && phase !== "committing") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        cancelSelectionComment();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [acceptSelectionComment, cancelSelectionComment]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
       const session = voiceSessionRef.current;
       if (!session) return;
       const action = recordingShortcutAction({
@@ -695,7 +989,8 @@ function ExtensionLauncher() {
       }
       const contentMessage = message as ContentMessage;
       if (contentMessage?.type === "logue:inline-recorder-event") {
-        finishInlineVoice({ ...contentMessage, type: "logue:recording-bridge-event" });
+        const event = { ...contentMessage, type: "logue:recording-bridge-event" } as RecordingBridgeEvent;
+        if (!finishSelectionComment(event)) finishInlineVoice(event);
         sendResponse({ ok: true });
         return false;
       }
@@ -737,10 +1032,12 @@ function ExtensionLauncher() {
     return () => {
       chrome.runtime.onMessage.removeListener(listener);
     };
-  }, [cancelInlineVoice, controlGoogleDocsEditor, finishInlineVoice]);
+  }, [cancelInlineVoice, controlGoogleDocsEditor, finishInlineVoice, finishSelectionComment]);
 
   const captureActive = voicePhase === "starting" || voicePhase === "recording" || voicePhase === "processing";
-  const hasSelectionSkillMenu = Boolean(selectionSnapshot && eligibleSelectionSkills.length && !captureActive);
+  const selectionCommentActive = selectionCommentPhase === "starting" || selectionCommentPhase === "recording" || selectionCommentPhase === "committing";
+  const hasPageSelectionComment = Boolean(pageSelectionSnapshot && !captureActive && !isGoogleDocsDocumentTarget(targetRef.current));
+  const hasSelectionSkillMenu = Boolean(selectionSnapshot && eligibleSelectionSkills.length && !captureActive && !hasPageSelectionComment);
   const controlMetrics = inlineVoiceControlMetrics[voicePhase];
   const defaultPosition = targetRect ? defaultLauncherPosition(targetRect, viewport, controlMetrics.width, controlMetrics.height) : undefined;
   const position = defaultPosition ? clampLauncherPosition(defaultPosition, viewport, controlMetrics.width, controlMetrics.height) : undefined;
@@ -771,6 +1068,16 @@ function ExtensionLauncher() {
     !isGoogleDocsEditorFrame,
   );
   const googleDocsProxyVisible = Boolean(googleDocsProxy && googleDocsPosition);
+  const selectionCommentWidth = selectionCommentPhase === "recording" || selectionCommentPhase === "starting" ? 78 : 42;
+  const selectionCommentPosition = pageSelectionSnapshot ? {
+    left: Math.max(8, Math.min(viewport.width - selectionCommentWidth - 8, pageSelectionSnapshot.anchor.right + 8)),
+    top: Math.max(8, Math.min(
+      viewport.height - 50,
+      pageSelectionSnapshot.anchor.bottom + 50 > viewport.height
+        ? pageSelectionSnapshot.anchor.top - 50
+        : pageSelectionSnapshot.anchor.bottom + 8,
+    )),
+  } : undefined;
 
   function controlGoogleDocsProxy(action: GoogleDocsLauncherAction) {
     const showError = () => {
@@ -847,9 +1154,17 @@ function ExtensionLauncher() {
     setSelectionSkillNotice(undefined);
   }
 
-  if (!visible && !hasSelectionSkillMenu && !googleDocsProxyVisible) return null;
+  if (!visible && !hasSelectionSkillMenu && !googleDocsProxyVisible && !hasPageSelectionComment) return null;
   return (
     <>
+      {hasPageSelectionComment && selectionCommentPosition && <SelectionVoiceControls
+        phase={selectionCommentPhase}
+        style={selectionCommentPosition}
+        error={selectionCommentError}
+        onStart={startSelectionComment}
+        onAccept={acceptSelectionComment}
+        onCancel={cancelSelectionComment}
+      />}
       {hasSelectionSkillMenu && selectionSnapshot && <SelectionSkillMenu
         anchor={selectionSnapshot.anchor}
         skills={eligibleSelectionSkills}
@@ -867,7 +1182,7 @@ function ExtensionLauncher() {
       >
         {selectionSkillNotice.message}{selectionSkillNotice.history && <button type="button" onClick={() => void retrySelectionSkillHistory()}>Retry saving history</button>}
       </div>}
-      {visible && <InlineVoiceControls
+      {visible && !selectionCommentActive && !hasPageSelectionComment && <InlineVoiceControls
         phase={voicePhase}
         style={{ top: position?.top, left: position?.left }}
         onStart={startInlineVoice}

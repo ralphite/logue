@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import type { ExtensionSkill, LocalError, PageMaterial, PanelCaptureState } from "../../../extension/src/sidePanelModels";
+import type { ExtensionSkill, LocalError, PageMaterial, PanelCaptureState, PanelProject } from "../../../extension/src/sidePanelModels";
 import { SidePanelView } from "../../../extension/src/sidePanelView";
 import "../../../extension/src/sidePanel.css";
 
@@ -20,6 +20,11 @@ const skills: ExtensionSkill[] = [
 const pageMaterials: PageMaterial[] = [
   { id: "mat_2", content: "This was added moments ago and appears first.", createdAt: "2026-08-03T03:30:00Z" },
   { id: "mat_1", content: "A previous note connected to this page.", annotation: "Keep the original source separate from this annotation.", createdAt: "2026-08-03T03:20:00Z" },
+];
+
+const projects: PanelProject[] = [
+  { name: "Mobile research" },
+  { name: "Launch narrative" },
 ];
 
 const currentPage: PanelCaptureState = {
@@ -76,18 +81,21 @@ function SidePanelStage({
   const [pending, setPending] = useState(pendingInsert);
   const [serverURLDraft, setServerURLDraft] = useState("https://logue.example.com");
   const [serverSettingsOpen, setServerSettingsOpen] = useState(initialServerSettingsOpen);
+  const [selectedProject, setSelectedProject] = useState(state?.projects?.[0] ?? "");
+  const renderedState = state ? { ...state, projects: selectedProject ? [selectedProject] : [] } : undefined;
 
   return <SidePanelView
-    state={state}
+    state={renderedState}
     phase={phase}
     draft={draft}
     generatedText={generatedText}
     skills={skills}
     skillId={skills[0].id}
+    projects={projects}
     pageMaterials={pageMaterials}
     error={activeError}
     elapsed={7}
-    pendingInsert={pending && state ? { text: "Saved text ready to insert.", materialId: "mat_saved", sourceURL: state.source.url } : undefined}
+    pendingInsert={pending && renderedState ? { text: "Saved text ready to insert.", materialId: "mat_saved", sourceURL: renderedState.source.url } : undefined}
     insertingPending={false}
     generating={false}
     canRetry
@@ -99,6 +107,7 @@ function SidePanelStage({
     onDraftChange={setDraft}
     onGeneratedTextChange={setGeneratedText}
     onSkillIdChange={() => undefined}
+    onProjectChange={setSelectedProject}
     onStartRecording={() => { setActiveError(undefined); setPending(false); setPhase("starting"); }}
     onStopRecording={() => setPhase("processing")}
     onCancelRecording={() => setPhase("idle")}
@@ -130,6 +139,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const CurrentPage: Story = { args: { state: currentPage, initialDraft: "A note about this page" } };
+export const SelectedProject: Story = { args: { state: { ...currentPage, projects: ["Mobile research"] }, initialDraft: "A note grounded in this project" } };
 export const SelectionWithHistory: Story = { args: { state: pageSelection } };
 export const StartingMicrophone: Story = { args: { state: currentEditor, initialPhase: "starting" } };
 export const Recording: Story = { args: { state: currentEditor, initialPhase: "recording" } };

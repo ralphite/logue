@@ -149,7 +149,7 @@ class Store:
             return None
         return next((item for item in self.items() if item.get("request_id") == request_id), None)
 
-    def create_item(self, value: dict[str, Any]) -> dict[str, Any]:
+    def create_item(self, value: dict[str, Any], *, organization_status: str = "pending") -> dict[str, Any]:
         kind = str(value.get("kind", "")).strip()
         content = str(value.get("content", "")).strip()
         request_id = str(value.get("request_id", "")).strip()
@@ -157,6 +157,8 @@ class Store:
             raise ValueError(f"unsupported material kind {kind!r}")
         if not content:
             raise ValueError("content is required")
+        if organization_status not in {"pending", "confirmed"}:
+            raise ValueError("invalid initial organization status")
         existing = self._request_item(request_id)
         if existing:
             return existing
@@ -171,7 +173,7 @@ class Store:
             "status": "organized" if projects else "unfiled", "content": content,
             "projects": projects, "tags": normalize(value.get("tags")),
             "created_at": timestamp, "actor": str(value.get("actor", "")).strip() or "user",
-            "organization": {"status": "pending", "updated_at": timestamp},
+            "organization": {"status": organization_status, "updated_at": timestamp},
         }
         optional = {
             "request_id": request_id,
@@ -248,20 +250,98 @@ class Store:
                     path.unlink(missing_ok=True)
 
     def create_selection(self, value: dict[str, Any]) -> dict[str, Any]:
-        source_content = str(value.get("source_content", "")).strip()
-        annotation = str(value.get("annotation", "")).strip()
-        capture_id = str(value.get("capture_id", "")).strip()
+        allowed = {"request_id", "source_content", "annotation", "transcript", "source", "projects", "tags", "capture_id", "applied_context"}
+        unknown = sorted(set(value) - allowed)
+        if unknown:
+            raise ValueError(f"unsupported selection field {unknown[0]!r}")
+
+        def text_field(name: str) -> str:
+            entry = value.get(name, "")
+            if entry is None:
+                return ""
+            if not isinstance(entry, str):
+                raise ValueError(f"{name} must be a string")
+            return entry.strip()
+
+        source_content = text_field("source_content")
+        annotation = text_field("annotation")
+        transcript = text_field("transcript")
+        capture_id = text_field("capture_id")
+        request_id = text_field("request_id")
         if not source_content:
             raise ValueError("source content is required")
         if capture_id and not annotation:
             raise ValueError("captured audio requires an adopted annotation")
-        source_info = dict(value.get("source") or {})
+        source_value = value.get("source")
+        if source_value is not None and not isinstance(source_value, dict):
+            raise ValueError("source must be an object")
+        source_fields = {"url", "title", "domain", "selection", "context_before", "context_after"}
+        unknown_source = sorted(set(source_value or {}) - source_fields)
+        if unknown_source:
+            raise ValueError(f"unsupported source field {unknown_source[0]!r}")
+        if any(not isinstance(entry, str) for entry in (source_value or {}).values()):
+            raise ValueError("source fields must be strings")
+        for name in ("projects", "tags"):
+            entry = value.get(name)
+            if entry is not None and not isinstance(entry, list):
+                raise ValueError(f"{name} must be an array")
+            if isinstance(entry, list) and any(not isinstance(member, str) for member in entry):
+                raise ValueError(f"{name} entries must be strings")
+        applied_context = value.get("applied_context")
+        if applied_context is not None and not isinstance(applied_context, dict):
+            raise ValueError("applied_context must be an object")
+        context_strings = {"page_url", "page_title", "reference_project", "personal_context", "project_overview"}
+        context_arrays = {"glossary", "recent_adopted_ids", "recent_adopted_texts"}
+        unknown_context = sorted(set(applied_context or {}) - context_strings - context_arrays)
+        if unknown_context:
+            raise ValueError(f"unsupported applied_context field {unknown_context[0]!r}")
+        if any(not isinstance((applied_context or {})[name], str) for name in context_strings & set(applied_context or {})):
+            raise ValueError("applied_context text fields must be strings")
+        for name in context_arrays & set(applied_context or {}):
+            entry = (applied_context or {})[name]
+            if not isinstance(entry, list) or any(not isinstance(member, str) for member in entry):
+                raise ValueError(f"applied_context {name} must be an array of strings")
+
+        source_info = dict(source_value or {})
         source_info.setdefault("selection", source_content)
-        request_id = str(value.get("request_id", "")).strip()
-        source = self.create_item({"request_id": f"{request_id}:source" if request_id else "", "kind": "selection", "content": source_content, "source": source_info, "projects": value.get("projects"), "tags": value.get("tags")})
-        result: dict[str, Any] = {"source": source}
-        if annotation:
-            result["annotation"] = self.create_item({"request_id": f"{request_id}:annotation" if request_id else "", "kind": "derived", "content": annotation, "transcript": value.get("transcript"), "source": source_info, "projects": value.get("projects"), "tags": value.get("tags"), "parent_ids": [source["id"]], "capture_id": capture_id, "applied_context": value.get("applied_context")})
+        source_request_id = f"{request_id}:source" if request_id else ""
+        annotation_request_id = f"{request_id}:annotation" if request_id else ""
+        source_input = {"request_id": source_request_id, "kind": "selection", "content": source_content, "source": source_info, "projects": value.get("projects"), "tags": value.get("tags")}
+        annotation_input = {"request_id": annotation_request_id, "kind": "derived", "content": annotation, "transcript": transcript, "source": source_info, "projects": value.get("projects"), "tags": value.get("tags"), "capture_id": capture_id, "applied_context": applied_context}
+
+        # Validate both material payloads before either file can become visible.
+        for item in (source_input, annotation_input) if annotation else (source_input,):
+            kind = str(item.get("kind", "")).strip()
+            content = str(item.get("content", "")).strip()
+            if kind not in VALID_KINDS:
+                raise ValueError(f"unsupported material kind {kind!r}")
+            if not content:
+                raise ValueError("content is required")
+
+        with self.lock:
+            if request_id:
+                existing_source = self._request_item(source_request_id)
+                existing_annotation = self._request_item(annotation_request_id)
+                if existing_source:
+                    result: dict[str, Any] = {"source": existing_source}
+                    if existing_annotation:
+                        result["annotation"] = existing_annotation
+                    return result
+                if existing_annotation:
+                    raise ValueError("selection bundle is incomplete")
+
+            source = self.create_item(source_input, organization_status="confirmed")
+            result = {"source": source}
+            if not annotation:
+                return result
+            annotation_input["parent_ids"] = [source["id"]]
+            try:
+                result["annotation"] = self.create_item(annotation_input, organization_status="confirmed")
+            except BaseException:
+                # Readers also use this RLock, so a failed second write never
+                # exposes a half-created bundle through Store APIs.
+                (self.root / "items" / f"{source['id']}.json").unlink(missing_ok=True)
+                raise
         return result
 
     def projects(self) -> list[dict[str, Any]]:
@@ -385,7 +465,7 @@ class Store:
             item = by_id[identifier]
             sources.append({"id": identifier, "content": item["content"], "projects": item.get("projects", []), "tags": item.get("tags", []), "created_at": item["created_at"]})
         timestamp = now()
-        run = {"id": make_id("run_"), "skill_id": skill["id"], "skill_revision": skill["revision"], "skill_name": skill["name"], "skill_instructions": skill["instructions"], "task": skill["task"], "output_type": skill["output"], "instruction": instruction, "sources": sources, "status": "running", "created_at": timestamp, "updated_at": timestamp}
+        run = {"id": make_id("run_"), "skill_id": skill["id"], "skill_revision": skill["revision"], "skill_name": skill["name"], "skill_instructions": skill["instructions"], "task": skill["task"], "output_type": skill["output"], "instruction": instruction, "source_ids": [source["id"] for source in sources], "sources": sources, "status": "running", "created_at": timestamp, "updated_at": timestamp}
         for field in ("request_id", "project", "page_title", "page_url", "target_text", "selection"):
             text = str(value.get(field, "")).strip()
             if text:
@@ -816,11 +896,11 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self.method_error()
         elif path == "/v1/selections" and method == "POST":
-            result = store.create_selection(self.body_json())
+            value = self.body_json()
+            if value.get("request_id") in self.server.cancelled:
+                raise Conflict("selection save was cancelled")
+            result = store.create_selection(value)
             self.json(HTTPStatus.CREATED, result)
-            self.server.schedule_organization(result["source"])
-            if result.get("annotation"):
-                self.server.schedule_organization(result["annotation"])
         elif path == "/v1/projects" and method == "POST":
             self.json(HTTPStatus.CREATED, store.save_project("", self.body_json()))
         elif path.startswith("/v1/projects/") and method == "PATCH":
@@ -917,7 +997,11 @@ class Handler(BaseHTTPRequestHandler):
         source_ids = normalize(value.get("source_ids"))
         if not source_ids:
             query = "\n".join(str(value.get(field, "")) for field in ("instruction", "page_title", "target_text", "selection"))
-            source_ids = [match["id"] for match in search_items(query, store.items(), 5)]
+            project = str(value.get("project", "")).strip()
+            candidates = store.items()
+            if project:
+                candidates = [item for item in candidates if project in item.get("projects", [])]
+            source_ids = [match["id"] for match in search_items(query, candidates, 5)]
         run, existing = store.create_skill_run(value, skill, source_ids)
         if existing:
             self.json(HTTPStatus.OK, run)

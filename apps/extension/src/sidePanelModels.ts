@@ -11,6 +11,10 @@ export interface CaptureOrganization {
   tags: string[];
 }
 
+export interface PanelProject {
+  name: string;
+}
+
 export interface PageCaptureContext {
   source: CaptureSource;
   candidateServerURL?: string;

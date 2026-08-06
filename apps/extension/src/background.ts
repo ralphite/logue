@@ -1,6 +1,9 @@
 import {
+  explicitProjects,
   mergePanelCaptureState,
+  preserveTabProjects,
   sourceFromTab,
+  tabProjectRequestSender,
   type CaptureIntent,
   type PageCaptureContext,
   type PanelCaptureState,
@@ -74,6 +77,10 @@ interface PageContextReadyMessage {
   type: "logue:page-context-ready";
 }
 
+interface TabProjectsMessage {
+  type: "logue:get-tab-projects";
+}
+
 interface InlineRecorderControlMessage {
   type: "logue:inline-recorder-control";
   action: RecordingControlAction;
@@ -91,7 +98,7 @@ interface MicrophonePermissionResult {
   error?: string;
 }
 
-type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage | RecordingBridgeEvent | PageContextReadyMessage | InlineRecorderControlMessage | ExtensionRecorderEvent | MicrophonePermissionResult;
+type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage | RecordingBridgeEvent | PageContextReadyMessage | TabProjectsMessage | InlineRecorderControlMessage | ExtensionRecorderEvent | MicrophonePermissionResult;
 
 const nativeSidePanel = chrome.sidePanel as unknown as SidePanelChrome & {
   onOpened?: chrome.events.Event<(info: { tabId?: number; windowId?: number }) => void>;
@@ -288,16 +295,17 @@ function stagePanelState(state: PanelCaptureState) {
   // before staging the synchronous open state so a cold reopen cannot overwrite
   // the saved draft with an empty shell.
   const storedState = cached ? undefined : chrome.storage.session.get(storageKey);
-  const staged = preserveMatchingPanelDraft(state, cached);
+  const staged = preserveTabProjects(preserveMatchingPanelDraft(state, cached), cached);
   panelStates.set(staged.tabId, staged);
   if (cached) {
     void chrome.storage.session.set({ [storageKey]: staged });
   } else {
     void storedState?.then(async (stored) => {
       const current = panelStates.get(staged.tabId) ?? staged;
-      const restoredFromSession = preserveMatchingPanelDraft(
-        current,
-        stored[storageKey] as PanelCaptureState | undefined,
+      const sessionState = stored[storageKey] as PanelCaptureState | undefined;
+      const restoredFromSession = preserveTabProjects(
+        preserveMatchingPanelDraft(current, sessionState),
+        sessionState,
       );
       // If the user already typed during the short restore window, their live
       // values win over the older session snapshot.
@@ -413,6 +421,7 @@ async function startPanelGenerate(tabId: number) {
 }
 
 async function returnPanelToPage(tabId: number) {
+  const current = await restorePanelState(tabId);
   const tab = await chrome.tabs.get(tabId);
   const context = await readPageCaptureContext(tab);
   const next = panelStateForTab(
@@ -426,8 +435,9 @@ async function returnPanelToPage(tabId: number) {
     context.candidateServerURL,
   );
   if (!next) return false;
-  await persistPanelState(next);
-  broadcastPanelState(next);
+  const preserved = preserveTabProjects(next, current);
+  await persistPanelState(preserved);
+  broadcastPanelState(preserved);
   return true;
 }
 
@@ -491,7 +501,8 @@ async function setPanelContext(
 ) {
   const state = panelStateForTab(tab, intent, source, selectionText, targetText, undefined, targetAvailable, candidateServerURL);
   if (!state) return;
-  const merged = preserveMatchingPanelDraft(state, await restorePanelState(state.tabId));
+  const current = await restorePanelState(state.tabId);
+  const merged = preserveTabProjects(preserveMatchingPanelDraft(state, current), current);
   await persistPanelState(merged);
   broadcastPanelState(merged);
 }
@@ -794,6 +805,14 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
+  const projectRequestTabId = tabProjectRequestSender(message, sender.tab?.id);
+  if (projectRequestTabId !== undefined) {
+    void restorePanelState(projectRequestTabId)
+      .then((state) => sendResponse({ ok: true, value: explicitProjects(state) }))
+      .catch(() => sendResponse({ ok: true, value: [] }));
+    return true;
+  }
+
   const googleDocsAction = readGoogleDocsLauncherAction(message);
   if (googleDocsAction && sender.frameId === 0) {
     const tabId = sender.tab?.id;

@@ -21,13 +21,49 @@ export function mergePanelCaptureState(
   patch: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projects" | "tags">> & { pendingInsert?: PendingInsert | null },
 ): PanelCaptureState {
   const { pendingInsert, ...rest } = patch;
-  const next = { ...current, ...rest, updatedAt: Date.now() };
+  const next = {
+    ...current,
+    ...rest,
+    ...(rest.projects !== undefined ? { projects: explicitProjects({ projects: rest.projects }) } : {}),
+    updatedAt: Date.now(),
+  };
   if (pendingInsert === null) {
     delete next.pendingInsert;
   } else if (pendingInsert) {
     next.pendingInsert = pendingInsert;
   }
   return next;
+}
+
+/** A tab can authorize at most one Project. Empty means the Source stays saved only. */
+export function explicitProjects(state?: Pick<PanelCaptureState, "projects">): string[] {
+  const project = state?.projects?.find((value) => typeof value === "string" && value.trim())?.trim();
+  return project ? [project] : [];
+}
+
+export function captureOrganization(state?: Pick<PanelCaptureState, "projects" | "tags">): CaptureOrganization {
+  return {
+    projects: explicitProjects(state),
+    tags: state?.tags?.filter((value) => typeof value === "string" && value.trim()).map((value) => value.trim()) ?? [],
+  };
+}
+
+/** Project authorization belongs to the tab, not to a URL or capture intent. */
+export function preserveTabProjects(next: PanelCaptureState, current?: PanelCaptureState): PanelCaptureState {
+  if (!current || current.tabId !== next.tabId || current.projects === undefined) return next;
+  return { ...next, projects: explicitProjects(current) };
+}
+
+/** Content scripts cannot choose the tab whose Project authorization they read. */
+export function tabProjectRequestSender(message: unknown, senderTabId?: number): number | undefined {
+  if (
+    !message ||
+    typeof message !== "object" ||
+    (message as { type?: unknown }).type !== "logue:get-tab-projects" ||
+    !Number.isSafeInteger(senderTabId) ||
+    (senderTabId ?? 0) <= 0
+  ) return undefined;
+  return senderTabId;
 }
 
 export function friendlyLocalError(cause: unknown, kind: LocalError["kind"]): LocalError {

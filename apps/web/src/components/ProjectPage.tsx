@@ -1,9 +1,10 @@
-import { ArrowLeft, ArrowRight, BookOpenText, FilePlus2, FileText, FolderKanban, Inbox, LoaderCircle, Plus, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpenText, FilePlus2, FileText, FolderKanban, Inbox, LoaderCircle, MessageSquareText, Mic2, Plus, Sparkles, X } from "lucide-react";
 import type { Material } from "@logue/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createDocument, generateProjectOverviewDraft, getDocuments, getProjects, saveProject, type LogueDocument, type ProjectSummary } from "../api";
 import { editorColumnClass, pageColumnClass } from "./layout";
 import { Button, ContextHeader, PageHeader } from "./ui";
+import { groupLibraryMaterials } from "../commentBundles";
 
 type SaveState = "saved" | "dirty" | "saving" | "error";
 
@@ -84,9 +85,20 @@ export function ProjectPage({
     () => (selectedName ? materials.filter((material) => material.projects.includes(selectedName)) : []),
     [materials, selectedName],
   );
+  const linkedSourceGroups = useMemo(
+    () => groupLibraryMaterials(linkedMaterials, materials),
+    [linkedMaterials, materials],
+  );
   const linkedDocuments = useMemo(
     () => (selectedName ? documents.filter((document) => document.project === selectedName) : []),
     [documents, selectedName],
+  );
+  const sourceCountByProject = useMemo(
+    () => new Map(projects.map((project) => [
+      project.name,
+      groupLibraryMaterials(materials.filter((item) => item.projects.includes(project.name)), materials).length,
+    ])),
+    [materials, projects],
   );
 
   useEffect(() => {
@@ -174,13 +186,13 @@ export function ProjectPage({
         <div data-testid="project-detail-content-column" className={`${editorColumnClass} pb-24 pt-14`}>
           <div className="inline-flex size-11 items-center justify-center rounded-md bg-[#f0f0ed] text-[#666762]"><FolderKanban size={21} /></div>
           <h1 className="mt-5 text-[38px] font-bold tracking-[-0.045em] text-[#242522]">{selected.name}</h1>
-          <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-[#8b8c87]"><span>{linkedMaterials.length} materials</span><span className="text-[#b8b9b4]">·</span><span>{linkedDocuments.length} documents</span><span className="text-[#b8b9b4]">·</span><span>{glossary.length} project terms</span></div>
+          <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-[#8b8c87]"><span>{linkedSourceGroups.length} sources</span><span className="text-[#b8b9b4]">·</span><span>{linkedDocuments.length} documents</span><span className="text-[#b8b9b4]">·</span><span>{glossary.length} project terms</span></div>
 
           <section className="mt-10">
-            <div className="flex items-center justify-between gap-3"><h2 className="text-[14px] font-semibold text-[#555651]">Project context</h2><button type="button" onClick={() => void createOverviewDraft()} disabled={draftGenerating || linkedMaterials.length === 0} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[14px] font-medium text-[#676863] hover:bg-[#f1f1ee] disabled:opacity-40">{draftGenerating ? <LoaderCircle size={12} className="animate-spin" /> : <Sparkles size={12} />}{draftGenerating ? "Updating…" : "Update from materials"}</button></div>
+            <div className="flex items-center justify-between gap-3"><h2 className="text-[14px] font-semibold text-[#555651]">Project context</h2><button type="button" onClick={() => void createOverviewDraft()} disabled={draftGenerating || linkedMaterials.length === 0} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-[14px] font-medium text-[#676863] hover:bg-[#f1f1ee] disabled:opacity-40">{draftGenerating ? <LoaderCircle size={12} className="animate-spin" /> : <Sparkles size={12} />}{draftGenerating ? "Updating…" : "Update from sources"}</button></div>
             <textarea value={overview} onChange={(event) => { setOverview(event.target.value); markDirty(); }} placeholder="Capture the background, decisions, constraints, and goals…" className="mt-3 min-h-36 w-full resize-y rounded-md border border-transparent bg-[#f7f7f5] px-3.5 py-3 text-[15px] leading-6 text-[#3e3f3b] outline-none placeholder:text-[#b3b4af] focus:border-[#d8d8d3] focus:bg-white" />
             {draftError && <p className="mt-2 rounded-md bg-[#f9ece9] px-3 py-2 text-[14px] text-[#a24a42]">{draftError}</p>}
-            {overviewDraft && <div className="mt-3 rounded-md bg-[#fafaf8] p-3.5"><div className="flex items-center justify-between"><span className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-[#64655f]"><Sparkles size={12} /> Draft to review</span><span className="text-[14px] text-[#999a95]">Based on {draftSourceCount} materials</span></div><pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap font-sans text-[15px] leading-5 text-[#555651]">{overviewDraft}</pre><div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => setOverviewDraft("")} className="h-7 rounded px-2 text-[14px] text-[#858680] hover:bg-[#eeeeeb]">Discard</button><button type="button" onClick={() => { setOverview((current) => [current.trim(), overviewDraft.trim()].filter(Boolean).join("\n\n")); setOverviewDraft(""); markDirty(); }} className="h-7 rounded bg-[#242522] px-2.5 text-[14px] font-medium text-white">Add to overview</button></div></div>}
+            {overviewDraft && <div className="mt-3 rounded-md bg-[#fafaf8] p-3.5"><div className="flex items-center justify-between"><span className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-[#64655f]"><Sparkles size={12} /> Draft to review</span><span className="text-[14px] text-[#999a95]">Based on {draftSourceCount} sources</span></div><pre className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap font-sans text-[15px] leading-5 text-[#555651]">{overviewDraft}</pre><div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => setOverviewDraft("")} className="h-7 rounded px-2 text-[14px] text-[#858680] hover:bg-[#eeeeeb]">Discard</button><button type="button" onClick={() => { setOverview((current) => [current.trim(), overviewDraft.trim()].filter(Boolean).join("\n\n")); setOverviewDraft(""); markDirty(); }} className="h-7 rounded bg-[#242522] px-2.5 text-[14px] font-medium text-white">Add to overview</button></div></div>}
           </section>
 
           <section className="mt-11">
@@ -195,8 +207,12 @@ export function ProjectPage({
           </section>
 
           <section className="mt-11">
-            <div className="flex items-center justify-between"><h2 className="text-[14px] font-semibold text-[#555651]">Materials</h2><button type="button" onClick={() => onOpenStream(selected.name)} className="inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-[15px] font-medium text-[#62635e] hover:bg-[#f1f1ee]">View all <ArrowRight size={13} /></button></div>
-            <div className="mt-3 divide-y divide-[#eeeeeb]">{linkedMaterials.slice(0, 6).map((material) => <button key={material.id} type="button" onClick={() => onOpenMaterial(material.id)} className="flex min-h-11 w-full items-center gap-2.5 px-2 py-2.5 text-left hover:bg-[#f7f7f5] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5b64f4]"><FileText size={14} className="shrink-0 text-[#858680]" /><span className="min-w-0 flex-1 truncate text-[14px] text-[#50514d]">{material.content}</span><span className="text-[14px] text-[#999a95]">{material.source?.domain || material.kind}</span></button>)}</div>
+            <div className="flex items-center justify-between"><h2 className="text-[14px] font-semibold text-[#555651]">Sources</h2><button type="button" onClick={() => onOpenStream(selected.name)} className="inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-[15px] font-medium text-[#62635e] hover:bg-[#f1f1ee]">View all <ArrowRight size={13} /></button></div>
+            <div className="mt-3 divide-y divide-[#eeeeeb]">{linkedSourceGroups.slice(0, 6).map((group) => {
+              const material = group.bundle?.primaryComment ?? group.representative;
+              const Icon = group.bundle ? (material.captureId ? Mic2 : MessageSquareText) : FileText;
+              return <button key={group.key} type="button" onClick={() => onOpenMaterial(material.id)} data-testid={group.bundle ? "project-comment-bundle-row" : undefined} className="flex min-h-11 w-full items-center gap-2.5 px-2 py-2.5 text-left hover:bg-[#f7f7f5] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#5b64f4]"><Icon size={14} className="shrink-0 text-[#858680]" /><span className="min-w-0 flex-1 truncate text-[14px] text-[#50514d]">{material.content}</span><span className="text-[14px] text-[#999a95]">{group.bundle ? "Web + You" : group.representative.source?.domain || group.representative.kind}</span></button>;
+            })}</div>
           </section>
 
           <section className="mt-11">
@@ -210,7 +226,7 @@ export function ProjectPage({
     );
   }
 
-  const unfiled = materials.filter((item) => item.projects.length === 0).length;
+  const unfiled = groupLibraryMaterials(materials.filter((item) => item.projects.length === 0), materials).length;
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white">
       <PageHeader title="Projects" testId="projects-header-column" actions={<Button variant="primary" size="sm" onClick={() => setNewProjectOpen(true)} className="max-[640px]:h-11"><Plus size={13} /> New project</Button>} />
@@ -222,12 +238,12 @@ export function ProjectPage({
             <h2 className="mt-4 text-[16px] font-semibold tracking-[-0.02em] text-[#3f413c]">Create your first project</h2>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
               <button type="button" onClick={() => setNewProjectOpen(true)} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3.5 text-[14px] font-medium text-white hover:bg-[#3a3b37]"><Plus size={14} /> New project</button>
-              {materials.length === 0 && <button type="button" onClick={() => onOpenStream()} className="h-9 rounded-md px-3 text-[14px] font-medium text-[#686a64] hover:bg-[#f1f1ee]">Add materials first</button>}
+              {materials.length === 0 && <button type="button" onClick={() => onOpenStream()} className="h-9 rounded-md px-3 text-[14px] font-medium text-[#686a64] hover:bg-[#f1f1ee]">Add sources first</button>}
             </div>
           </section>
         ) : <div className="mt-6 border-t border-[#e7e7e4] max-[640px]:mt-[15px]">
-          <div className="grid grid-cols-[minmax(0,1fr)_90px_90px_44px] gap-3 border-b border-[#e7e7e4] px-3 py-2 text-[14px] font-medium text-[#92938e] max-[640px]:grid-cols-[minmax(0,1fr)_64px_28px]"><span>Name</span><span>Materials</span><span className="max-[640px]:hidden">Documents</span><span /></div>
-          {loading ? <div className="space-y-1 py-2" aria-label="Loading projects">{[0, 1, 2].map((item) => <div key={item} className="h-12 animate-pulse rounded-md bg-[#f3f3f0] motion-reduce:animate-none" />)}</div> : loadError ? <div className="py-10 text-center"><p className="text-[15px] text-[#a04b43]">{loadError}</p><button type="button" onClick={() => void loadWorkspace()} className="mt-3 h-8 rounded-md border border-[#d8d8d3] px-3 text-[14px] text-[#62635e] hover:bg-[#f4f4f1]">Reload</button></div> : <>{projects.map((project) => <button key={project.name} type="button" onClick={() => { loadedRef.current = undefined; setSelectedName(project.name); onSelectedProjectChange(project.name); }} className="group grid w-full grid-cols-[minmax(0,1fr)_90px_90px_44px] items-center gap-3 border-b border-[#eeeeeb] px-3 py-3 text-left hover:bg-[#f7f7f5] max-[640px]:grid-cols-[minmax(0,1fr)_64px_28px]"><span className="flex min-w-0 items-center gap-3"><span className="inline-flex size-7 shrink-0 items-center justify-center rounded bg-[#f0f0ed] text-[#676863]"><FolderKanban size={14} /></span><span className="min-w-0 truncate text-[15px] font-medium text-[#393a36]">{project.name}</span></span><span className="text-[15px] text-[#82837e]">{project.count}</span><span className="text-[15px] text-[#82837e] max-[640px]:hidden">{documents.filter((document) => document.project === project.name).length}</span><ArrowRight size={14} className="text-[#aaa] transition group-hover:translate-x-0.5" /></button>)}<button type="button" onClick={() => onOpenStream()} className="group grid w-full grid-cols-[minmax(0,1fr)_90px_90px_44px] items-center gap-3 border-b border-[#eeeeeb] px-3 py-3 text-left hover:bg-[#f7f7f5] max-[640px]:grid-cols-[minmax(0,1fr)_64px_28px]"><span className="flex min-w-0 items-center gap-3"><span className="inline-flex size-7 shrink-0 items-center justify-center rounded bg-[#f0f0ed] text-[#777873]"><Inbox size={14} /></span><span className="block text-[15px] font-medium text-[#393a36]">Unfiled</span></span><span className="text-[15px] text-[#82837e]">{unfiled}</span><span className="text-[15px] text-[#b0b1ad] max-[640px]:hidden">—</span><ArrowRight size={14} className="text-[#aaa]" /></button></>}
+          <div className="grid grid-cols-[minmax(0,1fr)_90px_90px_44px] gap-3 border-b border-[#e7e7e4] px-3 py-2 text-[14px] font-medium text-[#92938e] max-[640px]:grid-cols-[minmax(0,1fr)_64px_28px]"><span>Name</span><span>Sources</span><span className="max-[640px]:hidden">Documents</span><span /></div>
+          {loading ? <div className="space-y-1 py-2" aria-label="Loading projects">{[0, 1, 2].map((item) => <div key={item} className="h-12 animate-pulse rounded-md bg-[#f3f3f0] motion-reduce:animate-none" />)}</div> : loadError ? <div className="py-10 text-center"><p className="text-[15px] text-[#a04b43]">{loadError}</p><button type="button" onClick={() => void loadWorkspace()} className="mt-3 h-8 rounded-md border border-[#d8d8d3] px-3 text-[14px] text-[#62635e] hover:bg-[#f4f4f1]">Reload</button></div> : <>{projects.map((project) => <button key={project.name} type="button" onClick={() => { loadedRef.current = undefined; setSelectedName(project.name); onSelectedProjectChange(project.name); }} className="group grid w-full grid-cols-[minmax(0,1fr)_90px_90px_44px] items-center gap-3 border-b border-[#eeeeeb] px-3 py-3 text-left hover:bg-[#f7f7f5] max-[640px]:grid-cols-[minmax(0,1fr)_64px_28px]"><span className="flex min-w-0 items-center gap-3"><span className="inline-flex size-7 shrink-0 items-center justify-center rounded bg-[#f0f0ed] text-[#676863]"><FolderKanban size={14} /></span><span className="min-w-0 truncate text-[15px] font-medium text-[#393a36]">{project.name}</span></span><span className="text-[15px] text-[#82837e]">{sourceCountByProject.get(project.name) ?? 0}</span><span className="text-[15px] text-[#82837e] max-[640px]:hidden">{documents.filter((document) => document.project === project.name).length}</span><ArrowRight size={14} className="text-[#aaa] transition group-hover:translate-x-0.5" /></button>)}<button type="button" onClick={() => onOpenStream()} className="group grid w-full grid-cols-[minmax(0,1fr)_90px_90px_44px] items-center gap-3 border-b border-[#eeeeeb] px-3 py-3 text-left hover:bg-[#f7f7f5] max-[640px]:grid-cols-[minmax(0,1fr)_64px_28px]"><span className="flex min-w-0 items-center gap-3"><span className="inline-flex size-7 shrink-0 items-center justify-center rounded bg-[#f0f0ed] text-[#777873]"><Inbox size={14} /></span><span className="block text-[15px] font-medium text-[#393a36]">Unfiled</span></span><span className="text-[15px] text-[#82837e]">{unfiled}</span><span className="text-[15px] text-[#b0b1ad] max-[640px]:hidden">—</span><ArrowRight size={14} className="text-[#aaa]" /></button></>}
         </div>}
       </div>
       </div>

@@ -8,6 +8,7 @@ import {
   Link2,
   LoaderCircle,
   Maximize2,
+  MessageSquareText,
   Mic2,
   Sparkles,
   Trash2,
@@ -42,6 +43,7 @@ export function MaterialDetail({
   onDelete,
   onOpenParent,
   onExpand,
+  originLabel = "Library",
   mode = "peek",
   peekWidth,
   parents,
@@ -55,6 +57,7 @@ export function MaterialDetail({
   onDelete: (id: string) => Promise<void>;
   onOpenParent: (id: string) => void;
   onExpand: () => void;
+  originLabel?: string;
   mode?: "peek" | "page";
   peekWidth?: number;
   parents: Material[];
@@ -75,7 +78,12 @@ export function MaterialDetail({
   const [deleteConfirming, setDeleteConfirming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [deleteError, setDeleteError] = useState<string>();
-  const Icon = icons[material.kind];
+  const commentSource = parents.find((parent) => parent.kind === "selection");
+  const isComment = material.kind === "derived"
+    && (!material.actor || material.actor.toLowerCase() === "user")
+    && Boolean(commentSource);
+  const detailTitle = isComment ? (material.captureId ? "Voice comment" : "Comment") : materialTitles[material.kind];
+  const Icon = isComment ? (material.captureId ? Mic2 : MessageSquareText) : icons[material.kind];
   const hasAudioChain = Boolean(material.captureId);
   const isPage = mode === "page";
   const Root = isPage ? "main" : "aside";
@@ -207,7 +215,7 @@ export function MaterialDetail({
       className={isPage ? "flex h-screen min-w-0 flex-1 flex-col overflow-hidden bg-white" : "flex h-screen w-[var(--material-detail-width)] min-w-[440px] shrink-0 flex-col overflow-hidden bg-white max-[1180px]:fixed max-[1180px]:inset-y-0 max-[1180px]:right-0 max-[1180px]:z-30 max-[1180px]:border-l max-[1180px]:border-[#e1e1dd] max-[1180px]:shadow-[-18px_0_54px_rgba(31,33,28,0.11)] max-[640px]:w-full max-[640px]:min-w-0 max-[640px]:pb-16"}
     >
       <header className="z-10 flex h-12 shrink-0 items-center justify-between border-b border-[#eeeeeb] bg-white/95 px-4 backdrop-blur-xl">
-        {isPage ? <button type="button" onClick={onClose} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[15px] text-[#71726d] hover:bg-[#f1f1ee]"><ArrowLeft size={14} /> Stream</button> : <div className="flex items-center gap-2.5"><span className="text-[15px] text-[#777873]">Stream</span><span className="text-[#b7b8b3]">/</span><span className="text-[15px] text-[#4f504c]">{materialTitles[material.kind]}</span></div>}
+        {isPage ? <button type="button" onClick={onClose} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[15px] text-[#71726d] hover:bg-[#f1f1ee]"><ArrowLeft size={14} /> {originLabel}</button> : <div className="flex items-center gap-2.5"><span className="text-[15px] text-[#777873]">{originLabel}</span><span className="text-[#b7b8b3]">/</span><span className="text-[15px] text-[#4f504c]">{detailTitle}</span></div>}
         {!isPage && <div className="flex items-center"><button onClick={onExpand} className="inline-flex size-11 items-center justify-center rounded-md text-[#858680] hover:bg-[#f1f1ee] hover:text-[#444541] focus-visible:outline-2 focus-visible:outline-[#5b64f4]" aria-label="Open full page" title="Open full page" type="button"><Maximize2 size={16} /></button><button onClick={onClose} className="inline-flex size-11 items-center justify-center rounded-md text-[#858680] hover:bg-[#f1f1ee] hover:text-[#444541] focus-visible:outline-2 focus-visible:outline-[#5b64f4]" aria-label="Close details" type="button"><X size={18} /></button></div>}
       </header>
 
@@ -215,7 +223,7 @@ export function MaterialDetail({
         <div data-testid="material-detail-content">
         <div className="mb-8">
           <span className={`inline-flex items-center justify-center rounded-md bg-[#f0f0ed] text-[#6e6f6a] ${isPage ? "size-11" : "size-9"}`}><Icon size={isPage ? 21 : 17} /></span>
-          <h1 className={`mt-4 font-bold tracking-[-0.04em] text-[#242522] ${isPage ? "text-[38px] max-[640px]:text-[30px]" : "text-[28px]"}`}>{materialTitles[material.kind]}</h1>
+          <h1 className={`mt-4 font-bold tracking-[-0.04em] text-[#242522] ${isPage ? "text-[38px] max-[640px]:text-[30px]" : "text-[28px]"}`}>{detailTitle}</h1>
           <div className={`mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[#92938e] ${isPage ? "text-[15px]" : "text-[14px]"}`}>
             <span>{material.projects[0] || "Unfiled"}</span>
             <span>·</span>
@@ -272,11 +280,21 @@ export function MaterialDetail({
           </section>
         )}
 
+        {isComment && commentSource && (
+          <section className="mb-7" aria-label="Selected text">
+            <div className="mb-2 flex items-center gap-2 text-[15px] font-semibold text-[#72766d]"><FileText size={13} /> Selected text</div>
+            <button type="button" onClick={() => onOpenParent(commentSource.id)} className="group w-full border-l-2 border-[#d7d7d2] pl-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5b64f4]">
+              <span className="line-clamp-4 block text-[15px] leading-6 text-[#5f615b] group-hover:text-[#454a9e]">{commentSource.content}</span>
+              <span className="mt-1 inline-flex items-center gap-1 text-[14px] font-medium text-[#7c7f77] group-hover:text-[#545bc2]">Open evidence <ArrowUpRight size={11} /></span>
+            </button>
+          </section>
+        )}
+
         {hasAudioChain ? (
           <section aria-label="Voice history">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-[14px] font-semibold text-[#4f504c]">History</h2>
-              <span className="inline-flex items-center gap-1 text-[14px] text-[#858680]"><Check size={11} /> Original record remains unchanged</span>
+              <h2 className="text-[14px] font-semibold text-[#4f504c]">{isComment ? "Voice comment" : "History"}</h2>
+              {!isComment && <span className="inline-flex items-center gap-1 text-[14px] text-[#858680]"><Check size={11} /> Original record remains unchanged</span>}
             </div>
             <ol className="mt-5 ml-3 border-l border-[#dcdcd7]">
               <li className="relative pb-7 pl-6">
@@ -292,7 +310,7 @@ export function MaterialDetail({
               </li>
               <li className="relative pb-7 pl-6">
                 <span className="absolute -left-3 top-0 inline-flex size-6 items-center justify-center rounded-full border border-[#bec8bc] bg-[#edf2eb] text-[#557057]"><Check size={12} /></span>
-                <div className="flex items-baseline justify-between gap-3"><h3 className="text-[15px] font-semibold text-[#42453f]">Final text</h3><span className="text-[14px] font-medium text-[#638064]">Adopted</span></div>
+                <div className="flex items-baseline justify-between gap-3"><h3 className="text-[15px] font-semibold text-[#42453f]">{isComment ? "Comment" : "Final text"}</h3><span className="text-[14px] font-medium text-[#638064]">{isComment ? "You" : "Adopted"}</span></div>
                 <textarea
                   aria-label="Edit material content"
                   value={contentDraft}
@@ -327,7 +345,7 @@ export function MaterialDetail({
         ) : (
           <section>
             <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-[15px] font-semibold uppercase tracking-[0.12em] text-[#858980]">{material.kind === "selection" ? "Original selection" : material.kind === "derived" ? "Derived content" : "Original content"}</h3>
+              <h3 className="text-[15px] font-semibold uppercase tracking-[0.12em] text-[#858980]">{isComment ? "Comment" : material.kind === "selection" ? "Original selection" : material.kind === "derived" ? "Derived content" : "Original content"}</h3>
               {!contentChanged && <span className="text-[14px] font-medium text-[#9a9b96]">Editable</span>}
             </div>
             <textarea
@@ -398,7 +416,7 @@ export function MaterialDetail({
           {organizationError && <p className="mt-2 rounded-md bg-[#fbefec] px-2.5 py-2 text-[14px] leading-4 text-[#a34b42]">{organizationError}</p>}
         </section>
 
-        {parents.length > 0 ? (
+        {parents.length > 0 && !isComment ? (
           <section className="mt-7">
             <div className="mb-2 flex items-center gap-2 text-[15px] font-semibold text-[#70746b]"><Sparkles size={13} className="text-[#6b72de]" /> Derived from {parents.length} {parents.length === 1 ? "item" : "items"}</div>
             <div className="divide-y divide-[#eeeeeb]">{parents.map((parent) => <button key={parent.id} type="button" onClick={() => onOpenParent(parent.id)} className="group flex w-full items-start gap-2 py-2.5 text-left"><span className="line-clamp-2 min-w-0 flex-1 text-[15px] leading-5 text-[#676863] group-hover:text-[#4f56bd]">{parent.content}</span><ArrowUpRight size={12} className="mt-1 shrink-0 text-[#aaa]" /></button>)}</div>
@@ -408,7 +426,7 @@ export function MaterialDetail({
 
       <footer className="mt-10 border-t border-[#e7e7e2] bg-[#fcfcfa] py-4 max-[640px]:mt-7 max-[640px]:py-2">
         <label className="mb-2 block text-[15px] font-semibold text-[#656961] max-[640px]:sr-only" htmlFor="detail-annotation">
-          Add annotation
+          {isComment ? "Add follow-up" : "Add annotation"}
         </label>
         <div className="max-[640px]:flex max-[640px]:items-stretch max-[640px]:gap-2">
           <textarea
@@ -430,12 +448,12 @@ export function MaterialDetail({
         {annotationError && <p className="mt-2 rounded-md bg-[#fbefec] px-2.5 py-2 text-[14px] leading-4 text-[#a34b42]">{annotationError}</p>}
         {deleteConfirming ? (
           <div className="mt-2 rounded-md border border-[#efd3ce] bg-[#fff8f6] p-3">
-            <p className="text-[14px] leading-4 text-[#8e4a43]">Delete this {materialTitles[material.kind].toLowerCase()}? Its original audio will also be deleted when nothing else references it. {dependentCount > 0 ? `${dependentCount} derived ${dependentCount === 1 ? "item will" : "items will"} remain.` : ""}</p>
+            <p className="text-[14px] leading-4 text-[#8e4a43]">Delete this {detailTitle.toLowerCase()}? Its original audio will also be deleted when nothing else references it. {dependentCount > 0 ? `${dependentCount} derived ${dependentCount === 1 ? "item will" : "items will"} remain.` : ""}</p>
             {deleteError && <p className="mt-1 text-[14px] text-[#b0443a]">{deleteError}</p>}
             <div className="mt-2 flex justify-end gap-1.5"><button type="button" disabled={removing} onClick={() => { setDeleteConfirming(false); setDeleteError(undefined); }} className="h-7 rounded px-2.5 text-[14px] text-[#6d6e69] hover:bg-white">Cancel</button><button type="button" disabled={removing} onClick={() => void remove()} className="inline-flex h-7 items-center gap-1.5 rounded bg-[#b2483f] px-2.5 text-[14px] font-medium text-white disabled:bg-[#cf9a95]">{removing && <LoaderCircle size={11} className="animate-spin motion-reduce:animate-none" />}{removing ? "Deleting…" : "Confirm delete"}</button></div>
           </div>
         ) : (
-          <button type="button" onClick={() => setDeleteConfirming(true)} className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md text-[14px] font-medium text-[#a54b42] hover:bg-[#f9ece9] max-[640px]:h-11"><Trash2 size={12} /> Delete this {materialTitles[material.kind].toLowerCase()}{dependentCount > 0 ? ` · ${dependentCount} derived ${dependentCount === 1 ? "relationship" : "relationships"}` : ""}</button>
+          <button type="button" onClick={() => setDeleteConfirming(true)} className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md text-[14px] font-medium text-[#a54b42] hover:bg-[#f9ece9] max-[640px]:h-11"><Trash2 size={12} /> Delete this {detailTitle.toLowerCase()}{dependentCount > 0 ? ` · ${dependentCount} derived ${dependentCount === 1 ? "relationship" : "relationships"}` : ""}</button>
         )}
       </footer>
       </div>

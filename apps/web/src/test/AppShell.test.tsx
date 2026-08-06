@@ -4,7 +4,7 @@ import { App } from "../App";
 import { NavRail } from "../components/NavRail";
 
 const { apiMocks, documentFixture } = vi.hoisted(() => ({
-  apiMocks: { getMaterials: vi.fn(), getStatus: vi.fn(), searchMaterials: vi.fn(), updateDocument: vi.fn() },
+  apiMocks: { getMaterials: vi.fn(), getStatus: vi.fn(), getProjects: vi.fn(), searchMaterials: vi.fn(), updateDocument: vi.fn() },
   documentFixture: {
     id: "document-1",
     title: "Shell test document",
@@ -22,6 +22,7 @@ vi.mock("../api", async (importOriginal) => {
   return {
     ...actual,
     getDocuments: vi.fn().mockResolvedValue([documentFixture]),
+    getProjects: apiMocks.getProjects,
     getMaterials: apiMocks.getMaterials,
     getStatus: apiMocks.getStatus,
     searchMaterials: apiMocks.searchMaterials,
@@ -40,6 +41,7 @@ describe("application navigation shell", () => {
       storage_root: "/tmp/logue-test",
     });
     apiMocks.searchMaterials.mockReset().mockResolvedValue({ matches: [], strategy: "local" });
+    apiMocks.getProjects.mockReset().mockResolvedValue([{ name: "Logue", glossary: [], count: 0 }]);
     apiMocks.updateDocument.mockReset();
     window.localStorage.clear();
     window.history.replaceState(null, "", "/?view=documents&doc=document-1");
@@ -48,7 +50,7 @@ describe("application navigation shell", () => {
   it("keeps the same ordered product navigation on desktop and mobile", () => {
     render(<NavRail active="documents" connected onChange={() => undefined} />);
 
-    const expectedLabels = ["Stream", "Projects", "Documents", "Skills", "Settings"];
+    const expectedLabels = ["Library", "Projects", "Documents", "Skills", "Settings"];
     const desktopShell = screen.getByTestId("primary-navigation-shell");
     const desktopButtons = desktopShell.querySelectorAll("nav button");
     expect(Array.from(desktopButtons, (button) => button.textContent?.trim())).toEqual(expectedLabels);
@@ -100,7 +102,7 @@ describe("application navigation shell", () => {
     window.history.replaceState(null, "", "/?view=stream");
     render(<App />);
 
-    const search = await screen.findByPlaceholderText("Search materials");
+    const search = await screen.findByPlaceholderText("Search Library");
     fireEvent.change(search, { target: { value: "How can I save a page note?" } });
 
     await waitFor(() => {
@@ -125,11 +127,11 @@ describe("application navigation shell", () => {
     window.history.replaceState(null, "", "/?view=stream");
     render(<App />);
 
-    const search = await screen.findByRole("textbox", { name: "Search materials" });
+    const search = await screen.findByRole("textbox", { name: "Search Library" });
     fireEvent.change(search, { target: { value: "How can I keep a source trace?" } });
 
     expect(screen.queryByText("No matching materials")).toBeNull();
-    expect(screen.getByLabelText("Searching materials").getAttribute("aria-busy")).toBe("true");
+    expect(screen.getByLabelText("Searching sources").getAttribute("aria-busy")).toBe("true");
   });
 
   it("collapses to an accessible icon rail without changing mobile navigation", () => {
@@ -149,7 +151,7 @@ describe("application navigation shell", () => {
     expect(screen.getAllByRole("button", { name: "Close sidebar" })).toHaveLength(1);
     expect(within(screen.getByTestId("primary-navigation-shell")).queryByText("Local service running")).toBeNull();
     const expandedStreamIconSlot = within(screen.getByTestId("primary-navigation-shell"))
-      .getByRole("button", { name: "Stream" })
+      .getByRole("button", { name: "Library" })
       .querySelector('[data-nav-icon-slot="true"]');
     expect(expandedStreamIconSlot?.className).toContain("size-11");
     expect(screen.getByTestId("primary-navigation-shell").className).toContain("px-1.5");
@@ -168,12 +170,12 @@ describe("application navigation shell", () => {
     expect(screen.getByTestId("sidebar-brand-mark").className).not.toContain("group-hover/toggle:hidden");
     expect(screen.queryByTestId("sidebar-toggle-icon")).toBeNull();
     const collapsedStreamIconSlot = within(screen.getByTestId("primary-navigation-shell"))
-      .getByRole("button", { name: "Stream" })
+      .getByRole("button", { name: "Library" })
       .querySelector('[data-nav-icon-slot="true"]');
     expect(collapsedStreamIconSlot?.className).toContain("size-11");
     expect(screen.getByTestId("primary-navigation-shell").className).toContain("px-1.5");
-    expect(within(screen.getByTestId("primary-navigation-shell")).getByRole("button", { name: "Stream" })).toBeTruthy();
-    expect(screen.getByTestId("mobile-primary-navigation").textContent).toContain("Stream");
+    expect(within(screen.getByTestId("primary-navigation-shell")).getByRole("button", { name: "Library" })).toBeTruthy();
+    expect(screen.getByTestId("mobile-primary-navigation").textContent).toContain("Library");
   });
 
   it("only surfaces the local service state when action is needed", () => {
@@ -210,8 +212,8 @@ describe("application navigation shell", () => {
     render(<App />);
 
     expect(await screen.findByText("The local Logue service is unavailable.")).toBeTruthy();
-    expect(screen.queryByText("Capture your first material")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Add first material" })).toBeNull();
+    expect(screen.queryByText("Capture your first source")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add first note" })).toBeNull();
     expect(screen.queryByText("No matches")).toBeNull();
   });
 
@@ -265,7 +267,7 @@ describe("application navigation shell", () => {
 
     const titleInput = await screen.findByDisplayValue("Shell test document");
     fireEvent.change(titleInput, { target: { value: "Saved before leaving" } });
-    fireEvent.click(within(screen.getByTestId("primary-navigation-shell")).getByRole("button", { name: "Stream" }));
+    fireEvent.click(within(screen.getByTestId("primary-navigation-shell")).getByRole("button", { name: "Library" }));
 
     await waitFor(() => {
       expect(apiMocks.updateDocument).toHaveBeenCalledOnce();
@@ -288,5 +290,41 @@ describe("application navigation shell", () => {
 
     await waitFor(() => expect(window.location.search).toBe("?view=documents&doc=document-1"));
     expect(await screen.findByDisplayValue("Shell test document")).toBeTruthy();
+  });
+
+  it("peeks at a project source without leaving the project", async () => {
+    const material = {
+      id: "project-source",
+      kind: "selection" as const,
+      status: "organized" as const,
+      content: "Evidence that should stay inside its project context.",
+      projects: ["Logue"],
+      tags: [],
+      source: {
+        url: "https://example.com/evidence",
+        title: "Project evidence",
+        domain: "example.com",
+        selection: "Evidence that should stay inside its project context.",
+      },
+      createdAt: "2026-08-02T12:00:00Z",
+    };
+    apiMocks.getMaterials.mockResolvedValue([material]);
+    window.history.replaceState(null, "", "/?view=projects&project=Logue");
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Evidence that should stay inside/ }));
+
+    await waitFor(() => {
+      expect(window.location.search).toBe("?view=projects&project=Logue&material=project-source");
+    });
+    expect(screen.getByTestId("primary-navigation-shell").textContent).toContain("Projects");
+    expect(screen.getByTestId("material-detail-scroll").textContent).toContain("Logue");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close details" }));
+
+    await waitFor(() => {
+      expect(window.location.search).toBe("?view=projects&project=Logue");
+    });
+    expect(screen.getByRole("heading", { name: "Logue" })).toBeTruthy();
   });
 });

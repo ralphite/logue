@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import os
 import subprocess
@@ -11,6 +12,7 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -77,6 +79,7 @@ class RuntimeTest(unittest.TestCase):
         _, project = self.request("/v1/projects", "POST", {"name": "Research", "overview": "Voice research", "glossary": ["Logue"]})
         self.assertEqual(project["name"], "Research")
         _, item = self.request("/v1/items", "POST", {"kind": "text", "content": "Logue voice capture", "projects": ["Research"], "source": {"url": "https://example.com/page", "title": "Reference"}})
+        self.assertEqual(item["organization"]["status"], "pending")
         _, page_items = self.request("/v1/items?source_url=https%3A%2F%2Fexample.com%2Fpage")
         self.assertEqual([entry["id"] for entry in page_items["items"]], [item["id"]])
         _, search = self.request("/v1/material-search?query=voice")
@@ -149,6 +152,89 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(organized["projects"], ["Research"])
         self.assertEqual(organized["tags"], ["voice"])
 
+    def test_voice_selection_creates_a_sourced_comment_bundle(self) -> None:
+        status, result = self.request("/v1/selections", "POST", {
+            "request_id": "selection-voice-1",
+            "source_content": "The field team needs offline access.",
+            "annotation": "Keep this evidence in the launch decision.",
+            "transcript": "Um keep this evidence in the launch decision",
+            "capture_id": "cap_voice1234",
+            "source": {"url": "https://example.com/research", "title": "Field research"},
+            "projects": ["Mobile research", " Mobile research "],
+            "tags": ["evidence"],
+            "applied_context": {"reference_project": "Mobile research"},
+        })
+        source = result["source"]
+        annotation = result["annotation"]
+        self.assertEqual(status, 201)
+        self.assertEqual(source["kind"], "selection")
+        self.assertEqual(source["projects"], ["Mobile research"])
+        self.assertEqual(source["organization"]["status"], "confirmed")
+        self.assertNotIn("capture_id", source)
+        self.assertNotIn("transcript", source)
+        self.assertEqual(annotation["kind"], "derived")
+        self.assertEqual(annotation["content"], "Keep this evidence in the launch decision.")
+        self.assertEqual(annotation["transcript"], "Um keep this evidence in the launch decision")
+        self.assertEqual(annotation["capture_id"], "cap_voice1234")
+        self.assertEqual(annotation["parent_ids"], [source["id"]])
+        self.assertEqual(annotation["projects"], ["Mobile research"])
+        self.assertEqual(annotation["organization"]["status"], "confirmed")
+        self.assertEqual(len(list((self.data / "items").glob("*.json"))), 2)
+
+    def test_selection_request_is_idempotent_for_the_whole_bundle(self) -> None:
+        payload = {"request_id": "selection-repeat", "source_content": "quoted source", "annotation": "my note", "source": {"url": "https://example.com", "title": "Page"}, "projects": ["Research"]}
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            results = list(executor.map(lambda _: self.request("/v1/selections", "POST", payload)[1], range(4)))
+        first = results[0]
+        self.assertTrue(all(result == first for result in results))
+        _, repeated = self.request("/v1/selections", "POST", {**payload, "source_content": "changed quote", "annotation": "changed note", "projects": ["Other"]})
+        self.assertEqual(repeated, first)
+        self.assertEqual(len(list((self.data / "items").glob("*.json"))), 2)
+
+    def test_cancelled_and_unannotated_selections_do_not_create_comments(self) -> None:
+        self.request("/v1/cancellations/cancel-selection", "POST")
+        with self.assertRaises(urllib.error.HTTPError) as cancelled:
+            self.request("/v1/selections", "POST", {"request_id": "cancel-selection", "source_content": "must not save", "annotation": "must not save", "source": {}})
+        self.assertEqual(cancelled.exception.code, 409)
+        cancelled.exception.close()
+        self.assertEqual(list((self.data / "items").glob("*.json")), [])
+
+        payload = {"request_id": "source-only", "source_content": "save the quote only", "transcript": "must not become a comment", "source": {"url": "https://example.com/quote"}}
+        _, source_only = self.request("/v1/selections", "POST", payload)
+        self.assertNotIn("annotation", source_only)
+        self.assertNotIn("transcript", source_only["source"])
+        self.assertEqual(source_only["source"]["organization"]["status"], "confirmed")
+        _, repeated = self.request("/v1/selections", "POST", {**payload, "annotation": "late comment"})
+        self.assertEqual(repeated, source_only)
+        self.assertEqual(len(list((self.data / "items").glob("*.json"))), 1)
+
+        with self.assertRaises(urllib.error.HTTPError) as invalid_voice:
+            self.request("/v1/selections", "POST", {"request_id": "invalid-voice", "source_content": "quote", "capture_id": "cap_orphan", "source": {}})
+        self.assertEqual(invalid_voice.exception.code, 400)
+        invalid_voice.exception.close()
+        self.assertEqual(len(list((self.data / "items").glob("*.json"))), 1)
+
+    def test_selection_rolls_back_source_when_comment_write_fails(self) -> None:
+        with self.assertRaises(urllib.error.HTTPError) as invalid:
+            self.request("/v1/selections", "POST", {"request_id": "invalid-selection", "source_content": "quoted source", "annotation": "my note", "source": {"url": "https://example.com"}, "projects": ["Research", 42]})
+        self.assertEqual(invalid.exception.code, 400)
+        invalid.exception.close()
+        self.assertEqual(list((self.data / "items").glob("*")), [])
+
+        real_atomic_json = logue_server.atomic_json
+
+        def fail_comment(path, value):
+            if path.parent.name == "items" and value.get("kind") == "derived":
+                raise OSError("simulated annotation write failure")
+            return real_atomic_json(path, value)
+
+        with mock.patch.object(logue_server, "atomic_json", side_effect=fail_comment):
+            with self.assertRaises(urllib.error.HTTPError) as failed:
+                self.request("/v1/selections", "POST", {"request_id": "selection-fails", "source_content": "quoted source", "annotation": "my note", "source": {"url": "https://example.com"}})
+        self.assertEqual(failed.exception.code, 500)
+        failed.exception.close()
+        self.assertEqual(list((self.data / "items").glob("*")), [])
+
     def test_selection_and_page_context_flow(self) -> None:
         _, result = self.request("/v1/selections", "POST", {"request_id": "selection-1", "source_content": "quoted source", "annotation": "my note", "source": {"url": "https://example.com", "title": "Page"}})
         self.assertEqual(result["annotation"]["parent_ids"], [result["source"]["id"]])
@@ -166,6 +252,35 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(repeated["id"], run["id"])
         _, adopted = self.request(f"/v1/skill-runs/{run['id']}", "PATCH", {"adopted_output": "kept\nlines"})
         self.assertEqual(adopted["adopted_output"], "kept\nlines")
+
+    def test_project_generation_retrieval_is_scoped_and_freezes_actual_sources(self) -> None:
+        self.request("/v1/projects", "POST", {"name": "Project A", "overview": "Use only Project A evidence"})
+        _, project_source = self.request("/v1/items", "POST", {"kind": "text", "content": "Shared evidence from Project A", "projects": ["Project A"]})
+        _, other_project_source = self.request("/v1/items", "POST", {"kind": "text", "content": "Shared evidence from Project B", "projects": ["Project B"]})
+        captured_sources = []
+
+        def grounded_reply(_skill, _value, sources, _settings, _overview):
+            captured_sources.extend(sources)
+            return "Grounded reply [Source 1]"
+
+        self.server.gemini.run_skill = grounded_reply
+        _, run = self.request("/v1/skill-runs", "POST", {"request_id": "project-a-command", "skill_id": "sk_reply", "instruction": "Shared evidence", "project": "Project A", "source_ids": []})
+        self.assertEqual(run["source_ids"], [project_source["id"]])
+        self.assertEqual([source["id"] for source in run["sources"]], [project_source["id"]])
+        self.assertEqual([source["id"] for source in captured_sources], [project_source["id"]])
+        self.assertNotIn(other_project_source["id"], run["source_ids"])
+
+        self.request(f"/v1/items/{project_source['id']}", "PATCH", {"content": "Changed after generation"})
+        _, persisted = self.request(f"/v1/skill-runs/{run['id']}")
+        self.assertEqual(persisted["source_ids"], [project_source["id"]])
+        self.assertEqual(persisted["sources"][0]["content"], "Shared evidence from Project A")
+
+    def test_generation_without_project_keeps_global_saved_retrieval(self) -> None:
+        _, saved_source = self.request("/v1/items", "POST", {"kind": "text", "content": "Global saved evidence remains available"})
+        self.server.gemini.run_skill = lambda *_args, **_kwargs: "Global reply [Source 1]"
+        _, run = self.request("/v1/skill-runs", "POST", {"request_id": "global-command", "skill_id": "sk_reply", "instruction": "Global saved evidence", "source_ids": []})
+        self.assertEqual(run["source_ids"], [saved_source["id"]])
+        self.assertEqual(run["sources"][0]["content"], "Global saved evidence remains available")
 
     def test_transcription_saves_and_serves_capture(self) -> None:
         self.server.gemini.transcribe = lambda *args, **kwargs: "spoken words"

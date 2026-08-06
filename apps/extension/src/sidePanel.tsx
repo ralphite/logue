@@ -20,6 +20,8 @@ import {
   type PageMaterial,
 } from "./api";
 import {
+  captureOrganization,
+  explicitProjects,
   friendlyLocalError,
   type LocalError,
   type PendingInsert,
@@ -183,11 +185,17 @@ function SidePanelApp() {
   }, []);
 
   const appliedContext = useCallback((captureContext: CaptureContext): AppliedContext => {
+    const referenceProject = explicitProjects(stateRef.current)[0];
+    const project = referenceProject
+      ? captureContext.projects.find((item) => item.name === referenceProject)
+      : undefined;
     return {
       page_url: stateRef.current?.source.url ?? "",
       page_title: stateRef.current?.source.title ?? "",
+      reference_project: referenceProject,
       personal_context: captureContext.personal_context || undefined,
-      glossary: captureContext.personal_glossary,
+      project_overview: project?.overview,
+      glossary: Array.from(new Set([...captureContext.personal_glossary, ...(project?.glossary ?? [])])),
       recent_adopted_ids: captureContext.recent_adopted_refs?.map((item) => item.id) ?? [],
       recent_adopted_texts: captureContext.recent_adopted_refs?.map((item) => item.text) ?? captureContext.recent_adopted,
     };
@@ -209,7 +217,7 @@ function SidePanelApp() {
       await getServiceStatus();
       if (stateRef.current?.tabId !== current.tabId) return;
       setError((active) => active?.kind === "service" ? undefined : active);
-      const captureContext = await getCaptureContext(current.source.url);
+      const captureContext = await getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "");
       if (stateRef.current?.tabId === current.tabId) setContext(captureContext);
       if (shouldLoadPageHistory(current.intent)) await refreshPageMaterials(current.source.url);
       if (current.intent === "generate") {
@@ -292,8 +300,9 @@ function SidePanelApp() {
   const saveContent = useCallback(async (content: string, captureId?: string, rawTranscript?: string) => {
     const current = stateRef.current;
     if (!current) return;
-    const currentContext = context ?? await getCaptureContext(current.source.url);
+    const currentContext = context ?? await getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "");
     const provenance = appliedContext(currentContext);
+    const organization = captureOrganization(current);
     const selectionText = current.selectionText;
     if (selectionText) {
       await saveThenRefreshPageHistory(
@@ -303,8 +312,7 @@ function SidePanelApp() {
           annotation: content.trim() || undefined,
           transcript: captureId ? rawTranscript : undefined,
           source: { ...current.source, selection: selectionText },
-          projects: [],
-          tags: [],
+          ...organization,
           captureId,
           appliedContext: provenance,
         }),
@@ -318,8 +326,7 @@ function SidePanelApp() {
           content,
           transcript: captureId ? rawTranscript : undefined,
           source: current.source,
-          projects: [],
-          tags: [],
+          ...organization,
           captureId,
           appliedContext: provenance,
         }),
@@ -354,14 +361,18 @@ function SidePanelApp() {
     setPhase("processing");
     setError(undefined);
     try {
-      const currentContext = context ?? await getCaptureContext(current.source.url);
+      const referenceProject = explicitProjects(current)[0];
+      const currentContext = context ?? await getCaptureContext(current.source.url, referenceProject ?? "");
+      const project = referenceProject
+        ? currentContext.projects.find((item) => item.name === referenceProject)
+        : undefined;
       const result = await transcribeAudio({
         audio: blob,
         source: current.source,
         targetText: current.intent === "input" ? current.targetText : undefined,
         selectedText: current.selectionText,
-        projectContext: currentContext.personal_context,
-        glossary: currentContext.personal_glossary.join("\n"),
+        projectContext: [currentContext.personal_context, project?.overview].filter(Boolean).join("\n\n"),
+        glossary: Array.from(new Set([...currentContext.personal_glossary, ...(project?.glossary ?? [])])).join("\n"),
         instructions: current.selectionText
           ? "Transcribe this as an annotation to the selected source."
           : "Transcribe this as concise text linked to the current page.",
@@ -454,6 +465,7 @@ function SidePanelApp() {
       const run = await createExtensionSkillRun({
         skillId,
         instruction: draft.trim(),
+        project: explicitProjects(current)[0],
         pageTitle: current.source.title,
         pageUrl: current.source.url,
         targetText: current.targetText,
@@ -584,6 +596,24 @@ function SidePanelApp() {
       })
       .catch((cause: unknown) => setError(friendlyLocalError(cause, "target")));
   }, []);
+
+  const selectProject = useCallback((project: string) => {
+    const current = stateRef.current;
+    if (!current) return;
+    const projects = project ? [project] : [];
+    const next = { ...current, projects, updatedAt: Date.now() };
+    stateRef.current = next;
+    setState(next);
+    persistDraft({ projects });
+    void getCaptureContext(next.source.url, project).then((captureContext) => {
+      if (
+        stateRef.current?.tabId === next.tabId &&
+        explicitProjects(stateRef.current)[0] === (project || undefined)
+      ) setContext(captureContext);
+    }).catch((cause: unknown) => {
+      if (stateRef.current?.tabId === next.tabId) setError(friendlyLocalError(cause, "service"));
+    });
+  }, [persistDraft]);
 
   const returnToPage = useCallback(() => {
     generatedForTargetRef.current = undefined;
@@ -761,6 +791,7 @@ function SidePanelApp() {
       generatedText={generatedText}
       skills={skills}
       skillId={skillId}
+      projects={context?.projects ?? []}
       pageMaterials={pageMaterials}
       error={error}
       elapsed={elapsed}
@@ -777,6 +808,7 @@ function SidePanelApp() {
       onDraftChange={(value) => { setDraft(value); persistDraft({ draft: value }); }}
       onGeneratedTextChange={setGeneratedText}
       onSkillIdChange={setSkillId}
+      onProjectChange={selectProject}
       onStartRecording={startRecording}
       onStopRecording={stopRecording}
       onCancelRecording={cancelRecording}

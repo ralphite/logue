@@ -122,7 +122,7 @@ function ExtensionSurfaceContent() {
   return (
     <div className="logue-v2" data-v2-extension-surface="true" style={{ width: "100%", padding: 20 }}>
       <div className="v2-extension-frame" style={frameStyle}>
-        <section className="v2-extension-page" style={pageStyle} aria-label="Current browser page">
+        <div className="v2-extension-page" style={pageStyle}>
           <header style={topbarStyle}>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }} aria-label="Host views">
               {(["article-a", "article-b"] as const).map((articleId) => (
@@ -185,11 +185,11 @@ function ExtensionSurfaceContent() {
               {insertedVoiceWriteSourceId === voiceWriteSource?.id && target ? <button type="button" style={{ ...buttonStyle, marginTop: 8 }} onClick={() => { dispatch({ type: "undo-target", targetSessionId: target.id }); setInsertedVoiceWriteSourceId(null); }}><span style={iconTextStyle}><Undo2 aria-hidden="true" size={14} />Undo</span></button> : null}
             </section> : null}
           </main>
-        </section>
+        </div>
 
         <aside className="v2-inspector" aria-label="Logue side panel" style={{ width: 392 }}>
           <header className="v2-inspector-header">
-            <div><strong style={{ fontSize: 14 }}>Logue</strong><div style={{ marginTop: 2, color: "var(--v2-muted)", fontSize: 12 }}>This tab</div></div>
+            <div><h2>Logue</h2><div style={{ marginTop: 2, color: "var(--v2-muted)", fontSize: 12 }}>This tab</div></div>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <select aria-label="Project for this tab" value={tab.activeProjectId ?? ""} onChange={(event) => dispatch({ type: "set-tab-project", tabId: tab.id, projectId: event.target.value || null })} style={{ maxWidth: 148, border: "1px solid var(--v2-line)", borderRadius: 6, background: "var(--v2-surface)", color: "var(--v2-ink)", padding: "6px 8px" }}>
                 <option value="">No project</option>

@@ -35,7 +35,13 @@ export function parseNavigation(search: string): AppNavigation {
         : "stream";
 
   if (section === "stream") return { section, materialId: value(params, "material") };
-  if (section === "projects") return { section, projectName: value(params, "project") };
+  if (section === "projects") {
+    return {
+      section,
+      projectName: value(params, "project"),
+      materialId: value(params, "material"),
+    };
+  }
   if (section === "documents") {
     return {
       section,
@@ -56,8 +62,9 @@ export function navigationURL(
 
   if (navigation.section === "stream" && navigation.materialId) {
     params.set("material", navigation.materialId);
-  } else if (navigation.section === "projects" && navigation.projectName) {
-    params.set("project", navigation.projectName);
+  } else if (navigation.section === "projects") {
+    if (navigation.projectName) params.set("project", navigation.projectName);
+    if (navigation.materialId) params.set("material", navigation.materialId);
   } else if (navigation.section === "documents") {
     if (navigation.documentId) params.set("doc", navigation.documentId);
     if (navigation.projectName) params.set("project", navigation.projectName);

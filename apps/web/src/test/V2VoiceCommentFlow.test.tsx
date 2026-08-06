@@ -6,6 +6,17 @@ import { createStorySeed } from "../v2-mock/fixtures/storySeeds";
 const acceptedComment = "This is the evidence we should carry into the decision.";
 
 describe("V2 Selection Voice Comment flow", () => {
+  it("keeps the browser page main top-level and the side-panel heading order sequential", () => {
+    render(<ExtensionSurface seed="journey-start" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add voice comment" }));
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+
+    const main = screen.getByRole("main");
+    expect(main.closest("section[aria-label], [role='region']")).toBeNull();
+    expect(screen.getAllByRole("heading").map((heading) => heading.tagName)).toEqual(["H1", "H2", "H3"]);
+  });
+
   it("starts directly from the selection and accepts with Enter", () => {
     render(<ExtensionSurface seed="journey-start" />);
 

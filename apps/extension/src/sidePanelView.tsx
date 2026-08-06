@@ -1,7 +1,7 @@
 import { ArrowLeft, Ellipsis, Mic, Sparkles, Square } from "lucide-react";
 import { OverlayMenu } from "@logue/ui";
 import { useState, type Ref } from "react";
-import type { ExtensionSkill, LocalError, PageMaterial, PanelCaptureState, PendingInsert } from "./sidePanelModels";
+import type { ExtensionSkill, LocalError, PageMaterial, PanelCaptureState, PanelProject, PendingInsert } from "./sidePanelModels";
 import { capturePhasePresentation, type CapturePhase } from "./sidePanelPresentation";
 import { shouldShowPageHistory } from "./sidePanelPageHistory";
 
@@ -29,6 +29,7 @@ export function SidePanelView({
   generatedText,
   skills,
   skillId,
+  projects = [],
   pageMaterials,
   error,
   elapsed,
@@ -45,6 +46,7 @@ export function SidePanelView({
   onDraftChange,
   onGeneratedTextChange,
   onSkillIdChange,
+  onProjectChange = () => undefined,
   onStartRecording,
   onStopRecording,
   onCancelRecording,
@@ -69,6 +71,7 @@ export function SidePanelView({
   generatedText: string;
   skills: ExtensionSkill[];
   skillId: string;
+  projects?: PanelProject[];
   pageMaterials: PageMaterial[];
   error?: LocalError;
   elapsed: number;
@@ -85,6 +88,7 @@ export function SidePanelView({
   onDraftChange: (value: string) => void;
   onGeneratedTextChange: (value: string) => void;
   onSkillIdChange: (value: string) => void;
+  onProjectChange?: (value: string) => void;
   onStartRecording: () => void;
   onStopRecording: () => void;
   onCancelRecording: () => void;
@@ -115,7 +119,24 @@ export function SidePanelView({
     <main ref={panelRef} className="panel" tabIndex={-1} data-logue-extension="off">
       <div className="panel-main">
         <div className="panel-topline">
-          {serverSettingsOpen ? <p className="eyebrow">Server settings</p> : <span />}
+          {serverSettingsOpen ? <p className="eyebrow">Server settings</p> : !presentation.captureActive && error?.kind !== "service" ? <select
+            className="field"
+            style={{
+              width: "auto",
+              minWidth: 0,
+              maxWidth: "min(168px, calc(100vw - 88px))",
+              minHeight: 32,
+              padding: "5px 8px",
+              fontSize: 13,
+            }}
+            value={state.projects?.[0] ?? ""}
+            onChange={(event) => onProjectChange(event.target.value)}
+            aria-label="Project for this tab"
+            title={state.projects?.[0] || "Saved only"}
+          >
+            <option value="">Saved only</option>
+            {projects.map((project) => <option key={project.name} value={project.name}>{project.name}</option>)}
+          </select> : <span />}
           {!serverSettingsOpen && !presentation.captureActive && error?.kind !== "service" && <div className="panel-options">
             <OverlayMenu
               open={serverMenuOpen}

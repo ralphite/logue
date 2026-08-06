@@ -74,7 +74,8 @@ describe("tab-scoped native Side Panel wiring", () => {
       background.indexOf("async function restorePanelState"),
     );
     expect(stage.indexOf("chrome.storage.session.get(storageKey)")).toBeLessThan(stage.indexOf("panelStates.set"));
-    expect(stage).toContain("const restoredFromSession = preserveMatchingPanelDraft(");
+    expect(stage).toContain("const restoredFromSession = preserveTabProjects(");
+    expect(stage).toContain("preserveMatchingPanelDraft(current, sessionState)");
     expect(stage).toContain("await persistPanelState(restored)");
 
     const update = background.slice(
