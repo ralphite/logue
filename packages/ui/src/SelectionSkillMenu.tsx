@@ -94,7 +94,7 @@ export function SelectionSkillMenu({
           onClick={() => void useSkill(skill.id)}
           className="inline-flex h-8 max-w-32 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium text-[#555651] hover:bg-[#f2f2ef] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#5b64f4] disabled:cursor-wait"
           title={skill.name}
-        >{runningSkillId === skill.id ? <LoaderCircle size={13} className="animate-spin text-[#656de0]" /> : <Sparkles size={13} className="text-[#777873]" />}<span className="truncate">{skill.name}</span></button>)}
+        >{runningSkillId === skill.id ? <LoaderCircle size={13} className="animate-spin text-[#656de0] motion-reduce:animate-none" /> : <Sparkles size={13} className="text-[#777873]" />}<span className="truncate">{skill.name}</span></button>)}
       {moreSkills.length > 0 && <OverlayMenu
         open={open}
         onOpenChange={(nextOpen) => {
@@ -132,7 +132,7 @@ export function SelectionSkillMenu({
             onClick={() => void useSkill(skill.id)}
             className="flex min-h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-[14px] text-[#3f403c] hover:bg-[#f2f2ef] focus-visible:bg-[#f2f2ef] focus-visible:outline-none disabled:cursor-wait"
           >
-            {runningSkillId === skill.id ? <LoaderCircle size={14} className="animate-spin text-[#656de0]" aria-hidden="true" /> : <Sparkles size={14} className="text-[#777873]" aria-hidden="true" />}
+            {runningSkillId === skill.id ? <LoaderCircle size={14} className="animate-spin text-[#656de0] motion-reduce:animate-none" aria-hidden="true" /> : <Sparkles size={14} className="text-[#777873]" aria-hidden="true" />}
             <span className="truncate">{skill.name}</span>
           </button>
         ))}

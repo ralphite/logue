@@ -183,11 +183,11 @@
 - V2-FAIL-04 — INTEGRATED — production V2 OverlayMenu、modal Project dialogs 与共享 inspector 使用统一 focus 合同：键盘打开进入有效控件、Esc 只关当前层、modal 循环焦点，关闭后返回原触发控件。
 - V2-FAIL-05 — INTEGRATED — shared ProductStatus 覆盖 Web/Extension 的 AI Run、transcript Candidate、Document action、external Insert、Setup 与显式保存进度；Recording/Transcribing 保留就地 status，失败统一 alert，正常 autosave 不反复播报。
 - V2-FAIL-06 — INTEGRATED — Origin/selected/error 不只依赖颜色，主要按钮有 accessible name。
-- V2-FAIL-07 — CODED — reduced motion 已有样式基础；所有动画路径未统一。
+- V2-FAIL-07 — INTEGRATED — Web、Side Panel 与 Shadow DOM Extension surfaces 统一尊重 `prefers-reduced-motion`；spinner/pulse/transition 停止或降为一次静态状态，返回 Source 的 smooth scroll 在 reduced motion 下改为 instant。
 - V2-FAIL-08 — INTEGRATED — Source/Activity inspector 使用共享原始音频播放/暂停/进度/时长控件，并并列 raw/transformed/saved transcript。
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-FAIL-07`
-- 完成条件：production V2 所有 spinner、pulse、smooth scroll 与 transition 尊重 `prefers-reduced-motion`；关停不承载信息的动画，同时保留清晰的静态状态，不改变功能或布局。
+- `ACTIVE: V2-OPS-03`
+- 完成条件：以当前本机 schema 为唯一权威，移除仍会永久执行的旧格式 migration/alias/fallback；只保留对当前 `.logue-data` 做一次显式备份与单次更新的操作入口，不把兼容代码留在 production Host。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

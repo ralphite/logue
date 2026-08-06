@@ -1610,7 +1610,12 @@ function ExtensionLauncher() {
         selection?.removeAllRanges();
         selection?.addRange(range);
         const element = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer as Element : range.startContainer.parentElement;
-        element?.scrollIntoView({ block: "center", behavior: "smooth" });
+        element?.scrollIntoView({
+          block: "center",
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "auto"
+            : "smooth",
+        });
         sendResponse({ ok: true });
         return false;
       }
