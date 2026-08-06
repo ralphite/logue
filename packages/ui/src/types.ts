@@ -142,11 +142,24 @@ export type ExtensionTargetBridgeRequest = {
   source: "logue-web";
   type: "logue:target-bridge-request";
   requestId: string;
-  action: "list" | "insert" | "undo";
+  action:
+    | "list"
+    | "insert"
+    | "undo"
+    | "shortcuts"
+    | "update-shortcut"
+    | "reset-shortcut";
   sessionId?: string;
   text?: string;
   undoToken?: string;
+  command?: "start-voice-write" | "start-voice-command";
+  shortcut?: string;
 };
+
+export interface ExtensionShortcut {
+  command: "start-voice-write" | "start-voice-command";
+  shortcut: string;
+}
 
 export type ExtensionTargetBridgeResponse = {
   source: "logue-extension";
@@ -156,5 +169,6 @@ export type ExtensionTargetBridgeResponse = {
   targets?: ExtensionInputTarget[];
   target?: ExtensionInputTarget;
   undoToken?: string;
+  shortcuts?: ExtensionShortcut[];
   error?: string;
 };

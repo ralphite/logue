@@ -179,7 +179,7 @@
 
 - V2-FAIL-01 — INTEGRATED — Host offline 与 transcription failure 保留本地录音并提供 Retry/Reconnect/Export/Delete；provider 未 Ready 指向 Settings，失败 Run 与 Sources 在 Web/Side Panel 保留并可直接 Retry；target lost / insert changed 保留 Candidate/Document 并只提供 Copy、改选 target 或安全局部 Undo。
 - V2-FAIL-02 — INTEGRATED — Enter mode-local、Esc/Cancel、阻止宿主 Submit 的 Inline/Command/Comment 键盘合同。
-- V2-FAIL-03 — CODED — 可发现且可修改的全局快捷键管理尚不完整。
+- V2-FAIL-03 — INTEGRATED — Voice Write 与 Voice Command 是独立 Chrome Commands；Settings → Voice 显示实际 shortcut，键盘录入后由 Extension 原子更新，冲突/无效组合保留旧值，并可恢复 manifest 默认值。
 - V2-FAIL-04 — CODED — menu/dialog/drawer focus 与返回焦点已有共享原语，所有新 V2 surface 尚未统一。
 - V2-FAIL-05 — CODED — recording/progress/error screen-reader status 已有；全部状态覆盖未完成。
 - V2-FAIL-06 — INTEGRATED — Origin/selected/error 不只依赖颜色，主要按钮有 accessible name。
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-FAIL-03`
-- 完成条件：把 Voice Write 与 Voice Command 的全局快捷键作为 Settings 中可发现、可修改、可恢复默认值的真实 Extension 合同；变更后立即更新 Chrome Commands，冲突/无效组合明确保留旧值，不制造虚假保存。
+- `ACTIVE: V2-FAIL-04`
+- 完成条件：把 production V2 的 menu/dialog/drawer/inspector 键盘入口收敛到共享 focus 合同：打开后焦点进入有效首控件或内容，Esc 只关闭当前层，关闭后回到触发控件；不改变已有主流程与视觉结构。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

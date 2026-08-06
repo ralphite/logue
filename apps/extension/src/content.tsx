@@ -29,7 +29,7 @@ import { V2SelectionSurface, type SelectionCommentPhase } from "./v2-real/V2Sele
 import styles from "./v2-real/v2ExtensionSurface.css?inline";
 
 interface ContentRequestMessage {
-  type: "logue:insert-text" | "logue:undo-insert" | "logue:get-page-context" | "logue:locate-page-anchor" | "logue:get-current-selection-anchor" | "logue:discover-input-target" | "logue:insert-external-document" | "logue:undo-external-document";
+  type: "logue:insert-text" | "logue:undo-insert" | "logue:get-page-context" | "logue:locate-page-anchor" | "logue:get-current-selection-anchor" | "logue:discover-input-target" | "logue:insert-external-document" | "logue:undo-external-document" | "logue:start-inline-voice";
   text?: string;
   token?: string;
   sessionId?: string;
@@ -1496,7 +1496,7 @@ function ExtensionLauncher() {
       const request = event.data as Partial<ExtensionTargetBridgeRequest> | undefined;
       if (
         request?.source !== "logue-web" || request.type !== "logue:target-bridge-request" ||
-        typeof request.requestId !== "string" || !["list", "insert", "undo"].includes(String(request.action))
+        typeof request.requestId !== "string" || !["list", "insert", "undo", "shortcuts", "update-shortcut", "reset-shortcut"].includes(String(request.action))
       ) return;
       void getServerURL().then(async (serverURL) => {
         if (new URL(serverURL).origin !== window.location.origin) return;
@@ -1509,6 +1509,7 @@ function ExtensionLauncher() {
           targets: result?.targets,
           target: result?.target,
           undoToken: result?.undoToken,
+          shortcuts: result?.shortcuts,
           error: result?.error,
         };
         window.postMessage(response, window.location.origin);
@@ -1526,6 +1527,16 @@ function ExtensionLauncher() {
         return false;
       }
       const contentMessage = message as ContentMessage;
+      if (contentMessage?.type === "logue:start-inline-voice") {
+        const target = targetRef.current;
+        if (!target || !isEditableTargetAvailable(target)) {
+          sendResponse({ ok: false, error: "Focus a supported input first." });
+          return false;
+        }
+        startInlineVoice();
+        sendResponse({ ok: true });
+        return false;
+      }
       if (contentMessage?.type === "logue:inline-recorder-event") {
         const event = { ...contentMessage, type: "logue:recording-bridge-event" } as RecordingBridgeEvent;
         if (!finishSelectionComment(event)) finishInlineVoice(event);
@@ -1633,7 +1644,7 @@ function ExtensionLauncher() {
     return () => {
       chrome.runtime.onMessage.removeListener(listener);
     };
-  }, [cancelInlineVoice, controlGoogleDocsEditor, externalTargetDescriptor, finishInlineVoice, finishSelectionComment, liveExternalTarget]);
+  }, [cancelInlineVoice, controlGoogleDocsEditor, externalTargetDescriptor, finishInlineVoice, finishSelectionComment, liveExternalTarget, startInlineVoice]);
 
   const captureActive = voicePhase === "starting" || voicePhase === "recording" || voicePhase === "processing";
   const voiceFlowActive = captureActive || Boolean(voiceCandidate) || Boolean(selectionActionCandidate);

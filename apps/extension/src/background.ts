@@ -56,7 +56,16 @@ const pendingVoiceStoragePrefix = "logue:pending-voice:";
 const pairingCredentialStoragePrefix = "logue:pairing:";
 const pairingCodeStoragePrefix = "logue:pairing-code:";
 const extensionClientIdStorageKey = "logue:client-id";
+const voiceWriteShortcut = "start-voice-write";
 const voiceCommandShortcut = "start-voice-command";
+const editableShortcutCommands = new Set([
+  voiceWriteShortcut,
+  voiceCommandShortcut,
+]);
+const editableCommands = chrome.commands as typeof chrome.commands & {
+  update(details: { name: string; shortcut: string }): Promise<void>;
+  reset(commandName: string): Promise<void>;
+};
 const openPanelTabs = new Set<number>();
 const openingPanelTabs = new Set<number>();
 const panelStates = new Map<number, PanelCaptureState>();
@@ -539,8 +548,57 @@ async function handleWebTargetBridge(message: WebTargetBridgeMessage, sender: ch
   const request = message.request;
   if (
     request?.source !== "logue-web" || request.type !== "logue:target-bridge-request" ||
-    !["list", "insert", "undo"].includes(request.action)
+    ![
+      "list",
+      "insert",
+      "undo",
+      "shortcuts",
+      "update-shortcut",
+      "reset-shortcut",
+    ].includes(request.action)
   ) return { ok: false, error: "Invalid input request." };
+  if (
+    request.action === "shortcuts" ||
+    request.action === "update-shortcut" ||
+    request.action === "reset-shortcut"
+  ) {
+    const list = async () =>
+      (await chrome.commands.getAll())
+        .filter(
+          (command) =>
+            command.name && editableShortcutCommands.has(command.name),
+        )
+        .map((command) => ({
+          command: command.name as
+            | "start-voice-write"
+            | "start-voice-command",
+          shortcut: command.shortcut ?? "",
+        }));
+    if (request.action === "shortcuts") {
+      return { ok: true, shortcuts: await list() };
+    }
+    if (!request.command || !editableShortcutCommands.has(request.command)) {
+      return { ok: false, error: "This Logue shortcut cannot be changed." };
+    }
+    if (request.action === "reset-shortcut") {
+      await editableCommands.reset(request.command);
+      return { ok: true, shortcuts: await list() };
+    }
+    const shortcut = request.shortcut?.trim() ?? "";
+    if (!shortcut) return { ok: false, error: "Press a complete shortcut." };
+    const existing = await list();
+    if (
+      existing.some(
+        (entry) =>
+          entry.command !== request.command &&
+          entry.shortcut.toLowerCase() === shortcut.toLowerCase(),
+      )
+    ) {
+      return { ok: false, error: "That shortcut is already used by Logue." };
+    }
+    await editableCommands.update({ name: request.command, shortcut });
+    return { ok: true, shortcuts: await list() };
+  }
   const targets = await discoverLiveInputTargets(sender.tab?.id);
   if (request.action === "list") return { ok: true, targets: targets.map((target) => target.descriptor) };
   const target = targets.find((candidate) => candidate.descriptor.id === request.sessionId);
@@ -1441,6 +1499,23 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 chrome.commands.onCommand.addListener((command, tab) => {
+  if (command === voiceWriteShortcut && tab?.id) {
+    void discoverLiveInputTargets()
+      .then((targets) =>
+        targets.find((target) => target.tabId === tab.id),
+      )
+      .then((target) =>
+        target
+          ? chrome.tabs.sendMessage(
+              target.tabId,
+              { type: "logue:start-inline-voice" },
+              { frameId: target.frameId },
+            )
+          : undefined,
+      )
+      .catch(() => undefined);
+    return;
+  }
   if (command === voiceCommandShortcut) {
     void openVoiceCommandPanel(tab).catch(() => undefined);
     return;

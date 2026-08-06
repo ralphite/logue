@@ -1,6 +1,6 @@
-import type { ExtensionInputTarget, ExtensionTargetBridgeRequest, ExtensionTargetBridgeResponse } from "@logue/ui";
+import type { ExtensionInputTarget, ExtensionShortcut, ExtensionTargetBridgeRequest, ExtensionTargetBridgeResponse } from "@logue/ui";
 
-function bridgeRequest(action: ExtensionTargetBridgeRequest["action"], input: Pick<ExtensionTargetBridgeRequest, "sessionId" | "text" | "undoToken"> = {}) {
+function bridgeRequest(action: ExtensionTargetBridgeRequest["action"], input: Partial<Pick<ExtensionTargetBridgeRequest, "sessionId" | "text" | "undoToken" | "command" | "shortcut">> = {}) {
   const requestId = crypto.randomUUID();
   const request: ExtensionTargetBridgeRequest = {
     source: "logue-web",
@@ -27,7 +27,15 @@ function bridgeRequest(action: ExtensionTargetBridgeRequest["action"], input: Pi
     };
     const timer = window.setTimeout(() => {
       cleanup();
-      reject(new Error("Open the input you want in Chrome, then try again."));
+      reject(
+        new Error(
+          action === "shortcuts" ||
+            action === "update-shortcut" ||
+            action === "reset-shortcut"
+            ? "Open or install the Logue Extension, then try again."
+            : "Open the input you want in Chrome, then try again.",
+        ),
+      );
     }, 3_000);
     window.addEventListener("message", onMessage);
     window.postMessage(request, window.location.origin);
@@ -46,4 +54,23 @@ export async function insertDocumentIntoTarget(sessionId: string, text: string) 
 
 export async function undoDocumentTargetInsert(sessionId: string, undoToken: string) {
   return bridgeRequest("undo", { sessionId, undoToken });
+}
+
+export async function getExtensionShortcuts(): Promise<ExtensionShortcut[]> {
+  return (await bridgeRequest("shortcuts")).shortcuts ?? [];
+}
+
+export async function updateExtensionShortcut(
+  command: ExtensionShortcut["command"],
+  shortcut: string,
+) {
+  return (
+    await bridgeRequest("update-shortcut", { command, shortcut })
+  ).shortcuts ?? [];
+}
+
+export async function resetExtensionShortcut(
+  command: ExtensionShortcut["command"],
+) {
+  return (await bridgeRequest("reset-shortcut", { command })).shortcuts ?? [];
 }

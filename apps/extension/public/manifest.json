@@ -13,6 +13,13 @@
     "default_path": "sidepanel.html"
   },
   "commands": {
+    "start-voice-write": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+Space",
+        "mac": "Command+Shift+Space"
+      },
+      "description": "Start Logue Voice Write in the current input"
+    },
     "toggle-side-panel": {
       "suggested_key": {
         "default": "Ctrl+Shift+L",

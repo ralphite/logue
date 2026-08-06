@@ -46,8 +46,14 @@ import {
   type VoiceProfileVocabulary,
   type WorkspaceSettings,
 } from "../api";
+import type { ExtensionShortcut } from "@logue/ui";
 import type { LogueSkill } from "../skillApi";
 import { Button } from "../components/ui";
+import {
+  getExtensionShortcuts,
+  resetExtensionShortcut,
+  updateExtensionShortcut,
+} from "../extensionTargetBridge";
 import { ProjectShell, type V2PrimaryRoute } from "../v2-mock/web/ProjectShell";
 import { RunInspector } from "./V2LibraryRoute";
 
@@ -92,6 +98,46 @@ function SettingRow({
       {children ? <div className="v2-inline-actions">{children}</div> : null}
     </div>
   );
+}
+
+const shortcutLabels: Record<ExtensionShortcut["command"], string> = {
+  "start-voice-write": "Voice Write",
+  "start-voice-command": "Voice Command",
+};
+const shortcutCommands = [
+  "start-voice-write",
+  "start-voice-command",
+] as const;
+
+function displayShortcut(shortcut: string) {
+  return shortcut
+    .replaceAll("Command", "⌘")
+    .replaceAll("Ctrl", "⌃")
+    .replaceAll("Alt", "⌥")
+    .replaceAll("Shift", "⇧")
+    .replaceAll("+", "");
+}
+
+function shortcutFromKey(event: React.KeyboardEvent<HTMLInputElement>) {
+  const key =
+    event.key === " "
+      ? "Space"
+      : event.key.length === 1
+        ? event.key.toUpperCase()
+        : /^(Arrow(Up|Down|Left|Right)|Home|End|PageUp|PageDown|Insert|Delete|F([1-9]|1[0-2]))$/.test(
+              event.key,
+            )
+          ? event.key.replace("Arrow", "")
+          : "";
+  if (!key) return "";
+  const modifiers = [
+    event.metaKey ? "Command" : "",
+    event.ctrlKey ? "Ctrl" : "",
+    event.altKey ? "Alt" : "",
+    event.shiftKey ? "Shift" : "",
+  ].filter(Boolean);
+  if (!modifiers.length && !/^F([1-9]|1[0-2])$/.test(key)) return "";
+  return [...modifiers, key].join("+");
 }
 
 function formatExportSize(bytes: number) {
@@ -176,6 +222,16 @@ export function SettingsRoute({
     const requested = new URLSearchParams(window.location.search).get("section");
     return requested?.toLowerCase() === "models" ? "Models" : "Host";
   });
+  const [extensionShortcuts, setExtensionShortcuts] = useState<
+    ExtensionShortcut[]
+  >();
+  const [shortcutBusy, setShortcutBusy] = useState<
+    ExtensionShortcut["command"]
+  >();
+  const [recordingShortcut, setRecordingShortcut] = useState<
+    ExtensionShortcut["command"]
+  >();
+  const [shortcutError, setShortcutError] = useState("");
   const [draft, setDraft] = useState<WorkspaceSettings>(
     settings ?? {
       personal_context: "",
@@ -183,6 +239,61 @@ export function SettingsRoute({
       voice_profile: createVoiceProfile(),
     },
   );
+
+  useEffect(() => {
+    if (tab !== "Voice" || extensionShortcuts) return;
+    let cancelled = false;
+    void getExtensionShortcuts()
+      .then((shortcuts) => {
+        if (!cancelled) setExtensionShortcuts(shortcuts);
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled)
+          setShortcutError(
+            cause instanceof Error
+              ? cause.message
+              : "Could not reach the Logue Extension.",
+          );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [extensionShortcuts, tab]);
+
+  async function changeShortcut(
+    command: ExtensionShortcut["command"],
+    shortcut: string,
+  ) {
+    setShortcutBusy(command);
+    setShortcutError("");
+    try {
+      setExtensionShortcuts(await updateExtensionShortcut(command, shortcut));
+      setRecordingShortcut(undefined);
+      setNotice(`${shortcutLabels[command]} shortcut updated.`);
+    } catch (cause) {
+      setShortcutError(
+        cause instanceof Error ? cause.message : "Could not update this shortcut.",
+      );
+    } finally {
+      setShortcutBusy(undefined);
+    }
+  }
+
+  async function restoreShortcut(command: ExtensionShortcut["command"]) {
+    setShortcutBusy(command);
+    setShortcutError("");
+    try {
+      setExtensionShortcuts(await resetExtensionShortcut(command));
+      setRecordingShortcut(undefined);
+      setNotice(`${shortcutLabels[command]} shortcut restored.`);
+    } catch (cause) {
+      setShortcutError(
+        cause instanceof Error ? cause.message : "Could not restore this shortcut.",
+      );
+    } finally {
+      setShortcutBusy(undefined);
+    }
+  }
   const [connection, setConnection] = useState<AIConnection>(defaultConnection);
   const [apiKey, setApiKey] = useState("");
   const [aiBusy, setAiBusy] = useState<"test" | "save">();
@@ -1281,6 +1392,82 @@ export function SettingsRoute({
                     ))}
                   </section>
                 ) : null}
+                <section className="v2-settings-section">
+                  <h2>Extension shortcuts</h2>
+                  {shortcutCommands.map((command) => {
+                    const shortcut = extensionShortcuts?.find(
+                      (item) => item.command === command,
+                    )?.shortcut;
+                    return (
+                      <SettingRow
+                        key={command}
+                        title={shortcutLabels[command]}
+                        detail={
+                          command === "start-voice-write"
+                            ? "Start dictating in the focused input."
+                            : "Start a command for the current page, selection, Project, or input."
+                        }
+                      >
+                        <input
+                          className="v2-input v2-shortcut-input"
+                          aria-label={`${shortcutLabels[command]} shortcut`}
+                          aria-busy={shortcutBusy === command}
+                          readOnly
+                          value={
+                            recordingShortcut === command
+                              ? "Press shortcut…"
+                              : shortcut
+                                ? displayShortcut(shortcut)
+                                : extensionShortcuts
+                                  ? "Not assigned"
+                                  : "Connecting…"
+                          }
+                          onFocus={() => {
+                            setShortcutError("");
+                            setRecordingShortcut(command);
+                          }}
+                          onBlur={() => setRecordingShortcut(undefined)}
+                          onKeyDown={(event) => {
+                            event.preventDefault();
+                            if (event.key === "Escape") {
+                              event.currentTarget.blur();
+                              return;
+                            }
+                            if (
+                              ["Meta", "Control", "Alt", "Shift"].includes(
+                                event.key,
+                              )
+                            )
+                              return;
+                            const next = shortcutFromKey(event);
+                            if (!next) {
+                              setShortcutError(
+                                "Use Command, Control, or Alt with a letter, number, Space, arrow, or function key.",
+                              );
+                              return;
+                            }
+                            void changeShortcut(command, next).then(() =>
+                              event.currentTarget.blur(),
+                            );
+                          }}
+                        />
+                        <Button
+                          disabled={
+                            shortcutBusy === command || !extensionShortcuts
+                          }
+                          onClick={() => void restoreShortcut(command)}
+                        >
+                          Restore default
+                        </Button>
+                      </SettingRow>
+                    );
+                  })}
+                  {shortcutError ? (
+                    <div className="v2-warning-bar" role="alert">
+                      {shortcutError}
+                    </div>
+                  ) : null}
+                </section>
                 <section className="v2-settings-section">
                   <h2>Global Skill defaults</h2>
                   {globalBindings.map(([key, label, accepts]) => (
