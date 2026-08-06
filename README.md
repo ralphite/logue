@@ -2,7 +2,7 @@
 
 Logue is a local-first tool for capturing and organizing information across the web. The browser extension enters text on the current page, captures selections, and appends annotations. A Python 3.13 service stores content, maintains source relationships, and processes audio with Gemini. The React Web App organizes content and projects.
 
-The released product described below is **V1**. LOGUE.ai V2 is now being built end to end across the real Chrome Extension, local Host/API, Web App, persisted data, and release pipeline. Storybook is supporting design evidence, not the product deliverable. The single authoritative V2 design is [`docs/design/logue-ai-product-positioning-2026-08-04.md`](./docs/design/logue-ai-product-positioning-2026-08-04.md).
+Logue V2 spans the real Chrome Extension, local Host/API, Web App, persisted data, and release pipeline. Storybook is supporting design evidence, not the product deliverable. The single authoritative V2 design is [`docs/design/logue-ai-product-positioning-2026-08-04.md`](./docs/design/logue-ai-product-positioning-2026-08-04.md).
 
 ## Install and upgrade
 
@@ -14,10 +14,10 @@ The released product described below is **V1**. LOGUE.ai V2 is now being built e
 curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh | bash
 ```
 
-2. On the Mac, install only the Chrome Extension:
+2. The Linux installer prints a Mac command pinned to the exact Host release. Run that printed command on the Mac. It has this form:
 
 ```bash
-curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install-extension.sh | bash
+curl -fsSL https://github.com/ralphite/logue/releases/download/vX.Y.Z/install-extension.sh | LOGUE_RELEASE=vX.Y.Z bash
 ```
 
 The Mac command prints the one-time **Developer mode** → **Load unpacked** steps. Then open the Logue Side Panel, choose **More options** → **Server settings**, enter `http(s)://<Linux host>:8787`, click **Connect**, and allow that origin.
@@ -32,9 +32,9 @@ curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh
 
 The installer supports macOS and Linux, verifies the release checksum, asks whether Logue should be available on the network or only this computer, starts Logue immediately, and asks whether it should start automatically when you sign in. The single release package contains the Python service, prebuilt Web App, and prebuilt Chrome Extension. Python 3.13 is required; source code, Go, Node.js, and other build tools are not. Open `http://127.0.0.1:8787` in a browser to use Logue locally.
 
-Run the applicable command again to upgrade in place. The service installer stops the previous service it manages, verifies and stages the complete candidate, and atomically updates `$HOME/.local/share/logue/current`. It replaces only the program, Web App, extension, CLI, and startup configuration. A failed upgrade restores the previous version and service. After every Extension upgrade, open `chrome://extensions` and click **Reload** on the existing Logue card; do not use **Load unpacked** again.
+Run the applicable command again to upgrade in place. The service installer stops the previous service it manages, verifies and stages the complete candidate, and atomically updates `$HOME/.local/share/logue/current`. It replaces only the program, Web App, extension, CLI, and startup configuration. A failed upgrade restores the previous version and service. On first install, the Extension is only ready on disk; Chrome starts running it after **Load unpacked**. On upgrade, Chrome keeps running the previous or unknown version until you click **Reload** on the existing Logue card; do not use **Load unpacked** again.
 
-Persistent data is never overwritten. Its default location is `$HOME/Library/Application Support/Logue` on macOS and `${XDG_DATA_HOME:-$HOME/.local/share}/logue/data` on Linux. The command-line entry point is `$HOME/.local/bin/logue`. Login startup uses `$HOME/Library/LaunchAgents/com.ralphite.logue.plist` on macOS or `$HOME/.config/systemd/user/logue.service` on Linux.
+Persistent data is never overwritten. Its default location is `$HOME/Library/Application Support/Logue` on macOS and `${XDG_DATA_HOME:-$HOME/.local/share}/logue-data` on Linux. An existing managed Linux install using the former nested default is detected before any write; the installer asks before moving the workspace and every recoverable snapshot, keeps a migration backup, and restores the old version, path, service state, and data if the upgrade fails. Ambiguous or overlapping paths are rejected instead of starting an empty workspace. The command-line entry point is `$HOME/.local/bin/logue`. Login startup uses `$HOME/Library/LaunchAgents/com.ralphite.logue.plist` on macOS or `$HOME/.config/systemd/user/logue.service` on Linux.
 
 For unattended installations, set `LOGUE_AUTO_START=yes` or `LOGUE_AUTO_START=no` explicitly. Set `LOGUE_ADDRESS=127.0.0.1:8787` to limit Logue to the current machine, or `LOGUE_ADDRESS=0.0.0.0:8787` for network access. Without an interactive terminal, the installer disables login startup and defaults the listener to `0.0.0.0:8787`. The current service starts immediately after installation regardless of this setting.
 
@@ -99,7 +99,7 @@ See the [`product design index`](./docs/design/README.md) for the V2 authority a
 Build the platform-independent Python release locally from locked dependencies:
 
 ```bash
-bash scripts/build-release.sh v0.2.3
+bash scripts/build-release.sh "v$(node -p "require('./package.json').version")"
 ```
 
 The output is written to `dist/release`: `logue-python.zip` and `checksums.txt`. The zip contains the Python service, production Web App, Chrome Extension, and version metadata for both macOS and Linux. Pushing a `v*` tag triggers GitHub Actions to rebuild the package, create a GitHub Release, and upload both one-command installers.

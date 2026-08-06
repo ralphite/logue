@@ -169,10 +169,10 @@
 
 - V2-OPS-01 — INTEGRATED — Host 数据目录为唯一权威；Extension 仅持有 tab/target/pending 状态。
 - V2-OPS-02 — INTEGRATED — Source/membership/comment/run/document/profile/topic/skill API 主链及 adoption 互斥/幂等已接。
-- V2-OPS-03 — INTEGRATED — 当前 `.logue-data` 的 Voice/Profile/revision schema 已完成显式备份和一次性更新；production Python Host 不再运行 startup migration，当前 schema 是唯一权威。
+- V2-OPS-03 — CODED — 当前 `.logue-data` 的 Voice/Profile/revision schema 已完成显式备份和一次性更新；production Python Host 不再运行 startup migration，当前 schema 是唯一权威。但 production Web/API/Settings/DocumentWorkspace/RealProjectWorkspace 仍调用待迁移的 V1 Host 路由，V2-only runtime 合同尚未闭合。
 - V2-OPS-04 — INTEGRATED — 不保留 V1 route/schema alias 或永久 migration path。
-- V2-OPS-05 — CODED — installer overwrite/rollback 与 data preservation 原语存在；V2 artifact/version chain 未统一验收前只算 CODED。
-- V2-OPS-06 — CODED — Host/Web 与 Chrome Extension release artifacts 存在；V2-only production artifact chain 尚未最终收口。
+- V2-OPS-05 — INTEGRATED — installer 在 managed 写入前拒绝 data/snapshot 路径重叠；旧 Linux 默认 workspace 与全部 Host snapshots 使用需确认、停服冻结校验、失败恢复旧 version/unit/path/active/enabled 的一次性迁移；程序 rollback 永不接管 data root。真实安装验收留 Phase 5。
+- V2-OPS-06 — INTEGRATED — workspace packages、release tag、Host VERSION、Extension version/version_name、split installer、fixtures 与 remote smoke 已使用同一 release identity；首次 Load 与升级 Reload 状态准确。真实 artifact 发布验收留 Phase 5。
 - V2-OPS-07 — INTEGRATED — production bundle 在 logue.ai/www.logue.ai 挂载 V2 Landing，本机仍直接进入 Projects；真实 release/installer、Docs、Privacy 与未擅自选择开源模式的 License section 已连接。
 
 ## Failure recovery / keyboard / accessibility
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-OPS-05`
+- `ACTIVE: V2-OPS-03`（下一独立批次；DR-070 不扩展到生产 V1 调用方迁移）
 - 完成条件：installer overwrite/rollback 保留当前 data root 与 Host-managed snapshots，版本与 release artifact 合同统一；只做阻塞性静态/构建检查，不在 Phase 1 扩展浏览器或安装验收。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

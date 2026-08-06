@@ -9,8 +9,6 @@ const releaseUrl = `${repositoryUrl}/releases/latest`;
 const releaseAssetUrl = `${repositoryUrl}/releases/latest/download/logue-python.zip`;
 const installCommand =
   "curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh | bash";
-const extensionCommand =
-  "curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install-extension.sh | bash";
 
 function CopyCommand({ command }: { command: string }) {
   const [copied, setCopied] = useState(false);
@@ -136,12 +134,11 @@ export function LandingPage() {
             </article>
             <article>
               <span>Mac Chrome + remote Linux Host</span>
-              <h3>Install only the Extension</h3>
+              <h3>Connect Chrome to the same release</h3>
               <p>
-                Use this on the Mac that runs Chrome when Logue Host runs on a
-                different machine.
+                Install the Linux Host first, then run the version-pinned Mac
+                command it prints. Host and Extension will use the same release.
               </p>
-              <CopyCommand command={extensionCommand} />
             </article>
           </div>
           <div className="v2-inline-actions v2-landing-links">
@@ -183,8 +180,10 @@ export function LandingPage() {
                 <h3>Load the Chrome Extension once</h3>
                 <p>
                   Open chrome://extensions, enable Developer mode, choose Load
-                  unpacked, and select ~/.local/share/logue/extension. Upgrades
-                  keep this folder stable; use Reload afterward.
+                  unpacked, and select ~/.local/share/logue/extension. Chrome is
+                  not running Logue before that first load. Upgrades prepare new
+                  assets in the same folder; Chrome stays on its previous version
+                  until you use Reload.
                 </p>
               </div>
             </article>

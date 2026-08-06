@@ -9,6 +9,9 @@ python_bin="$(command -v python3.13)"
 extension_dir="${test_home}/.local/share/logue/extension"
 fixture_v1="${LOGUE_EXTENSION_TEST_FIXTURE_V1:-${test_root}/release-v1}"
 fixture_v2="${LOGUE_EXTENSION_TEST_FIXTURE_V2:-${test_root}/release-v2}"
+workspace_version="$(node -p "require('${repo_dir}/package.json').version")"
+release_v1="v${workspace_version}-fixture.1"
+release_v2="v${workspace_version}-fixture.2"
 
 cleanup() {
   if [[ "${test_root}" == /tmp/logue-extension-installer-test.* && -d "${test_root}" ]]; then
@@ -44,6 +47,16 @@ run_installer() {
 assert_installed_extension() {
   local version="$1" manifest worker content sidepanel microphone html_file html_dir asset_ref asset_count=0
   manifest="${extension_dir}/manifest.json"
+  "${python_bin}" - "${manifest}" "${workspace_version}" "${version}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest_path, base, identity = sys.argv[1:]
+manifest = json.loads(Path(manifest_path).read_text())
+if manifest.get("version") != base or manifest.get("version_name") != identity:
+    raise SystemExit("installed Extension identity does not match the fixture release")
+PY
   worker="$(sed -n 's/.*"service_worker": "\([^"]*\)".*/\1/p' "${manifest}")"
   content="$(sed -n 's/.*"js": \["\([^"]*\)"\].*/\1/p' "${manifest}")"
   sidepanel="$(sed -n 's/.*"default_path": "\([^"]*\)".*/\1/p' "${manifest}")"
@@ -86,18 +99,19 @@ assert_installed_extension() {
 
 if [[ -z "${LOGUE_EXTENSION_TEST_FIXTURE_V1:-}" || -z "${LOGUE_EXTENSION_TEST_FIXTURE_V2:-}" ]]; then
   printf 'Building standalone Extension fixtures...\n'
-  build_fixture v0.1.0 "${fixture_v1}"
-  build_fixture v0.1.1 "${fixture_v2}"
+  build_fixture "${release_v1}" "${fixture_v1}"
+  build_fixture "${release_v2}" "${fixture_v2}"
 fi
 
 mkdir -p "${test_home}"
 first_install_log="${test_root}/first-install.log"
 run_installer "file://${fixture_v1}" "${first_install_log}"
-assert_installed_extension v0.1.0
+assert_installed_extension "${release_v1}"
 worker_v1="${installed_worker}"
 content_v1="${installed_content}"
 sidepanel_v1="${installed_sidepanel}"
-grep -Fq 'Chrome will not install or update an unpacked Extension silently.' "${first_install_log}" || { printf 'Standalone installer did not explain Chrome manual installation\n' >&2; exit 1; }
+grep -Fq "Logue Extension ${release_v1} is ready to load" "${first_install_log}" || { printf 'Standalone installer did not report the first-load state\n' >&2; exit 1; }
+grep -Fq 'Chrome is not running Logue yet.' "${first_install_log}" || { printf 'Standalone installer did not explain the pre-load Chrome state\n' >&2; exit 1; }
 grep -Fq '1. Open chrome://extensions.' "${first_install_log}" || { printf 'Standalone installer omitted chrome://extensions\n' >&2; exit 1; }
 grep -Fq '2. Turn on Developer mode.' "${first_install_log}" || { printf 'Standalone installer omitted Developer mode\n' >&2; exit 1; }
 grep -Fq '3. Click Load unpacked.' "${first_install_log}" || { printf 'Standalone installer omitted Load unpacked\n' >&2; exit 1; }
@@ -144,11 +158,13 @@ fi
 
 upgrade_log="${test_root}/upgrade.log"
 run_installer "file://${fixture_v2}" "${upgrade_log}"
-assert_installed_extension v0.1.1
+assert_installed_extension "${release_v2}"
 [[ "${installed_worker}" != "${worker_v1}" && "${installed_content}" != "${content_v1}" && "${installed_sidepanel}" != "${sidepanel_v1}" ]] || { printf 'Standalone upgrade did not switch every manifest entry\n' >&2; exit 1; }
 [[ -f "${extension_dir}/${worker_v1}" && -f "${extension_dir}/${content_v1}" && -f "${extension_dir}/${sidepanel_v1}" ]] || { printf 'Standalone upgrade removed assets still used by Chrome\n' >&2; exit 1; }
 [[ "$(file_sha256 "${extension_dir}/installer-sentinel.txt")" == "${sentinel_before}" ]] || { printf 'Standalone upgrade replaced the stable Extension folder\n' >&2; exit 1; }
 grep -Fq 'click Reload on the Logue card' "${upgrade_log}" || { printf 'Standalone upgrade omitted the Reload step\n' >&2; exit 1; }
+grep -Fq "Logue Extension ${release_v2} update is ready" "${upgrade_log}" || { printf 'Standalone upgrade did not report update ready\n' >&2; exit 1; }
+grep -Fq 'Chrome remains on the previous or unknown version until Reload.' "${upgrade_log}" || { printf 'Standalone upgrade misstated the running Chrome version\n' >&2; exit 1; }
 if grep -Fq 'Click Load unpacked' "${upgrade_log}"; then
   printf 'Standalone upgrade incorrectly repeated first-time Load unpacked instructions\n' >&2
   exit 1

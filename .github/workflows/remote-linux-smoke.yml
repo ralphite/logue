@@ -30,7 +30,9 @@ jobs:
           python-version: "3.13"
 
       - name: Build the platform-independent release
-        run: bash scripts/build-release.sh v0.0.0-remote-smoke
+        run: |
+          workspace_version="$(node -p "require('./package.json').version")"
+          bash scripts/build-release.sh "v${workspace_version}-remote-smoke"
 
       - name: Install with a Python-only runtime path
         shell: bash
@@ -59,7 +61,22 @@ jobs:
           LOGUE_AUTO_START=no \
           LOGUE_OPEN_BROWSER=no \
           /bin/bash install.sh
-          curl -fsS http://127.0.0.1:8787/v1/status | grep -Fq '"ok":true'
+          workspace_version="$(node -p "require('./package.json').version")"
+          release_identity="v${workspace_version}-remote-smoke"
+          status_body="$(curl -fsS http://127.0.0.1:8787/v1/status)"
+          grep -Fq '"ok":true' <<<"${status_body}"
+          grep -Fq "\"version\":\"${release_identity}\"" <<<"${status_body}"
+          [[ "$(tr -d '\r\n' < "${install_root}/current/VERSION")" == "${release_identity}" ]]
+          python3.13 - "${install_root}/extension/manifest.json" "${workspace_version}" "${release_identity}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          manifest_path, base, identity = sys.argv[1:]
+          manifest = json.loads(Path(manifest_path).read_text())
+          if manifest.get("version") != base or manifest.get("version_name") != identity:
+              raise SystemExit("installed Extension identity does not match remote-smoke release")
+          PY
           echo "LOGUE_QA_INSTALL_ROOT=${install_root}" >> "${GITHUB_ENV}"
           echo "LOGUE_QA_DATA_ROOT=${data_root}" >> "${GITHUB_ENV}"
 

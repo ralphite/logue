@@ -7,9 +7,12 @@ test_root="$(mktemp -d /tmp/logue-linux-installer-test.XXXXXX)"
 test_home="${test_root}/home"
 fixture_v1="${test_root}/release-v1"
 fixture_v2="${test_root}/release-v2"
+workspace_version="$(node -p "require('${repo_dir}/package.json').version")"
+release_v1="v${workspace_version}-fixture.1"
+release_v2="v${workspace_version}-fixture.2"
 fake_bin="${test_root}/bin"
 install_root="${test_home}/.local/share/logue"
-data_root="${install_root}/data"
+data_root="${test_home}/.local/share/logue-data"
 extension_dir="${test_home}/.local/share/logue/extension"
 bin_dir="${test_home}/.local/bin"
 systemd_dir="${test_home}/.config/systemd/user"
@@ -111,9 +114,9 @@ status_version() {
 }
 
 printf 'Building platform-independent Python fixture...\n'
-build_fixture v0.1.0 "${fixture_v1}"
+build_fixture "${release_v1}" "${fixture_v1}"
 run_installer "file://${fixture_v1}" yes "0.0.0.0:${port}" >"${test_root}/install.log"
-status_version v0.1.0 || { printf 'Python service did not start\n' >&2; exit 1; }
+status_version "${release_v1}" || { printf 'Python service did not start\n' >&2; exit 1; }
 grep -Fq "ExecStart=\"${runtime_python}\" \"${install_root}/current/python_server/logue_server.py\" --address \"0.0.0.0:${port}\"" "${systemd_unit}" || {
   printf 'systemd unit does not use absolute python3.13 and LAN address\n' >&2
   exit 1
@@ -134,7 +137,7 @@ fi
 mkdir -p "${data_root}/items"
 printf '%s\n' 'preserve-linux-data' > "${data_root}/items/installer-sentinel.txt"
 sentinel_before="$(sha256sum "${data_root}/items/installer-sentinel.txt" | awk '{print $1}')"
-build_fixture v0.1.1 "${fixture_v2}"
+build_fixture "${release_v2}" "${fixture_v2}"
 manifest_before="$(sha256sum "${extension_dir}/manifest.json" | awk '{print $1}')"
 missing_microphone_fixture="${test_root}/missing-microphone-release"
 build_missing_microphone_fixture "${fixture_v2}" "${missing_microphone_fixture}"
@@ -142,10 +145,10 @@ if run_installer "file://${missing_microphone_fixture}" no "0.0.0.0:${port}" >"$
   printf 'Linux installer accepted a release without microphone.html\n' >&2
   exit 1
 fi
-status_version v0.1.0 || { printf 'Missing microphone upgrade changed the active service\n' >&2; exit 1; }
+status_version "${release_v1}" || { printf 'Missing microphone upgrade changed the active service\n' >&2; exit 1; }
 [[ "$(sha256sum "${extension_dir}/manifest.json" | awk '{print $1}')" == "${manifest_before}" ]] || { printf 'Missing microphone upgrade changed the active manifest\n' >&2; exit 1; }
 run_installer "file://${fixture_v2}" no "0.0.0.0:${port}" >"${test_root}/upgrade.log"
-status_version v0.1.1 || { printf 'Python upgrade did not start\n' >&2; exit 1; }
+status_version "${release_v2}" || { printf 'Python upgrade did not start\n' >&2; exit 1; }
 sentinel_after="$(sha256sum "${data_root}/items/installer-sentinel.txt" | awk '{print $1}')"
 [[ "${sentinel_before}" == "${sentinel_after}" ]] || { printf 'upgrade changed persistent data\n' >&2; exit 1; }
 

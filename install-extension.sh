@@ -4,7 +4,18 @@ set -Eeuo pipefail
 
 logue_home="${HOME:?HOME is required}"
 extension_dir="${LOGUE_EXTENSION_DIR:-${logue_home}/.local/share/logue/extension}"
-asset_base_url="${LOGUE_ASSET_BASE_URL:-https://github.com/ralphite/logue/releases/latest/download}"
+requested_release="${LOGUE_RELEASE:-}"
+if [[ -n "${requested_release}" && ! "${requested_release}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+  printf 'LOGUE_RELEASE must be a full Logue release identity such as v0.2.13.\n' >&2
+  exit 64
+fi
+if [[ -n "${LOGUE_ASSET_BASE_URL:-}" ]]; then
+  asset_base_url="${LOGUE_ASSET_BASE_URL}"
+elif [[ -n "${requested_release}" ]]; then
+  asset_base_url="https://github.com/ralphite/logue/releases/download/${requested_release}"
+else
+  asset_base_url="https://github.com/ralphite/logue/releases/latest/download"
+fi
 asset_name="logue-python.zip"
 install_tmp=""
 staged_extension_assets=""
@@ -32,6 +43,43 @@ verify_checksum() {
   else
     (cd "${install_tmp}" && shasum -a 256 -c selected-checksum.txt >/dev/null)
   fi
+}
+
+validate_release_contract() {
+  "${python_bin}" - "${package_dir}/VERSION" "${package_dir}/extension/manifest.json" "${requested_release}" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+version_path, manifest_path, requested = sys.argv[1:]
+identity = Path(version_path).read_text().strip()
+match = re.fullmatch(r"v([0-9]+\.[0-9]+\.[0-9]+)(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?", identity)
+if not match:
+    raise SystemExit(f"Invalid release identity: {identity}")
+manifest = json.loads(Path(manifest_path).read_text())
+if manifest.get("version") != match.group(1):
+    raise SystemExit("Extension version does not match VERSION base")
+if manifest.get("version_name") != identity:
+    raise SystemExit("Extension version_name does not match VERSION")
+if requested and requested != identity:
+    raise SystemExit(f"Requested {requested} but downloaded {identity}")
+PY
+}
+
+validate_manifest_identity() {
+  "${python_bin}" - "$1" "${logue_version}" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+manifest_path, identity = sys.argv[1:]
+match = re.fullmatch(r"v([0-9]+\.[0-9]+\.[0-9]+)(?:-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?", identity)
+manifest = json.loads(Path(manifest_path).read_text())
+if not match or manifest.get("version") != match.group(1) or manifest.get("version_name") != identity:
+    raise SystemExit("staged Extension identity does not match VERSION")
+PY
 }
 
 validate_extension_html_assets() {
@@ -64,8 +112,7 @@ printf '\nLogue Chrome Extension install and upgrade\n'
 say "Stable folder: ${extension_dir}"
 say "Chrome storage is preserved because this folder is never replaced"
 
-mkdir -p "${extension_dir}/releases"
-install_tmp="$(mktemp -d "${extension_dir}/.install.XXXXXX")"
+install_tmp="$(mktemp -d "${TMPDIR:-/tmp}/logue-extension-install.XXXXXX")"
 
 step "1/3  Download and verify the Extension"
 curl -fsSL --retry 3 --retry-delay 1 "${asset_base_url}/${asset_name}" -o "${install_tmp}/${asset_name}"
@@ -96,11 +143,12 @@ PY
 [[ -f "${package_dir}/extension/background.js" && -f "${package_dir}/extension/content.js" && -f "${package_dir}/extension/sidepanel.html" && -f "${package_dir}/extension/microphone.html" ]] || fail "Release Extension assets are incomplete."
 [[ -f "${package_dir}/VERSION" ]] || fail "Release is missing VERSION."
 logue_version="$(tr -d '\r\n' < "${package_dir}/VERSION")"
-[[ "${logue_version}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || fail "Invalid release version: ${logue_version}."
+validate_release_contract || fail "Release VERSION and Extension identity do not match; the existing Extension was not changed."
 validate_extension_html_assets "${package_dir}/extension/sidepanel.html" || fail "Release Side Panel references missing or non-relative assets."
 validate_extension_html_assets "${package_dir}/extension/microphone.html" || fail "Release microphone permission page references missing or non-relative assets."
 
 step "2/3  Stage and switch atomically"
+mkdir -p "${extension_dir}/releases"
 extension_asset_id="${logue_version}-$$"
 extension_releases_dir="${extension_dir}/releases"
 extension_stage="${extension_releases_dir}/.${extension_asset_id}.next"
@@ -118,6 +166,7 @@ sed \
   -e "s|\"default_path\": \"sidepanel.html\"|\"default_path\": \"releases/${extension_asset_id}/sidepanel.html\"|" \
   "${package_dir}/extension/manifest.json" > "${extension_manifest_next}"
 
+validate_manifest_identity "${extension_manifest_next}" || fail "Staged Extension identity does not match VERSION."
 grep -Fq "\"service_worker\": \"releases/${extension_asset_id}/background.js\"" "${extension_manifest_next}" || fail "Staged manifest is missing the versioned worker."
 grep -Fq "\"js\": [\"releases/${extension_asset_id}/content.js\"]" "${extension_manifest_next}" || fail "Staged manifest is missing the versioned content script."
 grep -Fq "\"default_path\": \"releases/${extension_asset_id}/sidepanel.html\"" "${extension_manifest_next}" || fail "Staged manifest is missing the versioned Side Panel."
@@ -138,10 +187,10 @@ manifest_switched="yes"
 staged_extension_assets=""
 
 step "3/3  Finish Chrome setup"
-printf '\n✓ Logue Extension %s is ready\n' "${logue_version}"
 say "Folder: ${extension_dir}"
-say "Chrome will not install or update an unpacked Extension silently."
 if [[ "${first_install}" == "yes" ]]; then
+  printf '\n✓ Logue Extension %s is ready to load\n' "${logue_version}"
+  say "Chrome is not running Logue yet."
   printf '\nFirst-time Chrome setup:\n'
   printf '%s\n' '  1. Open chrome://extensions.'
   printf '%s\n' '  2. Turn on Developer mode.'
@@ -151,6 +200,8 @@ if [[ "${first_install}" == "yes" ]]; then
   printf '%s\n' '  6. Open More options → Server settings.'
   printf '%s\n' '  7. Enter http(s)://<Linux host>:8787, click Connect, and allow that origin.'
 else
-  say "Upgrade: open chrome://extensions and click Reload on the Logue card"
+  printf '\n✓ Logue Extension %s update is ready\n' "${logue_version}"
+  say "Chrome remains on the previous or unknown version until Reload."
+  say "Open chrome://extensions and click Reload on the Logue card"
   say "Do not use Load unpacked again"
 fi
