@@ -239,6 +239,7 @@ export async function retranscribeMaterial(id: string, options: {
   disableProjectProfile?: boolean;
   primaryLanguage?: string;
   topicVocabularyId?: string;
+  correction?: { spoken: string; preferred: string; scope: "only" | "topic" | "project" | "global" };
 }) {
   const result = await parseResponse<{ material: ApiMaterial; revision: TranscriptRevision }>(
     await fetch(`${apiBase}/v1/items/${encodeURIComponent(id)}/retranscribe`, {
@@ -249,6 +250,7 @@ export async function retranscribeMaterial(id: string, options: {
         disable_project_profile: Boolean(options.disableProjectProfile),
         primary_language: options.primaryLanguage ?? "",
         topic_vocabulary_id: options.topicVocabularyId ?? "",
+        correction: options.correction,
       }),
     }),
   );

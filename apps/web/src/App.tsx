@@ -295,7 +295,7 @@ export function App() {
     setMaterials((current) => current.map((material) => material.id === id ? updated : material));
   }
 
-  async function retranscribe(id: string, options: { referenceProject?: string; disableProjectProfile?: boolean; primaryLanguage?: string; topicVocabularyId?: string }) {
+  async function retranscribe(id: string, options: { referenceProject?: string; disableProjectProfile?: boolean; primaryLanguage?: string; topicVocabularyId?: string; correction?: { spoken: string; preferred: string; scope: "only" | "topic" | "project" | "global" } }) {
     const result = await retranscribeMaterial(id, options);
     setMaterials((current) => current.map((material) => material.id === id ? result.material : material));
     return result.material;

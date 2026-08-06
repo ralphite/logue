@@ -40,6 +40,9 @@ export interface AppliedContext {
   language_override?: string;
   topic_vocabulary_id?: string;
   topic_vocabulary_name?: string;
+  correction_spoken?: string;
+  correction_preferred?: string;
+  correction_scope?: "only" | "topic" | "project" | "global";
 }
 
 export interface Material {

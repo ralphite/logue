@@ -111,6 +111,28 @@ def vocabulary_terms(value: Any) -> list[str]:
     return terms
 
 
+def merge_vocabularies(*values: Any) -> dict[str, Any]:
+    merged: dict[str, Any] = {category: [] for category in VOCABULARY_CATEGORIES}
+    preferred: dict[str, dict[str, str]] = {}
+    for value in values:
+        vocabulary = normalize_vocabulary(value)
+        for category in VOCABULARY_CATEGORIES:
+            merged[category] = normalize(merged[category] + vocabulary[category])
+        for entry in vocabulary["preferred_spellings"]:
+            preferred[entry["spoken"].casefold()] = entry
+    merged["preferred_spellings"] = list(preferred.values())
+    return merged
+
+
+def with_preferred_spelling(value: Any, spoken: str, preferred: str) -> dict[str, Any]:
+    vocabulary = normalize_vocabulary(value)
+    vocabulary["preferred_spellings"] = [
+        entry for entry in vocabulary["preferred_spellings"]
+        if entry["spoken"].casefold() != spoken.casefold()
+    ] + [{"spoken": spoken, "preferred": preferred}]
+    return vocabulary
+
+
 def atomic_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd, temporary = tempfile.mkstemp(prefix=f"{path.stem}-", suffix=".tmp", dir=path.parent)
@@ -245,6 +267,41 @@ class Store:
         vocabulary.update({"name": name, "vocabulary": normalize_vocabulary(value.get("vocabulary", vocabulary.get("vocabulary"))), "updated_at": timestamp})
         atomic_json(self.root / "topic-vocabularies" / f"{vocabulary['id']}.json", vocabulary)
         return vocabulary
+
+    def remember_preferred_spelling(self, scope: str, spoken: str, preferred: str, *, reference_project: str = "", topic_vocabulary_id: str = "") -> None:
+        if scope == "only":
+            return
+        with self.lock:
+            if scope == "global":
+                settings = self.settings()
+                profile = normalize_voice_profile(settings.get("voice_profile"))
+                profile["vocabulary"] = with_preferred_spelling(profile.get("vocabulary"), spoken, preferred)
+                self.save_settings({**settings, "voice_profile": profile})
+                return
+            if scope == "topic":
+                if not topic_vocabulary_id:
+                    raise ValueError("choose a Topic Vocabulary before remembering this correction")
+                topic = self.get("topic-vocabularies", topic_vocabulary_id)
+                self.save_topic_vocabulary(topic_vocabulary_id, {**topic, "vocabulary": with_preferred_spelling(topic.get("vocabulary"), spoken, preferred)})
+                return
+            if scope == "project":
+                if not reference_project:
+                    raise ValueError("choose a Project before remembering this correction")
+                project = self.get_project(reference_project)
+                profile = normalize_voice_profile(project.get("transcription_profile"), project=True)
+                if profile["mode"] == "disabled":
+                    raise ValueError("this Project transcription profile is disabled")
+                if profile["mode"] != "customized":
+                    inherited = normalize_voice_profile(self.settings().get("voice_profile"))
+                    profile = {**inherited, "mode": "customized"}
+                profile["vocabulary"] = with_preferred_spelling(profile.get("vocabulary"), spoken, preferred)
+                self.save_project(reference_project, {
+                    "overview": project.get("overview", ""),
+                    "transcription_profile": profile,
+                    "skill_bindings": project.get("skill_bindings", {}),
+                })
+                return
+            raise ValueError("invalid correction memory scope")
 
     def get(self, directory: str, identifier: str) -> dict[str, Any]:
         if not ID_RE.match(identifier):
@@ -464,7 +521,7 @@ class Store:
         applied_context = value.get("applied_context")
         if applied_context is not None and not isinstance(applied_context, dict):
             raise ValueError("applied_context must be an object")
-        context_strings = {"page_url", "page_title", "reference_project", "personal_context", "project_overview", "transcription_skill_id", "transcription_skill_name", "transcription_skill_instructions", "voice_profile_label", "project_profile_mode", "primary_language", "language_override", "topic_vocabulary_id", "topic_vocabulary_name", "custom_instructions"}
+        context_strings = {"page_url", "page_title", "reference_project", "personal_context", "project_overview", "transcription_skill_id", "transcription_skill_name", "transcription_skill_instructions", "voice_profile_label", "project_profile_mode", "primary_language", "language_override", "topic_vocabulary_id", "topic_vocabulary_name", "custom_instructions", "correction_spoken", "correction_preferred", "correction_scope"}
         context_arrays = {"glossary", "mixed_languages", "recent_adopted_ids", "recent_adopted_texts"}
         context_integers = {"transcription_skill_revision"}
         context_booleans = {"disable_project_profile"}
@@ -594,15 +651,13 @@ class Store:
         mode = "disabled" if overrides.get("disable_project_profile") and project else project_profile["mode"] if project else "default"
         customized = bool(project and mode == "customized")
         selected_profile = project_profile if customized else default_profile
-        vocabulary = vocabulary_terms(default_profile.get("vocabulary"))
-        if customized and project:
-            vocabulary = normalize(vocabulary + vocabulary_terms(project_profile.get("vocabulary")))
+        resolved_vocabulary = merge_vocabularies(default_profile.get("vocabulary"), project_profile.get("vocabulary") if customized and project else None)
         topic = None
         topic_id = str(overrides.get("topic_vocabulary_id", "")).strip()
         if topic_id:
             try:
                 topic = self.get("topic-vocabularies", topic_id)
-                vocabulary = normalize(vocabulary + vocabulary_terms(topic.get("vocabulary")))
+                resolved_vocabulary = merge_vocabularies(resolved_vocabulary, topic.get("vocabulary"))
             except FileNotFoundError:
                 pass
         custom_instructions = default_profile["custom_instructions"]
@@ -630,7 +685,7 @@ class Store:
             "primary_language": language_override or selected_profile["primary_language"],
             "mixed_languages": selected_profile["mixed_languages"],
             "custom_instructions": custom_instructions,
-            "vocabulary": vocabulary,
+            "vocabulary": vocabulary_terms(resolved_vocabulary),
             "skill_id": str(skill["id"]),
             "skill_name": str(skill["name"]),
             "skill_revision": int(skill.get("revision", 1)),
@@ -1386,6 +1441,23 @@ class Handler(BaseHTTPRequestHandler):
             "topic_vocabulary_id": str(value.get("topic_vocabulary_id", "")).strip(),
         }
         profile = store.resolve_voice_profile(reference_project, overrides)
+        correction_value = value.get("correction") if isinstance(value.get("correction"), dict) else {}
+        correction_spoken = str(correction_value.get("spoken", "")).strip()
+        correction_preferred = str(correction_value.get("preferred", "")).strip()
+        correction_scope = str(correction_value.get("scope", "only")).strip().lower()
+        if bool(correction_spoken) != bool(correction_preferred):
+            raise ValueError("both the spoken term and preferred spelling are required")
+        if correction_spoken and correction_scope not in {"only", "topic", "project", "global"}:
+            raise ValueError("invalid correction memory scope")
+        if correction_spoken and correction_scope == "topic" and not profile["topic_vocabulary_id"]:
+            raise ValueError("choose a Topic Vocabulary before remembering this correction")
+        if correction_spoken and correction_scope == "project" and profile["project_mode"] == "disabled":
+            raise ValueError("this Project transcription profile is disabled")
+        correction_instruction = ""
+        if correction_spoken:
+            prefix = f"{correction_spoken} →".casefold()
+            profile["vocabulary"] = [entry for entry in profile["vocabulary"] if not entry.casefold().startswith(prefix)] + [f"{correction_spoken} → {correction_preferred}"]
+            correction_instruction = f'Transcribe the spoken term "{correction_spoken}" as "{correction_preferred}" for this recording.'
         source = item.get("source") if isinstance(item.get("source"), dict) else {}
         resolved_context = {
             "page_url": str(existing_context.get("page_url") or source.get("url", "")),
@@ -1410,6 +1482,8 @@ class Handler(BaseHTTPRequestHandler):
             "recent_adopted_ids": normalize(existing_context.get("recent_adopted_ids")),
             "recent_adopted_texts": normalize(existing_context.get("recent_adopted_texts")),
         }
+        if correction_spoken:
+            resolved_context.update({"correction_spoken": correction_spoken, "correction_preferred": correction_preferred, "correction_scope": correction_scope})
         fields = {
             "page_url": resolved_context["page_url"],
             "page_title": resolved_context["page_title"],
@@ -1421,8 +1495,12 @@ class Handler(BaseHTTPRequestHandler):
         skill_instructions = profile["skill_instructions"]
         if profile["custom_instructions"]:
             skill_instructions = f"{skill_instructions}\n\nProfile instructions:\n{profile['custom_instructions']}"
+        if correction_instruction:
+            skill_instructions = f"{skill_instructions}\n\nOne correction:\n{correction_instruction}"
         mime_type = CAPTURE_MIME_TYPES.get(capture_path.suffix.lower(), "audio/webm")
         transcript = self.server.gemini.transcribe(capture_path.read_bytes(), mime_type, fields, skill_instructions)
+        if correction_spoken:
+            store.remember_preferred_spelling(correction_scope, correction_spoken, correction_preferred, reference_project=reference_project, topic_vocabulary_id=profile["topic_vocabulary_id"])
         material, revision = store.save_transcript_revision(identifier, transcript, resolved_context)
         self.json(HTTPStatus.CREATED, {"material": material, "revision": revision})
 

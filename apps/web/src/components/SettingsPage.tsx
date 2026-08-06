@@ -192,25 +192,30 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
     const selected = topicVocabularies.find((item) => item.id === id);
     setTopicVocabularyId(id);
     setTopicVocabularyName(selected?.name ?? "");
-    setTopicVocabularyTerms(selected ? [...selected.vocabulary.people, ...selected.vocabulary.companies, ...selected.vocabulary.products, ...selected.vocabulary.places, ...selected.vocabulary.acronyms].join("\n") : "");
+    setTopicVocabularyTerms(selected ? [...selected.vocabulary.people, ...selected.vocabulary.companies, ...selected.vocabulary.products, ...selected.vocabulary.places, ...selected.vocabulary.acronyms, ...selected.vocabulary.preferred_spellings.map((entry) => `${entry.spoken} → ${entry.preferred}`)].join("\n") : "");
   }
 
   async function persistTopicVocabulary() {
     const name = topicVocabularyName.trim();
     const terms = topicVocabularyTerms.split(/[\n,]/).map((value) => value.trim()).filter(Boolean);
+    const preferredSpellings = terms.flatMap((value) => {
+      const parts = value.split(/\s*(?:→|=>)\s*/, 2);
+      return parts.length === 2 && parts[0] && parts[1] ? [{ spoken: parts[0], preferred: parts[1] }] : [];
+    });
+    const plainTerms = terms.filter((value) => !/→|=>/.test(value));
     if (!name || topicVocabularySaving) return;
     setTopicVocabularySaving(true);
     try {
       const current = topicVocabularies.find((item) => item.id === topicVocabularyId);
       const saved = await saveTopicVocabulary(current?.id, {
         name,
-        vocabulary: { people: [], companies: [], products: Array.from(new Set(terms)), places: [], acronyms: [], preferred_spellings: current?.vocabulary.preferred_spellings ?? [] },
+        vocabulary: { people: [], companies: [], products: Array.from(new Set(plainTerms)), places: [], acronyms: [], preferred_spellings: preferredSpellings },
       });
       setTopicVocabularies((items) => current ? items.map((item) => item.id === saved.id ? saved : item) : [saved, ...items]);
       chooseTopicVocabulary(saved.id);
       setTopicVocabularyId(saved.id);
       setTopicVocabularyName(saved.name);
-      setTopicVocabularyTerms(saved.vocabulary.products.join("\n"));
+      setTopicVocabularyTerms([...saved.vocabulary.products, ...saved.vocabulary.preferred_spellings.map((entry) => `${entry.spoken} → ${entry.preferred}`)].join("\n"));
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : "Could not save Topic Vocabulary");
     } finally {

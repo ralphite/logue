@@ -54,7 +54,7 @@ export function MaterialDetail({
   onClose: () => void;
   onAddAnnotation: (text: string) => Promise<void>;
   onUpdateContent: (id: string, content: string) => Promise<void>;
-  onRetranscribe?: (id: string, options: { referenceProject?: string; disableProjectProfile?: boolean; primaryLanguage?: string; topicVocabularyId?: string }) => Promise<Material>;
+  onRetranscribe?: (id: string, options: { referenceProject?: string; disableProjectProfile?: boolean; primaryLanguage?: string; topicVocabularyId?: string; correction?: { spoken: string; preferred: string; scope: "only" | "topic" | "project" | "global" } }) => Promise<Material>;
   onUpdateOrganization: (id: string, projects: string[], tags: string[]) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onOpenParent: (id: string) => void;
@@ -89,6 +89,9 @@ export function MaterialDetail({
   const [disableProjectProfile, setDisableProjectProfile] = useState(false);
   const [retranscribeLanguage, setRetranscribeLanguage] = useState("");
   const [retranscribeTopicId, setRetranscribeTopicId] = useState("");
+  const [correctionSpoken, setCorrectionSpoken] = useState("");
+  const [correctionPreferred, setCorrectionPreferred] = useState("");
+  const [correctionScope, setCorrectionScope] = useState<"only" | "topic" | "project" | "global">("only");
   const commentSource = parents.find((parent) => parent.kind === "selection");
   const isComment = material.kind === "derived"
     && (!material.actor || material.actor.toLowerCase() === "user")
@@ -107,6 +110,9 @@ export function MaterialDetail({
   );
   const normalizedContentDraft = contentDraft.trim();
   const contentChanged = normalizedContentDraft !== material.content;
+  const correctionIncomplete = Boolean(correctionSpoken.trim()) !== Boolean(correctionPreferred.trim());
+  const correctionScopeUnavailable = (correctionScope === "topic" && !retranscribeTopicId)
+    || (correctionScope === "project" && (!material.appliedContext?.reference_project || disableProjectProfile || material.appliedContext?.project_profile_mode === "disabled"));
   const needsReview = material.organization?.status === "needs_review";
   const suggestedProjects = material.organization?.suggested_projects ?? [];
   const suggestedTags = material.organization?.suggested_tags ?? [];
@@ -139,6 +145,9 @@ export function MaterialDetail({
     setDisableProjectProfile(material.appliedContext?.project_profile_mode === "disabled");
     setRetranscribeLanguage(material.appliedContext?.language_override || "");
     setRetranscribeTopicId(material.appliedContext?.topic_vocabulary_id || "");
+    setCorrectionSpoken("");
+    setCorrectionPreferred("");
+    setCorrectionScope("only");
   }, [material.id, material.transcriptRevision]);
 
   useEffect(() => {
@@ -194,6 +203,9 @@ export function MaterialDetail({
         disableProjectProfile,
         primaryLanguage: retranscribeLanguage || undefined,
         topicVocabularyId: retranscribeTopicId || undefined,
+        correction: correctionSpoken.trim() && correctionPreferred.trim()
+          ? { spoken: correctionSpoken.trim(), preferred: correctionPreferred.trim(), scope: correctionScope }
+          : undefined,
       });
       setRetranscribeOpen(false);
     } catch (cause) {
@@ -356,7 +368,8 @@ export function MaterialDetail({
                 <label className="text-[14px] text-[#73746f]"><span className="mb-1 block">Language</span><input list={`retranscribe-languages-${material.id}`} value={retranscribeLanguage} onChange={(event) => setRetranscribeLanguage(event.target.value)} placeholder="Profile default" className="h-9 w-full rounded-md border border-[#d9dad4] bg-white px-2 text-[14px] text-[#4f504c]" /><datalist id={`retranscribe-languages-${material.id}`}><option value="English" /><option value="中文" /><option value="日本語" /><option value="Español" /></datalist></label>
                 <label className="text-[14px] text-[#73746f] sm:col-span-2"><span className="mb-1 block">Topic Vocabulary</span><select value={retranscribeTopicId} onChange={(event) => setRetranscribeTopicId(event.target.value)} className="h-9 w-full rounded-md border border-[#d9dad4] bg-white px-2 text-[14px] text-[#4f504c]"><option value="">None for this revision</option>{topicVocabularies.map((topic) => <option key={topic.id} value={topic.id}>{topic.name}</option>)}</select></label>
               </div>
-              <div className="mt-3 flex items-center justify-between gap-3"><p className="text-[14px] leading-4 text-[#8d8e89]">Creates a new transcript revision from the same audio. Final text and Project membership stay unchanged.</p><button type="button" disabled={retranscribeBusy} onClick={() => void runRetranscription()} className="h-9 shrink-0 rounded-md bg-[#242522] px-3 text-[14px] font-medium text-white disabled:bg-[#bdbdb8]">{retranscribeBusy ? "Transcribing…" : "Create revision"}</button></div>
+              <fieldset className="mt-3 border-t border-[#e5e5e1] pt-3"><legend className="pr-2 text-[14px] font-medium text-[#666862]">Correct a term <span className="font-normal text-[#999a95]">optional</span></legend><div className="grid gap-2 sm:grid-cols-2"><label className="text-[14px] text-[#73746f]"><span className="mb-1 block">What Logue heard</span><input value={correctionSpoken} onChange={(event) => setCorrectionSpoken(event.target.value)} placeholder="north star" className="h-9 w-full rounded-md border border-[#d9dad4] bg-white px-2 text-[14px] text-[#4f504c]" /></label><label className="text-[14px] text-[#73746f]"><span className="mb-1 block">Preferred spelling</span><input value={correctionPreferred} onChange={(event) => setCorrectionPreferred(event.target.value)} placeholder="Northstar" className="h-9 w-full rounded-md border border-[#d9dad4] bg-white px-2 text-[14px] text-[#4f504c]" /></label><label className="text-[14px] text-[#73746f] sm:col-span-2"><span className="mb-1 block">Remember</span><select value={correctionScope} onChange={(event) => setCorrectionScope(event.target.value as typeof correctionScope)} className="h-9 w-full rounded-md border border-[#d9dad4] bg-white px-2 text-[14px] text-[#4f504c]"><option value="only">Only this time</option><option value="topic" disabled={!retranscribeTopicId}>For selected Topic</option><option value="project" disabled={!material.appliedContext?.reference_project || disableProjectProfile || material.appliedContext?.project_profile_mode === "disabled"}>For {material.appliedContext?.reference_project || "Project"}</option><option value="global">Globally</option></select></label></div></fieldset>
+              <div className="mt-3 flex items-center justify-between gap-3"><p className="text-[14px] leading-4 text-[#8d8e89]">Creates a new transcript revision from the same audio. Final text and Project membership stay unchanged.</p><button type="button" disabled={retranscribeBusy || correctionIncomplete || correctionScopeUnavailable} onClick={() => void runRetranscription()} className="h-9 shrink-0 rounded-md bg-[#242522] px-3 text-[14px] font-medium text-white disabled:bg-[#bdbdb8]">{retranscribeBusy ? "Transcribing…" : "Create revision"}</button></div>
               {retranscribeError && <p role="alert" className="mt-2 rounded-md bg-[#fbefec] px-2.5 py-2 text-[14px] text-[#a34b42]">{retranscribeError}</p>}
             </div>}
             <ol className="mt-5 ml-3 border-l border-[#dcdcd7]">
@@ -370,7 +383,7 @@ export function MaterialDetail({
                 <span className={`absolute -left-3 top-0 inline-flex size-6 items-center justify-center rounded-full border bg-white ${revision.current ? "border-[#bfc8bc] text-[#557057]" : "border-[#d7d7d2] text-[#6f706b]"}`}><FileText size={12} /></span>
                 <div className="flex items-baseline justify-between gap-3"><h3 className="text-[15px] font-semibold text-[#4c4d49]">Transcript r{revision.revision}</h3><span className={`text-[14px] ${revision.current ? "font-medium text-[#638064]" : "text-[#9a9b96]"}`}>{revision.current ? "Current" : new Date(revision.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span></div>
                 <p className="mt-2 whitespace-pre-wrap text-[14px] leading-5 text-[#747570]">{revision.transcript}</p>
-                <details className="mt-2"><summary className="cursor-pointer text-[14px] font-medium text-[#6c70be]">Exact profile used</summary><div className="mt-1.5 space-y-1 border-l-2 border-[#e2e2ef] pl-3 text-[14px] leading-4 text-[#858680]"><p>{revision.applied_context.voice_profile_label || "Default voice profile"}{revision.applied_context.transcription_skill_name ? ` · ${revision.applied_context.transcription_skill_name}` : ""}{revision.applied_context.transcription_skill_revision ? ` r${revision.applied_context.transcription_skill_revision}` : ""}</p><p>{revision.applied_context.primary_language || "Auto-detect"}{revision.applied_context.topic_vocabulary_name ? ` · ${revision.applied_context.topic_vocabulary_name}` : ""}</p></div></details>
+                <details className="mt-2"><summary className="cursor-pointer text-[14px] font-medium text-[#6c70be]">Exact profile used</summary><div className="mt-1.5 space-y-1 border-l-2 border-[#e2e2ef] pl-3 text-[14px] leading-4 text-[#858680]"><p>{revision.applied_context.voice_profile_label || "Default voice profile"}{revision.applied_context.transcription_skill_name ? ` · ${revision.applied_context.transcription_skill_name}` : ""}{revision.applied_context.transcription_skill_revision ? ` r${revision.applied_context.transcription_skill_revision}` : ""}</p><p>{revision.applied_context.primary_language || "Auto-detect"}{revision.applied_context.topic_vocabulary_name ? ` · ${revision.applied_context.topic_vocabulary_name}` : ""}</p>{revision.applied_context.correction_spoken && <p>Correction: {revision.applied_context.correction_spoken} → {revision.applied_context.correction_preferred} · {revision.applied_context.correction_scope === "only" ? "Only this time" : revision.applied_context.correction_scope === "topic" ? "Topic" : revision.applied_context.correction_scope === "project" ? "Project" : "Global"}</p>}</div></details>
               </li>)}
               {transcriptHistoryError && <li className="relative pb-7 pl-6"><span className="absolute -left-3 top-0 inline-flex size-6 items-center justify-center rounded-full border border-[#e3c8c2] bg-white text-[#a34b42]"><CircleAlert size={12} /></span><p role="alert" className="text-[14px] text-[#a34b42]">{transcriptHistoryError}</p></li>}
               <li className="relative pb-7 pl-6">
