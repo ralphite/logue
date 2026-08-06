@@ -501,6 +501,13 @@ export function V2ProjectRoute({
     }));
   }, [documentId, mode, project, view]);
   useEffect(() => {
+    if (continuation) {
+      setSelectedSourceIds(continuation.sourceIds);
+      setPinnedSourceIds((current) =>
+        current.filter((id) => continuation.sourceIds.includes(id)),
+      );
+      return;
+    }
     const available = new Set(availableRunMaterials.map((item) => item.id));
     setSelectedSourceIds((current) =>
       current.length
@@ -508,7 +515,7 @@ export function V2ProjectRoute({
         : availableRunMaterials.map((item) => item.id),
     );
     setPinnedSourceIds((current) => current.filter((id) => available.has(id)));
-  }, [availableRunMaterials]);
+  }, [availableRunMaterials, continuation]);
   useEffect(() => {
     if (!project || view !== "settings") return;
     setExportPreview(undefined);
@@ -609,18 +616,22 @@ export function V2ProjectRoute({
   const selectedTopics = topics.filter((topic) =>
     selectedTopicIds.includes(topic.id),
   );
-  const runSourceIds = [
-    ...new Set([
-      ...selectedSourceIds,
-      ...selectedTopics.flatMap((topic) => topic.source_ids),
-    ]),
-  ].filter((id) => materials.some((material) => material.id === id));
+  const runSourceIds = continuation
+    ? continuation.sourceIds
+    : [
+        ...new Set([
+          ...selectedSourceIds,
+          ...selectedTopics.flatMap((topic) => topic.source_ids),
+        ]),
+      ].filter((id) => materials.some((material) => material.id === id));
   const runGroups = groupLibraryMaterials(
     materials.filter((material) => runSourceIds.includes(material.id)),
     materials,
   );
   const selectedCount = runSourceIds.length;
-  const selectedGroupCount = runGroups.length;
+  const selectedGroupCount = continuation
+    ? continuation.sourceIds.length
+    : runGroups.length;
 
   async function runProjectRequest() {
     if (!project || !request.trim() || !runSourceIds.length || running) return;
@@ -751,6 +762,7 @@ export function V2ProjectRoute({
     setSelectedSourceIds(sourceIds);
     setSelectedTopicIds([]);
     setPinnedSourceIds([]);
+    setSourcePickerOpen(false);
     setRun(undefined);
     setCandidate("");
     setOpenHistoryRunId(undefined);
@@ -1398,7 +1410,10 @@ export function V2ProjectRoute({
                 <div className="v2-context-control">
                   <button
                     type="button"
-                    onClick={() => setSourcePickerOpen((open) => !open)}
+                    onClick={() => {
+                      if (!continuation) setSourcePickerOpen((open) => !open);
+                    }}
+                    disabled={Boolean(continuation)}
                     aria-expanded={sourcePickerOpen}
                   >
                     <Sparkles size={14} />

@@ -89,7 +89,7 @@
 - V2-PROJ-05 — INTEGRATED — Context review 区分 Auto-added / Added / Suggested / Excluded / Duplicate-linked；Change Project 使用 bundle 级 Host 合同，重复 Source 保留但 Run/Project retrieval 不重复加权。
 - V2-PROJ-06 — INTEGRATED — 本次 Run Sources 可 Pin/Exclude/补充，不改变 membership。
 - V2-PROJ-07 — INTEGRATED — Web Project Ask/Draft Candidate、实际 Sources、Copy 与 Save as Document。
-- V2-PROJ-08 — INTEGRATED — Compare 独立选择 Sources/Topics 并要求结构化差异与证据缺口；Continue 从选定历史 Draft 的 frozen Context 创建带 lineage 的新 Run，不覆盖旧 Candidate。
+- V2-PROJ-08 — INTEGRATED — Compare 独立选择 Sources/Topics并要求结构化差异与证据缺口；Continue/Retry 从历史 Run frozen snapshots 与 model context 创建带 lineage 的新 Run，即使 Source 已从当前 Library 删除也不失效；持久 model context 与 provider 实际输入逐字段一致，不覆盖旧 Candidate。
 - V2-PROJ-09 — INTEGRATED — Ask/Compare/Draft/Continue 的 prompt 先成为永久 You Activity Source，再创建带同一 lineage 的 Run。
 - V2-PROJ-10 — INTEGRATED — Project History 打开 Run、Candidate、Sources、Skill revision 与 adopted target。
 - V2-PROJ-11 — INTEGRATED — Project History 已接 Pin/Unpin、frozen retry lineage、依赖预览与 adopted/downstream-aware 安全删除。

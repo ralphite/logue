@@ -766,3 +766,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 允许 tag、package、Host 与 Extension 各自漂移（无法判断实际运行版本）；把 data root 放进 release 目录一起 rollback（会让程序回滚意外回滚或删除用户资料）；每个平台发布不同包（增加混版和验收面）。
 - **已有证据：** 当前 installer 已使用版本化 release 目录、原子 `current`/manifest 切换和失败 rollback；release 包也已包含 Host/Web/Extension，但 `build-release.sh` 仍接受与 workspace/manifest 无关的任意版本参数，installer 只验证 `VERSION` 格式，不验证它与 Extension manifest 一致。首轮 product gate 指出 Chrome 必须 Reload 才实际运行新 Extension，prerelease 需要完整可核验 identity；engineering/product 同时指出可配置 data root 与 managed paths 重叠时现有脚本会破坏“永不接管数据”的承诺。第二轮 product gate 进一步发现 split deployment 两端各取 `latest` 会安装不同 release，并且直接改变 Linux 默认路径会让旧资料看似消失；第三轮 engineering gate 指出停服前复制缺少一致性冻结点，并要求区分首次 `Load unpacked` 与升级 `Reload`。因此合同加入绑定版本命令、停服冻结后的最终同步/清单校验、原 service 状态恢复，以及各安装表面的准确 Chrome 状态。installer fixtures 与 remote smoke 将改为从当前 workspace version 派生同基础版本的 prerelease identity，避免绕过正式版本检查。V2-OPS-05/06 要求把这些原语收敛为单一 V2 artifact/version chain。
 - **开放问题：** 无；正式 artifact 的安装、升级和 rollback 运行验收留到 Phase 5，本批只闭合 production 构建/installer 合同与阻塞性静态检查。
+
+### DR-071 — Continue 与 Retry 使用 Run 冻结证据，而不是当前 Library
+
+- **优先级：** V2 Project / frozen lineage
+- **状态：** production Web/Host 合同已集成；Web typecheck、Python compile 与单一 frozen-context 窄回归通过，真实本机 History 旅程留到 Phase 5
+- **决定：** Continue 直接使用被选择历史 Draft Run 中冻结的 Source snapshots、Project overview、Personal context、Skill revision/instructions 与旧 output；只把本次 instruction 和新的永久 Activity 作为增量。即使某个原始 Source 后来已从当前 Library 删除，Web 也不得用当前 materials 列表过滤其 frozen Source ID，Host 必须继续使用 Run snapshot。Retry 完整复用原 Run 的 model context。持久 `model_context` 的 instruction、selection、target、page、Project、Personal、Skill 与 Sources 必须逐字段等于实际 provider 调用输入。
+- **用户可见影响：** 用户可从 History 继续旧 Draft，不会因当前 Library 已删除 Source 而看到提交按钮静默失效；后续 Project、Settings 或 Skill 编辑也不会篡改历史 Run 的生成基础。
+- **替代方案：** Continue 重新从当前 Project/Library 检索（会丢失或改变历史证据）；只冻结 Source 正文但继续读取当前 Project/Personal/Skill（持久证据与真实 provider 输入不一致）。
+- **已有证据：** Goal Supervisor 检查发现 `V2ProjectRoute` 会把 continuation Source IDs 再按当前 `materials` 过滤，Host 也会为 Continue/Retry 重新读取当前 Project overview、Personal settings 与 Skill。Store 已能从历史 Run snapshots 构造 Sources，因此本批只移除 Web 当前 Library 依赖，并让 Handler 的 model/provider 输入共同复用 frozen context。
+- **开放问题：** 旧 Python routes/callers/docs、旧 Web surface 与无 production 入口的 Go Host 清理已冻结并保存在独立 WIP，不进入本批；它们必须拆成后续独立批次。

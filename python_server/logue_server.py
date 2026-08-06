@@ -2271,7 +2271,8 @@ class Store:
                 if isinstance(source, dict) and str(source.get("id", "")).strip()
             }
             source_ids = list(retry_sources)
-            instruction = str(retry_run.get("instruction", "")).strip()
+            retry_context = retry_run.get("model_context") if isinstance(retry_run.get("model_context"), dict) else {}
+            instruction = str(retry_context.get("instruction", "")).strip()
         by_id = {item["id"]: item for item in self.items()}
         if not retry_run:
             requested_source_ids = normalize(source_ids)
@@ -3370,15 +3371,22 @@ class Handler(BaseHTTPRequestHandler):
     def run_skill(self, value: dict[str, Any]) -> None:
         store = self.server.store
         retry_id = str(value.get("retry_run_id", "")).strip()
+        continuation_id = str(value.get("continue_run_id", "")).strip()
+        frozen_model_context = None
         if retry_id:
             previous = store.get("skill-runs", retry_id)
             if previous.get("tombstone"):
                 raise ValueError("deleted Run details cannot be retried")
+            frozen_model_context = previous.get("model_context")
+            if not isinstance(frozen_model_context, dict):
+                raise ValueError("the retried Run has no frozen Context")
+            frozen_skill = frozen_model_context.get("skill") if isinstance(frozen_model_context.get("skill"), dict) else {}
+            frozen_project = frozen_model_context.get("project") if isinstance(frozen_model_context.get("project"), dict) else {}
             skill = {
-                "id": previous.get("skill_id"),
-                "revision": previous.get("skill_revision"),
-                "name": previous.get("skill_name"),
-                "instructions": previous.get("skill_instructions"),
+                "id": frozen_skill.get("id"),
+                "revision": frozen_skill.get("revision"),
+                "name": frozen_skill.get("name"),
+                "instructions": frozen_skill.get("instructions"),
                 "task": previous.get("task"),
                 "output": previous.get("output_type"),
                 "enabled": True,
@@ -3386,14 +3394,38 @@ class Handler(BaseHTTPRequestHandler):
             value = {
                 **value,
                 "skill_id": previous.get("skill_id"),
-                "instruction": previous.get("instruction"),
-                "project": previous.get("project", ""),
+                "instruction": frozen_model_context.get("instruction", ""),
+                "project": frozen_project.get("name", previous.get("project", "")),
                 "source_ids": previous.get("source_ids", []),
-                "page_title": previous.get("page_title", ""),
-                "page_url": previous.get("page_url", ""),
-                "target_text": previous.get("target_text", ""),
-                "selection": previous.get("selection", ""),
+                "page_title": frozen_model_context.get("page_title", ""),
+                "page_url": frozen_model_context.get("page_url", ""),
+                "target_text": frozen_model_context.get("target_text", ""),
+                "selection": frozen_model_context.get("selection", ""),
                 "activity_source_id": previous.get("activity_source_id", ""),
+                "auto_search": False,
+            }
+        elif continuation_id:
+            previous = store.get("skill-runs", continuation_id)
+            frozen_model_context = previous.get("model_context")
+            if not isinstance(frozen_model_context, dict):
+                raise ValueError("the continued Run has no frozen Context")
+            frozen_skill = frozen_model_context.get("skill") if isinstance(frozen_model_context.get("skill"), dict) else {}
+            frozen_project = frozen_model_context.get("project") if isinstance(frozen_model_context.get("project"), dict) else {}
+            skill = {
+                "id": frozen_skill.get("id"),
+                "revision": frozen_skill.get("revision"),
+                "name": frozen_skill.get("name"),
+                "instructions": frozen_skill.get("instructions"),
+                "task": previous.get("task"),
+                "output": previous.get("output_type"),
+                "enabled": True,
+            }
+            value = {
+                **value,
+                "skill_id": frozen_skill.get("id"),
+                "project": frozen_project.get("name", previous.get("project", "")),
+                "source_ids": previous.get("source_ids", []),
+                "target_text": str(value.get("target_text") or previous.get("adopted_output") or previous.get("original_output") or ""),
                 "auto_search": False,
             }
         else:
@@ -3412,32 +3444,49 @@ class Handler(BaseHTTPRequestHandler):
         if existing:
             self.json(HTTPStatus.OK, run)
             return
-        project_overview = ""
-        if run.get("project"):
-            try:
-                project_overview = str(store.get_project(str(run["project"])).get("overview", ""))
-            except FileNotFoundError:
-                pass
         settings = store.settings()
-        run["model_context"] = {
-            "instruction": str(value.get("instruction", "")),
-            "selection": str(value.get("selection", "")),
-            "target_text": str(value.get("target_text", "")),
-            "page_title": str(value.get("page_title", "")),
-            "page_url": str(value.get("page_url", "")),
-            "project": {
-                "name": str(run.get("project", "")),
-                "overview": project_overview,
-            },
-            "personal_context": str(settings.get("personal_context", "")),
-            "skill": {
-                "id": str(skill.get("id", "")),
-                "name": str(skill.get("name", "")),
-                "revision": int(skill.get("revision", 1)),
-                "instructions": str(skill.get("instructions", "")),
-            },
-            "sources": json.loads(json.dumps(run.get("sources", []))),
-        }
+        if frozen_model_context:
+            project_context = frozen_model_context.get("project") if isinstance(frozen_model_context.get("project"), dict) else {}
+            project_overview = str(project_context.get("overview", ""))
+            settings = {**settings, "personal_context": str(frozen_model_context.get("personal_context", ""))}
+            if retry_id:
+                run["model_context"] = json.loads(json.dumps(frozen_model_context))
+            else:
+                run["model_context"] = {
+                    **json.loads(json.dumps(frozen_model_context)),
+                    "instruction": str(value.get("instruction", "")),
+                    "selection": str(value.get("selection", "")),
+                    "target_text": str(value.get("target_text", "")),
+                    "page_title": str(value.get("page_title", "")),
+                    "page_url": str(value.get("page_url", "")),
+                    "sources": json.loads(json.dumps(run.get("sources", []))),
+                }
+        else:
+            project_overview = ""
+            if run.get("project"):
+                try:
+                    project_overview = str(store.get_project(str(run["project"])).get("overview", ""))
+                except FileNotFoundError:
+                    pass
+            run["model_context"] = {
+                "instruction": str(value.get("instruction", "")),
+                "selection": str(value.get("selection", "")),
+                "target_text": str(value.get("target_text", "")),
+                "page_title": str(value.get("page_title", "")),
+                "page_url": str(value.get("page_url", "")),
+                "project": {
+                    "name": str(run.get("project", "")),
+                    "overview": project_overview,
+                },
+                "personal_context": str(settings.get("personal_context", "")),
+                "skill": {
+                    "id": str(skill.get("id", "")),
+                    "name": str(skill.get("name", "")),
+                    "revision": int(skill.get("revision", 1)),
+                    "instructions": str(skill.get("instructions", "")),
+                },
+                "sources": json.loads(json.dumps(run.get("sources", []))),
+            }
         run["updated_at"] = now()
         atomic_json(store.root / "skill-runs" / f"{run['id']}.json", run)
         try:

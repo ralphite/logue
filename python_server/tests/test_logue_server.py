@@ -276,6 +276,89 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(persisted["source_ids"], [project_source["id"]])
         self.assertEqual(persisted["sources"][0]["content"], "Shared evidence from Project A")
 
+    def test_continue_and_retry_use_frozen_context_after_source_is_deleted(self) -> None:
+        self.request("/v1/projects", "POST", {"name": "Frozen", "overview": "Original project overview"})
+        self.request("/v1/settings", "PATCH", {"personal_context": "Original personal context"})
+        _, source = self.request("/v1/items", "POST", {
+            "kind": "text",
+            "content": "Evidence frozen in the first Run",
+            "projects": ["Frozen"],
+        })
+        provider_calls = []
+
+        def capture_provider(skill, value, sources, settings, overview):
+            provider_calls.append({
+                "skill": json.loads(json.dumps(skill)),
+                "value": json.loads(json.dumps(value)),
+                "sources": json.loads(json.dumps(sources)),
+                "personal_context": settings.get("personal_context", ""),
+                "project_overview": overview,
+            })
+            return f"Draft {len(provider_calls)} [Source 1]"
+
+        self.server.gemini.run_skill = capture_provider
+        _, original = self.request("/v1/skill-runs", "POST", {
+            "request_id": "frozen-original",
+            "skill_id": "sk_document",
+            "instruction": "Create the first Draft",
+            "project": "Frozen",
+            "source_ids": [source["id"]],
+            "page_title": "Original page",
+            "selection": "Original selection",
+        })
+
+        (self.data / "items" / f"{source['id']}.json").unlink()
+        self.request("/v1/projects/Frozen", "PATCH", {"name": "Frozen", "overview": "Changed project overview"})
+        self.request("/v1/settings", "PATCH", {"personal_context": "Changed personal context"})
+        current_skill = logue_server.read_json(self.data / "skills" / "sk_document.json")
+        current_skill["instructions"] = "Changed Skill instructions"
+        logue_server.atomic_json(self.data / "skills" / "sk_document.json", current_skill)
+        _, activity = self.request("/v1/items", "POST", {
+            "kind": "text",
+            "content": "Continue with a sharper conclusion",
+            "actor": "user",
+            "activity_type": "draft",
+        })
+        _, continued = self.request("/v1/skill-runs", "POST", {
+            "request_id": "frozen-continue",
+            "skill_id": "sk_document",
+            "instruction": "Continue with a sharper conclusion",
+            "project": "Frozen",
+            "source_ids": [source["id"]],
+            "selection": "Continue the existing Draft",
+            "target_text": original["original_output"],
+            "continue_run_id": original["id"],
+            "activity_source_id": activity["id"],
+            "auto_search": False,
+        })
+
+        self.assertEqual(continued["source_ids"], [source["id"]])
+        self.assertEqual(continued["sources"][0]["content"], "Evidence frozen in the first Run")
+        continued_call = provider_calls[-1]
+        continued_context = continued["model_context"]
+        for field in ("instruction", "selection", "target_text", "page_title", "page_url"):
+            self.assertEqual(continued_context[field], str(continued_call["value"].get(field, "")))
+        self.assertEqual(continued_context["project"]["overview"], continued_call["project_overview"])
+        self.assertEqual(continued_context["personal_context"], continued_call["personal_context"])
+        self.assertEqual(continued_context["sources"], continued_call["sources"])
+        for field in ("id", "name", "revision", "instructions"):
+            self.assertEqual(continued_context["skill"][field], continued_call["skill"][field])
+        self.assertEqual(continued_context["project"]["overview"], "Original project overview")
+        self.assertEqual(continued_context["personal_context"], "Original personal context")
+        self.assertNotEqual(continued_context["skill"]["instructions"], "Changed Skill instructions")
+
+        _, retried = self.request("/v1/skill-runs", "POST", {
+            "request_id": "frozen-retry",
+            "retry_run_id": original["id"],
+        })
+        retry_call = provider_calls[-1]
+        self.assertEqual(retried["model_context"], original["model_context"])
+        for field in ("instruction", "selection", "target_text", "page_title", "page_url"):
+            self.assertEqual(retried["model_context"][field], str(retry_call["value"].get(field, "")))
+        self.assertEqual(retried["model_context"]["project"]["overview"], retry_call["project_overview"])
+        self.assertEqual(retried["model_context"]["personal_context"], retry_call["personal_context"])
+        self.assertEqual(retried["model_context"]["sources"], retry_call["sources"])
+
     def test_generation_without_project_keeps_global_saved_retrieval(self) -> None:
         _, saved_source = self.request("/v1/items", "POST", {"kind": "text", "content": "Global saved evidence remains available"})
         self.server.gemini.run_skill = lambda *_args, **_kwargs: "Global reply [Source 1]"
