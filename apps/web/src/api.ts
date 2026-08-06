@@ -338,6 +338,22 @@ export interface SkillRun {
   document_id?: string;
   material_id?: string;
   activity_source_id?: string;
+  model_context?: {
+    instruction: string;
+    selection: string;
+    target_text: string;
+    page_title: string;
+    page_url: string;
+    project: { name: string; overview: string };
+    personal_context: string;
+    skill: {
+      id: string;
+      name: string;
+      revision: number;
+      instructions: string;
+    };
+    sources: SkillRunSourceSnapshot[];
+  };
   adoption?: "copy" | "insert" | "replace" | "keep" | "document";
   adoption_undone?: boolean;
   adoption_target?: { surface?: string; url?: string; target_key?: string };

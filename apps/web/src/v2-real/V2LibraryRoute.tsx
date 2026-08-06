@@ -907,6 +907,7 @@ export function RunInspector({
   const adopted = Boolean(
     run.adopted_output || run.document_id || run.material_id,
   );
+  const modelContext = run.model_context;
   const copy = async () => {
     setBusy(true);
     setError("");
@@ -1077,6 +1078,38 @@ export function RunInspector({
             </div>
           </section>
         ) : null}
+        <section className="v2-settings-section">
+          <h2>Context sent</h2>
+          <article className="v2-context-card">
+            <OriginLabel origin="you" detail="Instruction" />
+            <p>{modelContext?.instruction || run.instruction}</p>
+          </article>
+          <article className="v2-context-card">
+            <OriginLabel origin="ai" detail={`Skill revision ${modelContext?.skill.revision ?? run.skill_revision}`} />
+            <strong>{modelContext?.skill.name || run.skill_name}</strong>
+            {modelContext?.skill.instructions ? (
+              <p>{modelContext.skill.instructions}</p>
+            ) : null}
+          </article>
+          {modelContext?.project.overview ? (
+            <article className="v2-context-card">
+              <OriginLabel origin="you" detail={modelContext.project.name || "Project context"} />
+              <p>{modelContext.project.overview}</p>
+            </article>
+          ) : null}
+          {modelContext?.personal_context ? (
+            <article className="v2-context-card">
+              <OriginLabel origin="you" detail="Personal context" />
+              <p>{modelContext.personal_context}</p>
+            </article>
+          ) : null}
+          {modelContext?.selection || modelContext?.target_text ? (
+            <article className="v2-context-card">
+              <OriginLabel origin="web" detail="Page context" />
+              <p>{modelContext.selection || modelContext.target_text}</p>
+            </article>
+          ) : null}
+        </section>
         <section className="v2-settings-section">
           <h2>Sources used</h2>
           {run.sources.map((source, index) => (

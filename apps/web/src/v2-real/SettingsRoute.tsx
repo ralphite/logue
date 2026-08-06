@@ -41,6 +41,7 @@ import {
   type PairingCode,
   type ProjectSummary,
   type ServiceStatus,
+  type SkillRun,
   type TopicVocabulary,
   type VoiceProfileVocabulary,
   type WorkspaceSettings,
@@ -48,6 +49,7 @@ import {
 import type { LogueSkill } from "../skillApi";
 import { Button } from "../components/ui";
 import { ProjectShell, type V2PrimaryRoute } from "../v2-mock/web/ProjectShell";
+import { RunInspector } from "./V2LibraryRoute";
 
 type SettingsTab = "Host" | "Models" | "Voice" | "Privacy" | "Backup";
 type VocabularyCategory = Exclude<
@@ -158,6 +160,7 @@ export function SettingsRoute({
   settings,
   projects,
   skills,
+  runs,
   onRoute,
   onRefresh,
 }: {
@@ -165,6 +168,7 @@ export function SettingsRoute({
   settings?: WorkspaceSettings;
   projects: ProjectSummary[];
   skills: LogueSkill[];
+  runs: SkillRun[];
   onRoute: (route: V2PrimaryRoute) => void;
   onRefresh: () => Promise<void>;
 }) {
@@ -205,6 +209,7 @@ export function SettingsRoute({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deletePreview, setDeletePreview] = useState<DeletionPreview>();
+  const [openRunId, setOpenRunId] = useState<string>();
   const [clients, setClients] = useState<LogueClient[]>([]);
   const [pairing, setPairing] = useState<PairingCode>();
   useEffect(() => {
@@ -639,8 +644,29 @@ export function SettingsRoute({
   );
 
   const tabs: SettingsTab[] = ["Host", "Models", "Voice", "Privacy", "Backup"];
+  const modelRuns = useMemo(
+    () => runs.filter((run) => Boolean(run.model_context) && !run.tombstone),
+    [runs],
+  );
+  const openRun = modelRuns.find((run) => run.id === openRunId);
   return (
-    <ProjectShell route="settings" onRouteChange={onRoute}>
+    <ProjectShell
+      route="settings"
+      onRouteChange={onRoute}
+      inspector={
+        openRun ? (
+          <RunInspector
+            run={openRun}
+            onClose={() => setOpenRunId(undefined)}
+            onRefresh={onRefresh}
+          />
+        ) : undefined
+      }
+      inspectorOpen={Boolean(openRun)}
+      onInspectorOpenChange={(open) => {
+        if (!open) setOpenRunId(undefined);
+      }}
+    >
       <div className="v2-editor-scroll">
         <div className="v2-settings-layout">
           <nav className="v2-settings-nav" aria-label="Settings sections">
@@ -1296,6 +1322,35 @@ export function SettingsRoute({
                     title="Sensitive fields"
                     detail="Passwords and payment fields never show Voice Write."
                   />
+                </section>
+                <section className="v2-settings-section">
+                  <h2>Model activity</h2>
+                  <p className="v2-settings-lead">
+                    Open a task to inspect the exact instruction, Skill revision, and frozen Context sent to your provider.
+                  </p>
+                  {modelRuns.length ? (
+                    <div className="v2-review-list">
+                      {modelRuns.slice(0, 12).map((run) => (
+                        <button
+                          type="button"
+                          className="v2-review-row"
+                          key={run.id}
+                          onClick={() => setOpenRunId(run.id)}
+                        >
+                          <div>
+                            <strong>{run.instruction || run.skill_name}</strong>
+                            <p>
+                              {run.skill_name} · revision {run.skill_revision} · {run.sources.length} frozen Sources
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="v2-recovery-card">
+                      New model tasks will appear here with their exact frozen Context.
+                    </div>
+                  )}
                 </section>
                 <section className="v2-settings-section">
                   <h2>Delete all local data</h2>

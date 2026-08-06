@@ -155,7 +155,7 @@
 - V2-SET-07 — INTEGRATED — V2 Settings 与 Project 使用稳定 Project ID 选择 All saved data / Library / Project，Host 生成不含 provider/pairing secrets 的 scope-safe 投影；Preview 与 Download 共用 projected fingerprint，默认包含原始音频并显示预计大小，变化时返回更新摘要。
 - V2-SET-08 — INTEGRATED — `Include activity history and unused AI drafts` 明确控制 scope 内 Activity Sources / unadopted Runs；默认只含 Saved content 与 adopted lineage，Project frozen snapshots 不扩权到其他 Project 当前对象。
 - V2-SET-09 — INTEGRATED — Source bundle / Project / Document / Run / workspace 复用 Host-owned dependency preview + fingerprint + terminal result；依赖变化返回更新摘要，Source bundle 与跨文件删除失败整体回滚，workspace 删除先备份。
-- V2-SET-10 — CODED — 查看一次模型任务实际发送 Context 已在 Run/Material详情部分存在，Settings 统一入口尚缺。
+- V2-SET-10 — INTEGRATED — 新 Run 在 provider 调用前冻结实际 instruction、Skill instructions/revision、Project/Personal/Page Context 与 Sources；Settings → Privacy 以内容列表打开共享可调宽 Run inspector，不复制第二套 Run 状态。
 
 ## Topics / PKM
 
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-SET-10`
-- 完成条件：Settings 提供一次模型任务的可检索入口，并打开同一 Run inspector，精确展示实际发送的 instruction、Skill revision 与 frozen Context，不复制第二套 Run 状态。
+- `ACTIVE: V2-DOC-10`
+- 完成条件：Document revision history 对可删除历史显示 dependency preview；删除不会改写当前版或其他 frozen revision，仍被 lineage 引用时保留最小 tombstone，并返回明确 terminal state。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

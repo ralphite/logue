@@ -3070,8 +3070,30 @@ class Handler(BaseHTTPRequestHandler):
                 project_overview = str(store.get_project(str(run["project"])).get("overview", ""))
             except FileNotFoundError:
                 pass
+        settings = store.settings()
+        run["model_context"] = {
+            "instruction": str(value.get("instruction", "")),
+            "selection": str(value.get("selection", "")),
+            "target_text": str(value.get("target_text", "")),
+            "page_title": str(value.get("page_title", "")),
+            "page_url": str(value.get("page_url", "")),
+            "project": {
+                "name": str(run.get("project", "")),
+                "overview": project_overview,
+            },
+            "personal_context": str(settings.get("personal_context", "")),
+            "skill": {
+                "id": str(skill.get("id", "")),
+                "name": str(skill.get("name", "")),
+                "revision": int(skill.get("revision", 1)),
+                "instructions": str(skill.get("instructions", "")),
+            },
+            "sources": json.loads(json.dumps(run.get("sources", []))),
+        }
+        run["updated_at"] = now()
+        atomic_json(store.root / "skill-runs" / f"{run['id']}.json", run)
         try:
-            output = self.server.gemini.run_skill(skill, value, run["sources"], store.settings(), project_overview)
+            output = self.server.gemini.run_skill(skill, value, run["sources"], settings, project_overview)
             run["original_output"] = output.strip()
             run["status"] = "complete"
         except Exception as error:
@@ -3446,6 +3468,29 @@ class Handler(BaseHTTPRequestHandler):
                 result.pop("project", None)
             if isinstance(result.get("sources"), list):
                 result["sources"] = [safe_snapshot(entry, selected_project) for entry in result["sources"]]
+            context = result.get("model_context")
+            if isinstance(context, dict):
+                skill_context = context.get("skill") if isinstance(context.get("skill"), dict) else {}
+                project_context = context.get("project") if isinstance(context.get("project"), dict) else {}
+                result["model_context"] = {
+                    key: clone(context[key])
+                    for key in ("instruction", "selection", "target_text", "page_title", "page_url")
+                    if key in context
+                }
+                result["model_context"]["skill"] = {
+                    key: clone(skill_context[key])
+                    for key in ("id", "name", "revision")
+                    if key in skill_context
+                }
+                result["model_context"]["project"] = {
+                    "name": selected_project,
+                    **({"overview": clone(project_context["overview"])} if "overview" in project_context else {}),
+                }
+                result["model_context"]["sources"] = [
+                    safe_snapshot(entry, selected_project)
+                    for entry in context.get("sources", [])
+                    if isinstance(entry, dict)
+                ]
             return result
 
         with store.lock:

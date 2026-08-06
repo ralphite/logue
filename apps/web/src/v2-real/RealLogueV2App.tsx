@@ -152,6 +152,6 @@ export function RealLogueV2App() {
   if (route === "projects") return <V2ProjectRoute projects={projects} materials={materials} documents={documents} runs={runs} skills={skills} settings={settings} aiReady={Boolean(status?.ai_configured)} onRoute={navigate} onRefresh={refresh} />;
   if (route === "documents") return <V2DocumentsRoute documents={documents} projects={projects} materials={materials} skills={skills} aiReady={Boolean(status?.ai_configured)} onRoute={navigate} onRefresh={refresh} />;
   if (route === "skills") return <V2SkillsRoute skills={skills} settings={settings} onRoute={navigate} onRefresh={refresh} />;
-  if (route === "settings") return <SettingsRoute status={status} settings={settings} projects={projects} skills={skills} onRoute={navigate} onRefresh={refresh} />;
+  if (route === "settings") return <SettingsRoute status={status} settings={settings} projects={projects} skills={skills} runs={runs} onRoute={navigate} onRefresh={refresh} />;
   return <V2LibraryRoute materials={materials} runs={runs} projects={projects} documents={documents} onRoute={navigate} onRefresh={refresh} />;
 }
