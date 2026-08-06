@@ -47,9 +47,9 @@
 
 ## Extension — Voice Command / sourced Draft (J1/J6)
 
-- V2-CMD-01 — INTEGRATED — 独立 Command shortcut/明确 mode；显示 scope、Project 与 current target。
-- V2-CMD-02 — INTEGRATED — Voice/Text command、一次 Enter 执行、冲突 clarification、Esc 返回原焦点。
-- V2-CMD-03 — INTEGRATED — Voice/Text Command 每次提交先创建永久 You Activity Source，Run 强制链接真实 Activity；失败仍保留用户输入。
+- V2-CMD-01 — INTEGRATED — 独立 Command shortcut/明确 mode 直接录音；页面内 Launcher 是普通网页与 Google Docs 的唯一入口 owner，并显示 scope、Project 与 current target。
+- V2-CMD-02 — INTEGRATED — Voice/Text command 一次 Enter 执行；缺失/冲突就地 clarification；Esc/Cancel 恢复焦点并真正取消本次 evidence/Run、保留 Activity。
+- V2-CMD-03 — INTEGRATED — Voice/Text Command 提交先创建永久 You Activity Source；pending recovery 与 Activity→evidence→Run 使用稳定幂等 lineage，失败或取消不丢用户输入。
 - V2-CMD-04 — INTEGRATED — parse/Model failure 保留可恢复 failed Run/Candidate；Side Panel 的 Voice/Text Command 与 Page/Selection Action 都从同一原 Run Retry，不虚假成功或重建 Source。
 - V2-CMD-05 — INTEGRATED — 多来源结果进入同 tab Side Panel，显示 actual Sources，支持 Pin/Exclude 本次 Context。
 - V2-CMD-06 — INTEGRATED — Side Panel Candidate 编辑与 Insert/Copy/Keep/Document 使用统一 adoption 合同。

@@ -24,9 +24,11 @@ export function mergePanelCaptureState(
     projectAssociationScope?: PanelCaptureState["projectAssociationScope"] | null;
     pendingInsert?: PendingInsert | null;
     commandResult?: CommandResult | null;
+    commandActivitySourceId?: string | null;
+    commandRunRequestId?: string | null;
   },
 ): PanelCaptureState {
-  const { commandResult, pendingInsert, projects, projectAssociationId, projectAssociationScope, ...rest } = patch;
+  const { commandResult, commandActivitySourceId, commandRunRequestId, pendingInsert, projects, projectAssociationId, projectAssociationScope, ...rest } = patch;
   const next = {
     ...current,
     ...rest,
@@ -44,6 +46,10 @@ export function mergePanelCaptureState(
   } else if (commandResult) {
     next.commandResult = commandResult;
   }
+  if (commandActivitySourceId === null) delete next.commandActivitySourceId;
+  else if (commandActivitySourceId) next.commandActivitySourceId = commandActivitySourceId;
+  if (commandRunRequestId === null) delete next.commandRunRequestId;
+  else if (commandRunRequestId) next.commandRunRequestId = commandRunRequestId;
   if (projectAssociationId === null) delete next.projectAssociationId;
   else if (projectAssociationId) next.projectAssociationId = projectAssociationId;
   if (projectAssociationScope === null) delete next.projectAssociationScope;

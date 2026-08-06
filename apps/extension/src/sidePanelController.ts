@@ -126,6 +126,15 @@ export function consumePanelAutoStart(
   return { state: next, consumed: true };
 }
 
+export function consumePanelAutoRun(
+  state: PanelCaptureState,
+  token: string,
+): { state: PanelCaptureState; consumed: boolean } {
+  if (!token || state.autoRunToken !== token) return { state, consumed: false };
+  const { autoRunToken: _consumed, ...next } = state;
+  return { state: next, consumed: true };
+}
+
 export function selectionSavePayload(
   tab: Pick<chrome.tabs.Tab, "url" | "title">,
   selectionText: string,
@@ -168,6 +177,15 @@ export function preserveMatchingPanelDraft(
       ...next,
       ...(current.pendingInsert ? { pendingInsert: current.pendingInsert } : {}),
       ...(current.commandResult ? { commandResult: current.commandResult } : {}),
+    };
+  }
+  if (next.autoRunToken) {
+    return {
+      ...next,
+      tags: current.tags,
+      pendingInsert: current.pendingInsert,
+      generationSourceIds: next.generationSourceIds,
+      pinnedSourceIds: next.pinnedSourceIds,
     };
   }
   return {

@@ -1,7 +1,7 @@
 import { SelectionActionCandidate, SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionWithUndoIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type ExtensionInputTarget, type ExtensionTargetBridgeRequest, type ExtensionTargetBridgeResponse, type SelectionSkillApplyTransaction, type SelectionSkillReplacementTransaction, type SourceInfo } from "@logue/ui";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { adoptExtensionSkillRun, adoptVoiceMaterial, cancelMaterialSave, completePendingVoice, createExtensionSkillRun, getCaptureContext, getExtensionSkills, getPageMaterials, getPendingVoiceQueueStatus, getServerURL, markPendingVoiceTranscribed, queuePendingVoice, retranscribeMaterial, saveExtensionSkillRunAsDocument, saveMaterial, saveSelection, transcribeAudio, updateMaterial, updateSourceAnchor, type AppliedContext, type CaptureContext, type ExtensionSkill, type PendingVoicePlan, type VoiceProfileOverrides } from "./api";
+import { ExtensionApiError, adoptExtensionSkillRun, adoptVoiceMaterial, cancelMaterialSave, completePendingVoice, createExtensionSkillRun, getCaptureContext, getExtensionSettings, getExtensionSkills, getPageMaterials, getPendingVoiceQueueStatus, getServerURL, markPendingVoiceTranscribed, queuePendingVoice, retranscribeMaterial, retryExtensionSkillRun, saveExtensionSkillRunAsDocument, saveMaterial, saveSelection, transcribeAudio, updateMaterial, updateSourceAnchor, type AppliedContext, type CaptureContext, type ExtensionSkill, type ExtensionSkillRun, type PendingVoicePlan, type VoiceProfileOverrides } from "./api";
 import { activeEditableElement, getEditableText, googleDocsEditableTarget, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElementWithUndo, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused, type LocalInsertTransaction } from "./dom";
 import { hasNativeSelectionSkillOwner, isLogueExtensionDisabledDocument, logueServerCandidate } from "./eligibility";
 import {
@@ -24,17 +24,29 @@ import { createRequestId } from "./requestId";
 import { shouldDismissSelectionSkills } from "./selectionSkillEscape";
 import { completeSelectionVoiceInput } from "./transaction";
 import { V2InlineVoiceSurface, type InlineVoicePhase } from "./v2-real/V2InlineVoiceSurface";
+import { V2CommandLauncherSurface, type CommandLauncherPhase } from "./v2-real/V2CommandLauncherSurface";
 import { V2VoiceCandidateSurface, type VoiceCandidateRetranscribeInput, type VoiceCandidateState } from "./v2-real/V2VoiceCandidateSurface";
 import { V2SelectionSurface, type SelectionCommentPhase } from "./v2-real/V2SelectionSurface";
 import styles from "./v2-real/v2ExtensionSurface.css?inline";
 
 interface ContentRequestMessage {
-  type: "logue:insert-text" | "logue:undo-insert" | "logue:get-page-context" | "logue:locate-page-anchor" | "logue:get-current-selection-anchor" | "logue:discover-input-target" | "logue:insert-external-document" | "logue:undo-external-document" | "logue:start-inline-voice";
+  type: "logue:insert-text" | "logue:undo-insert" | "logue:get-page-context" | "logue:locate-page-anchor" | "logue:get-current-selection-anchor" | "logue:discover-input-target" | "logue:insert-external-document" | "logue:undo-external-document" | "logue:start-inline-voice" | "logue:start-voice-command" | "logue:resume-voice-command";
   text?: string;
   expectedTargetSessionId?: string;
   token?: string;
   sessionId?: string;
   source?: SourceInfo;
+  instruction?: string;
+  scope?: "auto" | CommandScope;
+  project?: string;
+  selection?: string;
+  pageText?: string;
+  targetText?: string;
+  targetSessionId?: string;
+  targetAvailable?: boolean;
+  activitySourceId?: string;
+  pendingVoiceId?: string;
+  needsClarification?: boolean;
 }
 
 type InlineRecorderAction = "start" | "stop" | "cancel";
@@ -69,6 +81,13 @@ interface InlineVoiceSession {
   context?: CaptureContext;
   contextPromise?: Promise<CaptureContext>;
   overrides: VoiceProfileOverrides;
+  mode?: "write" | "command";
+  commandProject?: string;
+  commandSelection?: string;
+  commandPageText?: string;
+  commandEditableSnapshot?: EditableSelectionSnapshot;
+  commandScope?: CommandScope;
+  commandScopeExplicit?: boolean;
 }
 
 interface ExternalInputTargetSession {
@@ -122,11 +141,54 @@ interface SelectionActionCandidateState {
   skillName: string;
   text: string;
   originalText: string;
-  source: CaptureSource & { selection: string; context_before?: string; context_after?: string };
+  source: CaptureSource & { selection?: string; context_before?: string; context_after?: string };
   projects: string[];
   anchor: { left: number; top: number };
   editableSnapshot?: EditableSelectionSnapshot;
+  insertTarget?: HTMLElement;
+  insertTargetText?: string;
+  insertTargetSessionId?: string;
   adoptionAttempts?: Partial<Record<"copy" | "keep" | "document", { id: string; content: string }>>;
+}
+
+type CommandScope = "selection" | "page" | "project";
+
+interface PendingCommandExecution {
+  instruction: string;
+  scope: CommandScope;
+  project: string;
+  source: CaptureSource & { selection?: string };
+  selection?: string;
+  pageText?: string;
+  targetText: string;
+  targetSessionId?: string;
+  targetAvailable: boolean;
+  targetElement?: HTMLElement;
+  activitySourceId: string;
+  anchor: { left: number; top: number };
+  editableSnapshot?: EditableSelectionSnapshot;
+  pendingVoiceId?: string;
+  epoch: number;
+  evidenceRequestId: string;
+  runRequestId: string;
+}
+
+function inferredCommandScope(instruction: string, selectionAvailable: boolean, project: string): CommandScope | "conflict" {
+  const normalized = instruction.toLowerCase();
+  const saysSelection = /\b(selection|selected text|highlight(?:ed)?)\b|选中|所选/.test(normalized);
+  const saysPage = /\b(this page|the page|webpage|article)\b|网页|页面|文章/.test(normalized);
+  const saysProject = /\bproject\b|项目/.test(normalized) || Boolean(project && normalized.includes(project.toLowerCase()));
+  const matches = [saysSelection ? "selection" : "", saysPage ? "page" : "", saysProject ? "project" : ""].filter(Boolean) as CommandScope[];
+  if (new Set(matches).size > 1 || (saysSelection && !selectionAvailable)) return "conflict";
+  return matches[0] ?? (selectionAvailable ? "selection" : "page");
+}
+
+function commandMentionsScope(instruction: string) {
+  return /\b(selection|selected text|highlight(?:ed)?|this page|the page|webpage|article|project)\b|选中|所选|网页|页面|文章|项目/i.test(instruction);
+}
+
+function isCommandParseFailure(cause: unknown) {
+  return cause instanceof ExtensionApiError && cause.run?.error_code === "intent_parse_failed";
 }
 
 function topLevelWindow() {
@@ -336,11 +398,29 @@ function ExtensionLauncher() {
   const [voiceProfileOverrides, setVoiceProfileOverrides] = useState<VoiceProfileOverrides>({});
   const [voiceProfilePickerOpen, setVoiceProfilePickerOpen] = useState(false);
   const [voiceCandidate, setVoiceCandidate] = useState<VoiceCandidateState>();
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandInstruction, setCommandInstruction] = useState("");
+  const [commandProject, setCommandProject] = useState("");
+  const [commandScope, setCommandScope] = useState<CommandScope>("page");
+  const [commandScopeExplicit, setCommandScopeExplicit] = useState(false);
+  const [commandPhase, setCommandPhase] = useState<CommandLauncherPhase>("editing");
+  const [commandError, setCommandError] = useState("");
+  const [commandParseError, setCommandParseError] = useState(false);
+  const [commandActivitySourceId, setCommandActivitySourceId] = useState<string>();
+  const [commandPendingVoiceId, setCommandPendingVoiceId] = useState<string>();
+  const [commandFailedRun, setCommandFailedRun] = useState<ExtensionSkillRun>();
+  const [pendingCommandExecution, setPendingCommandExecution] = useState<PendingCommandExecution>();
   const [selectionActionCandidate, setSelectionActionCandidate] = useState<SelectionActionCandidateState>();
   const [selectionActionBusy, setSelectionActionBusy] = useState<"primary" | "copy" | "keep" | "document">();
   const [selectionActionError, setSelectionActionError] = useState("");
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
   const targetRef = useRef<HTMLElement | null>(null);
+  const commandTargetRef = useRef<HTMLElement | null>(null);
+  const commandEpochRef = useRef(0);
+  const commandExecutionRef = useRef<PendingCommandExecution | undefined>(undefined);
+  const googleDocsCommandInstructionRef = useRef<string | undefined>(undefined);
+  const googleDocsCommandProjectRef = useRef<string | undefined>(undefined);
+  const googleDocsCommandScopeRef = useRef<CommandScope | undefined>(undefined);
   const lastInsertUndoRef = useRef<{ token: string; transaction: LocalInsertTransaction } | undefined>(undefined);
   const externalTargetSessionRef = useRef<ExternalInputTargetSession | undefined>(undefined);
   const externalInsertUndoRef = useRef<{ token: string; sessionId: string; transaction: LocalInsertTransaction } | undefined>(undefined);
@@ -358,6 +438,8 @@ function ExtensionLauncher() {
   const selectionRefreshFrameRef = useRef<number | undefined>(undefined);
   const selectionSkillsLoadedRef = useRef(false);
   const selectionNoticeTimerRef = useRef<number | undefined>(undefined);
+  const startCommandVoiceRef = useRef<(projectOverride?: string, scopeOverride?: CommandScope, scopeExplicitOverride?: boolean) => void>(() => undefined);
+  const runCommandExecutionRef = useRef<(execution: PendingCommandExecution) => Promise<void>>(async () => undefined);
   const eligibleSelectionSkills = selectionSkillEligibility(
     selectionSkills,
     "extension",
@@ -838,23 +920,163 @@ function ExtensionLauncher() {
     const session = voiceSessionRef.current;
     if (!session || event.sessionId !== session.id) return;
     if (event.event === "started") {
+      if (session.mode === "command") {
+        setCommandPhase("recording");
+        return;
+      }
       setInlineVoicePhase("recording");
       return;
     }
     if (event.event === "cancelled") {
       voiceSessionRef.current = undefined;
+      if (session.mode === "command") {
+        setCommandPhase("editing");
+        return;
+      }
       setInlineVoicePhase("idle");
       restoreTargetFocus(session);
       return;
     }
     if (event.event === "error") {
       voiceSessionRef.current = undefined;
+      if (session.mode === "command") {
+        setCommandPhase("editing");
+        setCommandError(event.error || "Could not record Voice Command.");
+        return;
+      }
       setVoiceError(event.error || "Could not start voice input.");
       setInlineVoicePhase("error");
       restoreTargetFocus(session);
       return;
     }
     if (event.event !== "stopped") return;
+
+    if (session.mode === "command") {
+      setCommandPhase("transcribing");
+      void (async () => {
+        const project = session.commandProject ?? session.projects[0] ?? "";
+        const pendingSelection = session.commandSelection;
+        const instructions = "Transcribe this as a direct instruction for Logue. Preserve the requested action, scope, and output intent.";
+        await queuePendingVoice({
+          id: session.id,
+          pageUrl: session.source.url,
+          pageTitle: session.source.title,
+          plan: {
+            kind: "material",
+            transcription: {
+              pageUrl: session.source.url,
+              pageTitle: session.source.title,
+              targetText: session.targetText,
+              instructions,
+              profileRequest: { project, ...session.overrides },
+            },
+            save: { kind: "voice", source: session.source, projects: [], suggested_projects: [], tags: [], activity_type: "voice-command" },
+            command: {
+              scope: session.commandScopeExplicit ? session.commandScope ?? "page" : "auto",
+              project,
+              source: pendingSelection ? { ...session.source, selection: pendingSelection } : session.source,
+              selection: pendingSelection,
+              pageText: session.commandPageText,
+              targetText: session.targetText,
+              targetSessionId: session.target === document.body ? undefined : targetSessionId(session.target),
+              targetAvailable: session.target !== document.body && isEditableTargetAvailable(session.target),
+            },
+          },
+        });
+        const context = session.context ?? await (session.contextPromise ?? getCaptureContext(session.source.url, project, session.overrides));
+        const profile = context.resolved_voice_profile;
+        const appliedContext = frozenAppliedContext(session.source, project, context, session.overrides);
+        const transcription = await transcribeAudio({
+          requestId: session.id,
+          audio: audioBlobFromEvent(event),
+          source: session.source,
+          targetText: session.targetText,
+          selectedText: pendingSelection,
+          projectContext: [profile.personal_context, profile.project_overview].filter(Boolean).join("\n\n"),
+          glossary: profile.vocabulary.join("\n"),
+          instructions,
+          appliedContext,
+        });
+        await markPendingVoiceTranscribed({
+          id: session.id,
+          captureId: transcription.capture_id,
+          rawTranscript: transcription.raw_transcript,
+          text: transcription.text,
+          appliedContext: transcription.applied_context,
+        });
+        const activity = await saveMaterial({
+          requestId: session.id,
+          kind: "voice",
+          content: transcription.text,
+          rawTranscript: transcription.raw_transcript,
+          transcript: transcription.text,
+          source: session.source,
+          projects: [],
+          tags: [],
+          captureId: transcription.capture_id,
+          appliedContext: transcription.applied_context,
+          activityType: "voice-command",
+        });
+        setCommandActivitySourceId(activity.id);
+        setCommandPendingVoiceId(session.id);
+        if (voiceSessionRef.current?.id !== session.id) return;
+        voiceSessionRef.current = undefined;
+        setCommandInstruction(transcription.text);
+        const target = session.target === document.body ? null : session.target;
+        const selection = session.commandSelection;
+        const spokenScope = inferredCommandScope(transcription.text, Boolean(selection), project);
+        const explicitScopeConflict = Boolean(
+          session.commandScopeExplicit && commandMentionsScope(transcription.text) &&
+          (spokenScope === "conflict" || spokenScope !== session.commandScope),
+        );
+        const inferred = session.commandScopeExplicit
+          ? session.commandScope ?? "page"
+          : spokenScope;
+        const explicitScopeInvalid = session.commandScopeExplicit && (
+          (inferred === "selection" && !selection) ||
+          (inferred === "project" && !project)
+        );
+        if (inferred === "conflict" || explicitScopeInvalid || explicitScopeConflict) {
+          setCommandPhase("editing");
+          setCommandError("Choose whether this command should use the Selection, Page, or Project.");
+          return;
+        }
+        setCommandScope(inferred);
+        if (inferred === "project" && !project) {
+          setCommandPhase("editing");
+          setCommandError("Choose the Project whose Sources Logue should use.");
+          return;
+        }
+        const source = inferred === "selection" && selection ? { ...session.source, selection } : session.source;
+        const anchorRect = target?.getBoundingClientRect() ?? pageSelectionSnapshotRef.current?.anchor;
+        await runCommandExecutionRef.current({
+          instruction: transcription.text,
+          scope: inferred,
+          project,
+          source,
+          selection: inferred === "selection" ? selection : undefined,
+          pageText: inferred === "page" ? session.commandPageText : undefined,
+          targetText: isEditableTargetAvailable(target) ? getEditableText(target) : session.targetText,
+          targetSessionId: targetSessionId(target),
+          targetAvailable: isEditableTargetAvailable(target),
+          targetElement: isEditableTargetAvailable(target) ? target : undefined,
+          activitySourceId: activity.id,
+          pendingVoiceId: session.id,
+          anchor: { left: anchorRect?.left ?? 24, top: (anchorRect?.bottom ?? 80) + 8 },
+          editableSnapshot: inferred === "selection" ? session.commandEditableSnapshot : undefined,
+          epoch: commandEpochRef.current,
+          evidenceRequestId: `${activity.id}:evidence`,
+          runRequestId: `${activity.id}:run`,
+        });
+      })().catch((cause: unknown) => {
+        if (voiceSessionRef.current?.id === session.id) voiceSessionRef.current = undefined;
+        if (cause instanceof ExtensionApiError) setCommandFailedRun(cause.run);
+        if (isCommandParseFailure(cause)) setCommandParseError(true);
+        setCommandPhase("editing");
+        setCommandError(isCommandParseFailure(cause) ? "Couldn’t understand the action. Edit the intent, retry transcription, or switch to Voice Write." : cause instanceof Error ? cause.message : "Voice Command was saved, but could not run.");
+      });
+      return;
+    }
 
     setInlineVoicePhase("processing");
     void (async () => {
@@ -964,19 +1186,282 @@ function ExtensionLauncher() {
     restoreTargetFocus(session);
   }, [restoreTargetFocus, setInlineVoicePhase]);
 
-  const startVoiceCommand = useCallback(() => {
+  const startVoiceCommand = useCallback((autoRecord = false) => {
+    const launchEpoch = ++commandEpochRef.current;
+    const selectionAvailable = Boolean(selectionSnapshotRef.current?.text || pageSelectionSnapshotRef.current?.text || window.getSelection()?.toString().trim());
+    setCommandOpen(true);
+    setCommandPhase("editing");
+    setCommandError("");
+    setCommandParseError(false);
+    setCommandInstruction("");
+    setCommandActivitySourceId(undefined);
+    setCommandPendingVoiceId(undefined);
+    setCommandFailedRun(undefined);
+    setPendingCommandExecution(undefined);
+    setCommandScope(selectionAvailable ? "selection" : "page");
+    setCommandScopeExplicit(false);
+    commandTargetRef.current = isEditableTargetAvailable(targetRef.current) ? targetRef.current : null;
+    setVoiceProfilePickerOpen(false);
+    void chrome.runtime.sendMessage({ type: "logue:get-tab-projects" })
+      .then((response: { ok?: boolean; value?: string[] } | undefined) => {
+        if (commandEpochRef.current !== launchEpoch) throw new Error("Command closed");
+        const project = response?.ok && Array.isArray(response.value) ? response.value[0] ?? "" : "";
+        setCommandProject(project);
+        if (autoRecord) startCommandVoiceRef.current(project, selectionAvailable ? "selection" : "page", false);
+        return getCaptureContext(pageSource().url ?? "", project, voiceProfileOverrides).then((context) => ({ context, project }));
+      })
+      .then(({ context, project }) => {
+        if (commandEpochRef.current !== launchEpoch) return;
+        setVoiceProfileContext(context);
+      })
+      .catch((cause: unknown) => {
+        if (commandEpochRef.current === launchEpoch && cause instanceof Error && cause.message !== "Command closed") setCommandProject("");
+      });
+  }, [voiceProfileOverrides]);
+
+  const closeVoiceCommand = useCallback(() => {
+    commandEpochRef.current += 1;
+    const session = voiceSessionRef.current;
+    if (session?.mode === "command") {
+      voiceSessionRef.current = undefined;
+      void sendInlineRecorderControl(session.id, "cancel").catch(() => undefined);
+    }
+    setCommandOpen(false);
+    setCommandPhase("editing");
+    setCommandError("");
+    setCommandParseError(false);
+    if (commandPendingVoiceId) void completePendingVoice(commandPendingVoiceId).catch(() => undefined);
+    setCommandPendingVoiceId(undefined);
+    const execution = commandExecutionRef.current;
+    commandExecutionRef.current = undefined;
+    if (execution) {
+      void cancelMaterialSave(execution.evidenceRequestId).catch(() => undefined);
+      void cancelMaterialSave(`${execution.evidenceRequestId}:source`).catch(() => undefined);
+      void cancelMaterialSave(execution.runRequestId).catch(() => undefined);
+    }
+    if (session) restoreTargetFocus(session);
+    else if (isEditableTargetAvailable(commandTargetRef.current)) commandTargetRef.current.focus({ preventScroll: true });
+    commandTargetRef.current = null;
+  }, [commandPendingVoiceId, restoreTargetFocus, sendInlineRecorderControl]);
+
+  const presentCommandResult = useCallback((execution: PendingCommandExecution, run: ExtensionSkillRun) => {
+    if (run.status !== "complete" || !run.original_output?.trim()) throw new Error(run.error || "No result returned.");
+    if (execution.epoch !== commandEpochRef.current) return;
+    commandExecutionRef.current = undefined;
+    setSelectionActionCandidate({
+      runId: run.id,
+      skillName: run.skill_name || "Voice Command",
+      text: run.original_output,
+      originalText: run.original_output,
+      source: execution.source,
+      projects: execution.project ? [execution.project] : [],
+      anchor: execution.anchor,
+      editableSnapshot: execution.scope === "selection" ? execution.editableSnapshot : undefined,
+      insertTarget: execution.scope !== "selection" && execution.targetAvailable ? execution.targetElement : undefined,
+      insertTargetText: execution.scope !== "selection" ? execution.targetText : undefined,
+      insertTargetSessionId: execution.scope !== "selection" ? execution.targetSessionId : undefined,
+    });
+    setPendingCommandExecution(undefined);
+    setCommandFailedRun(undefined);
+    setCommandOpen(false);
+    setCommandInstruction("");
+    setCommandActivitySourceId(undefined);
+    setCommandPhase("editing");
+  }, []);
+
+  const runCommandExecution = useCallback(async (execution: PendingCommandExecution) => {
+    commandExecutionRef.current = execution;
+    setPendingCommandExecution(execution);
+    setCommandPhase("running");
+    setCommandError("");
+    if (execution.scope === "project") {
+      const response = await chrome.runtime.sendMessage({
+        type: "logue:open-side-panel",
+        intent: "generate",
+        source: execution.source,
+        targetText: execution.targetText,
+        targetSessionId: execution.targetSessionId,
+        targetAvailable: execution.targetAvailable,
+        draft: execution.instruction,
+        projects: [execution.project],
+        commandActivitySourceId: execution.activitySourceId,
+        commandRunRequestId: execution.runRequestId,
+        autoRun: true,
+      }) as { ok?: boolean; error?: string } | undefined;
+      if (!response?.ok) throw new Error(response?.error || "Could not run this command.");
+      if (execution.pendingVoiceId) await completePendingVoice(execution.pendingVoiceId);
+      if (execution.epoch !== commandEpochRef.current) return;
+      commandExecutionRef.current = undefined;
+      setCommandOpen(false);
+      setCommandInstruction("");
+      setCommandActivitySourceId(undefined);
+      setCommandPendingVoiceId(undefined);
+      commandTargetRef.current = null;
+      setCommandPhase("editing");
+      return;
+    }
+    const evidenceId = execution.scope === "selection" && execution.selection
+      ? (await saveSelection({ requestId: execution.evidenceRequestId, sourceContent: execution.selection, source: execution.source, projects: [] })).source.id
+      : (await saveMaterial({ requestId: execution.evidenceRequestId, kind: "selection", content: execution.pageText || execution.source.title || execution.source.url, source: execution.source, projects: [], tags: [], actor: "web" })).id;
+    const [availableSkills, settings, captureContext] = await Promise.all([
+      getExtensionSkills(),
+      getExtensionSettings(),
+      getCaptureContext(execution.source.url, execution.project, voiceProfileOverrides),
+    ]);
+    const binding = captureContext.projects.find((item) => item.name === execution.project)?.skill_bindings?.command;
+    const skill = availableSkills.find((item) => item.id === (binding || settings.default_extension_skill))
+      || availableSkills.find((item) => item.output === "insert");
+    if (!skill) throw new Error("No Voice Command Skill is available.");
+    const run = await createExtensionSkillRun({
+      requestId: execution.runRequestId,
+      skillId: skill.id,
+      instruction: execution.instruction,
+      project: execution.project || undefined,
+      pageTitle: execution.source.title,
+      pageUrl: execution.source.url,
+      targetText: execution.targetText,
+      selection: execution.selection,
+      sourceIds: [evidenceId],
+      autoSearch: false,
+      activitySourceId: execution.activitySourceId,
+    });
+    if (execution.pendingVoiceId) await completePendingVoice(execution.pendingVoiceId);
+    presentCommandResult(execution, run);
+  }, [presentCommandResult, voiceProfileOverrides]);
+
+  runCommandExecutionRef.current = runCommandExecution;
+
+  const submitVoiceCommand = useCallback((instructionOverride?: string, contextOverride?: { project?: string; scope?: CommandScope; activitySourceId?: string; pendingVoiceId?: string }) => {
+    const instruction = (instructionOverride ?? commandInstruction).trim();
+    const project = (contextOverride?.project ?? commandProject).trim();
+    const scope = contextOverride?.scope ?? commandScope;
+    if (!instruction) return;
+    setCommandParseError(false);
+    if (scope === "project" && !project) {
+      setCommandError("Choose the Project whose Sources Logue should use.");
+      return;
+    }
     const target = targetRef.current;
+    const selection = selectionSnapshotRef.current?.text || pageSelectionSnapshotRef.current?.text || window.getSelection()?.toString().trim() || undefined;
+    const inferredScope = inferredCommandScope(instruction, Boolean(selection), project);
+    if (inferredScope === "conflict" || (commandMentionsScope(instruction) && inferredScope !== scope)) {
+      setCommandError("The instruction and selected scope do not match. Choose Selection, Page, or Project, then run again.");
+      return;
+    }
+    const source = selection && scope === "selection" ? { ...pageSource(), selection } : pageSource();
+    setCommandPhase("running");
+    setCommandError("");
+    void (async () => {
+      const activitySourceId = contextOverride?.activitySourceId || commandActivitySourceId || (await saveMaterial({
+        requestId: createRequestId(),
+        kind: "text",
+        content: instruction,
+        source,
+        projects: [],
+        tags: [],
+        activityType: "text-command",
+      })).id;
+      setCommandActivitySourceId(activitySourceId);
+      const anchorRect = target?.getBoundingClientRect() ?? pageSelectionSnapshotRef.current?.anchor;
+      const execution: PendingCommandExecution = {
+        instruction,
+        scope,
+        project,
+        source,
+        selection: scope === "selection" ? selection : undefined,
+        pageText: scope === "page" ? document.body?.innerText?.trim().slice(0, 80_000) : undefined,
+        targetText: isEditableTargetAvailable(target) ? getEditableText(target) : "",
+        targetSessionId: targetSessionId(target),
+        targetAvailable: isEditableTargetAvailable(target),
+        targetElement: isEditableTargetAvailable(target) ? target : undefined,
+        activitySourceId,
+        pendingVoiceId: contextOverride?.pendingVoiceId ?? commandPendingVoiceId,
+        anchor: { left: anchorRect?.left ?? 24, top: (anchorRect?.bottom ?? 80) + 8 },
+        editableSnapshot: scope === "selection" ? selectionSnapshotRef.current : undefined,
+        epoch: commandEpochRef.current,
+        evidenceRequestId: `${activitySourceId}:evidence`,
+        runRequestId: `${activitySourceId}:run`,
+      };
+      await runCommandExecution(execution);
+    })().catch((cause: unknown) => {
+      const failed = cause instanceof ExtensionApiError ? cause.run : undefined;
+      setCommandFailedRun(failed);
+      if (isCommandParseFailure(cause)) setCommandParseError(true);
+      setCommandPhase("editing");
+      setCommandError(isCommandParseFailure(cause) ? "Couldn’t understand the action. Edit the intent, retry transcription, or switch to Voice Write." : cause instanceof Error ? cause.message : "Could not run this command.");
+    });
+  }, [commandActivitySourceId, commandInstruction, commandPendingVoiceId, commandProject, commandScope, runCommandExecution]);
+
+  const retryVoiceCommand = useCallback(() => {
+    const failed = commandFailedRun;
+    const execution = pendingCommandExecution;
+    if (!failed || !execution) return;
+    setCommandPhase("running");
+    setCommandError("");
+    const retryRequestId = `${execution.runRequestId}:retry`;
+    commandExecutionRef.current = { ...execution, runRequestId: retryRequestId };
+    void retryExtensionSkillRun(failed, retryRequestId).then(async (run) => {
+      if (execution.pendingVoiceId) await completePendingVoice(execution.pendingVoiceId);
+      presentCommandResult(execution, run);
+    }).catch((cause: unknown) => {
+      const nextFailed = cause instanceof ExtensionApiError ? cause.run : undefined;
+      setCommandFailedRun(nextFailed ?? failed);
+      setCommandPhase("editing");
+      setCommandError(cause instanceof Error ? cause.message : "Could not retry this command.");
+    });
+  }, [commandFailedRun, pendingCommandExecution, presentCommandResult]);
+
+  const retryCommandTranscription = useCallback(() => {
+    if (!commandActivitySourceId) {
+      startCommandVoiceRef.current();
+      return;
+    }
+    setCommandPhase("transcribing");
+    setCommandError("");
+    void retranscribeMaterial(commandActivitySourceId, {
+      referenceProject: commandProject,
+      profileOverrides: voiceProfileOverrides,
+    }).then((result) => {
+      const nextInstruction = result.revision.transcript.trim();
+      setCommandInstruction(nextInstruction);
+      setCommandParseError(false);
+      setCommandPhase("editing");
+      submitVoiceCommand(nextInstruction);
+    }).catch((cause: unknown) => {
+      setCommandPhase("editing");
+      setCommandError(cause instanceof Error ? cause.message : "Could not retry transcription.");
+    });
+  }, [commandActivitySourceId, commandProject, submitVoiceCommand, voiceProfileOverrides]);
+
+  const switchCommandToVoiceWrite = useCallback(() => {
+    const materialId = commandActivitySourceId;
+    const text = commandInstruction.trim();
+    if (!materialId || !text) return;
+    const target = commandTargetRef.current ?? targetRef.current ?? document.body;
     const source = pageSource();
-    void chrome.runtime.sendMessage({
-      type: "logue:open-side-panel",
-      intent: "generate",
+    if (commandPendingVoiceId) void completePendingVoice(commandPendingVoiceId).catch(() => undefined);
+    commandEpochRef.current += 1;
+    voiceSessionRef.current = {
+      id: commandPendingVoiceId ?? createRequestId(),
+      target,
       source,
       targetText: isEditableTargetAvailable(target) ? getEditableText(target) : "",
-      targetSessionId: targetSessionId(target),
-      targetAvailable: isEditableTargetAvailable(target),
-      autoStartRecording: true,
+      projects: commandProject ? [commandProject] : [],
+      overrides: { ...voiceProfileOverrides },
+    };
+    setVoiceCandidate({
+      materialId,
+      text,
+      revision: 1,
+      profileLabel: voiceProfileContext?.resolved_voice_profile.label || "Voice settings",
+      referenceProject: commandProject,
     });
-  }, []);
+    setCommandOpen(false);
+    setCommandParseError(false);
+    setCommandError("");
+    setCommandPendingVoiceId(undefined);
+    setInlineVoicePhase("idle");
+  }, [commandActivitySourceId, commandInstruction, commandPendingVoiceId, commandProject, setInlineVoicePhase, voiceProfileContext, voiceProfileOverrides]);
 
   const insertVoiceCandidate = useCallback((textOverride?: string) => {
     const session = voiceSessionRef.current;
@@ -1115,6 +1600,69 @@ function ExtensionLauncher() {
     });
   }, [restoreTargetFocus, sendInlineRecorderControl, setInlineVoicePhase, voiceProfileOverrides]);
 
+  const startCommandVoice = useCallback((projectOverride?: string, scopeOverride?: CommandScope, scopeExplicitOverride?: boolean) => {
+    const project = projectOverride ?? commandProject;
+    const target = targetRef.current;
+    const selection = selectionSnapshotRef.current?.text || pageSelectionSnapshotRef.current?.text || window.getSelection()?.toString().trim() || undefined;
+    const session: InlineVoiceSession = {
+      id: createRequestId(),
+      target: target ?? document.body,
+      source: pageSource(),
+      targetText: isEditableTargetAvailable(target) ? getEditableText(target) : "",
+      projects: project ? [project] : [],
+      overrides: { ...voiceProfileOverrides },
+      mode: "command",
+      commandProject: project,
+      commandSelection: selection,
+      commandPageText: document.body?.innerText?.trim().slice(0, 80_000),
+      commandEditableSnapshot: selectionSnapshotRef.current,
+      commandScope: scopeOverride ?? commandScope,
+      commandScopeExplicit: scopeExplicitOverride ?? commandScopeExplicit,
+    };
+    voiceSessionRef.current = session;
+    setCommandPhase("starting");
+    setCommandError("");
+    void (async () => {
+      await requireWritablePendingVoiceQueue();
+      session.contextPromise = getCaptureContext(session.source.url ?? "", project, session.overrides);
+      void session.contextPromise.then((context) => {
+        if (voiceSessionRef.current?.id !== session.id) return;
+        session.context = context;
+        setVoiceProfileContext(context);
+      }).catch(() => undefined);
+      if (voiceSessionRef.current?.id !== session.id) return;
+      await sendInlineRecorderControl(session.id, "start");
+    })().catch((cause: unknown) => {
+      if (voiceSessionRef.current?.id !== session.id) return;
+      voiceSessionRef.current = undefined;
+      setCommandPhase("editing");
+      setCommandError(cause instanceof Error ? cause.message : "Could not start Voice Command.");
+    });
+  }, [commandProject, commandScope, commandScopeExplicit, sendInlineRecorderControl, voiceProfileOverrides]);
+
+  startCommandVoiceRef.current = startCommandVoice;
+
+  const stopCommandVoice = useCallback(() => {
+    const session = voiceSessionRef.current;
+    if (!session || session.mode !== "command" || commandPhase !== "recording") return;
+    setCommandPhase("transcribing");
+    void sendInlineRecorderControl(session.id, "stop").catch((cause: unknown) => {
+      if (voiceSessionRef.current?.id !== session.id) return;
+      voiceSessionRef.current = undefined;
+      setCommandPhase("editing");
+      setCommandError(cause instanceof Error ? cause.message : "Could not stop Voice Command.");
+    });
+  }, [commandPhase, sendInlineRecorderControl]);
+
+  const cancelCommandVoice = useCallback(() => {
+    const session = voiceSessionRef.current;
+    if (!session || session.mode !== "command") return;
+    voiceSessionRef.current = undefined;
+    void sendInlineRecorderControl(session.id, "cancel").catch(() => undefined);
+    setCommandPhase("editing");
+    setCommandError("");
+  }, [sendInlineRecorderControl]);
+
   const stopAndInsertInlineVoice = useCallback(() => {
     const session = voiceSessionRef.current;
     if (!session || voicePhaseRef.current !== "recording") return;
@@ -1136,6 +1684,13 @@ function ExtensionLauncher() {
     targetRef.current = docsTarget;
     targetPageHrefRef.current = window.location.href;
     setTargetRect(docsTarget.getBoundingClientRect());
+    const isCommandAction = command.action.startsWith("command-");
+    if (isCommandAction && command.action !== "command-close" && !command.action.startsWith("command-candidate-")) setCommandOpen(true);
+    if (isCommandAction && command.project !== undefined) setCommandProject(command.project);
+    if (isCommandAction && command.scope) setCommandScope(command.scope);
+    if (isCommandAction && command.text !== undefined) setCommandInstruction(command.text);
+    if (isCommandAction && command.activitySourceId !== undefined) setCommandActivitySourceId(command.activitySourceId);
+    if (isCommandAction && command.pendingVoiceId !== undefined) setCommandPendingVoiceId(command.pendingVoiceId);
     if (command.action === "start") startInlineVoice(command.overrides);
     if (command.action === "stop") stopAndInsertInlineVoice();
     if (command.action === "cancel") cancelInlineVoice();
@@ -1147,20 +1702,74 @@ function ExtensionLauncher() {
     if (command.action === "candidate-retry") retryVoiceCandidateAdoption();
     if (command.action === "candidate-dismiss") dismissVoiceCandidate();
     if (command.action === "candidate-retranscribe") retranscribeVoiceCandidate(command.retranscribeInput ?? {}, command.overrides);
+    if (command.action === "command-open") startVoiceCommand(true);
+    if (command.action === "command-text") { setCommandInstruction(command.text ?? ""); setCommandError(""); }
+    if (command.action === "command-project") { setCommandProject(command.project ?? ""); setCommandError(""); }
+    if (command.action === "command-scope" && command.scope) { setCommandScope(command.scope); setCommandScopeExplicit(true); setCommandError(""); }
+    if (command.action === "command-submit") submitVoiceCommand(command.text, { project: command.project, scope: command.scope, activitySourceId: command.activitySourceId, pendingVoiceId: command.pendingVoiceId });
+    if (command.action === "command-start-voice") startCommandVoice();
+    if (command.action === "command-stop-voice") {
+      if (!voiceSessionRef.current && command.sessionId) {
+        voiceSessionRef.current = {
+          id: command.sessionId,
+          target: docsTarget,
+          source: pageSource(),
+          targetText: getEditableText(docsTarget),
+          projects: command.project ? [command.project] : [],
+          overrides: { ...voiceProfileOverrides },
+          mode: "command",
+          commandProject: command.project,
+          commandScope: command.scope,
+          commandScopeExplicit: command.scopeExplicit ?? false,
+          commandPageText: document.body?.innerText?.trim().slice(0, 80_000),
+        };
+        setCommandPhase("transcribing");
+        void sendInlineRecorderControl(command.sessionId, "stop");
+      } else stopCommandVoice();
+    }
+    if (command.action === "command-cancel-voice") {
+      if (!voiceSessionRef.current && command.sessionId) void sendInlineRecorderControl(command.sessionId, "cancel");
+      else cancelCommandVoice();
+    }
+    if (command.action === "command-retry") (commandParseError ? retryCommandTranscription() : retryVoiceCommand());
+    if (command.action === "command-switch-write") switchCommandToVoiceWrite();
+    if (command.action === "command-close") closeVoiceCommand();
+    if (command.action === "command-candidate-text") setSelectionActionCandidate((current) => current ? { ...current, text: command.text ?? current.text } : current);
+    if (command.action.startsWith("command-candidate-") && !selectionActionCandidate) return false;
+    if (command.action === "command-candidate-primary") void applySelectionActionCandidate(command.text);
+    if (command.action === "command-candidate-copy") void copySelectionActionCandidate(command.text);
+    if (command.action === "command-candidate-keep") void keepSelectionActionCandidate(command.text);
+    if (command.action === "command-candidate-document") void saveSelectionActionDocument(command.text);
+    if (command.action === "command-candidate-dismiss") dismissSelectionActionCandidate();
     return true;
-  }, [cancelInlineVoice, copyVoiceCandidate, dismissVoiceCandidate, insertVoiceCandidate, retranscribeVoiceCandidate, retryVoiceCandidateAdoption, startInlineVoice, stopAndInsertInlineVoice, undoVoiceCandidate]);
+  }, [cancelCommandVoice, cancelInlineVoice, closeVoiceCommand, commandParseError, copyVoiceCandidate, dismissVoiceCandidate, insertVoiceCandidate, retranscribeVoiceCandidate, retryCommandTranscription, retryVoiceCandidateAdoption, retryVoiceCommand, selectionActionBusy, selectionActionCandidate, selectionActionError, sendInlineRecorderControl, startCommandVoice, startInlineVoice, startVoiceCommand, stopAndInsertInlineVoice, stopCommandVoice, submitVoiceCommand, switchCommandToVoiceWrite, undoVoiceCandidate, voiceProfileOverrides]);
 
   useEffect(() => {
     const updateGoogleDocsProxy = (state: GoogleDocsLauncherState) => {
       const frame = googleDocsEditorFrame(document);
       if (!frame) return;
       if (!state.visible) {
-        setGoogleDocsProxy(undefined);
+        setGoogleDocsProxy((current) => current?.command?.recorderSessionId && ["starting", "recording"].includes(current.command.phase) ? current : undefined);
         return;
       }
       if (!frame.contentWindow) return;
       const surface = googleDocsEditorSurface(document) ?? frame;
-      setGoogleDocsProxy({ ...state, anchor: surface.getBoundingClientRect() });
+      setGoogleDocsProxy((current) => {
+        if (state.command && !current?.command) {
+          googleDocsCommandInstructionRef.current = state.command.instruction;
+          googleDocsCommandProjectRef.current = state.command.project;
+          googleDocsCommandScopeRef.current = state.command.scope;
+        }
+        const command = state.command && current?.command
+          ? {
+              ...state.command,
+              instruction: googleDocsCommandInstructionRef.current ?? state.command.instruction,
+              project: googleDocsCommandProjectRef.current ?? state.command.project,
+              scope: googleDocsCommandScopeRef.current ?? state.command.scope,
+            }
+          : state.command ?? (!state.commandCandidate && current?.command?.recorderSessionId && ["starting", "recording"].includes(current.command.phase) ? current.command : undefined);
+        return { ...state, command, anchor: surface.getBoundingClientRect() };
+      });
     };
     const onGoogleDocsRelay = (message: unknown) => {
       // Only the top document renders the control. The background forwards a
@@ -1362,7 +1971,7 @@ function ExtensionLauncher() {
     void chrome.runtime.sendMessage(googleDocsLauncherStateMessage({
       visible: Boolean(
         isDocsTarget && targetRect &&
-        (document.activeElement === target || keyboardActive || captureActive || voicePhase === "error" || voiceCandidate),
+        (document.activeElement === target || keyboardActive || captureActive || voicePhase === "error" || voiceCandidate || commandOpen || selectionActionCandidate),
       ),
       phase: voicePhase,
       error: voiceError,
@@ -1370,8 +1979,30 @@ function ExtensionLauncher() {
       candidate: voiceCandidate,
       profileContext: voiceProfileContext,
       profileOverrides: voiceProfileOverrides,
+      command: commandOpen ? {
+        phase: commandPhase,
+        instruction: commandInstruction,
+        project: commandProject,
+        scope: commandScope,
+        scopeExplicit: commandScopeExplicit,
+        selectionAvailable: Boolean(selectionSnapshotRef.current?.text || pageSelectionSnapshotRef.current?.text),
+        projects: voiceProfileContext?.projects.map((item) => item.name) ?? (commandProject ? [commandProject] : []),
+        error: commandError,
+        retryAvailable: Boolean(commandParseError || commandFailedRun),
+        switchWriteAvailable: commandParseError,
+        recorderSessionId: voiceSessionRef.current?.mode === "command" ? voiceSessionRef.current.id : undefined,
+        activitySourceId: commandActivitySourceId,
+        pendingVoiceId: commandPendingVoiceId,
+      } : undefined,
+      commandCandidate: selectionActionCandidate ? {
+        skillName: selectionActionCandidate.skillName,
+        text: selectionActionCandidate.text,
+        primaryAction: selectionActionCandidate.editableSnapshot ? "Replace" : selectionActionCandidate.insertTarget ? "Insert" : "Copy",
+        busyAction: selectionActionBusy,
+        error: selectionActionError,
+      } : undefined,
     })).catch(() => undefined);
-  }, [keyboardActive, pendingCopyText, targetRect, voiceCandidate, voiceError, voicePhase, voiceProfileContext, voiceProfileOverrides]);
+  }, [commandError, commandFailedRun, commandInstruction, commandOpen, commandParseError, commandPhase, commandProject, commandScope, keyboardActive, pendingCopyText, selectionActionBusy, selectionActionCandidate, selectionActionError, targetRect, voiceCandidate, voiceError, voicePhase, voiceProfileContext, voiceProfileOverrides]);
 
   useEffect(() => {
     const docsTarget = googleDocsEditableTarget(document);
@@ -1476,7 +2107,27 @@ function ExtensionLauncher() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const session = voiceSessionRef.current;
-      if (!session) return;
+      if (!session) {
+        if (commandOpen && event.key === "Escape" && !event.isComposing && !event.repeat) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          closeVoiceCommand();
+        }
+        return;
+      }
+      if (session.mode === "command") {
+        if (event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+        if (event.key === "Enter" && commandPhase === "recording") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          stopCommandVoice();
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          closeVoiceCommand();
+        }
+        return;
+      }
       const action = recordingShortcutAction({
         open: true,
         mode: "input",
@@ -1497,11 +2148,24 @@ function ExtensionLauncher() {
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [cancelInlineVoice, stopAndInsertInlineVoice]);
+  }, [cancelInlineVoice, closeVoiceCommand, commandOpen, commandPhase, stopAndInsertInlineVoice, stopCommandVoice]);
 
   useEffect(() => {
     if (window.top !== window || !googleDocsProxy) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      if (googleDocsProxy.command) {
+        if (event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+        if (event.key === "Enter" && googleDocsProxy.command.phase === "recording") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          controlGoogleDocsProxy("command-stop-voice");
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          controlGoogleDocsProxy("command-close");
+        }
+        return;
+      }
       const action = recordingShortcutAction({
         open: true,
         mode: "input",
@@ -1589,6 +2253,86 @@ function ExtensionLauncher() {
         sendResponse({ ok: true });
         return false;
       }
+      if (contentMessage?.type === "logue:start-voice-command") {
+        startVoiceCommand(true);
+        sendResponse({ ok: true });
+        return false;
+      }
+      if (contentMessage?.type === "logue:resume-voice-command") {
+        const recoveryEpoch = ++commandEpochRef.current;
+        const instruction = contentMessage.instruction?.trim();
+        const source = contentMessage.source;
+        const activitySourceId = contentMessage.activitySourceId;
+        const pendingVoiceId = contentMessage.pendingVoiceId;
+        if (!instruction || !source?.url || !activitySourceId || !pendingVoiceId) {
+          sendResponse({ ok: false, error: "This saved Voice Command is incomplete." });
+          return false;
+        }
+        const recoverySource: CaptureSource = {
+          url: source.url,
+          title: source.title || source.domain || source.url,
+          domain: source.domain || (() => { try { return new URL(source.url!).hostname; } catch { return ""; } })(),
+        };
+        const project = contentMessage.project?.trim() ?? "";
+        const selection = contentMessage.selection?.trim() || undefined;
+        const resolvedScope = contentMessage.scope === "auto"
+          ? inferredCommandScope(instruction, Boolean(selection), project)
+          : contentMessage.scope ?? "page";
+        const target = targetRef.current;
+        const targetAvailable = Boolean(
+          contentMessage.targetAvailable && target &&
+          targetSessionId(target) === contentMessage.targetSessionId &&
+          isEditableTargetAvailable(target),
+        );
+        commandTargetRef.current = targetAvailable ? target : null;
+        setCommandOpen(true);
+        setCommandInstruction(instruction);
+        setCommandProject(project);
+        setCommandActivitySourceId(activitySourceId);
+        setCommandPendingVoiceId(pendingVoiceId);
+        setCommandFailedRun(undefined);
+        setPendingCommandExecution(undefined);
+        setCommandScopeExplicit(contentMessage.scope !== "auto");
+        setCommandParseError(false);
+        if (contentMessage.needsClarification || resolvedScope === "conflict" || (resolvedScope === "selection" && !selection) || (resolvedScope === "project" && !project)) {
+          setCommandScope(selection ? "selection" : "page");
+          setCommandPhase("editing");
+          setCommandError("Choose whether this command should use the Selection, Page, or Project.");
+          sendResponse({ ok: true });
+          return false;
+        }
+        setCommandScope(resolvedScope);
+        setCommandPhase("running");
+        setCommandError("");
+        const anchorRect = targetAvailable ? target!.getBoundingClientRect() : undefined;
+        const execution: PendingCommandExecution = {
+          instruction,
+          scope: resolvedScope,
+          project,
+          source: resolvedScope === "selection" && selection ? { ...recoverySource, selection } : recoverySource,
+          selection: resolvedScope === "selection" ? selection : undefined,
+          pageText: resolvedScope === "page" ? contentMessage.pageText : undefined,
+          targetText: targetAvailable ? getEditableText(target!) : contentMessage.targetText ?? "",
+          targetSessionId: targetAvailable ? contentMessage.targetSessionId : undefined,
+          targetAvailable,
+          targetElement: targetAvailable ? target! : undefined,
+          activitySourceId,
+          pendingVoiceId,
+          anchor: { left: anchorRect?.left ?? 24, top: (anchorRect?.bottom ?? 80) + 8 },
+          editableSnapshot: resolvedScope === "selection" ? selectionSnapshotRef.current : undefined,
+          epoch: recoveryEpoch,
+          evidenceRequestId: `${activitySourceId}:evidence`,
+          runRequestId: `${activitySourceId}:run`,
+        };
+        void runCommandExecutionRef.current(execution).catch((cause: unknown) => {
+          if (cause instanceof ExtensionApiError) setCommandFailedRun(cause.run);
+          if (isCommandParseFailure(cause)) setCommandParseError(true);
+          setCommandPhase("editing");
+          setCommandError(isCommandParseFailure(cause) ? "Couldn’t understand the action. Edit the intent, retry transcription, or switch to Voice Write." : cause instanceof Error ? cause.message : "Voice Command was saved, but could not run.");
+        });
+        sendResponse({ ok: true });
+        return false;
+      }
       if (contentMessage?.type === "logue:inline-recorder-event") {
         const event = { ...contentMessage, type: "logue:recording-bridge-event" } as RecordingBridgeEvent;
         if (!finishSelectionComment(event)) finishInlineVoice(event);
@@ -1596,7 +2340,8 @@ function ExtensionLauncher() {
         return false;
       }
       if (contentMessage?.type === "logue:recording-dispose") {
-        cancelInlineVoice();
+        if (voiceSessionRef.current?.mode === "command") closeVoiceCommand();
+        else cancelInlineVoice();
         sendResponse({ ok: true });
         return false;
       }
@@ -1706,10 +2451,10 @@ function ExtensionLauncher() {
     return () => {
       chrome.runtime.onMessage.removeListener(listener);
     };
-  }, [cancelInlineVoice, controlGoogleDocsEditor, externalTargetDescriptor, finishInlineVoice, finishSelectionComment, liveExternalTarget, startInlineVoice]);
+  }, [cancelInlineVoice, closeVoiceCommand, controlGoogleDocsEditor, externalTargetDescriptor, finishInlineVoice, finishSelectionComment, liveExternalTarget, startInlineVoice, startVoiceCommand]);
 
   const captureActive = voicePhase === "starting" || voicePhase === "recording" || voicePhase === "processing";
-  const voiceFlowActive = captureActive || Boolean(voiceCandidate) || Boolean(selectionActionCandidate);
+  const voiceFlowActive = captureActive || commandOpen || Boolean(voiceCandidate) || Boolean(selectionActionCandidate);
   const selectionCommentActive = selectionTextCommentOpen || selectionCommentPhase === "starting" || selectionCommentPhase === "recording" || selectionCommentPhase === "committing";
   const hasPageSelectionComment = Boolean(pageSelectionSnapshot && !voiceFlowActive && !isGoogleDocsDocumentTarget(targetRef.current));
   const skillSelectionAnchor = selectionSnapshot?.anchor ?? (pageSelectionSnapshot ? { left: Math.max(8, pageSelectionSnapshot.anchor.left - 92), top: pageSelectionSnapshot.anchor.bottom + 8 } : undefined);
@@ -1718,6 +2463,10 @@ function ExtensionLauncher() {
   const defaultPosition = targetRect ? defaultLauncherPosition(targetRect, viewport, controlMetrics.width, controlMetrics.height) : undefined;
   const position = defaultPosition ? clampLauncherPosition(defaultPosition, viewport, controlMetrics.width, controlMetrics.height) : undefined;
   const candidatePosition = targetRect ? defaultLauncherPosition(targetRect, viewport, 380, 252) : undefined;
+  const commandAnchor = targetRect ?? pageSelectionSnapshot?.anchor;
+  const commandPosition = commandAnchor
+    ? clampLauncherPosition(defaultLauncherPosition(commandAnchor, viewport, 420, 244), viewport, 420, 244)
+    : { left: Math.max(8, (viewport.width - 420) / 2), top: Math.max(8, Math.min(96, viewport.height / 5)) };
   const googleDocsMetrics = googleDocsProxy ? inlineVoiceControlMetrics[googleDocsProxy.phase] : undefined;
   const googleDocsPosition = googleDocsProxy && googleDocsMetrics
     // The Docs text-event iframe is hidden outside the viewport. Keep the
@@ -1732,7 +2481,7 @@ function ExtensionLauncher() {
       googleDocsMetrics.height,
     )
     : undefined;
-  const googleDocsCandidatePosition = googleDocsProxy?.candidate
+  const googleDocsCandidatePosition = googleDocsProxy?.candidate || googleDocsProxy?.commandCandidate
     ? clampLauncherPosition(
       {
         left: googleDocsProxy.anchor.right - 380 - 16,
@@ -1768,6 +2517,22 @@ function ExtensionLauncher() {
   } : undefined;
 
   function controlGoogleDocsProxy(action: GoogleDocsLauncherAction, values: Omit<GoogleDocsLauncherCommand, "action"> = {}) {
+    const command = googleDocsProxy?.command;
+    const commandValues = action.startsWith("command-") && command ? {
+      text: googleDocsCommandInstructionRef.current ?? command.instruction,
+      project: googleDocsCommandProjectRef.current ?? command.project,
+      scope: googleDocsCommandScopeRef.current ?? command.scope,
+      scopeExplicit: command.scopeExplicit,
+      sessionId: command.recorderSessionId,
+      activitySourceId: command.activitySourceId,
+      pendingVoiceId: command.pendingVoiceId,
+    } : {};
+    if (action === "command-close") {
+      googleDocsCommandInstructionRef.current = undefined;
+      googleDocsCommandProjectRef.current = undefined;
+      googleDocsCommandScopeRef.current = undefined;
+      setGoogleDocsProxy(undefined);
+    }
     const showError = () => {
       setGoogleDocsProxy((current) => current && {
         ...current,
@@ -1776,7 +2541,7 @@ function ExtensionLauncher() {
         pendingCopyText: "",
       });
     };
-    void chrome.runtime.sendMessage(googleDocsLauncherActionMessage(action, action === "start" ? { overrides: voiceProfileOverrides } : values))
+    void chrome.runtime.sendMessage(googleDocsLauncherActionMessage(action, action === "start" ? { overrides: voiceProfileOverrides } : { ...commandValues, ...values }))
       .then((response: { ok?: boolean } | undefined) => {
         if (!response?.ok) showError();
       })
@@ -1841,16 +2606,20 @@ function ExtensionLauncher() {
   }
 
   function dismissSelectionActionCandidate() {
+    const focusTarget = selectionActionCandidate?.insertTarget ?? selectionActionCandidate?.editableSnapshot?.target ?? commandTargetRef.current;
     setSelectionActionCandidate(undefined);
     setSelectionActionError("");
     selectionSnapshotRef.current = undefined;
     pageSelectionSnapshotRef.current = undefined;
     setSelectionSnapshot(undefined);
     setPageSelectionSnapshot(undefined);
+    if (isEditableTargetAvailable(focusTarget)) focusTarget.focus({ preventScroll: true });
+    commandTargetRef.current = null;
   }
 
-  async function copySelectionActionCandidate() {
-    const candidate = selectionActionCandidate;
+  async function copySelectionActionCandidate(textOverride?: string) {
+    const currentCandidate = selectionActionCandidate;
+    const candidate = currentCandidate && textOverride !== undefined ? { ...currentCandidate, text: textOverride } : currentCandidate;
     if (!candidate || selectionActionBusy) return;
     setSelectionActionBusy("copy");
     setSelectionActionError("");
@@ -1869,24 +2638,38 @@ function ExtensionLauncher() {
     }
   }
 
-  async function applySelectionActionCandidate() {
-    const candidate = selectionActionCandidate;
+  async function applySelectionActionCandidate(textOverride?: string) {
+    const currentCandidate = selectionActionCandidate;
+    const candidate = currentCandidate && textOverride !== undefined ? { ...currentCandidate, text: textOverride } : currentCandidate;
     if (!candidate || selectionActionBusy) return;
-    if (!candidate.editableSnapshot) { await copySelectionActionCandidate(); return; }
+    if (!candidate.editableSnapshot && !candidate.insertTarget) { await copySelectionActionCandidate(); return; }
     setSelectionActionBusy("primary");
     setSelectionActionError("");
     try {
-      const replacement = replaceSelectionWithUndoIfUnchanged(candidate.editableSnapshot, candidate.text);
-      if (!replacement) throw new Error("Selection changed. Run the Skill again on the current text.");
-      const target = { surface: "inline-selection", url: candidate.source.url, target_key: `selection:${candidate.runId}` };
+      const isInsert = !candidate.editableSnapshot;
+      const insertTarget = candidate.insertTarget;
+      if (isInsert && (
+        !insertTarget || !isEditableTargetAvailable(insertTarget) ||
+        targetSessionId(insertTarget) !== candidate.insertTargetSessionId ||
+        getEditableText(insertTarget) !== candidate.insertTargetText
+      )) throw new Error("The original input changed. Copy this result instead.");
+      const replacement = candidate.editableSnapshot
+        ? replaceSelectionWithUndoIfUnchanged(candidate.editableSnapshot, candidate.text)
+        : insertIntoElementWithUndo(insertTarget!, candidate.text);
+      if (!replacement) throw new Error(isInsert ? "Could not insert into the original input." : "Selection changed. Run the Skill again on the current text.");
+      const target = {
+        surface: isInsert ? "inline-command" : "inline-selection",
+        url: candidate.source.url,
+        target_key: isInsert ? candidate.insertTargetSessionId : `selection:${candidate.runId}`,
+      };
       const adoption = { runId: candidate.runId, replacement: candidate.text, adoptionId: createRequestId(), target };
       const history = await saveSelectionSkillHistory(
         adoption,
-        (id, text, adoptionId, frozenTarget) => adoptExtensionSkillRun(id, text, { action: "replace", adoptionId, target: frozenTarget }),
+        (id, text, adoptionId, frozenTarget) => adoptExtensionSkillRun(id, text, { action: isInsert ? "insert" : "replace", adoptionId, target: frozenTarget }),
       );
       showSelectionSkillNotice({
         anchor: candidate.anchor,
-        message: history ? "Text replaced, but history wasn’t saved." : "Applied",
+        message: history ? `${isInsert ? "Text inserted" : "Text replaced"}, but history wasn’t saved.` : "Applied",
         history,
         undo: { adoption, replacement },
       });
@@ -1898,8 +2681,9 @@ function ExtensionLauncher() {
     }
   }
 
-  async function keepSelectionActionCandidate() {
-    const candidate = selectionActionCandidate;
+  async function keepSelectionActionCandidate(textOverride?: string) {
+    const currentCandidate = selectionActionCandidate;
+    const candidate = currentCandidate && textOverride !== undefined ? { ...currentCandidate, text: textOverride } : currentCandidate;
     if (!candidate || selectionActionBusy) return;
     setSelectionActionBusy("keep");
     setSelectionActionError("");
@@ -1917,8 +2701,9 @@ function ExtensionLauncher() {
     }
   }
 
-  async function saveSelectionActionDocument() {
-    const candidate = selectionActionCandidate;
+  async function saveSelectionActionDocument(textOverride?: string) {
+    const currentCandidate = selectionActionCandidate;
+    const candidate = currentCandidate && textOverride !== undefined ? { ...currentCandidate, text: textOverride } : currentCandidate;
     if (!candidate || selectionActionBusy) return;
     setSelectionActionBusy("document");
     setSelectionActionError("");
@@ -1946,7 +2731,7 @@ function ExtensionLauncher() {
     if (!notice?.history) return;
     const retry = await saveSelectionSkillHistory(
       notice.history,
-      (id, text, adoptionId, target) => adoptExtensionSkillRun(id, text, { action: "replace", adoptionId, target }),
+      (id, text, adoptionId, target) => adoptExtensionSkillRun(id, text, { action: target.surface === "inline-command" ? "insert" : "replace", adoptionId, target }),
     );
     if (retry) {
       setSelectionSkillNotice({ ...notice, history: retry });
@@ -1967,7 +2752,7 @@ function ExtensionLauncher() {
     if (notice.history) {
       const retry = await saveSelectionSkillHistory(
         notice.history,
-        (id, text, adoptionId, target) => adoptExtensionSkillRun(id, text, { action: "replace", adoptionId, target }),
+        (id, text, adoptionId, target) => adoptExtensionSkillRun(id, text, { action: target.surface === "inline-command" ? "insert" : "replace", adoptionId, target }),
       );
       if (retry) {
         setSelectionSkillNotice({ ...notice, message: "Text restored, but Logue could not save Undo.", history: retry, undo: locallyUndone });
@@ -1986,9 +2771,31 @@ function ExtensionLauncher() {
     }
   }
 
-  if (!visible && !hasSelectionSkillMenu && !googleDocsProxyVisible && !hasPageSelectionComment) return null;
+  if (!visible && !hasSelectionSkillMenu && !googleDocsProxyVisible && !hasPageSelectionComment && !commandOpen) return null;
   return (
     <>
+      {commandOpen ? <V2CommandLauncherSurface
+        phase={commandPhase}
+        instruction={commandInstruction}
+        project={commandProject}
+        scope={commandScope}
+        selectionAvailable={Boolean(selectionSnapshotRef.current?.text || pageSelectionSnapshotRef.current?.text || window.getSelection()?.toString().trim())}
+        projects={voiceProfileContext?.projects.map((item) => item.name) ?? (commandProject ? [commandProject] : [])}
+        scopeLabel={commandScope === "selection" ? "Selection" : commandScope === "project" ? "Project Sources" : "Page"}
+        targetLabel={isEditableTargetAvailable(targetRef.current) ? editableTargetLabel(targetRef.current) : "Copy or save result"}
+        error={commandError}
+        style={commandPosition}
+        onInstructionChange={(value) => { setCommandInstruction(value); setCommandParseError(false); setCommandError(""); }}
+        onProjectChange={(value) => { setCommandProject(value); setCommandError(""); }}
+        onScopeChange={(value) => { setCommandScope(value); setCommandScopeExplicit(true); setCommandError(""); }}
+        onSubmit={() => submitVoiceCommand()}
+        onStartVoice={startCommandVoice}
+        onStopVoice={stopCommandVoice}
+        onCancelVoice={cancelCommandVoice}
+        onRetry={commandParseError ? retryCommandTranscription : commandFailedRun ? retryVoiceCommand : undefined}
+        onSwitchToVoiceWrite={commandParseError ? switchCommandToVoiceWrite : undefined}
+        onClose={closeVoiceCommand}
+      /> : null}
       {hasPageSelectionComment && selectionCommentPosition && <V2SelectionSurface
         phase={selectionCommentPhase}
         style={selectionCommentPosition}
@@ -2028,7 +2835,7 @@ function ExtensionLauncher() {
       {selectionActionCandidate && <SelectionActionCandidate
         skillName={selectionActionCandidate.skillName}
         text={selectionActionCandidate.text}
-        primaryAction={selectionActionCandidate.editableSnapshot ? "Replace" : "Copy"}
+        primaryAction={selectionActionCandidate.editableSnapshot ? "Replace" : selectionActionCandidate.insertTarget ? "Insert" : "Copy"}
         anchor={selectionActionCandidate.anchor}
         busyAction={selectionActionBusy}
         error={selectionActionError}
@@ -2048,11 +2855,11 @@ function ExtensionLauncher() {
         {selectionSkillNotice.history ? <button type="button" onClick={() => void retrySelectionSkillHistory()}>Retry save</button> : null}
         {selectionSkillNotice.undo ? <button type="button" onClick={() => void undoSelectionSkill()}>{selectionSkillNotice.undo.localApplied ? "Retry saving Undo" : "Undo"}</button> : null}
       </div>}
-      {visible && !voiceCandidate && !selectionCommentActive && !hasPageSelectionComment && <V2InlineVoiceSurface
+      {visible && !commandOpen && !voiceCandidate && !selectionCommentActive && !hasPageSelectionComment && <V2InlineVoiceSurface
         phase={voicePhase}
         style={{ top: position?.top, left: position?.left }}
         onStart={() => startInlineVoice()}
-        onStartCommand={startVoiceCommand}
+        onStartCommand={() => startVoiceCommand(true)}
         onCancel={cancelInlineVoice}
         onStopAndInsert={stopAndInsertInlineVoice}
         error={voiceError}
@@ -2079,10 +2886,45 @@ function ExtensionLauncher() {
         onDismiss={dismissVoiceCandidate}
         style={{ top: candidatePosition.top, left: candidatePosition.left }}
       />}
-      {googleDocsProxyVisible && googleDocsProxy && !googleDocsProxy.candidate && <V2InlineVoiceSurface
+      {googleDocsProxyVisible && googleDocsProxy?.command && <V2CommandLauncherSurface
+        phase={googleDocsProxy.command.phase}
+        instruction={googleDocsProxy.command.instruction}
+        project={googleDocsProxy.command.project}
+        scope={googleDocsProxy.command.scope}
+        selectionAvailable={googleDocsProxy.command.selectionAvailable}
+        projects={googleDocsProxy.command.projects}
+        scopeLabel={googleDocsProxy.command.scope === "selection" ? "Selection" : googleDocsProxy.command.scope === "project" ? "Project Sources" : "Page"}
+        targetLabel="Google Docs"
+        error={googleDocsProxy.command.error}
+        style={{ top: googleDocsPosition?.top, left: googleDocsPosition?.left }}
+        onInstructionChange={(text) => {
+          googleDocsCommandInstructionRef.current = text;
+          setGoogleDocsProxy((current) => current?.command ? { ...current, command: { ...current.command, instruction: text } } : current);
+          controlGoogleDocsProxy("command-text", { text });
+        }}
+        onProjectChange={(project) => {
+          googleDocsCommandProjectRef.current = project;
+          setGoogleDocsProxy((current) => current?.command ? { ...current, command: { ...current.command, project } } : current);
+          controlGoogleDocsProxy("command-project", { project });
+        }}
+        onScopeChange={(scope) => {
+          googleDocsCommandScopeRef.current = scope;
+          setGoogleDocsProxy((current) => current?.command ? { ...current, command: { ...current.command, scope, scopeExplicit: true } } : current);
+          controlGoogleDocsProxy("command-scope", { scope, scopeExplicit: true });
+        }}
+        onSubmit={() => controlGoogleDocsProxy("command-submit")}
+        onStartVoice={() => controlGoogleDocsProxy("command-start-voice")}
+        onStopVoice={() => controlGoogleDocsProxy("command-stop-voice")}
+        onCancelVoice={() => controlGoogleDocsProxy("command-cancel-voice")}
+        onRetry={googleDocsProxy.command.retryAvailable ? () => controlGoogleDocsProxy("command-retry") : undefined}
+        onSwitchToVoiceWrite={googleDocsProxy.command.switchWriteAvailable ? () => controlGoogleDocsProxy("command-switch-write") : undefined}
+        onClose={() => controlGoogleDocsProxy("command-close")}
+      />}
+      {googleDocsProxyVisible && googleDocsProxy && !googleDocsProxy.command && !googleDocsProxy.commandCandidate && !googleDocsProxy.candidate && <V2InlineVoiceSurface
         phase={googleDocsProxy.phase}
         style={{ top: googleDocsPosition?.top, left: googleDocsPosition?.left }}
         onStart={() => controlGoogleDocsProxy("start")}
+        onStartCommand={() => controlGoogleDocsProxy("command-open")}
         onCancel={() => controlGoogleDocsProxy("cancel")}
         onStopAndInsert={() => controlGoogleDocsProxy("stop")}
         error={googleDocsProxy.error}
@@ -2094,6 +2936,20 @@ function ExtensionLauncher() {
         profilePickerOpen={voiceProfilePickerOpen}
         onProfileOverridesChange={setVoiceProfileOverrides}
         onProfilePickerOpenChange={setVoiceProfilePickerOpen}
+      />}
+      {googleDocsProxy?.commandCandidate && googleDocsCandidatePosition && <SelectionActionCandidate
+        skillName={googleDocsProxy.commandCandidate.skillName}
+        text={googleDocsProxy.commandCandidate.text}
+        primaryAction={googleDocsProxy.commandCandidate.primaryAction}
+        anchor={{ left: googleDocsCandidatePosition.left, top: googleDocsCandidatePosition.top }}
+        busyAction={googleDocsProxy.commandCandidate.busyAction}
+        error={googleDocsProxy.commandCandidate.error}
+        onTextChange={(text) => controlGoogleDocsProxy("command-candidate-text", { text })}
+        onPrimary={() => controlGoogleDocsProxy("command-candidate-primary", { text: googleDocsProxy.commandCandidate?.text })}
+        onCopy={() => controlGoogleDocsProxy("command-candidate-copy", { text: googleDocsProxy.commandCandidate?.text })}
+        onKeep={() => controlGoogleDocsProxy("command-candidate-keep", { text: googleDocsProxy.commandCandidate?.text })}
+        onSaveDocument={() => controlGoogleDocsProxy("command-candidate-document", { text: googleDocsProxy.commandCandidate?.text })}
+        onCancel={() => controlGoogleDocsProxy("command-candidate-dismiss")}
       />}
       {googleDocsProxy?.candidate && googleDocsCandidatePosition && <V2VoiceCandidateSurface
         candidate={googleDocsProxy.candidate}

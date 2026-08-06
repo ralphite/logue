@@ -91,6 +91,9 @@ export interface PanelCaptureState {
   generationSourceIds?: string[];
   pinnedSourceIds?: string[];
   autoStartToken?: string;
+  autoRunToken?: string;
+  commandActivitySourceId?: string;
+  commandRunRequestId?: string;
   updatedAt: number;
 }
 

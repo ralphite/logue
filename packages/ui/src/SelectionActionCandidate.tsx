@@ -7,7 +7,7 @@ export type SelectionActionBusy = "primary" | "copy" | "keep" | "document";
 export function SelectionActionCandidate({ skillName, text, primaryAction, anchor, busyAction, error, onTextChange, onPrimary, onCopy, onKeep, onSaveDocument, onCancel }: {
   skillName: string;
   text: string;
-  primaryAction: "Replace" | "Copy";
+  primaryAction: "Replace" | "Insert" | "Copy";
   anchor: { left: number; top: number };
   busyAction?: SelectionActionBusy;
   error?: string;
@@ -54,7 +54,7 @@ export function SelectionActionCandidate({ skillName, text, primaryAction, ancho
       <button type="button" onClick={onKeep} disabled={busy || !text.trim()} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-[#686964] hover:bg-[#f1f1ee] disabled:opacity-45"><Save size={12} /> Keep in Logue</button>
       <button type="button" onClick={onSaveDocument} disabled={busy || !text.trim()} className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-[13px] font-medium text-[#686964] hover:bg-[#f1f1ee] disabled:opacity-45"><FileText size={12} /> Document</button>
       <span className="flex-1" />
-      {primaryAction === "Replace" && <button type="button" onClick={onCopy} disabled={busy || !text.trim()} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#d9d9d5] px-2.5 text-[13px] font-medium text-[#656761] hover:bg-[#f5f5f2] disabled:opacity-45"><Clipboard size={12} /> Copy</button>}
+      {primaryAction !== "Copy" && <button type="button" onClick={onCopy} disabled={busy || !text.trim()} className="inline-flex h-8 items-center gap-1 rounded-md border border-[#d9d9d5] px-2.5 text-[13px] font-medium text-[#656761] hover:bg-[#f5f5f2] disabled:opacity-45"><Clipboard size={12} /> Copy</button>}
       <button type="button" onClick={onPrimary} disabled={busy || !text.trim()} className="inline-flex h-8 items-center gap-1 rounded-md bg-[#242522] px-3 text-[13px] font-medium text-white disabled:bg-[#bdbdb8]">{busyAction === "primary" || (primaryAction === "Copy" && busyAction === "copy") ? <LoaderCircle size={12} className="animate-spin motion-reduce:animate-none" /> : primaryAction === "Copy" ? <Clipboard size={12} /> : null}{primaryAction}</button>
     </div>
     <p className="mt-2 text-right text-[11px] text-[#aaa]">Enter to {primaryAction.toLowerCase()} · Shift+Enter for a new line</p>

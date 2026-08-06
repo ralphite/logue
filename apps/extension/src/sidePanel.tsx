@@ -153,6 +153,7 @@ function SidePanelApp() {
   const [skillId, setSkillId] = useState("");
   const [commandResult, setCommandResult] = useState<CommandResult>();
   const [generating, setGenerating] = useState(false);
+  const [autoRunToken, setAutoRunToken] = useState("");
   const [insertingGenerated, setInsertingGenerated] = useState(false);
   const [savingGeneratedDocument, setSavingGeneratedDocument] = useState(false);
   const [pendingInsert, setPendingInsert] = useState<PendingInsert>();
@@ -172,6 +173,7 @@ function SidePanelApp() {
   const transcribeAndSaveRef = useRef<(blob: Blob, session?: RecordingSession) => Promise<void>>(async () => undefined);
   const lastVoiceContextRef = useRef<{ context: CaptureContext; overrides: VoiceProfileOverrides } | undefined>(undefined);
   const startRecordingRef = useRef<() => void>(() => undefined);
+  const runGenerationRef = useRef<(autoRunToken?: string) => Promise<void>>(async () => undefined);
   const recordingSessionRef = useRef<RecordingSession | undefined>(undefined);
   const recorderRef = useRef<AudioRecorderController | undefined>(undefined);
   const stopRequestedRef = useRef(false);
@@ -653,6 +655,10 @@ function SidePanelApp() {
           appliedContext: provenance,
           activityType: "voice-command",
         });
+        const withActivity = { ...current, commandActivitySourceId: activity.id, updatedAt: Date.now() };
+        stateRef.current = withActivity;
+        setState(withActivity);
+        persistDraft({ commandActivitySourceId: activity.id });
         await completePendingVoice(pendingId);
         setPendingVoices((items) => items.filter((item) => item.id !== pendingId));
         setTranscript(result.text);
@@ -1005,26 +1011,38 @@ function SidePanelApp() {
 
   startRecordingRef.current = startRecording;
 
-  const runGeneration = useCallback(async () => {
+  const runGeneration = useCallback(async (autoRunTokenToConsume?: string) => {
     const snapshot = stateRef.current;
     if (!snapshot || !skillId || !draft.trim()) return;
     setGenerating(true);
     setError(undefined);
     let targetKey = generationTargetKey(snapshot);
+    const clearCommandActivity = (activitySourceId?: string) => {
+      if (!activitySourceId || stateRef.current?.commandActivitySourceId !== activitySourceId) return;
+      const next = { ...stateRef.current } as PanelCaptureState;
+      delete next.commandActivitySourceId;
+      delete next.commandRunRequestId;
+      stateRef.current = next;
+      setState(next);
+      persistDraft({ commandActivitySourceId: null, commandRunRequestId: null });
+    };
     try {
       const current = await resolveActiveProject(snapshot);
       if (!current || current.source.url !== snapshot.source.url) throw new Error("The page changed before this Draft started.");
       targetKey = generationTargetKey(current);
-      const activity = await saveMaterial({
-        requestId: createRequestId(),
-        kind: "text",
-        content: draft.trim(),
-        source: current.source,
-        projects: [],
-        tags: [],
-        activityType: "text-command",
-      });
+      const activity = current.commandActivitySourceId
+        ? { id: current.commandActivitySourceId }
+        : await saveMaterial({
+            requestId: createRequestId(),
+            kind: "text",
+            content: draft.trim(),
+            source: current.source,
+            projects: [],
+            tags: [],
+            activityType: "text-command",
+          });
       const run = await createExtensionSkillRun({
+        requestId: current.commandRunRequestId ?? (autoRunTokenToConsume ? `${autoRunTokenToConsume}:run` : undefined),
         skillId,
         instruction: draft.trim(),
         project: explicitProjects(current)[0],
@@ -1039,6 +1057,14 @@ function SidePanelApp() {
         autoSearch: false,
         activitySourceId: activity.id,
       });
+      if (autoRunTokenToConsume) {
+        await chrome.runtime.sendMessage({
+          type: "logue:consume-panel-autorun",
+          tabId: panelTabId,
+          token: autoRunTokenToConsume,
+        });
+      }
+      clearCommandActivity(current.commandActivitySourceId);
       if (run.status !== "complete" || !run.original_output?.trim()) throw new Error(run.error || "No result returned");
       commitCommandResult({
         runId: run.id,
@@ -1062,14 +1088,21 @@ function SidePanelApp() {
       setFailedRun(undefined);
       setFailedRunTargetKey(undefined);
     } catch (cause) {
+      const preservedRun = failedSkillRun(cause);
+      if (autoRunTokenToConsume) {
+        void chrome.runtime.sendMessage({ type: "logue:consume-panel-autorun", tabId: panelTabId, token: autoRunTokenToConsume });
+      }
+      if (preservedRun) clearCommandActivity(snapshot.commandActivitySourceId);
       setFailedPageSkillId(undefined);
-      setFailedRun(failedSkillRun(cause));
+      setFailedRun(preservedRun);
       setFailedRunTargetKey(targetKey);
       setError(friendlyLocalError(cause, "model"));
     } finally {
       setGenerating(false);
     }
-  }, [commitCommandResult, draft, resolveActiveProject, skillId]);
+  }, [commitCommandResult, draft, panelTabId, persistDraft, resolveActiveProject, skillId]);
+
+  runGenerationRef.current = runGeneration;
 
   const runPageSkill = useCallback(async (requestedSkillId: string) => {
     const snapshot = stateRef.current;
@@ -1805,6 +1838,9 @@ function SidePanelApp() {
           if (response?.consumed) startRecordingRef.current();
         });
       }
+      if (next.autoRunToken) {
+        setAutoRunToken(next.autoRunToken);
+      }
     };
     if (typeof panelTabId !== "number") return;
     void chrome.runtime.sendMessage({ type: "logue:get-panel-state", tabId: panelTabId })
@@ -1848,6 +1884,16 @@ function SidePanelApp() {
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
   }, [cancelRecording, refreshPendingVoices, refreshServerConnection, stopTimer]);
+
+  useEffect(() => {
+    if (
+      !autoRunToken || generating || state?.intent !== "generate" ||
+      !draft.trim() || !skillId || state.generationSourceIds === undefined
+    ) return;
+    const token = autoRunToken;
+    setAutoRunToken("");
+    void runGenerationRef.current(token);
+  }, [autoRunToken, draft, generating, panelTabId, skillId, state?.generationSourceIds, state?.intent]);
 
   useEffect(() => {
     void refreshPendingVoices();

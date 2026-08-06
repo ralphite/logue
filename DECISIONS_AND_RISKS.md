@@ -899,3 +899,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 逐屏像素补丁会继续复制根因；恢复 lineage stash 会把无关 50+ 文件重新混入并扩大风险，因此拒绝。
 - **已有证据：** `.artifacts/web-ui-audit-2026-08-06/` 的真实截图、Voice 页 `undefined.join` 崩溃、Recent work 点击后 URL 未变化，以及 ChatGPT.com 独立盲审结论。修复后在 `http://localhost:5173`、真实 Host `http://127.0.0.1:8787` 与 storage root `/Users/yadong/dev2/logue/.logue-data` 复核：Project / Settings Voice 均可打开；Recent work 进入带真实 `doc` ID 的 Documents；Context / Library 无 HTML 标签源码；History 有可访问的展开；Document 连续呈现；Skills metadata 不拆行；Host 不再同时显示 Ready / not found。Fresh designer post-gate 的唯一 P1 为 Projects 首次误显空态；补上共享 Loading 后，真实首帧显示 `Loading Projects…` 且不显示 `Create a Project`，数据完成后显示现有 Logue Project，最终 post-gate PASS（9.1/10，无剩余 P0/P1）。随后按独立 Goal Supervisor 的 REPLAN 显式重启真实 Host；首次直接从仓库根运行暴露 `python_server` 的 cwd-relative 默认值会误指 `/Users/yadong/dev2/.logue-data`，未继续使用该空 workspace，并将 `npm run dev:api` 修为默认显式传入仓库 `.logue-data`、同时保留调用者的 `LOGUE_DATA_DIR` 覆盖。使用当前 `.logue-data` 重启后再次复核：Projects 首载不误显空态；两处 Voice 无崩溃；Recent work 打开真实 Document；Workspace、Document 与 Library 无标签源码或大块假空白；Project export 显示 `26 Sources · 0 Activity · 5 Documents · 2 Runs` 且按钮可用；Project / Host 无 `not found` 或冲突状态；浏览器 console 无相关 error/warn。Web typecheck 与 diff check 通过；按用户要求未运行全面测试或扩展视觉 QA。
 - **开放问题：** 无；若真实 producer 不能证明 Topics/Privacy 有数据，不造假内容。
+
+### DR-084 — Voice Command 由页面内 Command Launcher 拥有入口
+
+- **优先级：** V2 Extension / Phase 2 P1
+- **状态：** 已完成 CODED/INTEGRATED 与静态 final gate；真实浏览器旅程留到后续统一 UX/QA 阶段
+- **决定：** 按权威 V2 §10.2 修正 `V2-CMD-01/02` 的假完成：独立快捷键与 Voice Write 旁的 Command 动作先打开靠近当前输入目标的页面内 Launcher，明确显示 Selection/Page、Project 与输出目标。简单请求一次 Enter 直接执行；文字命令只在字段有效并提交后先创建 Activity，再创建 Run；语音在 Stop 后立即永久保存 raw audio/transcript Activity，但字段缺失或冲突时不创建 Run，也不把用户送进 Side Panel 才报错。执行后复用现有 Host Skill Run、frozen Sources 与 Side Panel Candidate/adoption consumer；Voice 与文字命令共享同一执行合同。
+- **用户可见影响：** 用户在当前编辑位置就能说出或输入命令、确认作用范围并一次执行；长结果和引用仍进入同 tab Side Panel，原输入 target session 保持可 Insert/Undo。
+- **替代方案：** 继续让快捷键直接打开 Side Panel 并自动录音；这隐藏作用范围，并把缺少 Project 的 clarification 延迟到 Activity 已保存之后。另造第二套 generation/adoption API 会分裂 lineage，因此拒绝。
+- **已有证据：** Production Extension 已由页面内 Launcher 统一普通网页与 Google Docs 的 Voice/Text Command；Scope/Project/target clarification、永久 Activity、幂等 evidence/Run、局部 Candidate、Project Side Panel handoff、Insert/Replace/Copy/Undo、parse/provider typed error、pending recovery 与 request-level Cancel 均闭合到真实 producer/consumer。Extension typecheck、Python syntax 与 diff check 通过；fresh scope/product/engineering final gates 全部 PASS，未运行本阶段禁止的浏览器 QA。
+- **开放问题：** 无；不改变 Project、Source、Run、provider 或 adoption 对象模型。

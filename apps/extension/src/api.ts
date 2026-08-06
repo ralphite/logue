@@ -144,8 +144,9 @@ export interface ExtensionSkillRun {
   activity_source_id?: string;
   original_output?: string;
   adopted_output?: string;
-  status: "running" | "complete" | "failed";
+  status: "running" | "complete" | "failed" | "cancelled";
   error?: string;
+  error_code?: "intent_parse_failed" | "provider_failed";
   material_id?: string;
   adoption?: "insert" | "copy" | "replace" | "keep" | "document";
   adoption_undone?: boolean;
@@ -196,6 +197,7 @@ export async function getExtensionSettings() {
 }
 
 export async function createExtensionSkillRun(input: {
+  requestId?: string;
   skillId: string;
   instruction: string;
   project?: string;
@@ -208,7 +210,7 @@ export async function createExtensionSkillRun(input: {
   activitySourceId?: string;
 }) {
   return request<ExtensionSkillRun>("skill-run", {
-    request_id: createRequestId(),
+    request_id: input.requestId ?? createRequestId(),
     skill_id: input.skillId,
     instruction: input.instruction,
     project: input.project,
@@ -224,9 +226,9 @@ export async function createExtensionSkillRun(input: {
   });
 }
 
-export async function retryExtensionSkillRun(run: ExtensionSkillRun) {
+export async function retryExtensionSkillRun(run: ExtensionSkillRun, requestId?: string) {
   return request<ExtensionSkillRun>("skill-run", {
-    request_id: createRequestId(),
+    request_id: requestId ?? createRequestId(),
     skill_id: run.skill_id,
     instruction: run.instruction || "Retry failed Run",
     project: run.project || "",

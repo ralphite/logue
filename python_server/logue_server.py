@@ -3387,6 +3387,13 @@ class Handler(BaseHTTPRequestHandler):
             if value.get("request_id") in self.server.cancelled:
                 raise Conflict("selection save was cancelled")
             result = store.create_selection(value)
+            request_id = str(value.get("request_id", "")).strip()
+            if request_id and (request_id in self.server.cancelled or f"{request_id}:source" in self.server.cancelled):
+                source = result.get("source") if isinstance(result, dict) else None
+                source_id = str(source.get("id", "")).strip() if isinstance(source, dict) else ""
+                if source_id:
+                    store.delete_item(source_id)
+                raise Conflict("selection save was cancelled")
             self.json(HTTPStatus.CREATED, result)
         elif path == "/v1/projects" and method == "POST":
             self.json(HTTPStatus.CREATED, store.save_project("", self.body_json()))
@@ -3550,6 +3557,13 @@ class Handler(BaseHTTPRequestHandler):
             existing = store._request_item(identifier)
             if existing:
                 store.delete_item(existing["id"])
+            for run in store._list("skill-runs", "created_at"):
+                if str(run.get("request_id", "")) != identifier or run.get("status") not in {"running", "failed", "complete"}:
+                    continue
+                run["status"] = "cancelled"
+                run.pop("original_output", None)
+                run["updated_at"] = now()
+                atomic_json(store.root / "skill-runs" / f"{run['id']}.json", run)
             self.json(HTTPStatus.OK, {"ok": True})
         elif path == "/v1/backups/import" and method == "POST":
             self.json(HTTPStatus.CREATED, self.import_backup_archive())
@@ -3592,6 +3606,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def run_skill(self, value: dict[str, Any]) -> None:
         store = self.server.store
+        request_id = str(value.get("request_id", "")).strip()
+        if request_id and request_id in self.server.cancelled:
+            raise Conflict("Run was cancelled")
         retry_id = str(value.get("retry_run_id", "")).strip()
         continuation_id = str(value.get("continue_run_id", "")).strip()
         frozen_model_context = None
@@ -3711,13 +3728,29 @@ class Handler(BaseHTTPRequestHandler):
             }
         run["updated_at"] = now()
         atomic_json(store.root / "skill-runs" / f"{run['id']}.json", run)
+        instruction = str(value.get("instruction", "")).strip()
+        if not any(character.isalnum() for character in instruction):
+            run["status"] = "failed"
+            run["error"] = "Couldn’t understand the action"
+            run["error_code"] = "intent_parse_failed"
+            run["updated_at"] = now()
+            atomic_json(store.root / "skill-runs" / f"{run['id']}.json", run)
+            self.error(HTTPStatus.UNPROCESSABLE_ENTITY, run["error"], run=run)
+            return
         try:
             output = self.server.gemini.run_skill(skill, value, run["sources"], settings, project_overview)
+            if request_id and request_id in self.server.cancelled:
+                run["status"] = "cancelled"
+                run["updated_at"] = now()
+                atomic_json(store.root / "skill-runs" / f"{run['id']}.json", run)
+                self.error(HTTPStatus.CONFLICT, "Run was cancelled", run=run)
+                return
             run["original_output"] = output.strip()
             run["status"] = "complete"
         except Exception as error:
             run["status"] = "failed"
             run["error"] = str(error)
+            run["error_code"] = "provider_failed"
             run["updated_at"] = now()
             atomic_json(store.root / "skill-runs" / f"{run['id']}.json", run)
             self.error(HTTPStatus.BAD_GATEWAY, str(error), run=run)

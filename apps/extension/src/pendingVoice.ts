@@ -33,6 +33,16 @@ export interface PendingVoicePlan {
   transcription: PendingVoiceTranscriptionRequest;
   /** Body template for /v1/items or /v1/selections. Voice result fields are added on retry. */
   save: Record<string, unknown>;
+  command?: {
+    scope: "auto" | "selection" | "page" | "project";
+    project?: string;
+    source: { url: string; title: string; domain: string; selection?: string };
+    selection?: string;
+    pageText?: string;
+    targetText?: string;
+    targetSessionId?: string;
+    targetAvailable: boolean;
+  };
 }
 
 export interface PendingVoiceTranscription {

@@ -12,6 +12,7 @@ import {
 import {
   acceptsPassivePageContext,
   consumePanelAutoStart,
+  consumePanelAutoRun,
   disableDefaultSidePanel,
   disableTabSidePanel,
   isOpenSelectionMenu,
@@ -33,6 +34,7 @@ import { googleDocsEditableSelector } from "./dom";
 import type { RecordingBridgeEvent, RecordingControlAction, RecordingPanelEvent } from "./recordingBridge";
 import { assertLogueServerStatus, getServerURL, normalizeServerURL } from "./serverConnection";
 import {
+  googleDocsLauncherActionMessage,
   readGoogleDocsLauncherAction,
   readGoogleDocsLauncherState,
 } from "./googleDocsLauncherBridge";
@@ -134,10 +136,15 @@ interface OpenPanelMessage {
   targetSessionId?: string;
   targetAvailable?: boolean;
   autoStartRecording?: boolean;
+  autoRun?: boolean;
+  draft?: string;
+  projects?: string[];
+  commandActivitySourceId?: string;
+  commandRunRequestId?: string;
 }
 
 interface PanelStateMessage {
-  type: "logue:get-panel-state" | "logue:resolve-tab-projects" | "logue:update-panel-state" | "logue:close-side-panel" | "logue:consume-panel-autostart" | "logue:request-panel-generate" | "logue:return-panel-to-page";
+  type: "logue:get-panel-state" | "logue:resolve-tab-projects" | "logue:update-panel-state" | "logue:close-side-panel" | "logue:consume-panel-autostart" | "logue:consume-panel-autorun" | "logue:request-panel-generate" | "logue:return-panel-to-page";
   tabId?: number;
   patch?: Partial<Pick<PanelCaptureState, "draft" | "transcript" | "projectExplicit" | "tags" | "generationSourceIds" | "pinnedSourceIds">> & {
     projects?: string[] | null;
@@ -145,6 +152,8 @@ interface PanelStateMessage {
     projectAssociationScope?: PanelCaptureState["projectAssociationScope"] | null;
     pendingInsert?: PanelCaptureState["pendingInsert"] | null;
     commandResult?: PanelCaptureState["commandResult"] | null;
+    commandActivitySourceId?: string | null;
+    commandRunRequestId?: string | null;
   };
   token?: string;
 }
@@ -641,7 +650,10 @@ function stagePanelState(state: PanelCaptureState) {
   // before staging the synchronous open state so a cold reopen cannot overwrite
   // the saved draft with an empty shell.
   const storedState = cached ? undefined : chrome.storage.session.get(storageKey);
-  const staged = preserveTabProjects(preserveMatchingPanelDraft(state, cached), cached);
+  const matching = preserveMatchingPanelDraft(state, cached);
+  const staged = state.autoRunToken && state.projectExplicit
+    ? matching
+    : preserveTabProjects(matching, cached);
   panelStates.set(staged.tabId, staged);
   if (cached) {
     void chrome.storage.session.set({ [storageKey]: staged });
@@ -649,10 +661,10 @@ function stagePanelState(state: PanelCaptureState) {
     void storedState?.then(async (stored) => {
       const current = panelStates.get(staged.tabId) ?? staged;
       const sessionState = stored[storageKey] as PanelCaptureState | undefined;
-      const restoredFromSession = preserveTabProjects(
-        preserveMatchingPanelDraft(current, sessionState),
-        sessionState,
-      );
+      const matchingSession = preserveMatchingPanelDraft(current, sessionState);
+      const restoredFromSession = current.autoRunToken && current.projectExplicit
+        ? matchingSession
+        : preserveTabProjects(matchingSession, sessionState);
       // If the user already typed during the short restore window, their live
       // values win over the older session snapshot.
       const restored: PanelCaptureState = {
@@ -667,6 +679,9 @@ function stagePanelState(state: PanelCaptureState) {
         ...(current.commandResult !== undefined ? { commandResult: current.commandResult } : {}),
         ...(current.generationSourceIds !== undefined ? { generationSourceIds: current.generationSourceIds } : {}),
         ...(current.pinnedSourceIds !== undefined ? { pinnedSourceIds: current.pinnedSourceIds } : {}),
+        ...(current.autoRunToken !== undefined ? { autoRunToken: current.autoRunToken } : {}),
+        ...(current.commandActivitySourceId !== undefined ? { commandActivitySourceId: current.commandActivitySourceId } : {}),
+        ...(current.commandRunRequestId !== undefined ? { commandRunRequestId: current.commandRunRequestId } : {}),
       };
       await persistPanelState(restored);
       broadcastPanelState(restored);
@@ -912,30 +927,23 @@ function openTabPanel(tab: chrome.tabs.Tab, intent: CaptureIntent, selectionText
 
 async function openVoiceCommandPanel(tab?: chrome.tabs.Tab) {
   if (!tab || typeof tab.id !== "number") return;
-  const context = await readPageCaptureContext(tab);
-  const current = await restorePanelState(tab.id);
-  const base = panelStateForTab(
-    tab,
-    "generate",
-    context.source,
-    context.selectionText,
-    context.targetText,
-    undefined,
-    context.targetAvailable,
-    context.candidateServerURL,
-    context.targetSessionId,
-  );
-  if (!base) return;
-  const next: PanelCaptureState = {
-    ...preserveTabProjects(base, current),
-    pageText: context.pageText,
-    autoStartToken: createRequestId(),
-    updatedAt: Date.now(),
-  };
-  await openPanelWithPreparedState(
-    () => { stagePanelState(next); },
-    () => openPanel(tab.id!),
-  );
+  const isGoogleDocs = (() => {
+    try { return new URL(tab.url ?? "").hostname === "docs.google.com"; } catch { return false; }
+  })();
+  if (isGoogleDocs) {
+    const routed = await routeGoogleDocsLauncherAction(tab.id, googleDocsLauncherActionMessage("command-open"));
+    if (routed) return;
+  } else {
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { type: "logue:start-voice-command" }) as { ok?: boolean } | undefined;
+      if (response?.ok) return;
+    } catch {
+      // Restricted pages cannot mount the inline Launcher; keep the Side Panel
+      // fallback so the shortcut still has a recoverable destination.
+    }
+  }
+  // Restricted pages cannot host the product-owned Launcher. Do not silently
+  // switch modes or create a Side Panel command the user did not review.
 }
 
 async function parseResponse(response: Response) {
@@ -1105,6 +1113,49 @@ async function retryPendingVoice(apiBase: string, id: string) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }));
+    if (plan.command && typeof record.tabId === "number") {
+      const command = plan.command;
+      const normalized = transcription.text.toLowerCase();
+      const saysSelection = /\b(selection|selected text|highlight(?:ed)?)\b|选中|所选/.test(normalized);
+      const saysPage = /\b(this page|the page|webpage|article)\b|网页|页面|文章/.test(normalized);
+      const saysProject = /\bproject\b|项目/.test(normalized) || Boolean(command.project && normalized.includes(command.project.toLowerCase()));
+      const inferredScopes = [saysSelection ? "selection" : "", saysPage ? "page" : "", saysProject ? "project" : ""].filter(Boolean);
+      const scope = command.scope === "auto"
+        ? (new Set(inferredScopes).size === 1 ? inferredScopes[0] : command.selection ? "selection" : "page")
+        : command.scope;
+      const activityId = (result as { id?: string } | null)?.id;
+      if (activityId) {
+        const needsClarification = new Set(inferredScopes).size > 1 ||
+          (saysSelection && !command.selection) ||
+          (saysProject && !command.project) ||
+          (command.scope === "selection" && !command.selection) ||
+          (command.scope === "project" && !command.project) ||
+          (command.scope !== "auto" && inferredScopes.length === 1 && inferredScopes[0] !== command.scope);
+        const resumeMessage = {
+          type: "logue:resume-voice-command",
+          instruction: transcription.text,
+          scope: needsClarification ? "auto" : scope,
+          project: command.project,
+          source: command.source,
+          selection: command.selection,
+          pageText: command.pageText,
+          targetText: command.targetText,
+          targetSessionId: command.targetSessionId,
+          targetAvailable: command.targetAvailable,
+          activitySourceId: activityId,
+          pendingVoiceId: record.id,
+          needsClarification,
+        };
+        const isGoogleDocs = (() => {
+          try { return new URL(command.source.url).hostname === "docs.google.com"; } catch { return false; }
+        })();
+        const response = isGoogleDocs
+          ? { ok: await routeGoogleDocsLauncherAction(record.tabId, resumeMessage) }
+          : await chrome.tabs.sendMessage(record.tabId, resumeMessage, typeof record.frameId === "number" ? { frameId: record.frameId } : undefined) as { ok?: boolean; error?: string } | undefined;
+        if (!response?.ok) throw new Error(response?.error || "Could not restore Voice Command on its page.");
+        return result;
+      }
+    }
     await removePendingVoice(id);
     return result;
   } catch (cause) {
@@ -1676,6 +1727,7 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
     }
     const frameId = typeof sender.frameId === "number" ? sender.frameId : 0;
     if (message.action === "start") inlineRecorderSessions.set(message.sessionId, { tabId, frameId });
+    if (message.action === "stop" && inlineRecorderSessions.has(message.sessionId)) inlineRecorderSessions.set(message.sessionId, { tabId, frameId });
     if (message.action === "cancel") inlineRecorderSessions.delete(message.sessionId);
     void sendInlineRecorderControl(message).then(() => sendResponse({ ok: true })).catch((cause: unknown) => {
       inlineRecorderSessions.delete(message.sessionId);
@@ -1783,7 +1835,7 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
     const tab = sender.tab;
     if (!tab || typeof tab.id !== "number") return false;
     void restorePanelState(tab.id).then((current) => {
-      const nextState = preserveTabProjects({
+      const openedState: PanelCaptureState = {
         tabId: tab.id!,
         intent: message.intent,
         source: message.source,
@@ -1792,8 +1844,17 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
         targetSessionId: message.targetAvailable ? message.targetSessionId : undefined,
         targetAvailable: Boolean(message.targetAvailable),
         autoStartToken: message.autoStartRecording ? createRequestId() : undefined,
+        autoRunToken: message.autoRun ? createRequestId() : undefined,
+        draft: message.draft?.trim() || undefined,
+        projects: message.projects?.filter(Boolean).slice(0, 1),
+        projectExplicit: Boolean(message.projects?.length),
+        commandActivitySourceId: message.commandActivitySourceId,
+        commandRunRequestId: message.commandRunRequestId,
         updatedAt: Date.now(),
-      }, current);
+      };
+      const nextState = message.projects?.length
+        ? openedState
+        : preserveTabProjects(openedState, current);
       return openPanelWithPreparedState(
         () => { stagePanelState(nextState); },
         () => openPanel(tab.id!),
@@ -1883,6 +1944,29 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
       ok: false,
       consumed: false,
       error: error instanceof Error ? error.message : "Could not start voice capture.",
+    }));
+    return true;
+  }
+
+  if (message?.type === "logue:consume-panel-autorun") {
+    if (typeof message.tabId !== "number") return false;
+    void Promise.resolve().then(async () => {
+      if (!message.token) {
+        sendResponse({ ok: true, consumed: false });
+        return;
+      }
+      const current = await restorePanelState(message.tabId!);
+      if (!current) {
+        sendResponse({ ok: true, consumed: false });
+        return;
+      }
+      const result = consumePanelAutoRun(current, message.token);
+      if (result.consumed) await persistPanelState(result.state);
+      sendResponse({ ok: true, consumed: result.consumed });
+    }).catch((error: unknown) => sendResponse({
+      ok: false,
+      consumed: false,
+      error: error instanceof Error ? error.message : "Could not run this command.",
     }));
     return true;
   }
