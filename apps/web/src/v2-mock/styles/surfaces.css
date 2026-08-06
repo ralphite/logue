@@ -621,6 +621,17 @@
   align-self: end;
 }
 
+.v2-context-details {
+  margin-top: 10px;
+  color: var(--v2-ink-soft);
+  font-size: 13px;
+}
+
+.v2-context-details summary {
+  cursor: pointer;
+  color: var(--v2-muted);
+}
+
 @media (max-width: 1120px) {
   .v2-library-filters {
     grid-template-columns: repeat(2, minmax(150px, 1fr));

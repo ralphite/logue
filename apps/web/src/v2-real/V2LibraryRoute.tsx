@@ -168,17 +168,21 @@ function downloadJSON(name: string, value: unknown) {
 
 function SourceInspector({
   group,
+  materials,
   projects,
   documents,
   onClose,
+  onOpenSource,
   onRefresh,
   onReviewDelete,
   onReviewDeleteComment,
 }: {
   group: LibraryMaterialGroup;
+  materials: Material[];
   projects: ProjectSummary[];
   documents: LogueDocument[];
   onClose: () => void;
+  onOpenSource: (id: string) => void;
   onRefresh: () => Promise<void>;
   onReviewDelete: () => void;
   onReviewDeleteComment: () => void;
@@ -238,6 +242,10 @@ function SourceInspector({
   const openRevisionSource = revisionSources.find(
     (source) => source.id === openRevisionSourceId,
   );
+  const parentSources = (primary.parentIds ?? []).map((id) => ({
+    id,
+    source: materials.find((item) => item.id === id),
+  }));
   const updateBundle = async (
     changes: Parameters<typeof updateMaterial>[1],
   ) => {
@@ -642,13 +650,111 @@ function SourceInspector({
               </div>
             </div>
             {primary.appliedContext ? (
-              <div className="v2-library-meta">
-                {primary.appliedContext.voice_profile_label || "Default voice"}{" "}
-                ·{" "}
-                {primary.appliedContext.topic_vocabulary_name ||
-                  "No Topic Vocabulary"}
-              </div>
+              <>
+                <div className="v2-setting-row">
+                  <div>
+                    <strong>Profile</strong>
+                    <p>
+                      {primary.appliedContext.voice_profile_label ||
+                        "Default voice"}
+                      {primary.appliedContext.project_profile_mode
+                        ? ` · ${primary.appliedContext.project_profile_mode}`
+                        : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="v2-setting-row">
+                  <div>
+                    <strong>Transcription Skill</strong>
+                    <p>
+                      {primary.appliedContext.transcription_skill_name ||
+                        primary.appliedContext.transcription_skill_id ||
+                        "Default Transcription Skill"}
+                      {primary.appliedContext.transcription_skill_revision
+                        ? ` · Revision ${primary.appliedContext.transcription_skill_revision}`
+                        : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="v2-setting-row">
+                  <div>
+                    <strong>Language and vocabulary</strong>
+                    <p>
+                      {primary.appliedContext.language_override ||
+                        primary.appliedContext.primary_language ||
+                        "Automatic language"}
+                      {primary.appliedContext.topic_vocabulary_name
+                        ? ` · ${primary.appliedContext.topic_vocabulary_name}`
+                        : " · No Topic Vocabulary"}
+                    </p>
+                  </div>
+                </div>
+                {primary.appliedContext.reference_project ? (
+                  <div className="v2-setting-row">
+                    <div>
+                      <strong>Project used for transcription</strong>
+                      <p>{primary.appliedContext.reference_project}</p>
+                    </div>
+                  </div>
+                ) : null}
+                {primary.appliedContext.custom_instructions ||
+                primary.appliedContext.formatting_preference ||
+                primary.appliedContext.phrases?.length ||
+                primary.appliedContext.avoid_terms?.length ? (
+                  <details className="v2-context-details">
+                    <summary>Actual instructions used</summary>
+                    {primary.appliedContext.custom_instructions ? (
+                      <p>{primary.appliedContext.custom_instructions}</p>
+                    ) : null}
+                    {primary.appliedContext.formatting_preference ? (
+                      <p>
+                        Formatting:{" "}
+                        {primary.appliedContext.formatting_preference}
+                      </p>
+                    ) : null}
+                    {primary.appliedContext.phrases?.length ? (
+                      <p>
+                        Phrases: {primary.appliedContext.phrases.join(", ")}
+                      </p>
+                    ) : null}
+                    {primary.appliedContext.avoid_terms?.length ? (
+                      <p>
+                        Avoid: {primary.appliedContext.avoid_terms.join(", ")}
+                      </p>
+                    ) : null}
+                  </details>
+                ) : null}
+              </>
             ) : null}
+          </section>
+        ) : null}
+        {primary.adoptedRevisions?.length ? (
+          <section className="v2-settings-section">
+            <h2>Adopted versions</h2>
+            <div className="v2-review-list">
+              {[...primary.adoptedRevisions]
+                .sort((left, right) => right.revision - left.revision)
+                .map((revision) => (
+                  <article className="v2-review-row" key={revision.id}>
+                    <div>
+                      <OriginLabel
+                        origin="ai"
+                        detail={`Revision ${revision.revision}${revision.undone ? " · Undone" : ""}`}
+                      />
+                      <p>{revision.content}</p>
+                      <div className="v2-library-meta">
+                        {shortDate(revision.created_at)}
+                        {revision.target?.surface
+                          ? ` · ${revision.target.surface}`
+                          : ""}
+                        {revision.target?.url
+                          ? ` · ${new URL(revision.target.url).hostname}`
+                          : ""}
+                      </div>
+                    </div>
+                  </article>
+                ))}
+            </div>
           </section>
         ) : null}
         <section className="v2-settings-section">
@@ -731,13 +837,33 @@ function SourceInspector({
             </Button>
           </div>
         </section>
-        {primary.parentIds?.length ? (
+        {parentSources.length ? (
           <section className="v2-settings-section">
             <h2>Lineage</h2>
             <p className="v2-settings-lead">
-              Derived from {primary.parentIds.length} frozen Source
-              {primary.parentIds.length === 1 ? "" : "s"}.
+              Derived from {parentSources.length} frozen Source
+              {parentSources.length === 1 ? "" : "s"}.
             </p>
+            <div className="v2-review-list">
+              {parentSources.map(({ id, source }) => (
+                <button
+                  type="button"
+                  className="v2-review-row"
+                  key={id}
+                  disabled={!source}
+                  onClick={() => source && onOpenSource(source.id)}
+                >
+                  <div>
+                    <OriginLabel
+                      origin={source ? sourceOrigin(source) : "web"}
+                      detail="Frozen parent"
+                    />
+                    <strong>{source ? materialTitle(source) : id}</strong>
+                    {source ? <p>{source.content}</p> : null}
+                  </div>
+                </button>
+              ))}
+            </div>
           </section>
         ) : null}
         {error ? (
@@ -1597,9 +1723,17 @@ export function V2LibraryRoute({
   ) : openGroup ? (
     <SourceInspector
       group={openGroup}
+      materials={materials}
       projects={projects}
       documents={documents}
       onClose={() => setOpenKey(undefined)}
+      onOpenSource={(id) => {
+        const target = groupLibraryMaterials(
+          materials.filter((item) => item.id === id),
+          materials,
+        )[0];
+        if (target) setOpenKey(target.key);
+      }}
       onRefresh={onRefresh}
       onReviewDelete={() => void reviewDeletion([openGroup])}
       onReviewDeleteComment={() => {
