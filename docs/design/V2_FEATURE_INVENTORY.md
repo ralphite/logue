@@ -111,14 +111,14 @@
 
 - V2-LIB-01 — INTEGRATED — Saved content / All activity 分区与 content-first list；Comment bundle 单条显示。
 - V2-LIB-02 — INTEGRATED — 无查询浏览与本地 exact search。
-- V2-LIB-03 — CODED — Host search 返回 match/reason；真正 semantic ranking 尚未实现。
+- V2-LIB-03 — INTEGRATED — Host 在远程 provider Ready 时对 bounded Source/Document candidates 做语义排序并返回可解释 reason；未 Ready/失败时安静回退本地 exact ranking，不阻断 Library。
 - V2-LIB-04 — INTEGRATED — Project / Topic / origin / time / site / type / adopted filters 作用于同一 content-first 结果集，可组合并一键清除；Comment bundle 仍保持单条，Global Find 的 Document 结果服从适用筛选条件。
 - V2-LIB-05 — INTEGRATED — 可调宽 Source inspector 从 Comment bundle 单条入口核验 Web/You 两层，并呈现 original/raw/transformed/saved、audio、可打开 parents、adopted versions、实际 Profile/Topic/Skill/language lineage。
 - V2-LIB-06 — INTEGRATED — Source 打开、回原 URL、Project membership、Exclude/Undo。
 - V2-LIB-07 — INTEGRATED — content-first 多选使用 bundle 级 Add/Exclude；所选范围可 Export 与依赖感知 Delete，并可把完整 Source bundles 作为指定 Project Draft 的本次 Run Sources，不改变 membership。
-- V2-LIB-08 — CODED — All activity 可浏览 Activity/Run；reopen Candidate/Retry/Pin/Delete/dependency actions 未完整。
+- V2-LIB-08 — INTEGRATED — All activity 从永久 You Activity 打开关联 Run，可恢复未采用 Candidate，并支持 failed Run Retry、Pin/Unpin、依赖预览 Delete；Activity/Run 保持在 Project Context 外。
 - V2-LIB-09 — INTEGRATED — Global Find 打开并在 Library 定位真实结果。
-- V2-LIB-10 — CODED — AI Source revision/history/restore 由 V2-LIN-11 收口。
+- V2-LIB-10 — INTEGRATED — AI Source revision/history/restore 由 V2-LIN-11 与 V2-LIB-05 的 production inspector 完整接通。
 
 ## Web — Documents
 
@@ -140,7 +140,7 @@
 - V2-SKILL-03 — INTEGRATED — My Skill revision history/restore 与 Built-in Pin/Hide 已接真实 Host/Web 状态；最终 runtime 验证留到 Phase 5。
 - V2-SKILL-04 — INTEGRATED — Global default bindings 与 Project inherit/override/reset。
 - V2-SKILL-05 — INTEGRATED — resolver explicit → Project → Global → system。
-- V2-SKILL-06 — CODED — Selection pinned/recent 排序与可配置 pinned actions 未完整。
+- V2-SKILL-06 — INTEGRATED — Selection 快捷条先显示用户配置的 pinned Skills，再按当前 Extension recent use 排序；Built-in 与 My Skills 都可配置 pin，隐藏 Skill 不进入 More Skills，选择后立即运行。
 - V2-SKILL-07 — INTEGRATED — Run details 显示 Skill ID/revision、解析来源、actual Context/state。
 - V2-SKILL-08 — INTEGRATED — Copy/Replace/Insert/Keep/Document consumers 复用统一 adoption 合同。
 
@@ -159,9 +159,9 @@
 
 ## Topics / PKM
 
-- V2-TOP-01 — CODED — dynamic Topics Host/API 与 Web panel 已写，但 production 入口未挂载完整。
+- V2-TOP-01 — INTEGRATED — dynamic Topics Host/API 与 Library → Topics production workbench 已挂载。
 - V2-TOP-02 — CODED — 重复/冲突/补充关系与 Project/vocabulary suggestions 尚未完整。
-- V2-TOP-03 — CODED — rename/merge/hide/split/convert API/UI 已写，未完成 production consumer 链。
+- V2-TOP-03 — INTEGRATED — rename/merge/hide/split/convert-to-Project 的 Host/API 与 production consumer 已接通。
 - V2-TOP-04 — INTEGRATED — Topic Vocabulary 与 Project Context 权限隔离。
 - V2-TOP-05 — INTEGRATED — Duplicate-linked 保留原 Source；Project retrieval 过滤已链接副本，Host 在同 Run 同时选择 canonical/duplicate 时只冻结一次 evidence。
 
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-LIB-08`
-- 完成条件：All activity 从永久 You Activity 打开关联 Run，恢复未采用 Candidate，并支持 failed Run Retry、Pin/Unpin、依赖预览 Delete；Activity 与 Run 的删除语义不伪装为 Source membership。
+- `ACTIVE: V2-SET-07`
+- 完成条件：Settings 的 Export 直接选择 All local data、一个 Project 或 Library，并在执行前显示 materials/documents/activity/audio 范围；include audio 选择真实改变导出内容。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。
