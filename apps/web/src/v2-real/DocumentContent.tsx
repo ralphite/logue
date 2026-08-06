@@ -1,14 +1,26 @@
 import { useEffect, type RefObject } from "react";
-import { sanitizeEditorHTML, toEditorHTML } from "../components/DocumentWorkspace";
+import {
+  sanitizeEditorHTML,
+  toEditorHTML,
+} from "../components/DocumentWorkspace";
 
 export function normalizedDocumentHTML(value: string, title: string) {
   return toEditorHTML(value, title);
 }
 
-export function replaceDocumentTextRange(value: string, title: string, start: number, end: number, replacement: string) {
+export function replaceDocumentTextRange(
+  value: string,
+  title: string,
+  start: number,
+  end: number,
+  replacement: string,
+) {
   const template = document.createElement("template");
   template.innerHTML = normalizedDocumentHTML(value, title);
-  const walker = document.createTreeWalker(template.content, NodeFilter.SHOW_TEXT);
+  const walker = document.createTreeWalker(
+    template.content,
+    NodeFilter.SHOW_TEXT,
+  );
   let offset = 0;
   let startNode: Text | undefined;
   let endNode: Text | undefined;
@@ -17,8 +29,14 @@ export function replaceDocumentTextRange(value: string, title: string, start: nu
   while (walker.nextNode()) {
     const node = walker.currentNode as Text;
     const next = offset + node.data.length;
-    if (!startNode && start >= offset && start <= next) { startNode = node; startOffset = start - offset; }
-    if (!endNode && end >= offset && end <= next) { endNode = node; endOffset = end - offset; }
+    if (!startNode && start >= offset && start <= next) {
+      startNode = node;
+      startOffset = start - offset;
+    }
+    if (!endNode && end >= offset && end <= next) {
+      endNode = node;
+      endOffset = end - offset;
+    }
     offset = next;
   }
   if (!startNode || !endNode) return normalizedDocumentHTML(replacement, "");
@@ -39,28 +57,108 @@ export function documentSelectionOffsets(root: HTMLElement) {
   before.selectNodeContents(root);
   before.setEnd(range.startContainer, range.startOffset);
   const start = before.toString().length;
-  return { start, end: start + range.toString().length, text: range.toString() };
+  return {
+    start,
+    end: start + range.toString().length,
+    text: range.toString(),
+  };
 }
 
-export function DocumentContent({ value, title, readOnly = false, editorRef, onChange, onCitationClick }: {
+export function documentCaretOffset(root: HTMLElement) {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return 0;
+  const range = selection.getRangeAt(0);
+  if (!root.contains(range.startContainer)) return 0;
+  const before = range.cloneRange();
+  before.selectNodeContents(root);
+  before.setEnd(range.startContainer, range.startOffset);
+  return before.toString().length;
+}
+
+export function restoreDocumentCaret(root: HTMLElement, offset: number) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let remaining = Math.max(0, offset);
+  let target: Text | undefined;
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text;
+    target = node;
+    if (remaining <= node.data.length) break;
+    remaining -= node.data.length;
+  }
+  if (!target) return;
+  const range = document.createRange();
+  range.setStart(target, Math.min(remaining, target.data.length));
+  range.collapse(true);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
+export function DocumentContent({
+  value,
+  title,
+  readOnly = false,
+  editorRef,
+  onChange,
+  onCitationClick,
+  onCaretChange,
+}: {
   value: string;
   title: string;
   readOnly?: boolean;
   editorRef?: RefObject<HTMLDivElement | null>;
   onChange?: (value: string) => void;
   onCitationClick?: (sourceNumber: number) => void;
+  onCaretChange?: (offset: number) => void;
 }) {
   const html = normalizedDocumentHTML(value, title);
   useEffect(() => {
     const editor = editorRef?.current;
     if (!editor || document.activeElement === editor) return;
-    if (sanitizeEditorHTML(editor.innerHTML) !== sanitizeEditorHTML(html)) editor.innerHTML = html;
+    if (sanitizeEditorHTML(editor.innerHTML) !== sanitizeEditorHTML(html))
+      editor.innerHTML = html;
   }, [editorRef, html]);
   if (readOnly) {
     const interactiveHTML = onCitationClick
-      ? html.replace(/<mark>\[Source (\d+)\]<\/mark>/g, '<button type="button" class="v2-citation" data-source-number="$1" aria-label="Open Source $1">$1</button>')
+      ? html.replace(
+          /<mark>\[Source (\d+)\]<\/mark>/g,
+          '<button type="button" class="v2-citation" data-source-number="$1" aria-label="Open Source $1">$1</button>',
+        )
       : html;
-    return <div className="v2-document-content" onClick={(event) => { const target = event.target as HTMLElement; const sourceNumber = Number(target.closest<HTMLElement>("[data-source-number]")?.dataset.sourceNumber); if (sourceNumber) onCitationClick?.(sourceNumber); }} dangerouslySetInnerHTML={{ __html: interactiveHTML }} />;
+    return (
+      <div
+        className="v2-document-content"
+        onClick={(event) => {
+          const target = event.target as HTMLElement;
+          const sourceNumber = Number(
+            target.closest<HTMLElement>("[data-source-number]")?.dataset
+              .sourceNumber,
+          );
+          if (sourceNumber) onCitationClick?.(sourceNumber);
+        }}
+        dangerouslySetInnerHTML={{ __html: interactiveHTML }}
+      />
+    );
   }
-  return <div ref={editorRef} className="v2-document-content is-editable" contentEditable suppressContentEditableWarning role="textbox" aria-label="Document content" aria-multiline="true" onInput={(event) => onChange?.(sanitizeEditorHTML(event.currentTarget.innerHTML))} dangerouslySetInnerHTML={{ __html: html }} />;
+  const reportCaret = (root: HTMLElement) =>
+    onCaretChange?.(documentCaretOffset(root));
+  return (
+    <div
+      ref={editorRef}
+      className="v2-document-content is-editable"
+      contentEditable
+      suppressContentEditableWarning
+      role="textbox"
+      aria-label="Document content"
+      aria-multiline="true"
+      onInput={(event) => {
+        onChange?.(sanitizeEditorHTML(event.currentTarget.innerHTML));
+        reportCaret(event.currentTarget);
+      }}
+      onKeyUp={(event) => reportCaret(event.currentTarget)}
+      onPointerUp={(event) => reportCaret(event.currentTarget)}
+      onBlur={(event) => reportCaret(event.currentTarget)}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
 }

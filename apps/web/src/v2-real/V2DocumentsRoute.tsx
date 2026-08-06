@@ -39,12 +39,18 @@ import {
   DocumentContent,
   documentSelectionOffsets,
   replaceDocumentTextRange,
+  restoreDocumentCaret,
 } from "./DocumentContent";
 import {
   insertDocumentIntoTarget,
   listExtensionInputTargets,
   undoDocumentTargetInsert,
 } from "../extensionTargetBridge";
+import {
+  readNavigationState,
+  saveDocumentPosition,
+  updateNavigationState,
+} from "./navigationState";
 
 type DisplaySource = Material | SkillRunSourceSnapshot;
 
@@ -86,7 +92,8 @@ export function V2DocumentsRoute({
 }) {
   const [selectedId, setSelectedId] = useState<string | undefined>(
     () =>
-      new URLSearchParams(window.location.search).get("document") ?? undefined,
+      new URLSearchParams(window.location.search).get("document") ??
+      readNavigationState().documents?.selectedId,
   );
   const selected =
     documents.find((item) => item.id === selectedId) ?? documents[0];
@@ -117,6 +124,7 @@ export function V2DocumentsRoute({
     token: string;
   }>();
   const editorRef = useRef<HTMLDivElement>(null);
+  const editorScrollRef = useRef<HTMLDivElement>(null);
   const sourceIds = preview?.source_ids ?? selected?.source_ids ?? [];
   const frozenSources = preview?.sources ?? selected?.sources ?? [];
   const sources = useMemo(
@@ -145,6 +153,12 @@ export function V2DocumentsRoute({
       "",
       `${url.pathname}${url.search}${url.hash}`,
     );
+    if (selected?.id) {
+      updateNavigationState((current) => ({
+        ...current,
+        documents: { ...current.documents, selectedId: selected.id },
+      }));
+    }
   }, [selected?.id]);
   useEffect(() => {
     setTitle(selected?.title ?? "");
@@ -159,6 +173,21 @@ export function V2DocumentsRoute({
     setTargetUndo(undefined);
     setTargetError("");
     setError("");
+    const saved = selected?.id
+      ? readNavigationState().documents?.positions?.[selected.id]
+      : undefined;
+    if (saved) {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          if (editorScrollRef.current)
+            editorScrollRef.current.scrollTop = saved.scrollTop;
+          if (editorRef.current) {
+            editorRef.current.focus({ preventScroll: true });
+            restoreDocumentCaret(editorRef.current, saved.caret);
+          }
+        });
+      });
+    }
   }, [selected?.id, selected?.revision]);
   useEffect(() => {
     if (!actionSkillId)
@@ -687,7 +716,16 @@ export function V2DocumentsRoute({
             </button>
           ))}
         </aside>
-        <div className="v2-editor-scroll">
+        <div
+          ref={editorScrollRef}
+          className="v2-editor-scroll"
+          onScroll={(event) => {
+            if (selected?.id)
+              saveDocumentPosition(selected.id, {
+                scrollTop: event.currentTarget.scrollTop,
+              });
+          }}
+        >
           {selected ? (
             <article className="v2-editor-axis">
               <div className="v2-editor-eyebrow">
@@ -823,7 +861,10 @@ export function V2DocumentsRoute({
                 </Button>
               </div>
               {targetPickerOpen ? (
-                <section className="v2-target-picker" aria-label="Choose an input">
+                <section
+                  className="v2-target-picker"
+                  aria-label="Choose an input"
+                >
                   <div className="v2-panel-section-heading">
                     <h2>Choose an input</h2>
                     <IconButton
@@ -835,7 +876,9 @@ export function V2DocumentsRoute({
                     </IconButton>
                   </div>
                   {targetBusy ? (
-                    <div className="v2-library-meta">Finding inputs in Chrome…</div>
+                    <div className="v2-library-meta">
+                      Finding inputs in Chrome…
+                    </div>
                   ) : inputTargets.length ? (
                     <div className="v2-target-list">
                       {inputTargets.map((target) => (
@@ -857,7 +900,9 @@ export function V2DocumentsRoute({
                     </div>
                   ) : (
                     <div className="v2-recovery-card">
-                      <p>Focus the input you want in Chrome, then choose again.</p>
+                      <p>
+                        Focus the input you want in Chrome, then choose again.
+                      </p>
                       <Button size="sm" onClick={() => void chooseInput()}>
                         Find inputs again
                       </Button>
@@ -867,7 +912,9 @@ export function V2DocumentsRoute({
               ) : null}
               {targetUndo ? (
                 <div className="v2-library-meta v2-target-status">
-                  Sent to {targetUndo.target.label} in {targetUndo.target.pageTitle}. Undo is available until the input changes.
+                  Sent to {targetUndo.target.label} in{" "}
+                  {targetUndo.target.pageTitle}. Undo is available until the
+                  input changes.
                 </div>
               ) : null}
               {targetError ? (
@@ -895,6 +942,10 @@ export function V2DocumentsRoute({
                   onChange={(value) => {
                     setContent(value);
                     setDirty(true);
+                  }}
+                  onCaretChange={(caret) => {
+                    if (selected?.id)
+                      saveDocumentPosition(selected.id, { caret });
                   }}
                 />
               )}

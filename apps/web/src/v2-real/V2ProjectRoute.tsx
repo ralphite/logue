@@ -57,6 +57,7 @@ import { ProjectComposer } from "../v2-mock/primitives/ProjectComposer";
 import { ProjectShell, type V2PrimaryRoute } from "../v2-mock/web/ProjectShell";
 import { RunInspector } from "./V2LibraryRoute";
 import { DocumentContent } from "./DocumentContent";
+import { readNavigationState, updateNavigationState } from "./navigationState";
 
 type ProjectView = "workspace" | "context" | "history" | "settings";
 type RequestMode = "ask" | "compare" | "draft";
@@ -283,9 +284,22 @@ export function V2ProjectRoute({
   onRoute: (route: V2PrimaryRoute) => void;
   onRefresh: () => Promise<void>;
 }) {
-  const [projectName, setProjectName] = useState(projects[0]?.name ?? "");
-  const [view, setView] = useState<ProjectView>("workspace");
-  const [mode, setMode] = useState<RequestMode>("ask");
+  const [projectName, setProjectName] = useState(() => {
+    const saved = readNavigationState().project;
+    return (
+      projects.find(
+        (item) => item.id === saved?.id || item.name === saved?.name,
+      )?.name ??
+      projects[0]?.name ??
+      ""
+    );
+  });
+  const [view, setView] = useState<ProjectView>(
+    () => readNavigationState().project?.view ?? "workspace",
+  );
+  const [mode, setMode] = useState<RequestMode>(
+    () => readNavigationState().project?.mode ?? "ask",
+  );
   const [request, setRequest] = useState("");
   const [run, setRun] = useState<LogueSkillRun>();
   const [resultMode, setResultMode] = useState<RequestMode>("ask");
@@ -326,7 +340,9 @@ export function V2ProjectRoute({
   const [vocabularyTerm, setVocabularyTerm] = useState("");
   const [spokenTerm, setSpokenTerm] = useState("");
   const [preferredTerm, setPreferredTerm] = useState("");
-  const [documentId, setDocumentId] = useState<string>();
+  const [documentId, setDocumentId] = useState<string | undefined>(
+    () => readNavigationState().project?.documentId,
+  );
   const [openHistoryRunId, setOpenHistoryRunId] = useState<string>();
   const [historyActionBusy, setHistoryActionBusy] = useState("");
   const [historyActionError, setHistoryActionError] = useState("");
@@ -350,7 +366,10 @@ export function V2ProjectRoute({
     );
   }, [projectMaterials]);
   const projectDocuments = useMemo(
-    () => documents.filter((item) => item.project === project?.name),
+    () =>
+      documents
+        .filter((item) => item.project === project?.name)
+        .sort((left, right) => right.updated_at.localeCompare(left.updated_at)),
     [documents, project?.name],
   );
   const document =
@@ -366,6 +385,13 @@ export function V2ProjectRoute({
             right.created_at.localeCompare(left.created_at),
         ),
     [project?.name, runs],
+  );
+  const recentProjectRuns = useMemo(
+    () =>
+      [...projectRuns].sort((left, right) =>
+        right.updated_at.localeCompare(left.updated_at),
+      ),
+    [projectRuns],
   );
   const historyRun = projectRuns.find((item) => item.id === openHistoryRunId);
 
@@ -387,7 +413,13 @@ export function V2ProjectRoute({
     setSelectedSourceIds(effectiveProjectMaterials.map((item) => item.id));
     setSelectedTopicIds([]);
     setPinnedSourceIds([]);
-    setDocumentId(projectDocuments[0]?.id);
+    const saved = readNavigationState().project;
+    setDocumentId(
+      saved && (saved.id === project.id || saved.name === project.name)
+        ? (projectDocuments.find((item) => item.id === saved.documentId)?.id ??
+            projectDocuments[0]?.id)
+        : projectDocuments[0]?.id,
+    );
     setDeletePreview(undefined);
     setDeleteConfirm("");
     setForgetMemoryId(undefined);
@@ -395,6 +427,19 @@ export function V2ProjectRoute({
     setOpenHistoryRunId(undefined);
     setOpenCitationSourceId(undefined);
   }, [project?.name]);
+  useEffect(() => {
+    if (!project) return;
+    updateNavigationState((current) => ({
+      ...current,
+      project: {
+        id: project.id,
+        name: project.name,
+        view,
+        mode,
+        documentId,
+      },
+    }));
+  }, [documentId, mode, project, view]);
   useEffect(() => {
     const available = new Set(projectMaterials.map((item) => item.id));
     setSelectedSourceIds((current) =>
@@ -582,6 +627,15 @@ export function V2ProjectRoute({
     setOpenHistoryRunId(undefined);
     setView("workspace");
     setRunError("");
+  }
+
+  function openDocumentInEditor(identifier: string) {
+    setDocumentId(identifier);
+    updateNavigationState((current) => ({
+      ...current,
+      documents: { ...current.documents, selectedId: identifier },
+    }));
+    onRoute("documents");
   }
 
   async function copyCandidate() {
@@ -1041,7 +1095,7 @@ export function V2ProjectRoute({
                         </span>
                         <button
                           className="v2-source-excerpt-toggle"
-                          onClick={() => onRoute("documents")}
+                          onClick={() => openDocumentInEditor(document.id)}
                         >
                           Continue editing
                         </button>
@@ -1055,6 +1109,54 @@ export function V2ProjectRoute({
                       </p>
                     </div>
                   )}
+                  {projectDocuments.length || recentProjectRuns.length ? (
+                    <section className="v2-project-context-preview">
+                      <div className="v2-panel-section-heading">
+                        <div>
+                          <h2>Recent work</h2>
+                          <p>Continue a Document or reopen a sourced result.</p>
+                        </div>
+                      </div>
+                      <div className="v2-review-list">
+                        {projectDocuments.slice(0, 2).map((item) => (
+                          <button
+                            type="button"
+                            className="v2-project-source-row"
+                            key={item.id}
+                            onClick={() => {
+                              setDocumentId(item.id);
+                              updateNavigationState((current) => ({
+                                ...current,
+                                project: {
+                                  ...current.project,
+                                  id: project.id,
+                                  name: project.name,
+                                  documentId: item.id,
+                                },
+                              }));
+                            }}
+                          >
+                            <OriginLabel origin="ai" detail="Document" />
+                            <span>{item.title}</span>
+                          </button>
+                        ))}
+                        {recentProjectRuns.slice(0, 2).map((item) => (
+                          <button
+                            type="button"
+                            className="v2-project-source-row"
+                            key={item.id}
+                            onClick={() => setOpenHistoryRunId(item.id)}
+                          >
+                            <OriginLabel
+                              origin="ai"
+                              detail={`${item.skill_name} · ${item.status}`}
+                            />
+                            <span>{item.instruction}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
                   <section className="v2-project-context-preview">
                     <div className="v2-panel-section-heading">
                       <div>
@@ -1337,13 +1439,13 @@ export function V2ProjectRoute({
                       ? "Excluded"
                       : duplicateLinked
                         ? "Duplicate-linked"
-                      : included
-                        ? membershipOrigin === "auto_added"
-                          ? "Auto-added"
-                          : "Added"
-                        : suggested
-                          ? "Suggested"
-                          : "Saved only";
+                        : included
+                          ? membershipOrigin === "auto_added"
+                            ? "Auto-added"
+                            : "Added"
+                          : suggested
+                            ? "Suggested"
+                            : "Saved only";
                     const busy = membershipBusy === group.key;
                     return (
                       <article className="v2-review-row" key={group.key}>
@@ -1363,11 +1465,11 @@ export function V2ProjectRoute({
                               ? "Your exclusion prevents automatic re-adding."
                               : duplicateLinked
                                 ? "Linked to an existing Source, so Project results use this evidence once."
-                              : suggested?.organization?.reason ||
+                                : suggested?.organization?.reason ||
                                   (membershipOrigin === "auto_added"
                                     ? "Added because this Project was active for the capture."
                                     : undefined) ||
-                                "Saved in your private Library."}
+                                  "Saved in your private Library."}
                           </div>
                         </div>
                         <div className="v2-inline-actions">
@@ -1884,7 +1986,8 @@ export function V2ProjectRoute({
                     <div>
                       <h2>Topics</h2>
                       <p className="v2-settings-lead">
-                        Related clusters help discovery. They never grant Project Context.
+                        Related clusters help discovery. They never grant
+                        Project Context.
                       </p>
                     </div>
                     <Button size="sm" onClick={() => onRoute("library")}>
@@ -1897,17 +2000,30 @@ export function V2ProjectRoute({
                         <div>
                           <OriginLabel
                             origin={topic.automatic ? "ai" : "you"}
-                            detail={topic.automatic ? "Discovered Topic" : "Your Topic"}
+                            detail={
+                              topic.automatic
+                                ? "Discovered Topic"
+                                : "Your Topic"
+                            }
                           />
                           <h3>{topic.name}</h3>
                           <p>{topic.reason}</p>
                           <div className="v2-library-meta">
+                            {
+                              topic.source_ids.filter((id) =>
+                                projectMaterials.some(
+                                  (material) => material.id === id,
+                                ),
+                              ).length
+                            }{" "}
+                            Project Source
                             {topic.source_ids.filter((id) =>
-                              projectMaterials.some((material) => material.id === id),
-                            ).length} Project Source
-                            {topic.source_ids.filter((id) =>
-                              projectMaterials.some((material) => material.id === id),
-                            ).length === 1 ? "" : "s"}
+                              projectMaterials.some(
+                                (material) => material.id === id,
+                              ),
+                            ).length === 1
+                              ? ""
+                              : "s"}
                           </div>
                         </div>
                       </article>
@@ -1923,12 +2039,26 @@ export function V2ProjectRoute({
                   <h2>Project boundary</h2>
                   <div className="v2-setting-row">
                     <div>
-                      <strong>{project.archived_at ? "Archived" : "Active"}</strong>
-                      <p>Archiving hides this Project from daily selection without changing its Context.</p>
+                      <strong>
+                        {project.archived_at ? "Archived" : "Active"}
+                      </strong>
+                      <p>
+                        Archiving hides this Project from daily selection
+                        without changing its Context.
+                      </p>
                     </div>
-                    <Button disabled={settingsBusy} onClick={() => void toggleProjectArchive()}>
-                      {project.archived_at ? <ArchiveRestore size={14} /> : <Archive size={14} />}
-                      {project.archived_at ? "Restore Project" : "Archive Project"}
+                    <Button
+                      disabled={settingsBusy}
+                      onClick={() => void toggleProjectArchive()}
+                    >
+                      {project.archived_at ? (
+                        <ArchiveRestore size={14} />
+                      ) : (
+                        <Archive size={14} />
+                      )}
+                      {project.archived_at
+                        ? "Restore Project"
+                        : "Archive Project"}
                     </Button>
                   </div>
                   <div className="v2-setting-row">
@@ -1942,22 +2072,44 @@ export function V2ProjectRoute({
                     </div>
                     <div className="v2-inline-actions">
                       <label className="v2-checkbox-row">
-                        <input type="checkbox" checked={exportAudio} onChange={(event) => setExportAudio(event.target.checked)} />
+                        <input
+                          type="checkbox"
+                          checked={exportAudio}
+                          onChange={(event) =>
+                            setExportAudio(event.target.checked)
+                          }
+                        />
                         Include audio
                       </label>
-                      <a className="v2-download-button" href={exportWorkspaceURL({ project: project.name, includeAudio: exportAudio })} download>
-                        <Download size={14} />Export Project
+                      <a
+                        className="v2-download-button"
+                        href={exportWorkspaceURL({
+                          project: project.name,
+                          includeAudio: exportAudio,
+                        })}
+                        download
+                      >
+                        <Download size={14} />
+                        Export Project
                       </a>
                     </div>
                   </div>
-                  {exportError ? <div className="v2-warning-bar" role="alert">{exportError}</div> : null}
+                  {exportError ? (
+                    <div className="v2-warning-bar" role="alert">
+                      {exportError}
+                    </div>
+                  ) : null}
                   <div className="v2-setting-row">
                     <div>
                       <strong>Delete Project</strong>
-                      <p>Review affected Sources, Documents, and Runs before deleting this boundary.</p>
+                      <p>
+                        Review affected Sources, Documents, and Runs before
+                        deleting this boundary.
+                      </p>
                     </div>
                     <Button onClick={() => void reviewProjectDeletion()}>
-                      <Trash2 size={14} />Review deletion
+                      <Trash2 size={14} />
+                      Review deletion
                     </Button>
                   </div>
                 </section>
