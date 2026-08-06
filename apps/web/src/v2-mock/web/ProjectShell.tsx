@@ -1,11 +1,11 @@
-import { ChevronRight, FolderKanban, Library, PanelRightOpen, Settings } from "lucide-react";
+import { ChevronRight, FileText, FolderKanban, Library, PanelRightOpen, Search, Settings, Sparkles } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { IconButton } from "../../components/ui";
 import { PanelResizer } from "../../components/PanelResizer";
 import { Tooltip, TooltipProvider } from "../../components/Tooltip";
 import "../styles/surfaces.css";
 
-export type V2PrimaryRoute = "projects" | "library" | "settings";
+export type V2PrimaryRoute = "projects" | "library" | "documents" | "skills" | "settings";
 
 export interface ProjectShellProps {
   route: V2PrimaryRoute;
@@ -23,14 +23,25 @@ export interface ProjectShellProps {
 
 export function ProjectShell({ route, projectName, projects = [], activeProjectId, onRouteChange, onProjectChange, topbarActions, children, inspector, inspectorOpen = false, onInspectorOpenChange }: ProjectShellProps) {
   const [inspectorWidth, setInspectorWidth] = useState(400);
+  const openGlobalFind = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", "stream");
+    url.searchParams.set("find", "1");
+    url.searchParams.delete("q");
+    window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  };
   return (
     <div className="logue-v2 v2-app-shell">
       <nav className="v2-app-nav" aria-label="Logue">
         <div className="v2-app-brand"><span className="v2-app-wordmark">Logue</span></div>
         <div className="v2-nav-section">
+          <button className="v2-nav-item" onClick={openGlobalFind}><Search aria-hidden="true" size={18} /><span className="v2-nav-label">Search</span></button>
           <button className={`v2-nav-item${route === "projects" ? " is-active" : ""}`} onClick={() => onRouteChange?.("projects")}><FolderKanban aria-hidden="true" size={18} /><span className="v2-nav-label">Projects</span></button>
           {route === "projects" && projects.length ? <div className="v2-project-list">{projects.map((project) => <button key={project.id} className={`v2-project-row${project.id === activeProjectId ? " is-active" : ""}`} onClick={() => onProjectChange?.(project.id)}><span className="v2-nav-label">{project.name}</span></button>)}</div> : null}
           <button className={`v2-nav-item${route === "library" ? " is-active" : ""}`} onClick={() => onRouteChange?.("library")}><Library aria-hidden="true" size={18} /><span className="v2-nav-label">Library</span></button>
+          <button className={`v2-nav-item${route === "documents" ? " is-active" : ""}`} onClick={() => onRouteChange?.("documents")}><FileText aria-hidden="true" size={18} /><span className="v2-nav-label">Documents</span></button>
+          <button className={`v2-nav-item${route === "skills" ? " is-active" : ""}`} onClick={() => onRouteChange?.("skills")}><Sparkles aria-hidden="true" size={18} /><span className="v2-nav-label">Skills</span></button>
         </div>
         <div className="v2-app-nav-spacer" />
         <div className="v2-nav-section">
@@ -41,7 +52,7 @@ export function ProjectShell({ route, projectName, projects = [], activeProjectI
         <div className="v2-project-shell">
           <section className="v2-project-main">
             <header className="v2-project-topbar">
-              <div className="v2-breadcrumbs"><span>{route === "projects" ? "Projects" : route === "library" ? "Library" : "Settings"}</span>{projectName ? <><ChevronRight aria-hidden="true" size={14} /><strong>{projectName}</strong></> : null}</div>
+              <div className="v2-breadcrumbs"><span>{route === "projects" ? "Projects" : route === "library" ? "Library" : route === "documents" ? "Documents" : route === "skills" ? "Skills" : "Settings"}</span>{projectName ? <><ChevronRight aria-hidden="true" size={14} /><strong>{projectName}</strong></> : null}</div>
               <div className="v2-topbar-actions">
                 {topbarActions}
                 {inspector && !inspectorOpen ? <TooltipProvider><Tooltip content="Open sources"><IconButton label="Open sources" variant="ghost" onClick={() => onInspectorOpenChange?.(true)}><PanelRightOpen aria-hidden="true" size={18} /></IconButton></Tooltip></TooltipProvider> : null}

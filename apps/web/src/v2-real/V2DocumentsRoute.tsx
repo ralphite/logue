@@ -1,0 +1,1011 @@
+import type { ExtensionInputTarget, Material } from "@logue/ui";
+import {
+  Clock3,
+  Copy,
+  Download,
+  FilePlus2,
+  History,
+  PanelRightClose,
+  RotateCcw,
+  Send,
+  Sparkles,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  createMaterial,
+  createDocument,
+  deleteDocument,
+  getDocumentRevisions,
+  restoreDocumentRevision,
+  updateDocument,
+  type DocumentRevision,
+  type LogueDocument,
+  type ProjectSummary,
+  type SkillRunSourceSnapshot,
+} from "../api";
+import {
+  adoptSkillRun,
+  createSkillRun,
+  saveSkillRunAsDocument,
+  type LogueSkill,
+  type LogueSkillRun,
+} from "../skillApi";
+import { Button, IconButton } from "../components/ui";
+import { OriginLabel } from "../v2-mock/primitives/OriginLabel";
+import { ProjectShell, type V2PrimaryRoute } from "../v2-mock/web/ProjectShell";
+import {
+  DocumentContent,
+  documentSelectionOffsets,
+  replaceDocumentTextRange,
+} from "./DocumentContent";
+import {
+  insertDocumentIntoTarget,
+  listExtensionInputTargets,
+  undoDocumentTargetInsert,
+} from "../extensionTargetBridge";
+
+type DisplaySource = Material | SkillRunSourceSnapshot;
+
+function materialTitle(material: DisplaySource) {
+  return (
+    material.source?.title?.trim() ||
+    material.source?.domain?.trim() ||
+    (material.kind === "voice" ? "Voice input" : "Saved Source")
+  );
+}
+
+function sourceOrigin(material: DisplaySource) {
+  if (material.actor && material.actor.toLowerCase() !== "user")
+    return "ai" as const;
+  if (
+    material.kind === "selection" &&
+    !("annotation" in material && material.annotation)
+  )
+    return "web" as const;
+  return "you" as const;
+}
+
+export function V2DocumentsRoute({
+  documents,
+  projects,
+  materials,
+  skills,
+  aiReady,
+  onRoute,
+  onRefresh,
+}: {
+  documents: LogueDocument[];
+  projects: ProjectSummary[];
+  materials: Material[];
+  skills: LogueSkill[];
+  aiReady: boolean;
+  onRoute: (route: V2PrimaryRoute) => void;
+  onRefresh: () => Promise<void>;
+}) {
+  const [selectedId, setSelectedId] = useState<string | undefined>(
+    () =>
+      new URLSearchParams(window.location.search).get("document") ?? undefined,
+  );
+  const selected =
+    documents.find((item) => item.id === selectedId) ?? documents[0];
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [project, setProject] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [inspector, setInspector] = useState<"sources" | "history">();
+  const [openCitationSourceId, setOpenCitationSourceId] = useState<string>();
+  const [revisions, setRevisions] = useState<DocumentRevision[]>([]);
+  const [preview, setPreview] = useState<DocumentRevision>();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [actionSkillId, setActionSkillId] = useState("");
+  const [actionRun, setActionRun] = useState<LogueSkillRun>();
+  const [actionText, setActionText] = useState("");
+  const [actionRange, setActionRange] = useState({ start: 0, end: 0 });
+  const [actionBusy, setActionBusy] = useState(false);
+  const [targetPickerOpen, setTargetPickerOpen] = useState(false);
+  const [inputTargets, setInputTargets] = useState<ExtensionInputTarget[]>([]);
+  const [selectedInputTarget, setSelectedInputTarget] =
+    useState<ExtensionInputTarget>();
+  const [targetBusy, setTargetBusy] = useState(false);
+  const [targetError, setTargetError] = useState("");
+  const [targetUndo, setTargetUndo] = useState<{
+    target: ExtensionInputTarget;
+    token: string;
+  }>();
+  const editorRef = useRef<HTMLDivElement>(null);
+  const sourceIds = preview?.source_ids ?? selected?.source_ids ?? [];
+  const frozenSources = preview?.sources ?? selected?.sources ?? [];
+  const sources = useMemo(
+    () =>
+      sourceIds.flatMap((id) => {
+        const item =
+          frozenSources.find((source) => source.id === id) ??
+          materials.find((material) => material.id === id);
+        return item ? [item] : [];
+      }),
+    [frozenSources, materials, sourceIds.join("|")],
+  );
+  const citationSource = sources.find(
+    (source) => source.id === openCitationSourceId,
+  );
+
+  useEffect(() => {
+    if (!selectedId && documents[0]) setSelectedId(documents[0].id);
+  }, [documents, selectedId]);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (selected?.id) url.searchParams.set("document", selected.id);
+    else url.searchParams.delete("document");
+    window.history.replaceState(
+      null,
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }, [selected?.id]);
+  useEffect(() => {
+    setTitle(selected?.title ?? "");
+    setContent(selected?.content ?? "");
+    setProject(selected?.project ?? "");
+    setDirty(false);
+    setPreview(undefined);
+    setRevisions([]);
+    setDeleteOpen(false);
+    setActionRun(undefined);
+    setOpenCitationSourceId(undefined);
+    setTargetUndo(undefined);
+    setTargetError("");
+    setError("");
+  }, [selected?.id, selected?.revision]);
+  useEffect(() => {
+    if (!actionSkillId)
+      setActionSkillId(
+        skills.find(
+          (skill) =>
+            skill.enabled &&
+            skill.task === "generate" &&
+            skill.surfaces.includes("web"),
+        )?.id ?? "",
+      );
+  }, [actionSkillId, skills]);
+  useEffect(() => {
+    if (!selected || !dirty || saving || preview) return;
+    const timer = window.setTimeout(() => {
+      setSaving(true);
+      setError("");
+      void updateDocument(selected.id, {
+        title,
+        content,
+        project,
+        expectedRevision: selected.revision,
+      })
+        .then(onRefresh)
+        .then(() => setDirty(false))
+        .catch((cause) =>
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Could not save this Document.",
+          ),
+        )
+        .finally(() => setSaving(false));
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [content, dirty, preview, project, saving, selected, title, onRefresh]);
+
+  async function createNew() {
+    const created = await createDocument({
+      title: "Untitled",
+      project: projects[0]?.name,
+    });
+    await onRefresh();
+    setSelectedId(created.id);
+  }
+
+  async function openHistory() {
+    if (!selected) return;
+    setInspector("history");
+    setError("");
+    try {
+      setRevisions(await getDocumentRevisions(selected.id));
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not load revision history.",
+      );
+    }
+  }
+
+  async function restoreRevision() {
+    if (!selected || !preview) return;
+    setSaving(true);
+    setError("");
+    try {
+      await restoreDocumentRevision(selected.id, preview.revision);
+      await onRefresh();
+      setPreview(undefined);
+      setRevisions(await getDocumentRevisions(selected.id));
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not restore this revision.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeDocument() {
+    if (!selected) return;
+    setSaving(true);
+    setError("");
+    try {
+      await deleteDocument(selected.id);
+      setSelectedId(documents.find((item) => item.id !== selected.id)?.id);
+      await onRefresh();
+      setDeleteOpen(false);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not delete this Document.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function exportMarkdown() {
+    if (!selected) return;
+    const href = URL.createObjectURL(
+      new Blob([`# ${title}\n\n${content}`], { type: "text/markdown" }),
+    );
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = `${title.trim() || "untitled"}.md`;
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(href), 1_000);
+  }
+
+  async function pinRevisionAsSource() {
+    if (!selected) return;
+    setSaving(true);
+    setError("");
+    try {
+      await createMaterial({
+        kind: "derived",
+        content,
+        projects: project ? [project] : [],
+        parentIds: selected.context_source_ids ?? selected.source_ids,
+        actor: "Logue AI",
+        source: { title: `${title} · revision ${selected.revision}` },
+        requestId: `document-revision:${selected.id}:${selected.revision}`,
+      });
+      await onRefresh();
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not pin this revision as a Source.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function chooseInput() {
+    setTargetPickerOpen(true);
+    setTargetBusy(true);
+    setTargetError("");
+    try {
+      const targets = await listExtensionInputTargets();
+      setInputTargets(targets);
+      if (
+        selectedInputTarget &&
+        !targets.some((target) => target.id === selectedInputTarget.id)
+      )
+        setSelectedInputTarget(undefined);
+    } catch (cause) {
+      setInputTargets([]);
+      setSelectedInputTarget(undefined);
+      setTargetError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not find an available input.",
+      );
+    } finally {
+      setTargetBusy(false);
+    }
+  }
+
+  async function sendToInput() {
+    if (!selectedInputTarget || targetBusy || preview) return;
+    const text = editorRef.current?.innerText.trim() ?? "";
+    if (!text) {
+      setTargetError("This Document is empty.");
+      return;
+    }
+    setTargetBusy(true);
+    setTargetError("");
+    try {
+      const result = await insertDocumentIntoTarget(
+        selectedInputTarget.id,
+        text,
+      );
+      setSelectedInputTarget(result.target);
+      setTargetUndo({ target: result.target, token: result.undoToken });
+      setTargetPickerOpen(false);
+    } catch (cause) {
+      setSelectedInputTarget(undefined);
+      setTargetUndo(undefined);
+      setTargetPickerOpen(true);
+      setTargetError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not write to this input. Choose another input or copy the Document.",
+      );
+      void listExtensionInputTargets()
+        .then(setInputTargets)
+        .catch(() => setInputTargets([]));
+    } finally {
+      setTargetBusy(false);
+    }
+  }
+
+  async function undoTargetInsert() {
+    if (!targetUndo || targetBusy) return;
+    setTargetBusy(true);
+    setTargetError("");
+    try {
+      await undoDocumentTargetInsert(targetUndo.target.id, targetUndo.token);
+      setTargetUndo(undefined);
+    } catch (cause) {
+      setTargetUndo(undefined);
+      setSelectedInputTarget(undefined);
+      setTargetPickerOpen(true);
+      setTargetError(
+        cause instanceof Error
+          ? cause.message
+          : "This insert can no longer be undone. Choose another input or copy the Document.",
+      );
+      void listExtensionInputTargets()
+        .then(setInputTargets)
+        .catch(() => setInputTargets([]));
+    } finally {
+      setTargetBusy(false);
+    }
+  }
+
+  async function runSelectionAction() {
+    if (!selected || !actionSkillId || actionBusy) return;
+    if (!aiReady) {
+      setError(
+        "Connect a provider in Settings → Models before applying a Skill. This Document remains fully available locally.",
+      );
+      return;
+    }
+    const target = editorRef.current;
+    const selection = target ? documentSelectionOffsets(target) : undefined;
+    const selectedText = selection?.text || target?.innerText || content;
+    const start = selection?.start ?? 0;
+    const end = selection?.end ?? target?.textContent?.length ?? content.length;
+    if (!selectedText.trim()) return;
+    setActionBusy(true);
+    setError("");
+    try {
+      const run = await createSkillRun({
+        skill_id: actionSkillId,
+        instruction: `Apply this Skill to the ${end > start ? "selected text" : "Document"}.`,
+        project,
+        source_ids: selected.context_source_ids ?? selected.source_ids,
+        selection: selectedText,
+        auto_search: false,
+      });
+      setActionRun(run);
+      setActionText(run.original_output ?? "");
+      setActionRange({
+        start: end > start ? start : 0,
+        end: end > start ? end : content.length,
+      });
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not run this Skill.",
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function adoptAction(mode: "replace" | "copy" | "keep") {
+    if (!actionRun || !actionText.trim()) return;
+    setActionBusy(true);
+    setError("");
+    try {
+      if (mode === "replace") {
+        const nextContent = replaceDocumentTextRange(
+          content,
+          title,
+          actionRange.start,
+          actionRange.end,
+          actionText.trim(),
+        );
+        const result = await saveSkillRunAsDocument(actionRun.id, {
+          title,
+          content: nextContent,
+          documentId: selected.id,
+          project,
+          sourceIds: selected.source_ids,
+          contextSourceIds: selected.context_source_ids,
+          expectedRevision: selected.revision,
+        });
+        setContent(result.document.content);
+        setDirty(false);
+        await onRefresh();
+      }
+      if (mode === "copy") {
+        await navigator.clipboard.writeText(actionText.trim());
+        await adoptSkillRun(actionRun.id, actionText.trim(), {
+          action: "copy",
+          target: {
+            surface: "clipboard",
+            target_key: `document:${selected.id}`,
+          },
+        });
+        await onRefresh();
+      }
+      if (mode === "keep") {
+        await adoptSkillRun(actionRun.id, actionText.trim(), {
+          action: "keep",
+          target: {
+            surface: "web-document",
+            target_key: `document:${selected.id}`,
+          },
+        });
+        await onRefresh();
+      }
+      setActionRun(undefined);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not adopt this result.",
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  const inspectorContent =
+    inspector === "history" ? (
+      <>
+        <header className="v2-inspector-header">
+          <div>
+            <OriginLabel origin="you" detail="Document lineage" />
+            <h2>Revision history</h2>
+          </div>
+          <IconButton
+            label="Close history"
+            variant="ghost"
+            onClick={() => setInspector(undefined)}
+          >
+            <PanelRightClose size={17} />
+          </IconButton>
+        </header>
+        <div className="v2-inspector-scroll">
+          <p className="v2-settings-lead">
+            Restoring creates a new revision. Existing history never changes.
+          </p>
+          <div className="v2-revision-list">
+            {revisions.map((revision) => (
+              <button
+                type="button"
+                key={`${revision.document_id}-${revision.revision}`}
+                className={
+                  preview?.revision === revision.revision ? "is-active" : ""
+                }
+                onClick={() =>
+                  setPreview(revision.current ? undefined : revision)
+                }
+              >
+                <span>
+                  <strong>
+                    {revision.current
+                      ? "Current"
+                      : `Revision ${revision.revision}`}
+                  </strong>
+                  <small>
+                    {new Date(revision.updated_at).toLocaleString([], {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </small>
+                </span>
+                <span>
+                  {(revision.context_source_ids ?? revision.source_ids).length}{" "}
+                  Sources
+                </span>
+              </button>
+            ))}
+          </div>
+          {preview ? (
+            <div className="v2-recovery-card">
+              <OriginLabel
+                origin="you"
+                detail={`Revision ${preview.revision} · read only`}
+              />
+              <h3>{preview.title}</h3>
+              <DocumentContent
+                value={preview.content}
+                title={preview.title}
+                readOnly
+                onCitationClick={(sourceNumber) => {
+                  setOpenCitationSourceId(preview.source_ids[sourceNumber - 1]);
+                  setInspector("sources");
+                }}
+              />
+              <Button
+                variant="primary"
+                disabled={saving}
+                onClick={() => void restoreRevision()}
+              >
+                <RotateCcw size={14} />
+                Restore as new revision
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      </>
+    ) : (
+      <>
+        <header className="v2-inspector-header">
+          <div>
+            <OriginLabel
+              origin="web"
+              detail={citationSource ? "Frozen citation" : "Frozen lineage"}
+            />
+            <h2>
+              {citationSource ? materialTitle(citationSource) : "Sources"}
+            </h2>
+          </div>
+          <IconButton
+            label="Close sources"
+            variant="ghost"
+            onClick={() => {
+              setInspector(undefined);
+              setOpenCitationSourceId(undefined);
+            }}
+          >
+            <PanelRightClose size={17} />
+          </IconButton>
+        </header>
+        <div className="v2-inspector-scroll">
+          <div className="v2-source-list">
+            {(citationSource ? [citationSource] : sources).map(
+              (source, index) => (
+                <article className="v2-source-bundle" key={source.id}>
+                  <OriginLabel
+                    origin={sourceOrigin(source)}
+                    detail={
+                      citationSource ? "Source used" : `Source ${index + 1}`
+                    }
+                  />
+                  <h3>{materialTitle(source)}</h3>
+                  <p>{source.content}</p>
+                  {source.source?.url ? (
+                    <a
+                      className="v2-source-excerpt-toggle"
+                      href={source.source.url}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open original
+                    </a>
+                  ) : null}
+                </article>
+              ),
+            )}
+            {!sources.length ? (
+              <div className="v2-recovery-card">
+                <p>This Document has no frozen Sources yet.</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </>
+    );
+
+  return (
+    <ProjectShell
+      route="documents"
+      projectName={selected?.project}
+      onRouteChange={onRoute}
+      topbarActions={
+        <>
+          <Button size="sm" onClick={() => void createNew()}>
+            <FilePlus2 size={15} />
+            New
+          </Button>
+          {selected ? (
+            <>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setOpenCitationSourceId(undefined);
+                  setInspector("sources");
+                }}
+              >
+                Sources
+              </Button>
+              <Button size="sm" onClick={() => void openHistory()}>
+                <History size={15} />
+                History
+              </Button>
+              <Button size="sm" onClick={exportMarkdown}>
+                <Download size={14} />
+                Export
+              </Button>
+              <Button
+                size="sm"
+                disabled={saving || Boolean(preview)}
+                onClick={() => void pinRevisionAsSource()}
+              >
+                <Sparkles size={14} />
+                Pin as Source
+              </Button>
+            </>
+          ) : null}
+        </>
+      }
+      inspectorOpen={Boolean(inspector)}
+      onInspectorOpenChange={(open) => {
+        if (!open) {
+          setInspector(undefined);
+          setOpenCitationSourceId(undefined);
+        }
+      }}
+      inspector={inspector ? inspectorContent : undefined}
+    >
+      <div className="v2-document-layout">
+        <aside className="v2-document-list">
+          <div className="v2-document-list-heading">
+            <strong>Documents</strong>
+            <span>{documents.length}</span>
+          </div>
+          {documents.map((item) => (
+            <button
+              type="button"
+              key={item.id}
+              className={item.id === selected?.id ? "is-active" : ""}
+              onClick={() => setSelectedId(item.id)}
+            >
+              <strong>{item.title}</strong>
+              <span>{item.project || "No Project"}</span>
+              <small>Revision {item.revision}</small>
+            </button>
+          ))}
+        </aside>
+        <div className="v2-editor-scroll">
+          {selected ? (
+            <article className="v2-editor-axis">
+              <div className="v2-editor-eyebrow">
+                {preview
+                  ? `Revision ${preview.revision} · read only`
+                  : saving
+                    ? "Saving…"
+                    : dirty
+                      ? "Edited"
+                      : `Revision ${selected.revision}`}
+              </div>
+              <input
+                className="v2-document-title-input"
+                aria-label="Document title"
+                value={preview?.title ?? title}
+                disabled={Boolean(preview)}
+                onChange={(event) => {
+                  setTitle(event.target.value);
+                  setDirty(true);
+                }}
+              />
+              <div className="v2-document-toolbar">
+                <select
+                  className="v2-input"
+                  aria-label="Project"
+                  value={preview?.project ?? project}
+                  disabled={Boolean(preview)}
+                  onChange={(event) => {
+                    setProject(event.target.value);
+                    setDirty(true);
+                  }}
+                >
+                  <option value="">No Project</option>
+                  {projects.map((item) => (
+                    <option key={item.name} value={item.name}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="v2-input"
+                  aria-label="Document action"
+                  value={actionSkillId}
+                  disabled={Boolean(preview) || actionBusy}
+                  onChange={(event) => setActionSkillId(event.target.value)}
+                >
+                  {skills
+                    .filter(
+                      (skill) =>
+                        skill.enabled &&
+                        skill.task === "generate" &&
+                        skill.surfaces.includes("web"),
+                    )
+                    .map((skill) => (
+                      <option key={skill.id} value={skill.id}>
+                        {skill.name}
+                      </option>
+                    ))}
+                </select>
+                <Button
+                  size="sm"
+                  disabled={Boolean(preview) || !actionSkillId || actionBusy}
+                  onClick={() => void runSelectionAction()}
+                >
+                  <Sparkles size={14} />
+                  Apply
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    void navigator.clipboard.writeText(
+                      editorRef.current?.innerText ||
+                        preview?.content ||
+                        content,
+                    )
+                  }
+                >
+                  <Copy size={14} />
+                  Copy
+                </Button>
+                {targetUndo ? (
+                  <>
+                    <Button
+                      size="sm"
+                      disabled={targetBusy}
+                      onClick={() => void undoTargetInsert()}
+                    >
+                      <RotateCcw size={14} />
+                      Undo send
+                    </Button>
+                    <Button size="sm" onClick={() => setTargetUndo(undefined)}>
+                      Done
+                    </Button>
+                  </>
+                ) : selectedInputTarget ? (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      disabled={targetBusy || Boolean(preview)}
+                      onClick={() => void sendToInput()}
+                    >
+                      <Send size={14} />
+                      {targetBusy
+                        ? "Sending…"
+                        : `Send to ${selectedInputTarget.label}`}
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={targetBusy || Boolean(preview)}
+                      onClick={() => void chooseInput()}
+                    >
+                      Change input…
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    size="sm"
+                    disabled={targetBusy || Boolean(preview)}
+                    onClick={() => void chooseInput()}
+                  >
+                    <Send size={14} />
+                    Choose input…
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  onClick={() => setDeleteOpen(true)}
+                  disabled={Boolean(preview)}
+                >
+                  <Trash2 size={14} />
+                  Delete
+                </Button>
+              </div>
+              {targetPickerOpen ? (
+                <section className="v2-target-picker" aria-label="Choose an input">
+                  <div className="v2-panel-section-heading">
+                    <h2>Choose an input</h2>
+                    <IconButton
+                      label="Close input picker"
+                      variant="ghost"
+                      onClick={() => setTargetPickerOpen(false)}
+                    >
+                      <X size={15} />
+                    </IconButton>
+                  </div>
+                  {targetBusy ? (
+                    <div className="v2-library-meta">Finding inputs in Chrome…</div>
+                  ) : inputTargets.length ? (
+                    <div className="v2-target-list">
+                      {inputTargets.map((target) => (
+                        <button
+                          type="button"
+                          key={target.id}
+                          onClick={() => {
+                            setSelectedInputTarget(target);
+                            setTargetUndo(undefined);
+                            setTargetPickerOpen(false);
+                            setTargetError("");
+                          }}
+                        >
+                          <strong>{target.label}</strong>
+                          <span>{target.pageTitle}</span>
+                          <small>{target.domain}</small>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="v2-recovery-card">
+                      <p>Focus the input you want in Chrome, then choose again.</p>
+                      <Button size="sm" onClick={() => void chooseInput()}>
+                        Find inputs again
+                      </Button>
+                    </div>
+                  )}
+                </section>
+              ) : null}
+              {targetUndo ? (
+                <div className="v2-library-meta v2-target-status">
+                  Sent to {targetUndo.target.label} in {targetUndo.target.pageTitle}. Undo is available until the input changes.
+                </div>
+              ) : null}
+              {targetError ? (
+                <div className="v2-warning-bar" role="alert">
+                  {targetError}
+                </div>
+              ) : null}
+              {preview ? (
+                <DocumentContent
+                  value={preview.content}
+                  title={preview.title}
+                  readOnly
+                  onCitationClick={(sourceNumber) => {
+                    setOpenCitationSourceId(
+                      preview.source_ids[sourceNumber - 1],
+                    );
+                    setInspector("sources");
+                  }}
+                />
+              ) : (
+                <DocumentContent
+                  value={content}
+                  title={title}
+                  editorRef={editorRef}
+                  onChange={(value) => {
+                    setContent(value);
+                    setDirty(true);
+                  }}
+                />
+              )}
+              {actionRun ? (
+                <section className="v2-draft-card">
+                  <OriginLabel
+                    origin="ai"
+                    detail={`${actionRun.skill_name} · Candidate`}
+                  />
+                  <textarea
+                    className="v2-textarea"
+                    aria-label="Document action result"
+                    value={actionText}
+                    onChange={(event) => setActionText(event.target.value)}
+                  />
+                  <div className="v2-inline-actions v2-actions-end">
+                    <Button
+                      disabled={actionBusy}
+                      onClick={() => setActionRun(undefined)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      disabled={actionBusy || !actionText.trim()}
+                      onClick={() => void adoptAction("copy")}
+                    >
+                      <Copy size={14} />
+                      Copy
+                    </Button>
+                    <Button
+                      disabled={actionBusy || !actionText.trim()}
+                      onClick={() => void adoptAction("keep")}
+                    >
+                      <Sparkles size={14} />
+                      Keep in Logue
+                    </Button>
+                    <Button
+                      variant="primary"
+                      disabled={actionBusy || !actionText.trim()}
+                      onClick={() => void adoptAction("replace")}
+                    >
+                      Replace selection
+                    </Button>
+                  </div>
+                </section>
+              ) : null}
+              {error ? (
+                <div className="v2-warning-bar" role="alert">
+                  {error}
+                </div>
+              ) : null}
+              <div className="v2-context-summary">
+                <span>
+                  <Clock3 size={14} />
+                  {
+                    (
+                      preview?.context_source_ids ??
+                      preview?.source_ids ??
+                      selected.context_source_ids ??
+                      selected.source_ids
+                    ).length
+                  }{" "}
+                  frozen Sources
+                </span>
+                <button
+                  className="v2-source-excerpt-toggle"
+                  onClick={() => {
+                    setOpenCitationSourceId(undefined);
+                    setInspector("sources");
+                  }}
+                >
+                  Review citations
+                </button>
+              </div>
+              {deleteOpen ? (
+                <div className="v2-danger-card">
+                  <p>
+                    Delete this Document and its revision history? Saved Sources
+                    remain in the Library.
+                  </p>
+                  <div className="v2-inline-actions">
+                    <Button onClick={() => setDeleteOpen(false)}>Cancel</Button>
+                    <Button
+                      variant="primary"
+                      disabled={saving}
+                      onClick={() => void removeDocument()}
+                    >
+                      Delete Document
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </article>
+          ) : (
+            <div className="v2-list-axis">
+              <div className="v2-page-heading-copy">
+                <h1>Documents</h1>
+                <p>Long-lived outputs with frozen source history.</p>
+              </div>
+              <div className="v2-recovery-card">
+                <p>
+                  Create a Document or adopt a sourced Draft from a Project.
+                </p>
+                <Button variant="primary" onClick={() => void createNew()}>
+                  New Document
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </ProjectShell>
+  );
+}

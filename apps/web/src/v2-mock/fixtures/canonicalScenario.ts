@@ -160,7 +160,7 @@ const canonicalScenario: MockSessionState = {
     },
     host: {
       status: "ready",
-      providers: { voice: { id: "voice", label: "Local transcription", status: "ready" }, ai: { id: "ai", label: "Connected generation", status: "ready" } },
+      providers: { voice: { id: "voice", label: "Connected transcription", status: "ready" }, ai: { id: "ai", label: "Connected generation", status: "ready" } },
       pendingCaptures: { "pending-upload": { id: "pending-upload", sourceId: "you-a", state: "uploaded" } },
     },
     nextId: 100,
