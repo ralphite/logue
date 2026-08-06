@@ -39,7 +39,8 @@ type LibraryTab = "saved" | "activity";
 function routeFromLocation(): V2PrimaryRoute {
   const value = new URLSearchParams(window.location.search).get("view");
   if (value === "projects" || value === "documents" || value === "skills" || value === "settings") return value;
-  return "library";
+  if (value === "stream" || value === "library") return "library";
+  return "projects";
 }
 
 function sourceOrigin(material: Material): OriginLabelType {
