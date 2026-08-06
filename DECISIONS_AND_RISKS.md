@@ -722,3 +722,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 打开 Topic 就自动加入最可能的 Project，或把重复术语同时复制到 Topic/Project/Global。两者都会把发现层变成隐式权限与跨 Project 污染源。
 - **已有证据：** 权威 V2 §6.5、§9.3/9.7、§10.8 明确规定 Topic 是动态发现层，负责关系、Project 与 Vocabulary 建议，但所有 Context/Vocabulary 影响必须由用户确认。
 - **开放问题：** conflict/supplement 的排序质量在 Phase 3 UX review 统一评估；Phase 1 只闭合完整对象、动作与不可越权边界。
+
+### DR-068 — logue.ai 是产品入口，不是账号或云工作区
+
+- **优先级：** V2 产品 / 安装与公开边界
+- **状态：** production Web route 与真实 release/docs 链已静态集成；部署与安装验收留到 Phase 5
+- **决定：** 同一 production Web bundle 在 `logue.ai` / `www.logue.ai` 显示公开 Landing，本机 Host 继续直接进入 V2 Projects；本地可用 `?view=landing` 复现公开入口。Download 指向当前 GitHub Release 的真实 universal artifact，Install guide 提供当前 checksum installer 与 Extension-only installer，Docs/Privacy/License 都是 Landing 内可直接打开的明确 section。公开页面不引入账号、Logue cloud sync、团队 SaaS 或本地 AI 模型；远程 AI 明确由用户配置的本地 Host 直接调用。用户尚未决定开源模式，因此 License 只诚实显示“尚未选择”，本批不擅自授予或承诺开源许可证。
+- **用户可见影响：** 访问 logue.ai 的新用户能理解 Logue 的 local-first 定位并拿到真实安装路径；访问本机 Host 的已有用户不会先经过营销页，也不会看到虚构的登录或云套餐。
+- **替代方案：** 把 Landing 只留在 Storybook，或让本机 Host 每次先显示官网。前者没有真实产品入口，后者会阻断高频本地工作流。
+- **已有证据：** 用户明确产品名为 Logue、官网为 logue.ai、产品 local-first / single-owner / 无账号，且开源方向尚未决定；V2-OPS-07 要求真实下载、安装、隐私与许可证入口。
+- **开放问题：** 最终域名部署、release asset 与 installer 安装验收属于 Phase 5，不在功能构建阶段运行。

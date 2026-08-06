@@ -173,7 +173,7 @@
 - V2-OPS-04 — INTEGRATED — 不保留 V1 route/schema alias 或永久 migration path。
 - V2-OPS-05 — CODED — installer overwrite/rollback 与 data preservation 原语存在；V2 artifact/version chain 未统一验收前只算 CODED。
 - V2-OPS-06 — CODED — Host/Web 与 Chrome Extension release artifacts 存在；V2-only production artifact chain 尚未最终收口。
-- V2-OPS-07 — MISSING — logue.ai 真实下载/安装/文档/隐私/许可证页面的当前交付。
+- V2-OPS-07 — INTEGRATED — production bundle 在 logue.ai/www.logue.ai 挂载 V2 Landing，本机仍直接进入 Projects；真实 release/installer、Docs、Privacy 与未擅自选择开源模式的 License section 已连接。
 
 ## Failure recovery / keyboard / accessibility
 
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-OPS-07`
-- 完成条件：logue.ai 的 production landing/download surface 使用 Logue 名称和 local-first、no-account 定位，提供当前 OS 的真实安装入口，以及可打开的安装、隐私、许可证文档；不得承诺云账号、团队 SaaS 或本地 AI 模型。
+- `ACTIVE: V2-FAIL-01`
+- 完成条件：把 Host offline、transcription failure、model not ready/failed、target lost 与 insert changed 五类核心失败收敛为可见、可恢复且不产生虚假成功的真实生产状态；保留已保存 Source/Document/Candidate，并只提供当下有效的 Retry、Reconnect、Copy、Choose another target 或 Settings 动作。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

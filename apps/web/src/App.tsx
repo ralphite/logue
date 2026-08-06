@@ -1,4 +1,18 @@
-export { RealLogueV2App as App } from "./v2-real/RealLogueV2App";
+import { LandingPage } from "./v2-mock/landing/LandingPage";
+import { RealLogueV2App } from "./v2-real/RealLogueV2App";
+
+function isPublicLanding() {
+  const hostname = window.location.hostname.toLowerCase();
+  return (
+    hostname === "logue.ai" ||
+    hostname === "www.logue.ai" ||
+    new URLSearchParams(window.location.search).get("view") === "landing"
+  );
+}
+
+export function App() {
+  return isPublicLanding() ? <LandingPage /> : <RealLogueV2App />;
+}
 
 // Shared sizing primitives retained for the V2 resizable inspector.
 export function availableMaterialDetailWidth(viewportWidth: number, navigationFootprint: number) {
