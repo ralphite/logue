@@ -492,9 +492,9 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 ### DR-048 — Document revision 保存冻结正文与 Source IDs，恢复只创建新 revision
 
 - **优先级：** V2 产品 / P0
-- **状态：** 实现中；完整功能完成后统一验证
+- **状态：** 已完成并通过真实运行时验证
 - **决定：** 当前 Document 文件保存最新 revision；每次更新前，Host 将上一版正文、标题、Project 与 `source_ids` 写入不可变历史快照。Revision history 同时返回历史与当前版。用户查看旧版时只读；Restore 会基于旧版内容创建新的最新 revision，不改写或删除历史。
 - **用户可见影响：** 用户能回看生成或编辑时实际引用的 Sources，并安全恢复旧版；引用不会悄悄指向 Project 当前内容。
 - **替代方案：** 只显示递增 revision 数字，或直接覆盖回旧版。前者没有可核验证据，后者破坏 lineage。
-- **已有证据：** Goal 明确要求 AI Source/Document revision 与 frozen citation，并要求可恢复、无假成功。2026-08-05 真实 Host 验证 revision 1/2 分别冻结不同 `source_ids`，Restore 基于 revision 1 创建 revision 3，历史不被覆盖；删除测试 Document 同时清理历史。真实 Web runtime 验证旧版只读、History 层级、Restore as new revision 语义，并修复 Inspector 不能区分同一 Comment bundle 内 Web Source 与 You Comment 的 P1；fresh read-only post-gate 最终 GO，无 P0/P1。
+- **已有证据：** 2026-08-05 在真实 URL `http://127.0.0.1:5173/?view=projects&project=Logue`、真实 storage root `/Users/yadong/dev2/logue/.logue-data` 和既有 Document `Logue 核心产品闭环`（`doc_99b3c08877042230`）验证。revision 5 冻结 Web Source `mat_9c52bea682fa1b53`，revision 6 冻结 You Comment `mat_c789cfef42443105`；页面重新读取和 Host 重启后正文与 exact IDs 不变。Restore 将原始 revision 4 创建为 current revision 7，旧 6/5/4 均保留。Inspector 正确区分 `Cited item · Web source / You comment`，console error/warning 均为空；fresh read-only gate 为 GO，无 P0/P1。修改前完整备份保留在 `/Users/yadong/dev2/logue-data-backups/document-revision-real-env-1785985431`；关键界面证据为 `docs/qa/document-revisions/real-env-2026-08-05.png`。
 - **开放问题：** AI Source 的独立 revision UI 在 Library lineage 批次连接；Document revision 合同先独立闭合。
