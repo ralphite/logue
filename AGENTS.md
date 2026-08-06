@@ -6,6 +6,16 @@
 - The Web App UI uses English. Web App identifiers, comments, accessibility labels, and test descriptions also use English.
 - Preserve user data and unrelated worktree changes. Never discard or overwrite another contributor's edits.
 
+## Product authority and decision review
+
+- Product authority order is: the user's latest explicit decision, the current V2 product definition, accepted V2 UI/UX, then reusable invisible engineering primitives. Old UI, existing code, mocks, tests, reviewers, and implementation convenience may not override that order.
+- Logue does not download, run, recommend, or manage local AI models. `local-first` applies to the Logue Host, private data, and user control. Model setup connects only to an explicitly supported remote provider and must state the processing boundary.
+- The complete confirmed V2 feature scope remains required. Core focus sets implementation order; it never authorizes deleting, refusing, or indefinitely postponing a confirmed feature. Do not add an unconfirmed product direction merely because it is technically possible or an old implementation exists.
+- Before implementing any decision that adds, removes, or postpones a confirmed feature, or changes primary IA, product objects, default journeys, provider/model boundaries, permissions, data deletion or migration, installation/release, or a cross-surface contract, record the proposed decision in `DECISIONS_AND_RISKS.md` and run three fresh-context, independent, read-only reviews in parallel: scope/product-authority, product/UX, and engineering/runtime. Any direct conflict with an explicit user decision requires `REPLAN`; product scope, default UX, and major boundaries require the user's approval. Ordinary local implementation choices do not trigger this gate.
+- Reviewers may block an inconsistent implementation but may not invent scope, remove confirmed features, or replace the user's product decision. Keep a single decision identifier and remove stale contradictory product text instead of preserving parallel interpretations.
+- Capability status is strictly `SPECIFIED → CODED → INTEGRATED → RUNTIME_WORKING`. Only `RUNTIME_WORKING` may be reported as a real user capability. Code presence, mock behavior, documentation, tests, screenshots, component review, or commits alone do not prove product progress.
+- Basic usability is a continuous quality floor, not deferred polish. Never knowingly leave the production product with broken layout, unreadable hierarchy, raw markup displayed as content, conflicting UI systems, or a blocked canonical journey while expanding to another feature. Pixel refinement and comprehensive QA may wait; a coherent usable interface may not.
+
 ## Single-user data and compatibility rules
 
 - This machine is the only supported installation and its current Logue data is the only data that must be preserved. There are no external users or deployed historical schemas to support.
