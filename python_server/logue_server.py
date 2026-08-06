@@ -17,6 +17,8 @@ import os
 import re
 import secrets
 import shutil
+import socket
+import stat
 import sys
 import tempfile
 import threading
@@ -24,12 +26,13 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 from datetime import datetime, timezone
 from email.parser import BytesParser
 from email.policy import default as email_policy
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 
@@ -48,6 +51,25 @@ CITATION_RE = re.compile(r"\[Source (\d+)\]")
 GLOSSARY_RE = re.compile(r"\b[A-Z][A-Za-z0-9.-]{2,}\b")
 VOCABULARY_CATEGORIES = ("people", "companies", "products", "places", "acronyms")
 CAPTURE_MIME_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4", ".ogg": "audio/ogg", ".webm": "audio/webm"}
+BACKUP_SCHEMA = 1
+BACKUP_MARKER = ".logue-backup.json"
+WORKSPACE_DIRECTORIES = (
+    "items",
+    "item-revisions",
+    "audio",
+    "docs",
+    "doc-revisions",
+    "transcript-revisions",
+    "projects",
+    "skills",
+    "skill-revisions",
+    "skill-runs",
+    "topic-vocabularies",
+    "topics",
+    "clients",
+)
+OPTIONAL_WORKSPACE_DIRECTORIES = ("backups",)
+WORKSPACE_ROOT_FILES = {"settings.json", "ai-provider.json", "pairing-code.json", BACKUP_MARKER}
 
 DICTATION_INSTRUCTIONS = (
     "Transcribe exactly what the user says, word for word. Preserve the original "
@@ -177,6 +199,27 @@ def read_json(path: Path) -> dict[str, Any]:
     return value
 
 
+def recover_interrupted_restore(root: Path) -> None:
+    """Return to a complete live root if the process stopped between swaps."""
+    root = root.resolve()
+    previous = root.parent / f"{root.name}.restore-old"
+    if previous.is_symlink():
+        raise RuntimeError("unsafe interrupted Restore state")
+    if not previous.exists():
+        return
+    root_complete = root.is_dir() and all((root / name).is_dir() for name in WORKSPACE_DIRECTORIES)
+    previous_complete = previous.is_dir() and all((previous / name).is_dir() for name in WORKSPACE_DIRECTORIES)
+    if root_complete:
+        shutil.rmtree(previous)
+        return
+    if root.exists():
+        failed = root.parent / f"{root.name}.restore-failed-{int(time.time())}"
+        os.replace(root, failed)
+    if not previous_complete:
+        raise RuntimeError("interrupted Restore has no complete workspace to recover")
+    os.replace(previous, root)
+
+
 def default_skills() -> list[dict[str, Any]]:
     timestamp = now()
     return [
@@ -192,7 +235,7 @@ class Store:
     def __init__(self, root: Path):
         self.root = root.resolve()
         self.lock = threading.RLock()
-        for name in ("items", "item-revisions", "audio", "docs", "doc-revisions", "transcript-revisions", "projects", "skills", "skill-revisions", "skill-runs", "topic-vocabularies", "topics", "clients"):
+        for name in WORKSPACE_DIRECTORIES:
             (self.root / name).mkdir(parents=True, exist_ok=True, mode=0o700)
         for skill in default_skills():
             path = self.root / "skills" / f"{skill['id']}.json"
@@ -2704,6 +2747,8 @@ class LogueHTTPServer(ThreadingHTTPServer):
         self.gemini = Gemini(store.root)
         self.web_dist = web_dist
         self.cancelled: set[str] = set()
+        self.workspace_lock = threading.RLock()
+        self.workspace_generation = 1
         super().__init__(address, Handler)
 
     def schedule_organization(self, item: dict[str, Any]) -> None:
@@ -2714,34 +2759,47 @@ class LogueHTTPServer(ThreadingHTTPServer):
             or str(item.get("actor", "user")).strip().lower() != "user"
         ):
             return
-        threading.Thread(target=self.organize, args=(item["id"],), daemon=True).start()
+        generation = self.workspace_generation
+        threading.Thread(target=self.organize, args=(item["id"], generation), daemon=True).start()
 
-    def organize(self, identifier: str) -> None:
+    def organize(self, identifier: str, generation: int) -> None:
         try:
-            item = self.store.get("items", identifier)
-            settings = self.store.settings()
-            skill = self.store.get("skills", str(settings.get("default_organization_skill", "sk_organize")))
-            known_tags = normalize([tag for value in self.store.items() for tag in value.get("tags", [])])
-            feedback_by_root: dict[str, dict[str, Any]] = {}
-            for candidate in self.store.items():
-                correction = (candidate.get("organization") or {}).get("user_correction")
-                if not isinstance(correction, dict) or candidate.get("id") == identifier:
-                    continue
-                root_id = str(correction.get("bundle_root_id", "")).strip() or self.store.comment_bundle_root_id(candidate)
-                existing = feedback_by_root.get(root_id)
-                if existing is None or str(correction.get("created_at", "")) > str(existing.get("created_at", "")):
-                    feedback_by_root[root_id] = correction
-            feedback = sorted(
-                feedback_by_root.values(),
-                key=lambda value: str(value.get("created_at", "")),
-                reverse=True,
-            )[:20]
-            decision = self.gemini.classify(item, self.store.projects(), known_tags, str(skill.get("instructions", "")), feedback)
-            self.store.complete_organization(identifier, str(item.get("content", "")), decision)
+            with self.workspace_lock:
+                if generation != self.workspace_generation:
+                    return
+                item = self.store.get("items", identifier)
+                settings = self.store.settings()
+                skill = self.store.get("skills", str(settings.get("default_organization_skill", "sk_organize")))
+                gemini = self.gemini
+                projects = self.store.projects()
+                items = self.store.items()
+                known_tags = normalize([tag for value in items for tag in value.get("tags", [])])
+                feedback_by_root: dict[str, dict[str, Any]] = {}
+                for candidate in items:
+                    correction = (candidate.get("organization") or {}).get("user_correction")
+                    if not isinstance(correction, dict) or candidate.get("id") == identifier:
+                        continue
+                    root_id = str(correction.get("bundle_root_id", "")).strip() or self.store.comment_bundle_root_id(candidate)
+                    existing = feedback_by_root.get(root_id)
+                    if existing is None or str(correction.get("created_at", "")) > str(existing.get("created_at", "")):
+                        feedback_by_root[root_id] = correction
+                feedback = sorted(
+                    feedback_by_root.values(),
+                    key=lambda value: str(value.get("created_at", "")),
+                    reverse=True,
+                )[:20]
+            decision = gemini.classify(item, projects, known_tags, str(skill.get("instructions", "")), feedback)
+            with self.workspace_lock:
+                if generation != self.workspace_generation:
+                    return
+                self.store.complete_organization(identifier, str(item.get("content", "")), decision)
         except Exception as error:
             try:
-                item = self.store.get("items", identifier)
-                self.store.complete_organization(identifier, str(item.get("content", "")), None)
+                with self.workspace_lock:
+                    if generation != self.workspace_generation:
+                        return
+                    item = self.store.get("items", identifier)
+                    self.store.complete_organization(identifier, str(item.get("content", "")), None)
             except Exception:
                 pass
             sys.stderr.write(f"automatic organization failed for {identifier}: {error}\n")
@@ -2794,7 +2852,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         try:
-            self.handle_get()
+            with self.server.workspace_lock:
+                self.handle_get()
         except PermissionError as error:
             self.error(HTTPStatus.UNAUTHORIZED, str(error))
         except FileNotFoundError:
@@ -2908,6 +2967,11 @@ class Handler(BaseHTTPRequestHandler):
             self.json(HTTPStatus.OK, self.context(query))
         elif path == "/v1/glossary-suggestions":
             self.json(HTTPStatus.OK, {"suggestions": self.glossary_suggestions()})
+        elif path == "/v1/backups":
+            self.json(HTTPStatus.OK, {"backups": self.list_backups()})
+        elif path.startswith("/v1/backups/") and path.endswith("/download"):
+            snapshot_id = urllib.parse.unquote(path.removeprefix("/v1/backups/").removesuffix("/download")).strip("/")
+            self.serve_backup_archive(snapshot_id)
         elif path.startswith("/v1/captures/"):
             self.serve_capture(path.removeprefix("/v1/captures/"))
         elif path.startswith("/v1/project-bundles/"):
@@ -2951,7 +3015,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def mutate(self, method: str) -> None:
         try:
-            self.handle_mutation(method)
+            with self.server.workspace_lock:
+                self.handle_mutation(method)
         except PermissionError as error:
             self.error(HTTPStatus.UNAUTHORIZED, str(error))
         except Conflict as error:
@@ -3255,24 +3320,30 @@ class Handler(BaseHTTPRequestHandler):
             item = store.create_item({"request_id": value.get("request_id"), "kind": "derived", "content": value.get("content"), "projects": [value["project"]] if value.get("project") else [], "parent_ids": value.get("source_ids"), "source": value.get("source"), "actor": value.get("actor")})
             self.json(HTTPStatus.CREATED, item)
             self.server.schedule_organization(item)
+        elif path == "/v1/backups/import" and method == "POST":
+            self.json(HTTPStatus.CREATED, self.import_backup_archive())
         elif path == "/v1/restore" and method == "POST":
-            self.restore_workspace(self.body_json(250 << 20))
+            self.restore_workspace(self.body_json())
         elif path == "/v1/backup" and method == "POST":
             backup = self.backup_workspace()
-            self.json(HTTPStatus.CREATED, {"status": "backed_up", "backup_path": str(backup)})
+            self.json(HTTPStatus.CREATED, {"status": "backed_up", "backup": self.snapshot_metadata(backup)})
         elif path == "/v1/workspace" and method == "DELETE":
             if str(self.body_json().get("confirm", "")) != "DELETE":
                 raise ValueError("type DELETE to confirm")
             backup = self.backup_workspace()
             with store.lock:
-                for directory in ("items", "item-revisions", "audio", "docs", "doc-revisions", "transcript-revisions", "projects", "skills", "skill-revisions", "skill-runs", "topic-vocabularies", "topics", "clients"):
+                for directory in WORKSPACE_DIRECTORIES:
                     shutil.rmtree(store.root / directory)
                     (store.root / directory).mkdir(mode=0o700)
                 (store.root / "settings.json").unlink(missing_ok=True)
+                (store.root / "ai-provider.json").unlink(missing_ok=True)
+                (store.root / "pairing-code.json").unlink(missing_ok=True)
                 for skill in default_skills():
                     atomic_json(store.root / "skills" / f"{skill['id']}.json", skill)
+                self.server.workspace_generation += 1
                 self.server.cancelled.clear()
-            self.json(HTTPStatus.OK, {"status": "deleted", "backup_path": str(backup)})
+                self.server.gemini = Gemini(store.root)
+            self.json(HTTPStatus.OK, {"status": "deleted", "backup": self.snapshot_metadata(backup)})
         elif path.startswith("/v1/project-overview-drafts/") and method == "POST":
             name = urllib.parse.unquote(path.removeprefix("/v1/project-overview-drafts/"))
             project = store.get_project(name)
@@ -4159,13 +4230,13 @@ class Handler(BaseHTTPRequestHandler):
         store = self.server.store
         scope = str(preview.get("scope", ""))
         target_ids = normalize(preview.get("target_ids"))
-        backup_path = ""
+        backup_metadata: dict[str, Any] | None = None
         with store.lock:
             if scope == "workspace":
                 backup = self.backup_workspace()
-                backup_path = str(backup)
+                backup_metadata = self.snapshot_metadata(backup)
                 try:
-                    for directory in ("items", "item-revisions", "audio", "docs", "doc-revisions", "transcript-revisions", "projects", "skills", "skill-revisions", "skill-runs", "topic-vocabularies", "topics", "clients"):
+                    for directory in WORKSPACE_DIRECTORIES:
                         shutil.rmtree(store.root / directory)
                         (store.root / directory).mkdir(mode=0o700)
                     (store.root / "settings.json").unlink(missing_ok=True)
@@ -4173,11 +4244,13 @@ class Handler(BaseHTTPRequestHandler):
                     (store.root / "pairing-code.json").unlink(missing_ok=True)
                     for skill in default_skills():
                         atomic_json(store.root / "skills" / f"{skill['id']}.json", skill)
+                    self.server.workspace_generation += 1
                     self.server.cancelled.clear()
                     self.server.gemini = Gemini(store.root)
                 except BaseException:
                     shutil.rmtree(store.root)
                     shutil.copytree(backup, store.root)
+                    (store.root / BACKUP_MARKER).unlink(missing_ok=True)
                     self.server.gemini = Gemini(store.root)
                     raise
             else:
@@ -4232,111 +4305,288 @@ class Handler(BaseHTTPRequestHandler):
             "scope": scope,
             "target_ids": target_ids,
             "tombstoned": bool(preview.get("requires_lineage")),
-            "backup_path": backup_path,
+            "backup": backup_metadata,
         }
+
+    def snapshot_path(self, snapshot_id: str) -> Path:
+        if not re.fullmatch(r"backup_[0-9a-f]{20}", snapshot_id):
+            raise ValueError("invalid backup id")
+        store = self.server.store
+        candidate = store.root.parent / f"{store.root.name}.backup-{snapshot_id}"
+        if candidate.is_symlink() or candidate.parent != store.root.parent or not candidate.is_dir():
+            raise FileNotFoundError(snapshot_id)
+        self.validate_snapshot_tree(candidate, expected_id=snapshot_id)
+        return candidate
+
+    def validate_snapshot_json(self, directory: str, path: Path, value: dict[str, Any]) -> None:
+        stem = path.name.removesuffix(".json")
+        identity_fields = {
+            "items": "id",
+            "docs": "id",
+            "projects": "id",
+            "skills": "id",
+            "skill-runs": "id",
+            "topic-vocabularies": "id",
+            "topics": "id",
+            "clients": "id",
+        }
+        if directory in identity_fields:
+            if str(value.get(identity_fields[directory], "")) != stem:
+                raise ValueError(f"{directory} filename does not match object id")
+            return
+        revision_fields = {
+            "item-revisions": "material_id",
+            "doc-revisions": "document_id",
+            "skill-revisions": "skill_id",
+            "transcript-revisions": "material_id",
+        }
+        if directory in revision_fields:
+            match = re.fullmatch(r"(.+)-r([1-9][0-9]*)", stem)
+            if not match or str(value.get(revision_fields[directory], "")) != match.group(1) or int(value.get("revision", 0) or 0) != int(match.group(2)):
+                raise ValueError(f"{directory} filename does not match revision identity")
+
+    def validate_snapshot_tree(self, snapshot: Path, *, expected_id: str | None = None) -> dict[str, Any]:
+        if snapshot.is_symlink() or not snapshot.is_dir():
+            raise ValueError("backup must be a real directory")
+        marker_path = snapshot / BACKUP_MARKER
+        if marker_path.is_symlink() or not marker_path.is_file():
+            raise ValueError("backup marker is missing")
+        marker = read_json(marker_path)
+        snapshot_id = str(marker.get("snapshot_id", ""))
+        if marker.get("schema_version") != BACKUP_SCHEMA or not re.fullmatch(r"backup_[0-9a-f]{20}", snapshot_id):
+            raise ValueError("unsupported backup schema")
+        if expected_id and snapshot_id != expected_id:
+            raise ValueError("backup identity does not match its Host record")
+        if not str(marker.get("created_at", "")).strip() or not str(marker.get("source_host", "")).strip():
+            raise ValueError("backup metadata is incomplete")
+
+        allowed_directories = {*WORKSPACE_DIRECTORIES, *OPTIONAL_WORKSPACE_DIRECTORIES}
+        for entry in snapshot.iterdir():
+            if entry.is_symlink():
+                raise ValueError("backup cannot contain links")
+            if entry.is_dir():
+                if entry.name not in allowed_directories:
+                    raise ValueError(f"unsupported backup directory: {entry.name}")
+            elif entry.name not in WORKSPACE_ROOT_FILES or not stat.S_ISREG(entry.stat(follow_symlinks=False).st_mode):
+                raise ValueError(f"unsupported backup file: {entry.name}")
+        if not (snapshot / "settings.json").is_file():
+            raise ValueError("backup settings are missing")
+        for name in WORKSPACE_DIRECTORIES:
+            directory_path = snapshot / name
+            if directory_path.is_symlink() or not directory_path.is_dir():
+                raise ValueError(f"backup directory is missing: {name}")
+
+        for directory in allowed_directories:
+            directory_path = snapshot / directory
+            if not directory_path.exists():
+                continue
+            for path in directory_path.rglob("*"):
+                if path.is_symlink():
+                    raise ValueError("backup cannot contain links")
+                if path.is_dir():
+                    if directory != "backups":
+                        raise ValueError(f"nested directory is not allowed in {directory}")
+                    continue
+                if not stat.S_ISREG(path.stat(follow_symlinks=False).st_mode):
+                    raise ValueError("backup can contain only regular files")
+                if directory == "audio":
+                    name = path.name
+                    if name.endswith(".context.json"):
+                        capture_id = name.removesuffix(".context.json")
+                        read_json(path)
+                    else:
+                        capture_id = path.stem
+                        if path.suffix.lower() not in CAPTURE_MIME_TYPES:
+                            raise ValueError("unsupported audio file in backup")
+                    if not ID_RE.fullmatch(capture_id) or not capture_id.startswith("cap_"):
+                        raise ValueError("invalid audio identity in backup")
+                elif path.suffix == ".json":
+                    value = read_json(path)
+                    if directory != "backups":
+                        self.validate_snapshot_json(directory, path, value)
+                elif directory != "backups":
+                    raise ValueError(f"unsupported file in {directory}")
+        for name in ("settings.json", "ai-provider.json", "pairing-code.json"):
+            path = snapshot / name
+            if path.exists():
+                if path.is_symlink() or not stat.S_ISREG(path.stat(follow_symlinks=False).st_mode):
+                    raise ValueError(f"invalid backup file: {name}")
+                read_json(path)
+        return marker
+
+    def snapshot_metadata(self, snapshot: Path) -> dict[str, Any]:
+        prefix = f"{self.server.store.root.name}.backup-"
+        expected_id = snapshot.name.removeprefix(prefix) if snapshot.name.startswith(prefix) else None
+        marker = self.validate_snapshot_tree(snapshot, expected_id=expected_id)
+        size = sum(path.stat().st_size for path in snapshot.rglob("*") if path.is_file() and not path.is_symlink())
+        return {
+            "id": marker["snapshot_id"],
+            "created_at": marker["created_at"],
+            "source_host": marker["source_host"],
+            "logue_version": str(marker.get("logue_version", "")),
+            "imported_at": str(marker.get("imported_at", "")),
+            "size_bytes": size,
+        }
+
+    def list_backups(self) -> list[dict[str, Any]]:
+        store = self.server.store
+        prefix = f"{store.root.name}.backup-backup_"
+        snapshots: list[dict[str, Any]] = []
+        for candidate in store.root.parent.iterdir():
+            if not candidate.name.startswith(prefix) or candidate.is_symlink() or not candidate.is_dir():
+                continue
+            try:
+                snapshots.append(self.snapshot_metadata(candidate))
+            except (OSError, ValueError, json.JSONDecodeError):
+                continue
+        snapshots.sort(key=lambda value: str(value.get("created_at", "")), reverse=True)
+        return snapshots
 
     def backup_workspace(self) -> Path:
         store = self.server.store
-        stamp = int(time.time())
-        backup = store.root.parent / f"{store.root.name}.backup-{stamp}"
-        while backup.exists():
-            stamp += 1
-            backup = store.root.parent / f"{store.root.name}.backup-{stamp}"
-        with store.lock:
+        snapshot_id = f"backup_{secrets.token_hex(10)}"
+        backup = store.root.parent / f"{store.root.name}.backup-{snapshot_id}"
+        with self.server.workspace_lock, store.lock:
             shutil.copytree(store.root, backup)
+            atomic_json(backup / BACKUP_MARKER, {
+                "schema_version": BACKUP_SCHEMA,
+                "snapshot_id": snapshot_id,
+                "created_at": now(),
+                "source_host": socket.gethostname() or "Logue Host",
+                "logue_version": VERSION,
+            })
+            try:
+                self.validate_snapshot_tree(backup, expected_id=snapshot_id)
+            except BaseException:
+                shutil.rmtree(backup, ignore_errors=True)
+                raise
         return backup
 
-    def restore_workspace(self, value: dict[str, Any]) -> None:
-        if value.get("schema_version") != 2:
-            raise ValueError("unsupported workspace schema")
-        store = self.server.store
-        backup = self.backup_workspace()
-        staging = Path(tempfile.mkdtemp(prefix="logue-restore-", dir=store.root.parent))
+    def serve_backup_archive(self, snapshot_id: str) -> None:
+        snapshot = self.snapshot_path(snapshot_id)
+        metadata = self.snapshot_metadata(snapshot)
+        descriptor, archive_name = tempfile.mkstemp(prefix="logue-backup-", suffix=".logue-backup", dir=snapshot.parent)
+        os.close(descriptor)
+        archive_path = Path(archive_name)
         try:
-            for name in ("items", "item-revisions", "audio", "docs", "doc-revisions", "transcript-revisions", "projects", "skills", "skill-revisions", "skill-runs", "topic-vocabularies", "topics", "clients"):
-                (staging / name).mkdir(mode=0o700)
-            for client_path in (store.root / "clients").glob("*.json"):
-                shutil.copy2(client_path, staging / "clients" / client_path.name)
-            mappings = (("materials", "items"), ("documents", "docs"), ("projects", "projects"), ("skills", "skills"), ("skill_runs", "skill-runs"), ("topic_vocabularies", "topic-vocabularies"), ("topics", "topics"))
-            for key, directory in mappings:
-                for entry in value.get(key, []):
-                    if not isinstance(entry, dict) or not ID_RE.match(str(entry.get("id", ""))):
-                        raise ValueError(f"invalid {key} entry")
-                    atomic_json(staging / directory / f"{entry['id']}.json", entry)
-            for entry in value.get("document_revisions", []):
-                document_id = str(entry.get("document_id", "")) if isinstance(entry, dict) else ""
-                revision = int(entry.get("revision", 0)) if isinstance(entry, dict) else 0
-                if not ID_RE.match(document_id) or revision < 1:
-                    raise ValueError("invalid document revision entry")
-                atomic_json(staging / "doc-revisions" / f"{document_id}-r{revision}.json", entry)
-            seen_skill_revisions: set[tuple[str, int]] = set()
-            for entry in value.get("skill_revisions", []):
-                skill_id = str(entry.get("skill_id", "")) if isinstance(entry, dict) else ""
-                revision = int(entry.get("revision", 0)) if isinstance(entry, dict) else 0
-                key = (skill_id, revision)
-                skill_path = staging / "skills" / f"{skill_id}.json"
-                if not ID_RE.match(skill_id) or not skill_id.startswith("sk_") or revision < 1 or key in seen_skill_revisions or not skill_path.exists():
-                    raise ValueError("invalid Skill revision entry")
-                if read_json(skill_path).get("system"):
-                    raise ValueError("Built-in Skills cannot have editable revision history")
-                seen_skill_revisions.add(key)
-                atomic_json(staging / "skill-revisions" / f"{skill_id}-r{revision}.json", entry)
-            seen_item_revisions: set[tuple[str, int]] = set()
-            for entry in value.get("item_revisions", []):
-                material_id = str(entry.get("material_id", "")) if isinstance(entry, dict) else ""
-                revision = int(entry.get("revision", 0)) if isinstance(entry, dict) else 0
-                if not ID_RE.match(material_id) or not material_id.startswith("mat_") or revision < 1:
-                    raise ValueError("invalid Source revision entry")
-                key = (material_id, revision)
-                if key in seen_item_revisions:
-                    raise ValueError("duplicate Source revision entry")
-                material_path = staging / "items" / f"{material_id}.json"
-                if not material_path.exists():
-                    raise ValueError("Source revision material does not exist")
-                material = read_json(material_path)
-                if material.get("kind") != "derived" or str(material.get("actor", "user")).strip().lower() == "user":
-                    raise ValueError("only AI Sources can have Source revisions")
-                seen_item_revisions.add(key)
-                atomic_json(staging / "item-revisions" / f"{material_id}-r{revision}.json", entry)
-            seen_transcript_revisions: set[tuple[str, int]] = set()
-            for entry in value.get("transcript_revisions", []):
-                material_id = str(entry.get("material_id", "")) if isinstance(entry, dict) else ""
-                revision = int(entry.get("revision", 0)) if isinstance(entry, dict) else 0
-                if not ID_RE.match(material_id) or not material_id.startswith("mat_") or revision < 1:
-                    raise ValueError("invalid transcript revision entry")
-                key = (material_id, revision)
-                if key in seen_transcript_revisions:
-                    raise ValueError("duplicate transcript revision entry")
-                material_path = staging / "items" / f"{material_id}.json"
-                if not material_path.exists():
-                    raise ValueError("transcript revision material does not exist")
-                material = read_json(material_path)
-                if str(entry.get("capture_id", "")) != str(material.get("capture_id", "")) or not isinstance(entry.get("applied_context"), dict):
-                    raise ValueError("transcript revision lineage does not match its material")
-                seen_transcript_revisions.add(key)
-                atomic_json(staging / "transcript-revisions" / f"{material_id}-r{revision}.json", entry)
-            atomic_json(staging / "settings.json", value.get("settings", {}))
-            for entry in value.get("audio", []):
-                name = Path(str(entry.get("name", ""))).name
-                if not name or name != str(entry.get("name")):
-                    raise ValueError("invalid audio entry")
-                (staging / "audio" / name).write_bytes(base64.b64decode(entry.get("data_base64", ""), validate=True))
-            for material_path in (staging / "items").glob("*.json"):
-                material = read_json(material_path)
-                capture_id = str(material.get("capture_id", "")).strip()
-                if not capture_id:
-                    continue
-                audio_matches = [path for path in (staging / "audio").glob(f"{capture_id}.*") if path.suffix != ".json"]
-                revision = int(material.get("transcript_revision", 0))
-                if not audio_matches or not (staging / "audio" / f"{capture_id}.context.json").exists() or revision < 1 or not (staging / "transcript-revisions" / f"{material['id']}-r{revision}.json").exists():
-                    raise ValueError("voice material has incomplete audio or transcript history")
-            old = store.root.parent / f"{store.root.name}.restore-old"
-            old.unlink(missing_ok=True) if old.is_file() else shutil.rmtree(old, ignore_errors=True)
-            os.replace(store.root, old); os.replace(staging, store.root); shutil.rmtree(old)
+            with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as archive:
+                for path in sorted(snapshot.rglob("*")):
+                    if path.is_file() and not path.is_symlink():
+                        archive.write(path, path.relative_to(snapshot).as_posix())
+            size = archive_path.stat().st_size
+            filename = f"logue-backup-{str(metadata['created_at'])[:10]}-{snapshot_id[-6:]}.logue-backup"
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/vnd.logue.backup+zip")
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+            self.send_header("Content-Length", str(size))
+            self.end_headers()
+            with archive_path.open("rb") as source:
+                shutil.copyfileobj(source, self.wfile, length=1 << 20)
+        finally:
+            archive_path.unlink(missing_ok=True)
+
+    def import_backup_archive(self) -> dict[str, Any]:
+        store = self.server.store
+        length = int(self.headers.get("Content-Length", "0"))
+        if length <= 0:
+            raise ValueError("choose a Logue backup file")
+        free = shutil.disk_usage(store.root.parent).free
+        if length > free // 2:
+            raise ValueError("not enough free space to import this backup")
+        descriptor, archive_name = tempfile.mkstemp(prefix="logue-import-", suffix=".logue-backup", dir=store.root.parent)
+        os.close(descriptor)
+        archive_path = Path(archive_name)
+        staging = Path(tempfile.mkdtemp(prefix="logue-import-tree-", dir=store.root.parent))
+        try:
+            remaining = length
+            with archive_path.open("wb") as target:
+                while remaining:
+                    chunk = self.rfile.read(min(1 << 20, remaining))
+                    if not chunk:
+                        raise ValueError("backup upload ended early")
+                    target.write(chunk)
+                    remaining -= len(chunk)
+            try:
+                archive = zipfile.ZipFile(archive_path)
+            except zipfile.BadZipFile as error:
+                raise ValueError("this is not a valid Logue backup") from error
+            with archive:
+                members = archive.infolist()
+                total_size = sum(member.file_size for member in members if not member.is_dir())
+                if total_size > max(0, shutil.disk_usage(store.root.parent).free - (64 << 20)):
+                    raise ValueError("not enough free space to unpack this backup")
+                seen: set[str] = set()
+                for member in members:
+                    relative = PurePosixPath(member.filename)
+                    if relative.is_absolute() or not relative.parts or ".." in relative.parts or any(part in {"", "."} for part in relative.parts):
+                        raise ValueError("backup contains an unsafe path")
+                    normalized = relative.as_posix().rstrip("/")
+                    if normalized in seen:
+                        raise ValueError("backup contains duplicate files")
+                    seen.add(normalized)
+                    mode = member.external_attr >> 16
+                    file_type = stat.S_IFMT(mode)
+                    if file_type not in {0, stat.S_IFREG, stat.S_IFDIR}:
+                        raise ValueError("backup contains a link or special file")
+                    target = staging.joinpath(*relative.parts)
+                    if member.is_dir():
+                        target.mkdir(parents=True, exist_ok=True, mode=0o700)
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                    with archive.open(member) as source, target.open("xb") as destination:
+                        shutil.copyfileobj(source, destination, length=1 << 20)
+                    target.chmod(0o600)
+            marker = self.validate_snapshot_tree(staging)
+            original_id = str(marker["snapshot_id"])
+            snapshot_id = f"backup_{secrets.token_hex(10)}"
+            marker.update({"snapshot_id": snapshot_id, "source_snapshot_id": original_id, "imported_at": now()})
+            atomic_json(staging / BACKUP_MARKER, marker)
+            self.validate_snapshot_tree(staging, expected_id=snapshot_id)
+            target = store.root.parent / f"{store.root.name}.backup-{snapshot_id}"
+            os.replace(staging, target)
+            return {"status": "imported", "backup": self.snapshot_metadata(target)}
+        finally:
+            archive_path.unlink(missing_ok=True)
+            shutil.rmtree(staging, ignore_errors=True)
+
+    def restore_workspace(self, value: dict[str, Any]) -> None:
+        snapshot_id = str(value.get("snapshot_id", "")).strip()
+        if str(value.get("confirm", "")) != "RESTORE":
+            raise ValueError("confirm this Restore")
+        store = self.server.store
+        snapshot = self.snapshot_path(snapshot_id)
+        staging = Path(tempfile.mkdtemp(prefix="logue-restore-", dir=store.root.parent))
+        shutil.rmtree(staging)
+        previous = store.root.parent / f"{store.root.name}.restore-old"
+        backup: Path | None = None
+        try:
+            shutil.copytree(snapshot, staging)
+            self.validate_snapshot_tree(staging, expected_id=snapshot_id)
+            (staging / BACKUP_MARKER).unlink()
+            recover_interrupted_restore(store.root)
+            with store.lock:
+                backup = self.backup_workspace()
+                os.replace(store.root, previous)
+                try:
+                    os.replace(staging, store.root)
+                    restored_gemini = Gemini(store.root)
+                except BaseException:
+                    shutil.rmtree(store.root, ignore_errors=True)
+                    os.replace(previous, store.root)
+                    self.server.gemini = Gemini(store.root)
+                    raise
+                self.server.workspace_generation += 1
+                self.server.cancelled.clear()
+                self.server.gemini = restored_gemini
+                shutil.rmtree(previous, ignore_errors=True)
         except BaseException:
             shutil.rmtree(staging, ignore_errors=True)
             raise
-        self.json(HTTPStatus.OK, {"status": "restored", "backup_path": str(backup)})
+        self.json(HTTPStatus.OK, {
+            "status": "restored",
+            "restored_backup_id": snapshot_id,
+            "previous_backup": self.snapshot_metadata(backup) if backup else None,
+        })
 
     def serve_capture(self, identifier: str) -> None:
         path = self.server.store.capture_path(identifier)
@@ -4424,9 +4674,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.version:
         print(VERSION)
         return 0
-    data_dir = Path(os.environ.get("LOGUE_DATA_DIR", "../.logue-data"))
+    data_dir = Path(os.environ.get("LOGUE_DATA_DIR", "../.logue-data")).resolve()
     web_value = os.environ.get("LOGUE_WEB_DIST", "../apps/web/dist")
     web_dist = Path(web_value).resolve() if web_value else None
+    recover_interrupted_restore(data_dir)
     server = LogueHTTPServer(args.address, Store(data_dir), web_dist)
     host, port = server.server_address[:2]
     print(f"Logue listening on http://{host}:{port} ({server.gemini.provider} configured: {server.gemini.configured}, model: {server.gemini.model})", file=sys.stderr, flush=True)

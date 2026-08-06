@@ -15,14 +15,17 @@ import {
   createPairingCode,
   createVoiceProfile,
   deleteTopicVocabulary,
+  downloadWorkspaceBackup,
   downloadWorkspaceExport,
   executeDeletion,
   getAIConnection,
+  getWorkspaceBackups,
   getExportPreview,
   getGlossarySuggestions,
   getClients,
   getDeletionPreview,
   getTopicVocabularies,
+  importWorkspaceBackup,
   restoreWorkspace,
   revokeClient,
   saveAIConnection,
@@ -33,6 +36,7 @@ import {
   updateClient,
   type AIConnection,
   type AIConnectionInput,
+  type BackupSnapshot,
   type DeletionPreview,
   type ExportPreview,
   type ExportScope,
@@ -46,15 +50,16 @@ import {
   type VoiceProfileVocabulary,
   type WorkspaceSettings,
 } from "../api";
-import type { ExtensionShortcut } from "@logue/ui";
+import { useFocusBoundary, type ExtensionShortcut } from "@logue/ui";
 import type { LogueSkill } from "../skillApi";
-import { Button } from "../components/ui";
+import { Button, IconButton } from "../components/ui";
 import {
   getExtensionShortcuts,
   resetExtensionShortcut,
   updateExtensionShortcut,
 } from "../extensionTargetBridge";
 import { ProjectShell, type V2PrimaryRoute } from "../v2-mock/web/ProjectShell";
+import { OriginLabel } from "../v2-mock/primitives/OriginLabel";
 import { RunInspector } from "./V2LibraryRoute";
 
 type SettingsTab = "Host" | "Models" | "Voice" | "Privacy" | "Backup";
@@ -144,6 +149,16 @@ function formatExportSize(bytes: number) {
   if (bytes < 1_024) return `${bytes} B`;
   if (bytes < 1_048_576) return `${Math.ceil(bytes / 1_024)} KB`;
   return `${(bytes / 1_048_576).toFixed(1)} MB`;
+}
+
+function formatBackupTime(value: string) {
+  return new Date(value).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function exportSummary(preview: ExportPreview) {
@@ -320,12 +335,20 @@ export function SettingsRoute({
   const [exportActivity, setExportActivity] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [exportPreview, setExportPreview] = useState<ExportPreview>();
+  const [backups, setBackups] = useState<BackupSnapshot[]>([]);
+  const [backupBusy, setBackupBusy] = useState("");
+  const [restoreTarget, setRestoreTarget] = useState<BackupSnapshot>();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deletePreview, setDeletePreview] = useState<DeletionPreview>();
   const [openRunId, setOpenRunId] = useState<string>();
   const [clients, setClients] = useState<LogueClient[]>([]);
   const [pairing, setPairing] = useState<PairingCode>();
+  const restoreDialogRef = useFocusBoundary<HTMLElement>({
+    open: Boolean(restoreTarget),
+    onClose: () => setRestoreTarget(undefined),
+    trap: true,
+  });
   useEffect(() => {
     if (settings) setDraft(settings);
   }, [settings]);
@@ -335,12 +358,14 @@ export function SettingsRoute({
       getTopicVocabularies(),
       getGlossarySuggestions(),
       getClients(),
+      getWorkspaceBackups(),
     ])
-      .then(([ai, nextTopics, nextSuggestions, nextClients]) => {
+      .then(([ai, nextTopics, nextSuggestions, nextClients, nextBackups]) => {
         setConnection(ai);
         setTopics(nextTopics);
         setSuggestions(nextSuggestions.filter((item) => item.count >= 2));
         setClients(nextClients);
+        setBackups(nextBackups);
       })
       .catch((cause) =>
         setError(
@@ -398,6 +423,60 @@ export function SettingsRoute({
     }
   }
 
+  async function createBackup() {
+    setBackupBusy("create");
+    setError("");
+    try {
+      const result = await backupWorkspace();
+      setBackups(await getWorkspaceBackups());
+      setNotice(`Backup created · ${formatBackupTime(result.backup.created_at)}`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not create this backup.");
+    } finally {
+      setBackupBusy("");
+    }
+  }
+
+  async function importBackup(file: File) {
+    setBackupBusy("import");
+    setError("");
+    try {
+      const result = await importWorkspaceBackup(file);
+      setBackups(await getWorkspaceBackups());
+      setNotice(`Backup from ${result.backup.source_host} is ready to restore.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not import this backup.");
+    } finally {
+      setBackupBusy("");
+    }
+  }
+
+  async function downloadBackup(snapshot: BackupSnapshot) {
+    setBackupBusy(`download:${snapshot.id}`);
+    setError("");
+    try {
+      await downloadWorkspaceBackup(snapshot);
+      setNotice("Sensitive backup downloaded.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not download this backup.");
+    } finally {
+      setBackupBusy("");
+    }
+  }
+
+  async function restoreBackup() {
+    if (!restoreTarget) return;
+    setBackupBusy("restore");
+    setError("");
+    try {
+      await restoreWorkspace(restoreTarget.id);
+      window.location.reload();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not restore this backup.");
+      setBackupBusy("");
+    }
+  }
+
   async function reviewWorkspaceDeletion() {
     setDeleteOpen(true);
     setDeleteConfirm("");
@@ -423,7 +502,9 @@ export function SettingsRoute({
         return;
       }
       window.alert(
-        `Local data deleted. Backup: ${outcome.result?.backup_path ?? "created beside your data folder"}`,
+        outcome.result?.backup
+          ? `Local data deleted. A backup from ${formatBackupTime(outcome.result.backup.created_at)} is available in Settings.`
+          : "Local data deleted.",
       );
       window.location.reload();
     } catch (cause) {
@@ -1596,60 +1677,82 @@ export function SettingsRoute({
             ) : null}
             {tab === "Backup" ? (
               <section className="v2-settings-section">
-                <h2>Local data management</h2>
+                <h2>Backups</h2>
+                <p className="v2-settings-lead">
+                  Complete, restorable Host snapshots. Backup files can contain
+                  recordings, saved provider credentials, and paired Extension
+                  access.
+                </p>
                 <div className="v2-inline-actions">
                   <Button
-                    onClick={() =>
-                      void backupWorkspace()
-                        .then((result) =>
-                          setNotice(`Backup created at ${result.backup_path}`),
-                        )
-                        .catch((cause) =>
-                          setError(
-                            cause instanceof Error
-                              ? cause.message
-                              : "Backup failed.",
-                          ),
-                        )
-                    }
+                    disabled={Boolean(backupBusy)}
+                    onClick={() => void createBackup()}
                   >
                     <Archive size={14} />
-                    Back up now
-                  </Button>
-                  <Button onClick={() => setExportOpen((open) => !open)}>
-                    <Download size={14} />
-                    Export
+                    {backupBusy === "create" ? "Backing up…" : "Back up now"}
                   </Button>
                   <label className="v2-file-button">
                     <Upload size={14} />
-                    Restore
+                    {backupBusy === "import" ? "Importing…" : "Import backup"}
                     <input
                       type="file"
-                      accept="application/json,.json"
+                      accept=".logue-backup,application/vnd.logue.backup+zip"
+                      disabled={Boolean(backupBusy)}
                       onChange={(event) => {
                         const file = event.target.files?.[0];
-                        if (!file) return;
-                        void file
-                          .text()
-                          .then(JSON.parse)
-                          .then(restoreWorkspace)
-                          .then((result) => {
-                            window.alert(
-                              `Restore complete. Previous data: ${result.backup_path}`,
-                            );
-                            window.location.reload();
-                          })
-                          .catch((cause) =>
-                            setError(
-                              cause instanceof Error
-                                ? cause.message
-                                : "Restore failed.",
-                            ),
-                          );
+                        if (file) void importBackup(file);
+                        event.currentTarget.value = "";
                       }}
                     />
                   </label>
                 </div>
+                {backups.length ? (
+                  <div>
+                    {backups.map((snapshot) => (
+                      <SettingRow
+                        key={snapshot.id}
+                        title={formatBackupTime(snapshot.created_at)}
+                        detail={`${snapshot.source_host} · ${formatExportSize(snapshot.size_bytes)}${snapshot.imported_at ? " · Imported" : ""}`}
+                      >
+                        <Button
+                          disabled={Boolean(backupBusy)}
+                          onClick={() => void downloadBackup(snapshot)}
+                        >
+                          <Download size={14} />
+                          {backupBusy === `download:${snapshot.id}`
+                            ? "Downloading…"
+                            : "Download"}
+                        </Button>
+                        <Button
+                          variant="primary"
+                          disabled={Boolean(backupBusy)}
+                          onClick={() => {
+                            setError("");
+                            setRestoreTarget(snapshot);
+                          }}
+                        >
+                          Restore
+                        </Button>
+                      </SettingRow>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="v2-recovery-card">
+                    No backups yet. Create one before a major change, or import a
+                    Logue backup from another Host.
+                  </div>
+                )}
+
+                <h2>Export</h2>
+                <SettingRow
+                  title="Create a scoped copy"
+                  detail="Choose saved data for another tool or archive. Exports cannot restore Logue and may still contain private content or original audio."
+                >
+                  <Button onClick={() => setExportOpen((open) => !open)}>
+                    <Download size={14} />
+                    {exportOpen ? "Close export" : "Export"}
+                  </Button>
+                </SettingRow>
                 {exportOpen ? (
                   <div className="v2-recovery-card">
                     <div className="v2-form-grid">
@@ -1717,7 +1820,9 @@ export function SettingsRoute({
                       </p>
                     ) : null}
                     <p className="v2-library-meta">
-                      Export files cannot be restored. Provider keys and paired Extensions stay on this Host.
+                      Export files cannot restore Logue. Provider keys and paired
+                      Extensions stay on this Host, but selected private content and
+                      included recordings remain in the file.
                     </p>
                     <div className="v2-inline-actions">
                       <Button
@@ -1736,6 +1841,77 @@ export function SettingsRoute({
           </main>
         </div>
       </div>
+      {restoreTarget ? (
+        <div
+          className="v2-dialog-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && backupBusy !== "restore") {
+              setRestoreTarget(undefined);
+            }
+          }}
+        >
+          <section
+            ref={restoreDialogRef}
+            className="v2-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="restore-backup-title"
+            tabIndex={-1}
+          >
+            <div className="v2-panel-section-heading">
+              <div>
+                <OriginLabel origin="you" detail="Complete Host snapshot" />
+                <h2 id="restore-backup-title">Restore this backup?</h2>
+              </div>
+              <IconButton
+                label="Close"
+                variant="ghost"
+                disabled={backupBusy === "restore"}
+                onClick={() => setRestoreTarget(undefined)}
+              >
+                <X size={16} />
+              </IconButton>
+            </div>
+            <p>
+              {formatBackupTime(restoreTarget.created_at)} from {restoreTarget.source_host}
+              {restoreTarget.imported_at ? " · Imported to this Host" : ""}
+            </p>
+            <div className="v2-recovery-card">
+              <p>
+                This replaces the entire live workspace, including Sources, audio,
+                Projects, Documents, Activity, Skills, saved provider credentials,
+                and paired Extension access.
+              </p>
+              <p>
+                Logue backs up the current workspace first. Provider credentials set
+                through Host environment variables stay unchanged.
+              </p>
+            </div>
+            {error ? (
+              <div className="v2-warning-bar" role="alert">
+                {error}
+              </div>
+            ) : null}
+            <div className="v2-inline-actions v2-actions-end">
+              <Button
+                disabled={backupBusy === "restore"}
+                onClick={() => setRestoreTarget(undefined)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                data-autofocus="true"
+                disabled={backupBusy === "restore"}
+                onClick={() => void restoreBackup()}
+              >
+                {backupBusy === "restore" ? "Restoring…" : "Restore workspace"}
+              </Button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </ProjectShell>
   );
 }

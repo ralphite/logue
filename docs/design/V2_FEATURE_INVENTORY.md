@@ -151,7 +151,7 @@
 - V2-SET-03 — INTEGRATED — provider 未 Ready 不阻断本地内容浏览，AI/Voice 使用时提示 Settings → Models。
 - V2-SET-04 — INTEGRATED — Host、数据目录、storage 使用量、pending captures、模型处理边界。
 - V2-SET-05 — INTEGRATED — paired Extension clients 查看/命名/撤销。
-- V2-SET-06 — INTEGRATED — Backup 与 Restore 当前 Host。
+- V2-SET-06 — INTEGRATED — Settings 使用内容列表消费 Host-managed snapshots，支持创建、下载当前 schema `.logue-backup`、安全迁入另一台 Host、明确确认与恢复；Host 以 opaque ID、archive 白名单、workspace barrier/generation、Restore 前备份、可回滚 swap 和 runtime reload 闭合真实 producer-consumer，旧 JSON 假入口已删除。
 - V2-SET-07 — INTEGRATED — V2 Settings 与 Project 使用稳定 Project ID 选择 All saved data / Library / Project，Host 生成不含 provider/pairing secrets 的 scope-safe 投影；Preview 与 Download 共用 projected fingerprint，默认包含原始音频并显示预计大小，变化时返回更新摘要。
 - V2-SET-08 — INTEGRATED — `Include activity history and unused AI drafts` 明确控制 scope 内 Activity Sources / unadopted Runs；默认只含 Saved content 与 adopted lineage，Project frozen snapshots 不扩权到其他 Project 当前对象。
 - V2-SET-09 — INTEGRATED — Source bundle / Project / Document / Run / workspace 复用 Host-owned dependency preview + fingerprint + terminal result；依赖变化返回更新摘要，Source bundle 与跨文件删除失败整体回滚，workspace 删除先备份。
@@ -169,7 +169,7 @@
 
 - V2-OPS-01 — INTEGRATED — Host 数据目录为唯一权威；Extension 仅持有 tab/target/pending 状态。
 - V2-OPS-02 — INTEGRATED — Source/membership/comment/run/document/profile/topic/skill API 主链及 adoption 互斥/幂等已接。
-- V2-OPS-03 — CODED — 当前 `.logue-data` 一次性 schema backup/update 已有，但 WIP schema 的最终一次性收口未完成。
+- V2-OPS-03 — INTEGRATED — 当前 `.logue-data` 的 Voice/Profile/revision schema 已完成显式备份和一次性更新；production Python Host 不再运行 startup migration，当前 schema 是唯一权威。
 - V2-OPS-04 — INTEGRATED — 不保留 V1 route/schema alias 或永久 migration path。
 - V2-OPS-05 — CODED — installer overwrite/rollback 与 data preservation 原语存在；V2 artifact/version chain 未统一验收前只算 CODED。
 - V2-OPS-06 — CODED — Host/Web 与 Chrome Extension release artifacts 存在；V2-only production artifact chain 尚未最终收口。
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-OPS-03`
-- 完成条件：以当前本机 schema 为唯一权威，移除仍会永久执行的旧格式 migration/alias/fallback；只保留对当前 `.logue-data` 做一次显式备份与单次更新的操作入口，不把兼容代码留在 production Host。
+- `ACTIVE: V2-OPS-05`
+- 完成条件：installer overwrite/rollback 保留当前 data root 与 Host-managed snapshots，版本与 release artifact 合同统一；只做阻塞性静态/构建检查，不在 Phase 1 扩展浏览器或安装验收。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

@@ -117,7 +117,7 @@ export interface DeletionResult {
   scope: DeletionScope;
   target_ids: string[];
   tombstoned: boolean;
-  backup_path: string;
+  backup?: BackupSnapshot;
 }
 
 export interface SourceRevision {
@@ -1188,6 +1188,15 @@ export interface ExportPreview {
   credentials_included: false;
 }
 
+export interface BackupSnapshot {
+  id: string;
+  created_at: string;
+  source_host: string;
+  logue_version: string;
+  imported_at: string;
+  size_bytes: number;
+}
+
 function exportQuery(options: ExportOptions, fingerprint?: string) {
   const query = new URLSearchParams();
   query.set("scope", options.scope);
@@ -1251,24 +1260,66 @@ export function captureAudioURL(captureId: string) {
   return `${apiBase}/v1/captures/${encodeURIComponent(captureId)}`;
 }
 
-export async function restoreWorkspace(value: unknown) {
-  return parseResponse<{ status: string; backup_path: string }>(
+export async function getWorkspaceBackups() {
+  const result = await parseResponse<{ backups: BackupSnapshot[] }>(
+    await fetch(`${apiBase}/v1/backups`),
+  );
+  return result.backups;
+}
+
+export async function downloadWorkspaceBackup(snapshot: BackupSnapshot) {
+  const response = await fetch(
+    `${apiBase}/v1/backups/${encodeURIComponent(snapshot.id)}/download`,
+  );
+  if (!response.ok) {
+    const body = await response.text();
+    try {
+      throw new Error((JSON.parse(body) as { error?: string }).error || body);
+    } catch (cause) {
+      if (cause instanceof SyntaxError) throw new Error(body || "Backup download failed.");
+      throw cause;
+    }
+  }
+  const href = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = `logue-backup-${snapshot.created_at.slice(0, 10)}-${snapshot.id.slice(-6)}.logue-backup`;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(href), 1_000);
+}
+
+export async function importWorkspaceBackup(file: File) {
+  return parseResponse<{ status: string; backup: BackupSnapshot }>(
+    await fetch(`${apiBase}/v1/backups/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/vnd.logue.backup+zip" },
+      body: file,
+    }),
+  );
+}
+
+export async function restoreWorkspace(snapshotId: string) {
+  return parseResponse<{
+    status: string;
+    restored_backup_id: string;
+    previous_backup: BackupSnapshot;
+  }>(
     await fetch(`${apiBase}/v1/restore`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(value),
+      body: JSON.stringify({ snapshot_id: snapshotId, confirm: "RESTORE" }),
     }),
   );
 }
 
 export async function backupWorkspace() {
-  return parseResponse<{ status: string; backup_path: string }>(
+  return parseResponse<{ status: string; backup: BackupSnapshot }>(
     await fetch(`${apiBase}/v1/backup`, { method: "POST" }),
   );
 }
 
 export async function deleteWorkspace() {
-  return parseResponse<{ status: string; backup_path: string }>(
+  return parseResponse<{ status: string; backup: BackupSnapshot }>(
     await fetch(`${apiBase}/v1/workspace`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },

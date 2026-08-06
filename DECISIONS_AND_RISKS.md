@@ -732,3 +732,19 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 把 Landing 只留在 Storybook，或让本机 Host 每次先显示官网。前者没有真实产品入口，后者会阻断高频本地工作流。
 - **已有证据：** 用户明确产品名为 Logue、官网为 logue.ai、产品 local-first / single-owner / 无账号，且开源方向尚未决定；V2-OPS-07 要求真实下载、安装、隐私与许可证入口。
 - **开放问题：** 最终域名部署、release asset 与 installer 安装验收属于 Phase 5，不在功能构建阶段运行。
+
+### DR-069 — Backup / Restore 使用 Host 管理的完整快照
+
+- **优先级：** V2 产品 / P0 数据可恢复性
+- **状态：** 最终 scope / product / engineering 三路 fresh gate 均 PASS；Host/API/Web production chain 已静态集成，真实数据 Restore 与 Host 迁移验收留到 Phase 5
+- **决定：** `Back up now` 由 Logue Host 在 data root 同级目录创建完整 snapshot，包含恢复 Host 工作区所需的 Sources、audio、Documents、Projects、Runs、Skills、Settings、Host 持久化 provider credential 与当时的 paired Extension state。Host 为 snapshot 写入当前唯一 schema marker，并只向客户端暴露 opaque `snapshot_id` 与可读 metadata；Settings → Backup 以内容列表显示当前 Host 可恢复的 snapshots，不暴露或接收任意文件系统路径。
+
+  为闭合 V2 §10.14 的 Host 迁移，用户可以从 snapshot 下载由 Logue 生成的完整 `.logue-backup` 包，并在另一台 Logue Host 上传迁入。迁入先写 staging；Host 只允许当前 schema 白名单下的相对路径与普通文件，拒绝绝对路径、`..`、symlink、设备/管道等非普通文件，并核对 JSON filename 与对象 ID、marker、必需目录和 JSON 可读性，之后才登记为新的 Host-managed snapshot，绝不直接覆盖 live data。逻辑知识 `Export` 继续是按范围生成、排除 Host secrets、不可 Restore 的投影，但仍可能包含私人内容与默认开启的原始录音；它不是自动脱敏或天然适合分享的文件。完整 Backup 包可能包含录音、Host 持久化凭据和 pairing state，下载前必须明确提示它是敏感文件。环境变量等 data root 外部 credential 不进入 Backup，Restore 后保持当前 Host 环境值。
+
+  用户选择一个已列出的 snapshot 后，确认界面必须显示 snapshot 时间与来源 Host，并明确说明：Restore 会整体替换 live workspace 和 Host 持久化 provider credential / pairing state；当前状态会先自动备份；data root 外的环境凭据保持不变。确认后，Host 先把待恢复内容复制到 staging 并完整校验，再进入独占 workspace barrier。这个 barrier / generation 同样覆盖 `Back up now`、所有 live-root 读写、已在途请求和后台组织线程的最终写入；旧 generation 在恢复后不得落盘。在同一 barrier 内创建 Restore 前 backup，并以可回滚 swap 替换 data root，失败时恢复原 live root 且不暴露半恢复状态。成功后清理易失 request/cancellation state，并从已恢复数据重新加载 provider/runtime state。恢复结果精确回到 snapshot 的 Host 持久化 credential 与 pairing state，不与当前 clients 合并。
+
+  Host 只解析由当前 Logue 生成的 opaque ID：从 `store.root.parent` 推导直接子目录，拒绝 symlink、非目录和越界目标。删除当前没有 producer 的 `schema_version: 2` JSON file upload Restore，不保留历史 schema migration、旧格式解析、任意路径 Restore、云备份或两个 Host 的自动同步/冲突合并。
+- **用户可见影响：** 用户能完成 `Back up now → 选择历史快照 → Restore`，也能用 Logue 生成的完整 Backup 包迁移到另一台 Host；Restore 前的当前状态自动保留。界面明确区分可恢复且敏感的 Backup，与按范围导出、排除 Host secrets、不可恢复但仍可能含私人内容/录音的 Export，不再提供永远拿不到兼容文件的虚假上传路径。
+- **替代方案：** 只允许当前 Host 的同级 snapshot（无法满足已确认的 Host 迁移）；让 Restore 接受任意本机路径（扩大路径欺骗和文件系统权限）；把逻辑 Export 直接当 Backup（遗漏 audio、credentials、pairing 与完整运行状态，无法真实恢复）。
+- **已有证据：** 当前 `POST /v1/backup` 只创建 Host directory snapshot；UI Restore 却要求用户上传 `schema_version: 2` JSON，而产品没有任何 producer 能生成该格式。V2 Export 明确 `restorable: false` 且排除 credentials，所以当前 Restore 是不可完成的虚假路径。首轮 scope gate 指出“仅当前 Host snapshot”会违反 V2 §10.14 的 Backup/Restore 迁移承诺；engineering gate 要求 opaque ID、marker/schema 校验、staging + workspace barrier/generation + 可回滚 swap，以及准确区分 Host 持久化 credential 与环境变量。第二轮 product gate 纠正了 Export 的敏感性表述并补齐 Restore 后果确认；engineering gate 进一步要求 barrier 覆盖所有 live-root 读写与异步最终写入，并对白名单 archive members 做路径、文件类型和 filename/object ID 校验。
+- **开放问题：** 无；本合同只支持当前 schema 的 Logue Backup 包，不承诺旧版包兼容。Phase 5 必须用当前数据验证 snapshot、下载/迁入、reload/restart 与失败回滚后再称为运行可用。

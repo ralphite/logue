@@ -1,4 +1,4 @@
-import { Archive, Clipboard, KeyRound, Trash2, Upload, X } from "lucide-react";
+import { Archive, Clipboard, KeyRound, Trash2, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   backupWorkspace,
@@ -7,7 +7,6 @@ import {
   getGlossarySuggestions,
   getWorkspaceSettings,
   getTopicVocabularies,
-  restoreWorkspace,
   saveWorkspaceSettings,
   saveAIConnection,
   testAIConnection,
@@ -59,7 +58,6 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
   const [preferredTerm, setPreferredTerm] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [notice, setNotice] = useState<string>();
-  const [restoring, setRestoring] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
@@ -160,26 +158,11 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
     { key: "default_document_skill", label: "Draft", accepts: (skill) => skill.task === "generate" && skill.output === "document" },
   ];
 
-  async function restore(file: File) {
-    if (!window.confirm("Restoring replaces the current library with this export. Logue will create a complete recoverable backup first. Continue?")) return;
-    setRestoring(true);
-    try {
-      const value = JSON.parse(await file.text()) as unknown;
-      const result = await restoreWorkspace(value);
-      window.alert(`Restore complete. The previous library is backed up at ${result.backup_path}`);
-      window.location.reload();
-    } catch (cause) {
-      window.alert(cause instanceof Error ? cause.message : "Restore failed");
-    } finally {
-      setRestoring(false);
-    }
-  }
-
   async function backUp() {
     setBackingUp(true);
     try {
       const result = await backupWorkspace();
-      setNotice(`Backup created at ${result.backup_path}`);
+      setNotice(`Backup created ${new Date(result.backup.created_at).toLocaleString()}`);
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : "Backup failed");
     } finally {
@@ -232,7 +215,7 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
     if (deleteConfirmation !== "DELETE") return;
     try {
       const result = await deleteWorkspace();
-      window.alert(`Local data deleted. A recoverable backup remains at ${result.backup_path}`);
+      window.alert(`Local data deleted. A recoverable backup is available in Settings.`);
       window.location.reload();
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : "Could not delete local data");
@@ -353,7 +336,7 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
         </SettingsRow>
 
         <SettingsRow label="Library">
-          <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void backUp()} disabled={backingUp} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1] disabled:opacity-55"><Archive size={14} />{backingUp ? "Backing up…" : "Back up now"}</button><label className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Upload size={14} /> {restoring ? "Restoring…" : "Restore"}<input type="file" accept="application/json,.json" disabled={restoring} className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void restore(file); event.currentTarget.value = ""; }} /></label></div>
+          <button type="button" onClick={() => void backUp()} disabled={backingUp} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1] disabled:opacity-55"><Archive size={14} />{backingUp ? "Backing up…" : "Back up now"}</button>
         </SettingsRow>
 
         <SettingsRow label="Delete local data">
