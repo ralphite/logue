@@ -115,7 +115,7 @@
 - V2-LIB-04 — INTEGRATED — Project / Topic / origin / time / site / type / adopted filters 作用于同一 content-first 结果集，可组合并一键清除；Comment bundle 仍保持单条，Global Find 的 Document 结果服从适用筛选条件。
 - V2-LIB-05 — INTEGRATED — 可调宽 Source inspector 从 Comment bundle 单条入口核验 Web/You 两层，并呈现 original/raw/transformed/saved、audio、可打开 parents、adopted versions、实际 Profile/Topic/Skill/language lineage。
 - V2-LIB-06 — INTEGRATED — Source 打开、回原 URL、Project membership、Exclude/Undo。
-- V2-LIB-07 — INTEGRATED — content-first 多选使用 bundle 级 Add/Exclude；所选范围可 Export 与依赖感知 Delete，并可把完整 Source bundles 作为指定 Project Draft 的本次 Run Sources，不改变 membership。
+- V2-LIB-07 — INTEGRATED — content-first 多选使用 bundle 级 Add/Exclude；普通 Source 与完整 Comment bundle 共用依赖感知 Delete，bundle 内部 Web→You 关系不再产生假 tombstone；所选范围可 Export 或作为指定 Project Draft 的本次 Run Sources而不改变 membership。
 - V2-LIB-08 — INTEGRATED — All activity 从永久 You Activity 打开关联 Run，可恢复未采用 Candidate，并支持 failed Run Retry、Pin/Unpin、依赖预览 Delete；Activity/Run 保持在 Project Context 外。
 - V2-LIB-09 — INTEGRATED — Global Find 打开并在 Library 定位真实结果。
 - V2-LIB-10 — INTEGRATED — AI Source revision/history/restore 由 V2-LIN-11 与 V2-LIB-05 的 production inspector 完整接通。
@@ -154,7 +154,7 @@
 - V2-SET-06 — INTEGRATED — Settings 使用内容列表消费 Host-managed snapshots，支持创建、下载当前 schema `.logue-backup`、安全迁入另一台 Host、明确确认与恢复；Host 以 opaque ID、archive 白名单、workspace barrier/generation、Restore 前备份、可回滚 swap 和 runtime reload 闭合真实 producer-consumer，旧 JSON 假入口已删除。
 - V2-SET-07 — CODED — scope-safe Export 已接；Phase 2 已修正 Project classification outcomes 投影，统一 deletion / backup 缺口闭合后再恢复 INTEGRATED。
 - V2-SET-08 — INTEGRATED — `Include activity history and unused AI drafts` 明确控制 scope 内 Activity Sources / unadopted Runs；默认只含 Saved content 与 adopted lineage，Project frozen snapshots 不扩权到其他 Project 当前对象。
-- V2-SET-09 — CODED — Host-owned dependency preview / fingerprint / terminal result 已接；Phase 2 正在修复 Source bundle 删除、Project classification memory 与 fresh workspace backup 的静态合同缺口。
+- V2-SET-09 — CODED — Host-owned dependency preview / fingerprint / terminal result 已接；Phase 2 已修正普通 Source preview、Comment bundle 原子删除与 Project classification memory，fresh workspace backup 缺口仍待闭合。
 - V2-SET-10 — INTEGRATED — 新 Run 在 provider 调用前冻结实际 instruction、Skill instructions/revision、Project/Personal/Page Context 与 Sources；Settings → Privacy 以内容列表打开共享可调宽 Run inspector，不复制第二套 Run 状态。
 
 ## Topics / PKM

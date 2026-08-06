@@ -1500,15 +1500,27 @@ class Store:
                     item["organization"] = {"status": "needs_review", "confidence": confidence, "reason": reason or "The organization result is uncertain. Review the project and tags.", "suggested_projects": suggested_projects, "suggested_tags": suggested_tags, **classification_state, **correction_state, "updated_at": now()}
             atomic_json(self.root / "items" / f"{identifier}.json", item)
 
-    def delete_item(self, identifier: str, *, preserve_lineage: bool = False) -> None:
+    def delete_item(
+        self,
+        identifier: str,
+        *,
+        preserve_lineage: bool = False,
+        ignored_dependency_ids: set[str] | None = None,
+    ) -> None:
         with self.lock:
             item = self.get("items", identifier)
             members = self.comment_bundle_members(identifier)
+            ignored_dependencies = ignored_dependency_ids or set()
             snapshots = {member["id"]: json.loads(json.dumps(member)) for member in members}
             documents = [document for document in self.documents() if identifier in {*normalize(document.get("source_ids")), *normalize(document.get("context_source_ids"))}]
             revisions = [read_json(path) for path in (self.root / "doc-revisions").glob("*.json")]
             cited_revisions = [revision for revision in revisions if identifier in {*normalize(revision.get("source_ids")), *normalize(revision.get("context_source_ids"))}]
-            derived = [candidate for candidate in self.items() if identifier in normalize(candidate.get("parent_ids"))]
+            derived = [
+                candidate
+                for candidate in self.items()
+                if identifier in normalize(candidate.get("parent_ids"))
+                and str(candidate.get("id", "")) not in ignored_dependencies
+            ]
             runs = [run for run in self.skill_runs() if identifier in normalize(run.get("source_ids")) or run.get("activity_source_id") == identifier]
             dependent = bool(documents or cited_revisions or derived or runs)
             if dependent and not preserve_lineage:
@@ -1558,14 +1570,17 @@ class Store:
                 for path in (self.root / "audio").glob(f"{capture_id}.*"):
                     path.unlink(missing_ok=True)
 
-    def item_dependencies(self, identifier: str) -> dict[str, Any]:
+    def item_dependencies(self, identifier: str, *, ignored_dependency_ids: set[str] | None = None) -> dict[str, Any]:
         item = self.get("items", identifier)
+        ignored_dependencies = ignored_dependency_ids or set()
         document_revisions = [read_json(candidate) for candidate in sorted((self.root / "doc-revisions").glob("*.json"))]
         return {
             "projects": normalize(item.get("projects")),
             "derived_items": [
                 {"id": candidate["id"], "content": candidate.get("content", ""), "kind": candidate.get("kind", "text"), "actor": candidate.get("actor", "user"), "projects": normalize(candidate.get("projects"))}
-                for candidate in self.items() if identifier in normalize(candidate.get("parent_ids"))
+                for candidate in self.items()
+                if identifier in normalize(candidate.get("parent_ids"))
+                and str(candidate.get("id", "")) not in ignored_dependencies
             ],
             "documents": [
                 {"id": document["id"], "title": document.get("title", "Untitled"), "project": document.get("project", ""), "revision": document.get("revision", 1), "current": True}
@@ -4130,7 +4145,10 @@ class Handler(BaseHTTPRequestHandler):
                     document_revision_dependency_ids.update((str(entry.get("document_id", "")), int(entry.get("revision", 0))) for entry in cited_revisions)
                     derived_dependency_ids.update(str(entry.get("id", "")) for entry in derived)
                     run_dependency_ids.update(str(entry.get("id", "")) for entry in linked_runs)
-                    summary["revisions"] += len(store.transcript_revisions(identifier)) + len(store.item_revisions(identifier))
+                    is_ai_source = item.get("kind") == "derived" and str(item.get("actor", "user")).strip().lower() != "user"
+                    summary["revisions"] += len(store.transcript_revisions(identifier))
+                    if is_ai_source:
+                        summary["revisions"] += len(store.item_revisions(identifier))
                 summary["sources"] = len(members)
                 summary["projects"] = len(project_links)
                 summary["documents"] = len(document_dependency_ids)
@@ -4265,10 +4283,15 @@ class Handler(BaseHTTPRequestHandler):
                 shutil.copytree(store.root, snapshot, copy_function=os.link)
                 try:
                     if scope == "source":
+                        ignored_dependency_ids = set(target_ids)
                         for identifier in target_ids:
-                            dependencies = store.item_dependencies(identifier)
+                            dependencies = store.item_dependencies(identifier, ignored_dependency_ids=ignored_dependency_ids)
                             preserve = bool(dependencies["documents"] or dependencies["derived_items"] or dependencies["runs"])
-                            store.delete_item(identifier, preserve_lineage=preserve)
+                            store.delete_item(
+                                identifier,
+                                preserve_lineage=preserve,
+                                ignored_dependency_ids=ignored_dependency_ids,
+                            )
                     elif scope == "project":
                         project = next((entry for entry in store.projects() if str(entry.get("id", "")) == target_ids[0]), None)
                         if not project:

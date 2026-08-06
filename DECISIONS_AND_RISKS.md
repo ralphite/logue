@@ -806,3 +806,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 把 producer 与所有 Web consumer 改为字典；会扩大当前唯一 schema 且增加无价值迁移。
 - **已有证据：** Phase 2 两路独立静态审查均确认 producer/Web 使用数组，而 delete/export 使用字典，造成静默丢失或残留。
 - **开放问题：** Project rename 的原子事务与 membership origin 属于同一 feature ID 的独立后续缺口。
+
+### DR-075 — Comment bundle 删除只把外部引用视为 lineage 依赖
+
+- **优先级：** V2 Library / Phase 2 P1
+- **状态：** 已修复；Python compile 与 diff check 通过，真实 bundle 删除留到 Phase 5
+- **决定：** 统一删除 preview 只为 AI Source 读取 AI revision；删除完整 Comment bundle 时，bundle 内的 Web→You 链接不算外部 derived dependency。Host 在同一可回滚删除事务中按 preview 的完整 target set 忽略内部依赖，只有 Document、Run、历史 citation 或 bundle 外 derived Source 才保留 tombstone。
+- **用户可见影响：** 普通 Web/You/Voice Source 可以正常进入删除确认；无外部引用的 Comment bundle 会完整删除，有真实引用时才准确保留 lineage。
+- **替代方案：** 为 Comment bundle 增加第二套删除 endpoint；会重复 fingerprint、rollback 与 terminal result 合同。
+- **已有证据：** Phase 2 runtime 审查确认普通 Source 因 AI-only revision API 返回 400，execute 又把同 bundle Comment 重新算成 root 的依赖，导致返回 deleted 但残留 tombstone。
+- **开放问题：** 无；workspace fresh backup 是 V2-SET-09 的下一独立缺口。
