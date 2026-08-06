@@ -876,3 +876,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 为 Web 临时再造一套 microphone recorder；会重复 Extension 的 capture、pending queue、Profile 与 lineage 合同。
 - **已有证据：** Goal Supervisor 与 Phase 2 leakage 审查确认 production V2 route 直接 import mock composer，Run 按钮默认 `type=button`，Mic 没有 handler。
 - **开放问题：** 无。
+
+### DR-082 — Compare 使用独立 Activity subtype
+
+- **优先级：** V2 Project History / Phase 2 P2
+- **状态：** 已实现；Python compile、Web/Extension typecheck 与 diff check 通过，真实 History 留到 Phase 5
+- **决定：** Activity schema 增加 `compare`，Project composer 按实际 mode 原样持久化；不再把 Compare 降级为 Ask。
+- **用户可见影响：** All activity 与 Project History 能准确区分问题、比较和起草，后续恢复/审计不会误解这次 Run 的意图。
+- **替代方案：** 继续从 title 或 selection prompt 猜测 Compare；会让数据语义依赖 UI 文案。
+- **已有证据：** Phase 2 runtime 审查确认 producer 固定把非 Draft 写为 Ask，Host union 也不接受 Compare。
+- **开放问题：** 无。

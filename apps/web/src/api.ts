@@ -616,7 +616,7 @@ export async function createMaterial(input: {
   source?: SourceInfo;
   actor?: string;
   requestId?: string;
-  activityType?: "voice-command" | "text-command" | "ask" | "draft";
+  activityType?: "voice-command" | "text-command" | "ask" | "compare" | "draft";
   runId?: string;
 }) {
   const result = await parseResponse<ApiMaterial>(

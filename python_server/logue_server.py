@@ -915,7 +915,7 @@ class Store:
             raise ValueError("content is required")
         if organization_status not in {"pending", "confirmed"}:
             raise ValueError("invalid initial organization status")
-        if activity_type not in {"", "voice-command", "text-command", "ask", "draft"}:
+        if activity_type not in {"", "voice-command", "text-command", "ask", "compare", "draft"}:
             raise ValueError("invalid activity type")
         if comment_state not in {"", "unlinked", "linked"}:
             raise ValueError("invalid comment state")

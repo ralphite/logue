@@ -668,7 +668,7 @@ export function V2ProjectRoute({
         content: instruction,
         projects: [],
         actor: "user",
-        activityType: mode === "draft" ? "draft" : "ask",
+        activityType: mode,
         source: {
           title: `${project.name} ${mode === "ask" ? "question" : mode === "compare" ? "comparison" : "draft request"}`,
         },

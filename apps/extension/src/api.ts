@@ -535,7 +535,7 @@ export async function saveMaterial(input: {
   actor?: string;
   parentIds?: string[];
   runId?: string;
-  activityType?: "voice-command" | "text-command" | "ask" | "draft";
+  activityType?: "voice-command" | "text-command" | "ask" | "compare" | "draft";
   commentState?: "unlinked";
 }) {
   return request<{ id: string }>("save-material", {

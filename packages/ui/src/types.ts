@@ -102,7 +102,7 @@ export interface Material {
   revision?: number;
   createdAt: string;
   actor?: string;
-  activityType?: "voice-command" | "text-command" | "ask" | "draft";
+  activityType?: "voice-command" | "text-command" | "ask" | "compare" | "draft";
   adoptedRevisions?: Array<{
     id: string;
     revision: number;
