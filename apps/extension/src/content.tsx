@@ -61,6 +61,7 @@ interface InlineVoiceSession {
   target: HTMLElement;
   source: CaptureSource;
   targetText: string;
+  projectPromise: Promise<string[]>;
 }
 
 interface PageSelectionSnapshot {
@@ -377,6 +378,12 @@ function ExtensionLauncher() {
               instructions: "Transcribe only the spoken comment about the selected text. Preserve the speaker's meaning and wording.",
               appliedContext,
             });
+            appliedContext = {
+              ...appliedContext,
+              transcription_skill_id: transcription.skill_id,
+              transcription_skill_name: transcription.skill_name,
+              transcription_skill_revision: transcription.skill_revision,
+            };
             return { text: transcription.text, captureId: transcription.capture_id };
           },
           save: (transcription) => saveSelection({
@@ -516,12 +523,20 @@ function ExtensionLauncher() {
         let appliedContext: AppliedContext | undefined;
         const result = await completeVoiceInput({
           transcribe: async () => {
-            const context = await getCaptureContext(session.source.url ?? "");
+            const projects = await session.projectPromise;
+            const activeProject = projects[0] ?? "";
+            const context = await getCaptureContext(session.source.url ?? "", activeProject);
+            const project = activeProject
+              ? context.projects.find((item) => item.name === activeProject)
+              : undefined;
+            const glossary = [...context.personal_glossary, ...(project?.glossary ?? [])];
             appliedContext = {
               page_url: session.source.url,
               page_title: session.source.title,
+              reference_project: activeProject || undefined,
               personal_context: context.personal_context || undefined,
-              glossary: context.personal_glossary,
+              project_overview: project?.overview || undefined,
+              glossary,
               recent_adopted_ids: context.recent_adopted_refs?.map((item) => item.id) ?? [],
               recent_adopted_texts: context.recent_adopted_refs?.map((item) => item.text) ?? context.recent_adopted,
             };
@@ -530,11 +545,17 @@ function ExtensionLauncher() {
               audio: audioBlobFromEvent(event),
               source: session.source,
               targetText: session.targetText,
-              projectContext: context.personal_context,
-              glossary: context.personal_glossary.join("\n"),
+              projectContext: [context.personal_context, project?.overview].filter(Boolean).join("\n\n"),
+              glossary: glossary.join("\n"),
               instructions: "Transcribe this as ready-to-insert text for the current input.",
               appliedContext,
             });
+            appliedContext = {
+              ...appliedContext,
+              transcription_skill_id: transcription.skill_id,
+              transcription_skill_name: transcription.skill_name,
+              transcription_skill_revision: transcription.skill_revision,
+            };
             return { text: transcription.text, captureId: transcription.capture_id };
           },
           save: async (transcription) => {
@@ -546,6 +567,7 @@ function ExtensionLauncher() {
               transcript: transcription.text,
               source: session.source,
               projects: [],
+              suggestedProjects: appliedContext?.reference_project ? [appliedContext.reference_project] : [],
               captureId: transcription.captureId,
               appliedContext,
             });
@@ -587,6 +609,9 @@ function ExtensionLauncher() {
       target,
       source: pageSource(),
       targetText: getEditableText(target),
+      projectPromise: (chrome.runtime.sendMessage({ type: "logue:get-tab-projects" }) as Promise<{ ok?: boolean; value?: string[] } | undefined>)
+        .then((response) => response?.ok && Array.isArray(response.value) ? response.value.slice(0, 1) : [])
+        .catch(() => []),
     };
     voiceSessionRef.current = session;
     setVoiceError("");

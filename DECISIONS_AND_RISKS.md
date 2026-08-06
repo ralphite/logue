@@ -498,3 +498,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 只显示递增 revision 数字，或直接覆盖回旧版。前者没有可核验证据，后者破坏 lineage。
 - **已有证据：** 2026-08-05 在真实 URL `http://127.0.0.1:5173/?view=projects&project=Logue`、真实 storage root `/Users/yadong/dev2/logue/.logue-data` 和既有 Document `Logue 核心产品闭环`（`doc_99b3c08877042230`）验证。revision 5 冻结 Web Source `mat_9c52bea682fa1b53`，revision 6 冻结 You Comment `mat_c789cfef42443105`；页面重新读取和 Host 重启后正文与 exact IDs 不变。Restore 将原始 revision 4 创建为 current revision 7，旧 6/5/4 均保留。Inspector 正确区分 `Cited item · Web source / You comment`，console error/warning 均为空；fresh read-only gate 为 GO，无 P0/P1。修改前完整备份保留在 `/Users/yadong/dev2/logue-data-backups/document-revision-real-env-1785985431`；关键界面证据为 `docs/qa/document-revisions/real-env-2026-08-05.png`。
 - **开放问题：** AI Source 的独立 revision UI 在 Library lineage 批次连接；Document revision 合同先独立闭合。
+
+### DR-049 — Transcription Profile 是可继承、可临时覆盖且可核验的完整语音合同
+
+- **优先级：** V2 产品 / P0
+- **状态：** 实现中；runtime/provenance、配置、渐进 picker、Re-transcribe 与纠正记忆范围均需闭合后再验证
+- **决定：** `Default voice profile` 包含 Global Transcription Skill、Personal context/vocabulary、primary language 与 mixed languages。每个 Project 的 Transcription Profile 有 `Inherited / Customized / Disabled` 三态；Customized 可设置语言、people/company/product/place、acronym/preferred spelling、custom instructions 与 Project Skill override。Topic Vocabulary 是用户确认的独立词汇集合，只向本次转写提供词汇，不携带 Topic Sources、也不授予 Project Context。录音前轻量展示当前解析后的 Profile，并通过渐进 picker 允许临时关闭 Project Profile、选择一次性语言或一个 Topic Vocabulary；日常录音不弹完整设置。Inline Voice Write 在录音开始时冻结同-tab Active Project，Host 解析并冻结实际 Skill/Profile/Topic lineage；Active Project 只产生 provenance 与 Suggested membership，不自动进入 Project Context。
+- **用户可见影响：** 用户在高频路径中始终知道 Logue 当前会怎样理解语音，又不需要每次配置；需要时可在录音前局部覆盖。切换 Profile/Topic 后可从同一原始音频生成新的 transcript revision，旧 transcript、raw/original audio 与每版实际 lineage 永久保留，Source membership 不变。术语纠正可选择 `Only this time / Remember for Topic / Project / Global`；同一术语可在不同 Project 使用不同 preferred spelling，无 Project 时不得读取其他 Project 的词汇。
+- **替代方案：** 仅根据 Active Project 静默套用现有 glossary/Skill，或新建完全自由组合的通用 Profile 对象。前者无法覆盖 J2/J4 的临时选择、Re-transcribe 和纠正范围，也缺少可解释 lineage；后者会在高频录音前引入不必要的对象管理。当前采用 Default + Project 三态 + 独立 Topic Vocabulary + one-shot override 的受限模型。
+- **已有证据：** 现有 Selection Comment 与 Side Panel 已部分应用 Personal + Project context/glossary；fresh pre-gate 确认 Inline Voice Write 未读取 Active Project。权威 V2 §9、J2、J4 与最新完整性审查进一步确认：只做自动解析会遗漏 picker、语言、独立 Topic、Re-transcribe 和纠正记忆范围，不能作为完整交付。
+- **开放问题：** 无产品范围开放项；实现可拆成原子批次，但 1–7 全部属于本次 V2 完整交付。

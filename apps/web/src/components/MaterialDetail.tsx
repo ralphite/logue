@@ -371,6 +371,7 @@ export function MaterialDetail({
             <div className="mt-3 space-y-2 text-[15px] leading-5 text-[#696a65]">
               <p><span className="font-medium text-[#4d4e4a]">Page: </span>{material.appliedContext.page_title || material.source?.title || "Current page"}</p>
               <p><span className="font-medium text-[#4d4e4a]">Project: </span>{material.appliedContext.reference_project || "No project"}</p>
+              {material.appliedContext.transcription_skill_name && <p><span className="font-medium text-[#4d4e4a]">Voice profile: </span>{material.appliedContext.transcription_skill_name}{material.appliedContext.transcription_skill_revision ? ` · revision ${material.appliedContext.transcription_skill_revision}` : ""}</p>}
               <p><span className="font-medium text-[#4d4e4a]">Confirmed terms: </span>{material.appliedContext.glossary?.length ?? 0}</p>
               <p><span className="font-medium text-[#4d4e4a]">Recent adopted phrases: </span>{material.appliedContext.recent_adopted_ids?.length ?? 0}</p>
             </div>

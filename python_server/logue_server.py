@@ -177,7 +177,22 @@ class Store:
         saved_only_projects = [name for name in normalize(value.get("saved_only_projects")) if name not in excluded_projects]
         unavailable = set(excluded_projects + saved_only_projects)
         projects = [name for name in normalize(value.get("projects")) if name not in unavailable]
+        available_projects = {str(project.get("name", "")) for project in self.projects()}
+        suggested_projects = [
+            name for name in normalize(value.get("suggested_projects"))
+            if name in available_projects and name not in unavailable and name not in projects
+        ]
         timestamp = now()
+        organization = {"status": organization_status, "updated_at": timestamp}
+        if suggested_projects:
+            organization = {
+                "status": "needs_review",
+                "confidence": 1,
+                "reason": "Suggested because this Project was active when the voice input was captured.",
+                "suggested_projects": suggested_projects,
+                "suggested_tags": [],
+                "updated_at": timestamp,
+            }
         item = {
             "id": make_id("mat_"), "kind": kind,
             "status": "organized" if projects else "unfiled", "content": content,
@@ -185,7 +200,7 @@ class Store:
             "excluded_projects": excluded_projects,
             "saved_only_projects": saved_only_projects,
             "created_at": timestamp, "actor": str(value.get("actor", "")).strip() or "user",
-            "organization": {"status": organization_status, "updated_at": timestamp},
+            "organization": organization,
         }
         optional = {
             "request_id": request_id,
@@ -324,9 +339,10 @@ class Store:
         applied_context = value.get("applied_context")
         if applied_context is not None and not isinstance(applied_context, dict):
             raise ValueError("applied_context must be an object")
-        context_strings = {"page_url", "page_title", "reference_project", "personal_context", "project_overview"}
+        context_strings = {"page_url", "page_title", "reference_project", "personal_context", "project_overview", "transcription_skill_id", "transcription_skill_name"}
         context_arrays = {"glossary", "recent_adopted_ids", "recent_adopted_texts"}
-        unknown_context = sorted(set(applied_context or {}) - context_strings - context_arrays)
+        context_integers = {"transcription_skill_revision"}
+        unknown_context = sorted(set(applied_context or {}) - context_strings - context_arrays - context_integers)
         if unknown_context:
             raise ValueError(f"unsupported applied_context field {unknown_context[0]!r}")
         if any(not isinstance((applied_context or {})[name], str) for name in context_strings & set(applied_context or {})):
@@ -335,6 +351,8 @@ class Store:
             entry = (applied_context or {})[name]
             if not isinstance(entry, list) or any(not isinstance(member, str) for member in entry):
                 raise ValueError(f"applied_context {name} must be an array of strings")
+        if any(not isinstance((applied_context or {})[name], int) for name in context_integers & set(applied_context or {})):
+            raise ValueError("applied_context revision fields must be integers")
 
         source_info = dict(source_value or {})
         source_info.setdefault("selection", source_content)
@@ -1159,24 +1177,60 @@ class Handler(BaseHTTPRequestHandler):
         request_id = fields.get("request_id", "").strip()
         if request_id in self.server.cancelled:
             raise Conflict("voice input was cancelled")
-        context = json.loads(fields["applied_context"]) if fields.get("applied_context") else None
+        context_value = json.loads(fields["applied_context"]) if fields.get("applied_context") else None
+        context = context_value if isinstance(context_value, dict) else None
         capture_id = self.server.store.save_capture(audio, mime_type, context)
         try:
             settings = self.server.store.settings()
-            skill_id = str(settings.get("default_transcription_skill", "sk_transcribe"))
+            skill_candidates: list[str] = []
             reference_project = str((context or {}).get("reference_project", "")).strip()
             if reference_project:
                 try:
                     project = self.server.store.get_project(reference_project)
-                    skill_id = str((project.get("skill_bindings") or {}).get("transcription") or skill_id)
+                    project_skill_id = str((project.get("skill_bindings") or {}).get("transcription") or "").strip()
+                    if project_skill_id:
+                        skill_candidates.append(project_skill_id)
                 except FileNotFoundError:
                     pass
-            skill = self.server.store.get("skills", skill_id)
+            skill_candidates.extend([str(settings.get("default_transcription_skill", "sk_transcribe")), "sk_transcribe"])
+            skill = None
+            for candidate in dict.fromkeys(skill_candidates):
+                try:
+                    current = self.server.store.get("skills", candidate)
+                except FileNotFoundError:
+                    continue
+                if current.get("task") == "transcribe" and current.get("enabled", True):
+                    skill = current
+                    break
+            if skill is None:
+                raise RuntimeError("no enabled transcription Skill is available")
+            skill_revision = int(skill.get("revision", 1))
+            resolved_context = {
+                **(context or {}),
+                "transcription_skill_id": str(skill["id"]),
+                "transcription_skill_name": str(skill["name"]),
+                "transcription_skill_revision": skill_revision,
+            }
+            atomic_json(self.server.store.root / "audio" / f"{capture_id}.context.json", resolved_context)
+            fields["page_url"] = str(resolved_context.get("page_url") or fields.get("page_url", ""))
+            fields["page_title"] = str(resolved_context.get("page_title") or fields.get("page_title", ""))
+            fields["project_context"] = "\n\n".join(filter(None, [
+                str(resolved_context.get("personal_context", "")).strip(),
+                str(resolved_context.get("project_overview", "")).strip(),
+            ]))
+            glossary = resolved_context.get("glossary")
+            fields["glossary"] = "\n".join(glossary) if isinstance(glossary, list) else ""
             text = self.server.gemini.transcribe(audio, mime_type, fields, str(skill.get("instructions", DICTATION_INSTRUCTIONS)))
         except Exception as error:
             self.error(HTTPStatus.BAD_GATEWAY, f"transcription failed; capture remains saved: {error}", capture_id=capture_id)
             return
-        self.json(HTTPStatus.OK, {"capture_id": capture_id, "text": text})
+        self.json(HTTPStatus.OK, {
+            "capture_id": capture_id,
+            "text": text,
+            "skill_id": skill["id"],
+            "skill_name": skill["name"],
+            "skill_revision": skill_revision,
+        })
 
     def context(self, query: dict[str, list[str]]) -> dict[str, Any]:
         store = self.server.store

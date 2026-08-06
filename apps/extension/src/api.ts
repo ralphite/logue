@@ -176,6 +176,9 @@ export interface AppliedContext {
   glossary?: string[];
   recent_adopted_ids?: string[];
   recent_adopted_texts?: string[];
+  transcription_skill_id?: string;
+  transcription_skill_name?: string;
+  transcription_skill_revision?: number;
 }
 
 export async function getCaptureContext(pageUrl: string, project = "") {
@@ -208,7 +211,7 @@ export async function transcribeAudio(input: {
   instructions?: string;
   appliedContext?: AppliedContext;
 }) {
-  return request<{ capture_id: string; text: string }>("transcribe", {
+  return request<{ capture_id: string; text: string; skill_id: string; skill_name: string; skill_revision: number }>("transcribe", {
     requestId: input.requestId,
     audioBase64: await blobToBase64(input.audio),
     mimeType: input.audio.type || "audio/webm",
@@ -230,6 +233,7 @@ export async function saveMaterial(input: {
   annotation?: string;
   source: SourceInfo;
   projects?: string[];
+  suggestedProjects?: string[];
   tags?: string[];
   captureId?: string;
   transcript?: string;
@@ -242,6 +246,7 @@ export async function saveMaterial(input: {
     annotation: input.annotation,
     source: input.source,
     projects: input.projects ?? [],
+    suggested_projects: input.suggestedProjects ?? [],
     tags: input.tags ?? [],
     capture_id: input.captureId,
     transcript: input.transcript,

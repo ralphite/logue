@@ -27,6 +27,9 @@ export interface AppliedContext {
   glossary?: string[];
   recent_adopted_ids?: string[];
   recent_adopted_texts?: string[];
+  transcription_skill_id?: string;
+  transcription_skill_name?: string;
+  transcription_skill_revision?: number;
 }
 
 export interface Material {

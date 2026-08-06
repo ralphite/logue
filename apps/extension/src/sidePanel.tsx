@@ -317,11 +317,13 @@ function SidePanelApp() {
     }).finally(() => setServerConnecting(false));
   }, [pendingInsert, refreshServerConnection, serverConnecting]);
 
-  const saveContent = useCallback(async (content: string, captureId?: string, rawTranscript?: string) => {
+  const saveContent = useCallback(async (content: string, captureId?: string, rawTranscript?: string, appliedContextOverride?: AppliedContext) => {
     const current = stateRef.current;
     if (!current) return;
-    const currentContext = context ?? await getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "");
-    const provenance = appliedContext(currentContext);
+    const currentContext = appliedContextOverride
+      ? undefined
+      : context ?? await getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "");
+    const provenance = appliedContextOverride ?? appliedContext(currentContext!);
     const organization = captureOrganization(current);
     const selectionText = current.selectionText;
     if (selectionText) {
@@ -386,6 +388,7 @@ function SidePanelApp() {
       const project = referenceProject
         ? currentContext.projects.find((item) => item.name === referenceProject)
         : undefined;
+      let provenance = appliedContext(currentContext);
       const result = await transcribeAudio({
         audio: blob,
         source: current.source,
@@ -396,12 +399,18 @@ function SidePanelApp() {
         instructions: current.selectionText
           ? "Transcribe this as an annotation to the selected source."
           : "Transcribe this as concise text linked to the current page.",
-        appliedContext: appliedContext(currentContext),
+        appliedContext: provenance,
       });
+      provenance = {
+        ...provenance,
+        transcription_skill_id: result.skill_id,
+        transcription_skill_name: result.skill_name,
+        transcription_skill_revision: result.skill_revision,
+      };
       setTranscript(result.text);
       setDraft(result.text);
       persistDraft({ draft: result.text, transcript: result.text });
-      await saveContent(result.text, result.capture_id, result.text);
+      await saveContent(result.text, result.capture_id, result.text, provenance);
       setPhase("idle");
     } catch (cause) {
       setError(friendlyLocalError(cause, /target unavailable/i.test(String(cause)) ? "target" : "transcription"));
