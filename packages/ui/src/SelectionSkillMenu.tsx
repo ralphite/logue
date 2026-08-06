@@ -31,10 +31,11 @@ export function SelectionSkillMenu({
   const [runningSkillId, setRunningSkillId] = useState<string>();
   const [error, setError] = useState<string>();
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const firstSkillRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!focusTrigger) return;
-    triggerRef.current?.focus({ preventScroll: true });
+    (firstSkillRef.current ?? triggerRef.current)?.focus({ preventScroll: true });
     onFocusTriggerHandled?.();
   }, [focusTrigger, onFocusTriggerHandled]);
 
@@ -60,6 +61,8 @@ export function SelectionSkillMenu({
 
   const viewportWidth = typeof window === "undefined" ? anchor.left + 88 : window.innerWidth;
   const viewportHeight = typeof window === "undefined" ? anchor.top + 40 : window.innerHeight;
+  const directSkills = skills.slice(0, 2);
+  const moreSkills = skills.slice(2);
 
   return (
     <div
@@ -74,7 +77,17 @@ export function SelectionSkillMenu({
       onPointerDown={preserveSelection}
       onMouseDown={preserveSelection}
     >
-      <OverlayMenu
+      <div className="flex items-center gap-1 rounded-lg border border-[#ddddda] bg-white p-1 shadow-[0_4px_14px_rgba(20,21,18,0.12)]">
+        {directSkills.map((skill, index) => <button
+          ref={index === 0 ? firstSkillRef : undefined}
+          key={skill.id}
+          type="button"
+          disabled={Boolean(runningSkillId)}
+          onClick={() => void useSkill(skill.id)}
+          className="inline-flex h-8 max-w-32 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-medium text-[#555651] hover:bg-[#f2f2ef] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#5b64f4] disabled:cursor-wait"
+          title={skill.name}
+        >{runningSkillId === skill.id ? <LoaderCircle size={13} className="animate-spin text-[#656de0]" /> : <Sparkles size={13} className="text-[#777873]" />}<span className="truncate">{skill.name}</span></button>)}
+      {moreSkills.length > 0 && <OverlayMenu
         open={open}
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen);
@@ -98,11 +111,11 @@ export function SelectionSkillMenu({
             title="Apply a skill to this selection (Alt+Enter)"
           >
             <Sparkles size={14} aria-hidden="true" />
-            Skills
+            More…
           </button>
         )}
       >
-        {skills.map((skill) => (
+        {moreSkills.map((skill) => (
           <button
             key={skill.id}
             type="button"
@@ -116,7 +129,9 @@ export function SelectionSkillMenu({
           </button>
         ))}
         {error && <p role="alert" className="mx-1 mb-1 mt-1 rounded-md bg-[#fbefec] px-2 py-1.5 text-[12px] leading-4 text-[#9a453d]">{error}</p>}
-      </OverlayMenu>
+      </OverlayMenu>}
+      {!moreSkills.length && error && <p role="alert" className="max-w-44 px-2 text-[12px] leading-4 text-[#9a453d]">{error}</p>}
+      </div>
     </div>
   );
 }

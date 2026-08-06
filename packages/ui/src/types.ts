@@ -8,6 +8,21 @@ export interface MaterialOrganization {
   reason?: string;
   suggested_projects?: string[];
   suggested_tags?: string[];
+  membership_origins?: Record<string, "auto_added" | "added">;
+  duplicate_of?: string;
+  user_correction?: {
+    id: string;
+    bundle_root_id: string;
+    source_ids: string[];
+    content_excerpt: string;
+    original_suggested_projects: string[];
+    outcomes: Array<{
+      project: string;
+      state: "added" | "saved_only" | "excluded";
+    }>;
+    tags_context: string[];
+    created_at: string;
+  };
   updated_at?: string;
 }
 
@@ -16,6 +31,24 @@ export interface SourceInfo {
   title?: string;
   domain?: string;
   selection?: string;
+  context_before?: string;
+  context_after?: string;
+  anchor?: {
+    status: "anchored" | "page_changed" | "reanchored" | "snapshot_only";
+    quote: string;
+    context_before?: string;
+    context_after?: string;
+    revision: number;
+    updated_at: string;
+  };
+  anchor_history?: Array<{
+    status: "anchored" | "page_changed" | "reanchored" | "snapshot_only";
+    quote: string;
+    context_before?: string;
+    context_after?: string;
+    revision: number;
+    updated_at: string;
+  }>;
 }
 
 export interface AppliedContext {
@@ -36,6 +69,9 @@ export interface AppliedContext {
   primary_language?: string;
   mixed_languages?: string[];
   custom_instructions?: string;
+  phrases?: string[];
+  avoid_terms?: string[];
+  formatting_preference?: string;
   disable_project_profile?: boolean;
   language_override?: string;
   topic_vocabulary_id?: string;
@@ -50,6 +86,7 @@ export interface Material {
   kind: MaterialKind;
   status: MaterialStatus;
   content: string;
+  rawTranscript?: string;
   transcript?: string;
   annotation?: string;
   source?: SourceInfo;
@@ -60,19 +97,28 @@ export interface Material {
   parentIds?: string[];
   captureId?: string;
   transcriptRevision?: number;
+  revision?: number;
   createdAt: string;
   actor?: string;
+  activityType?: "voice-command" | "text-command" | "ask" | "draft";
+  adoptedRevisions?: Array<{
+    id: string;
+    revision: number;
+    content: string;
+    target?: { surface?: string; url?: string; target_key?: string };
+    undone: boolean;
+    created_at: string;
+    undone_at?: string;
+  }>;
   appliedContext?: AppliedContext;
   organization?: MaterialOrganization;
+  tombstone?: boolean;
+  deletedAt?: string;
 }
 
 export type CaptureMode = "input" | "selection";
 export type CapturePhase =
-  | "idle"
-  | "recording"
-  | "processing"
-  | "review"
-  | "error";
+  "idle" | "recording" | "processing" | "review" | "error";
 
 export interface ContextSource {
   id: string;
@@ -80,3 +126,33 @@ export interface ContextSource {
   type: "page" | "selection" | "project" | "glossary";
   removable?: boolean;
 }
+
+export interface ExtensionInputTarget {
+  id: string;
+  label: string;
+  pageTitle: string;
+  domain: string;
+  url: string;
+  lastFocusedAt: number;
+}
+
+export type ExtensionTargetBridgeRequest = {
+  source: "logue-web";
+  type: "logue:target-bridge-request";
+  requestId: string;
+  action: "list" | "insert" | "undo";
+  sessionId?: string;
+  text?: string;
+  undoToken?: string;
+};
+
+export type ExtensionTargetBridgeResponse = {
+  source: "logue-extension";
+  type: "logue:target-bridge-response";
+  requestId: string;
+  ok: boolean;
+  targets?: ExtensionInputTarget[];
+  target?: ExtensionInputTarget;
+  undoToken?: string;
+  error?: string;
+};
