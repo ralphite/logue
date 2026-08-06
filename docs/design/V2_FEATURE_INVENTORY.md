@@ -113,7 +113,7 @@
 - V2-LIB-02 — INTEGRATED — 无查询浏览与本地 exact search。
 - V2-LIB-03 — CODED — Host search 返回 match/reason；真正 semantic ranking 尚未实现。
 - V2-LIB-04 — INTEGRATED — Project / Topic / origin / time / site / type / adopted filters 作用于同一 content-first 结果集，可组合并一键清除；Comment bundle 仍保持单条，Global Find 的 Document 结果服从适用筛选条件。
-- V2-LIB-05 — CODED — 可调宽 Source inspector 已挂载；raw/normalized/adopted/audio/parents/Profile Context 仍有详情缺口。
+- V2-LIB-05 — INTEGRATED — 可调宽 Source inspector 从 Comment bundle 单条入口核验 Web/You 两层，并呈现 original/raw/transformed/saved、audio、可打开 parents、adopted versions、实际 Profile/Topic/Skill/language lineage。
 - V2-LIB-06 — INTEGRATED — Source 打开、回原 URL、Project membership、Exclude/Undo。
 - V2-LIB-07 — CODED — 批量 membership、用于 Draft、scope export/delete 未完整接入 content-first UI。
 - V2-LIB-08 — CODED — All activity 可浏览 Activity/Run；reopen Candidate/Retry/Pin/Delete/dependency actions 未完整。
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-LIB-05`
-- 完成条件：可调宽 Source inspector 完整呈现 original/raw/transformed/saved、audio、parents、adopted revisions、实际 Profile/Topic/Skill lineage，并从 Comment bundle 单条入口核验 Web 与 You 两层。
+- `ACTIVE: V2-LIB-07`
+- 完成条件：content-first Library 的多选 Add/Exclude 使用 bundle 级 membership 合同；可把选定 Sources 交给指定 Project Draft，并提供所选范围 Export 与依赖感知 Delete。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。
