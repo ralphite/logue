@@ -138,6 +138,10 @@ export interface ExtensionSkillRun {
   id: string;
   skill_id: string;
   skill_name: string;
+  instruction?: string;
+  project?: string;
+  page_url?: string;
+  activity_source_id?: string;
   original_output?: string;
   adopted_output?: string;
   status: "running" | "complete" | "failed";
@@ -204,6 +208,19 @@ export async function createExtensionSkillRun(input: {
     ...(input.autoSearch !== undefined
       ? { auto_search: input.autoSearch }
       : {}),
+  });
+}
+
+export async function retryExtensionSkillRun(run: ExtensionSkillRun) {
+  return request<ExtensionSkillRun>("skill-run", {
+    request_id: createRequestId(),
+    skill_id: run.skill_id,
+    instruction: run.instruction || "Retry failed Run",
+    project: run.project || "",
+    source_ids: (run.sources ?? []).map((source) => source.id),
+    activity_source_id: run.activity_source_id,
+    retry_run_id: run.id,
+    auto_search: false,
   });
 }
 

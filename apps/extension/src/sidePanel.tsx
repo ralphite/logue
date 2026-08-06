@@ -10,6 +10,7 @@ import {
   getPendingVoiceQueueStatus,
   createExtensionProject,
   createExtensionSkillRun,
+  retryExtensionSkillRun,
   adoptExtensionSkillRun,
   adoptVoiceMaterial,
   linkVoiceComment,
@@ -36,6 +37,8 @@ import {
   type AppliedContext,
   type CaptureContext,
   type ExtensionSkill,
+  type ExtensionSkillRun,
+  ExtensionApiError,
   type PageMaterial,
   type PendingVoicePlan,
   type PendingVoiceSummary,
@@ -105,6 +108,23 @@ function isMicrophonePermissionResult(message: unknown): message is MicrophonePe
   );
 }
 
+function failedSkillRun(cause: unknown) {
+  return cause instanceof ExtensionApiError ? cause.run : undefined;
+}
+
+function commandSources(run: ExtensionSkillRun): CommandResult["sources"] {
+  return (run.sources ?? []).map((source) => ({
+    id: source.id,
+    kind: source.kind,
+    actor: source.actor,
+    content: source.content,
+    projects: source.projects ?? [],
+    tags: source.tags ?? [],
+    createdAt: source.created_at,
+    source: source.source ?? undefined,
+  }));
+}
+
 const panelTabId = sidePanelTabId(window.location.search);
 const microphonePermissionPath = siblingExtensionDocumentPath(
   chrome.runtime.getManifest().side_panel!.default_path,
@@ -126,6 +146,7 @@ function SidePanelApp() {
   const [generationSources, setGenerationSources] = useState<CommandResult["sources"]>([]);
   const [error, setError] = useState<LocalError>();
   const [failedPageSkillId, setFailedPageSkillId] = useState<string>();
+  const [failedRun, setFailedRun] = useState<ExtensionSkillRun>();
   const [elapsed, setElapsed] = useState(0);
   const [skills, setSkills] = useState<ExtensionSkill[]>([]);
   const [skillId, setSkillId] = useState("");
@@ -692,9 +713,11 @@ function SidePanelApp() {
           });
           setDraft("");
           persistDraft({ draft: "" });
+          setFailedRun(undefined);
           setError(undefined);
         } catch (cause) {
           setFailedPageSkillId(undefined);
+          setFailedRun(failedSkillRun(cause));
           setError(friendlyLocalError(cause, "model"));
         } finally {
           setGenerating(false);
@@ -1021,8 +1044,10 @@ function SidePanelApp() {
         })),
       });
       setFailedPageSkillId(undefined);
+      setFailedRun(undefined);
     } catch (cause) {
       setFailedPageSkillId(undefined);
+      setFailedRun(failedSkillRun(cause));
       setError(friendlyLocalError(cause, "model"));
     } finally {
       setGenerating(false);
@@ -1087,13 +1112,49 @@ function SidePanelApp() {
         })),
       });
       setFailedPageSkillId(undefined);
+      setFailedRun(undefined);
     } catch (cause) {
       setFailedPageSkillId(requestedSkillId);
+      setFailedRun(failedSkillRun(cause));
       setError(friendlyLocalError(cause, "model"));
     } finally {
       setGenerating(false);
     }
   }, [commitCommandResult, generating, resolveActiveProject, skills]);
+
+  const retryFailedSkillRun = useCallback(async () => {
+    const snapshot = stateRef.current;
+    if (!snapshot || !failedRun) return;
+    setGenerating(true);
+    setError(undefined);
+    try {
+      const current = await resolveActiveProject(snapshot);
+      if (!current || (failedRun.page_url && current.source.url !== failedRun.page_url)) {
+        throw new Error("Return to the original page before retrying this Run.");
+      }
+      const run = await retryExtensionSkillRun(failedRun);
+      if (run.status !== "complete" || !run.original_output?.trim()) {
+        throw new Error(run.error || "No result returned.");
+      }
+      const isPageAction = Boolean(failedPageSkillId);
+      commitCommandResult({
+        runId: run.id,
+        originalText: run.original_output,
+        text: run.original_output,
+        targetKey: isPageAction ? `page-action:${current.source.url}` : generationTargetKey(current),
+        sourceURL: current.source.url,
+        allowInsert: !isPageAction,
+        sources: commandSources(run),
+      });
+      setFailedRun(undefined);
+      setFailedPageSkillId(undefined);
+    } catch (cause) {
+      setFailedRun(failedSkillRun(cause) ?? failedRun);
+      setError(friendlyLocalError(cause, "model"));
+    } finally {
+      setGenerating(false);
+    }
+  }, [commitCommandResult, failedPageSkillId, failedRun, resolveActiveProject]);
 
   const captureCurrentPage = useCallback(async () => {
     const snapshot = stateRef.current;
@@ -1891,7 +1952,8 @@ function SidePanelApp() {
       onConnectCandidateServer={connectCandidateServer}
       onRetryServer={() => void refreshServerConnection()}
       onRetryModel={() => {
-        if (failedPageSkillId) void runPageSkill(failedPageSkillId);
+        if (failedRun) void retryFailedSkillRun();
+        else if (failedPageSkillId) void runPageSkill(failedPageSkillId);
         else void runGeneration();
       }}
       onOpenModelSettings={() => {

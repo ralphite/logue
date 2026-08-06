@@ -22,7 +22,7 @@
 
 - V2-LIN-01 — INTEGRATED — Web / You / AI Origin 与 Comment bundle topology。
 - V2-LIN-02 — INTEGRATED — Voice audio / raw transcript / normalized transcript / transcript revisions 永久分层。
-- V2-LIN-03 — INTEGRATED — Voice/Text/Capture input 永久保存；Extension Voice/Text Command 与 Web Ask/Compare/Draft/Continue 先保存永久 You Activity，再由 Run 链接；Retry 复用原 Activity lineage，Host 强制 Activity 不进入 Project Context。
+- V2-LIN-03 — INTEGRATED — Voice/Text/Capture input 永久保存；Extension Voice/Text Command 与 Web Ask/Compare/Draft/Continue 先保存永久 You Activity，再由 Run 链接；Side Panel 直接保留 Host 返回的 failed Run，Retry 使用 `retry_run_id` 复用原 Activity 与 frozen Context，不重复保存 Activity。
 - V2-LIN-04 — INTEGRATED — 永久保存与 Project Context membership 分离；Voice Write/Activity 不自动进入 Context。
 - V2-LIN-05 — INTEGRATED — Saved only / Suggested / Added / Excluded 与 included/excluded Host 互斥。
 - V2-LIN-06 — INTEGRATED — Comment bundle 作为单一用户概念显示并共享 membership 决定。
@@ -50,7 +50,7 @@
 - V2-CMD-01 — INTEGRATED — 独立 Command shortcut/明确 mode；显示 scope、Project 与 current target。
 - V2-CMD-02 — INTEGRATED — Voice/Text command、一次 Enter 执行、冲突 clarification、Esc 返回原焦点。
 - V2-CMD-03 — INTEGRATED — Voice/Text Command 每次提交先创建永久 You Activity Source，Run 强制链接真实 Activity；失败仍保留用户输入。
-- V2-CMD-04 — INTEGRATED — parse/Model failure 保留可恢复 Run/Candidate，不虚假成功。
+- V2-CMD-04 — INTEGRATED — parse/Model failure 保留可恢复 failed Run/Candidate；Side Panel 的 Voice/Text Command 与 Page/Selection Action 都从同一原 Run Retry，不虚假成功或重建 Source。
 - V2-CMD-05 — INTEGRATED — 多来源结果进入同 tab Side Panel，显示 actual Sources，支持 Pin/Exclude 本次 Context。
 - V2-CMD-06 — INTEGRATED — Side Panel Candidate 编辑与 Insert/Copy/Keep/Document 使用统一 adoption 合同。
 - V2-CMD-07 — INTEGRATED — Insert 采用单一 AI Source，Undo 保留 target 与 persistent undone lineage；插入后保存失败可重试。
@@ -177,7 +177,7 @@
 
 ## Failure recovery / keyboard / accessibility
 
-- V2-FAIL-01 — INTEGRATED — Host offline 与 transcription failure 保留本地录音并提供 Retry/Reconnect/Export/Delete；provider 未 Ready 指向 Settings，失败 Run 与 Sources 在 Web/Side Panel 保留并可直接 Retry；target lost / insert changed 保留 Candidate/Document 并只提供 Copy、改选 target 或安全局部 Undo。
+- V2-FAIL-01 — INTEGRATED — Host offline 与 transcription failure 保留本地录音并提供 Retry/Reconnect/Export/Delete；provider 未 Ready 指向 Settings，失败 Run 与 Sources 在 Web/Side Panel 保留并以原 lineage Retry；target lost / insert changed 保留 Candidate/Document 并只提供 Copy、改选 target 或安全局部 Undo。
 - V2-FAIL-02 — INTEGRATED — Enter mode-local、Esc/Cancel、阻止宿主 Submit 的 Inline/Command/Comment 键盘合同。
 - V2-FAIL-03 — INTEGRATED — Voice Write 与 Voice Command 是独立 Chrome Commands；Settings → Voice 显示实际 shortcut，键盘录入后由 Extension 原子更新，冲突/无效组合保留旧值，并可恢复 manifest 默认值。
 - V2-FAIL-04 — INTEGRATED — production V2 OverlayMenu、modal Project dialogs 与共享 inspector 使用统一 focus 合同：键盘打开进入有效控件、Esc 只关当前层、modal 循环焦点，关闭后返回原触发控件。

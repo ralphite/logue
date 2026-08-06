@@ -836,3 +836,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 只保存逐文件旧值再回写；回滚本身失败时仍可能产生混合状态，且会遗漏新增 root 文件。
 - **已有证据：** Phase 2 runtime 审查确认当前实现先覆盖 Project，再逐文件更新且没有 rollback，同时完全遗漏 `membership_origins` 的 key rename。
 - **开放问题：** 无。
+
+### DR-078 — Extension Retry 复用 Host 已保存的 failed Run
+
+- **优先级：** V2 Lineage / Phase 2 P1
+- **状态：** 已实现；Extension typecheck 与 diff check 通过，真实 provider failure 留到 Phase 5
+- **决定：** Side Panel 保存 `ExtensionApiError.run`。Voice/Text Command 与 Page/Selection Action 的 Retry 直接以该 Run ID 调用 `retry_run_id`，由 Host 复用 frozen Skill、Sources、model context 与原 `activity_source_id`；不得重新保存 Activity、Source 或 Comment。
+- **用户可见影响：** Provider 失败后点击 Retry 不会在 Library 留下重复输入，也不会丢失“这次 Run 使用了什么”的证据链。
+- **替代方案：** 仅保存表单参数并重新创建 Run；会生成新的 Activity/Source，且可能读取已变化的 Project Context。
+- **已有证据：** Phase 2 spec 审查确认 Host 已随 502 返回 failed Run，但 Side Panel catch 丢弃它，Retry 又从 `saveMaterial` 开始创建全新 lineage。
+- **开放问题：** 无。
