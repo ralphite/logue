@@ -431,15 +431,16 @@ class Store:
             materials = [item for item in self.items() if not item.get("activity_type") and not item.get("tombstone")]
             groups: dict[str, dict[str, Any]] = {}
             for item in materials:
+                source_id = self.comment_bundle_root_id(item)
                 for tag in normalize(item.get("tags")):
                     key = f"tag:{tag.casefold()}"
                     group = groups.setdefault(key, {"name": tag, "reason": f"Related by the confirmed tag {tag}", "source_ids": []})
-                    group["source_ids"] = normalize(group["source_ids"] + [item["id"]])
+                    group["source_ids"] = normalize(group["source_ids"] + [source_id])
                 domain = str((item.get("source") or {}).get("domain", "")).strip().lower()
                 if domain:
                     key = f"domain:{domain}"
                     group = groups.setdefault(key, {"name": domain, "reason": f"Related Sources from {domain}", "source_ids": []})
-                    group["source_ids"] = normalize(group["source_ids"] + [item["id"]])
+                    group["source_ids"] = normalize(group["source_ids"] + [source_id])
             active_keys: set[str] = set()
             for key, group in groups.items():
                 if len(group["source_ids"]) < 2:
@@ -458,7 +459,220 @@ class Store:
             for topic in current:
                 if topic.get("automatic") and topic.get("seed_key") not in active_keys and not topic.get("manual_membership") and not topic.get("custom_name"):
                     (self.root / "topics" / f"{topic['id']}.json").unlink(missing_ok=True)
-            return self._list("topics", "updated_at")
+            return [self.topic_insights(topic) for topic in self._list("topics", "updated_at")]
+
+    def topic_insights(self, topic: dict[str, Any]) -> dict[str, Any]:
+        source_ids = normalize(topic.get("source_ids"))
+        by_id = {item["id"]: item for item in self.items() if not item.get("tombstone")}
+        sources = [by_id[source_id] for source_id in source_ids if source_id in by_id]
+
+        def bundle_text(source: dict[str, Any]) -> str:
+            return "\n".join(str(member.get("content", "")) for member in self.comment_bundle_members(source["id"]))
+
+        def tokens(text: str) -> set[str]:
+            ignored = {"about", "after", "before", "from", "have", "into", "that", "their", "there", "these", "this", "with", "your"}
+            return {
+                token
+                for token in re.findall(r"[a-z0-9][a-z0-9-]{2,}", text.casefold())
+                if token not in ignored
+            }
+
+        relationships: list[dict[str, Any]] = []
+        seen_pairs: set[tuple[str, str]] = set()
+        reference = sources[0] if sources else None
+        negative_markers = (" not ", " no ", " never ", " cannot ", " isn't ", " won't ", "不是", "没有", "不能", "不会")
+        for source in sources:
+            duplicate_id = str((source.get("organization") or {}).get("duplicate_of", ""))
+            related = by_id.get(duplicate_id) if duplicate_id else None
+            if related:
+                pair = tuple(sorted((source["id"], related["id"])))
+                if pair not in seen_pairs:
+                    seen_pairs.add(pair)
+                    relationships.append({
+                        "type": "duplicate",
+                        "source_ids": list(pair),
+                        "reason": "Saved separately, but linked as the same evidence so Project retrieval counts it once.",
+                        "confidence": "exact",
+                    })
+                continue
+            if not reference or source["id"] == reference["id"]:
+                continue
+            pair = tuple(sorted((reference["id"], source["id"])))
+            if pair in seen_pairs:
+                continue
+            seen_pairs.add(pair)
+            left = bundle_text(reference)
+            right = bundle_text(source)
+            overlap = tokens(left) & tokens(right)
+            opposite = any(marker in f" {left.casefold()} " for marker in negative_markers) != any(marker in f" {right.casefold()} " for marker in negative_markers)
+            left_numbers = set(re.findall(r"\b\d+(?:\.\d+)?%?\b", left))
+            right_numbers = set(re.findall(r"\b\d+(?:\.\d+)?%?\b", right))
+            conflicting_numbers = bool(left_numbers and right_numbers and left_numbers != right_numbers)
+            conflict = len(overlap) >= 2 and (opposite or conflicting_numbers)
+            relationships.append({
+                "type": "conflict" if conflict else "supplement",
+                "source_ids": list(pair),
+                "reason": (
+                    "Overlapping claims use opposing wording or values. Review both before reuse."
+                    if conflict
+                    else "Adds distinct detail to the shared Topic without duplicating the reference Source."
+                ),
+                "confidence": "suggested",
+            })
+
+        project_suggestions: list[dict[str, Any]] = []
+        for project in self.projects():
+            if project.get("archived_at"):
+                continue
+            project_name = str(project.get("name", ""))
+            covered = [source["id"] for source in sources if project_name in normalize(source.get("projects"))]
+            suggested = [
+                source["id"]
+                for source in sources
+                if project_name in normalize((source.get("organization") or {}).get("suggested_projects"))
+            ]
+            missing = [
+                source["id"]
+                for source in sources
+                if project_name not in normalize(source.get("projects"))
+                and project_name not in normalize(source.get("excluded_projects"))
+            ]
+            if missing and (covered or suggested):
+                project_suggestions.append({
+                    "project_id": project.get("id", ""),
+                    "project_name": project_name,
+                    "source_ids": missing,
+                    "reason": (
+                        f"{len(covered)} related Source{' is' if len(covered) == 1 else 's are'} already in this Project."
+                        if covered
+                        else f"{len(suggested)} related Source{' was' if len(suggested) == 1 else 's were'} suggested for this Project."
+                    ),
+                })
+        project_suggestions.sort(key=lambda value: (-len(value["source_ids"]), value["project_name"].casefold()))
+
+        counts: dict[str, int] = {}
+        rendered_terms: dict[str, str] = {}
+        for source in sources:
+            text = bundle_text(source)
+            terms = normalize(source.get("tags")) + re.findall(r"\b(?:[A-Z]{2,}[A-Z0-9-]*|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", text)
+            for term in terms:
+                clean = str(term).strip()
+                if len(clean) < 2 or len(clean) > 64:
+                    continue
+                key = clean.casefold()
+                counts[key] = counts.get(key, 0) + 1
+                rendered_terms.setdefault(key, clean)
+        resolved = {str(term).casefold() for term in normalize(topic.get("resolved_vocabulary_suggestions"))}
+        vocabulary_suggestions = [
+            {"term": rendered_terms[key], "reason": f"Appears across {count} related Sources."}
+            for key, count in sorted(counts.items(), key=lambda entry: (-entry[1], entry[0]))
+            if count >= 2 and key not in resolved
+        ][:8]
+        return {
+            **topic,
+            "source_ids": [source["id"] for source in sources],
+            "relationships": relationships,
+            "project_suggestions": project_suggestions[:3],
+            "vocabulary_suggestions": vocabulary_suggestions,
+        }
+
+    def add_topic_sources_to_project(self, identifier: str, project_id: str) -> dict[str, Any]:
+        with self.lock:
+            topic = self.get("topics", identifier)
+            project = next((entry for entry in self.projects() if str(entry.get("id", "")) == project_id and not entry.get("archived_at")), None)
+            if not project:
+                raise FileNotFoundError(project_id)
+            suggestion = next(
+                (entry for entry in self.topic_insights(topic).get("project_suggestions", []) if str(entry.get("project_id", "")) == project_id),
+                None,
+            )
+            if not suggestion:
+                raise Conflict("this Project suggestion is no longer available")
+            roots = normalize(suggestion.get("source_ids"))
+            members = {
+                member["id"]: member
+                for source_id in roots
+                for member in self.comment_bundle_members(source_id)
+            }
+            snapshots = {member_id: json.loads(json.dumps(member)) for member_id, member in members.items()}
+            project_name = str(project.get("name", ""))
+            try:
+                for source_id in roots:
+                    source = self.get("items", source_id)
+                    if project_name in normalize(source.get("excluded_projects")):
+                        continue
+                    self.update_item(source_id, {"projects": normalize(source.get("projects")) + [project_name]})
+            except BaseException:
+                for member_id, snapshot in snapshots.items():
+                    atomic_json(self.root / "items" / f"{member_id}.json", snapshot)
+                raise
+            return self.topic_insights(self.get("topics", identifier))
+
+    def remember_topic_vocabulary_suggestion(self, identifier: str, term: str, destination: str, project_id: str = "") -> dict[str, Any]:
+        clean = term.strip()
+        if not clean:
+            raise ValueError("choose a vocabulary suggestion")
+        with self.lock:
+            topic = self.get("topics", identifier)
+            available = {str(entry.get("term", "")).casefold() for entry in self.topic_insights(topic).get("vocabulary_suggestions", [])}
+            if clean.casefold() not in available:
+                raise Conflict("this vocabulary suggestion is no longer available")
+
+            def add_term(value: Any) -> dict[str, Any]:
+                vocabulary = normalize_vocabulary(value)
+                category = "acronyms" if re.fullmatch(r"[A-Z]{2,}[A-Z0-9-]*", clean) else "products"
+                vocabulary[category] = normalize(vocabulary[category] + [clean])
+                return vocabulary
+
+            if destination == "topic":
+                vocabulary_id = str(topic.get("vocabulary_id", ""))
+                if vocabulary_id:
+                    vocabulary = self.get("topic-vocabularies", vocabulary_id)
+                    self.save_topic_vocabulary(vocabulary_id, {**vocabulary, "vocabulary": add_term(vocabulary.get("vocabulary"))})
+                else:
+                    vocabulary = next(
+                        (
+                            entry
+                            for entry in self.topic_vocabularies()
+                            if str(entry.get("name", "")).casefold() == str(topic.get("name", "Topic")).casefold()
+                        ),
+                        None,
+                    )
+                    if vocabulary:
+                        vocabulary = self.save_topic_vocabulary(
+                            str(vocabulary["id"]),
+                            {**vocabulary, "vocabulary": add_term(vocabulary.get("vocabulary"))},
+                        )
+                    else:
+                        vocabulary = self.save_topic_vocabulary(None, {"name": str(topic.get("name", "Topic")), "vocabulary": add_term({})})
+                    topic["vocabulary_id"] = vocabulary["id"]
+            elif destination == "project":
+                project = next((entry for entry in self.projects() if str(entry.get("id", "")) == project_id and not entry.get("archived_at")), None)
+                if not project:
+                    raise FileNotFoundError(project_id)
+                profile = normalize_voice_profile(project.get("transcription_profile"), project=True)
+                if profile.get("mode") == "disabled":
+                    raise Conflict("this Project voice profile is disabled")
+                profile["mode"] = "customized"
+                profile["vocabulary"] = add_term(profile.get("vocabulary"))
+                self.save_project(str(project.get("name", "")), {
+                    "overview": project.get("overview", ""),
+                    "transcription_profile": profile,
+                    "skill_bindings": project.get("skill_bindings", {}),
+                })
+            elif destination == "global":
+                settings = self.settings()
+                profile = normalize_voice_profile(settings.get("voice_profile"))
+                profile["vocabulary"] = add_term(profile.get("vocabulary"))
+                self.save_settings({**settings, "voice_profile": profile})
+            else:
+                raise ValueError("choose Topic, Project, or Global vocabulary")
+            topic["resolved_vocabulary_suggestions"] = normalize(
+                (topic.get("resolved_vocabulary_suggestions") if isinstance(topic.get("resolved_vocabulary_suggestions"), list) else []) + [clean]
+            )
+            topic["updated_at"] = now()
+            atomic_json(self.root / "topics" / f"{identifier}.json", topic)
+            return self.topic_insights(topic)
 
     def save_topic(self, identifier: str, value: dict[str, Any]) -> dict[str, Any]:
         with self.lock:
@@ -477,7 +691,7 @@ class Store:
                 topic["manual_membership"] = True
             topic["updated_at"] = now()
             atomic_json(self.root / "topics" / f"{identifier}.json", topic)
-            return topic
+            return self.topic_insights(topic)
 
     def merge_topics(self, identifiers: list[str], name: str) -> dict[str, Any]:
         with self.lock:
@@ -489,7 +703,7 @@ class Store:
             atomic_json(self.root / "topics" / f"{merged['id']}.json", merged)
             for topic in topics:
                 (self.root / "topics" / f"{topic['id']}.json").unlink(missing_ok=True)
-            return merged
+            return self.topic_insights(merged)
 
     def split_topic(self, identifier: str, source_ids: list[str], name: str) -> dict[str, Any]:
         with self.lock:
@@ -500,7 +714,7 @@ class Store:
             self.save_topic(identifier, {"source_ids": [source_id for source_id in normalize(topic.get("source_ids")) if source_id not in selected]})
             created = {"id": make_id("top_"), "name": name.strip() or f"{topic.get('name', 'Topic')} split", "source_ids": selected, "reason": "Split by you", "automatic": False, "manual_membership": True, "custom_name": True, "hidden": False, "created_at": now(), "updated_at": now()}
             atomic_json(self.root / "topics" / f"{created['id']}.json", created)
-            return created
+            return self.topic_insights(created)
 
     def convert_topic_to_project(self, identifier: str, name: str) -> dict[str, Any]:
         with self.lock:
@@ -2654,7 +2868,7 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/v1/topics":
             self.json(HTTPStatus.OK, {"topics": store.topics()})
         elif path.startswith("/v1/topics/"):
-            self.json(HTTPStatus.OK, store.get("topics", path.removeprefix("/v1/topics/")))
+            self.json(HTTPStatus.OK, store.topic_insights(store.get("topics", path.removeprefix("/v1/topics/"))))
         elif path == "/v1/skills":
             self.json(HTTPStatus.OK, {"skills": store.skills()})
         elif path.startswith("/v1/skills/") and path.endswith("/revisions"):
@@ -2890,6 +3104,18 @@ class Handler(BaseHTTPRequestHandler):
             identifier = path.removeprefix("/v1/topics/").removesuffix("/split")
             value = self.body_json()
             self.json(HTTPStatus.CREATED, store.split_topic(identifier, normalize(value.get("source_ids")), str(value.get("name", ""))))
+        elif path.startswith("/v1/topics/") and path.endswith("/add-to-project") and method == "POST":
+            identifier = path.removeprefix("/v1/topics/").removesuffix("/add-to-project")
+            self.json(HTTPStatus.OK, store.add_topic_sources_to_project(identifier, str(self.body_json().get("project_id", ""))))
+        elif path.startswith("/v1/topics/") and path.endswith("/remember-vocabulary") and method == "POST":
+            identifier = path.removeprefix("/v1/topics/").removesuffix("/remember-vocabulary")
+            value = self.body_json()
+            self.json(HTTPStatus.OK, store.remember_topic_vocabulary_suggestion(
+                identifier,
+                str(value.get("term", "")),
+                str(value.get("destination", "")),
+                str(value.get("project_id", "")),
+            ))
         elif path.startswith("/v1/topics/") and path.endswith("/convert") and method == "POST":
             identifier = path.removeprefix("/v1/topics/").removesuffix("/convert")
             self.json(HTTPStatus.CREATED, store.convert_topic_to_project(identifier, str(self.body_json().get("name", ""))))

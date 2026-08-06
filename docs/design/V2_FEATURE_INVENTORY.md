@@ -160,7 +160,7 @@
 ## Topics / PKM
 
 - V2-TOP-01 — INTEGRATED — dynamic Topics Host/API 与 Library → Topics production workbench 已挂载。
-- V2-TOP-02 — CODED — 重复/冲突/补充关系与 Project/vocabulary suggestions 尚未完整。
+- V2-TOP-02 — INTEGRATED — Topic 以 Comment bundle root 显示 exact duplicate 与 suggested conflict/supplement；Project/Vocabulary suggestions 只有用户明确 Add/Remember 后才写入 Context 或所选 Topic/Project/Global vocabulary，且失败原子回滚。
 - V2-TOP-03 — INTEGRATED — rename/merge/hide/split/convert-to-Project 的 Host/API 与 production consumer 已接通。
 - V2-TOP-04 — INTEGRATED — Topic Vocabulary 与 Project Context 权限隔离。
 - V2-TOP-05 — INTEGRATED — Duplicate-linked 保留原 Source；Project retrieval 过滤已链接副本，Host 在同 Run 同时选择 canonical/duplicate 时只冻结一次 evidence。
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-TOP-02`
-- 完成条件：Topics 对 related Sources 显示 duplicate / conflict / supplement 关系及理由，并把 Project suggestion 与 Topic Vocabulary suggestion 作为用户确认动作；它们不得自动授予 Project Context 或写入 vocabulary。
+- `ACTIVE: V2-OPS-07`
+- 完成条件：logue.ai 的 production landing/download surface 使用 Logue 名称和 local-first、no-account 定位，提供当前 OS 的真实安装入口，以及可打开的安装、隐私、许可证文档；不得承诺云账号、团队 SaaS 或本地 AI 模型。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

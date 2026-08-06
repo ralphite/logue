@@ -294,6 +294,23 @@ export interface DiscoveredTopic {
   automatic: boolean;
   hidden: boolean;
   converted_project?: string;
+  vocabulary_id?: string;
+  relationships: Array<{
+    type: "duplicate" | "conflict" | "supplement";
+    source_ids: string[];
+    reason: string;
+    confidence: "exact" | "suggested";
+  }>;
+  project_suggestions: Array<{
+    project_id: string;
+    project_name: string;
+    source_ids: string[];
+    reason: string;
+  }>;
+  vocabulary_suggestions: Array<{
+    term: string;
+    reason: string;
+  }>;
   created_at: string;
   updated_at: string;
 }
@@ -1085,6 +1102,40 @@ export async function convertTopicToProject(id: string, name: string) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     }),
+  );
+}
+
+export async function addTopicSourcesToProject(id: string, projectId: string) {
+  return parseResponse<DiscoveredTopic>(
+    await fetch(`${apiBase}/v1/topics/${encodeURIComponent(id)}/add-to-project`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_id: projectId }),
+    }),
+  );
+}
+
+export async function rememberTopicVocabularySuggestion(
+  id: string,
+  input: {
+    term: string;
+    destination: "topic" | "project" | "global";
+    projectId?: string;
+  },
+) {
+  return parseResponse<DiscoveredTopic>(
+    await fetch(
+      `${apiBase}/v1/topics/${encodeURIComponent(id)}/remember-vocabulary`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          term: input.term,
+          destination: input.destination,
+          project_id: input.projectId ?? "",
+        }),
+      },
+    ),
   );
 }
 

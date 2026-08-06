@@ -712,3 +712,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **第三轮 gate 结论：** scope/engineering PASS；product 要求固定 audio 默认值、显示 Included/Excluded 与预计大小，并把 fingerprint 限定到实际导出投影且提供低摩擦的失效恢复。上述要求已并入本修订。
 - **最终 fresh gate：** scope、product/UX、engineering/runtime 三路均 PASS，无 P0/P1。
 - **开放问题：** 无；V2-SET-07 与 V2-SET-08 在同一实现批次闭合，不能再把 Activity 选项推迟为未来项。
+
+### DR-067 — Topic 关系与建议只提供发现，用户确认后才改变 Context 或 Vocabulary
+
+- **优先级：** V2 产品 / PKM 完整性
+- **状态：** Host/API/Web 静态 production 链已集成；所有功能完成后统一验收
+- **决定：** Topic 对 Comment bundle 只使用一个 root Source；显示 exact duplicate-linked 与需要用户复核的 conflict / supplement 关系。Project suggestion 只列出尚未加入且未被 Exclude 的 Sources，用户点击明确的 Add 后才以 bundle 为单位进入该 Project Context，跨 Source 写入失败整体回滚。Vocabulary suggestion 只来自同 Topic 多个 Sources 的重复确认 tag/术语；用户必须选择 `This Topic / Project / Global` 后才写入对应的独立 Topic Vocabulary、Project delta 或 Global profile。Topic 本身不携带 Sources 给转写模型，不自动建 Project，也不自动写 Vocabulary。
+- **用户可见影响：** 用户能看出同一主题内哪些资料重复、可能冲突或互补，并在一个地方决定是否把资料加入 Project、把词记到哪个作用域；仅浏览 Topic 不会改变任何 Context 或转写结果。
+- **替代方案：** 打开 Topic 就自动加入最可能的 Project，或把重复术语同时复制到 Topic/Project/Global。两者都会把发现层变成隐式权限与跨 Project 污染源。
+- **已有证据：** 权威 V2 §6.5、§9.3/9.7、§10.8 明确规定 Topic 是动态发现层，负责关系、Project 与 Vocabulary 建议，但所有 Context/Vocabulary 影响必须由用户确认。
+- **开放问题：** conflict/supplement 的排序质量在 Phase 3 UX review 统一评估；Phase 1 只闭合完整对象、动作与不可越权边界。

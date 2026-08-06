@@ -2275,6 +2275,7 @@ export function V2LibraryRoute({
           ) : (
             <V2TopicsPanel
               materials={savedMaterials}
+              projects={projects}
               onRefresh={onRefresh}
               onOpenSource={(id) => {
                 const target = groupLibraryMaterials(
