@@ -84,7 +84,7 @@
 
 - V2-PROJ-01 — INTEGRATED — 创建、切换、稳定 ID rename、archive/restore、依赖预览 delete 已接；rename 同步当前 Source/Document/Run 引用。
 - V2-PROJ-02 — INTEGRATED — Project name、goal/overview、instructions 的 Host/Web 数据链。
-- V2-PROJ-03 — INTEGRATED — workspace 显示并恢复最近 Project、Document、Ask/Compare/Draft 模式与最近工作；Document 路由恢复最近选择、caret 与 scroll。
+- V2-PROJ-03 — INTEGRATED — 无显式 view 的 Web 根入口默认回到 Projects；workspace 显示并恢复最近 Project、Document、Ask/Compare/Draft 模式与最近工作，Document 路由恢复最近选择、caret 与 scroll；`view=stream` / Global Find 仍明确进入 Library。
 - V2-PROJ-04 — INTEGRATED — Context review 的 Suggested/Added/Excluded、reason、Add/Remove/Exclude/Undo exclusion。
 - V2-PROJ-05 — INTEGRATED — Context review 区分 Auto-added / Added / Suggested / Excluded / Duplicate-linked；Change Project 使用 bundle 级 Host 合同，重复 Source 保留但 Run/Project retrieval 不重复加权。
 - V2-PROJ-06 — INTEGRATED — 本次 Run Sources 可 Pin/Exclude/补充，不改变 membership。
