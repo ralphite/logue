@@ -94,7 +94,7 @@
 - V2-PROJ-10 — INTEGRATED — Project History 打开 Run、Candidate、Sources、Skill revision 与 adopted target。
 - V2-PROJ-11 — INTEGRATED — Project History 已接 Pin/Unpin、frozen retry lineage、依赖预览与 adopted/downstream-aware 安全删除。
 - V2-PROJ-12 — INTEGRATED — Project settings 汇总 Voice Profile、Skill overrides、相关 Topics、Archive/Restore、Project-scope Export 与依赖预览 Delete。
-- V2-PROJ-13 — INTEGRATED — Source-linked Classification memory、bundle 去重、单一 Host 事务更新、原子 Forget 与失败 Delete 不变更 memory 已接通；最终 runtime 留到 Phase 5。
+- V2-PROJ-13 — CODED — Source-linked Classification memory 与 bundle 去重已接；Phase 2 已修正 Project delete 的 array schema，但 rename 的 transaction / membership origin 仍待闭合。
 
 ## Web — Transcription Profile / Topic Vocabulary (J4)
 
@@ -152,9 +152,9 @@
 - V2-SET-04 — INTEGRATED — Host、数据目录、storage 使用量、pending captures、模型处理边界。
 - V2-SET-05 — INTEGRATED — paired Extension clients 查看/命名/撤销。
 - V2-SET-06 — INTEGRATED — Settings 使用内容列表消费 Host-managed snapshots，支持创建、下载当前 schema `.logue-backup`、安全迁入另一台 Host、明确确认与恢复；Host 以 opaque ID、archive 白名单、workspace barrier/generation、Restore 前备份、可回滚 swap 和 runtime reload 闭合真实 producer-consumer，旧 JSON 假入口已删除。
-- V2-SET-07 — INTEGRATED — V2 Settings 与 Project 使用稳定 Project ID 选择 All saved data / Library / Project，Host 生成不含 provider/pairing secrets 的 scope-safe 投影；Preview 与 Download 共用 projected fingerprint，默认包含原始音频并显示预计大小，变化时返回更新摘要。
+- V2-SET-07 — CODED — scope-safe Export 已接；Phase 2 已修正 Project classification outcomes 投影，统一 deletion / backup 缺口闭合后再恢复 INTEGRATED。
 - V2-SET-08 — INTEGRATED — `Include activity history and unused AI drafts` 明确控制 scope 内 Activity Sources / unadopted Runs；默认只含 Saved content 与 adopted lineage，Project frozen snapshots 不扩权到其他 Project 当前对象。
-- V2-SET-09 — INTEGRATED — Source bundle / Project / Document / Run / workspace 复用 Host-owned dependency preview + fingerprint + terminal result；依赖变化返回更新摘要，Source bundle 与跨文件删除失败整体回滚，workspace 删除先备份。
+- V2-SET-09 — CODED — Host-owned dependency preview / fingerprint / terminal result 已接；Phase 2 正在修复 Source bundle 删除、Project classification memory 与 fresh workspace backup 的静态合同缺口。
 - V2-SET-10 — INTEGRATED — 新 Run 在 provider 调用前冻结实际 instruction、Skill instructions/revision、Project/Personal/Page Context 与 Sources；Settings → Privacy 以内容列表打开共享可调宽 Run inspector，不复制第二套 Run 状态。
 
 ## Topics / PKM

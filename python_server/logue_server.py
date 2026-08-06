@@ -1791,8 +1791,11 @@ class Store:
                 changed = name in {*normalize(item.get("projects")), *normalize(item.get("excluded_projects")), *normalize(item.get("saved_only_projects"))}
                 organization = item.get("organization") if isinstance(item.get("organization"), dict) else None
                 correction = organization.get("user_correction") if organization and isinstance(organization.get("user_correction"), dict) else None
-                correction_outcomes = correction.get("outcomes") if correction and isinstance(correction.get("outcomes"), dict) else {}
-                correction_changed = name in correction_outcomes
+                correction_outcomes = correction.get("outcomes") if correction and isinstance(correction.get("outcomes"), list) else []
+                correction_changed = any(
+                    isinstance(outcome, dict) and str(outcome.get("project", "")) == name
+                    for outcome in correction_outcomes
+                )
                 if not changed and not correction_changed:
                     continue
                 item["projects"] = [value for value in normalize(item.get("projects")) if value != name]
@@ -1800,11 +1803,11 @@ class Store:
                 item["saved_only_projects"] = [value for value in normalize(item.get("saved_only_projects")) if value != name]
                 item["status"] = "organized" if item["projects"] else "unfiled"
                 if correction:
-                    correction["outcomes"] = {
-                        project_name: outcome
-                        for project_name, outcome in correction_outcomes.items()
-                        if project_name != name
-                    }
+                    correction["outcomes"] = [
+                        outcome
+                        for outcome in correction_outcomes
+                        if isinstance(outcome, dict) and str(outcome.get("project", "")) != name
+                    ]
                     correction["original_suggested_projects"] = [
                         project
                         for project in normalize(correction.get("original_suggested_projects"))
@@ -3773,14 +3776,19 @@ class Handler(BaseHTTPRequestHandler):
                 result["membership_origins"] = {selected_project: origins[selected_project]}
             correction = organization.get("user_correction")
             if isinstance(correction, dict):
-                outcomes = correction.get("outcomes") if isinstance(correction.get("outcomes"), dict) else {}
+                outcomes = correction.get("outcomes") if isinstance(correction.get("outcomes"), list) else []
+                selected_outcomes = [
+                    clone(outcome)
+                    for outcome in outcomes
+                    if isinstance(outcome, dict) and str(outcome.get("project", "")) == selected_project
+                ]
                 filtered = {
                     key: clone(entry)
                     for key, entry in correction.items()
                     if key not in {"outcomes", "original_suggested_projects", "source_ids"}
                 }
-                if selected_project in outcomes:
-                    filtered["outcomes"] = {selected_project: clone(outcomes[selected_project])}
+                if selected_outcomes:
+                    filtered["outcomes"] = selected_outcomes
                 if selected_project in normalize(correction.get("original_suggested_projects")):
                     filtered["original_suggested_projects"] = [selected_project]
                 if filtered.get("outcomes") or filtered.get("original_suggested_projects"):

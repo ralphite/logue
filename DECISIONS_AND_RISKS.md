@@ -796,3 +796,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 把 Go Host 追平完整 V2（维护无 production consumer 的第二实现）；只删四条旧 Go routes（仍保留同路径、不同 Skill Run/adoption 语义的可运行 API）。
 - **已有证据：** release 只打包 `python_server/`、Web 与 Extension，`npm run dev:api` 和 installer 只启动 Python Host；repo-wide 调用检查没有 Go build/run 入口。三路 gate 均确认删除不缩减 V2 scope，engineering gate 唯一前置条件是先迁出中立 audio fixtures。
 - **开放问题：** 无；旧 Web surface 的更大范围删除仍保存在 frozen stash，不进入本批。
+
+### DR-074 — Classification outcomes 保持单一数组 schema
+
+- **优先级：** V2 数据完整性 / Phase 2 P1
+- **状态：** 已修复；静态合同已统一，Python compile 与 diff check 通过，真实数据删除/导出留到 Phase 5
+- **决定：** `organization.user_correction.outcomes` 在写入、Project 删除与 Project-scope Export 全部保持 `{ project, state }[]`；删除只过滤目标 Project，导出只投影目标 Project，不再把数组解释为字典。
+- **用户可见影响：** 删除一个 Project 不会清掉其他 Project 的分类纠正，Project Export 也会保留本 Project 的 Added / Excluded / Saved-only 记忆。
+- **替代方案：** 把 producer 与所有 Web consumer 改为字典；会扩大当前唯一 schema 且增加无价值迁移。
+- **已有证据：** Phase 2 两路独立静态审查均确认 producer/Web 使用数组，而 delete/export 使用字典，造成静默丢失或残留。
+- **开放问题：** Project rename 的原子事务与 membership origin 属于同一 feature ID 的独立后续缺口。
