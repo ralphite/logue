@@ -22,6 +22,7 @@ import {
   getMaterialRevisions,
   getSkillRunDependencies,
   getMaterialDependencies,
+  getTopics,
   retrySkillRun,
   setSkillRunPinned,
   restoreMaterialRevision,
@@ -31,6 +32,7 @@ import {
   updateMaterial,
   updateMaterialMembership,
   type DocumentSearchMatch,
+  type DiscoveredTopic,
   type LogueDocument,
   type MaterialDependencies,
   type MaterialSearchMatch,
@@ -55,6 +57,10 @@ import { V2TopicsPanel } from "./V2TopicsPanel";
 
 type LibraryTab = "saved" | "activity" | "topics";
 type OriginFilter = "all" | "web" | "you" | "ai";
+type TimeFilter = "all" | "today" | "week" | "month" | "year";
+type ContentTypeFilter =
+  "all" | "comment" | "voice" | "selection" | "note" | "ai-source";
+type AdoptedFilter = "all" | "adopted" | "not-adopted";
 
 function sourceOrigin(material: Material): OriginLabelType {
   if (material.actor && material.actor.toLowerCase() !== "user") return "ai";
@@ -85,6 +91,32 @@ function groupCopy(group: LibraryMaterialGroup) {
     group.representative.annotation?.trim() ||
     group.representative.content.trim()
   );
+}
+
+function groupContentType(group: LibraryMaterialGroup): ContentTypeFilter {
+  if (group.bundle) return "comment";
+  const item = group.representative;
+  if (sourceOrigin(item) === "ai") return "ai-source";
+  if (item.kind === "voice" || item.captureId) return "voice";
+  if (item.kind === "selection") return "selection";
+  return "note";
+}
+
+function groupWasAdopted(group: LibraryMaterialGroup) {
+  return group.items.some((item) => Boolean(item.adoptedRevisions?.length));
+}
+
+function timeFilterStart(filter: TimeFilter) {
+  if (filter === "all") return 0;
+  const current = new Date();
+  if (filter === "today")
+    return new Date(
+      current.getFullYear(),
+      current.getMonth(),
+      current.getDate(),
+    ).getTime();
+  const days = filter === "week" ? 7 : filter === "month" ? 30 : 365;
+  return current.getTime() - days * 24 * 60 * 60 * 1_000;
 }
 
 function shortDate(value: string) {
@@ -548,7 +580,8 @@ function SourceInspector({
                             target="_blank"
                             rel="noreferrer"
                           >
-                            <ExternalLink size={14} />Open original
+                            <ExternalLink size={14} />
+                            Open original
                           </a>
                         ) : null}
                       </div>
@@ -1139,8 +1172,15 @@ export function V2LibraryRoute({
   const [searching, setSearching] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [projectFilter, setProjectFilter] = useState("");
+  const [topicFilter, setTopicFilter] = useState("");
   const [originFilter, setOriginFilter] = useState<OriginFilter>("all");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
+  const [siteFilter, setSiteFilter] = useState("");
+  const [contentTypeFilter, setContentTypeFilter] =
+    useState<ContentTypeFilter>("all");
+  const [adoptedFilter, setAdoptedFilter] = useState<AdoptedFilter>("all");
   const [reviewOnly, setReviewOnly] = useState(false);
+  const [topics, setTopics] = useState<DiscoveredTopic[]>([]);
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [bulkProject, setBulkProject] = useState("");
   const [openKey, setOpenKey] = useState<string>();
@@ -1153,6 +1193,12 @@ export function V2LibraryRoute({
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    void getTopics()
+      .then(setTopics)
+      .catch(() => setTopics([]));
+  }, []);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -1210,6 +1256,24 @@ export function V2LibraryRoute({
   const candidates = query.trim()
     ? savedMaterials.filter((item) => matchById.has(item.id))
     : savedMaterials;
+  const sites = useMemo(
+    () =>
+      [...new Set(savedMaterials.flatMap((item) => item.source?.domain ?? []))]
+        .filter(Boolean)
+        .sort((left, right) => left.localeCompare(right)),
+    [savedMaterials],
+  );
+  const selectedTopic = topics.find((topic) => topic.id === topicFilter);
+  const activeFilterCount = [
+    projectFilter,
+    topicFilter,
+    originFilter !== "all",
+    timeFilter !== "all",
+    siteFilter,
+    contentTypeFilter !== "all",
+    adoptedFilter !== "all",
+    reviewOnly,
+  ].filter(Boolean).length;
   const groups = useMemo(
     () =>
       groupLibraryMaterials(candidates, savedMaterials).filter((group) => {
@@ -1225,10 +1289,93 @@ export function V2LibraryRoute({
           !(group.bundle && originFilter === "web")
         )
           return false;
+        if (
+          selectedTopic &&
+          !group.items.some((entry) =>
+            selectedTopic.source_ids.includes(entry.id),
+          )
+        )
+          return false;
+        if (
+          timeFilter !== "all" &&
+          !group.items.some(
+            (entry) =>
+              new Date(entry.createdAt).getTime() >=
+              timeFilterStart(timeFilter),
+          )
+        )
+          return false;
+        if (
+          siteFilter &&
+          !group.items.some((entry) => entry.source?.domain === siteFilter)
+        )
+          return false;
+        if (
+          contentTypeFilter !== "all" &&
+          groupContentType(group) !== contentTypeFilter
+        )
+          return false;
+        const adopted = groupWasAdopted(group);
+        if (adoptedFilter === "adopted" && !adopted) return false;
+        if (adoptedFilter === "not-adopted" && adopted) return false;
         if (reviewOnly && !group.needsReview) return false;
         return true;
       }),
-    [candidates, originFilter, projectFilter, reviewOnly, savedMaterials],
+    [
+      adoptedFilter,
+      candidates,
+      contentTypeFilter,
+      originFilter,
+      projectFilter,
+      reviewOnly,
+      savedMaterials,
+      selectedTopic,
+      siteFilter,
+      timeFilter,
+    ],
+  );
+  const visibleDocumentMatches = useMemo(
+    () =>
+      documentMatches.filter((match) => {
+        const item = documents.find((document) => document.id === match.id);
+        if (!item) return false;
+        if (projectFilter && item.project !== projectFilter) return false;
+        if (originFilter !== "all" && originFilter !== "ai") return false;
+        if (contentTypeFilter !== "all") return false;
+        if (adoptedFilter !== "all") return false;
+        if (
+          timeFilter !== "all" &&
+          new Date(item.updated_at).getTime() < timeFilterStart(timeFilter)
+        )
+          return false;
+        if (
+          selectedTopic &&
+          !item.source_ids.some((id) => selectedTopic.source_ids.includes(id))
+        )
+          return false;
+        if (
+          siteFilter &&
+          !item.source_ids.some(
+            (id) =>
+              savedMaterials.find((material) => material.id === id)?.source
+                ?.domain === siteFilter,
+          )
+        )
+          return false;
+        return true;
+      }),
+    [
+      adoptedFilter,
+      contentTypeFilter,
+      documentMatches,
+      documents,
+      originFilter,
+      projectFilter,
+      savedMaterials,
+      selectedTopic,
+      siteFilter,
+      timeFilter,
+    ],
   );
   const openGroup =
     groups.find((group) => group.key === openKey) ??
@@ -1493,7 +1640,7 @@ export function V2LibraryRoute({
               <h1>{query.trim() ? "Find" : "Library"}</h1>
               <p>
                 {query.trim()
-                  ? `${searching ? "Searching" : `${groups.length + documentMatches.length} results`} · ${strategy === "semantic" ? "meaning and exact words" : "exact words"}`
+                  ? `${searching ? "Searching" : `${groups.length + visibleDocumentMatches.length} results`} · ${strategy === "semantic" ? "meaning and exact words" : "exact words"}`
                   : "Everything you capture stays private on this Host until you delete it."}
               </p>
             </div>
@@ -1557,10 +1704,35 @@ export function V2LibraryRoute({
                   onClick={() => setFilterOpen((open) => !open)}
                 >
                   <Filter size={14} />
-                  Filter
+                  {activeFilterCount
+                    ? `Filters · ${activeFilterCount}`
+                    : "Filter"}
                 </Button>
-                {filterOpen ? (
-                  <>
+                {activeFilterCount ? (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setProjectFilter("");
+                      setTopicFilter("");
+                      setOriginFilter("all");
+                      setTimeFilter("all");
+                      setSiteFilter("");
+                      setContentTypeFilter("all");
+                      setAdoptedFilter("all");
+                      setReviewOnly(false);
+                    }}
+                  >
+                    Clear
+                  </Button>
+                ) : null}
+              </div>
+              {filterOpen ? (
+                <div
+                  className="v2-library-filters"
+                  aria-label="Library filters"
+                >
+                  <label>
+                    Project
                     <select
                       className="v2-input"
                       value={projectFilter}
@@ -1573,6 +1745,26 @@ export function V2LibraryRoute({
                         </option>
                       ))}
                     </select>
+                  </label>
+                  <label>
+                    Topic
+                    <select
+                      className="v2-input"
+                      value={topicFilter}
+                      onChange={(event) => setTopicFilter(event.target.value)}
+                    >
+                      <option value="">Every Topic</option>
+                      {topics
+                        .filter((topic) => !topic.hidden)
+                        .map((topic) => (
+                          <option key={topic.id} value={topic.id}>
+                            {topic.name}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label>
+                    Origin
                     <select
                       className="v2-input"
                       value={originFilter}
@@ -1585,19 +1777,81 @@ export function V2LibraryRoute({
                       <option value="you">You</option>
                       <option value="ai">AI</option>
                     </select>
-                    <label className="v2-checkbox-row">
-                      <input
-                        type="checkbox"
-                        checked={reviewOnly}
-                        onChange={(event) =>
-                          setReviewOnly(event.target.checked)
-                        }
-                      />
-                      Needs review
-                    </label>
-                  </>
-                ) : null}
-              </div>
+                  </label>
+                  <label>
+                    Time
+                    <select
+                      className="v2-input"
+                      value={timeFilter}
+                      onChange={(event) =>
+                        setTimeFilter(event.target.value as TimeFilter)
+                      }
+                    >
+                      <option value="all">Any time</option>
+                      <option value="today">Today</option>
+                      <option value="week">Past 7 days</option>
+                      <option value="month">Past 30 days</option>
+                      <option value="year">Past year</option>
+                    </select>
+                  </label>
+                  <label>
+                    Site
+                    <select
+                      className="v2-input"
+                      value={siteFilter}
+                      onChange={(event) => setSiteFilter(event.target.value)}
+                    >
+                      <option value="">Every site</option>
+                      {sites.map((site) => (
+                        <option key={site} value={site}>
+                          {site}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Type
+                    <select
+                      className="v2-input"
+                      value={contentTypeFilter}
+                      onChange={(event) =>
+                        setContentTypeFilter(
+                          event.target.value as ContentTypeFilter,
+                        )
+                      }
+                    >
+                      <option value="all">Every type</option>
+                      <option value="comment">Comments</option>
+                      <option value="voice">Voice inputs</option>
+                      <option value="selection">Web captures</option>
+                      <option value="note">Saved notes</option>
+                      <option value="ai-source">AI Sources</option>
+                    </select>
+                  </label>
+                  <label>
+                    Adoption
+                    <select
+                      className="v2-input"
+                      value={adoptedFilter}
+                      onChange={(event) =>
+                        setAdoptedFilter(event.target.value as AdoptedFilter)
+                      }
+                    >
+                      <option value="all">Any adoption</option>
+                      <option value="adopted">Adopted</option>
+                      <option value="not-adopted">Not adopted</option>
+                    </select>
+                  </label>
+                  <label className="v2-checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={reviewOnly}
+                      onChange={(event) => setReviewOnly(event.target.checked)}
+                    />
+                    Needs review
+                  </label>
+                </div>
+              ) : null}
               {selectedGroups.length ? (
                 <div className="v2-bulk-bar">
                   <strong>{selectedGroups.length} selected</strong>
@@ -1715,7 +1969,7 @@ export function V2LibraryRoute({
                   );
                 })}
                 {query &&
-                  documentMatches.map((match) => {
+                  visibleDocumentMatches.map((match) => {
                     const document = documents.find(
                       (item) => item.id === match.id,
                     );
@@ -1747,7 +2001,9 @@ export function V2LibraryRoute({
                       </article>
                     ) : null;
                   })}
-                {!groups.length && !documentMatches.length && !searching ? (
+                {!groups.length &&
+                !visibleDocumentMatches.length &&
+                !searching ? (
                   <div className="v2-recovery-card">
                     <p>No saved content matches this search.</p>
                   </div>
@@ -1840,7 +2096,12 @@ export function V2LibraryRoute({
                 )[0];
                 setQuery("");
                 setProjectFilter("");
+                setTopicFilter("");
                 setOriginFilter("all");
+                setTimeFilter("all");
+                setSiteFilter("");
+                setContentTypeFilter("all");
+                setAdoptedFilter("all");
                 setReviewOnly(false);
                 setTab("saved");
                 if (target) setOpenKey(target.key);
