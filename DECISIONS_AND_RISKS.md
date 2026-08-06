@@ -691,3 +691,24 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 把短生命周期 UI 位置写入 Host settings。这样会把设备/浏览器特定的 caret 与 scroll 混入可备份知识数据，并让另一浏览器继承不合适的位置。
 - **已有证据：** V2-PROJ-03 与 V2-DOC-02 要求恢复最近工作和编辑位置；当前产品是 local-first、single-owner，但 Host 仍只拥有永久产品对象。
 - **开放问题：** 无；多设备同步不在当前无账号产品范围。
+
+### DR-066 — Export 的 All saved data、Library 与 Project 是三种明确数据边界
+
+- **优先级：** V2 产品 / P0 数据可携带性
+- **状态：** 修订合同已通过 scope / product / engineering 三路 fresh gate；Host/API/V2 Settings/Project 静态 production 链已集成，最终 runtime 留到 Phase 5
+- **决定：** `Backup` 是 Host 管理、可由 Logue Restore 的原样运行快照；`Export` 是用户下载的逻辑可携带 JSON 包，不包含 paired clients 等 Host-bound 运行状态，也不承诺可 Restore。Export 有三个显式 scope：
+  - `All saved data`：跨当前 Host 的全部 Saved content、Documents、Projects、非敏感 Settings、Skills、Topic Vocabularies、Topics 及 adopted lineage；
+  - `Library`：全部永久 Saved Sources 与 Source/item/transcript revisions；不包含 Documents、Projects、Settings、Skills、Topic Vocabularies 或 Topics；
+  - `Project`：用稳定 Project ID 选择一个 Project；selection builder 在同一 Host lock 内把 ID 解析成当前名称，并在 manifest 冻结 ID + name，只包含该 Project 对象、当前 Context Sources 及 revisions、该 Project Documents 及 revisions，以及这些已采用对象所必需的 lineage，不做全库 Project-ID migration。
+  三种 scope 默认只含 Saved content 与 adopted lineage。用户语言的 `Include activity history and unused AI drafts` 明确加入 scope 内的永久 Activity Sources 与未采用 Runs：Library/All 覆盖相应全量 Activity；Project 只覆盖同一锁内解析后 `run.project` 等于所选 Project 当前名称的 Activity/Run，不能因为 Run 引用了一个共享 Source 就扩权。默认 adopted lineage 从已纳入的 AI Sources/Documents 对应 Run 开始，只递归纳入其 retry/continue ancestors 与各自 Activity Source；关闭该选项时，与采用结果无关的 Activity/Run 不导出。Run 的 frozen Source snapshots 已自包含；它们不能反向授权导出当前 Source、其 revisions 或其他 Project。
+  Export 使用 per-scope 对象/字段白名单而不是直接序列化 Store。Project scope 中共享 Source 只保留内容、证据字段、所选 Project membership 与本次 adopted lineage；`projects / saved_only_projects / excluded_projects`、Classification memory、suggestions、audio context、transcript `applied_context` 和 frozen `sources[].projects` 都过滤到所选 Project，且移除 personal/global instructions、vocabulary 与其他 Project 名称。Run 可保留精确 frozen evidence content、Skill ID/name/revision、用户 instruction 与 output 来核验采用结果，但移除全局 Skill instructions 和其他 Project 关系。直接或传递引用只有目标也在包内时保留；scope 外引用改为无内容的最小 lineage tombstone（ID、对象类型、`outside export scope`），不能留下悬空 ID 或借 tombstone 泄漏名称/内容。Library 保留所选 Source 自身的完整证据/转写 lineage；All saved data 额外保留非敏感 workspace 配置。三种 Export 都排除 provider API keys、provider credential file、pairing tokens/client records 与其他 Host secrets。
+  `Include original audio` 默认开启，只控制已选 Source/Activity 的 audio binary 与必要 sidecar；关闭后包仍保留文字与 lineage，但不是无损资料包，更不是 Backup。Backup 保留当前 Host 运行快照，可能包含 provider 凭据与 pairing state，只保存在本机并可 Restore；Export 不可 Restore，UI 必须明确提示这一安全边界。
+  Preview 与 Download 复用同一套锁内 selection builder：Preview 返回 scope、所有对象类型的 count、options、敏感数据排除提示、`Original audio: Included/Excluded`、预计包大小与内容 fingerprint。Fingerprint 只覆盖当前 scope/options 实际选中的安全投影，不受 scope 外后台变化影响。Download 必须提交该 fingerprint；若选中投影已变化，Host 返回更新后的 Preview，UI 就地替换范围摘要并让用户一次点击继续，不能下载与用户刚确认范围不同的包。
+- **用户可见影响：** 用户能区分 Host Backup、跨工作区 Saved data 下载、私人 Library 包与单个 Project 交付包；下载前能看见 Sources、Activity、Documents、Projects、Runs、Settings、Skills、Topic Vocabularies、Topics 与 recordings 的真实数量，且明确知道 Activity、audio 与凭据是否包含。
+- **替代方案：** 继续用空 Project 参数同时代表 All data 与 Library，或让 Library 导出包含所有 Settings/Skills。前者范围含糊，后者会把系统配置和知识资料混在一起。
+- **已有证据：** 权威 V2 J9 与 V2-SET-07 明确要求 Export Project / Library / all local data、include audio 与执行前 preview；Backup/Restore 已是独立完整恢复路径。
+- **首轮 gate 结论：** scope 与 product 均指出 Library/Project 不能无条件排除或纳入 Activity/Runs，必须闭合 V2-SET-08；product 还要求 Preview 显示配置类对象并区分 Export/Backup；engineering 指出无 audio 的 Export 不可声称完整 Restore、跨 Project Run 会泄漏关系、对象闭包与 Preview/Download 一致性未定义。上述要求已并入本修订。
+- **第二轮 gate 结论：** scope PASS；product 要求避免 `All local data`/audio 默认值误导、改用用户语言并明确凭据边界；engineering 要求稳定 Project ID 在当前 name-backed schema 中可解析、定义安全投影与直接/传递 lineage 闭包。上述要求已并入本修订。
+- **第三轮 gate 结论：** scope/engineering PASS；product 要求固定 audio 默认值、显示 Included/Excluded 与预计大小，并把 fingerprint 限定到实际导出投影且提供低摩擦的失效恢复。上述要求已并入本修订。
+- **最终 fresh gate：** scope、product/UX、engineering/runtime 三路均 PASS，无 P0/P1。
+- **开放问题：** 无；V2-SET-07 与 V2-SET-08 在同一实现批次闭合，不能再把 Activity 选项推迟为未来项。

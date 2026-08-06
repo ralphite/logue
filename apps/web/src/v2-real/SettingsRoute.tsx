@@ -16,7 +16,7 @@ import {
   createVoiceProfile,
   deleteTopicVocabulary,
   deleteWorkspace,
-  exportWorkspaceURL,
+  downloadWorkspaceExport,
   getAIConnection,
   getExportPreview,
   getGlossarySuggestions,
@@ -33,6 +33,7 @@ import {
   type AIConnection,
   type AIConnectionInput,
   type ExportPreview,
+  type ExportScope,
   type GlossarySuggestion,
   type LogueClient,
   type PairingCode,
@@ -87,6 +88,24 @@ function SettingRow({
       {children ? <div className="v2-inline-actions">{children}</div> : null}
     </div>
   );
+}
+
+function formatExportSize(bytes: number) {
+  if (bytes < 1_024) return `${bytes} B`;
+  if (bytes < 1_048_576) return `${Math.ceil(bytes / 1_024)} KB`;
+  return `${(bytes / 1_048_576).toFixed(1)} MB`;
+}
+
+function exportSummary(preview: ExportPreview) {
+  return [
+    `${preview.sources} Sources`,
+    `${preview.activity} Activity`,
+    `${preview.documents} Documents`,
+    `${preview.projects} Projects`,
+    `${preview.runs} Runs`,
+    `${preview.skills} Skills`,
+    `${preview.topic_vocabularies} vocabularies`,
+  ].join(" · ");
 }
 
 function ClientRow({
@@ -175,8 +194,11 @@ export function SettingsRoute({
   const [heard, setHeard] = useState("");
   const [preferred, setPreferred] = useState("");
   const [exportOpen, setExportOpen] = useState(false);
-  const [exportProject, setExportProject] = useState("");
+  const [exportScope, setExportScope] = useState<ExportScope>("all");
+  const [exportProjectId, setExportProjectId] = useState("");
   const [exportAudio, setExportAudio] = useState(true);
+  const [exportActivity, setExportActivity] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
   const [exportPreview, setExportPreview] = useState<ExportPreview>();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -206,9 +228,16 @@ export function SettingsRoute({
   }, []);
   useEffect(() => {
     if (!exportOpen) return;
+    if (exportScope === "project" && !exportProjectId) {
+      setExportPreview(undefined);
+      return;
+    }
+    setExportPreview(undefined);
     void getExportPreview({
-      project: exportProject || undefined,
+      scope: exportScope,
+      projectId: exportScope === "project" ? exportProjectId : undefined,
       includeAudio: exportAudio,
+      includeActivity: exportActivity,
     })
       .then(setExportPreview)
       .catch((cause) =>
@@ -218,7 +247,34 @@ export function SettingsRoute({
             : "Could not preview this export.",
         ),
       );
-  }, [exportAudio, exportOpen, exportProject]);
+  }, [exportActivity, exportAudio, exportOpen, exportProjectId, exportScope]);
+
+  async function createExport() {
+    if (!exportPreview) return;
+    setExportBusy(true);
+    setError("");
+    try {
+      const updated = await downloadWorkspaceExport(
+        {
+          scope: exportScope,
+          projectId: exportScope === "project" ? exportProjectId : undefined,
+          includeAudio: exportAudio,
+          includeActivity: exportActivity,
+        },
+        exportPreview,
+      );
+      if (updated) {
+        setExportPreview(updated);
+        setError("Selected data changed. Review the updated summary, then create the copy again.");
+      } else {
+        setNotice("Export downloaded.");
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not create this export.");
+    } finally {
+      setExportBusy(false);
+    }
+  }
 
   async function persist(next = draft) {
     setError("");
@@ -1327,19 +1383,36 @@ export function SettingsRoute({
                         Scope
                         <select
                           className="v2-input"
-                          value={exportProject}
-                          onChange={(event) =>
-                            setExportProject(event.target.value)
-                          }
+                          value={exportScope}
+                          onChange={(event) => {
+                            const scope = event.target.value as ExportScope;
+                            setExportScope(scope);
+                            if (scope === "project" && !exportProjectId) {
+                              setExportProjectId(projects[0]?.id ?? "");
+                            }
+                          }}
                         >
-                          <option value="">All private Library</option>
-                          {projects.map((project) => (
-                            <option key={project.name} value={project.name}>
-                              {project.name}
-                            </option>
-                          ))}
+                          <option value="all">All saved data</option>
+                          <option value="library">Library</option>
+                          <option value="project">Project</option>
                         </select>
                       </label>
+                      {exportScope === "project" ? (
+                        <label>
+                          Project
+                          <select
+                            className="v2-input"
+                            value={exportProjectId}
+                            onChange={(event) => setExportProjectId(event.target.value)}
+                          >
+                            {projects.map((project) => (
+                              <option key={project.id} value={project.id}>
+                                {project.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
                       <label className="v2-checkbox-row">
                         <input
                           type="checkbox"
@@ -1350,24 +1423,37 @@ export function SettingsRoute({
                         />
                         Include original audio
                       </label>
+                      <label className="v2-checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={exportActivity}
+                          onChange={(event) => setExportActivity(event.target.checked)}
+                        />
+                        Include activity history and unused AI drafts
+                      </label>
                     </div>
+                    <p className="v2-library-meta">
+                      {exportPreview ? exportSummary(exportPreview) : "Preparing scope…"}
+                    </p>
+                    {exportPreview ? (
+                      <p className="v2-library-meta">
+                        Original audio: {exportPreview.include_audio ? "Included" : "Excluded"}
+                        {exportPreview.include_audio ? ` · ${exportPreview.recordings} recordings` : ""}
+                        {` · About ${formatExportSize(exportPreview.estimated_bytes)}`}
+                      </p>
+                    ) : null}
+                    <p className="v2-library-meta">
+                      Export files cannot be restored. Provider keys and paired Extensions stay on this Host.
+                    </p>
                     <div className="v2-inline-actions">
-                      <span className="v2-library-meta">
-                        {exportPreview
-                          ? `${exportPreview.materials} Sources · ${exportPreview.documents} Documents · ${exportPreview.activity} Runs${exportAudio ? ` · ${exportPreview.audio} recordings` : ""}`
-                          : "Preparing scope…"}
-                      </span>
-                      <a
+                      <Button
                         className="v2-download-button"
-                        href={exportWorkspaceURL({
-                          project: exportProject || undefined,
-                          includeAudio: exportAudio,
-                        })}
-                        download
+                        disabled={!exportPreview || exportBusy}
+                        onClick={() => void createExport()}
                       >
                         <Download size={14} />
-                        Create local copy
-                      </a>
+                        {exportBusy ? "Creating…" : "Create local copy"}
+                      </Button>
                     </div>
                   </div>
                 ) : null}

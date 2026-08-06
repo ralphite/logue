@@ -152,8 +152,8 @@
 - V2-SET-04 — INTEGRATED — Host、数据目录、storage 使用量、pending captures、模型处理边界。
 - V2-SET-05 — INTEGRATED — paired Extension clients 查看/命名/撤销。
 - V2-SET-06 — INTEGRATED — Backup 与 Restore 当前 Host。
-- V2-SET-07 — CODED — Export Project/Library/all local data 与 include audio preview 已有 API/UI WIP，scope UI 未全接。
-- V2-SET-08 — CODED — Include all activity/unadopted Runs 导出选项尚缺。
+- V2-SET-07 — INTEGRATED — V2 Settings 与 Project 使用稳定 Project ID 选择 All saved data / Library / Project，Host 生成不含 provider/pairing secrets 的 scope-safe 投影；Preview 与 Download 共用 projected fingerprint，默认包含原始音频并显示预计大小，变化时返回更新摘要。
+- V2-SET-08 — INTEGRATED — `Include activity history and unused AI drafts` 明确控制 scope 内 Activity Sources / unadopted Runs；默认只含 Saved content 与 adopted lineage，Project frozen snapshots 不扩权到其他 Project 当前对象。
 - V2-SET-09 — CODED — Delete Source/Project/Document/Run/workspace dependency preview 已分散实现，统一 scope/terminal state 未闭合。
 - V2-SET-10 — CODED — 查看一次模型任务实际发送 Context 已在 Run/Material详情部分存在，Settings 统一入口尚缺。
 
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-SET-07`
-- 完成条件：Settings 的 Export 直接选择 All local data、一个 Project 或 Library，并在执行前显示 materials/documents/activity/audio 范围；include audio 选择真实改变导出内容。
+- `ACTIVE: V2-SET-09`
+- 完成条件：删除 Source、Project、Document、Run 或 all local data 前显示真实 dependency preview；确认后进入明确 terminal state，失败不产生部分删除。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。

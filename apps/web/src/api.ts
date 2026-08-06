@@ -998,39 +998,95 @@ export async function getGlossarySuggestions() {
   return result.suggestions;
 }
 
-export interface ExportPreview {
-  project: string;
-  include_audio: boolean;
-  materials: number;
-  documents: number;
-  activity: number;
-  audio: number;
+export type ExportScope = "all" | "library" | "project";
+
+export interface ExportOptions {
+  scope: ExportScope;
+  projectId?: string;
+  includeAudio?: boolean;
+  includeActivity?: boolean;
 }
 
-function exportQuery(options?: { project?: string; includeAudio?: boolean }) {
+export interface ExportPreview {
+  scope: ExportScope;
+  project_id: string;
+  project_name: string;
+  include_audio: boolean;
+  include_activity: boolean;
+  fingerprint: string;
+  estimated_bytes: number;
+  sources: number;
+  activity: number;
+  documents: number;
+  projects: number;
+  runs: number;
+  settings: number;
+  skills: number;
+  topic_vocabularies: number;
+  topics: number;
+  recordings: number;
+  lineage_tombstones: number;
+  restorable: false;
+  credentials_included: false;
+}
+
+function exportQuery(options: ExportOptions, fingerprint?: string) {
   const query = new URLSearchParams();
-  if (options?.project) query.set("project", options.project);
+  query.set("scope", options.scope);
+  if (options.projectId) query.set("project_id", options.projectId);
   query.set(
     "include_audio",
-    options?.includeAudio === false ? "false" : "true",
+    options.includeAudio === false ? "false" : "true",
   );
+  query.set("include_activity", options.includeActivity ? "true" : "false");
+  if (fingerprint) query.set("fingerprint", fingerprint);
   return query.toString();
 }
 
-export function exportWorkspaceURL(options?: {
-  project?: string;
-  includeAudio?: boolean;
-}) {
-  return `${apiBase}/v1/export?${exportQuery(options)}`;
-}
-
-export async function getExportPreview(options?: {
-  project?: string;
-  includeAudio?: boolean;
-}) {
+export async function getExportPreview(options: ExportOptions) {
   return parseResponse<ExportPreview>(
     await fetch(`${apiBase}/v1/export-preview?${exportQuery(options)}`),
   );
+}
+
+export async function downloadWorkspaceExport(
+  options: ExportOptions,
+  preview: ExportPreview,
+) {
+  const response = await fetch(
+    `${apiBase}/v1/export?${exportQuery(options, preview.fingerprint)}`,
+  );
+  if (response.status === 409) {
+    const body = (await response.json()) as {
+      error?: string;
+      preview?: ExportPreview;
+    };
+    if (body.preview) return body.preview;
+    throw new Error(body.error || "Selected data changed.");
+  }
+  if (!response.ok) {
+    const body = await response.text();
+    let message = body;
+    try {
+      message = (JSON.parse(body) as { error?: string }).error || body;
+    } catch {
+      // Keep a plain-text server response as-is.
+    }
+    throw new Error(message || `Request failed (${response.status})`);
+  }
+  const href = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  const label =
+    options.scope === "project"
+      ? preview.project_name
+      : options.scope === "library"
+        ? "library"
+        : "all-saved-data";
+  anchor.href = href;
+  anchor.download = `logue-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(href), 1_000);
+  return undefined;
 }
 
 export function captureAudioURL(captureId: string) {

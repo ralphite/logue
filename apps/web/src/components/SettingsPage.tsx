@@ -1,13 +1,10 @@
-import { Archive, ChevronDown, Clipboard, Download, KeyRound, Trash2, Upload, X } from "lucide-react";
+import { Archive, Clipboard, KeyRound, Trash2, Upload, X } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
   backupWorkspace,
   deleteWorkspace,
-  exportWorkspaceURL,
-  getExportPreview,
   getAIConnection,
   getGlossarySuggestions,
-  getProjects,
   getWorkspaceSettings,
   getTopicVocabularies,
   restoreWorkspace,
@@ -22,7 +19,6 @@ import {
   type TopicVocabulary,
   type WorkspaceSettings,
   type GlossarySuggestion,
-  type ExportPreview,
   type AIConnection,
   type AIConnectionInput,
 } from "../api";
@@ -74,12 +70,6 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
   const [topicVocabularyName, setTopicVocabularyName] = useState("");
   const [topicVocabularyTerms, setTopicVocabularyTerms] = useState("");
   const [topicVocabularySaving, setTopicVocabularySaving] = useState(false);
-  const [projectNames, setProjectNames] = useState<string[]>([]);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [exportProject, setExportProject] = useState("");
-  const [exportAudio, setExportAudio] = useState(true);
-  const [exportPreview, setExportPreview] = useState<ExportPreview>();
-  const [exportPreviewError, setExportPreviewError] = useState<string>();
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [loadError, setLoadError] = useState<string>();
   const [aiConnection, setAIConnection] = useState<AIConnection>({ provider: "gemini", model: "gemini-2.5-flash", transcription_model: "gemini-2.5-flash", base_url: "https://generativelanguage.googleapis.com/v1beta", configured: false, has_api_key: false });
@@ -93,12 +83,11 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
     setLoadState("loading");
     setLoadError(undefined);
     try {
-      const [value, terms, nextSkills, nextTopics, nextProjects, nextAIConnection] = await Promise.all([getWorkspaceSettings(), getGlossarySuggestions(), getSkills(), getTopicVocabularies(), getProjects(), getAIConnection()]);
+      const [value, terms, nextSkills, nextTopics, nextAIConnection] = await Promise.all([getWorkspaceSettings(), getGlossarySuggestions(), getSkills(), getTopicVocabularies(), getAIConnection()]);
       setSettings(value);
       setSuggestions(terms.filter((item) => item.count >= 2));
       setSkills(nextSkills);
       setTopicVocabularies(nextTopics);
-      setProjectNames(nextProjects.map((project) => project.name));
       setAIConnection(nextAIConnection);
       initialized.current = true;
       setLoadState("ready");
@@ -120,17 +109,6 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
     }, 650);
     return () => window.clearTimeout(timer);
   }, [saveState, settings]);
-
-  useEffect(() => {
-    if (!exportOpen) return;
-    let cancelled = false;
-    setExportPreview(undefined);
-    setExportPreviewError(undefined);
-    void getExportPreview({ project: exportProject || undefined, includeAudio: exportAudio })
-      .then((value) => { if (!cancelled) setExportPreview(value); })
-      .catch((cause) => { if (!cancelled) setExportPreviewError(cause instanceof Error ? cause.message : "Could not preview this export"); });
-    return () => { cancelled = true; };
-  }, [exportAudio, exportOpen, exportProject]);
 
   function update(next: WorkspaceSettings) {
     setSettings(next);
@@ -375,17 +353,7 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
         </SettingsRow>
 
         <SettingsRow label="Library">
-          <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void backUp()} disabled={backingUp} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1] disabled:opacity-55"><Archive size={14} />{backingUp ? "Backing up…" : "Back up now"}</button><button type="button" onClick={() => setExportOpen((value) => !value)} aria-expanded={exportOpen} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Download size={14} /> Export <ChevronDown size={13} /></button><label className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Upload size={14} /> {restoring ? "Restoring…" : "Restore"}<input type="file" accept="application/json,.json" disabled={restoring} className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void restore(file); event.currentTarget.value = ""; }} /></label></div>
-          {exportOpen && <div className="mt-3 rounded-md border border-[#deded9] bg-[#fafaf8] p-4">
-            <div className="grid grid-cols-2 gap-3 max-[700px]:grid-cols-1">
-              <label className="text-[14px] font-medium text-[#555651]">Scope<select value={exportProject} onChange={(event) => setExportProject(event.target.value)} className={`mt-2 h-10 w-full rounded-md border border-[#deded9] bg-white px-3 text-[14px] outline-none ${fieldFocusClass}`}><option value="">All private Library</option>{projectNames.map((project) => <option key={project} value={project}>{project}</option>)}</select></label>
-              <label className="flex min-h-10 items-center gap-2 self-end rounded-md border border-[#deded9] bg-white px-3 text-[14px] text-[#555651]"><input type="checkbox" checked={exportAudio} onChange={(event) => setExportAudio(event.target.checked)} /> Include original audio</label>
-            </div>
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-[14px] text-[#858680]">{exportPreview ? `${exportPreview.materials} Sources · ${exportPreview.documents} Documents · ${exportPreview.activity} Runs${exportAudio ? ` · ${exportPreview.audio} recordings` : ""}` : exportPreviewError || "Preparing scope…"}</p>
-              <a href={exportWorkspaceURL({ project: exportProject || undefined, includeAudio: exportAudio })} download={`logue-${exportProject ? exportProject.toLowerCase().replace(/[^a-z0-9]+/g, "-") : "library"}-${new Date().toISOString().slice(0, 10)}.json`} className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#242522] px-3 text-[14px] font-medium text-white"><Download size={13} /> Create local copy</a>
-            </div>
-          </div>}
+          <div className="flex flex-wrap gap-2"><button type="button" onClick={() => void backUp()} disabled={backingUp} className="inline-flex h-10 items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1] disabled:opacity-55"><Archive size={14} />{backingUp ? "Backing up…" : "Back up now"}</button><label className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#555651] hover:bg-[#f4f4f1]"><Upload size={14} /> {restoring ? "Restoring…" : "Restore"}<input type="file" accept="application/json,.json" disabled={restoring} className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) void restore(file); event.currentTarget.value = ""; }} /></label></div>
         </SettingsRow>
 
         <SettingsRow label="Delete local data">

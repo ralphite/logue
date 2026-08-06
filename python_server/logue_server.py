@@ -2648,21 +2648,25 @@ class Handler(BaseHTTPRequestHandler):
             materials = [item for item in store.items() if name in item.get("projects", [])]
             self.json(HTTPStatus.OK, {"schema_version": 1, "read_only": True, "project": project, "materials": materials, "transcript_revisions": [revision for item in materials for revision in store.transcript_revisions(item["id"])], "documents": [document for document in store.documents() if document.get("project") == name]})
         elif path == "/v1/export":
-            project = (query.get("project") or [""])[0].strip()
+            scope = (query.get("scope") or [""])[0].strip()
+            project_id = (query.get("project_id") or [""])[0].strip()
             include_audio = (query.get("include_audio") or ["true"])[0].strip().lower() not in {"0", "false", "no"}
-            self.json(HTTPStatus.OK, self.export_workspace(project=project, include_audio=include_audio))
+            include_activity = (query.get("include_activity") or ["false"])[0].strip().lower() in {"1", "true", "yes"}
+            expected_fingerprint = (query.get("fingerprint") or [""])[0].strip()
+            if not expected_fingerprint:
+                raise ValueError("preview this export before downloading")
+            exported, preview = self.export_workspace(scope=scope, project_id=project_id, include_audio=include_audio, include_activity=include_activity)
+            if expected_fingerprint != preview["fingerprint"]:
+                self.json(HTTPStatus.CONFLICT, {"error": "Selected data changed. Review the updated export summary.", "preview": preview})
+                return
+            self.json(HTTPStatus.OK, exported)
         elif path == "/v1/export-preview":
-            project = (query.get("project") or [""])[0].strip()
+            scope = (query.get("scope") or [""])[0].strip()
+            project_id = (query.get("project_id") or [""])[0].strip()
             include_audio = (query.get("include_audio") or ["true"])[0].strip().lower() not in {"0", "false", "no"}
-            exported = self.export_workspace(project=project, include_audio=include_audio)
-            self.json(HTTPStatus.OK, {
-                "project": project,
-                "include_audio": include_audio,
-                "materials": len(exported["materials"]),
-                "documents": len(exported["documents"]),
-                "activity": len(exported["skill_runs"]),
-                "audio": sum(1 for entry in exported["audio"] if not entry["name"].endswith(".json")),
-            })
+            include_activity = (query.get("include_activity") or ["false"])[0].strip().lower() in {"1", "true", "yes"}
+            _, preview = self.export_workspace(scope=scope, project_id=project_id, include_audio=include_audio, include_activity=include_activity)
+            self.json(HTTPStatus.OK, preview)
         elif path.startswith("/v1/") or path == "/v1":
             self.error(HTTPStatus.NOT_FOUND, "not found")
         else:
@@ -3317,47 +3321,324 @@ class Handler(BaseHTTPRequestHandler):
                         counts[key] = (candidate, counts.get(key, (candidate, 0))[1] + 1)
         return [{"term": label, "count": count} for label, count in sorted(counts.values(), key=lambda entry: (-entry[1], entry[0]))[:12]]
 
-    def export_workspace(self, *, project: str = "", include_audio: bool = True) -> dict[str, Any]:
+    def export_workspace(
+        self,
+        *,
+        scope: str,
+        project_id: str = "",
+        include_audio: bool = True,
+        include_activity: bool = False,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        if scope not in {"all", "library", "project"}:
+            raise ValueError("choose All saved data, Library, or a Project")
+        if scope == "project" and not project_id:
+            raise ValueError("choose a Project")
+
         store = self.server.store
-        materials = store.items()
-        documents = store.documents()
-        projects = store.projects()
-        skill_runs = store.skill_runs()
-        if project:
-            materials = [item for item in materials if project in normalize(item.get("projects"))]
-            material_ids = {str(item["id"]) for item in materials}
-            documents = [document for document in documents if str(document.get("project", "")) == project]
-            projects = [item for item in projects if str(item.get("name", "")) == project]
-            skill_runs = [run for run in skill_runs if str(run.get("project", "")) == project or any(identifier in material_ids for identifier in normalize(run.get("source_ids")))]
-        material_ids = {str(item["id"]) for item in materials}
-        document_ids = {str(document["id"]) for document in documents}
-        capture_ids = {str(item.get("capture_id", "")) for item in materials if item.get("capture_id")}
-        audio = []
-        if include_audio:
-            audio = [
-                {"name": path.name, "data_base64": base64.b64encode(path.read_bytes()).decode("ascii")}
-                for path in sorted((store.root / "audio").iterdir())
-                if path.is_file() and (not project or any(path.name.startswith(f"{capture_id}.") for capture_id in capture_ids))
+
+        def clone(value: Any) -> Any:
+            return json.loads(json.dumps(value))
+
+        def read_selected(directory: str, key: str, identifiers: set[str]) -> list[dict[str, Any]]:
+            result = []
+            for path in sorted((store.root / directory).glob("*.json")):
+                value = read_json(path)
+                if str(value.get(key, "")) in identifiers:
+                    result.append(value)
+            return result
+
+        def safe_context(value: Any) -> dict[str, Any]:
+            context = value if isinstance(value, dict) else {}
+            allowed = {
+                "voice_profile_label",
+                "project_profile_mode",
+                "primary_language",
+                "mixed_languages",
+                "skill_id",
+                "skill_name",
+                "skill_revision",
+                "topic_vocabulary_id",
+                "topic_vocabulary_name",
+                "created_at",
+                "mime_type",
+                "duration_ms",
+            }
+            return {key: clone(entry) for key, entry in context.items() if key in allowed}
+
+        def safe_snapshot(value: Any, selected_project: str) -> dict[str, Any]:
+            source = value if isinstance(value, dict) else {}
+            result = {
+                key: clone(source[key])
+                for key in ("id", "kind", "actor", "content", "tags", "created_at", "source")
+                if key in source
+            }
+            result["projects"] = [selected_project] if selected_project in normalize(source.get("projects")) else []
+            return result
+
+        def safe_organization(value: Any, selected_project: str) -> dict[str, Any]:
+            organization = value if isinstance(value, dict) else {}
+            result = {
+                key: clone(organization[key])
+                for key in ("status", "confidence", "updated_at", "suggested_tags", "duplicate_of")
+                if key in organization
+            }
+            if selected_project in normalize(organization.get("suggested_projects")):
+                result["suggested_projects"] = [selected_project]
+            origins = organization.get("membership_origins")
+            if isinstance(origins, dict) and selected_project in origins:
+                result["membership_origins"] = {selected_project: origins[selected_project]}
+            correction = organization.get("user_correction")
+            if isinstance(correction, dict):
+                outcomes = correction.get("outcomes") if isinstance(correction.get("outcomes"), dict) else {}
+                filtered = {
+                    key: clone(entry)
+                    for key, entry in correction.items()
+                    if key not in {"outcomes", "original_suggested_projects", "source_ids"}
+                }
+                if selected_project in outcomes:
+                    filtered["outcomes"] = {selected_project: clone(outcomes[selected_project])}
+                if selected_project in normalize(correction.get("original_suggested_projects")):
+                    filtered["original_suggested_projects"] = [selected_project]
+                if filtered.get("outcomes") or filtered.get("original_suggested_projects"):
+                    result["user_correction"] = filtered
+            return result
+
+        def safe_material(value: dict[str, Any], selected_project: str) -> dict[str, Any]:
+            result = clone(value)
+            result["projects"] = [selected_project] if selected_project in normalize(value.get("projects")) else []
+            result["saved_only_projects"] = [selected_project] if selected_project in normalize(value.get("saved_only_projects")) else []
+            result["excluded_projects"] = [selected_project] if selected_project in normalize(value.get("excluded_projects")) else []
+            result["organization"] = safe_organization(value.get("organization"), selected_project)
+            if "applied_context" in result:
+                result["applied_context"] = safe_context(result.get("applied_context"))
+            if isinstance(result.get("sources"), list):
+                result["sources"] = [safe_snapshot(entry, selected_project) for entry in result["sources"]]
+            return result
+
+        def safe_document(value: dict[str, Any], selected_project: str) -> dict[str, Any]:
+            result = clone(value)
+            result["project"] = selected_project
+            for key in ("sources", "context_sources"):
+                if isinstance(result.get(key), list):
+                    result[key] = [safe_snapshot(entry, selected_project) for entry in result[key]]
+            return result
+
+        def safe_run(value: dict[str, Any], selected_project: str) -> dict[str, Any]:
+            result = clone(value)
+            result.pop("skill_instructions", None)
+            if str(result.get("project", "")) != selected_project:
+                result.pop("project", None)
+            if isinstance(result.get("sources"), list):
+                result["sources"] = [safe_snapshot(entry, selected_project) for entry in result["sources"]]
+            return result
+
+        with store.lock:
+            all_materials = store.items()
+            all_documents = store.documents()
+            all_projects = store.projects()
+            all_runs = store.skill_runs()
+            selected_project = None
+            selected_project_name = ""
+            if scope == "project":
+                selected_project = next((entry for entry in all_projects if str(entry.get("id", "")) == project_id), None)
+                if not selected_project:
+                    raise FileNotFoundError(project_id)
+                selected_project_name = str(selected_project.get("name", ""))
+
+            saved_materials = [entry for entry in all_materials if not entry.get("activity_type") and not entry.get("tombstone")]
+            activity_materials = [entry for entry in all_materials if entry.get("activity_type") and not entry.get("tombstone")]
+            if scope == "project":
+                saved_materials = [entry for entry in saved_materials if selected_project_name in normalize(entry.get("projects"))]
+                documents = [entry for entry in all_documents if str(entry.get("project", "")) == selected_project_name]
+            elif scope == "library":
+                documents = []
+            else:
+                documents = all_documents
+
+            saved_material_ids = {str(entry.get("id", "")) for entry in saved_materials}
+            document_ids = {str(entry.get("id", "")) for entry in documents}
+            runs_by_id = {str(entry.get("id", "")): entry for entry in all_runs}
+            selected_run_ids = {
+                str(entry.get("run_id", ""))
+                for entry in saved_materials
+                if str(entry.get("run_id", "")) in runs_by_id
+            }
+            selected_run_ids.update(
+                str(run.get("id", ""))
+                for run in all_runs
+                if str(run.get("material_id", "")) in saved_material_ids
+                or str(run.get("document_id", "")) in document_ids
+            )
+            if include_activity:
+                if scope == "project":
+                    selected_run_ids.update(
+                        str(run.get("id", ""))
+                        for run in all_runs
+                        if str(run.get("project", "")) == selected_project_name
+                    )
+                else:
+                    selected_run_ids.update(runs_by_id)
+            queue = list(selected_run_ids)
+            while queue:
+                run = runs_by_id.get(queue.pop())
+                if not run:
+                    continue
+                for field in ("retry_run_id", "continue_run_id"):
+                    ancestor = str(run.get(field, ""))
+                    if ancestor in runs_by_id and ancestor not in selected_run_ids:
+                        selected_run_ids.add(ancestor)
+                        queue.append(ancestor)
+            runs = [entry for entry in all_runs if str(entry.get("id", "")) in selected_run_ids]
+
+            activity_ids = {
+                str(run.get("activity_source_id", ""))
+                for run in runs
+                if str(run.get("activity_source_id", ""))
+            }
+            if include_activity and scope in {"all", "library"}:
+                activity_ids.update(str(entry.get("id", "")) for entry in activity_materials)
+            materials = saved_materials + [entry for entry in activity_materials if str(entry.get("id", "")) in activity_ids]
+            material_ids = {str(entry.get("id", "")) for entry in materials}
+
+            item_revisions = read_selected("item-revisions", "material_id", material_ids)
+            transcript_revisions = read_selected("transcript-revisions", "material_id", material_ids)
+            document_revisions = read_selected("doc-revisions", "document_id", document_ids)
+
+            if scope == "all":
+                projects = all_projects
+                settings_source = store.settings()
+                settings = {
+                    key: clone(settings_source[key])
+                    for key in (
+                        "personal_context",
+                        "ignored_terms",
+                        "voice_profile",
+                        "default_transcription_skill",
+                        "default_organization_skill",
+                        "default_extension_skill",
+                        "default_qa_skill",
+                        "default_document_skill",
+                        "project_associations",
+                    )
+                    if key in settings_source
+                }
+                skills = store.skills()
+                skill_ids = {str(entry.get("id", "")) for entry in skills}
+                skill_revisions = read_selected("skill-revisions", "skill_id", skill_ids)
+                topic_vocabularies = store.topic_vocabularies()
+                topics = store.topics()
+            elif scope == "project":
+                projects = [selected_project] if selected_project else []
+                settings = {}
+                skills = []
+                skill_revisions = []
+                topic_vocabularies = []
+                topics = []
+                materials = [safe_material(entry, selected_project_name) for entry in materials]
+                item_revisions = [safe_material(entry, selected_project_name) for entry in item_revisions]
+                transcript_revisions = [
+                    {**clone(entry), "applied_context": safe_context(entry.get("applied_context"))}
+                    for entry in transcript_revisions
+                ]
+                documents = [safe_document(entry, selected_project_name) for entry in documents]
+                document_revisions = [safe_document(entry, selected_project_name) for entry in document_revisions]
+                runs = [safe_run(entry, selected_project_name) for entry in runs]
+            else:
+                projects = []
+                settings = {}
+                skills = []
+                skill_revisions = []
+                topic_vocabularies = []
+                topics = []
+
+            capture_ids = {str(entry.get("capture_id", "")) for entry in materials if entry.get("capture_id")}
+            audio: list[dict[str, Any]] = []
+            if include_audio:
+                for path in sorted((store.root / "audio").iterdir()):
+                    if not path.is_file() or not any(path.name.startswith(f"{capture_id}.") for capture_id in capture_ids):
+                        continue
+                    data = path.read_bytes()
+                    if scope == "project" and path.name.endswith(".context.json"):
+                        data = json.dumps(safe_context(read_json(path)), ensure_ascii=False, sort_keys=True).encode("utf-8")
+                    audio.append({"name": path.name, "size_bytes": len(data), "data_base64": base64.b64encode(data).decode("ascii")})
+
+            object_ids = material_ids | document_ids | selected_run_ids | {
+                str(entry.get("id", "")) for entry in projects + skills + topic_vocabularies + topics
+            }
+            references: set[str] = set()
+            for entry in materials + item_revisions:
+                references.update(normalize(entry.get("parent_ids")))
+                references.update(str(source.get("id", "")) for source in entry.get("sources", []) if isinstance(source, dict))
+            for entry in documents + document_revisions:
+                references.update(normalize(entry.get("source_ids")))
+                references.update(normalize(entry.get("context_source_ids")))
+            for run in runs:
+                references.update(normalize(run.get("source_ids")))
+                references.update(str(run.get(field, "")) for field in ("activity_source_id", "retry_run_id", "continue_run_id") if str(run.get(field, "")))
+            type_by_prefix = {"mat": "Source", "doc": "Document", "run": "Run", "prj": "Project", "sk": "Skill", "voc": "Topic Vocabulary", "top": "Topic"}
+            lineage_tombstones = [
+                {"id": identifier, "object_type": type_by_prefix.get(identifier.split("_", 1)[0], "Object"), "reason": "outside export scope"}
+                for identifier in sorted(references - object_ids)
+                if ID_RE.match(identifier)
             ]
-        document_revisions = [
-            value for path in sorted((store.root / "doc-revisions").glob("*.json"))
-            if (value := read_json(path)).get("document_id") in document_ids
-        ]
-        transcript_revisions = [
-            value for path in sorted((store.root / "transcript-revisions").glob("*.json"))
-            if (value := read_json(path)).get("material_id") in material_ids
-        ]
-        item_revisions = [
-            value for path in sorted((store.root / "item-revisions").glob("*.json"))
-            if (value := read_json(path)).get("material_id") in material_ids
-        ]
-        skills = store.skills()
-        skill_ids = {str(skill["id"]) for skill in skills}
-        skill_revisions = [
-            value for path in sorted((store.root / "skill-revisions").glob("*.json"))
-            if (value := read_json(path)).get("skill_id") in skill_ids
-        ]
-        return {"schema_version": 2, "exported_at": now(), "scope": {"project": project, "include_audio": include_audio}, "materials": materials, "item_revisions": item_revisions, "documents": documents, "document_revisions": document_revisions, "transcript_revisions": transcript_revisions, "projects": projects, "settings": store.settings(), "skills": skills, "skill_revisions": skill_revisions, "skill_runs": skill_runs, "topic_vocabularies": store.topic_vocabularies(), "topics": store.topics(), "audio": audio}
+
+            projection = {
+                "export_format": "logue-portable-export",
+                "schema_version": 1,
+                "scope": {
+                    "kind": scope,
+                    "project_id": project_id if scope == "project" else "",
+                    "project_name": selected_project_name,
+                    "include_audio": include_audio,
+                    "include_activity": include_activity,
+                },
+                "materials": materials,
+                "item_revisions": item_revisions,
+                "documents": documents,
+                "document_revisions": document_revisions,
+                "transcript_revisions": transcript_revisions,
+                "projects": projects,
+                "settings": settings,
+                "skills": skills,
+                "skill_revisions": skill_revisions,
+                "skill_runs": runs,
+                "topic_vocabularies": topic_vocabularies,
+                "topics": topics,
+                "audio": audio,
+                "lineage_tombstones": lineage_tombstones,
+                "notices": {
+                    "restorable": False,
+                    "credentials_included": False,
+                    "excluded": ["provider credentials", "paired Extension credentials", "Host runtime state"],
+                },
+            }
+            canonical = json.dumps(projection, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            fingerprint = hashlib.sha256(canonical).hexdigest()
+            package = {**projection, "exported_at": now(), "fingerprint": fingerprint}
+            estimated_bytes = len(json.dumps(package, ensure_ascii=False, sort_keys=True).encode("utf-8"))
+            preview = {
+                "scope": scope,
+                "project_id": project_id if scope == "project" else "",
+                "project_name": selected_project_name,
+                "include_audio": include_audio,
+                "include_activity": include_activity,
+                "fingerprint": fingerprint,
+                "estimated_bytes": estimated_bytes,
+                "sources": sum(1 for entry in materials if not entry.get("activity_type")),
+                "activity": sum(1 for entry in materials if entry.get("activity_type")),
+                "documents": len(documents),
+                "projects": len(projects),
+                "runs": len(runs),
+                "settings": 1 if settings else 0,
+                "skills": len(skills),
+                "topic_vocabularies": len(topic_vocabularies),
+                "topics": len(topics),
+                "recordings": sum(1 for entry in audio if not str(entry.get("name", "")).endswith(".json")),
+                "lineage_tombstones": len(lineage_tombstones),
+                "restorable": False,
+                "credentials_included": False,
+            }
+            return package, preview
 
     def backup_workspace(self) -> Path:
         store = self.server.store

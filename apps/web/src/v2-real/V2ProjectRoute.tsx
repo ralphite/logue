@@ -23,8 +23,8 @@ import {
   createProjectVoiceProfile,
   createMaterial,
   deleteProject,
+  downloadWorkspaceExport,
   forgetClassificationMemory,
-  exportWorkspaceURL,
   getExportPreview,
   getProjectDependencies,
   getTopics,
@@ -340,6 +340,8 @@ export function V2ProjectRoute({
   const [bindingsDraft, setBindingsDraft] = useState<ProjectSkillBindings>({});
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [exportAudio, setExportAudio] = useState(true);
+  const [exportActivity, setExportActivity] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
   const [exportPreview, setExportPreview] = useState<ExportPreview>();
   const [exportError, setExportError] = useState("");
   const [vocabularyCategory, setVocabularyCategory] =
@@ -487,7 +489,12 @@ export function V2ProjectRoute({
     if (!project || view !== "settings") return;
     setExportPreview(undefined);
     setExportError("");
-    void getExportPreview({ project: project.name, includeAudio: exportAudio })
+    void getExportPreview({
+      scope: "project",
+      projectId: project.id,
+      includeAudio: exportAudio,
+      includeActivity: exportActivity,
+    })
       .then(setExportPreview)
       .catch((cause) =>
         setExportError(
@@ -496,7 +503,34 @@ export function V2ProjectRoute({
             : "Could not prepare this Project export.",
         ),
       );
-  }, [exportAudio, project?.name, view]);
+  }, [exportActivity, exportAudio, project?.id, view]);
+
+  async function createProjectExport() {
+    if (!project || !exportPreview) return;
+    setExportBusy(true);
+    setExportError("");
+    try {
+      const updated = await downloadWorkspaceExport(
+        {
+          scope: "project",
+          projectId: project.id,
+          includeAudio: exportAudio,
+          includeActivity: exportActivity,
+        },
+        exportPreview,
+      );
+      if (updated) {
+        setExportPreview(updated);
+        setExportError("Selected data changed. Review the updated summary, then export again.");
+      }
+    } catch (cause) {
+      setExportError(
+        cause instanceof Error ? cause.message : "Could not create this Project export.",
+      );
+    } finally {
+      setExportBusy(false);
+    }
+  }
 
   const contextCandidates = useMemo(
     () =>
@@ -2114,9 +2148,10 @@ export function V2ProjectRoute({
                       <strong>Local export</strong>
                       <p>
                         {exportPreview
-                          ? `${exportPreview.materials} Sources · ${exportPreview.documents} Documents · ${exportPreview.activity} Runs${exportAudio ? ` · ${exportPreview.audio} recordings` : ""}`
+                          ? `${exportPreview.sources} Sources · ${exportPreview.activity} Activity · ${exportPreview.documents} Documents · ${exportPreview.runs} Runs · Original audio ${exportPreview.include_audio ? `included (${exportPreview.recordings})` : "excluded"} · About ${(exportPreview.estimated_bytes / 1_048_576).toFixed(1)} MB`
                           : "Preparing this Project scope…"}
                       </p>
+                      <p>Export files cannot be restored. Provider keys and paired Extensions stay on this Host.</p>
                     </div>
                     <div className="v2-inline-actions">
                       <label className="v2-checkbox-row">
@@ -2127,19 +2162,24 @@ export function V2ProjectRoute({
                             setExportAudio(event.target.checked)
                           }
                         />
-                        Include audio
+                        Include original audio
                       </label>
-                      <a
+                      <label className="v2-checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={exportActivity}
+                          onChange={(event) => setExportActivity(event.target.checked)}
+                        />
+                        Include activity history and unused AI drafts
+                      </label>
+                      <Button
                         className="v2-download-button"
-                        href={exportWorkspaceURL({
-                          project: project.name,
-                          includeAudio: exportAudio,
-                        })}
-                        download
+                        disabled={!exportPreview || exportBusy}
+                        onClick={() => void createProjectExport()}
                       >
                         <Download size={14} />
-                        Export Project
-                      </a>
+                        {exportBusy ? "Exporting…" : "Export Project"}
+                      </Button>
                     </div>
                   </div>
                   {exportError ? (
