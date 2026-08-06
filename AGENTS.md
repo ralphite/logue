@@ -16,6 +16,14 @@
 - Capability status is strictly `SPECIFIED → CODED → INTEGRATED → RUNTIME_WORKING`. Only `RUNTIME_WORKING` may be reported as a real user capability. Code presence, mock behavior, documentation, tests, screenshots, component review, or commits alone do not prove product progress.
 - Basic usability is a continuous quality floor, not deferred polish. Never knowingly leave the production product with broken layout, unreadable hierarchy, raw markup displayed as content, conflicting UI systems, or a blocked canonical journey while expanding to another feature. Pixel refinement and comprehensive QA may wait; a coherent usable interface may not.
 
+## Required delivery phase order
+
+- Always execute the product work in this order: (1) build all confirmed features and cross-surface contracts; (2) after all features are coded and integrated, perform one consolidated code review and compare every item with the V2 product specification; (3) after code/spec gaps are fixed, perform the multi-agent UX review and obtain the user's UX acceptance; (4) only then perform UI review and polish; (5) only after UI completion run comprehensive real-environment QA and release validation.
+- During the build-all phase, maintain a complete feature inventory and use it as the implementation queue. Continue through the inventory without opening code-review, product-completeness, UX, UI, or broad QA loops between ordinary feature batches. Only minimal blocking compile/static checks and direct implementation debugging are allowed.
+- During the build-all phase, do not run Browser/Computer Use QA, visual walkthroughs, screenshot capture, Storybook acceptance, or designer runtime gates. Browser control is allowed only for one narrow diagnosis when a real runtime failure completely blocks implementation and static investigation cannot identify it. Defer browser-based QA to the later UX/UI/QA phases.
+- The important-decision review gate above still applies before a material product decision. It is an exception for preventing unauthorized scope or contract changes, not permission to review every implementation batch.
+- During the build-all phase, report only what became `CODED` or `INTEGRATED`, which confirmed inventory items remain, and the next feature. Do not call the product usable, complete, or runtime-verified before the later review phases establish that evidence.
+
 ## Single-user data and compatibility rules
 
 - This machine is the only supported installation and its current Logue data is the only data that must be preserved. There are no external users or deployed historical schemas to support.
