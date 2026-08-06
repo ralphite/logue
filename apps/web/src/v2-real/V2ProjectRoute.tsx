@@ -1,4 +1,4 @@
-import type { Material, MaterialOrganization } from "@logue/ui";
+import { useFocusBoundary, type Material, type MaterialOrganization } from "@logue/ui";
 import {
   Archive,
   ArchiveRestore,
@@ -169,6 +169,11 @@ function ProjectDialog({
   const [overview, setOverview] = useState(project?.overview ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const dialogRef = useFocusBoundary<HTMLElement>({
+    open,
+    onClose,
+    trap: true,
+  });
   useEffect(() => {
     if (open) {
       setName(project?.name ?? "");
@@ -186,10 +191,12 @@ function ProjectDialog({
       }}
     >
       <section
+        ref={dialogRef}
         className="v2-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="project-dialog-title"
+        tabIndex={-1}
       >
         <div className="v2-panel-section-heading">
           <div>
@@ -209,7 +216,7 @@ function ProjectDialog({
           Name
           <input
             className="v2-input"
-            autoFocus={!project}
+            data-autofocus={!project ? "true" : undefined}
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Project name"
@@ -219,7 +226,7 @@ function ProjectDialog({
           Goal and working context
           <textarea
             className="v2-textarea"
-            autoFocus={Boolean(project)}
+            data-autofocus={project ? "true" : undefined}
             value={overview}
             onChange={(event) => setOverview(event.target.value)}
             placeholder="What are you trying to decide, create, or learn?"
@@ -360,6 +367,11 @@ export function V2ProjectRoute({
   const [deletePreview, setDeletePreview] = useState<DeletionPreview>();
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleteError, setDeleteError] = useState("");
+  const deleteDialogRef = useFocusBoundary<HTMLElement>({
+    open: Boolean(deletePreview),
+    onClose: () => setDeletePreview(undefined),
+    trap: true,
+  });
   const project =
     projects.find((item) => item.name === projectName) ?? projects[0];
   const projectMaterials = useMemo(
@@ -2404,10 +2416,12 @@ export function V2ProjectRoute({
       {project && deletePreview ? (
         <div className="v2-dialog-backdrop" role="presentation">
           <section
+            ref={deleteDialogRef}
             className="v2-dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-project-title"
+            tabIndex={-1}
           >
             <div className="v2-panel-section-heading">
               <div>
@@ -2436,6 +2450,7 @@ export function V2ProjectRoute({
               Type {project.name} to confirm
               <input
                 className="v2-input"
+                data-autofocus="true"
                 value={deleteConfirm}
                 onChange={(event) => setDeleteConfirm(event.target.value)}
               />

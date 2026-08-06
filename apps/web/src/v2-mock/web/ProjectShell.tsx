@@ -1,4 +1,5 @@
 import { ChevronRight, FileText, FolderKanban, Library, PanelRightOpen, Search, Settings, Sparkles } from "lucide-react";
+import { useFocusBoundary } from "@logue/ui";
 import { useState, type ReactNode } from "react";
 import { IconButton } from "../../components/ui";
 import { PanelResizer } from "../../components/PanelResizer";
@@ -23,6 +24,10 @@ export interface ProjectShellProps {
 
 export function ProjectShell({ route, projectName, projects = [], activeProjectId, onRouteChange, onProjectChange, topbarActions, children, inspector, inspectorOpen = false, onInspectorOpenChange }: ProjectShellProps) {
   const [inspectorWidth, setInspectorWidth] = useState(400);
+  const inspectorRef = useFocusBoundary<HTMLElement>({
+    open: Boolean(inspector && inspectorOpen),
+    onClose: () => onInspectorOpenChange?.(false),
+  });
   const openGlobalFind = () => {
     const url = new URL(window.location.href);
     url.searchParams.set("view", "stream");
@@ -60,7 +65,7 @@ export function ProjectShell({ route, projectName, projects = [], activeProjectI
             </header>
             {children}
           </section>
-          {inspector && inspectorOpen ? <><PanelResizer edge="left" label="Resize source inspector" value={inspectorWidth} min={360} max={640} defaultValue={400} onChange={setInspectorWidth} className="max-[980px]:hidden" /><aside className="v2-inspector" style={{ width: inspectorWidth }} aria-label="Sources used">{inspector}</aside></> : null}
+          {inspector && inspectorOpen ? <><PanelResizer edge="left" label="Resize source inspector" value={inspectorWidth} min={360} max={640} defaultValue={400} onChange={setInspectorWidth} className="max-[980px]:hidden" /><aside ref={inspectorRef} className="v2-inspector" style={{ width: inspectorWidth }} aria-label="Sources used" tabIndex={-1}>{inspector}</aside></> : null}
         </div>
       </main>
     </div>
