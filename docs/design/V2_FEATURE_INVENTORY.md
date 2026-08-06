@@ -123,7 +123,7 @@
 ## Web — Documents
 
 - V2-DOC-01 — INTEGRATED — 可编辑 rich text/Markdown、heading/list/quote/code/link 与 autosave。
-- V2-DOC-02 — CODED — 最近 Document、caret 与 scroll 已恢复；browser native undo 可用，显式 undo/redo 控件尚缺。
+- V2-DOC-02 — INTEGRATED — 最近 Document、caret 与 scroll 可恢复；显式 Undo / Redo 与浏览器原生编辑历史、autosave、dirty state 使用同一正文。
 - V2-DOC-03 — INTEGRATED — Web Document 默认 Copy；显式选择 live Extension target 后 Send，Extension 逐次复验并局部 Undo，失效时保留 Document 并回退改选。
 - V2-DOC-04 — INTEGRATED — 选区/全文 Action 与指定 Project Sources。
 - V2-DOC-05 — INTEGRATED — Action Replace/Copy/Keep 使用统一 AI Source / Document revision adoption 合同。
@@ -188,6 +188,6 @@
 
 ## 当前唯一实施批次
 
-- `ACTIVE: V2-DOC-02`
-- 完成条件：Document editor 提供显式 Undo / Redo，并与浏览器原生编辑历史、autosave 与 dirty state 使用同一正文，不创建额外 revision 或 Source。
+- `ACTIVE: V2-LIB-04`
+- 完成条件：Library 的 Project / Topic / origin / time / site / type / adopted filters 使用同一 content-first 结果集，可组合、可清除，并保持 Comment bundle 单条显示。
 - 完成后只更新相关 ID 的状态并选择下一个最高价值 `MISSING/CODED`，不新增复杂报告。
