@@ -30,6 +30,11 @@ export interface AppliedContext {
   transcription_skill_id?: string;
   transcription_skill_name?: string;
   transcription_skill_revision?: number;
+  voice_profile_label?: string;
+  project_profile_mode?: string;
+  primary_language?: string;
+  mixed_languages?: string[];
+  custom_instructions?: string;
 }
 
 export interface Material {

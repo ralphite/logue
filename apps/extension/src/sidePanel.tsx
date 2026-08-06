@@ -202,16 +202,19 @@ function SidePanelApp() {
 
   const appliedContext = useCallback((captureContext: CaptureContext): AppliedContext => {
     const referenceProject = explicitProjects(stateRef.current)[0];
-    const project = referenceProject
-      ? captureContext.projects.find((item) => item.name === referenceProject)
-      : undefined;
+    const profile = captureContext.resolved_voice_profile;
     return {
       page_url: stateRef.current?.source.url ?? "",
       page_title: stateRef.current?.source.title ?? "",
       reference_project: referenceProject,
-      personal_context: captureContext.personal_context || undefined,
-      project_overview: project?.overview,
-      glossary: Array.from(new Set([...captureContext.personal_glossary, ...(project?.glossary ?? [])])),
+      personal_context: profile.personal_context || undefined,
+      project_overview: profile.project_overview || undefined,
+      glossary: profile.vocabulary,
+      voice_profile_label: profile.label,
+      project_profile_mode: profile.project_mode,
+      primary_language: profile.primary_language,
+      mixed_languages: profile.mixed_languages,
+      custom_instructions: profile.custom_instructions || undefined,
       recent_adopted_ids: captureContext.recent_adopted_refs?.map((item) => item.id) ?? [],
       recent_adopted_texts: captureContext.recent_adopted_refs?.map((item) => item.text) ?? captureContext.recent_adopted,
     };
@@ -385,28 +388,21 @@ function SidePanelApp() {
     try {
       const referenceProject = explicitProjects(current)[0];
       const currentContext = context ?? await getCaptureContext(current.source.url, referenceProject ?? "");
-      const project = referenceProject
-        ? currentContext.projects.find((item) => item.name === referenceProject)
-        : undefined;
+      const profile = currentContext.resolved_voice_profile;
       let provenance = appliedContext(currentContext);
       const result = await transcribeAudio({
         audio: blob,
         source: current.source,
         targetText: current.intent === "input" ? current.targetText : undefined,
         selectedText: current.selectionText,
-        projectContext: [currentContext.personal_context, project?.overview].filter(Boolean).join("\n\n"),
-        glossary: Array.from(new Set([...currentContext.personal_glossary, ...(project?.glossary ?? [])])).join("\n"),
+        projectContext: [profile.personal_context, profile.project_overview].filter(Boolean).join("\n\n"),
+        glossary: profile.vocabulary.join("\n"),
         instructions: current.selectionText
           ? "Transcribe this as an annotation to the selected source."
           : "Transcribe this as concise text linked to the current page.",
         appliedContext: provenance,
       });
-      provenance = {
-        ...provenance,
-        transcription_skill_id: result.skill_id,
-        transcription_skill_name: result.skill_name,
-        transcription_skill_revision: result.skill_revision,
-      };
+      provenance = result.applied_context;
       setTranscript(result.text);
       setDraft(result.text);
       persistDraft({ draft: result.text, transcript: result.text });

@@ -8,7 +8,9 @@ import {
   getWorkspaceSettings,
   restoreWorkspace,
   saveWorkspaceSettings,
+  createVoiceProfile,
   type ServiceStatus,
+  type VoiceProfileVocabulary,
   type WorkspaceSettings,
   type GlossarySuggestion,
 } from "../api";
@@ -18,6 +20,15 @@ import { editorColumnClass } from "./layout";
 import { PageHeader } from "./ui";
 
 type SaveState = "saved" | "dirty" | "saving" | "error";
+type VocabularyCategory = Exclude<keyof VoiceProfileVocabulary, "preferred_spellings">;
+
+const vocabularyCategories: Array<{ key: VocabularyCategory; label: string }> = [
+  { key: "people", label: "People" },
+  { key: "companies", label: "Companies" },
+  { key: "products", label: "Products" },
+  { key: "places", label: "Places" },
+  { key: "acronyms", label: "Acronyms" },
+];
 
 const fieldFocusClass = "focus:border-[#777dd9] focus:ring-2 focus:ring-[#777dd9]/20";
 
@@ -33,8 +44,11 @@ function SettingsRow({ label, children, border = true }: { label: string; childr
 }
 
 export function SettingsPage({ status }: { status?: ServiceStatus }) {
-  const [settings, setSettings] = useState<WorkspaceSettings>({ personal_context: "", glossary: [], ignored_terms: [] });
+  const [settings, setSettings] = useState<WorkspaceSettings>({ personal_context: "", ignored_terms: [], voice_profile: createVoiceProfile() });
   const [term, setTerm] = useState("");
+  const [termCategory, setTermCategory] = useState<VocabularyCategory>("products");
+  const [spokenTerm, setSpokenTerm] = useState("");
+  const [preferredTerm, setPreferredTerm] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [notice, setNotice] = useState<string>();
   const [restoring, setRestoring] = useState(false);
@@ -83,14 +97,29 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
 
   function addTerm() {
     const value = term.trim();
-    if (!value || settings.glossary.includes(value)) return;
-    update({ ...settings, glossary: [...settings.glossary, value] });
+    const current = settings.voice_profile.vocabulary[termCategory];
+    if (!value || current.includes(value)) return;
+    update({ ...settings, voice_profile: { ...settings.voice_profile, vocabulary: { ...settings.voice_profile.vocabulary, [termCategory]: [...current, value] } } });
     setTerm("");
   }
 
   function acceptSuggestion(value: string) {
-    update({ ...settings, glossary: settings.glossary.includes(value) ? settings.glossary : [...settings.glossary, value] });
+    const current = settings.voice_profile.vocabulary.products;
+    update({ ...settings, voice_profile: { ...settings.voice_profile, vocabulary: { ...settings.voice_profile.vocabulary, products: current.includes(value) ? current : [...current, value] } } });
     setSuggestions((current) => current.filter((item) => item.term !== value));
+  }
+
+  function removeTerm(category: VocabularyCategory, value: string) {
+    update({ ...settings, voice_profile: { ...settings.voice_profile, vocabulary: { ...settings.voice_profile.vocabulary, [category]: settings.voice_profile.vocabulary[category].filter((item) => item !== value) } } });
+  }
+
+  function addPreferredSpelling() {
+    const spoken = spokenTerm.trim();
+    const preferred = preferredTerm.trim();
+    if (!spoken || !preferred || settings.voice_profile.vocabulary.preferred_spellings.some((entry) => entry.spoken.toLowerCase() === spoken.toLowerCase())) return;
+    update({ ...settings, voice_profile: { ...settings.voice_profile, vocabulary: { ...settings.voice_profile.vocabulary, preferred_spellings: [...settings.voice_profile.vocabulary.preferred_spellings, { spoken, preferred }] } } });
+    setSpokenTerm("");
+    setPreferredTerm("");
   }
 
   function ignoreSuggestion(value: string) {
@@ -104,8 +133,7 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
     window.setTimeout(() => setNotice(undefined), 1800);
   }
 
-  const globalSkillRows: Array<{ key: keyof Pick<WorkspaceSettings, "default_transcription_skill" | "default_organization_skill" | "default_extension_skill" | "default_qa_skill" | "default_document_skill">; label: string; accepts: (skill: LogueSkill) => boolean }> = [
-    { key: "default_transcription_skill", label: "Transcription", accepts: (skill) => skill.task === "transcribe" },
+  const globalSkillRows: Array<{ key: keyof Pick<WorkspaceSettings, "default_organization_skill" | "default_extension_skill" | "default_qa_skill" | "default_document_skill">; label: string; accepts: (skill: LogueSkill) => boolean }> = [
     { key: "default_organization_skill", label: "Organization", accepts: (skill) => skill.task === "organize" },
     { key: "default_extension_skill", label: "Voice Command", accepts: (skill) => skill.task === "generate" && skill.output === "insert" && skill.surfaces.includes("extension") },
     { key: "default_qa_skill", label: "Ask", accepts: (skill) => skill.task === "generate" && skill.output === "qa" },
@@ -163,13 +191,15 @@ export function SettingsPage({ status }: { status?: ServiceStatus }) {
 
         <div className="pb-2"><h2 className="text-[18px] font-semibold tracking-[-0.02em] text-[#30312d]">Preferences</h2></div>
 
-        <SettingsRow label="Writing preferences">
-          <textarea value={settings.personal_context} onChange={(event) => update({ ...settings, personal_context: event.target.value })} placeholder="Keep writing concise and direct; preserve product names…" className={`min-h-28 w-full resize-y rounded-md border border-[#deded9] px-3 py-2.5 text-[15px] leading-6 outline-none ${fieldFocusClass}`} />
-        </SettingsRow>
-
-        <SettingsRow label="Global terms">
-          <div className="flex flex-wrap gap-1.5">{settings.glossary.map((value) => <span key={value} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[#f0f0ed] px-2.5 text-[15px] text-[#555651] max-[900px]:h-11">{value}<button type="button" onClick={() => update({ ...settings, glossary: settings.glossary.filter((item) => item !== value) })} className="inline-flex size-6 items-center justify-center rounded text-[#999a95] hover:bg-[#e4e4e0] hover:text-[#555] max-[900px]:-mr-2.5 max-[900px]:size-11" aria-label={`Remove ${value}`}><X size={12} /></button></span>)}</div>
-          <div className="mt-3 flex gap-2"><input value={term} onChange={(event) => setTerm(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addTerm(); } }} placeholder="Add a term" className={`h-10 min-w-0 flex-1 rounded-md border border-[#deded9] px-3 text-[15px] outline-none ${fieldFocusClass}`} /><button type="button" onClick={addTerm} className="h-10 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#62635e] hover:bg-[#f4f4f1]">Add</button></div>
+        <SettingsRow label="Default voice profile">
+          <div className="space-y-5">
+            <label className="block text-[14px] font-medium text-[#555651]">Transcription Skill<select className={`mt-2 h-10 w-full rounded-md border border-[#deded9] bg-white px-3 text-[14px] text-[#555651] outline-none ${fieldFocusClass}`} value={settings.default_transcription_skill ?? ""} onChange={(event) => update({ ...settings, default_transcription_skill: event.target.value })}>{skills.filter((skill) => skill.enabled && skill.task === "transcribe").map((skill) => <option key={skill.id} value={skill.id}>{skill.name}{skill.system ? " · Built-in" : " · My Skill"}</option>)}</select></label>
+            <div className="grid grid-cols-2 gap-3 max-[700px]:grid-cols-1"><label className="text-[14px] font-medium text-[#555651]">Primary language<input className={`mt-2 h-10 w-full rounded-md border border-[#deded9] px-3 text-[15px] outline-none ${fieldFocusClass}`} value={settings.voice_profile.primary_language} onChange={(event) => update({ ...settings, voice_profile: { ...settings.voice_profile, primary_language: event.target.value } })} placeholder="Auto-detect" /></label><label className="text-[14px] font-medium text-[#555651]">Mixed languages<input className={`mt-2 h-10 w-full rounded-md border border-[#deded9] px-3 text-[15px] outline-none ${fieldFocusClass}`} value={settings.voice_profile.mixed_languages.join(", ")} onChange={(event) => update({ ...settings, voice_profile: { ...settings.voice_profile, mixed_languages: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) } })} placeholder="English, 中文" /></label></div>
+            <label className="block text-[14px] font-medium text-[#555651]">Personal context<textarea value={settings.personal_context} onChange={(event) => update({ ...settings, personal_context: event.target.value })} placeholder="Writing preferences, your role, and context Logue should know…" className={`mt-2 min-h-24 w-full resize-y rounded-md border border-[#deded9] px-3 py-2.5 text-[15px] leading-6 outline-none ${fieldFocusClass}`} /></label>
+            <div><p className="text-[14px] font-medium text-[#555651]">Personal vocabulary</p><div className="mt-2 space-y-2">{vocabularyCategories.map((category) => settings.voice_profile.vocabulary[category.key].length ? <div key={category.key} className="flex flex-wrap items-center gap-1.5"><span className="w-20 text-[13px] text-[#999a95]">{category.label}</span>{settings.voice_profile.vocabulary[category.key].map((value) => <span key={value} className="inline-flex h-8 items-center gap-1 rounded-md bg-[#f0f0ed] px-2.5 text-[14px] text-[#555651]">{value}<button type="button" onClick={() => removeTerm(category.key, value)} className="inline-flex size-6 items-center justify-center rounded text-[#999a95] hover:bg-[#e4e4e0]" aria-label={`Remove ${value}`}><X size={12} /></button></span>)}</div> : null)}</div><div className="mt-3 flex gap-2 max-[700px]:flex-wrap"><select className={`h-10 rounded-md border border-[#deded9] bg-white px-3 text-[14px] ${fieldFocusClass}`} value={termCategory} onChange={(event) => setTermCategory(event.target.value as VocabularyCategory)}>{vocabularyCategories.map((category) => <option key={category.key} value={category.key}>{category.label}</option>)}</select><input value={term} onChange={(event) => setTerm(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addTerm(); } }} placeholder="Add a term" className={`h-10 min-w-0 flex-1 rounded-md border border-[#deded9] px-3 text-[15px] outline-none ${fieldFocusClass}`} /><button type="button" onClick={addTerm} className="h-10 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#62635e] hover:bg-[#f4f4f1]">Add</button></div></div>
+            <div><p className="text-[14px] font-medium text-[#555651]">Acronym and preferred spelling</p><div className="mt-2 flex flex-wrap gap-1.5">{settings.voice_profile.vocabulary.preferred_spellings.map((entry) => <button type="button" key={entry.spoken} onClick={() => update({ ...settings, voice_profile: { ...settings.voice_profile, vocabulary: { ...settings.voice_profile.vocabulary, preferred_spellings: settings.voice_profile.vocabulary.preferred_spellings.filter((value) => value.spoken !== entry.spoken) } } })} className="h-8 rounded-md bg-[#f0f0ed] px-2.5 text-[14px] text-[#555651]">{entry.spoken} → {entry.preferred} ×</button>)}</div><div className="mt-3 flex gap-2 max-[700px]:flex-wrap"><input className={`h-10 min-w-0 flex-1 rounded-md border border-[#deded9] px-3 text-[15px] outline-none ${fieldFocusClass}`} value={spokenTerm} onChange={(event) => setSpokenTerm(event.target.value)} placeholder="What Logue may hear" /><input className={`h-10 min-w-0 flex-1 rounded-md border border-[#deded9] px-3 text-[15px] outline-none ${fieldFocusClass}`} value={preferredTerm} onChange={(event) => setPreferredTerm(event.target.value)} placeholder="Preferred spelling" /><button type="button" onClick={addPreferredSpelling} disabled={!spokenTerm.trim() || !preferredTerm.trim()} className="h-10 rounded-md border border-[#d8d8d3] px-3 text-[15px] font-medium text-[#62635e] hover:bg-[#f4f4f1] disabled:opacity-50">Add</button></div></div>
+            <label className="block text-[14px] font-medium text-[#555651]">Custom instructions<textarea value={settings.voice_profile.custom_instructions} onChange={(event) => update({ ...settings, voice_profile: { ...settings.voice_profile, custom_instructions: event.target.value } })} placeholder="Optional transcription instructions that apply everywhere…" className={`mt-2 min-h-20 w-full resize-y rounded-md border border-[#deded9] px-3 py-2.5 text-[15px] leading-6 outline-none ${fieldFocusClass}`} /></label>
+          </div>
         </SettingsRow>
 
         {suggestions.length > 0 && <SettingsRow label="Term suggestions"><div className="space-y-1.5">{suggestions.map((suggestion) => <div key={suggestion.term} className="flex min-h-11 items-center justify-between rounded-md border border-[#e2e2de] px-3 py-2"><span><span className="text-[15px] font-medium text-[#4d4e49]">{suggestion.term}</span><span className="ml-2 text-[14px] text-[#999a95]">{suggestion.count} uses</span></span><span className="flex gap-1"><button type="button" onClick={() => ignoreSuggestion(suggestion.term)} className="min-h-9 rounded px-2 text-[14px] text-[#8a8b86] hover:bg-[#f1f1ee]">Ignore</button><button type="button" onClick={() => acceptSuggestion(suggestion.term)} className="min-h-9 rounded bg-[#efefec] px-2 text-[14px] font-medium text-[#555651] hover:bg-[#e5e5e1]">Pin</button></span></div>)}</div></SettingsRow>}

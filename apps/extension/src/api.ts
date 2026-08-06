@@ -160,11 +160,45 @@ export async function adoptExtensionSkillRun(id: string, adoptedOutput: string) 
 
 export interface CaptureContext {
   personal_context: string;
-  personal_glossary: string[];
+  voice_profile: VoiceProfile;
+  resolved_voice_profile: ResolvedVoiceProfile;
   recent_adopted: string[];
   recent_adopted_refs?: Array<{ id: string; text: string }>;
   suggested_project: string;
-  projects: Array<{ name: string; overview?: string; glossary: string[]; skill_bindings?: ExtensionProjectSkillBindings }>;
+  projects: Array<{ name: string; overview?: string; transcription_profile: ProjectVoiceProfile; skill_bindings?: ExtensionProjectSkillBindings }>;
+}
+
+export interface VoiceProfileVocabulary {
+  people: string[];
+  companies: string[];
+  products: string[];
+  places: string[];
+  acronyms: string[];
+  preferred_spellings: Array<{ spoken: string; preferred: string }>;
+}
+
+export interface VoiceProfile {
+  primary_language: string;
+  mixed_languages: string[];
+  custom_instructions: string;
+  vocabulary: VoiceProfileVocabulary;
+}
+
+export interface ProjectVoiceProfile extends VoiceProfile {
+  mode: "inherited" | "customized" | "disabled";
+}
+
+export interface ResolvedVoiceProfile {
+  label: string;
+  project_mode: "default" | "inherited" | "customized" | "disabled";
+  project_name: string;
+  primary_language: string;
+  mixed_languages: string[];
+  custom_instructions: string;
+  vocabulary: string[];
+  skill_id: string;
+  personal_context: string;
+  project_overview: string;
 }
 
 export interface AppliedContext {
@@ -179,6 +213,11 @@ export interface AppliedContext {
   transcription_skill_id?: string;
   transcription_skill_name?: string;
   transcription_skill_revision?: number;
+  voice_profile_label?: string;
+  project_profile_mode?: string;
+  primary_language?: string;
+  mixed_languages?: string[];
+  custom_instructions?: string;
 }
 
 export async function getCaptureContext(pageUrl: string, project = "") {
@@ -211,7 +250,7 @@ export async function transcribeAudio(input: {
   instructions?: string;
   appliedContext?: AppliedContext;
 }) {
-  return request<{ capture_id: string; text: string; skill_id: string; skill_name: string; skill_revision: number }>("transcribe", {
+  return request<{ capture_id: string; text: string; skill_id: string; skill_name: string; skill_revision: number; applied_context: AppliedContext }>("transcribe", {
     requestId: input.requestId,
     audioBase64: await blobToBase64(input.audio),
     mimeType: input.audio.type || "audio/webm",

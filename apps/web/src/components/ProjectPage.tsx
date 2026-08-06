@@ -1,7 +1,7 @@
 import { ArrowRight, FolderKanban, Inbox, Plus } from "lucide-react";
 import type { Material } from "@logue/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getDocuments, getProjects, getWorkspaceSettings, saveProject, type LogueDocument, type ProjectSkillBindings, type ProjectSummary, type WorkspaceSettings } from "../api";
+import { createProjectVoiceProfile, createVoiceProfile, getDocuments, getProjects, getWorkspaceSettings, saveProject, type LogueDocument, type ProjectSkillBindings, type ProjectSummary, type ProjectVoiceProfile, type WorkspaceSettings } from "../api";
 import { getSkills, type LogueSkill } from "../skillApi";
 import { pageColumnClass } from "./layout";
 import { Button, PageHeader } from "./ui";
@@ -28,10 +28,10 @@ export function ProjectPage({
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [documents, setDocuments] = useState<LogueDocument[]>([]);
   const [skills, setSkills] = useState<LogueSkill[]>([]);
-  const [globalDefaults, setGlobalDefaults] = useState<WorkspaceSettings>({ personal_context: "", glossary: [], ignored_terms: [] });
+  const [globalDefaults, setGlobalDefaults] = useState<WorkspaceSettings>({ personal_context: "", ignored_terms: [], voice_profile: createVoiceProfile() });
   const [selectedName, setSelectedName] = useState<string | undefined>(undefined);
   const [overview, setOverview] = useState("");
-  const [glossary, setGlossary] = useState<string[]>([]);
+  const [transcriptionProfile, setTranscriptionProfile] = useState<ProjectVoiceProfile>(createProjectVoiceProfile());
   const [skillBindings, setSkillBindings] = useState<ProjectSkillBindings>({});
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [newProjectOpen, setNewProjectOpen] = useState(false);
@@ -94,7 +94,7 @@ export function ProjectPage({
     if (!selected || loadedRef.current === selected.name) return;
     loadedRef.current = selected.name;
     setOverview(selected.overview ?? "");
-    setGlossary(selected.glossary ?? []);
+    setTranscriptionProfile(selected.transcription_profile ?? createProjectVoiceProfile());
     setSkillBindings(selected.skill_bindings ?? {});
     setSaveState("saved");
   }, [selected]);
@@ -103,7 +103,7 @@ export function ProjectPage({
     if (!selected || loadedRef.current !== selected.name || saveState !== "dirty") return;
     const timer = window.setTimeout(() => {
       setSaveState("saving");
-      void saveProject(selected.name, { overview, glossary, skillBindings })
+      void saveProject(selected.name, { overview, transcriptionProfile, skillBindings })
         .then((updated) => {
           setProjects((current) => current.map((project) => project.name === updated.name ? updated : project));
           setSaveState("saved");
@@ -111,7 +111,7 @@ export function ProjectPage({
         .catch(() => setSaveState("error"));
     }, 650);
     return () => window.clearTimeout(timer);
-  }, [glossary, overview, saveState, selected, skillBindings]);
+  }, [overview, saveState, selected, skillBindings, transcriptionProfile]);
 
   function markDirty() {
     if (saveState !== "dirty") setSaveState("dirty");
@@ -120,7 +120,7 @@ export function ProjectPage({
   async function createProject() {
     const name = newProjectName.trim();
     if (!name) return;
-    const created = await saveProject("", { name, overview: "", glossary: [], skillBindings: {} });
+    const created = await saveProject("", { name, overview: "", transcriptionProfile: createProjectVoiceProfile(), skillBindings: {} });
     setProjects((current) => [created, ...current]);
     setNewProjectOpen(false);
     setNewProjectName("");
@@ -135,12 +135,12 @@ export function ProjectPage({
       materials={materials}
       documents={documents}
       overview={overview}
-      glossary={glossary}
+      transcriptionProfile={transcriptionProfile}
       skills={skills}
       globalDefaults={globalDefaults}
       skillBindings={skillBindings}
       onOverviewChange={(value) => { setOverview(value); markDirty(); }}
-      onGlossaryChange={(value) => { setGlossary(value); markDirty(); }}
+      onTranscriptionProfileChange={(value) => { setTranscriptionProfile(value); markDirty(); }}
       onSkillBindingsChange={(value) => { setSkillBindings(value); markDirty(); }}
       onDocumentsChange={setDocuments}
       onOpenMaterial={onOpenMaterial}

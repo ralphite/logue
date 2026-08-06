@@ -70,7 +70,7 @@ export interface ProjectSummary {
   id?: string;
   name: string;
   overview?: string;
-  glossary: string[];
+  transcription_profile: ProjectVoiceProfile;
   skill_bindings?: ProjectSkillBindings;
   count: number;
   created_at?: string;
@@ -83,6 +83,39 @@ export interface ProjectSkillBindings {
   command?: string;
   ask?: string;
   draft?: string;
+}
+
+export interface VoiceProfileVocabulary {
+  people: string[];
+  companies: string[];
+  products: string[];
+  places: string[];
+  acronyms: string[];
+  preferred_spellings: Array<{ spoken: string; preferred: string }>;
+}
+
+export interface VoiceProfile {
+  primary_language: string;
+  mixed_languages: string[];
+  custom_instructions: string;
+  vocabulary: VoiceProfileVocabulary;
+}
+
+export interface ProjectVoiceProfile extends VoiceProfile {
+  mode: "inherited" | "customized" | "disabled";
+}
+
+export function createVoiceProfile(): VoiceProfile {
+  return {
+    primary_language: "Auto-detect",
+    mixed_languages: [],
+    custom_instructions: "",
+    vocabulary: { people: [], companies: [], products: [], places: [], acronyms: [], preferred_spellings: [] },
+  };
+}
+
+export function createProjectVoiceProfile(): ProjectVoiceProfile {
+  return { ...createVoiceProfile(), mode: "inherited" };
 }
 
 export interface SkillRunSourceSnapshot {
@@ -114,8 +147,8 @@ export interface SkillRun {
 
 export interface WorkspaceSettings {
   personal_context: string;
-  glossary: string[];
   ignored_terms: string[];
+  voice_profile: VoiceProfile;
   default_transcription_skill?: string;
   default_organization_skill?: string;
   default_extension_skill?: string;
@@ -320,7 +353,7 @@ export async function deleteSkillRun(id: string) {
 
 export async function saveProject(
   currentName: string,
-  input: { name?: string; overview: string; glossary: string[]; skillBindings?: ProjectSkillBindings },
+  input: { name?: string; overview: string; transcriptionProfile: ProjectVoiceProfile; skillBindings?: ProjectSkillBindings },
 ) {
   const path = currentName ? `${apiBase}/v1/projects/${encodeURIComponent(currentName)}` : `${apiBase}/v1/projects`;
   return parseResponse<ProjectSummary>(
@@ -328,7 +361,9 @@ export async function saveProject(
       method: currentName ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...input,
+        name: input.name,
+        overview: input.overview,
+        transcription_profile: input.transcriptionProfile,
         ...(input.skillBindings !== undefined ? { skill_bindings: input.skillBindings } : {}),
       }),
     }),

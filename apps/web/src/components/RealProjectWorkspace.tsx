@@ -1,7 +1,7 @@
 import { ArrowLeft, FilePlus2, History, ListChecks, PanelRightClose, PanelRightOpen, RotateCcw, Settings2 } from "lucide-react";
 import type { Material } from "@logue/ui";
 import { useEffect, useMemo, useState } from "react";
-import { createDocument, generateDocument, getDocumentRevisions, updateDocument, type DocumentRevision, type LogueDocument, type ProjectSkillBindings, type ProjectSummary, type WorkspaceSettings } from "../api";
+import { createDocument, generateDocument, getDocumentRevisions, updateDocument, type DocumentRevision, type LogueDocument, type ProjectSkillBindings, type ProjectSummary, type ProjectVoiceProfile, type VoiceProfileVocabulary, type WorkspaceSettings } from "../api";
 import { adoptSkillRun, createSkillRun, type LogueSkill, type LogueSkillRun } from "../skillApi";
 import { groupLibraryMaterials } from "../commentBundles";
 import { ProjectComposer } from "../v2-mock/primitives/ProjectComposer";
@@ -15,17 +15,27 @@ function sourceTitle(material: Material) {
   return material.source?.title || material.source?.domain || material.actor || "Saved source";
 }
 
+type VocabularyCategory = Exclude<keyof VoiceProfileVocabulary, "preferred_spellings">;
+
+const vocabularyCategories: Array<{ key: VocabularyCategory; label: string }> = [
+  { key: "people", label: "People" },
+  { key: "companies", label: "Companies" },
+  { key: "products", label: "Products" },
+  { key: "places", label: "Places" },
+  { key: "acronyms", label: "Acronyms" },
+];
+
 export function RealProjectWorkspace({
   project,
   materials,
   documents,
   overview,
-  glossary,
+  transcriptionProfile,
   skills,
   globalDefaults,
   skillBindings,
   onOverviewChange,
-  onGlossaryChange,
+  onTranscriptionProfileChange,
   onSkillBindingsChange,
   onDocumentsChange,
   onOpenMaterial,
@@ -36,12 +46,12 @@ export function RealProjectWorkspace({
   materials: Material[];
   documents: LogueDocument[];
   overview: string;
-  glossary: string[];
+  transcriptionProfile: ProjectVoiceProfile;
   skills: LogueSkill[];
   globalDefaults: WorkspaceSettings;
   skillBindings: ProjectSkillBindings;
   onOverviewChange: (value: string) => void;
-  onGlossaryChange: (value: string[]) => void;
+  onTranscriptionProfileChange: (value: ProjectVoiceProfile) => void;
   onSkillBindingsChange: (value: ProjectSkillBindings) => void;
   onDocumentsChange: (documents: LogueDocument[]) => void;
   onOpenMaterial: (materialId: string) => void;
@@ -63,7 +73,10 @@ export function RealProjectWorkspace({
   const [generationError, setGenerationError] = useState<string>();
   const [activeView, setActiveView] = useState<"document" | "context" | "settings">("document");
   const [inspectorOpen, setInspectorOpen] = useState(true);
-  const [term, setTerm] = useState("");
+  const [profileTerm, setProfileTerm] = useState("");
+  const [profileCategory, setProfileCategory] = useState<VocabularyCategory>("products");
+  const [spokenTerm, setSpokenTerm] = useState("");
+  const [preferredTerm, setPreferredTerm] = useState("");
   const [classificationBusyId, setClassificationBusyId] = useState<string>();
   const [classificationError, setClassificationError] = useState<string>();
   const [documentRevisions, setDocumentRevisions] = useState<DocumentRevision[]>([]);
@@ -215,15 +228,41 @@ export function RealProjectWorkspace({
     }
   }
 
-  function addTerm() {
-    const value = term.trim();
-    if (!value || glossary.includes(value)) return;
-    onGlossaryChange([...glossary, value]);
-    setTerm("");
+  function updateTranscriptionProfile(patch: Partial<ProjectVoiceProfile>) {
+    onTranscriptionProfileChange({ ...transcriptionProfile, ...patch });
+  }
+
+  function addProfileTerm() {
+    const value = profileTerm.trim();
+    const current = transcriptionProfile.vocabulary[profileCategory];
+    if (!value || current.includes(value)) return;
+    updateTranscriptionProfile({
+      vocabulary: { ...transcriptionProfile.vocabulary, [profileCategory]: [...current, value] },
+    });
+    setProfileTerm("");
+  }
+
+  function removeProfileTerm(category: VocabularyCategory, value: string) {
+    updateTranscriptionProfile({
+      vocabulary: { ...transcriptionProfile.vocabulary, [category]: transcriptionProfile.vocabulary[category].filter((term) => term !== value) },
+    });
+  }
+
+  function addPreferredSpelling() {
+    const spoken = spokenTerm.trim();
+    const preferred = preferredTerm.trim();
+    if (!spoken || !preferred || transcriptionProfile.vocabulary.preferred_spellings.some((entry) => entry.spoken.toLowerCase() === spoken.toLowerCase())) return;
+    updateTranscriptionProfile({
+      vocabulary: {
+        ...transcriptionProfile.vocabulary,
+        preferred_spellings: [...transcriptionProfile.vocabulary.preferred_spellings, { spoken, preferred }],
+      },
+    });
+    setSpokenTerm("");
+    setPreferredTerm("");
   }
 
   const bindingRows: Array<{ key: keyof ProjectSkillBindings; label: string; fallback?: string; accepts: (skill: LogueSkill) => boolean }> = [
-    { key: "transcription", label: "Transcription", fallback: globalDefaults.default_transcription_skill, accepts: (skill) => skill.task === "transcribe" },
     { key: "organization", label: "Organization", fallback: globalDefaults.default_organization_skill, accepts: (skill) => skill.task === "organize" },
     { key: "command", label: "Voice Command", fallback: globalDefaults.default_extension_skill, accepts: (skill) => skill.task === "generate" && skill.output === "insert" && skill.surfaces.includes("extension") },
     { key: "ask", label: "Ask", fallback: globalDefaults.default_qa_skill, accepts: (skill) => skill.task === "generate" && skill.output === "qa" },
@@ -285,7 +324,29 @@ export function RealProjectWorkspace({
           {activeView === "settings" ? <div className="v2-editor-scroll"><div className="v2-list-axis">
             <div className="v2-page-heading"><div className="v2-page-heading-copy"><h1>Project settings</h1><p>Context used for transcription, classification, Ask, and Draft.</p></div></div>
             <section className="v2-setting-section"><h2>Project context</h2><textarea className="v2-textarea" value={overview} onChange={(event) => onOverviewChange(event.target.value)} placeholder="Goals, decisions, constraints, and working context…" /></section>
-            <section className="v2-setting-section"><h2>Topic vocabulary</h2><div className="v2-inline-actions">{glossary.map((value) => <button type="button" className="v2-membership-pill" key={value} onClick={() => onGlossaryChange(glossary.filter((item) => item !== value))}>{value} ×</button>)}</div><div className="v2-filter-row" style={{ marginTop: 12 }}><input className="v2-input" value={term} onChange={(event) => setTerm(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addTerm(); } }} placeholder="Add a project term" /><Button size="sm" onClick={addTerm} disabled={!term.trim()}>Add</Button></div></section>
+            <section className="v2-setting-section">
+              <h2>Transcription profile</h2>
+              <div className="v2-inline-actions" role="group" aria-label="Project transcription profile mode">
+                {(["inherited", "customized", "disabled"] as const).map((mode) => <Button key={mode} size="sm" aria-pressed={transcriptionProfile.mode === mode} variant={transcriptionProfile.mode === mode ? "primary" : "secondary"} onClick={() => updateTranscriptionProfile({ mode })}>{mode[0].toUpperCase() + mode.slice(1)}</Button>)}
+              </div>
+              <p className="v2-settings-lead">{transcriptionProfile.mode === "customized" ? "Uses Default personal context plus this Project’s context and vocabulary." : transcriptionProfile.mode === "disabled" ? "Uses only the Default voice profile; Project provenance is still recorded." : "Uses the Default voice profile with this Project’s context."}</p>
+              {transcriptionProfile.mode === "customized" && <div className="mt-4 space-y-4">
+                <div className="v2-setting-row"><div><strong>Transcription Skill</strong><p>{skillBindings.transcription ? `Project override · ${skillName(skillBindings.transcription)}` : `Inherits Default · ${skillName(globalDefaults.default_transcription_skill)}`}</p></div><select className="v2-input" aria-label="Transcription Skill" value={skillBindings.transcription ?? ""} onChange={(event) => onSkillBindingsChange({ ...skillBindings, transcription: event.target.value || undefined })}><option value="">Inherit Default</option>{skills.filter((skill) => skill.enabled && skill.task === "transcribe").map((skill) => <option key={skill.id} value={skill.id}>{skill.name}{skill.system ? " · Built-in" : " · My Skill"}</option>)}</select></div>
+                <div className="v2-setting-row"><div><strong>Primary language</strong><p>The language Logue should expect most often.</p></div><input className="v2-input" value={transcriptionProfile.primary_language} onChange={(event) => updateTranscriptionProfile({ primary_language: event.target.value })} placeholder="Auto-detect" /></div>
+                <div className="v2-setting-row"><div><strong>Mixed languages</strong><p>Optional languages that may appear in the same recording.</p></div><input className="v2-input" value={transcriptionProfile.mixed_languages.join(", ")} onChange={(event) => updateTranscriptionProfile({ mixed_languages: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="English, 中文" /></div>
+                <div>
+                  <strong className="text-[14px] text-[#3f413c]">Project vocabulary</strong>
+                  <div className="mt-2 space-y-2">{vocabularyCategories.map((category) => transcriptionProfile.vocabulary[category.key].length ? <div key={category.key} className="flex flex-wrap items-center gap-2"><span className="w-20 text-[13px] text-[#8a8b86]">{category.label}</span>{transcriptionProfile.vocabulary[category.key].map((value) => <button type="button" className="v2-membership-pill" key={value} onClick={() => removeProfileTerm(category.key, value)}>{value} ×</button>)}</div> : null)}</div>
+                  <div className="v2-filter-row" style={{ marginTop: 12 }}><select className="v2-input" value={profileCategory} onChange={(event) => setProfileCategory(event.target.value as VocabularyCategory)}>{vocabularyCategories.map((category) => <option key={category.key} value={category.key}>{category.label}</option>)}</select><input className="v2-input" value={profileTerm} onChange={(event) => setProfileTerm(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addProfileTerm(); } }} placeholder="Add a term" /><Button size="sm" onClick={addProfileTerm} disabled={!profileTerm.trim()}>Add</Button></div>
+                </div>
+                <div>
+                  <strong className="text-[14px] text-[#3f413c]">Acronym and preferred spelling</strong>
+                  <div className="mt-2 flex flex-wrap gap-2">{transcriptionProfile.vocabulary.preferred_spellings.map((entry) => <button type="button" className="v2-membership-pill" key={entry.spoken} onClick={() => updateTranscriptionProfile({ vocabulary: { ...transcriptionProfile.vocabulary, preferred_spellings: transcriptionProfile.vocabulary.preferred_spellings.filter((value) => value.spoken !== entry.spoken) } })}>{entry.spoken} → {entry.preferred} ×</button>)}</div>
+                  <div className="v2-filter-row" style={{ marginTop: 12 }}><input className="v2-input" value={spokenTerm} onChange={(event) => setSpokenTerm(event.target.value)} placeholder="What Logue may hear" /><input className="v2-input" value={preferredTerm} onChange={(event) => setPreferredTerm(event.target.value)} placeholder="Preferred spelling" /><Button size="sm" onClick={addPreferredSpelling} disabled={!spokenTerm.trim() || !preferredTerm.trim()}>Add</Button></div>
+                </div>
+                <div><strong className="text-[14px] text-[#3f413c]">Custom instructions</strong><textarea className="v2-textarea mt-2" value={transcriptionProfile.custom_instructions} onChange={(event) => updateTranscriptionProfile({ custom_instructions: event.target.value })} placeholder="Instructions that only apply when this Project profile is active…" /></div>
+              </div>}
+            </section>
             <section className="v2-setting-section"><h2>Skill overrides</h2><p className="v2-settings-lead">Only overrides set here differ from Global defaults.</p>{bindingRows.map((row) => <div className="v2-setting-row" key={row.key}><div><strong>{row.label}</strong><p>{skillBindings[row.key] ? `Project override · ${skillName(skillBindings[row.key])}` : `Inherits Global · ${skillName(row.fallback)}`}</p></div><select className="v2-input" aria-label={`${row.label} Skill`} value={skillBindings[row.key] ?? ""} onChange={(event) => onSkillBindingsChange({ ...skillBindings, [row.key]: event.target.value || undefined })}><option value="">Inherit Global</option>{skills.filter((skill) => skill.enabled && row.accepts(skill)).map((skill) => <option key={skill.id} value={skill.id}>{skill.name}{skill.system ? " · Built-in" : " · My Skill"}</option>)}</select></div>)}</section>
           </div></div> : activeView === "context" ? <div className="v2-editor-scroll"><div className="v2-list-axis">
             <div className="v2-page-heading"><div className="v2-page-heading-copy"><h1>Project context</h1><p>Review what this Project may use. Excluding a Source never deletes it from your private Library.</p></div></div>

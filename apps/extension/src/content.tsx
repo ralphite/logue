@@ -354,17 +354,19 @@ function ExtensionLauncher() {
           transcribe: async () => {
             const activeProject = session.projects[0] ?? "";
             const context = await getCaptureContext(session.snapshot.source.url, activeProject);
-            const project = activeProject
-              ? context.projects.find((item) => item.name === activeProject)
-              : undefined;
-            const glossary = [...context.personal_glossary, ...(project?.glossary ?? [])];
+            const profile = context.resolved_voice_profile;
             appliedContext = {
               page_url: session.snapshot.source.url,
               page_title: session.snapshot.source.title,
               reference_project: activeProject || undefined,
-              personal_context: context.personal_context || undefined,
-              project_overview: project?.overview || undefined,
-              glossary,
+              personal_context: profile.personal_context || undefined,
+              project_overview: profile.project_overview || undefined,
+              glossary: profile.vocabulary,
+              voice_profile_label: profile.label,
+              project_profile_mode: profile.project_mode,
+              primary_language: profile.primary_language,
+              mixed_languages: profile.mixed_languages,
+              custom_instructions: profile.custom_instructions || undefined,
               recent_adopted_ids: context.recent_adopted_refs?.map((item) => item.id) ?? [],
               recent_adopted_texts: context.recent_adopted_refs?.map((item) => item.text) ?? context.recent_adopted,
             };
@@ -373,17 +375,12 @@ function ExtensionLauncher() {
               audio,
               source: session.snapshot.source,
               selectedText: session.snapshot.text,
-              projectContext: [context.personal_context, project?.overview].filter(Boolean).join("\n\n"),
-              glossary: glossary.join("\n"),
+              projectContext: [profile.personal_context, profile.project_overview].filter(Boolean).join("\n\n"),
+              glossary: profile.vocabulary.join("\n"),
               instructions: "Transcribe only the spoken comment about the selected text. Preserve the speaker's meaning and wording.",
               appliedContext,
             });
-            appliedContext = {
-              ...appliedContext,
-              transcription_skill_id: transcription.skill_id,
-              transcription_skill_name: transcription.skill_name,
-              transcription_skill_revision: transcription.skill_revision,
-            };
+            appliedContext = transcription.applied_context;
             return { text: transcription.text, captureId: transcription.capture_id };
           },
           save: (transcription) => saveSelection({
@@ -526,17 +523,19 @@ function ExtensionLauncher() {
             const projects = await session.projectPromise;
             const activeProject = projects[0] ?? "";
             const context = await getCaptureContext(session.source.url ?? "", activeProject);
-            const project = activeProject
-              ? context.projects.find((item) => item.name === activeProject)
-              : undefined;
-            const glossary = [...context.personal_glossary, ...(project?.glossary ?? [])];
+            const profile = context.resolved_voice_profile;
             appliedContext = {
               page_url: session.source.url,
               page_title: session.source.title,
               reference_project: activeProject || undefined,
-              personal_context: context.personal_context || undefined,
-              project_overview: project?.overview || undefined,
-              glossary,
+              personal_context: profile.personal_context || undefined,
+              project_overview: profile.project_overview || undefined,
+              glossary: profile.vocabulary,
+              voice_profile_label: profile.label,
+              project_profile_mode: profile.project_mode,
+              primary_language: profile.primary_language,
+              mixed_languages: profile.mixed_languages,
+              custom_instructions: profile.custom_instructions || undefined,
               recent_adopted_ids: context.recent_adopted_refs?.map((item) => item.id) ?? [],
               recent_adopted_texts: context.recent_adopted_refs?.map((item) => item.text) ?? context.recent_adopted,
             };
@@ -545,17 +544,12 @@ function ExtensionLauncher() {
               audio: audioBlobFromEvent(event),
               source: session.source,
               targetText: session.targetText,
-              projectContext: [context.personal_context, project?.overview].filter(Boolean).join("\n\n"),
-              glossary: glossary.join("\n"),
+              projectContext: [profile.personal_context, profile.project_overview].filter(Boolean).join("\n\n"),
+              glossary: profile.vocabulary.join("\n"),
               instructions: "Transcribe this as ready-to-insert text for the current input.",
               appliedContext,
             });
-            appliedContext = {
-              ...appliedContext,
-              transcription_skill_id: transcription.skill_id,
-              transcription_skill_name: transcription.skill_name,
-              transcription_skill_revision: transcription.skill_revision,
-            };
+            appliedContext = transcription.applied_context;
             return { text: transcription.text, captureId: transcription.capture_id };
           },
           save: async (transcription) => {
