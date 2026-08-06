@@ -151,10 +151,10 @@
 - V2-SET-03 — INTEGRATED — provider 未 Ready 不阻断本地内容浏览，AI/Voice 使用时提示 Settings → Models。
 - V2-SET-04 — INTEGRATED — Host、数据目录、storage 使用量、pending captures、模型处理边界。
 - V2-SET-05 — INTEGRATED — paired Extension clients 查看/命名/撤销。
-- V2-SET-06 — INTEGRATED — Settings 使用内容列表消费 Host-managed snapshots，支持创建、下载当前 schema `.logue-backup`、安全迁入另一台 Host、明确确认与恢复；Host 以 opaque ID、archive 白名单、workspace barrier/generation、Restore 前备份、可回滚 swap 和 runtime reload 闭合真实 producer-consumer，旧 JSON 假入口已删除。
+- V2-SET-06 — INTEGRATED — Settings 使用内容列表消费 Host-managed snapshots，支持 fresh/default workspace 创建备份、下载当前 schema `.logue-backup`、安全迁入另一台 Host、明确确认与恢复；Host 在 snapshot staging 物化默认 settings，并以 opaque ID、archive 白名单、workspace barrier/generation、Restore 前备份、可回滚 swap 和 runtime reload 闭合真实 producer-consumer。
 - V2-SET-07 — CODED — scope-safe Export 已接；Phase 2 已修正 Project classification outcomes 投影，统一 deletion / backup 缺口闭合后再恢复 INTEGRATED。
 - V2-SET-08 — INTEGRATED — `Include activity history and unused AI drafts` 明确控制 scope 内 Activity Sources / unadopted Runs；默认只含 Saved content 与 adopted lineage，Project frozen snapshots 不扩权到其他 Project 当前对象。
-- V2-SET-09 — CODED — Host-owned dependency preview / fingerprint / terminal result 已接；Phase 2 已修正普通 Source preview、Comment bundle 原子删除与 Project classification memory，fresh workspace backup 缺口仍待闭合。
+- V2-SET-09 — CODED — Host-owned dependency preview / fingerprint / terminal result 已接；Phase 2 已修正普通 Source preview、Comment bundle 原子删除、Project classification memory 与 fresh workspace backup；Project rename transaction 闭合后再恢复 INTEGRATED。
 - V2-SET-10 — INTEGRATED — 新 Run 在 provider 调用前冻结实际 instruction、Skill instructions/revision、Project/Personal/Page Context 与 Sources；Settings → Privacy 以内容列表打开共享可调宽 Run inspector，不复制第二套 Run 状态。
 
 ## Topics / PKM

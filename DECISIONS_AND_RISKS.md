@@ -816,3 +816,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 为 Comment bundle 增加第二套删除 endpoint；会重复 fingerprint、rollback 与 terminal result 合同。
 - **已有证据：** Phase 2 runtime 审查确认普通 Source 因 AI-only revision API 返回 400，execute 又把同 bundle Comment 重新算成 root 的依赖，导致返回 deleted 但残留 tombstone。
 - **开放问题：** 无；workspace fresh backup 是 V2-SET-09 的下一独立缺口。
+
+### DR-076 — Fresh workspace 的默认 Settings 在 backup staging 中物化
+
+- **优先级：** V2 Backup / Phase 2 P1
+- **状态：** 已修复；Python compile 与 diff check 通过，真实 snapshot/restore 留到 Phase 5
+- **决定：** 当 live data root 尚无 `settings.json` 时，Backup 只在新 snapshot 内写入 `Store.settings()` 的规范默认值，再执行当前 schema 校验；不为了备份修改 live workspace。
+- **用户可见影响：** 新安装尚未保存任何 Settings 时也能 Back up、Restore 前自动备份和安全删除 workspace。
+- **替代方案：** 放宽 snapshot validator 允许缺失 settings；会产生无法精确恢复的非规范 backup。
+- **已有证据：** Phase 2 runtime 审查确认 fresh Host 只返回虚拟默认 settings，而 snapshot validator 强制文件存在，导致所有 backup consumer 必然失败。
+- **开放问题：** 无。

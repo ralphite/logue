@@ -4477,6 +4477,8 @@ class Handler(BaseHTTPRequestHandler):
         backup = store.root.parent / f"{store.root.name}.backup-{snapshot_id}"
         with self.server.workspace_lock, store.lock:
             shutil.copytree(store.root, backup)
+            if not (backup / "settings.json").exists():
+                atomic_json(backup / "settings.json", store.settings())
             atomic_json(backup / BACKUP_MARKER, {
                 "schema_version": BACKUP_SCHEMA,
                 "snapshot_id": snapshot_id,
