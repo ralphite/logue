@@ -18,10 +18,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createMaterial,
   createDocument,
-  deleteDocument,
+  executeDeletion,
+  getDeletionPreview,
   getDocumentRevisions,
   restoreDocumentRevision,
   updateDocument,
+  type DeletionPreview,
   type DocumentRevision,
   type LogueDocument,
   type ProjectSummary,
@@ -111,6 +113,8 @@ export function V2DocumentsRoute({
   const [revisions, setRevisions] = useState<DocumentRevision[]>([]);
   const [preview, setPreview] = useState<DocumentRevision>();
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePreview, setDeletePreview] = useState<DeletionPreview>();
+  const [deleteConfirm, setDeleteConfirm] = useState("");
   const [actionSkillId, setActionSkillId] = useState("");
   const [actionRun, setActionRun] = useState<LogueSkillRun>();
   const [actionText, setActionText] = useState("");
@@ -294,15 +298,42 @@ export function V2DocumentsRoute({
     }
   }
 
-  async function removeDocument() {
+  async function reviewDocumentDeletion() {
     if (!selected) return;
+    setDeleteOpen(true);
+    setDeletePreview(undefined);
+    setDeleteConfirm("");
+    setError("");
+    try {
+      setDeletePreview(
+        await getDeletionPreview({ scope: "document", ids: [selected.id] }),
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not review this Document deletion.",
+      );
+    }
+  }
+
+  async function removeDocument() {
+    if (!selected || !deletePreview || deleteConfirm !== "DELETE") return;
     setSaving(true);
     setError("");
     try {
-      await deleteDocument(selected.id);
+      const outcome = await executeDeletion(
+        { scope: "document", ids: [selected.id] },
+        deletePreview,
+      );
+      if (outcome.preview) {
+        setDeletePreview(outcome.preview);
+        setError("Dependencies changed. Review the updated summary, then delete again.");
+        return;
+      }
       setSelectedId(documents.find((item) => item.id !== selected.id)?.id);
       await onRefresh();
       setDeleteOpen(false);
+      setDeletePreview(undefined);
+      setDeleteConfirm("");
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -894,7 +925,7 @@ export function V2DocumentsRoute({
                 )}
                 <Button
                   size="sm"
-                  onClick={() => setDeleteOpen(true)}
+                  onClick={() => void reviewDocumentDeletion()}
                   disabled={Boolean(preview)}
                 >
                   <Trash2 size={14} />
@@ -1069,11 +1100,34 @@ export function V2DocumentsRoute({
                     Delete this Document and its revision history? Saved Sources
                     remain in the Library.
                   </p>
+                  <p>
+                    {deletePreview
+                      ? `${deletePreview.summary.revisions} revisions · ${deletePreview.summary.runs} linked Runs keep a minimal Document marker.`
+                      : "Preparing dependencies…"}
+                  </p>
+                  <label>
+                    Type DELETE to continue
+                    <input
+                      className="v2-input"
+                      value={deleteConfirm}
+                      onChange={(event) => setDeleteConfirm(event.target.value)}
+                    />
+                  </label>
                   <div className="v2-inline-actions">
-                    <Button onClick={() => setDeleteOpen(false)}>Cancel</Button>
+                    <Button
+                      onClick={() => {
+                        setDeleteOpen(false);
+                        setDeletePreview(undefined);
+                        setDeleteConfirm("");
+                      }}
+                    >
+                      Cancel
+                    </Button>
                     <Button
                       variant="primary"
-                      disabled={saving}
+                      disabled={
+                        saving || !deletePreview || deleteConfirm !== "DELETE"
+                      }
                       onClick={() => void removeDocument()}
                     >
                       Delete Document

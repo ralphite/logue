@@ -15,12 +15,13 @@ import {
   createPairingCode,
   createVoiceProfile,
   deleteTopicVocabulary,
-  deleteWorkspace,
   downloadWorkspaceExport,
+  executeDeletion,
   getAIConnection,
   getExportPreview,
   getGlossarySuggestions,
   getClients,
+  getDeletionPreview,
   getTopicVocabularies,
   restoreWorkspace,
   revokeClient,
@@ -32,6 +33,7 @@ import {
   updateClient,
   type AIConnection,
   type AIConnectionInput,
+  type DeletionPreview,
   type ExportPreview,
   type ExportScope,
   type GlossarySuggestion,
@@ -202,6 +204,7 @@ export function SettingsRoute({
   const [exportPreview, setExportPreview] = useState<ExportPreview>();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deletePreview, setDeletePreview] = useState<DeletionPreview>();
   const [clients, setClients] = useState<LogueClient[]>([]);
   const [pairing, setPairing] = useState<PairingCode>();
   useEffect(() => {
@@ -273,6 +276,41 @@ export function SettingsRoute({
       setError(cause instanceof Error ? cause.message : "Could not create this export.");
     } finally {
       setExportBusy(false);
+    }
+  }
+
+  async function reviewWorkspaceDeletion() {
+    setDeleteOpen(true);
+    setDeleteConfirm("");
+    setDeletePreview(undefined);
+    setError("");
+    try {
+      setDeletePreview(await getDeletionPreview({ scope: "workspace" }));
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not review local data deletion.",
+      );
+    }
+  }
+
+  async function removeWorkspace() {
+    if (!deletePreview || deleteConfirm !== "DELETE") return;
+    setError("");
+    try {
+      const outcome = await executeDeletion({ scope: "workspace" }, deletePreview);
+      if (outcome.preview) {
+        setDeletePreview(outcome.preview);
+        setError("Local data changed. Review the updated summary, then delete again.");
+        return;
+      }
+      window.alert(
+        `Local data deleted. Backup: ${outcome.result?.backup_path ?? "created beside your data folder"}`,
+      );
+      window.location.reload();
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not delete local data.",
+      );
     }
   }
 
@@ -1262,7 +1300,7 @@ export function SettingsRoute({
                 <section className="v2-settings-section">
                   <h2>Delete all local data</h2>
                   {!deleteOpen ? (
-                    <Button onClick={() => setDeleteOpen(true)}>
+                    <Button onClick={() => void reviewWorkspaceDeletion()}>
                       <Trash2 size={14} />
                       Review deletion
                     </Button>
@@ -1272,6 +1310,11 @@ export function SettingsRoute({
                         Removes Sources, audio, Projects, Documents, Activity,
                         and My Skills. Logue creates a complete local backup
                         first.
+                      </p>
+                      <p>
+                        {deletePreview
+                          ? `${deletePreview.summary.sources} Sources · ${deletePreview.summary.projects} Projects · ${deletePreview.summary.documents} Documents · ${deletePreview.summary.runs} Runs · ${deletePreview.summary.recordings} recordings · ${deletePreview.summary.skills} My Skills`
+                          : "Preparing dependencies…"}
                       </p>
                       <label>
                         Type DELETE to continue
@@ -1288,29 +1331,15 @@ export function SettingsRoute({
                           onClick={() => {
                             setDeleteOpen(false);
                             setDeleteConfirm("");
+                            setDeletePreview(undefined);
                           }}
                         >
                           Cancel
                         </Button>
                         <Button
                           variant="primary"
-                          disabled={deleteConfirm !== "DELETE"}
-                          onClick={() =>
-                            void deleteWorkspace()
-                              .then((result) => {
-                                window.alert(
-                                  `Local data deleted. Backup: ${result.backup_path}`,
-                                );
-                                window.location.reload();
-                              })
-                              .catch((cause) =>
-                                setError(
-                                  cause instanceof Error
-                                    ? cause.message
-                                    : "Could not delete local data.",
-                                ),
-                              )
-                          }
+                          disabled={!deletePreview || deleteConfirm !== "DELETE"}
+                          onClick={() => void removeWorkspace()}
                         >
                           Delete all local data
                         </Button>

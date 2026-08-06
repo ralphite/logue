@@ -1301,6 +1301,28 @@ class Store:
                 for path in (self.root / "audio").glob(f"{capture_id}.*"):
                     path.unlink(missing_ok=True)
 
+    def item_dependencies(self, identifier: str) -> dict[str, Any]:
+        item = self.get("items", identifier)
+        document_revisions = [read_json(candidate) for candidate in sorted((self.root / "doc-revisions").glob("*.json"))]
+        return {
+            "projects": normalize(item.get("projects")),
+            "derived_items": [
+                {"id": candidate["id"], "content": candidate.get("content", ""), "kind": candidate.get("kind", "text"), "actor": candidate.get("actor", "user"), "projects": normalize(candidate.get("projects"))}
+                for candidate in self.items() if identifier in normalize(candidate.get("parent_ids"))
+            ],
+            "documents": [
+                {"id": document["id"], "title": document.get("title", "Untitled"), "project": document.get("project", ""), "revision": document.get("revision", 1), "current": True}
+                for document in self.documents() if identifier in {*normalize(document.get("source_ids")), *normalize(document.get("context_source_ids"))}
+            ] + [
+                {"id": revision.get("document_id"), "title": revision.get("title", "Untitled"), "project": revision.get("project", ""), "revision": revision.get("revision", 1), "current": False}
+                for revision in document_revisions if identifier in {*normalize(revision.get("source_ids")), *normalize(revision.get("context_source_ids"))}
+            ],
+            "runs": [
+                {"id": run["id"], "skill_name": run.get("skill_name", "Skill"), "instruction": run.get("instruction", ""), "status": run.get("status", "complete"), "adopted": bool(run.get("adopted_output") or run.get("document_id") or run.get("material_id"))}
+                for run in self.skill_runs() if identifier in normalize(run.get("source_ids")) or run.get("activity_source_id") == identifier
+            ],
+        }
+
     def create_selection(self, value: dict[str, Any]) -> dict[str, Any]:
         allowed = {"request_id", "source_content", "annotation", "raw_transcript", "transcript", "source", "projects", "tags", "capture_id", "applied_context", "membership_origin"}
         unknown = sorted(set(value) - allowed)
@@ -1512,8 +1534,8 @@ class Store:
                 changed = name in {*normalize(item.get("projects")), *normalize(item.get("excluded_projects")), *normalize(item.get("saved_only_projects"))}
                 organization = item.get("organization") if isinstance(item.get("organization"), dict) else None
                 correction = organization.get("user_correction") if organization and isinstance(organization.get("user_correction"), dict) else None
-                correction_outcomes = correction.get("outcomes") if correction and isinstance(correction.get("outcomes"), list) else []
-                correction_changed = any(isinstance(outcome, dict) and outcome.get("project") == name for outcome in correction_outcomes)
+                correction_outcomes = correction.get("outcomes") if correction and isinstance(correction.get("outcomes"), dict) else {}
+                correction_changed = name in correction_outcomes
                 if not changed and not correction_changed:
                     continue
                 item["projects"] = [value for value in normalize(item.get("projects")) if value != name]
@@ -1521,11 +1543,11 @@ class Store:
                 item["saved_only_projects"] = [value for value in normalize(item.get("saved_only_projects")) if value != name]
                 item["status"] = "organized" if item["projects"] else "unfiled"
                 if correction:
-                    correction["outcomes"] = [
-                        outcome
-                        for outcome in correction_outcomes
-                        if not isinstance(outcome, dict) or outcome.get("project") != name
-                    ]
+                    correction["outcomes"] = {
+                        project_name: outcome
+                        for project_name, outcome in correction_outcomes.items()
+                        if project_name != name
+                    }
                     correction["original_suggested_projects"] = [
                         project
                         for project in normalize(correction.get("original_suggested_projects"))
@@ -2556,26 +2578,7 @@ class Handler(BaseHTTPRequestHandler):
             self.json(HTTPStatus.OK, {"items": candidates[:12]})
         elif path.startswith("/v1/items/") and path.endswith("/dependencies"):
             identifier = path.removeprefix("/v1/items/").removesuffix("/dependencies")
-            item = store.get("items", identifier)
-            document_revisions = [read_json(candidate) for candidate in sorted((store.root / "doc-revisions").glob("*.json"))]
-            self.json(HTTPStatus.OK, {
-                "projects": normalize(item.get("projects")),
-                "derived_items": [
-                    {"id": candidate["id"], "content": candidate.get("content", ""), "kind": candidate.get("kind", "text"), "actor": candidate.get("actor", "user"), "projects": normalize(candidate.get("projects"))}
-                    for candidate in store.items() if identifier in normalize(candidate.get("parent_ids"))
-                ],
-                "documents": [
-                    {"id": document["id"], "title": document.get("title", "Untitled"), "project": document.get("project", ""), "revision": document.get("revision", 1), "current": True}
-                    for document in store.documents() if identifier in {*normalize(document.get("source_ids")), *normalize(document.get("context_source_ids"))}
-                ] + [
-                    {"id": revision.get("document_id"), "title": revision.get("title", "Untitled"), "project": revision.get("project", ""), "revision": revision.get("revision", 1), "current": False}
-                    for revision in document_revisions if identifier in {*normalize(revision.get("source_ids")), *normalize(revision.get("context_source_ids"))}
-                ],
-                "runs": [
-                    {"id": run["id"], "skill_name": run.get("skill_name", "Skill"), "instruction": run.get("instruction", ""), "status": run.get("status", "complete"), "adopted": bool(run.get("adopted_output") or run.get("document_id") or run.get("material_id"))}
-                    for run in store.skill_runs() if identifier in normalize(run.get("source_ids"))
-                ],
-            })
+            self.json(HTTPStatus.OK, store.item_dependencies(identifier))
         elif path.startswith("/v1/items/") and path.endswith("/revisions"):
             identifier = path.removeprefix("/v1/items/").removesuffix("/revisions")
             self.json(HTTPStatus.OK, {"revisions": store.item_revisions(identifier)})
@@ -2728,6 +2731,19 @@ class Handler(BaseHTTPRequestHandler):
             candidate.save()
             self.server.gemini = candidate
             self.json(HTTPStatus.OK, candidate.public_config())
+        elif path == "/v1/deletions/preview" and method == "POST":
+            self.json(HTTPStatus.OK, self.deletion_preview(self.body_json()))
+        elif path == "/v1/deletions" and method == "POST":
+            value = self.body_json()
+            expected_fingerprint = str(value.get("fingerprint", "")).strip()
+            if not expected_fingerprint:
+                raise ValueError("review this deletion before continuing")
+            with store.lock:
+                preview = self.deletion_preview(value)
+                if expected_fingerprint != preview["fingerprint"]:
+                    self.json(HTTPStatus.CONFLICT, {"error": "Dependencies changed. Review the updated deletion summary.", "preview": preview})
+                    return
+                self.json(HTTPStatus.OK, self.execute_deletion(preview))
         elif path == "/v1/items" and method == "POST":
             value = self.body_json()
             if value.get("request_id") in self.server.cancelled:
@@ -3639,6 +3655,235 @@ class Handler(BaseHTTPRequestHandler):
                 "credentials_included": False,
             }
             return package, preview
+
+    def deletion_preview(self, value: dict[str, Any]) -> dict[str, Any]:
+        scope = str(value.get("scope", "")).strip()
+        if scope not in {"source", "project", "document", "run", "workspace"}:
+            raise ValueError("invalid deletion scope")
+        store = self.server.store
+        with store.lock:
+            target_ids = normalize(value.get("ids"))
+            project_id = str(value.get("project_id", "")).strip()
+            state: dict[str, Any] = {"scope": scope}
+            summary = {
+                "sources": 0,
+                "projects": 0,
+                "documents": 0,
+                "runs": 0,
+                "recordings": 0,
+                "revisions": 0,
+                "derived": 0,
+                "citations": 0,
+                "skills": 0,
+            }
+            target_labels: list[str] = []
+            target_ids_out: list[str] = []
+            requires_lineage = False
+            backup_created = scope == "workspace"
+
+            if scope == "source":
+                if not target_ids:
+                    raise ValueError("choose at least one Source")
+                members: dict[str, dict[str, Any]] = {}
+                for identifier in target_ids:
+                    for member in store.comment_bundle_members(identifier):
+                        if not member.get("tombstone"):
+                            members[str(member["id"])] = member
+                if not members:
+                    raise FileNotFoundError(target_ids[0])
+                documents = store.documents()
+                document_revisions = [read_json(path) for path in sorted((store.root / "doc-revisions").glob("*.json"))]
+                items = store.items()
+                runs = store.skill_runs()
+                dependent_ids: set[str] = set()
+                capture_ids: set[str] = set()
+                dependency_state: dict[str, Any] = {}
+                project_links: set[str] = set()
+                document_dependency_ids: set[str] = set()
+                document_revision_dependency_ids: set[tuple[str, int]] = set()
+                derived_dependency_ids: set[str] = set()
+                run_dependency_ids: set[str] = set()
+                for identifier, item in members.items():
+                    cited_documents = [
+                        entry for entry in documents
+                        if identifier in {*normalize(entry.get("source_ids")), *normalize(entry.get("context_source_ids"))}
+                    ]
+                    cited_revisions = [
+                        entry for entry in document_revisions
+                        if identifier in {*normalize(entry.get("source_ids")), *normalize(entry.get("context_source_ids"))}
+                    ]
+                    derived = [entry for entry in items if identifier in normalize(entry.get("parent_ids")) and entry.get("id") not in members]
+                    linked_runs = [entry for entry in runs if identifier in normalize(entry.get("source_ids")) or entry.get("activity_source_id") == identifier]
+                    dependent = bool(cited_documents or cited_revisions or derived or linked_runs)
+                    if dependent:
+                        dependent_ids.add(identifier)
+                    if item.get("capture_id"):
+                        capture_ids.add(str(item["capture_id"]))
+                    dependency_state[identifier] = {
+                        "item": item,
+                        "documents": [(entry.get("id"), entry.get("revision")) for entry in cited_documents],
+                        "document_revisions": [(entry.get("document_id"), entry.get("revision")) for entry in cited_revisions],
+                        "derived": [entry.get("id") for entry in derived],
+                        "runs": [entry.get("id") for entry in linked_runs],
+                    }
+                    project_links.update(normalize(item.get("projects")))
+                    document_dependency_ids.update(str(entry.get("id", "")) for entry in cited_documents)
+                    document_revision_dependency_ids.update((str(entry.get("document_id", "")), int(entry.get("revision", 0))) for entry in cited_revisions)
+                    derived_dependency_ids.update(str(entry.get("id", "")) for entry in derived)
+                    run_dependency_ids.update(str(entry.get("id", "")) for entry in linked_runs)
+                    summary["revisions"] += len(store.transcript_revisions(identifier)) + len(store.item_revisions(identifier))
+                summary["sources"] = len(members)
+                summary["projects"] = len(project_links)
+                summary["documents"] = len(document_dependency_ids)
+                summary["citations"] = len(document_revision_dependency_ids)
+                summary["derived"] = len(derived_dependency_ids)
+                summary["runs"] = len(run_dependency_ids)
+                summary["recordings"] = len(capture_ids)
+                requires_lineage = bool(dependent_ids)
+                target_ids_out = sorted(members)
+                target_labels = [str((entry.get("source") or {}).get("title") or entry.get("content", ""))[:80] for entry in members.values()]
+                state.update({"targets": dependency_state, "dependent_ids": sorted(dependent_ids), "capture_ids": sorted(capture_ids)})
+            elif scope == "project":
+                if not project_id:
+                    raise ValueError("choose a Project")
+                project = next((entry for entry in store.projects() if str(entry.get("id", "")) == project_id), None)
+                if not project:
+                    raise FileNotFoundError(project_id)
+                name = str(project.get("name", ""))
+                dependencies = store.project_dependencies(name)
+                linked_items = [
+                    entry for entry in store.items()
+                    if name in {*normalize(entry.get("projects")), *normalize(entry.get("excluded_projects")), *normalize(entry.get("saved_only_projects"))}
+                ]
+                linked_documents = [entry for entry in store.documents() if str(entry.get("project", "")) == name]
+                linked_runs = [entry for entry in store.skill_runs() if str(entry.get("project", "")) == name]
+                associations = [entry for entry in store.settings().get("project_associations", []) if str(entry.get("project_id", "")) == project_id]
+                summary.update({"sources": dependencies["sources"], "projects": 1, "documents": dependencies["documents"], "runs": dependencies["runs"]})
+                target_ids_out = [project_id]
+                target_labels = [name]
+                state.update({"project": project, "items": linked_items, "documents": linked_documents, "runs": linked_runs, "associations": associations})
+            elif scope == "document":
+                if len(target_ids) != 1:
+                    raise ValueError("choose one Document")
+                document = store.get("docs", target_ids[0])
+                revisions = store.document_revisions(target_ids[0])
+                linked_runs = [entry for entry in store.skill_runs() if str(entry.get("document_id", "")) == target_ids[0]]
+                summary.update({"documents": 1, "runs": len(linked_runs), "revisions": max(0, len(revisions) - 1)})
+                target_ids_out = target_ids
+                target_labels = [str(document.get("title", "Untitled"))]
+                state.update({"document": document, "revisions": revisions, "runs": linked_runs})
+            elif scope == "run":
+                if len(target_ids) != 1:
+                    raise ValueError("choose one Run")
+                run = store.get("skill-runs", target_ids[0])
+                dependencies = store.skill_run_dependencies(target_ids[0])
+                summary.update({"runs": 1, "sources": dependencies["frozen_sources"], "documents": 1 if dependencies["document_id"] else 0})
+                requires_lineage = bool(dependencies["requires_lineage"])
+                target_ids_out = target_ids
+                target_labels = [str(run.get("instruction") or run.get("skill_name") or "Run")[:80]]
+                state.update({"run": run, "dependencies": dependencies})
+            else:
+                items = store.items()
+                documents = store.documents()
+                projects = store.projects()
+                runs = store.skill_runs()
+                my_skills = [entry for entry in store.skills() if not entry.get("system")]
+                recordings = [path for path in (store.root / "audio").iterdir() if path.is_file() and not path.name.endswith(".json")]
+                revisions = sum(1 for directory in ("item-revisions", "transcript-revisions", "doc-revisions", "skill-revisions") for _ in (store.root / directory).glob("*.json"))
+                summary.update({"sources": len(items), "projects": len(projects), "documents": len(documents), "runs": len(runs), "recordings": len(recordings), "revisions": revisions, "skills": len(my_skills)})
+                target_ids_out = ["workspace"]
+                target_labels = ["All local data"]
+                file_state = [
+                    (str(path.relative_to(store.root)), path.stat().st_size, path.stat().st_mtime_ns)
+                    for path in sorted(store.root.rglob("*"))
+                    if path.is_file()
+                ]
+                state.update({"files": file_state})
+
+            fingerprint = hashlib.sha256(
+                json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest()
+            return {
+                "scope": scope,
+                "target_ids": target_ids_out,
+                "target_labels": target_labels,
+                "summary": summary,
+                "requires_lineage": requires_lineage,
+                "backup_created": backup_created,
+                "fingerprint": fingerprint,
+            }
+
+    def execute_deletion(self, preview: dict[str, Any]) -> dict[str, Any]:
+        store = self.server.store
+        scope = str(preview.get("scope", ""))
+        target_ids = normalize(preview.get("target_ids"))
+        backup_path = ""
+        with store.lock:
+            if scope == "workspace":
+                backup = self.backup_workspace()
+                backup_path = str(backup)
+                try:
+                    for directory in ("items", "item-revisions", "audio", "docs", "doc-revisions", "transcript-revisions", "projects", "skills", "skill-revisions", "skill-runs", "topic-vocabularies", "topics", "clients"):
+                        shutil.rmtree(store.root / directory)
+                        (store.root / directory).mkdir(mode=0o700)
+                    (store.root / "settings.json").unlink(missing_ok=True)
+                    (store.root / "ai-provider.json").unlink(missing_ok=True)
+                    (store.root / "pairing-code.json").unlink(missing_ok=True)
+                    for skill in default_skills():
+                        atomic_json(store.root / "skills" / f"{skill['id']}.json", skill)
+                    self.server.cancelled.clear()
+                    self.server.gemini = Gemini(store.root)
+                except BaseException:
+                    shutil.rmtree(store.root)
+                    shutil.copytree(backup, store.root)
+                    self.server.gemini = Gemini(store.root)
+                    raise
+            else:
+                snapshot = Path(tempfile.mkdtemp(prefix="logue-delete-", dir=store.root.parent))
+                shutil.rmtree(snapshot)
+                shutil.copytree(store.root, snapshot, copy_function=os.link)
+                try:
+                    if scope == "source":
+                        for identifier in target_ids:
+                            dependencies = store.item_dependencies(identifier)
+                            preserve = bool(dependencies["documents"] or dependencies["derived_items"] or dependencies["runs"])
+                            store.delete_item(identifier, preserve_lineage=preserve)
+                    elif scope == "project":
+                        project = next((entry for entry in store.projects() if str(entry.get("id", "")) == target_ids[0]), None)
+                        if not project:
+                            raise FileNotFoundError(target_ids[0])
+                        store.delete_project(str(project.get("name", "")))
+                    elif scope == "document":
+                        identifier = target_ids[0]
+                        document = store.get("docs", identifier)
+                        for run in store.skill_runs():
+                            if run.get("document_id") != identifier:
+                                continue
+                            run.pop("document_id", None)
+                            run["deleted_document"] = {"id": identifier, "title": document.get("title", "Untitled"), "deleted_at": now()}
+                            run["updated_at"] = now()
+                            atomic_json(store.root / "skill-runs" / f"{run['id']}.json", run)
+                        (store.root / "docs" / f"{identifier}.json").unlink()
+                        for revision in (store.root / "doc-revisions").glob(f"{identifier}-r*.json"):
+                            revision.unlink()
+                    elif scope == "run":
+                        dependencies = store.skill_run_dependencies(target_ids[0])
+                        store.delete_skill_run(target_ids[0], preserve_lineage=bool(dependencies["requires_lineage"]))
+                    else:
+                        raise ValueError("invalid deletion scope")
+                except BaseException:
+                    shutil.rmtree(store.root)
+                    os.replace(snapshot, store.root)
+                    raise
+                else:
+                    shutil.rmtree(snapshot)
+        return {
+            "status": "deleted",
+            "scope": scope,
+            "target_ids": target_ids,
+            "tombstoned": bool(preview.get("requires_lineage")),
+            "backup_path": backup_path,
+        }
 
     def backup_workspace(self) -> Path:
         store = self.server.store

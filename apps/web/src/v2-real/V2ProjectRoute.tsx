@@ -22,20 +22,20 @@ import { useEffect, useMemo, useState } from "react";
 import {
   createProjectVoiceProfile,
   createMaterial,
-  deleteProject,
   downloadWorkspaceExport,
+  executeDeletion,
   forgetClassificationMemory,
+  getDeletionPreview,
   getExportPreview,
-  getProjectDependencies,
   getTopics,
   setSkillRunPinned,
   saveProject,
   updateMaterialMembership,
   type DiscoveredTopic,
+  type DeletionPreview,
   type ExportPreview,
   type LogueDocument,
   type ProjectSkillBindings,
-  type ProjectDependencies,
   type ProjectSummary,
   type ProjectVoiceProfile,
   type SkillRun,
@@ -355,8 +355,9 @@ export function V2ProjectRoute({
   const [openHistoryRunId, setOpenHistoryRunId] = useState<string>();
   const [historyActionBusy, setHistoryActionBusy] = useState("");
   const [historyActionError, setHistoryActionError] = useState("");
-  const [deletePreview, setDeletePreview] = useState<ProjectDependencies>();
+  const [deletePreview, setDeletePreview] = useState<DeletionPreview>();
   const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteError, setDeleteError] = useState("");
   const project =
     projects.find((item) => item.name === projectName) ?? projects[0];
   const projectMaterials = useMemo(
@@ -799,9 +800,16 @@ export function V2ProjectRoute({
   async function reviewProjectDeletion() {
     if (!project) return;
     setSettingsBusy(true);
+    setDeleteError("");
     try {
-      setDeletePreview(await getProjectDependencies(project.name));
+      setDeletePreview(
+        await getDeletionPreview({ scope: "project", projectId: project.id }),
+      );
       setDeleteConfirm("");
+    } catch (cause) {
+      setDeleteError(
+        cause instanceof Error ? cause.message : "Could not review this Project deletion.",
+      );
     } finally {
       setSettingsBusy(false);
     }
@@ -845,15 +853,28 @@ export function V2ProjectRoute({
   }
 
   async function removeProject() {
-    if (!project || deleteConfirm !== project.name) return;
+    if (!project || !deletePreview || deleteConfirm !== project.name) return;
     setSettingsBusy(true);
+    setDeleteError("");
     try {
-      await deleteProject(project.name);
+      const outcome = await executeDeletion(
+        { scope: "project", projectId: project.id },
+        deletePreview,
+      );
+      if (outcome.preview) {
+        setDeletePreview(outcome.preview);
+        setDeleteError("Dependencies changed. Review the updated summary, then delete again.");
+        return;
+      }
       setProjectName(
         projects.find((item) => item.name !== project.name)?.name ?? "",
       );
       setView("workspace");
       await onRefresh();
+    } catch (cause) {
+      setDeleteError(
+        cause instanceof Error ? cause.message : "Could not delete this Project.",
+      );
     } finally {
       setSettingsBusy(false);
     }
@@ -2200,6 +2221,11 @@ export function V2ProjectRoute({
                       Review deletion
                     </Button>
                   </div>
+                  {deleteError && !deletePreview ? (
+                    <div className="v2-warning-bar" role="alert">
+                      {deleteError}
+                    </div>
+                  ) : null}
                 </section>
                 <section className="v2-settings-section">
                   <h2>Classification memory</h2>
@@ -2348,10 +2374,15 @@ export function V2ProjectRoute({
               </IconButton>
             </div>
             <p>
-              Its {deletePreview.sources} Sources stay in your private Library.{" "}
-              {deletePreview.documents} Documents move to No Project.{" "}
-              {deletePreview.runs} historical Runs keep their provenance.
+              Its {deletePreview.summary.sources} Sources stay in your private Library.{" "}
+              {deletePreview.summary.documents} Documents move to No Project.{" "}
+              {deletePreview.summary.runs} historical Runs keep their provenance.
             </p>
+            {deleteError ? (
+              <div className="v2-warning-bar" role="alert">
+                {deleteError}
+              </div>
+            ) : null}
             <label className="v2-field-label">
               Type {project.name} to confirm
               <input

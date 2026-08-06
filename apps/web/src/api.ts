@@ -74,6 +74,47 @@ export interface MaterialDependencies {
   }>;
 }
 
+export type DeletionScope =
+  | "source"
+  | "project"
+  | "document"
+  | "run"
+  | "workspace";
+
+export interface DeletionPreview {
+  scope: DeletionScope;
+  target_ids: string[];
+  target_labels: string[];
+  summary: {
+    sources: number;
+    projects: number;
+    documents: number;
+    runs: number;
+    recordings: number;
+    revisions: number;
+    derived: number;
+    citations: number;
+    skills: number;
+  };
+  requires_lineage: boolean;
+  backup_created: boolean;
+  fingerprint: string;
+}
+
+export interface DeletionRequest {
+  scope: DeletionScope;
+  ids?: string[];
+  projectId?: string;
+}
+
+export interface DeletionResult {
+  status: "deleted";
+  scope: DeletionScope;
+  target_ids: string[];
+  tombstoned: boolean;
+  backup_path: string;
+}
+
 export interface SourceRevision {
   material_id: string;
   revision: number;
@@ -643,6 +684,47 @@ export async function deleteDocument(id: string) {
     throw new Error(
       (await response.text()) || `Request failed (${response.status})`,
     );
+}
+
+function deletionBody(request: DeletionRequest) {
+  return {
+    scope: request.scope,
+    ids: request.ids ?? [],
+    project_id: request.projectId ?? "",
+  };
+}
+
+export async function getDeletionPreview(request: DeletionRequest) {
+  return parseResponse<DeletionPreview>(
+    await fetch(`${apiBase}/v1/deletions/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(deletionBody(request)),
+    }),
+  );
+}
+
+export async function executeDeletion(
+  request: DeletionRequest,
+  preview: DeletionPreview,
+): Promise<{ result?: DeletionResult; preview?: DeletionPreview }> {
+  const response = await fetch(`${apiBase}/v1/deletions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...deletionBody(request),
+      fingerprint: preview.fingerprint,
+    }),
+  });
+  if (response.status === 409) {
+    const body = (await response.json()) as {
+      error?: string;
+      preview?: DeletionPreview;
+    };
+    if (body.preview) return { preview: body.preview };
+    throw new Error(body.error || "Dependencies changed.");
+  }
+  return { result: await parseResponse<DeletionResult>(response) };
 }
 
 export async function generateDocument(input: {

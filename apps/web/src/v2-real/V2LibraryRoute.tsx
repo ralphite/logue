@@ -17,11 +17,9 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import {
   captureAudioURL,
-  deleteMaterial,
-  deleteSkillRun,
+  executeDeletion,
+  getDeletionPreview,
   getMaterialRevisions,
-  getSkillRunDependencies,
-  getMaterialDependencies,
   getTopics,
   retrySkillRun,
   setSkillRunPinned,
@@ -34,11 +32,10 @@ import {
   type DocumentSearchMatch,
   type DiscoveredTopic,
   type LogueDocument,
-  type MaterialDependencies,
+  type DeletionPreview,
   type MaterialSearchMatch,
   type ProjectSummary,
   type SkillRun,
-  type SkillRunDependencies,
   type SourceRevision,
 } from "../api";
 import {
@@ -905,7 +902,7 @@ export function RunInspector({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [deletePreview, setDeletePreview] = useState<SkillRunDependencies>();
+  const [deletePreview, setDeletePreview] = useState<DeletionPreview>();
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const adopted = Boolean(
     run.adopted_output || run.document_id || run.material_id,
@@ -980,7 +977,9 @@ export function RunInspector({
     setBusy(true);
     setError("");
     try {
-      setDeletePreview(await getSkillRunDependencies(run.id));
+      setDeletePreview(
+        await getDeletionPreview({ scope: "run", ids: [run.id] }),
+      );
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not review this Run.",
@@ -998,7 +997,15 @@ export function RunInspector({
     setBusy(true);
     setError("");
     try {
-      await deleteSkillRun(run.id, deletePreview.requires_lineage);
+      const outcome = await executeDeletion(
+        { scope: "run", ids: [run.id] },
+        deletePreview,
+      );
+      if (outcome.preview) {
+        setDeletePreview(outcome.preview);
+        setError("Dependencies changed. Review the updated summary, then delete again.");
+        return;
+      }
       await onRefresh();
       onClose();
     } catch (cause) {
@@ -1134,10 +1141,10 @@ export function RunInspector({
         {deletePreview ? (
           <div className="v2-danger-card">
             <p>
-              {deletePreview.adopted
+              {adopted
                 ? "This Run has an adopted result. Its prompt, output, and frozen Source text will be deleted; a minimal lineage marker remains."
-                : deletePreview.downstream_runs
-                  ? `This Run is the parent of ${deletePreview.downstream_runs} later Run${deletePreview.downstream_runs === 1 ? "" : "s"}. Its details will be deleted; a minimal lineage marker remains.`
+                : deletePreview.requires_lineage
+                  ? "A later result depends on this Run. Its details will be deleted; a minimal lineage marker remains."
                   : "This Run has no adopted result. Its Activity details will be removed from this Host."}
             </p>
             {deletePreview.requires_lineage ? (
@@ -1314,9 +1321,8 @@ export function V2LibraryRoute({
   const [openRunId, setOpenRunId] = useState<string>();
   const [openActivityId, setOpenActivityId] = useState<string>();
   const [deleteGroups, setDeleteGroups] = useState<LibraryMaterialGroup[]>([]);
-  const [dependencies, setDependencies] = useState<
-    Record<string, MaterialDependencies>
-  >({});
+  const [sourceDeletePreview, setSourceDeletePreview] =
+    useState<DeletionPreview>();
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -1566,14 +1572,14 @@ export function V2LibraryRoute({
 
   async function reviewDeletion(targets: LibraryMaterialGroup[]) {
     setDeleteGroups(targets);
+    setSourceDeletePreview(undefined);
     setDeleteConfirm("");
     setError("");
     const ids = targets.flatMap((group) => group.items.map((item) => item.id));
     try {
-      const values = await Promise.all(
-        ids.map(async (id) => [id, await getMaterialDependencies(id)] as const),
+      setSourceDeletePreview(
+        await getDeletionPreview({ scope: "source", ids }),
       );
-      setDependencies(Object.fromEntries(values));
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -1584,21 +1590,25 @@ export function V2LibraryRoute({
   }
 
   async function confirmDeletion() {
-    if (deleteConfirm !== "DELETE") return;
+    if (deleteConfirm !== "DELETE" || !sourceDeletePreview) return;
     setBusy(true);
     setError("");
     try {
-      for (const group of deleteGroups) {
-        const ordered = [...group.items].sort(
-          (left, right) =>
-            Number(left.kind === "selection") -
-            Number(right.kind === "selection"),
-        );
-        for (const item of ordered)
-          await deleteMaterial(item.id, { preserveLineage: true });
+      const ids = deleteGroups.flatMap((group) =>
+        group.items.map((item) => item.id),
+      );
+      const outcome = await executeDeletion(
+        { scope: "source", ids },
+        sourceDeletePreview,
+      );
+      if (outcome.preview) {
+        setSourceDeletePreview(outcome.preview);
+        setError("Dependencies changed. Review the updated summary, then delete again.");
+        return;
       }
       await onRefresh();
       setDeleteGroups([]);
+      setSourceDeletePreview(undefined);
       setSelectedKeys([]);
       setOpenKey(undefined);
       setOpenActivityId(undefined);
@@ -1613,15 +1623,7 @@ export function V2LibraryRoute({
     }
   }
 
-  const dependencyTotals = Object.values(dependencies).reduce(
-    (total, value) => ({
-      projects: total.projects + value.projects.length,
-      derived: total.derived + value.derived_items.length,
-      documents: total.documents + value.documents.length,
-      runs: total.runs + value.runs.length,
-    }),
-    { projects: 0, derived: 0, documents: 0, runs: 0 },
-  );
+  const dependencyTotals = sourceDeletePreview?.summary;
   const inspector = deleteGroups.length ? (
     <>
       <header className="v2-inspector-header">
@@ -1632,7 +1634,10 @@ export function V2LibraryRoute({
         <IconButton
           label="Close deletion review"
           variant="ghost"
-          onClick={() => setDeleteGroups([])}
+          onClick={() => {
+            setDeleteGroups([]);
+            setSourceDeletePreview(undefined);
+          }}
         >
           <X size={17} />
         </IconButton>
@@ -1647,16 +1652,17 @@ export function V2LibraryRoute({
           <div className="v2-review-list">
             <div className="v2-review-row">
               <div>
-                <strong>{dependencyTotals.projects} Project links</strong>
+                <strong>{dependencyTotals?.projects ?? 0} Project links</strong>
                 <p>Removed with the Source.</p>
               </div>
             </div>
             <div className="v2-review-row">
               <div>
                 <strong>
-                  {dependencyTotals.documents} Document citations ·{" "}
-                  {dependencyTotals.derived} derived items ·{" "}
-                  {dependencyTotals.runs} Runs
+                  {dependencyTotals?.documents ?? 0} Documents ·{" "}
+                  {dependencyTotals?.citations ?? 0} revision citations ·{" "}
+                  {dependencyTotals?.derived ?? 0} derived items ·{" "}
+                  {dependencyTotals?.runs ?? 0} Runs
                 </strong>
                 <p>
                   Referenced Sources keep only a minimal lineage marker after
@@ -1674,10 +1680,19 @@ export function V2LibraryRoute({
             />
           </label>
           <div className="v2-inline-actions">
-            <Button onClick={() => setDeleteGroups([])}>Cancel</Button>
+            <Button
+              onClick={() => {
+                setDeleteGroups([]);
+                setSourceDeletePreview(undefined);
+              }}
+            >
+              Cancel
+            </Button>
             <Button
               variant="primary"
-              disabled={busy || deleteConfirm !== "DELETE"}
+              disabled={
+                busy || !sourceDeletePreview || deleteConfirm !== "DELETE"
+              }
               onClick={() => void confirmDeletion()}
             >
               Delete from this Host
