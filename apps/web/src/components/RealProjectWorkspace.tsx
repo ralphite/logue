@@ -1,7 +1,7 @@
-import { ArrowLeft, FilePlus2, ListChecks, PanelRightClose, PanelRightOpen, Settings2 } from "lucide-react";
+import { ArrowLeft, FilePlus2, History, ListChecks, PanelRightClose, PanelRightOpen, RotateCcw, Settings2 } from "lucide-react";
 import type { Material } from "@logue/ui";
 import { useEffect, useMemo, useState } from "react";
-import { createDocument, generateDocument, updateDocument, type LogueDocument, type ProjectSkillBindings, type ProjectSummary, type WorkspaceSettings } from "../api";
+import { createDocument, generateDocument, getDocumentRevisions, updateDocument, type DocumentRevision, type LogueDocument, type ProjectSkillBindings, type ProjectSummary, type WorkspaceSettings } from "../api";
 import { adoptSkillRun, createSkillRun, type LogueSkill, type LogueSkillRun } from "../skillApi";
 import { groupLibraryMaterials } from "../commentBundles";
 import { ProjectComposer } from "../v2-mock/primitives/ProjectComposer";
@@ -66,6 +66,11 @@ export function RealProjectWorkspace({
   const [term, setTerm] = useState("");
   const [classificationBusyId, setClassificationBusyId] = useState<string>();
   const [classificationError, setClassificationError] = useState<string>();
+  const [documentRevisions, setDocumentRevisions] = useState<DocumentRevision[]>([]);
+  const [previewRevision, setPreviewRevision] = useState<DocumentRevision>();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [revisionBusy, setRevisionBusy] = useState(false);
+  const [revisionError, setRevisionError] = useState<string>();
   const { size: inspectorWidth, setSize: setInspectorWidth } = usePersistentPanelSize({ storageKey: "logue.panel.project.sources.width.v2", defaultSize: 400, min: 360, max: 640 });
 
   useEffect(() => {
@@ -78,24 +83,77 @@ export function RealProjectWorkspace({
   }, [activeDocument?.id, activeDocument?.revision, project.name]);
 
   useEffect(() => {
-    if (!activeDocument || (documentTitle === activeDocument.title && documentContent === activeDocument.content)) return;
+    setDocumentRevisions([]);
+    setPreviewRevision(undefined);
+    setHistoryOpen(false);
+    setRevisionError(undefined);
+  }, [activeDocument?.id]);
+
+  useEffect(() => {
+    if (!activeDocument || previewRevision || (documentTitle === activeDocument.title && documentContent === activeDocument.content)) return;
     const timer = window.setTimeout(() => {
       void updateDocument(activeDocument.id, {
         title: documentTitle,
         content: documentContent,
         expectedRevision: activeDocument.revision,
-      }).then((updated) => onDocumentsChange(documents.map((document) => document.id === updated.id ? updated : document))).catch(() => undefined);
+      }).then(async (updated) => {
+        onDocumentsChange(documents.map((document) => document.id === updated.id ? updated : document));
+        if (historyOpen) setDocumentRevisions(await getDocumentRevisions(updated.id));
+      }).catch(() => undefined);
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [activeDocument, documentContent, documentTitle, documents, onDocumentsChange]);
+  }, [activeDocument, documentContent, documentTitle, documents, historyOpen, onDocumentsChange, previewRevision]);
 
-  const visibleSourceGroups = useMemo(() => {
+  const visibleSourceIds = useMemo(() => {
     const runIds = answerRun?.sources.map((source) => source.id) ?? [];
-    const sourceIds = runIds.length ? runIds : activeDocument?.source_ids ?? [];
-    if (!sourceIds.length) return sourceGroups;
-    const ids = new Set(sourceIds);
+    return runIds.length ? runIds : previewRevision?.source_ids ?? activeDocument?.source_ids ?? [];
+  }, [activeDocument?.source_ids, answerRun?.sources, previewRevision?.source_ids]);
+  const visibleSourceGroups = useMemo(() => {
+    if (!visibleSourceIds.length) return sourceGroups;
+    const ids = new Set(visibleSourceIds);
     return sourceGroups.filter((group) => group.items.some((item) => ids.has(item.id)));
-  }, [activeDocument?.source_ids, answerRun?.sources, sourceGroups]);
+  }, [sourceGroups, visibleSourceIds]);
+
+  async function toggleRevisionHistory() {
+    if (!activeDocument) return;
+    if (historyOpen) {
+      setHistoryOpen(false);
+      setPreviewRevision(undefined);
+      return;
+    }
+    setRevisionBusy(true);
+    setRevisionError(undefined);
+    try {
+      setDocumentRevisions(await getDocumentRevisions(activeDocument.id));
+      setHistoryOpen(true);
+    } catch (cause) {
+      setRevisionError(cause instanceof Error ? cause.message : "Could not load revision history.");
+    } finally {
+      setRevisionBusy(false);
+    }
+  }
+
+  async function restoreRevision() {
+    if (!activeDocument || !previewRevision || revisionBusy) return;
+    setRevisionBusy(true);
+    setRevisionError(undefined);
+    try {
+      const restored = await updateDocument(activeDocument.id, {
+        title: previewRevision.title,
+        content: previewRevision.content,
+        project: previewRevision.project,
+        sourceIds: previewRevision.source_ids,
+        expectedRevision: activeDocument.revision,
+      });
+      onDocumentsChange(documents.map((document) => document.id === restored.id ? restored : document));
+      setDocumentRevisions(await getDocumentRevisions(restored.id));
+      setPreviewRevision(undefined);
+    } catch (cause) {
+      setRevisionError(cause instanceof Error ? cause.message : "Could not restore this revision.");
+    } finally {
+      setRevisionBusy(false);
+    }
+  }
 
   async function runProjectRequest() {
     const instruction = request.trim();
@@ -252,20 +310,28 @@ export function RealProjectWorkspace({
                 <div className="v2-context-summary"><span>{answerRun.sources.length} frozen Sources · Run {answerRun.status}</span><button className="v2-source-excerpt-toggle" type="button" onClick={() => setInspectorOpen(true)}>Review sources</button></div>
                 {answerRun.original_output && <div className="v2-inline-actions" style={{ marginTop: 18 }}><Button size="sm" onClick={() => void adoptAnswer("copy")}>Copy</Button><Button size="sm" variant="primary" onClick={() => void adoptAnswer("document")}>Save as document</Button><Button size="sm" onClick={() => setAnswerRun(undefined)}>Back to document</Button></div>}
               </article> : <article className="v2-editor-axis" aria-label="Project document">
-                <div className="v2-editor-eyebrow">Document</div>
-                <input className="v2-editor-title w-full border-0 bg-transparent outline-none disabled:opacity-60" aria-label="Document title" value={documentTitle} onChange={(event) => setDocumentTitle(event.target.value)} disabled={!activeDocument} />
+                <div className="v2-editor-eyebrow">{previewRevision ? `Revision ${previewRevision.revision} · Read only` : "Document"}</div>
+                <input className="v2-editor-title w-full border-0 bg-transparent outline-none disabled:opacity-60" aria-label="Document title" value={previewRevision?.title ?? documentTitle} onChange={(event) => setDocumentTitle(event.target.value)} disabled={!activeDocument || Boolean(previewRevision)} />
                 <textarea
                   className="v2-editor-body min-h-[360px] w-full resize-none border-0 bg-transparent outline-none"
                   aria-label="Document content"
-                  value={documentContent}
+                  value={previewRevision?.content ?? documentContent}
                   onChange={(event) => setDocumentContent(event.target.value)}
-                  disabled={!activeDocument}
+                  disabled={!activeDocument || Boolean(previewRevision)}
                   placeholder={activeDocument ? "Start writing, or ask Logue to draft from this project's sources." : "Create a document, or ask Logue to draft from this project's sources."}
                 />
                 <div className="v2-context-summary">
-                  <span>{sourceGroups.length} project sources · {activeDocument?.source_ids.length ?? 0} sources in this revision</span>
-                  <button className="v2-source-excerpt-toggle" type="button" onClick={() => setInspectorOpen(true)}>Review sources</button>
+                  <span>{sourceGroups.length} project sources · {previewRevision?.source_ids.length ?? activeDocument?.source_ids.length ?? 0} sources in this revision</span>
+                  <div className="v2-inline-actions">
+                    <button className="v2-source-excerpt-toggle" type="button" onClick={() => setInspectorOpen(true)}>Review sources</button>
+                    <button className="v2-source-excerpt-toggle" type="button" disabled={!activeDocument || revisionBusy} onClick={() => void toggleRevisionHistory()}><History aria-hidden="true" size={14} />{historyOpen ? "Close history" : "History"}</button>
+                  </div>
                 </div>
+                {revisionError && <div className="mt-3 rounded-md bg-[#fff4f1] px-3 py-2 text-[14px] text-[#a33d36]" role="alert">{revisionError}</div>}
+                {historyOpen && <section className="v2-recovery-card" style={{ marginTop: 16 }} aria-label="Document revision history">
+                  <div className="v2-setting-row !border-0 !px-0 !pt-0"><div><strong>Revision history</strong><p>Each revision keeps the Sources used at that time.</p></div>{previewRevision ? <Button size="sm" variant="primary" disabled={revisionBusy} onClick={() => void restoreRevision()}><RotateCcw aria-hidden="true" size={14} />{revisionBusy ? "Restoring…" : "Restore as new revision"}</Button> : null}</div>
+                  <div className="v2-inline-actions">{documentRevisions.map((revision) => <Button key={`${revision.document_id}-${revision.revision}`} size="sm" variant={(revision.current && !previewRevision) || previewRevision?.revision === revision.revision ? "primary" : "secondary"} onClick={() => setPreviewRevision(revision.current ? undefined : revision)}>{revision.current ? "Current" : `Revision ${revision.revision}`} · {new Date(revision.updated_at).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</Button>)}</div>
+                </section>}
                 {projectDocuments.length > 1 && <div className="v2-inline-actions" style={{ marginTop: 18 }}>{projectDocuments.map((document) => <Button key={document.id} size="sm" variant={document.id === activeDocument?.id ? "primary" : "secondary"} onClick={() => setActiveDocumentId(document.id)}>{document.title}</Button>)}</div>}
               </article>}
             </div>
@@ -282,8 +348,11 @@ export function RealProjectWorkspace({
             <div className="v2-inspector-scroll"><div className="v2-source-list">
               {visibleSourceGroups.map((group, index) => {
                 const web = group.bundle?.source ?? group.representative;
-                const comment = group.bundle?.primaryComment;
-                return <SourceBundleView key={group.key} citation={index + 1} title={sourceTitle(web)} excerpt={web.content} comment={comment?.content ?? "Saved to this Project"} meta={web.source?.domain || "Logue"} onSelect={() => onOpenMaterial(comment?.id ?? web.id)} onOpenSnapshot={() => onOpenMaterial(comment?.id ?? web.id)} />;
+                const citedMember = group.items.find((item) => visibleSourceIds.includes(item.id));
+                const comment = citedMember && citedMember.id !== web.id ? citedMember : group.bundle?.primaryComment;
+                const focus = citedMember?.id === web.id ? "web" : citedMember ? "comment" : undefined;
+                const citedLabel = focus === "web" ? "Web source" : focus === "comment" ? "You comment" : undefined;
+                return <SourceBundleView key={group.key} citation={index + 1} title={sourceTitle(web)} excerpt={web.content} comment={comment?.content ?? "Saved to this Project"} focus={focus} meta={[web.source?.domain || "Logue", citedLabel ? `Cited item · ${citedLabel}` : ""].filter(Boolean).join(" · ")} onSelect={() => onOpenMaterial(citedMember?.id ?? comment?.id ?? web.id)} onOpenSnapshot={() => onOpenMaterial(citedMember?.id ?? comment?.id ?? web.id)} />;
               })}
               {!visibleSourceGroups.length && <p className="v2-settings-lead">No Sources are used by this document yet.</p>}
             </div></div>

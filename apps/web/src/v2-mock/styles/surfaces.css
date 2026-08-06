@@ -360,6 +360,14 @@
   margin-top: 14px;
 }
 
+.v2-source-excerpt.is-cited,
+.v2-source-comment.is-cited {
+  border-left: 2px solid var(--v2-accent);
+  border-radius: 0 6px 6px 0;
+  background: var(--v2-accent-soft);
+  padding: 8px 10px;
+}
+
 .v2-source-excerpt p,
 .v2-source-comment p {
   margin: 6px 0 0;

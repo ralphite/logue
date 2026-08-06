@@ -61,6 +61,11 @@ export interface LogueDocument {
   updated_at: string;
 }
 
+export interface DocumentRevision extends LogueDocument {
+  document_id: string;
+  current: boolean;
+}
+
 export interface ProjectSummary {
   id?: string;
   name: string;
@@ -205,6 +210,13 @@ export async function createMaterial(input: {
 export async function getDocuments() {
   const result = await parseResponse<{ documents: LogueDocument[] }>(await fetch(`${apiBase}/v1/docs`));
   return result.documents;
+}
+
+export async function getDocumentRevisions(id: string) {
+  const result = await parseResponse<{ revisions: DocumentRevision[] }>(
+    await fetch(`${apiBase}/v1/docs/${encodeURIComponent(id)}/revisions`),
+  );
+  return result.revisions;
 }
 
 export async function searchDocuments(query: string, signal?: AbortSignal) {

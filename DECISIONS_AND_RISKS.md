@@ -472,7 +472,7 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 ### DR-046 — Delete all local data 必须先生成机器内可恢复备份
 
 - **优先级：** V2 产品 / P0 数据安全
-- **状态：** 实现中；完整功能完成后统一验证
+- **状态：** 已完成并通过真实运行时 narrow gate；无 P0/P1
 - **决定：** Settings 提供真实 `Back up now`、Export、Restore 与 `Delete all local data`。删除要求用户输入 `DELETE`，Host 在清空 Sources、audio、Projects、Documents、Runs、Settings 和 My Skills 前先在数据目录旁生成完整备份；Built-in Skills 随空工作区重新初始化。
 - **用户可见影响：** single-owner 用户无需账号即可管理本机数据；误操作仍有明确备份路径可恢复，而 UI 不把下载导出冒充完整机器备份。
 - **替代方案：** 只依赖浏览器 confirm，或直接清空而不备份。两者都不足以保护当前唯一受支持安装的数据。
@@ -488,3 +488,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 只从 `projects` 数组删除，或把排除存在前端状态。两者都会在重新分类或重启后丢失用户意图。
 - **已有证据：** Goal 明确规定用户显式加入、排除和纠正永久优先，且永久 Library 与 Project Context 必须分离。2026-08-05 使用当前 `.logue-data` 的真实 Comment bundle 完成 Suggested → Add → Remove → Exclude → Undo exclusion；Web/You 全程保持单行，Library 原件未删除。页面重新读取与 Host 重启后状态保留；重新运行 Organization 后 `excluded_projects=["Logue"]` 且 `projects` 未重新出现 Logue；直接提交三个重叠数组时 Host 仍只保留 `saved_only_projects`。fresh read-only post-gate 两次均为 GO，无 P0/P1。
 - **开放问题：** Topic merge/convert 是更高层组织能力；不阻塞 Source membership 的真实纠正合同。
+
+### DR-048 — Document revision 保存冻结正文与 Source IDs，恢复只创建新 revision
+
+- **优先级：** V2 产品 / P0
+- **状态：** 实现中；完整功能完成后统一验证
+- **决定：** 当前 Document 文件保存最新 revision；每次更新前，Host 将上一版正文、标题、Project 与 `source_ids` 写入不可变历史快照。Revision history 同时返回历史与当前版。用户查看旧版时只读；Restore 会基于旧版内容创建新的最新 revision，不改写或删除历史。
+- **用户可见影响：** 用户能回看生成或编辑时实际引用的 Sources，并安全恢复旧版；引用不会悄悄指向 Project 当前内容。
+- **替代方案：** 只显示递增 revision 数字，或直接覆盖回旧版。前者没有可核验证据，后者破坏 lineage。
+- **已有证据：** Goal 明确要求 AI Source/Document revision 与 frozen citation，并要求可恢复、无假成功。2026-08-05 真实 Host 验证 revision 1/2 分别冻结不同 `source_ids`，Restore 基于 revision 1 创建 revision 3，历史不被覆盖；删除测试 Document 同时清理历史。真实 Web runtime 验证旧版只读、History 层级、Restore as new revision 语义，并修复 Inspector 不能区分同一 Comment bundle 内 Web Source 与 You Comment 的 P1；fresh read-only post-gate 最终 GO，无 P0/P1。
+- **开放问题：** AI Source 的独立 revision UI 在 Library lineage 批次连接；Document revision 合同先独立闭合。

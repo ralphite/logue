@@ -110,7 +110,7 @@ class Store:
     def __init__(self, root: Path):
         self.root = root.resolve()
         self.lock = threading.RLock()
-        for name in ("items", "audio", "docs", "projects", "skills", "skill-runs"):
+        for name in ("items", "audio", "docs", "doc-revisions", "projects", "skills", "skill-runs"):
             (self.root / name).mkdir(parents=True, exist_ok=True, mode=0o700)
         for skill in default_skills():
             path = self.root / "skills" / f"{skill['id']}.json"
@@ -128,6 +128,13 @@ class Store:
 
     def documents(self) -> list[dict[str, Any]]:
         return self._list("docs", "updated_at")
+
+    def document_revisions(self, identifier: str) -> list[dict[str, Any]]:
+        current = self.get("docs", identifier)
+        with self.lock:
+            history = [read_json(path) for path in (self.root / "doc-revisions").glob(f"{identifier}-r*.json")]
+        history.sort(key=lambda value: int(value.get("revision", 0)), reverse=True)
+        return [{**current, "document_id": identifier, "current": True}, *history]
 
     def skills(self) -> list[dict[str, Any]]:
         values = self._list("skills", "updated_at")
@@ -438,6 +445,8 @@ class Store:
             expected = changes.get("expected_revision")
             if expected is not None and int(expected) != int(document.get("revision", 1)):
                 raise Conflict("This document changed elsewhere. Reload it before continuing.")
+            archived = {**document, "document_id": identifier, "current": False}
+            atomic_json(self.root / "doc-revisions" / f"{identifier}-r{int(document.get('revision', 1))}.json", archived)
             for field in ("content", "project"):
                 if field in changes:
                     document[field] = str(changes[field])
@@ -854,6 +863,9 @@ class Handler(BaseHTTPRequestHandler):
             self.json(HTTPStatus.OK, store.get("skill-runs", path.removeprefix("/v1/skill-runs/")))
         elif path == "/v1/docs":
             self.json(HTTPStatus.OK, {"documents": store.documents()})
+        elif path.startswith("/v1/docs/") and path.endswith("/revisions"):
+            identifier = path.removeprefix("/v1/docs/").removesuffix("/revisions")
+            self.json(HTTPStatus.OK, {"revisions": store.document_revisions(identifier)})
         elif path.startswith("/v1/docs/"):
             self.json(HTTPStatus.OK, store.get("docs", path.removeprefix("/v1/docs/")))
         elif path == "/v1/material-search":
@@ -1007,6 +1019,8 @@ class Handler(BaseHTTPRequestHandler):
             elif method == "DELETE":
                 store.get("docs", identifier)
                 (store.root / "docs" / f"{identifier}.json").unlink()
+                for revision in (store.root / "doc-revisions").glob(f"{identifier}-r*.json"):
+                    revision.unlink()
                 self.empty(HTTPStatus.NO_CONTENT)
             else:
                 self.method_error()
@@ -1044,7 +1058,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("type DELETE to confirm")
             backup = self.backup_workspace()
             with store.lock:
-                for directory in ("items", "audio", "docs", "projects", "skills", "skill-runs"):
+                for directory in ("items", "audio", "docs", "doc-revisions", "projects", "skills", "skill-runs"):
                     shutil.rmtree(store.root / directory)
                     (store.root / directory).mkdir(mode=0o700)
                 (store.root / "settings.json").unlink(missing_ok=True)
@@ -1199,7 +1213,8 @@ class Handler(BaseHTTPRequestHandler):
     def export_workspace(self) -> dict[str, Any]:
         store = self.server.store
         audio = [{"name": path.name, "data_base64": base64.b64encode(path.read_bytes()).decode("ascii")} for path in sorted((store.root / "audio").iterdir()) if path.is_file()]
-        return {"schema_version": 1, "exported_at": now(), "materials": store.items(), "documents": store.documents(), "projects": store.projects(), "settings": store.settings(), "skills": store.skills(), "skill_runs": store.skill_runs(), "audio": audio}
+        document_revisions = [read_json(path) for path in sorted((store.root / "doc-revisions").glob("*.json"))]
+        return {"schema_version": 2, "exported_at": now(), "materials": store.items(), "documents": store.documents(), "document_revisions": document_revisions, "projects": store.projects(), "settings": store.settings(), "skills": store.skills(), "skill_runs": store.skill_runs(), "audio": audio}
 
     def backup_workspace(self) -> Path:
         store = self.server.store
@@ -1213,13 +1228,13 @@ class Handler(BaseHTTPRequestHandler):
         return backup
 
     def restore_workspace(self, value: dict[str, Any]) -> None:
-        if value.get("schema_version") != 1:
+        if value.get("schema_version") != 2:
             raise ValueError("unsupported workspace schema")
         store = self.server.store
         backup = self.backup_workspace()
         staging = Path(tempfile.mkdtemp(prefix="logue-restore-", dir=store.root.parent))
         try:
-            for name in ("items", "audio", "docs", "projects", "skills", "skill-runs"):
+            for name in ("items", "audio", "docs", "doc-revisions", "projects", "skills", "skill-runs"):
                 (staging / name).mkdir(mode=0o700)
             mappings = (("materials", "items"), ("documents", "docs"), ("projects", "projects"), ("skills", "skills"), ("skill_runs", "skill-runs"))
             for key, directory in mappings:
@@ -1227,6 +1242,12 @@ class Handler(BaseHTTPRequestHandler):
                     if not isinstance(entry, dict) or not ID_RE.match(str(entry.get("id", ""))):
                         raise ValueError(f"invalid {key} entry")
                     atomic_json(staging / directory / f"{entry['id']}.json", entry)
+            for entry in value.get("document_revisions", []):
+                document_id = str(entry.get("document_id", "")) if isinstance(entry, dict) else ""
+                revision = int(entry.get("revision", 0)) if isinstance(entry, dict) else 0
+                if not ID_RE.match(document_id) or revision < 1:
+                    raise ValueError("invalid document revision entry")
+                atomic_json(staging / "doc-revisions" / f"{document_id}-r{revision}.json", entry)
             atomic_json(staging / "settings.json", value.get("settings", {}))
             for entry in value.get("audio", []):
                 name = Path(str(entry.get("name", ""))).name
