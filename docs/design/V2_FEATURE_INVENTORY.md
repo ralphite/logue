@@ -66,7 +66,7 @@
 - V2-CAP-05 — INTEGRATED — Advanced Voice Comment Stop 先在 Host 永久保存原音、冻结 context 与 Unlinked You Comment；转写失败只重试同一 identity，Candidate 与重开页面均可 Finish linking/Delete 成为 Web+You bundle。
 - V2-CAP-06 — INTEGRATED — Page/Selection scope 与 Save / Translate / Rewrite / Summarize / Explain 等 Skill 动作。
 - V2-CAP-07 — INTEGRATED — pinned/recent 具体 Skills 一击运行，More Skills 选择后立即运行。
-- V2-CAP-08 — INTEGRATED — editable selection Replace/Undo 与静态 Copy/Keep 使用统一 adoption 合同。
+- V2-CAP-08 — INTEGRATED — editable selection Replace/Undo、静态 Copy/Keep 与可选 Document target 使用统一 adoption 合同；Document 更新创建新 revision，并可从 Candidate 撤销为新的恢复 revision。
 - V2-CAP-09 — INTEGRATED — 原文不被 Candidate 静默覆盖；Cancel 不改原文。
 
 ## Extension — Active Project、Side Panel、offline
@@ -142,7 +142,7 @@
 - V2-SKILL-05 — INTEGRATED — resolver explicit → Project → Global → system。
 - V2-SKILL-06 — INTEGRATED — Selection 快捷条先显示用户配置的 pinned Skills，再按当前 Extension recent use 排序；Built-in 与 My Skills 都可配置 pin，隐藏 Skill 不进入 More Skills，选择后立即运行。
 - V2-SKILL-07 — INTEGRATED — Run details 显示 Skill ID/revision、解析来源、actual Context/state。
-- V2-SKILL-08 — INTEGRATED — Copy/Replace/Insert/Keep/Document consumers 复用统一 adoption event/revision 合同与稳定 action union。
+- V2-SKILL-08 — INTEGRATED — Copy/Replace/Insert/Keep/Document consumers 复用统一 adoption event/revision 合同与稳定 action union；Selection/Page Candidate 新建或更新 Document 均传递稳定 adoption ID、expected revision 与 exact frozen Sources，不保留第二套保存语义。
 
 ## Web — Settings / Provider / data controls (J1/J9)
 

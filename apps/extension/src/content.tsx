@@ -1,7 +1,7 @@
 import { SelectionActionCandidate, SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionWithUndoIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type ExtensionInputTarget, type ExtensionTargetBridgeRequest, type ExtensionTargetBridgeResponse, type SelectionSkillApplyTransaction, type SelectionSkillReplacementTransaction, type SourceInfo } from "@logue/ui";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ExtensionApiError, adoptExtensionSkillRun, adoptVoiceMaterial, cancelMaterialSave, completePendingVoice, createExtensionSkillRun, getCaptureContext, getExtensionSettings, getExtensionSkills, getPageMaterials, getPendingVoiceQueueStatus, getServerURL, markPendingVoiceTranscribed, queuePendingVoice, retranscribeMaterial, retryExtensionSkillRun, saveExtensionSkillRunAsDocument, saveMaterial, saveSelection, transcribeAudio, updateMaterial, updateSourceAnchor, type AppliedContext, type CaptureContext, type ExtensionSkill, type ExtensionSkillRun, type PendingVoicePlan, type VoiceProfileOverrides } from "./api";
+import { ExtensionApiError, adoptExtensionSkillRun, adoptVoiceMaterial, cancelMaterialSave, completePendingVoice, createExtensionSkillRun, getCaptureContext, getExtensionDocuments, getExtensionSettings, getExtensionSkills, getPageMaterials, getPendingVoiceQueueStatus, getServerURL, markPendingVoiceTranscribed, queuePendingVoice, retranscribeMaterial, retryExtensionSkillRun, saveExtensionSkillRunAsDocument, saveMaterial, saveSelection, transcribeAudio, updateMaterial, updateSourceAnchor, type AppliedContext, type CaptureContext, type ExtensionDocument, type ExtensionSkill, type ExtensionSkillRun, type PendingVoicePlan, type VoiceProfileOverrides } from "./api";
 import { activeEditableElement, getEditableText, googleDocsEditableTarget, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElementWithUndo, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused, type LocalInsertTransaction } from "./dom";
 import { hasNativeSelectionSkillOwner, isLogueExtensionDisabledDocument, logueServerCandidate } from "./eligibility";
 import {
@@ -148,7 +148,9 @@ interface SelectionActionCandidateState {
   insertTarget?: HTMLElement;
   insertTargetText?: string;
   insertTargetSessionId?: string;
-  adoptionAttempts?: Partial<Record<"copy" | "keep" | "document", { id: string; content: string }>>;
+  sources: NonNullable<ExtensionSkillRun["sources"]>;
+  adoptionAttempts?: Partial<Record<"copy" | "keep" | "document", { id: string; content: string; targetKey?: string }>>;
+  documentAdoption?: { id: string; documentId: string; documentRevision: number };
 }
 
 type CommandScope = "selection" | "page" | "project";
@@ -411,6 +413,7 @@ function ExtensionLauncher() {
   const [commandFailedRun, setCommandFailedRun] = useState<ExtensionSkillRun>();
   const [pendingCommandExecution, setPendingCommandExecution] = useState<PendingCommandExecution>();
   const [selectionActionCandidate, setSelectionActionCandidate] = useState<SelectionActionCandidateState>();
+  const [candidateDocuments, setCandidateDocuments] = useState<ExtensionDocument[]>([]);
   const [selectionActionBusy, setSelectionActionBusy] = useState<"primary" | "copy" | "keep" | "document">();
   const [selectionActionError, setSelectionActionError] = useState("");
   const [viewport, setViewport] = useState({ width: window.innerWidth, height: window.innerHeight });
@@ -1260,7 +1263,9 @@ function ExtensionLauncher() {
       insertTarget: execution.scope !== "selection" && execution.targetAvailable ? execution.targetElement : undefined,
       insertTargetText: execution.scope !== "selection" ? execution.targetText : undefined,
       insertTargetSessionId: execution.scope !== "selection" ? execution.targetSessionId : undefined,
+      sources: run.sources ?? [],
     });
+    void getExtensionDocuments().then(setCandidateDocuments).catch(() => setCandidateDocuments([]));
     setPendingCommandExecution(undefined);
     setCommandFailedRun(undefined);
     setCommandOpen(false);
@@ -1739,7 +1744,8 @@ function ExtensionLauncher() {
     if (command.action === "command-candidate-primary") void applySelectionActionCandidate(command.text);
     if (command.action === "command-candidate-copy") void copySelectionActionCandidate(command.text);
     if (command.action === "command-candidate-keep") void keepSelectionActionCandidate(command.text);
-    if (command.action === "command-candidate-document") void saveSelectionActionDocument(command.text);
+    if (command.action === "command-candidate-document") void saveSelectionActionDocument(command.text, command.document);
+    if (command.action === "command-candidate-document-undo") void undoSelectionActionDocument();
     if (command.action === "command-candidate-dismiss") dismissSelectionActionCandidate();
     return true;
   }, [cancelCommandVoice, cancelInlineVoice, closeVoiceCommand, commandParseError, copyVoiceCandidate, dismissVoiceCandidate, insertVoiceCandidate, retranscribeVoiceCandidate, retryCommandTranscription, retryVoiceCandidateAdoption, retryVoiceCommand, selectionActionBusy, selectionActionCandidate, selectionActionError, sendInlineRecorderControl, startCommandVoice, startInlineVoice, startVoiceCommand, stopAndInsertInlineVoice, stopCommandVoice, submitVoiceCommand, switchCommandToVoiceWrite, undoVoiceCandidate, voiceProfileOverrides]);
@@ -2000,9 +2006,12 @@ function ExtensionLauncher() {
         primaryAction: selectionActionCandidate.editableSnapshot ? "Replace" : selectionActionCandidate.insertTarget ? "Insert" : "Copy",
         busyAction: selectionActionBusy,
         error: selectionActionError,
+        project: selectionActionCandidate.projects[0],
+        documents: candidateDocuments,
+        documentUndoAvailable: Boolean(selectionActionCandidate.documentAdoption),
       } : undefined,
     })).catch(() => undefined);
-  }, [commandError, commandFailedRun, commandInstruction, commandOpen, commandParseError, commandPhase, commandProject, commandScope, keyboardActive, pendingCopyText, selectionActionBusy, selectionActionCandidate, selectionActionError, targetRect, voiceCandidate, voiceError, voicePhase, voiceProfileContext, voiceProfileOverrides]);
+  }, [candidateDocuments, commandError, commandFailedRun, commandInstruction, commandOpen, commandParseError, commandPhase, commandProject, commandScope, keyboardActive, pendingCopyText, selectionActionBusy, selectionActionCandidate, selectionActionError, targetRect, voiceCandidate, voiceError, voicePhase, voiceProfileContext, voiceProfileOverrides]);
 
   useEffect(() => {
     const docsTarget = googleDocsEditableTarget(document);
@@ -2614,7 +2623,8 @@ function ExtensionLauncher() {
     if (!replacement) throw new Error("This skill returned no text.");
     const anchor = editableSnapshot?.anchor ?? { left: pageSnapshot!.anchor.left, top: pageSnapshot!.anchor.bottom + 8 };
     setSelectionActionError("");
-    setSelectionActionCandidate({ runId: run.id, skillName: skill.name, text: replacement, originalText: selectedText, source, projects, anchor, editableSnapshot });
+    setSelectionActionCandidate({ runId: run.id, skillName: skill.name, text: replacement, originalText: selectedText, source, projects, anchor, editableSnapshot, sources: run.sources ?? [] });
+    void getExtensionDocuments().then(setCandidateDocuments).catch(() => setCandidateDocuments([]));
     rememberSelectionSkill(skill.id);
   }
 
@@ -2714,26 +2724,65 @@ function ExtensionLauncher() {
     }
   }
 
-  async function saveSelectionActionDocument(textOverride?: string) {
+  async function saveSelectionActionDocument(textOverride?: string, targetDocument?: ExtensionDocument) {
     const currentCandidate = selectionActionCandidate;
     const candidate = currentCandidate && textOverride !== undefined ? { ...currentCandidate, text: textOverride } : currentCandidate;
     if (!candidate || selectionActionBusy) return;
     setSelectionActionBusy("document");
     setSelectionActionError("");
+    const targetKey = targetDocument?.id ?? "new";
     const previousAttempt = candidate.adoptionAttempts?.document;
-    const adoptionId = previousAttempt?.content === candidate.text ? previousAttempt.id : createRequestId();
-    const pendingCandidate = { ...candidate, adoptionAttempts: { ...candidate.adoptionAttempts, document: { id: adoptionId, content: candidate.text } } };
+    const adoptionId = previousAttempt?.content === candidate.text && previousAttempt.targetKey === targetKey ? previousAttempt.id : createRequestId();
+    const pendingCandidate = { ...candidate, adoptionAttempts: { ...candidate.adoptionAttempts, document: { id: adoptionId, content: candidate.text, targetKey } } };
     setSelectionActionCandidate(pendingCandidate);
     try {
-      await saveExtensionSkillRunAsDocument(candidate.runId, {
-        title: `${candidate.skillName} result`,
-        content: `${candidate.text}\n\n[Source 1]`,
+      const sourceIds = candidate.sources.map((source) => source.id);
+      const content = /\[Source \d+\]/.test(candidate.text) ? candidate.text : `${candidate.text}\n\n[Source 1]`;
+      const saved = await saveExtensionSkillRunAsDocument(candidate.runId, {
+        title: targetDocument?.title ?? `${candidate.skillName} result`,
+        content,
+        documentId: targetDocument?.id,
         project: candidate.projects[0],
+        sourceIds,
+        contextSourceIds: sourceIds,
+        sources: candidate.sources,
+        contextSources: candidate.sources,
+        expectedRevision: targetDocument?.revision,
         adoptionId,
+        adoptionAction: targetDocument ? "replace" : "document",
+        target: { surface: "inline-selection", url: candidate.source.url, target_key: targetDocument ? `document:${targetDocument.id}` : `project:${candidate.projects[0] ?? ""}:new-document` },
       });
-      dismissSelectionActionCandidate();
+      if (targetDocument) {
+        setCandidateDocuments((items) => [saved.document, ...items.filter((item) => item.id !== saved.document.id)]);
+        setSelectionActionCandidate((current) => current ? { ...current, documentAdoption: { id: adoptionId, documentId: saved.document.id, documentRevision: saved.document.revision } } : current);
+      } else dismissSelectionActionCandidate();
     } catch (cause) {
       setSelectionActionError(cause instanceof Error ? cause.message : "Could not save this document.");
+    } finally {
+      setSelectionActionBusy(undefined);
+    }
+  }
+
+  async function undoSelectionActionDocument() {
+    const candidate = selectionActionCandidate;
+    const adoption = candidate?.documentAdoption;
+    if (!candidate || !adoption || selectionActionBusy) return;
+    setSelectionActionBusy("document");
+    setSelectionActionError("");
+    try {
+      const restored = await saveExtensionSkillRunAsDocument(candidate.runId, {
+        title: `${candidate.skillName} result`,
+        content: candidate.text,
+        documentId: adoption.documentId,
+        expectedRevision: adoption.documentRevision,
+        adoptionId: adoption.id,
+        adoptionAction: "undo",
+        target: { surface: "inline-selection", url: candidate.source.url, target_key: `document:${adoption.documentId}` },
+      });
+      setCandidateDocuments((items) => [restored.document, ...items.filter((item) => item.id !== restored.document.id)]);
+      dismissSelectionActionCandidate();
+    } catch (cause) {
+      setSelectionActionError(cause instanceof Error ? cause.message : "Could not undo this Document update.");
     } finally {
       setSelectionActionBusy(undefined);
     }
@@ -2852,11 +2901,15 @@ function ExtensionLauncher() {
         anchor={selectionActionCandidate.anchor}
         busyAction={selectionActionBusy}
         error={selectionActionError}
+        project={selectionActionCandidate.projects[0]}
+        documents={candidateDocuments}
+        documentUndoAvailable={Boolean(selectionActionCandidate.documentAdoption)}
         onTextChange={(text) => setSelectionActionCandidate((current) => current ? { ...current, text } : current)}
         onPrimary={() => void applySelectionActionCandidate()}
         onCopy={() => void copySelectionActionCandidate()}
         onKeep={() => void keepSelectionActionCandidate()}
-        onSaveDocument={() => void saveSelectionActionDocument()}
+        onSaveDocument={(document) => void saveSelectionActionDocument(undefined, document as ExtensionDocument | undefined)}
+        onUndoDocument={() => void undoSelectionActionDocument()}
         onCancel={dismissSelectionActionCandidate}
       />}
       {selectionSkillNotice && <div
@@ -2957,11 +3010,15 @@ function ExtensionLauncher() {
         anchor={{ left: googleDocsCandidatePosition.left, top: googleDocsCandidatePosition.top }}
         busyAction={googleDocsProxy.commandCandidate.busyAction}
         error={googleDocsProxy.commandCandidate.error}
+        project={googleDocsProxy.commandCandidate.project}
+        documents={googleDocsProxy.commandCandidate.documents}
+        documentUndoAvailable={googleDocsProxy.commandCandidate.documentUndoAvailable}
         onTextChange={(text) => controlGoogleDocsProxy("command-candidate-text", { text })}
         onPrimary={() => controlGoogleDocsProxy("command-candidate-primary", { text: googleDocsProxy.commandCandidate?.text })}
         onCopy={() => controlGoogleDocsProxy("command-candidate-copy", { text: googleDocsProxy.commandCandidate?.text })}
         onKeep={() => controlGoogleDocsProxy("command-candidate-keep", { text: googleDocsProxy.commandCandidate?.text })}
-        onSaveDocument={() => controlGoogleDocsProxy("command-candidate-document", { text: googleDocsProxy.commandCandidate?.text })}
+        onSaveDocument={(document) => controlGoogleDocsProxy("command-candidate-document", { text: googleDocsProxy.commandCandidate?.text, document: document as ExtensionDocument | undefined })}
+        onUndoDocument={() => controlGoogleDocsProxy("command-candidate-document-undo")}
         onCancel={() => controlGoogleDocsProxy("command-candidate-dismiss")}
       />}
       {googleDocsProxy?.candidate && googleDocsCandidatePosition && <V2VoiceCandidateSurface
