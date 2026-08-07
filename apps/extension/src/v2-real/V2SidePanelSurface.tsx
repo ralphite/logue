@@ -875,6 +875,7 @@ export function V2SidePanelSurface({
             <span>{error.message}</span>
             {error.kind === "transcription" ? <div className="v2-inline-actions"><V2Button onClick={onRetryTranscription}>Retry</V2Button><V2Button onClick={onOpenModelSettings}>Model settings…</V2Button></div> : null}
             {error.kind === "model" ? <div className="v2-inline-actions"><V2Button onClick={onRetryModel} disabled={generating}>{generating ? "Retrying…" : "Retry"}</V2Button><V2Button onClick={onOpenModelSettings}>Model settings…</V2Button></div> : null}
+            {error.kind === "save" && error.action === "retry" && generatedDocumentUndoAvailable ? <div className="v2-inline-actions"><V2Button onClick={onUndoGeneratedDocument} disabled={savingGeneratedDocument}>{savingGeneratedDocument ? "Retrying…" : "Retry"}</V2Button></div> : null}
           </div>
         ) : null}
         <div className="v2-panel-scroll">

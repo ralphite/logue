@@ -118,7 +118,7 @@ export interface LocalError {
     | "service"
     | "model";
   message: string;
-  action: "retry" | "copy" | "change-server";
+  action?: "retry" | "copy" | "change-server";
 }
 
 export interface ExtensionSkill {

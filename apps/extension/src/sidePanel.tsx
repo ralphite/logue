@@ -68,6 +68,7 @@ import { type CapturePhase } from "./sidePanelPresentation";
 import { saveThenRefreshPageHistory, shouldLoadPageHistory } from "./sidePanelPageHistory";
 import { panelMessageTargetsTab, sidePanelTabId, siblingExtensionDocumentPath } from "./sidePanelController";
 import { canInsertGeneratedText, generationTargetKey } from "./sidePanelGeneration";
+import { resolveSidePanelDocumentUndoFailure } from "./sidePanelDocumentUndo";
 import { handleSidePanelShortcut } from "./sidePanelShortcuts";
 import { createSidePanelFocusController, type SidePanelFocusController } from "./sidePanelFocus";
 import {
@@ -1556,16 +1557,9 @@ function SidePanelApp() {
       }
       commitCommandResult({ ...result, documentAdoption: undefined });
     } catch (cause) {
-      if (cause instanceof ExtensionApiError && cause.status === 409) {
-        commitCommandResult({ ...result, documentAdoption: undefined });
-        setError({
-          kind: "save",
-          message: "This Document changed, so it wasn’t undone.",
-          action: "retry",
-        });
-      } else {
-        setError(friendlyLocalError(cause, "save"));
-      }
+      const failure = resolveSidePanelDocumentUndoFailure(result, cause);
+      if (failure.result !== result) commitCommandResult(failure.result);
+      setError(failure.error);
     } finally {
       setSavingGeneratedDocument(false);
     }
