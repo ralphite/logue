@@ -116,7 +116,7 @@
 - V2-LIB-05 — INTEGRATED — 可调宽 Source inspector 从 Comment bundle 单条入口核验 Web/You 两层，并呈现 original/raw/transformed/saved、audio、可打开 parents、adopted versions、实际 Profile/Topic/Skill/language lineage。
 - V2-LIB-06 — INTEGRATED — Source 打开、回原 URL、Project membership、Exclude/Undo。
 - V2-LIB-07 — INTEGRATED — content-first 多选使用 bundle 级 Add/Exclude；普通 Source 与完整 Comment bundle 共用依赖感知 Delete，bundle 内部 Web→You 关系不再产生假 tombstone；所选范围可 Export 或作为指定 Project Draft 的本次 Run Sources而不改变 membership。
-- V2-LIB-08 — INTEGRATED — All activity 从 Ask/Compare/Draft/Voice/Text Command 的准确永久 You Activity 打开关联 Run，可恢复未采用 Candidate，并支持 Copy、选择 New/Existing Project Document、exact frozen Sources、Document update 即时 Undo、failed Run Retry、Pin/Unpin 与依赖预览 Delete；Activity/Run 保持在 Project Context 外。
+- V2-LIB-08 — INTEGRATED — All activity 从 Ask/Compare/Draft/Voice/Text Command 的准确永久 You Activity 打开关联 Run，可恢复未采用 Candidate，并支持 Copy、canonical Keep in Logue → 永久 AI Source、Keep 即时 Undo、选择 New/Existing Project Document、exact frozen Sources、Document update 即时 Undo、failed Run Retry、Pin/Unpin 与依赖预览 Delete；Activity/Run 保持在 Project Context 外。
 - V2-LIB-09 — INTEGRATED — Global Find 打开并在 Library 定位真实结果。
 - V2-LIB-10 — INTEGRATED — AI Source revision/history/restore 由 V2-LIN-11 与 V2-LIB-05 的 production inspector 完整接通。
 
@@ -142,7 +142,7 @@
 - V2-SKILL-05 — INTEGRATED — resolver explicit → Project → Global → system。
 - V2-SKILL-06 — INTEGRATED — Selection 快捷条先显示用户配置的 pinned Skills，再按当前 Extension recent use 排序；Built-in 与 My Skills 都可配置 pin，隐藏 Skill 不进入 More Skills，选择后立即运行。
 - V2-SKILL-07 — INTEGRATED — Run details 显示 Skill ID/revision、解析来源、actual Context/state。
-- V2-SKILL-08 — INTEGRATED — Copy/Replace/Insert/Keep/Document consumers 复用统一 adoption event/revision 合同与稳定 action union；Selection/Page Candidate 新建或更新 Document 均传递稳定 adoption ID、expected revision 与 exact frozen Sources，不保留第二套保存语义。
+- V2-SKILL-08 — INTEGRATED — Copy/Replace/Insert/Keep/Document consumers 复用统一 adoption event/revision 合同与稳定 action union；Keep 以稳定 identity 物化永久 AI Source、冻结 exact Run Sources，并通过同一 event 幂等重试或即时 Undo 为 lineage tombstone；Document consumers 不保留第二套保存语义。
 
 ## Web — Settings / Provider / data controls (J1/J9)
 

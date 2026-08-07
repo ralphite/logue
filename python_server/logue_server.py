@@ -2613,7 +2613,7 @@ class Store:
                         for entry in reversed(revisions)
                         if isinstance(entry, dict)
                         and entry.get("undone")
-                        and entry.get("action") in {"insert", "replace"}
+                        and entry.get("action") in {"insert", "replace", "keep"}
                         and adoption_id
                         and entry.get("id") == adoption_id
                     ),
@@ -2630,7 +2630,7 @@ class Store:
                         for entry in reversed(revisions)
                         if isinstance(entry, dict)
                         and not entry.get("undone")
-                        and entry.get("action") in {"insert", "replace"}
+                        and entry.get("action") in {"insert", "replace", "keep"}
                         and (not adoption_id or entry.get("id") == adoption_id)
                     ),
                     None,
@@ -2656,6 +2656,29 @@ class Store:
                         material_event.update({key: existing[key] for key in ("undone", "undone_at", "undo_target") if key in existing})
                     material["adoption_revisions"] = material_revisions
                     material["updated_at"] = now()
+                    if existing.get("action") == "keep" and not any(
+                        isinstance(entry, dict) and entry is not existing and not entry.get("undone")
+                        for entry in revisions
+                    ):
+                        material = {
+                            "id": material_id,
+                            "kind": "derived",
+                            "status": "unfiled",
+                            "content": "Deleted Source",
+                            "projects": [],
+                            "excluded_projects": [],
+                            "saved_only_projects": [],
+                            "tags": [],
+                            "created_at": material.get("created_at", now()),
+                            "updated_at": now(),
+                            "actor": "Logue AI",
+                            "source": {"title": "Deleted Source"},
+                            "run_id": identifier,
+                            "adoption_revisions": material_revisions,
+                            "tombstone": True,
+                            "deleted_at": now(),
+                            "organization": {"status": "confirmed", "updated_at": now()},
+                        }
                     atomic_json(self.root / "items" / f"{material_id}.json", material)
                     run["adoption_revisions"] = revisions
                     run["adoption_undone"] = True
@@ -2705,6 +2728,9 @@ class Store:
                 material_id = str(run.get("material_id", "")).strip()
                 if material_id:
                     material = self.get("items", material_id)
+                    if material.get("tombstone"):
+                        material_id = ""
+                if material_id:
                     if str(material.get("content", "")) != output:
                         material = self.update_item(material_id, {
                             "content": output,

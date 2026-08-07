@@ -924,11 +924,12 @@ export function RunInspector({
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [documentTargetOpen, setDocumentTargetOpen] = useState(false);
   const [documentAdoption, setDocumentAdoption] = useState<{ id: string; documentId: string; documentRevision: number }>();
-  const adoptionAttempts = useRef<Partial<Record<"copy" | "document", { id: string; content: string; targetKey?: string }>>>({});
+  const [keepAdoptionId, setKeepAdoptionId] = useState<string>();
+  const adoptionAttempts = useRef<Partial<Record<"copy" | "keep" | "document", { id: string; content: string; targetKey?: string }>>>({});
   const projectDocuments = documents.filter((document) => document.project === run.project);
-  const adopted = Boolean(
-    run.adopted_output || run.document_id || run.material_id,
-  );
+  const adopted = run.adoption_revisions?.length
+    ? run.adoption_revisions.some((revision) => !revision.undone)
+    : Boolean((run.adopted_output || run.document_id || run.material_id) && !run.adoption_undone);
   const modelContext = run.model_context;
   const copy = async () => {
     setBusy(true);
@@ -994,6 +995,46 @@ export function RunInspector({
       setError(
         cause instanceof Error ? cause.message : "Could not create a Document.",
       );
+    } finally {
+      setBusy(false);
+    }
+  };
+  const keep = async () => {
+    if (busy || !draft.trim()) return;
+    setBusy(true);
+    setError("");
+    const previousAttempt = adoptionAttempts.current.keep;
+    const adoptionId = previousAttempt?.content === draft ? previousAttempt.id : createAdoptionId();
+    adoptionAttempts.current.keep = { id: adoptionId, content: draft };
+    try {
+      await adoptSkillRun(run.id, draft, {
+        action: "keep",
+        adoptionId,
+        target: { surface: "activity-inspector", target_key: `activity:${run.id}:kept-source` },
+      });
+      await onRefresh();
+      delete adoptionAttempts.current.keep;
+      setKeepAdoptionId(adoptionId);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not keep this result in Logue.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const undoKeep = async () => {
+    if (!keepAdoptionId || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await adoptSkillRun(run.id, draft, {
+        action: "undo",
+        adoptionId: keepAdoptionId,
+        target: { surface: "activity-inspector", target_key: `activity:${run.id}:kept-source` },
+      });
+      await onRefresh();
+      setKeepAdoptionId(undefined);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not undo Keep in Logue.");
     } finally {
       setBusy(false);
     }
@@ -1142,6 +1183,10 @@ export function RunInspector({
               >
                 <Copy size={14} />
                 Copy
+              </Button>
+              <Button disabled={busy || (!keepAdoptionId && !draft.trim())} onClick={() => void (keepAdoptionId ? undoKeep() : keep())}>
+                {keepAdoptionId ? <RotateCcw size={14} /> : <Check size={14} />}
+                {keepAdoptionId ? "Undo Keep in Logue" : "Keep in Logue"}
               </Button>
               {documentAdoption ? (
                 <Button variant="primary" disabled={busy} onClick={() => void undoDocumentUpdate()}>
