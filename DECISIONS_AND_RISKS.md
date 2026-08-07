@@ -969,3 +969,16 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 按对象局部补偿难以覆盖 unlink、bundle membership 和进程中断之间的失败；前端重试也无法判断哪些对象已写入。
 - **已有证据：** production Host 当前 merge 先建后删、split 先改后建、convert 依次创建 Project/更新 Sources/隐藏 Topic，三条路径均无统一 rollback。
 - **开放问题：** 无；本批不改变 Topic 操作语义或 UI。
+
+### DR-091 — Topic convert-to-Project 的同名 Project collision
+
+- **优先级：** V2 Topics / Project identity P1
+- **状态：** 冻结，等待用户决定；scope REPLAN、product/UX REPLAN、engineering PASS（均推荐 A，但前两路确认权威稿不足以授权默认 UX）
+- **用户可见影响：** 当前 convert 使用已存在的 Project 名称时仍创建第二个稳定 ID；但 Sources、Documents、Runs 仍以名称关联，`projects()` 又以名称折叠对象，可能让其中一个 Project 隐藏并造成 Profile、Skills 和 Context 身份不确定。
+- **权威证据：** V2 §10.8 只确认 Topic 可 convert to Project，没有定义 collision；`V2-PROJ-01` 与 DR-060 确认 Project 使用稳定 ID，rename 不得创建第二个同名 Project；Topics 已有独立的 existing Project suggestion/Add Sources 流程。
+- **方案 A — 阻止：** convert 前发现同名 active 或 archived Project 即原子失败，保留 Topic；用户可换名，或通过已有 Related Projects 流程明确加入现有 Project。最小化隐式数据改变。
+- **方案 B — 复用：** 将 convert 解释为把 Topic Sources 加入同名 Project并隐藏 Topic；减少一步，但把“创建 Project”静默改成“修改现有 Project”，且可能绕过 suggestion/exclusion 语义。
+- **方案 C — 合并：** 合并同名 Project 对象、Profile、Skills、Documents、Runs 与 membership；会新增未确认的 Project merge 产品能力和高风险数据规则。
+- **已有工程证据：** `convert_topic_to_project()` 调用 `save_project("", ...)`；create 路径只在 rename 时检查 collision，随后写出第二个 Project 文件，而读取层按名称字典覆盖。
+- **三路 gate 结论：** scope 与 product/UX 均排除 B/C、推荐 A，但认为 §10.8 未定义 collision，Project identity/default recovery 属用户决策；engineering 认为 A 是唯一安全且不扩范围的实现，并要求 active/archived 均在共享 create 边界、snapshot 前返回 conflict。因三路对“能否无需用户确认实施”不一致，本项不写代码。
+- **开放问题：** 用户确认 A 后再定义精确 inline recovery；此前保留现状并转下一 inventory family。
