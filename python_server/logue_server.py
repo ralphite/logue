@@ -3559,16 +3559,8 @@ class Handler(BaseHTTPRequestHandler):
             identifier = path.removeprefix("/v1/skill-runs/")
             run = store.get("skill-runs", identifier)
             value = self.body_json()
-            if "adopted_output" in value:
+            if any(key in value for key in ("adopted_output", "document_id", "material_id")):
                 raise ValueError("use the Run adoption endpoint")
-            if "document_id" in value:
-                document_id = str(value["document_id"]).strip()
-                store.get("docs", document_id)
-                run["document_id"] = document_id
-            if "material_id" in value:
-                material_id = str(value["material_id"]).strip()
-                store.get("items", material_id)
-                run["material_id"] = material_id
             if "pinned" in value:
                 run["pinned"] = bool(value["pinned"])
             run["updated_at"] = now()

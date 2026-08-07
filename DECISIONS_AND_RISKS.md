@@ -780,11 +780,11 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 ### DR-072 — 删除绕过 Run / Candidate / adoption 的旧 Python API
 
 - **优先级：** V2 Host / 单一生成合同
-- **状态：** scope / product / engineering fresh gate 已 PASS；Python Host/Web callers 已移除并通过 Web typecheck、Python compile 与 diff check
-- **决定：** 删除 Python Host 的 `/v1/docs/generate`、`/v1/project-overview-drafts/*`、`/v1/project-bundles/*`、`/v1/external-agent/import`，以及对应 Web API wrapper、未挂载调用入口、Developer API 文案和陈旧 API 文档。Project Ask/Draft 继续使用 Activity → Skill Run → Candidate → 显式 adoption；Project 导出使用 scope-safe Export；当前 V2 不提供 External Agent import。不得保留 alias 或改名后的重复语义。
+- **状态：** scope / product / engineering fresh gate 已 PASS；Python Host/Web callers 与最后一条通用 PATCH 绕行已移除并通过 production consumer 静态核对、Python compile 与 diff check
+- **决定：** 删除 Python Host 的 `/v1/docs/generate`、`/v1/project-overview-drafts/*`、`/v1/project-bundles/*`、`/v1/external-agent/import`，以及对应 Web API wrapper、未挂载调用入口、Developer API 文案和陈旧 API 文档。通用 Run PATCH 只保留 `pinned` 等非 lineage metadata，明确拒绝直接写 `adopted_output`、`document_id` 或 `material_id`。Project Ask/Draft 继续使用 Activity → Skill Run → Candidate → 显式 adoption；Project 导出使用 scope-safe Export；当前 V2 不提供 External Agent import。不得保留 alias 或改名后的重复语义。
 - **用户可见影响：** 当前挂载 V2 流程不变；未挂载旧 workspace 不再保留可绕过 Run lineage、直接创建 Document/AI Source 或暴露原始 Project bundle 的入口。
 - **替代方案：** 保留兼容 alias（违反当前 route/schema 唯一权威）；把旧路径改成 `/v2/*`（仍保留重复对象语义）；在未定义权限/provenance/adoption 前继续公开 external import（扩大未确认范围）。
-- **已有证据：** production 挂载链是 `main → App → RealLogueV2App → V2 routes`；`V2ProjectRoute` 已使用 canonical Run/adoption。三路 gate 已确认四条旧 route 只有未挂载 caller/技术按钮，删除不缩减确认 V2 能力。Go Host 与 audio fixtures 不进入本批，按 Goal Supervisor 要求保持独立。
+- **已有证据：** production 挂载链是 `main → App → RealLogueV2App → V2 routes`；`V2ProjectRoute` 已使用 canonical Run/adoption。三路 gate 已确认四条旧 route 只有未挂载 caller/技术按钮，删除不缩减确认 V2 能力。Phase 2 后续静态核对发现通用 `PATCH /v1/skill-runs/:id` 仍能直接重连任意现有 Document/Source，绕过稳定 adoption event；production 唯一 PATCH consumer 只发送 `pinned`，因此可直接收紧而不影响用户流程。Go Host 与 audio fixtures 不进入本批，按 Goal Supervisor 要求保持独立。
 - **开放问题：** 无；本批只处理 Python routes、Web callers 与对应文档，Go Host 删除另做下一原子批次。
 
 ### DR-073 — Python Host 是唯一 production Host；移除语义冲突的 Go Host
