@@ -31,6 +31,7 @@ export interface LogueSkill {
   system: boolean;
   pinned?: boolean;
   hidden?: boolean;
+  archived_at?: string;
   revision: number;
   created_at: string;
   updated_at: string;
@@ -118,6 +119,24 @@ export class SkillApiError extends Error {
     this.name = "SkillApiError";
     this.status = status;
   }
+}
+
+export interface SkillArchiveImpact {
+  skill_id: string;
+  global_bindings: Array<
+    | "default_transcription_skill"
+    | "default_organization_skill"
+    | "default_extension_skill"
+    | "default_qa_skill"
+    | "default_document_skill"
+  >;
+  pinned_action: boolean;
+  project_bindings: Array<{
+    project_id: string;
+    project_name: string;
+    bindings: string[];
+  }>;
+  has_references: boolean;
 }
 
 export function documentUndoFailureState(
@@ -243,9 +262,13 @@ async function parseSkillRun(response: Response): Promise<LogueSkillRun> {
   return value as LogueSkillRun;
 }
 
-export async function getSkills() {
+export async function getSkills(includeArchived = false) {
   return (
-    await parse<{ skills: LogueSkill[] }>(await fetch(`${apiBase}/v1/skills`))
+    await parse<{ skills: LogueSkill[] }>(
+      await fetch(
+        `${apiBase}/v1/skills${includeArchived ? "?include_archived=true" : ""}`,
+      ),
+    )
   ).skills;
 }
 
@@ -328,15 +351,29 @@ export async function updateBuiltInSkillPreferences(
   );
 }
 
-export async function deleteSkill(id: string) {
-  const response = await fetch(
-    `${apiBase}/v1/skills/${encodeURIComponent(id)}`,
-    { method: "DELETE" },
+export async function getSkillArchiveImpact(id: string) {
+  return parse<SkillArchiveImpact>(
+    await fetch(
+      `${apiBase}/v1/skills/${encodeURIComponent(id)}/archive-impact`,
+    ),
   );
-  if (!response.ok)
-    throw new Error(
-      (await response.text()) || `Request failed (${response.status})`,
-    );
+}
+
+export async function archiveSkill(id: string) {
+  return parse<{ skill: LogueSkill; impact: SkillArchiveImpact }>(
+    await fetch(`${apiBase}/v1/skills/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+  );
+}
+
+export async function unarchiveSkill(id: string) {
+  return parse<LogueSkill>(
+    await fetch(
+      `${apiBase}/v1/skills/${encodeURIComponent(id)}/unarchive`,
+      { method: "POST" },
+    ),
+  );
 }
 
 export async function getSkillRuns() {

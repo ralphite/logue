@@ -1,4 +1,6 @@
 import {
+  Archive,
+  ArchiveRestore,
   Copy,
   Eye,
   EyeOff,
@@ -8,19 +10,22 @@ import {
   Plus,
   RotateCcw,
   Sparkles,
-  Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { saveWorkspaceSettings, type WorkspaceSettings } from "../api";
 import {
+  archiveSkill,
   createSkill,
-  deleteSkill,
+  getSkillArchiveImpact,
   getSkillRevisions,
+  getSkills,
   restoreSkillRevision,
+  unarchiveSkill,
   updateBuiltInSkillPreferences,
   updateSkill,
   type LogueSkill,
   type SkillContext,
+  type SkillArchiveImpact,
   type SkillOutput,
   type SkillRevision,
   type SkillSurface,
@@ -40,7 +45,6 @@ type SkillDraft = Pick<
   | "output"
   | "surfaces"
   | "contexts"
-  | "enabled"
 >;
 
 const surfaces: Array<{ value: SkillSurface; label: string }> = [
@@ -67,9 +71,19 @@ function skillDraft(skill: LogueSkill): SkillDraft {
     output: skill.output,
     surfaces: skill.surfaces,
     contexts: skill.contexts,
-    enabled: skill.enabled,
   };
 }
+
+const globalBindingLabels: Record<
+  SkillArchiveImpact["global_bindings"][number],
+  string
+> = {
+  default_transcription_skill: "Transcription",
+  default_organization_skill: "Organization",
+  default_extension_skill: "Voice Command",
+  default_qa_skill: "Ask",
+  default_document_skill: "Draft",
+};
 
 function toggleValue<T extends string>(items: T[], value: T) {
   return items.includes(value)
@@ -94,6 +108,20 @@ function revisionDate(value: SkillRevision) {
   });
 }
 
+function archiveImpactCopy(impact: SkillArchiveImpact) {
+  return [
+    impact.global_bindings.length
+      ? `Global: ${impact.global_bindings.map((key) => globalBindingLabels[key]).join(", ")}`
+      : "",
+    impact.pinned_action ? "1 pinned action" : "",
+    impact.project_bindings.length
+      ? `${impact.project_bindings.length} Project ${impact.project_bindings.length === 1 ? "override" : "overrides"}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export function V2SkillsRoute({
   skills,
   settings,
@@ -114,7 +142,13 @@ export function V2SkillsRoute({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const selected = skills.find((skill) => skill.id === selectedId);
+  const [allSkills, setAllSkills] = useState(skills);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiveImpact, setArchiveImpact] = useState<SkillArchiveImpact>();
+  const selected = allSkills.find((skill) => skill.id === selectedId);
+  const archivedSkills = allSkills.filter(
+    (skill) => !skill.system && Boolean(skill.archived_at),
+  );
   const visible = useMemo(() => {
     if (tab === "built-in") {
       return skills
@@ -125,12 +159,40 @@ export function V2SkillsRoute({
             Number(Boolean(left.hidden)) - Number(Boolean(right.hidden)),
         );
     }
-    return skills.filter((skill) => !skill.system);
-  }, [skills, tab]);
+    return allSkills.filter(
+      (skill) =>
+        !skill.system && Boolean(skill.archived_at) === showArchived,
+    );
+  }, [allSkills, showArchived, skills, tab]);
 
   useEffect(() => {
-    setDraft(selected ? skillDraft(selected) : undefined);
-  }, [selected?.id, selected?.revision]);
+    setAllSkills((current) => [
+      ...skills,
+      ...current.filter(
+        (skill) =>
+          Boolean(skill.archived_at) &&
+          !skills.some((active) => active.id === skill.id),
+      ),
+    ]);
+  }, [skills]);
+
+  useEffect(() => {
+    let current = true;
+    void getSkills(true)
+      .then((next) => {
+        if (current) setAllSkills(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setDraft(
+      selected && !selected.archived_at ? skillDraft(selected) : undefined,
+    );
+  }, [selected?.archived_at, selected?.id, selected?.revision]);
 
   useEffect(() => {
     setHistoryOpen(false);
@@ -144,6 +206,11 @@ export function V2SkillsRoute({
     }
   }, [selectedId, tab, visible]);
 
+  async function refreshSkillIndex() {
+    const [, nextSkills] = await Promise.all([onRefresh(), getSkills(true)]);
+    setAllSkills(nextSkills);
+  }
+
   async function duplicate(skill: LogueSkill) {
     setBusy(true);
     setError("");
@@ -153,8 +220,9 @@ export function V2SkillsRoute({
         name: `${skill.name} copy`,
         enabled: true,
       });
-      await onRefresh();
+      await refreshSkillIndex();
       setTab("mine");
+      setShowArchived(false);
       setSelectedId(created.id);
       setNotice("My Skill created.");
     } catch (cause) {
@@ -183,8 +251,9 @@ export function V2SkillsRoute({
         contexts: ["selection", "project"],
         enabled: true,
       });
-      await onRefresh();
+      await refreshSkillIndex();
       setTab("mine");
+      setShowArchived(false);
       setSelectedId(created.id);
     } catch (cause) {
       setError(
@@ -216,7 +285,7 @@ export function V2SkillsRoute({
         instructions: draft.instructions.trim(),
         expected_revision: selected.revision,
       });
-      await onRefresh();
+      await refreshSkillIndex();
       setHistoryOpen(false);
       setRevisions([]);
       setPreviewRevision(undefined);
@@ -230,19 +299,66 @@ export function V2SkillsRoute({
     }
   }
 
-  async function removeCurrent() {
+  async function finishArchive() {
     if (!selected || selected.system) return;
     setBusy(true);
     setError("");
     try {
-      await deleteSkill(selected.id);
-      setSelectedId(undefined);
-      setDraft(undefined);
-      await onRefresh();
-      setNotice("My Skill deleted. Any binding now falls back to its default.");
+      const result = await archiveSkill(selected.id);
+      await refreshSkillIndex();
+      setShowArchived(true);
+      setArchiveImpact(undefined);
+      setNotice(
+        result.impact.has_references
+          ? "Skill archived. Defaults and Project overrides now use their fallback."
+          : "Skill archived.",
+      );
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Could not delete this Skill.",
+        cause instanceof Error ? cause.message : "Could not archive this Skill.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function requestArchive() {
+    if (!selected || selected.system) return;
+    setBusy(true);
+    setError("");
+    try {
+      const impact = await getSkillArchiveImpact(selected.id);
+      if (impact.has_references) {
+        setArchiveImpact(impact);
+        return;
+      }
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not review this archive.",
+      );
+      return;
+    } finally {
+      setBusy(false);
+    }
+    await finishArchive();
+  }
+
+  async function restoreArchived() {
+    if (!selected?.archived_at) return;
+    setBusy(true);
+    setError("");
+    try {
+      await unarchiveSkill(selected.id);
+      await refreshSkillIndex();
+      setShowArchived(false);
+      setNotice(
+        "Skill restored. Defaults, pinned actions, and Project overrides were not changed.",
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not restore this Skill.",
       );
     } finally {
       setBusy(false);
@@ -282,7 +398,7 @@ export function V2SkillsRoute({
         selected.id,
         previewRevision.revision,
       );
-      await onRefresh();
+      await refreshSkillIndex();
       setRevisions(await getSkillRevisions(selected.id));
       setPreviewRevision(undefined);
       setNotice(`Restored as revision ${restored.revision}.`);
@@ -305,7 +421,7 @@ export function V2SkillsRoute({
     setError("");
     try {
       await updateBuiltInSkillPreferences(skill.id, changes);
-      await onRefresh();
+      await refreshSkillIndex();
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not update this Skill.",
@@ -324,7 +440,7 @@ export function V2SkillsRoute({
         ...settings,
         [key]: value || undefined,
       });
-      await onRefresh();
+      await refreshSkillIndex();
       setNotice("Global default updated.");
     } catch (cause) {
       setError(
@@ -404,6 +520,8 @@ export function V2SkillsRoute({
                 onClick={() => {
                   setTab(item);
                   setSelectedId(undefined);
+                  setShowArchived(false);
+                  setArchiveImpact(undefined);
                   setError("");
                   setNotice("");
                 }}
@@ -478,6 +596,32 @@ export function V2SkillsRoute({
                   tab === "built-in" ? "Built-in Skills" : "My Skills"
                 }
               >
+                {tab === "mine" ? (
+                  <div className="v2-inline-actions">
+                    <Button
+                      size="sm"
+                      variant={showArchived ? "secondary" : "primary"}
+                      onClick={() => {
+                        setShowArchived(false);
+                        setSelectedId(undefined);
+                        setArchiveImpact(undefined);
+                      }}
+                    >
+                      Active
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={showArchived ? "primary" : "secondary"}
+                      onClick={() => {
+                        setShowArchived(true);
+                        setSelectedId(undefined);
+                        setArchiveImpact(undefined);
+                      }}
+                    >
+                      Archived ({archivedSkills.length})
+                    </Button>
+                  </div>
+                ) : null}
                 {visible.map((skill) => (
                   <button
                     type="button"
@@ -490,7 +634,9 @@ export function V2SkillsRoute({
                     <OriginLabel
                       origin={skill.system ? "ai" : "you"}
                       detail={
-                        skill.hidden
+                        skill.archived_at
+                          ? "Archived"
+                          : skill.hidden
                           ? "Hidden"
                           : skill.pinned
                             ? `${skill.system ? "Built-in" : "My Skill"} · Pinned`
@@ -510,15 +656,21 @@ export function V2SkillsRoute({
                 ))}
                 {!visible.length ? (
                   <div className="v2-recovery-card">
-                    <p>No My Skills yet.</p>
-                    <Button onClick={() => void createNew()}>
-                      Create a Skill
-                    </Button>
+                    <p>
+                      {showArchived
+                        ? "No archived Skills."
+                        : "No My Skills yet."}
+                    </p>
+                    {!showArchived ? (
+                      <Button onClick={() => void createNew()}>
+                        Create a Skill
+                      </Button>
+                    ) : null}
                   </div>
                 ) : null}
               </section>
 
-              {selected && draft ? (
+              {selected && (selected.archived_at || draft) ? (
                 <aside className="v2-skill-editor">
                   <div className="v2-skill-editor-heading">
                     <div>
@@ -531,7 +683,9 @@ export function V2SkillsRoute({
                               : selected.pinned
                                 ? "Built-in · Pinned"
                                 : "Built-in"
-                            : `My Skill · revision ${selected.revision}${selected.pinned ? " · Pinned" : ""}`
+                            : selected.archived_at
+                              ? `Archived · revision ${selected.revision}`
+                              : `My Skill · revision ${selected.revision}${selected.pinned ? " · Pinned" : ""}`
                         }
                       />
                       <h2>{selected.name}</h2>
@@ -548,7 +702,23 @@ export function V2SkillsRoute({
                     ) : null}
                   </div>
 
-                  {selected.system ? (
+                  {selected.archived_at ? (
+                    <div className="v2-recovery-card">
+                      <p>{selected.purpose}</p>
+                      <p>{selected.instructions}</p>
+                      <div className="v2-library-meta">
+                        {selected.task} · {selected.output} · revision {selected.revision}
+                      </div>
+                      <Button
+                        variant="primary"
+                        disabled={busy}
+                        onClick={() => void restoreArchived()}
+                      >
+                        <ArchiveRestore size={14} />
+                        Restore Skill
+                      </Button>
+                    </div>
+                  ) : selected.system ? (
                     <>
                       <p>{selected.instructions}</p>
                       <div className="v2-library-meta">
@@ -595,7 +765,7 @@ export function V2SkillsRoute({
                         </Button>
                       </div>
                     </>
-                  ) : (
+                  ) : draft ? (
                     <>
                       <label className="v2-field-label">
                         Name
@@ -709,20 +879,6 @@ export function V2SkillsRoute({
                           </label>
                         ))}
                       </fieldset>
-                      <label className="v2-checkbox-row">
-                        <input
-                          type="checkbox"
-                          checked={draft.enabled}
-                          onChange={(event) =>
-                            setDraft({
-                              ...draft,
-                              enabled: event.target.checked,
-                            })
-                          }
-                        />
-                        Enabled
-                      </label>
-
                       <div className="v2-setting-row">
                         <div>
                           <strong>Revision history</strong>
@@ -794,6 +950,33 @@ export function V2SkillsRoute({
                         </section>
                       ) : null}
 
+                      {archiveImpact ? (
+                        <div className="v2-recovery-card" role="alert">
+                          <strong>Archive and update these choices?</strong>
+                          <p>{archiveImpactCopy(archiveImpact)}</p>
+                          <p>
+                            These places will use their fallback. Restoring the
+                            Skill later will not reapply them.
+                          </p>
+                          <div className="v2-inline-actions">
+                            <Button
+                              disabled={busy}
+                              onClick={() => setArchiveImpact(undefined)}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              variant="primary"
+                              disabled={busy}
+                              onClick={() => void finishArchive()}
+                            >
+                              <Archive size={14} />
+                              Archive Skill
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+
                       <div className="v2-inline-actions v2-actions-between">
                         <div className="v2-inline-actions">
                           {supportsPin(selected) ? (
@@ -814,11 +997,11 @@ export function V2SkillsRoute({
                             </Button>
                           ) : null}
                           <Button
-                            onClick={() => void removeCurrent()}
+                            onClick={() => void requestArchive()}
                             disabled={busy}
                           >
-                            <Trash2 size={14} />
-                            Delete
+                            <Archive size={14} />
+                            Archive
                           </Button>
                         </div>
                         <Button
@@ -836,7 +1019,7 @@ export function V2SkillsRoute({
                         </Button>
                       </div>
                     </>
-                  )}
+                  ) : null}
                 </aside>
               ) : null}
             </div>

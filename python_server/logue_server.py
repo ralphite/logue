@@ -419,8 +419,10 @@ class Store:
         history.sort(key=lambda value: int(value.get("revision", 0)), reverse=True)
         return [{**current, "document_id": identifier, "current": True}, *history]
 
-    def skills(self) -> list[dict[str, Any]]:
+    def skills(self, include_archived: bool = False) -> list[dict[str, Any]]:
         values = self._list("skills", "updated_at")
+        if not include_archived:
+            values = [skill for skill in values if not skill.get("archived_at")]
         normalized = [{**skill, "pinned": bool(skill.get("pinned", False)), "hidden": bool(skill.get("hidden", False))} for skill in values]
         return sorted(normalized, key=lambda skill: (not bool(skill.get("system")), -_timestamp(skill.get("updated_at"))))
 
@@ -432,6 +434,116 @@ class Store:
             history = [read_json(path) for path in (self.root / "skill-revisions").glob(f"{identifier}-r*.json")]
         history.sort(key=lambda value: int(value.get("revision", 0)), reverse=True)
         return [{**current, "skill_id": identifier, "current": True}, *history]
+
+    def skill_archive_impact(self, identifier: str) -> dict[str, Any]:
+        with self.lock:
+            skill = self.get("skills", identifier)
+            if skill.get("system"):
+                raise ValueError("Built-in Skills cannot be archived")
+            settings = self.settings()
+            global_bindings = [
+                key
+                for key in (
+                    "default_transcription_skill",
+                    "default_organization_skill",
+                    "default_extension_skill",
+                    "default_qa_skill",
+                    "default_document_skill",
+                )
+                if settings.get(key) == identifier
+            ]
+            project_bindings = [
+                {
+                    "project_id": str(project.get("id", "")),
+                    "project_name": str(project.get("name", "")),
+                    "bindings": [
+                        key
+                        for key, value in dict(project.get("skill_bindings") or {}).items()
+                        if value == identifier
+                    ],
+                }
+                for project in self.projects()
+                if identifier in dict(project.get("skill_bindings") or {}).values()
+            ]
+            return {
+                "skill_id": identifier,
+                "global_bindings": global_bindings,
+                "pinned_action": bool(skill.get("pinned")),
+                "project_bindings": project_bindings,
+                "has_references": bool(global_bindings or project_bindings or skill.get("pinned")),
+            }
+
+    def archive_skill(self, identifier: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        with self.lock:
+            skill = self.get("skills", identifier)
+            if skill.get("system"):
+                raise ValueError("Built-in Skills cannot be archived")
+            impact = self.skill_archive_impact(identifier)
+            if skill.get("archived_at"):
+                return skill, impact
+            snapshot = self.transaction_snapshot("logue-skill-archive-")
+            try:
+                timestamp = now()
+                archived = {
+                    **skill,
+                    "archived_at": timestamp,
+                    "enabled": False,
+                    "pinned": False,
+                    "updated_at": timestamp,
+                }
+                atomic_json(self.root / "skills" / f"{identifier}.json", archived)
+                settings = self.settings()
+                settings_changed = False
+                for key in (
+                    "default_transcription_skill",
+                    "default_organization_skill",
+                    "default_extension_skill",
+                    "default_qa_skill",
+                    "default_document_skill",
+                ):
+                    if settings.get(key) == identifier:
+                        settings.pop(key, None)
+                        settings_changed = True
+                if settings_changed:
+                    self.save_settings(settings)
+                for project in self.projects():
+                    bindings = dict(project.get("skill_bindings") or {})
+                    next_bindings = {key: value for key, value in bindings.items() if value != identifier}
+                    if next_bindings == bindings:
+                        continue
+                    project["skill_bindings"] = next_bindings
+                    project.pop("count", None)
+                    atomic_json(self.root / "projects" / f"{project['id']}.json", project)
+            except BaseException as error:
+                self.finish_transaction(snapshot, error)
+                raise
+            else:
+                self.finish_transaction(snapshot)
+                return archived, impact
+
+    def unarchive_skill(self, identifier: str) -> dict[str, Any]:
+        with self.lock:
+            skill = self.get("skills", identifier)
+            if skill.get("system"):
+                raise ValueError("Built-in Skills cannot be restored")
+            if not skill.get("archived_at"):
+                return skill
+            snapshot = self.transaction_snapshot("logue-skill-unarchive-")
+            try:
+                restored = {
+                    **skill,
+                    "enabled": True,
+                    "pinned": False,
+                    "updated_at": now(),
+                }
+                restored.pop("archived_at", None)
+                atomic_json(self.root / "skills" / f"{identifier}.json", restored)
+            except BaseException as error:
+                self.finish_transaction(snapshot, error)
+                raise
+            else:
+                self.finish_transaction(snapshot)
+                return restored
 
     def skill_runs(self) -> list[dict[str, Any]]:
         return self._list("skill-runs", "created_at")
@@ -2083,7 +2195,7 @@ class Store:
                 current = self.get("skills", candidate)
             except FileNotFoundError:
                 continue
-            if current.get("task") == "transcribe" and current.get("enabled", True):
+            if current.get("task") == "transcribe" and current.get("enabled", True) and not current.get("archived_at"):
                 skill = current
                 break
         if skill is None:
@@ -2499,6 +2611,8 @@ class Store:
                 previous = self.get("skills", identifier)
                 if previous.get("system"):
                     raise ValueError("Built-in Skills are read-only; duplicate one to customize it")
+                if previous.get("archived_at"):
+                    raise ValueError("Restore this Skill before editing it")
                 expected = value.get("expected_revision")
                 if expected is not None and int(expected) != int(previous.get("revision", 1)):
                     raise Conflict("skill changed elsewhere; reload before saving")
@@ -2538,6 +2652,8 @@ class Store:
         current = self.get("skills", identifier)
         if current.get("system"):
             raise ValueError("Built-in Skills do not have editable revision history")
+        if current.get("archived_at"):
+            raise ValueError("Restore this Skill before restoring a revision")
         return self.save_skill(identifier, {
             **{field: snapshot.get(field) for field in ("name", "purpose", "instructions", "task", "output", "surfaces", "contexts", "enabled")},
             "expected_revision": current.get("revision", 1),
@@ -2546,8 +2662,10 @@ class Store:
     def update_skill_preferences(self, identifier: str, value: dict[str, Any]) -> dict[str, Any]:
         with self.lock:
             skill = self.get("skills", identifier)
+            if skill.get("archived_at"):
+                raise ValueError("Restore this Skill before changing its preferences")
             if "hidden" in value and not skill.get("system"):
-                raise ValueError("My Skills can be deleted instead of hidden")
+                raise ValueError("My Skills can be archived instead of hidden")
             hidden = bool(value.get("hidden", skill.get("hidden", False))) if skill.get("system") else False
             pinned = bool(value.get("pinned", skill.get("pinned", False)))
             supports_pin = skill.get("task") == "generate" and "extension" in normalize(skill.get("surfaces")) and bool({"page", "selection"} & set(normalize(skill.get("contexts"))))
@@ -3383,6 +3501,8 @@ class LogueHTTPServer(ThreadingHTTPServer):
                 item = self.store.get("items", identifier)
                 settings = self.store.settings()
                 skill = self.store.get("skills", str(settings.get("default_organization_skill", "sk_organize")))
+                if skill.get("archived_at") or not skill.get("enabled", True):
+                    skill = self.store.get("skills", "sk_organize")
                 gemini = self.gemini
                 projects = self.store.projects()
                 items = self.store.items()
@@ -3571,7 +3691,11 @@ class Handler(BaseHTTPRequestHandler):
         elif path.startswith("/v1/topics/"):
             self.json(HTTPStatus.OK, store.topic_insights(store.get("topics", path.removeprefix("/v1/topics/"))))
         elif path == "/v1/skills":
-            self.json(HTTPStatus.OK, {"skills": store.skills()})
+            include_archived = (query.get("include_archived") or [""])[0].strip().lower() in {"1", "true", "yes"}
+            self.json(HTTPStatus.OK, {"skills": store.skills(include_archived=include_archived)})
+        elif path.startswith("/v1/skills/") and path.endswith("/archive-impact"):
+            identifier = path.removeprefix("/v1/skills/").removesuffix("/archive-impact")
+            self.json(HTTPStatus.OK, store.skill_archive_impact(identifier))
         elif path.startswith("/v1/skills/") and path.endswith("/revisions"):
             identifier = path.removeprefix("/v1/skills/").removesuffix("/revisions")
             self.json(HTTPStatus.OK, {"revisions": store.skill_revisions(identifier)})
@@ -3836,7 +3960,10 @@ class Handler(BaseHTTPRequestHandler):
             self.json(HTTPStatus.CREATED, store.save_skill(None, self.body_json()))
         elif path.startswith("/v1/skills/"):
             identifier = path.removeprefix("/v1/skills/")
-            if identifier.endswith("/restore") and method == "POST":
+            if identifier.endswith("/unarchive") and method == "POST":
+                identifier = identifier.removesuffix("/unarchive")
+                self.json(HTTPStatus.OK, store.unarchive_skill(identifier))
+            elif identifier.endswith("/restore") and method == "POST":
                 identifier = identifier.removesuffix("/restore")
                 self.json(HTTPStatus.OK, store.restore_skill_revision(identifier, int(self.body_json().get("revision", 0))))
             elif identifier.endswith("/preferences") and method == "PATCH":
@@ -3845,26 +3972,8 @@ class Handler(BaseHTTPRequestHandler):
             elif method == "PATCH":
                 self.json(HTTPStatus.OK, store.save_skill(identifier, self.body_json()))
             elif method == "DELETE":
-                skill = store.get("skills", identifier)
-                if skill.get("system"):
-                    raise ValueError("system skill cannot be deleted; duplicate it to customize")
-                (store.root / "skills" / f"{identifier}.json").unlink()
-                for revision in (store.root / "skill-revisions").glob(f"{identifier}-r*.json"):
-                    revision.unlink()
-                settings = store.settings()
-                for key in ("default_transcription_skill", "default_organization_skill", "default_extension_skill", "default_qa_skill", "default_document_skill"):
-                    if settings.get(key) == identifier:
-                        settings.pop(key, None)
-                store.save_settings(settings)
-                for project in store.projects():
-                    bindings = dict(project.get("skill_bindings") or {})
-                    next_bindings = {key: value for key, value in bindings.items() if value != identifier}
-                    if next_bindings == bindings:
-                        continue
-                    project["skill_bindings"] = next_bindings
-                    project.pop("count", None)
-                    atomic_json(store.root / "projects" / f"{project['id']}.json", project)
-                self.empty(HTTPStatus.NO_CONTENT)
+                skill, impact = store.archive_skill(identifier)
+                self.json(HTTPStatus.OK, {"skill": skill, "impact": impact})
             else:
                 self.method_error()
         elif path == "/v1/skill-runs" and method == "POST":
@@ -4050,7 +4159,7 @@ class Handler(BaseHTTPRequestHandler):
             }
         else:
             skill = store.get("skills", str(value.get("skill_id", "")).strip())
-        if skill.get("task") != "generate" or not skill.get("enabled"):
+        if skill.get("task") != "generate" or not skill.get("enabled") or (not retry_id and not continuation_id and skill.get("archived_at")):
             raise ValueError("this skill is unavailable")
         source_ids = normalize(value.get("source_ids"))
         if not source_ids and value.get("auto_search", True):
@@ -4672,7 +4781,7 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     if key in settings_source
                 }
-                skills = store.skills()
+                skills = store.skills(include_archived=True)
                 skill_ids = {str(entry.get("id", "")) for entry in skills}
                 skill_revisions = read_selected("skill-revisions", "skill_id", skill_ids)
                 topic_vocabularies = store.topic_vocabularies()
@@ -4942,7 +5051,7 @@ class Handler(BaseHTTPRequestHandler):
                 documents = store.documents()
                 projects = store.projects()
                 runs = store.skill_runs()
-                my_skills = [entry for entry in store.skills() if not entry.get("system")]
+                my_skills = [entry for entry in store.skills(include_archived=True) if not entry.get("system")]
                 recordings = [path for path in (store.root / "audio").iterdir() if path.is_file() and not path.name.endswith(".json")]
                 revisions = sum(1 for directory in ("item-revisions", "transcript-revisions", "doc-revisions", "skill-revisions") for _ in (store.root / directory).glob("*.json"))
                 summary.update({"sources": len(items), "projects": len(projects), "documents": len(documents), "runs": len(runs), "recordings": len(recordings), "revisions": revisions, "skills": len(my_skills)})

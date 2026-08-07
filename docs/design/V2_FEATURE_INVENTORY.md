@@ -136,8 +136,8 @@
 ## Web — Skills
 
 - V2-SKILL-01 — INTEGRATED — Built-in / My Skills 两种来源与五类执行合同。
-- V2-SKILL-02 — INTEGRATED — My Skill create/edit new revision/copy/archive 与 Built-in copy/bind。
-- V2-SKILL-03 — INTEGRATED — My Skill revision history/restore 与 Built-in Pin/Hide 已接真实 Host/Web 状态；最终 runtime 验证留到 Phase 5。
+- V2-SKILL-02 — INTEGRATED — My Skill create/edit new revision/copy/archive 与 Built-in copy/bind；Archive 使用 Host root transaction 保留 Skill/revisions/Run lineage并清理 Global、pinned 与全部 Project bindings，失败完整回滚。
+- V2-SKILL-03 — INTEGRATED — My Skill revision history/restore、Archived (N) 恢复入口与 Built-in Pin/Hide 已接 Host/Web；Restore 规范化为 active，但不恢复 defaults、pinned、recent 或 Project overrides。最终 runtime 验证留到 Phase 5。
 - V2-SKILL-04 — INTEGRATED — Global default bindings 与 Project inherit/override/reset。
 - V2-SKILL-05 — INTEGRATED — resolver explicit → Project → Global → system。
 - V2-SKILL-06 — INTEGRATED — Selection 快捷条先显示用户配置的 pinned Skills，再按当前 Extension recent use 排序；Built-in 与 My Skills 都可配置 pin，隐藏 Skill 不进入 More Skills，选择后立即运行。

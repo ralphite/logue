@@ -508,6 +508,91 @@ class RuntimeTest(unittest.TestCase):
         _, adopted = self.request(f"/v1/skill-runs/{run['id']}", "PATCH", {"adopted_output": "kept\nlines"})
         self.assertEqual(adopted["adopted_output"], "kept\nlines")
 
+    def test_custom_skill_archive_is_atomic_and_restore_does_not_rebind(self) -> None:
+        _, skill = self.request("/v1/skills", "POST", {
+            "name": "Project reply",
+            "purpose": "Draft a reply",
+            "instructions": "Draft a concise reply",
+            "task": "generate",
+            "output": "insert",
+            "surfaces": ["web", "extension"],
+            "contexts": ["selection", "project"],
+            "enabled": True,
+        })
+        _, skill = self.request(f"/v1/skills/{skill['id']}", "PATCH", {
+            "purpose": "Draft a grounded reply",
+            "expected_revision": 1,
+        })
+        self.request(f"/v1/skills/{skill['id']}/preferences", "PATCH", {"pinned": True})
+        self.request("/v1/settings", "PATCH", {"default_extension_skill": skill["id"]})
+        self.request("/v1/projects", "POST", {
+            "name": "Archive contract",
+            "overview": "Keep bindings consistent",
+            "skill_bindings": {"command": skill["id"]},
+        })
+        self.server.gemini.run_skill = lambda *_args, **_kwargs: "Frozen reply"
+        _, run = self.request("/v1/skill-runs", "POST", {
+            "request_id": "archive-skill-run",
+            "skill_id": skill["id"],
+            "instruction": "Draft",
+            "selection": "Evidence",
+        })
+        frozen_run = logue_server.read_json(self.data / "skill-runs" / f"{run['id']}.json")
+
+        _, impact = self.request(f"/v1/skills/{skill['id']}/archive-impact")
+        self.assertEqual(impact["global_bindings"], ["default_extension_skill"])
+        self.assertTrue(impact["pinned_action"])
+        self.assertEqual([entry["project_name"] for entry in impact["project_bindings"]], ["Archive contract"])
+
+        real_atomic_json = logue_server.atomic_json
+
+        def fail_project_binding_cleanup(path, value):
+            if value.get("name") == "Archive contract" and value.get("skill_bindings") == {}:
+                raise OSError("simulated Skill binding cleanup failure")
+            return real_atomic_json(path, value)
+
+        with mock.patch.object(logue_server, "atomic_json", side_effect=fail_project_binding_cleanup):
+            with self.assertRaisesRegex(OSError, "binding cleanup failure"):
+                self.server.store.archive_skill(skill["id"])
+        self.assertNotIn("archived_at", self.server.store.get("skills", skill["id"]))
+        self.assertEqual(self.server.store.settings()["default_extension_skill"], skill["id"])
+        self.assertEqual(self.server.store.get_project("Archive contract")["skill_bindings"]["command"], skill["id"])
+
+        _, archived = self.request(f"/v1/skills/{skill['id']}", "DELETE")
+        self.assertEqual(archived["skill"]["revision"], 2)
+        self.assertFalse(archived["skill"]["enabled"])
+        self.assertFalse(archived["skill"]["pinned"])
+        _, active_skills = self.request("/v1/skills")
+        self.assertNotIn(skill["id"], {entry["id"] for entry in active_skills["skills"]})
+        _, all_skills = self.request("/v1/skills?include_archived=true")
+        self.assertIn(skill["id"], {entry["id"] for entry in all_skills["skills"] if entry.get("archived_at")})
+        self.assertTrue((self.data / "skill-revisions" / f"{skill['id']}-r1.json").exists())
+        self.assertEqual(logue_server.read_json(self.data / "skill-runs" / f"{run['id']}.json"), frozen_run)
+        self.assertEqual(self.server.store.settings()["default_extension_skill"], "sk_reply")
+        self.assertEqual(self.server.store.get_project("Archive contract")["skill_bindings"], {})
+        with self.assertRaises(urllib.error.HTTPError) as unavailable:
+            self.request("/v1/skill-runs", "POST", {
+                "request_id": "archived-new-run",
+                "skill_id": skill["id"],
+                "instruction": "Draft again",
+            })
+        self.assertEqual(unavailable.exception.code, 400)
+        unavailable.exception.close()
+        _, retried = self.request("/v1/skill-runs", "POST", {
+            "request_id": "archived-frozen-retry",
+            "retry_run_id": run["id"],
+        })
+        self.assertEqual(retried["model_context"], run["model_context"])
+
+        _, restored = self.request(f"/v1/skills/{skill['id']}/unarchive", "POST")
+        self.assertNotIn("archived_at", restored)
+        self.assertTrue(restored["enabled"])
+        self.assertFalse(restored["pinned"])
+        _, active_skills = self.request("/v1/skills")
+        self.assertIn(skill["id"], {entry["id"] for entry in active_skills["skills"]})
+        self.assertEqual(self.server.store.settings()["default_extension_skill"], "sk_reply")
+        self.assertEqual(self.server.store.get_project("Archive contract")["skill_bindings"], {})
+
     def test_project_generation_retrieval_is_scoped_and_freezes_actual_sources(self) -> None:
         self.request("/v1/projects", "POST", {"name": "Project A", "overview": "Use only Project A evidence"})
         _, project_source = self.request("/v1/items", "POST", {"kind": "text", "content": "Shared evidence from Project A", "projects": ["Project A"], "source": {"url": "https://example.com/a", "title": "Project A evidence", "selection": "Shared evidence"}})
