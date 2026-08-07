@@ -47,9 +47,9 @@ import {
   createAdoptionId,
   documentAdoptionFromResult,
   isLogueDocumentTombstone,
+  resolveDocumentUndoFailure,
   resolveDocumentUndoResult,
   saveSkillRunAsDocument,
-  SkillApiError,
   type DocumentAdoption,
 } from "../skillApi";
 import { Button, IconButton } from "../components/ui";
@@ -934,6 +934,7 @@ export function RunInspector({
   const [documentTargetOpen, setDocumentTargetOpen] = useState(false);
   const [documentAdoption, setDocumentAdoption] =
     useState<DocumentAdoption>();
+  const [documentUndoRetryable, setDocumentUndoRetryable] = useState(false);
   const [keepAdoptionId, setKeepAdoptionId] = useState<string>();
   const adoptionAttempts = useRef<Partial<Record<"copy" | "keep" | "document", { id: string; content: string; targetKey?: string }>>>({});
   const projectDocuments = documents.filter((document) => document.project === run.project);
@@ -1010,6 +1011,7 @@ export function RunInspector({
           targetDocument ? "replace" : "document",
         ),
       );
+      setDocumentUndoRetryable(false);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not create a Document.",
@@ -1075,13 +1077,12 @@ export function RunInspector({
       resolveDocumentUndoResult(documentAdoption, result.document);
       await onRefresh();
       setDocumentAdoption(undefined);
+      setDocumentUndoRetryable(false);
     } catch (cause) {
-      if (cause instanceof SkillApiError && cause.status === 409) {
-        setDocumentAdoption(undefined);
-        setError("This Document changed, so it wasn’t undone.");
-      } else {
-        setError(cause instanceof Error ? cause.message : "Could not undo this Document save.");
-      }
+      const failure = resolveDocumentUndoFailure(documentAdoption, cause);
+      setDocumentAdoption(failure.adoption);
+      setDocumentUndoRetryable(failure.retryable);
+      setError(failure.message);
     } finally {
       setBusy(false);
     }
@@ -1216,7 +1217,9 @@ export function RunInspector({
               {documentAdoption ? (
                 <Button variant="primary" disabled={busy} onClick={() => void undoDocumentUpdate()}>
                   <RotateCcw size={14} />
-                  {documentAdoption.action === "document"
+                  {documentUndoRetryable
+                    ? "Retry Undo"
+                    : documentAdoption.action === "document"
                     ? "Undo Save as document"
                     : "Undo Document update"}
                 </Button>

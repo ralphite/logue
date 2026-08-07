@@ -51,10 +51,10 @@ import {
   createSkillRun,
   documentAdoptionFromResult,
   retrySkillRun,
+  resolveDocumentUndoFailure,
   resolveDocumentUndoResult,
   saveSkillRunAsDocument,
   isLogueDocumentTombstone,
-  SkillApiError,
   type DocumentAdoption,
   SkillRunFailure,
   type LogueSkill,
@@ -373,6 +373,7 @@ export function V2ProjectRoute({
   const [documentAdoption, setDocumentAdoption] = useState<
     DocumentAdoption & { runId: string }
   >();
+  const [documentUndoRetryable, setDocumentUndoRetryable] = useState(false);
   const [continuation, setContinuation] = useState<{
     runId: string;
     output: string;
@@ -897,6 +898,7 @@ export function V2ProjectRoute({
         ),
         runId: run.id,
       });
+      setDocumentUndoRetryable(false);
     } catch (cause) {
       setRunError(cause instanceof Error ? cause.message : "Could not save this Document.");
     } finally {
@@ -968,13 +970,12 @@ export function V2ProjectRoute({
       await onRefresh();
       if (undoResult.kind === "remove") setDocumentId(undefined);
       setDocumentAdoption(undefined);
+      setDocumentUndoRetryable(false);
     } catch (cause) {
-      if (cause instanceof SkillApiError && cause.status === 409) {
-        setDocumentAdoption(undefined);
-        setRunError("This Document changed, so it wasn’t undone.");
-      } else {
-        setRunError(cause instanceof Error ? cause.message : "Could not undo this Document save.");
-      }
+      const failure = resolveDocumentUndoFailure(documentAdoption, cause);
+      setDocumentAdoption(failure.adoption);
+      setDocumentUndoRetryable(failure.retryable);
+      setRunError(failure.message);
     } finally {
       setSavingDocument(false);
     }
@@ -1262,7 +1263,9 @@ export function V2ProjectRoute({
                     <RotateCcw size={14} />
                     {savingDocument
                       ? "Undoing…"
-                      : documentAdoption.action === "document"
+                      : documentUndoRetryable
+                        ? "Retry Undo"
+                        : documentAdoption.action === "document"
                         ? "Undo Save as document"
                         : "Undo Document update"}
                   </Button>

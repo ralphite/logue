@@ -3,6 +3,7 @@ import type { LogueDocument } from "../api";
 import {
   documentAdoptionFromResult,
   documentUndoFailureState,
+  resolveDocumentUndoFailure,
   resolveDocumentUndoResult,
   SkillApiError,
   type LogueDocumentTombstone,
@@ -66,15 +67,52 @@ describe("canonical Document adoption state", () => {
     expect(new SkillApiError("changed", 409).status).toBe(409);
   });
 
-  it("clears only terminal revision conflicts and keeps retryable failures", () => {
+  it("classifies terminal conflicts, terminal 4xx, and retryable failures", () => {
     expect(documentUndoFailureState(new SkillApiError("changed", 409))).toBe(
       "conflict",
     );
     expect(documentUndoFailureState(new SkillApiError("offline", 503))).toBe(
       "retryable",
     );
+    expect(documentUndoFailureState(new SkillApiError("invalid", 400))).toBe(
+      "terminal",
+    );
     expect(documentUndoFailureState(new TypeError("Network error"))).toBe(
       "retryable",
     );
+  });
+
+  it.each([409, 400, 404])(
+    "clears a terminal %s adoption and restores normal actions",
+    (status) => {
+      const adoption = documentAdoptionFromResult(
+        "adopt_replace",
+        document,
+        "replace",
+      );
+      const failure = resolveDocumentUndoFailure(
+        adoption,
+        new SkillApiError("terminal", status),
+      );
+
+      expect(failure.adoption).toBeUndefined();
+      expect(failure.retryable).toBe(false);
+    },
+  );
+
+  it.each([
+    new SkillApiError("unavailable", 503),
+    new TypeError("Network error"),
+  ])("retains the same adoption and exposes Retry", (cause) => {
+    const adoption = documentAdoptionFromResult(
+      "adopt_replace",
+      document,
+      "replace",
+    );
+    const failure = resolveDocumentUndoFailure(adoption, cause);
+
+    expect(failure.adoption).toBe(adoption);
+    expect(failure.adoption?.id).toBe("adopt_replace");
+    expect(failure.retryable).toBe(true);
   });
 });

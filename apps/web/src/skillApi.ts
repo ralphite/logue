@@ -122,10 +122,16 @@ export class SkillApiError extends Error {
 
 export function documentUndoFailureState(
   cause: unknown,
-): "conflict" | "retryable" {
-  return cause instanceof SkillApiError && cause.status === 409
-    ? "conflict"
-    : "retryable";
+): "conflict" | "retryable" | "terminal" {
+  if (cause instanceof SkillApiError && cause.status === 409) {
+    return "conflict";
+  }
+  const message = cause instanceof Error ? cause.message : String(cause ?? "");
+  const retryable = cause instanceof SkillApiError
+    ? cause.status === 503
+    : cause instanceof TypeError ||
+      /network|failed to fetch|connection/i.test(message);
+  return retryable ? "retryable" : "terminal";
 }
 
 export interface LogueDocumentTombstone {
@@ -142,6 +148,27 @@ export interface DocumentAdoption {
   documentId: string;
   documentRevision: number;
   action: "document" | "replace";
+}
+
+export function resolveDocumentUndoFailure<T extends DocumentAdoption>(
+  adoption: T,
+  cause: unknown,
+): { adoption?: T; retryable: boolean; message: string } {
+  const state = documentUndoFailureState(cause);
+  if (state === "retryable") {
+    return {
+      adoption,
+      retryable: true,
+      message: "Couldn’t undo this Document yet. Try again.",
+    };
+  }
+  return {
+    retryable: false,
+    message:
+      state === "conflict"
+        ? "This Document changed, so it wasn’t undone."
+        : "Couldn’t undo this Document. The Candidate is still available.",
+  };
 }
 
 export function isLogueDocumentTombstone(
