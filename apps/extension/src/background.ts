@@ -123,7 +123,7 @@ async function logueFetch(input: RequestInfo | URL, init?: RequestInit) {
 
 interface ApiMessage {
   type: "logue:api";
-  action: "status" | "test-server" | "context" | "create-project" | "save-project-association" | "delete-project-association" | "page-materials" | "project-sources" | "transcribe" | "save-voice-comment" | "save-material" | "update-material" | "update-comment-bundle" | "update-source-anchor" | "adopt-voice-material" | "link-voice-comment" | "delete-material" | "retranscribe-material" | "cancel-material-save" | "save-selection" | "delete-capture" | "skills" | "settings" | "skill-run" | "adopt-skill-run" | "adopt-skill-run-document" | "create-document" | "pending-voice-status" | "pending-voice-queue" | "pending-voice-list" | "pending-voice-mark-transcribed" | "pending-voice-complete" | "pending-voice-retry" | "pending-voice-export" | "pending-voice-delete";
+  action: "status" | "test-server" | "context" | "create-project" | "save-project-association" | "delete-project-association" | "page-materials" | "project-sources" | "transcribe" | "save-voice-comment" | "save-material" | "update-material" | "update-comment-bundle" | "update-source-anchor" | "adopt-voice-material" | "link-voice-comment" | "delete-material" | "retranscribe-material" | "cancel-material-save" | "save-selection" | "delete-capture" | "skills" | "settings" | "documents" | "skill-run" | "adopt-skill-run" | "adopt-skill-run-document" | "create-document" | "pending-voice-status" | "pending-voice-queue" | "pending-voice-list" | "pending-voice-mark-transcribed" | "pending-voice-complete" | "pending-voice-retry" | "pending-voice-export" | "pending-voice-delete";
   payload?: Record<string, unknown>;
 }
 
@@ -1388,6 +1388,9 @@ async function handleApiMessage(message: ApiMessage) {
   if (message.action === "settings") {
     return parseResponse(await logueFetch(`${apiBase}/v1/settings`));
   }
+  if (message.action === "documents") {
+    return parseResponse(await logueFetch(`${apiBase}/v1/docs`));
+  }
   if (message.action === "page-materials") {
     const query = new URLSearchParams({ source_url: String(payload.pageUrl ?? "") });
     return parseResponse(await logueFetch(`${apiBase}/v1/items?${query.toString()}`));
@@ -1433,6 +1436,8 @@ async function handleApiMessage(message: ApiMessage) {
           project: payload.project,
           source_ids: payload.sourceIds,
           context_source_ids: payload.contextSourceIds,
+          sources: payload.sources,
+          context_sources: payload.contextSources,
           expected_revision: payload.expectedRevision,
           adoption_id: payload.adoptionId,
           action: payload.adoptionAction,

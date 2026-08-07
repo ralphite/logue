@@ -35,6 +35,7 @@ import type {
   PanelCaptureState,
   PanelProject,
   PendingInsert,
+  PanelDocument,
 } from "../sidePanelModels";
 import {
   capturePhasePresentation,
@@ -380,6 +381,7 @@ export interface V2SidePanelSurfaceProps {
   generatedAdoptionPending?: boolean;
   insertingGenerated?: boolean;
   savingGeneratedDocument?: boolean;
+  documents?: PanelDocument[];
   skills: ExtensionSkill[];
   skillId: string;
   projects?: PanelProject[];
@@ -409,7 +411,7 @@ export interface V2SidePanelSurfaceProps {
   onGeneratedTextChange: (value: string) => void;
   onCopyGenerated?: () => void;
   onKeepGenerated?: () => void;
-  onSaveGeneratedDocument?: () => void;
+  onSaveGeneratedDocument?: (document?: PanelDocument) => void;
   onUndoGenerated?: () => void;
   onRetryGeneratedAdoption?: () => void;
   onSkillIdChange: (value: string) => void;
@@ -482,6 +484,7 @@ export function V2SidePanelSurface({
   generatedAdoptionPending = false,
   insertingGenerated = false,
   savingGeneratedDocument = false,
+  documents = [],
   skills,
   skillId,
   projects = [],
@@ -567,6 +570,8 @@ export function V2SidePanelSurface({
   const [organizeOpen, setOrganizeOpen] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [openSourceId, setOpenSourceId] = useState<string>();
+  const [documentTargetOpen, setDocumentTargetOpen] = useState(false);
+  const projectDocuments = documents.filter((document) => document.project === state?.projects?.[0]);
   const [editingCommentId, setEditingCommentId] = useState<string>();
   const [commentDraft, setCommentDraft] = useState("");
   const [commentTags, setCommentTags] = useState("");
@@ -1022,13 +1027,40 @@ export function V2SidePanelSurface({
                           Keep in Logue
                         </V2Button>
                       ) : null}
-                      <V2Button
-                        disabled={savingGeneratedDocument || generatedAdoptionPending}
-                        onClick={onSaveGeneratedDocument}
-                      >
-                        <FileText size={14} />
-                        {savingGeneratedDocument ? "Saving…" : "Document"}
-                      </V2Button>
+                      <div className="v2-action-menu-wrap">
+                        <V2Button
+                          disabled={savingGeneratedDocument || generatedAdoptionPending}
+                          aria-expanded={documentTargetOpen}
+                          onClick={() => setDocumentTargetOpen((current) => !current)}
+                        >
+                          <FileText size={14} />
+                          {savingGeneratedDocument ? "Saving…" : "Document…"}
+                        </V2Button>
+                        {documentTargetOpen ? (
+                          <div className="v2-skill-picker" role="menu" aria-label="Choose Document target">
+                            <div className="v2-skill-picker-scroll">
+                              <div className="v2-skill-picker-group">
+                                <div className="v2-skill-picker-label">Create</div>
+                                <button type="button" role="menuitem" disabled={savingGeneratedDocument} onClick={() => { setDocumentTargetOpen(false); onSaveGeneratedDocument?.(); }}>
+                                  <span>New Document</span>
+                                  <small>Start a Document with this sourced result</small>
+                                </button>
+                              </div>
+                              {projectDocuments.length ? (
+                                <div className="v2-skill-picker-group">
+                                  <div className="v2-skill-picker-label">Update existing</div>
+                                  {projectDocuments.map((document) => (
+                                    <button key={document.id} type="button" role="menuitem" disabled={savingGeneratedDocument} onClick={() => { setDocumentTargetOpen(false); onSaveGeneratedDocument?.(document); }}>
+                                      <span>{document.title}</span>
+                                      <small>Replace as revision {document.revision + 1}</small>
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
                       {generatedAdoptionPending ? (
                         <V2Button
                           disabled={insertingGenerated}

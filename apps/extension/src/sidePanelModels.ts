@@ -65,8 +65,18 @@ export interface CommandResult {
   adoptionPending?: "insert" | "undo";
   undoNeedsInsert?: boolean;
   adoptionId?: string;
-  adoptionAttempts?: Partial<Record<"copy" | "keep" | "document", { id: string; content: string }>>;
+  adoptionAttempts?: Partial<Record<"copy" | "keep" | "document", { id: string; content: string; targetKey?: string }>>;
   allowInsert?: boolean;
+}
+
+export interface PanelDocument {
+  id: string;
+  title: string;
+  content: string;
+  project?: string;
+  source_ids: string[];
+  revision: number;
+  updated_at?: string;
 }
 
 export interface PanelCaptureState {

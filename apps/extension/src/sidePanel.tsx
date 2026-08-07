@@ -4,6 +4,7 @@ import {
   getCaptureContext,
   getExtensionSkills,
   getExtensionSettings,
+  getExtensionDocuments,
   getPageMaterials,
   getProjectSources,
   getPendingVoices,
@@ -39,6 +40,7 @@ import {
   type CaptureContext,
   type ExtensionSkill,
   type ExtensionSkillRun,
+  type ExtensionDocument,
   ExtensionApiError,
   type PageMaterial,
   type PendingVoicePlan,
@@ -152,6 +154,7 @@ function SidePanelApp() {
   const [failedRunTargetKey, setFailedRunTargetKey] = useState<string>();
   const [elapsed, setElapsed] = useState(0);
   const [skills, setSkills] = useState<ExtensionSkill[]>([]);
+  const [documents, setDocuments] = useState<ExtensionDocument[]>([]);
   const [skillId, setSkillId] = useState("");
   const [commandResult, setCommandResult] = useState<CommandResult>();
   const [generating, setGenerating] = useState(false);
@@ -394,9 +397,10 @@ function SidePanelApp() {
       if (stateRef.current?.tabId === activeState.tabId) setContext(captureContext);
       if (shouldLoadPageHistory(current.intent)) await refreshPageMaterials(current.source.url);
       if (activeState.intent === "generate") {
-        const [available, settings] = await Promise.all([getExtensionSkills(), getExtensionSettings()]);
+        const [available, settings, availableDocuments] = await Promise.all([getExtensionSkills(), getExtensionSettings(), getExtensionDocuments()]);
         if (stateRef.current?.tabId !== current.tabId) return;
         setSkills(available);
+        setDocuments(availableDocuments);
         const projectName = explicitProjects(activeState)[0];
         const projectSkill = projectName
           ? captureContext.projects.find((item) => item.name === projectName)?.skill_bindings?.command
@@ -1446,24 +1450,50 @@ function SidePanelApp() {
     }
   }, [commitCommandResult]);
 
-  const saveGeneratedDocument = useCallback(async () => {
+  const saveGeneratedDocument = useCallback(async (targetDocument?: ExtensionDocument) => {
     const current = stateRef.current;
     const result = commandResultRef.current;
     if (!current || !result?.text.trim() || result.adoptionPending || savingGeneratedDocument) return;
     setSavingGeneratedDocument(true);
     setError(undefined);
     const content = result.text.trim();
+    const targetKey = targetDocument?.id ?? "new";
     const previousAttempt = result.adoptionAttempts?.document;
-    const adoptionId = previousAttempt?.content === content ? previousAttempt.id : createRequestId();
-    const pendingResult = { ...result, adoptionAttempts: { ...result.adoptionAttempts, document: { id: adoptionId, content } } };
+    const adoptionId = previousAttempt?.content === content && previousAttempt.targetKey === targetKey ? previousAttempt.id : createRequestId();
+    const pendingResult = { ...result, adoptionAttempts: { ...result.adoptionAttempts, document: { id: adoptionId, content, targetKey } } };
     commitCommandResult(pendingResult);
     try {
+      const frozenSources = result.sources.map((source) => ({
+        id: source.id,
+        kind: source.kind,
+        actor: source.actor,
+        content: source.content,
+        projects: source.projects,
+        tags: source.tags,
+        created_at: source.createdAt,
+        source: source.source,
+      }));
+      const sourceIds = frozenSources.map((source) => source.id);
       const created = await saveExtensionSkillRunAsDocument(result.runId, {
-        title: draft.trim().split("\n")[0]?.slice(0, 72) || `${current.source.title || "Logue"} draft`,
+        title: targetDocument?.title ?? (draft.trim().split("\n")[0]?.slice(0, 72) || `${current.source.title || "Logue"} draft`),
         content: result.text.trim(),
+        documentId: targetDocument?.id,
+        project: explicitProjects(current)[0] ?? "",
+        sourceIds,
+        contextSourceIds: sourceIds,
+        sources: frozenSources,
+        contextSources: frozenSources,
+        expectedRevision: targetDocument?.revision,
         adoptionId,
+        adoptionAction: targetDocument ? "replace" : "document",
+        target: {
+          surface: "side-panel",
+          url: result.sourceURL,
+          target_key: targetDocument ? `document:${targetDocument.id}` : `project:${explicitProjects(current)[0] ?? ""}:new-document`,
+        },
       });
       if (!created.document.id) throw new Error("Could not save this Document.");
+      setDocuments((items) => [created.document, ...items.filter((item) => item.id !== created.document.id)]);
       commitCommandResult({ ...pendingResult, adopted: true, adoptionAttempts: { ...pendingResult.adoptionAttempts, document: undefined } });
     } catch (cause) {
       setError(friendlyLocalError(cause, "save"));
@@ -2058,6 +2088,7 @@ function SidePanelApp() {
       generatedAdoptionPending={Boolean(commandResult?.adoptionPending)}
       insertingGenerated={insertingGenerated}
       savingGeneratedDocument={savingGeneratedDocument}
+      documents={documents}
       skills={skills}
       skillId={skillId}
       projects={context?.projects ?? []}
@@ -2092,7 +2123,7 @@ function SidePanelApp() {
       }}
       onCopyGenerated={() => void copyGeneratedText()}
       onKeepGenerated={() => void keepGeneratedText()}
-      onSaveGeneratedDocument={() => void saveGeneratedDocument()}
+      onSaveGeneratedDocument={(document) => void saveGeneratedDocument(document)}
       onUndoGenerated={() => void undoGeneratedText()}
       onRetryGeneratedAdoption={() => void retryGeneratedAdoption()}
       onSkillIdChange={setSkillId}

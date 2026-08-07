@@ -589,6 +589,12 @@ export interface ExtensionDocument {
   project?: string;
   source_ids: string[];
   revision: number;
+  updated_at?: string;
+}
+
+export async function getExtensionDocuments() {
+  const response = await request<{ documents: ExtensionDocument[] }>("documents");
+  return response.documents;
 }
 
 export async function createExtensionDocument(input: {
@@ -614,6 +620,8 @@ export async function saveExtensionSkillRunAsDocument(
     project?: string;
     sourceIds?: string[];
     contextSourceIds?: string[];
+    sources?: NonNullable<ExtensionSkillRun["sources"]>;
+    contextSources?: NonNullable<ExtensionSkillRun["sources"]>;
     expectedRevision?: number;
     adoptionId: string;
     adoptionAction?: "document" | "replace" | "undo";
@@ -630,6 +638,8 @@ export async function saveExtensionSkillRunAsDocument(
       project: input.project,
       sourceIds: input.sourceIds,
       contextSourceIds: input.contextSourceIds,
+      sources: input.sources,
+      contextSources: input.contextSources,
       expectedRevision: input.expectedRevision,
       adoptionId: input.adoptionId,
       adoptionAction: input.adoptionAction ?? "document",
