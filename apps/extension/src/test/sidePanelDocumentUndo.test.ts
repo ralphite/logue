@@ -42,4 +42,14 @@ describe("Side Panel Document Undo failure state", () => {
     expect(failure.result.documentAdoption?.id).toBe("adopt-1");
     expect(failure.error.action).toBe("retry");
   });
+
+  it("clears other terminal failures without offering Retry", () => {
+    const failure = resolveSidePanelDocumentUndoFailure(
+      result,
+      new ExtensionApiError("invalid", undefined, undefined, 400),
+    );
+
+    expect(failure.result.documentAdoption).toBeUndefined();
+    expect(failure.error.action).toBeUndefined();
+  });
 });

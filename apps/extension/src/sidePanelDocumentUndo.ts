@@ -19,12 +19,25 @@ export function resolveSidePanelDocumentUndoFailure(
       },
     };
   }
+  const message = cause instanceof Error ? cause.message : String(cause ?? "");
+  const retryable = cause instanceof ExtensionApiError
+    ? cause.status === 503 || (cause.status === undefined && /network|failed to fetch|connection/i.test(message))
+    : cause instanceof TypeError || /network|failed to fetch|connection/i.test(message);
+  if (retryable) {
+    return {
+      result,
+      error: {
+        kind: "save",
+        message: "Couldn’t undo this Document yet. Try again.",
+        action: "retry",
+      },
+    };
+  }
   return {
-    result,
+    result: { ...result, documentAdoption: undefined },
     error: {
       kind: "save",
-      message: "Couldn’t undo this Document yet. Try again.",
-      action: "retry",
+      message: "Couldn’t undo this Document. The Candidate is still available.",
     },
   };
 }
