@@ -140,6 +140,11 @@ export function V2DocumentsRoute({
     title: string;
     project: string;
   }>();
+  const [actionKeepAdoption, setActionKeepAdoption] = useState<{
+    runId: string;
+    adoptionId: string;
+    content: string;
+  }>();
   const actionAdoptionAttempts = useRef<Partial<Record<"replace" | "copy" | "keep", { id: string; content: string }>>>({});
   const [targetPickerOpen, setTargetPickerOpen] = useState(false);
   const [inputTargets, setInputTargets] = useState<ExtensionInputTarget[]>([]);
@@ -719,6 +724,13 @@ export function V2DocumentsRoute({
           },
         });
         await onRefresh();
+        delete actionAdoptionAttempts.current.keep;
+        setActionKeepAdoption({
+          runId: actionRun.id,
+          adoptionId,
+          content: attemptContent,
+        });
+        return;
       }
       delete actionAdoptionAttempts.current[mode];
       setActionRun(undefined);
@@ -726,6 +738,37 @@ export function V2DocumentsRoute({
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not adopt this result.",
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function undoActionKeep() {
+    if (
+      !actionRun ||
+      !actionKeepAdoption ||
+      actionKeepAdoption.runId !== actionRun.id ||
+      actionBusy
+    ) return;
+    setActionBusy(true);
+    setError("");
+    try {
+      await adoptSkillRun(actionRun.id, actionKeepAdoption.content, {
+        action: "undo",
+        adoptionId: actionKeepAdoption.adoptionId,
+        target: {
+          surface: "web-document",
+          target_key: `document:${selected.id}`,
+        },
+      });
+      await onRefresh();
+      setActionKeepAdoption(undefined);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not undo Keep in Logue.",
       );
     } finally {
       setActionBusy(false);
@@ -1376,11 +1419,27 @@ export function V2DocumentsRoute({
                           Copy
                         </Button>
                         <Button
-                          disabled={actionBusy || !actionText.trim()}
-                          onClick={() => void adoptAction("keep")}
+                          disabled={
+                            actionBusy ||
+                            (actionKeepAdoption?.runId !== actionRun.id &&
+                              !actionText.trim())
+                          }
+                          onClick={() =>
+                            void (
+                              actionKeepAdoption?.runId === actionRun.id
+                                ? undoActionKeep()
+                                : adoptAction("keep")
+                            )
+                          }
                         >
-                          <Sparkles size={14} />
-                          Keep in Logue
+                          {actionKeepAdoption?.runId === actionRun.id ? (
+                            <RotateCcw size={14} />
+                          ) : (
+                            <Sparkles size={14} />
+                          )}
+                          {actionKeepAdoption?.runId === actionRun.id
+                            ? "Undo Keep in Logue"
+                            : "Keep in Logue"}
                         </Button>
                         <Button
                           variant="primary"

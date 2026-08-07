@@ -126,7 +126,7 @@
 - V2-DOC-02 — INTEGRATED — 最近 Document、caret 与 scroll 可恢复；显式 Undo / Redo 与浏览器原生编辑历史、autosave、dirty state 使用同一正文。
 - V2-DOC-03 — INTEGRATED — Web Document 默认 Copy；显式选择 live Extension target 后 Send，Extension 逐次复验并局部 Undo，失效时保留 Document 并回退改选。
 - V2-DOC-04 — INTEGRATED — 选区/全文 Action 与指定 Project Sources。
-- V2-DOC-05 — INTEGRATED — Action Replace/Copy/Keep 使用统一 AI Source / Document revision adoption 合同。
+- V2-DOC-05 — INTEGRATED — Action Replace/Copy/Keep 使用统一 AI Source / Document revision adoption 合同；Keep 成功后保留 Candidate，并以原 adoption ID 提供即时 Undo。
 - V2-DOC-06 — INTEGRATED — revision history 与 Restore as new revision endpoint。
 - V2-DOC-07 — INTEGRATED — frozen exact IDs/snapshots producer-consumer 已接。
 - V2-DOC-08 — INTEGRATED — citation inspector 区分 Origin并打开 frozen Source/URL。
