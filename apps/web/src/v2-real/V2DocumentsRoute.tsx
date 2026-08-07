@@ -33,8 +33,8 @@ import {
   adoptSkillRun,
   createAdoptionId,
   createSkillRun,
-  documentUndoFailureState,
   isLogueDocumentTombstone,
+  resolveDocumentUndoFailure,
   retrySkillRun,
   saveSkillRunAsDocument,
   SkillRunFailure,
@@ -142,6 +142,7 @@ export function V2DocumentsRoute({
     title: string;
     project: string;
   }>();
+  const [actionUndoRetryable, setActionUndoRetryable] = useState(false);
   const [actionKeepAdoption, setActionKeepAdoption] = useState<{
     runId: string;
     adoptionId: string;
@@ -702,6 +703,7 @@ export function V2DocumentsRoute({
           title: result.document.title,
           project: result.document.project ?? "",
         });
+        setActionUndoRetryable(false);
         await onRefresh();
       }
       if (mode === "copy") {
@@ -807,14 +809,21 @@ export function V2DocumentsRoute({
       setContent(result.document.content);
       setDirty(false);
       setActionUndo(undefined);
+      setActionUndoRetryable(false);
       await onRefresh();
     } catch (cause) {
-      if (documentUndoFailureState(cause) === "conflict") {
-        setActionUndo(undefined);
-        setError("This Document changed, so it wasn’t undone.");
-      } else {
-        setError(cause instanceof Error ? cause.message : "Could not undo this Skill edit.");
-      }
+      const failure = resolveDocumentUndoFailure(
+        {
+          id: actionUndo.adoptionId,
+          documentId: actionUndo.documentId,
+          documentRevision: actionUndo.expectedRevision,
+          action: "replace",
+        },
+        cause,
+      );
+      if (!failure.adoption) setActionUndo(undefined);
+      setActionUndoRetryable(failure.retryable);
+      setError(failure.message);
     } finally {
       setActionBusy(false);
     }
@@ -1214,7 +1223,7 @@ export function V2DocumentsRoute({
                     onClick={() => void undoActionReplacement()}
                   >
                     <RotateCcw size={14} />
-                    Undo Skill edit
+                    {actionUndoRetryable ? "Retry Undo" : "Undo Skill edit"}
                   </Button>
                 ) : null}
                 <IconButton
