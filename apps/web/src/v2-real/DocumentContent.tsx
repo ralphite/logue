@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from "react";
+import { useLayoutEffect, useRef, type RefObject } from "react";
 import {
   applyMarkdownBlockShortcut,
   insertMarkdownAtSelection,
@@ -116,12 +116,13 @@ export function DocumentContent({
   onCaretChange?: (offset: number) => void;
 }) {
   const html = normalizedDocumentHTML(value, title);
-  useEffect(() => {
-    const editor = editorRef?.current;
+  const internalEditorRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const editor = internalEditorRef.current;
     if (!editor || document.activeElement === editor) return;
     if (sanitizeEditorHTML(editor.innerHTML) !== sanitizeEditorHTML(html))
       editor.innerHTML = html;
-  }, [editorRef, html]);
+  }, [html]);
   if (readOnly) {
     const interactiveHTML = onCitationClick
       ? html.replace(
@@ -148,7 +149,10 @@ export function DocumentContent({
     onCaretChange?.(documentCaretOffset(root));
   return (
     <div
-      ref={editorRef}
+      ref={(node) => {
+        internalEditorRef.current = node;
+        if (editorRef) editorRef.current = node;
+      }}
       className="v2-document-content is-editable"
       contentEditable
       suppressContentEditableWarning
@@ -186,7 +190,6 @@ export function DocumentContent({
       onKeyUp={(event) => reportCaret(event.currentTarget)}
       onPointerUp={(event) => reportCaret(event.currentTarget)}
       onBlur={(event) => reportCaret(event.currentTarget)}
-      dangerouslySetInnerHTML={{ __html: html }}
     />
   );
 }

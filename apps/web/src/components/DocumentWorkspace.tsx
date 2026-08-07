@@ -321,10 +321,11 @@ export function toEditorHTML(value: string, title: string) {
   for (const paragraph of Array.from(template.content.querySelectorAll("p"))) {
     const blank = !(paragraph.textContent?.trim());
     const previous = paragraph.previousElementSibling;
+    const next = paragraph.nextElementSibling;
     if (
       blank &&
-      previous?.tagName === "P" &&
-      !previous.textContent?.trim()
+      ((previous?.tagName === "P" && !previous.textContent?.trim()) ||
+        next?.matches("h1, h2, h3"))
     ) {
       paragraph.remove();
     }
