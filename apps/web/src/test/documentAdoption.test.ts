@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { LogueDocument } from "../api";
 import {
   documentAdoptionFromResult,
+  documentUndoFailureState,
   resolveDocumentUndoResult,
   SkillApiError,
   type LogueDocumentTombstone,
@@ -63,5 +64,17 @@ describe("canonical Document adoption state", () => {
       "Could not undo the new Document.",
     );
     expect(new SkillApiError("changed", 409).status).toBe(409);
+  });
+
+  it("clears only terminal revision conflicts and keeps retryable failures", () => {
+    expect(documentUndoFailureState(new SkillApiError("changed", 409))).toBe(
+      "conflict",
+    );
+    expect(documentUndoFailureState(new SkillApiError("offline", 503))).toBe(
+      "retryable",
+    );
+    expect(documentUndoFailureState(new TypeError("Network error"))).toBe(
+      "retryable",
+    );
   });
 });

@@ -33,6 +33,7 @@ import {
   adoptSkillRun,
   createAdoptionId,
   createSkillRun,
+  documentUndoFailureState,
   isLogueDocumentTombstone,
   retrySkillRun,
   saveSkillRunAsDocument,
@@ -808,7 +809,12 @@ export function V2DocumentsRoute({
       setActionUndo(undefined);
       await onRefresh();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not undo this Skill edit.");
+      if (documentUndoFailureState(cause) === "conflict") {
+        setActionUndo(undefined);
+        setError("This Document changed, so it wasn’t undone.");
+      } else {
+        setError(cause instanceof Error ? cause.message : "Could not undo this Skill edit.");
+      }
     } finally {
       setActionBusy(false);
     }

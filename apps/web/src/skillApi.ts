@@ -120,6 +120,14 @@ export class SkillApiError extends Error {
   }
 }
 
+export function documentUndoFailureState(
+  cause: unknown,
+): "conflict" | "retryable" {
+  return cause instanceof SkillApiError && cause.status === 409
+    ? "conflict"
+    : "retryable";
+}
+
 export interface LogueDocumentTombstone {
   id: string;
   title: string;
