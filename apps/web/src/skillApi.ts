@@ -324,6 +324,8 @@ export async function saveSkillRunAsDocument(
     project?: string;
     sourceIds?: string[];
     contextSourceIds?: string[];
+    sources?: SkillRunSource[];
+    contextSources?: SkillRunSource[];
     expectedRevision?: number;
     adoptionId: string;
     adoptionAction?: "document" | "replace" | "undo";
@@ -341,6 +343,8 @@ export async function saveSkillRunAsDocument(
         project: input.project,
         source_ids: input.sourceIds,
         context_source_ids: input.contextSourceIds,
+        sources: input.sources,
+        context_sources: input.contextSources,
         expected_revision: input.expectedRevision,
         adoption_id: input.adoptionId,
         action: input.adoptionAction ?? "document",

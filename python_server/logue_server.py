@@ -2120,11 +2120,14 @@ class Store:
 
     def create_document(self, value: dict[str, Any], *, identifier: str | None = None, preserve_sources: bool = False) -> dict[str, Any]:
         timestamp = now()
-        valid_ids = {item["id"] for item in self.items()}
-        requested_sources = [source_id for source_id in normalize(value.get("source_ids")) if source_id in valid_ids]
-        content, cited_sources = reconcile_citations(str(value.get("content", "")), requested_sources, valid_ids)
         preferred_snapshots = value.get("sources") if isinstance(value.get("sources"), list) else []
         context_snapshots = value.get("context_sources") if isinstance(value.get("context_sources"), list) else preferred_snapshots
+        valid_ids = {item["id"] for item in self.items()}
+        if preserve_sources:
+            valid_ids.update(str(snapshot.get("id", "")) for snapshot in preferred_snapshots if isinstance(snapshot, dict))
+            valid_ids.update(str(snapshot.get("id", "")) for snapshot in context_snapshots if isinstance(snapshot, dict))
+        requested_sources = [source_id for source_id in normalize(value.get("source_ids")) if source_id in valid_ids]
+        content, cited_sources = reconcile_citations(str(value.get("content", "")), requested_sources, valid_ids)
         document = {
             "id": identifier or make_id("doc_"),
             "title": str(value.get("title", "")).strip() or "Untitled",
@@ -2264,10 +2267,10 @@ class Store:
                         "title": value.get("title", target_document.get("title", "Untitled")),
                         "content": content,
                         "project": value.get("project", target_document.get("project", "")),
-                        "source_ids": value.get("source_ids", target_document.get("source_ids", [])),
-                        "context_source_ids": value.get("context_source_ids", target_document.get("context_source_ids", target_document.get("source_ids", []))),
-                        "sources": value.get("sources", target_document.get("sources", run.get("sources", []))),
-                        "context_sources": value.get("context_sources", target_document.get("context_sources", run.get("sources", []))),
+                        "source_ids": value.get("source_ids", run.get("source_ids", [])),
+                        "context_source_ids": value.get("context_source_ids", run.get("source_ids", [])),
+                        "sources": value.get("sources", run.get("sources", [])),
+                        "context_sources": value.get("context_sources", run.get("sources", [])),
                         "expected_revision": value.get("expected_revision", target_document.get("revision", 1)),
                     })
                 else:
@@ -2336,10 +2339,15 @@ class Store:
                 document["source_ids"] = normalize(changes["source_ids"])
             if "context_source_ids" in changes:
                 document["context_source_ids"] = normalize(changes["context_source_ids"])
-            document["content"], document["source_ids"] = reconcile_citations(str(document.get("content", "")), normalize(document.get("source_ids")), {item["id"] for item in self.items()})
-            document["sources"] = self.source_snapshots(document["source_ids"], changes.get("sources") if isinstance(changes.get("sources"), list) else document.get("sources"))
+            preferred_sources = changes.get("sources") if isinstance(changes.get("sources"), list) else document.get("sources")
+            preferred_context_sources = changes.get("context_sources") if isinstance(changes.get("context_sources"), list) else document.get("context_sources")
+            valid_ids = {item["id"] for item in self.items()}
+            valid_ids.update(str(snapshot.get("id", "")) for snapshot in (preferred_sources or []) if isinstance(snapshot, dict))
+            valid_ids.update(str(snapshot.get("id", "")) for snapshot in (preferred_context_sources or []) if isinstance(snapshot, dict))
+            document["content"], document["source_ids"] = reconcile_citations(str(document.get("content", "")), normalize(document.get("source_ids")), valid_ids)
+            document["sources"] = self.source_snapshots(document["source_ids"], preferred_sources)
             if "context_source_ids" in document:
-                document["context_sources"] = self.source_snapshots(document["context_source_ids"], changes.get("context_sources") if isinstance(changes.get("context_sources"), list) else document.get("context_sources"))
+                document["context_sources"] = self.source_snapshots(document["context_source_ids"], preferred_context_sources)
             document["revision"] = max(1, int(document.get("revision", 1))) + 1
             document["updated_at"] = now()
             atomic_json(self.root / "docs" / f"{identifier}.json", document)

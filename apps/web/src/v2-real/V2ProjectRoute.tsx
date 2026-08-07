@@ -360,7 +360,9 @@ export function V2ProjectRoute({
   const [run, setRun] = useState<LogueSkillRun>();
   const [resultMode, setResultMode] = useState<RequestMode>("ask");
   const [candidate, setCandidate] = useState("");
-  const candidateAdoptionAttempts = useRef<Partial<Record<"copy" | "document", { id: string; content: string }>>>({});
+  const candidateAdoptionAttempts = useRef<Partial<Record<"copy" | "document", { id: string; content: string; targetKey?: string }>>>({});
+  const [documentTargetOpen, setDocumentTargetOpen] = useState(false);
+  const [savingDocument, setSavingDocument] = useState(false);
   const [continuation, setContinuation] = useState<{
     runId: string;
     output: string;
@@ -839,22 +841,47 @@ export function V2ProjectRoute({
     delete candidateAdoptionAttempts.current.copy;
   }
 
-  async function saveCandidateDocument() {
-    if (!run || !candidate.trim()) return;
+  async function saveCandidateDocument(targetDocument?: LogueDocument) {
+    if (!run || !candidate.trim() || savingDocument) return;
     const content = candidate.trim();
+    const targetKey = targetDocument?.id ?? "new";
     const previousAttempt = candidateAdoptionAttempts.current.document;
-    const adoptionId = previousAttempt?.content === content ? previousAttempt.id : createAdoptionId();
-    candidateAdoptionAttempts.current.document = { id: adoptionId, content };
-    const result = await saveSkillRunAsDocument(run.id, {
-      title: run.instruction.slice(0, 72),
-      content: candidate.trim(),
-      adoptionId,
-    });
-    await onRefresh();
-    delete candidateAdoptionAttempts.current.document;
-    setDocumentId(result.document.id);
-    setRun(undefined);
-    setCandidate("");
+    const adoptionId = previousAttempt?.content === content && previousAttempt.targetKey === targetKey
+      ? previousAttempt.id
+      : createAdoptionId();
+    candidateAdoptionAttempts.current.document = { id: adoptionId, content, targetKey };
+    setSavingDocument(true);
+    setRunError("");
+    try {
+      const sourceIds = run.sources.map((source) => source.id);
+      const result = await saveSkillRunAsDocument(run.id, {
+        title: targetDocument?.title ?? run.instruction.slice(0, 72),
+        content,
+        documentId: targetDocument?.id,
+        project: project?.name,
+        sourceIds,
+        contextSourceIds: sourceIds,
+        sources: run.sources,
+        contextSources: run.sources,
+        expectedRevision: targetDocument?.revision,
+        adoptionId,
+        adoptionAction: targetDocument ? "replace" : "document",
+        target: {
+          surface: "project-workspace",
+          target_key: targetDocument ? `document:${targetDocument.id}` : `project:${project?.id ?? ""}:new-document`,
+        },
+      });
+      await onRefresh();
+      delete candidateAdoptionAttempts.current.document;
+      setDocumentTargetOpen(false);
+      setDocumentId(result.document.id);
+      setRun(undefined);
+      setCandidate("");
+    } catch (cause) {
+      setRunError(cause instanceof Error ? cause.message : "Could not save this Document.");
+    } finally {
+      setSavingDocument(false);
+    }
   }
 
   async function updateMembership(
@@ -1130,14 +1157,41 @@ export function V2ProjectRoute({
                     Continue
                   </Button>
                 ) : null}
-                <Button
-                  size="sm"
-                  variant="primary"
-                  onClick={() => void saveCandidateDocument()}
-                >
-                  <FilePlus2 size={14} />
-                  Save as document
-                </Button>
+                <div className="v2-action-menu-wrap">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    aria-expanded={documentTargetOpen}
+                    onClick={() => setDocumentTargetOpen((current) => !current)}
+                  >
+                    <FilePlus2 size={14} />
+                    Document…
+                  </Button>
+                  {documentTargetOpen ? (
+                    <div className="v2-skill-picker" role="menu" aria-label="Choose Document target">
+                      <div className="v2-skill-picker-scroll">
+                        <div className="v2-skill-picker-group">
+                          <div className="v2-skill-picker-label">Create</div>
+                          <button type="button" role="menuitem" disabled={savingDocument} onClick={() => void saveCandidateDocument()}>
+                            <span>New Document</span>
+                            <small>Start a Document with this sourced result</small>
+                          </button>
+                        </div>
+                        {projectDocuments.length ? (
+                          <div className="v2-skill-picker-group">
+                            <div className="v2-skill-picker-label">Update existing</div>
+                            {projectDocuments.map((item) => (
+                              <button key={item.id} type="button" role="menuitem" disabled={savingDocument} onClick={() => void saveCandidateDocument(item)}>
+                                <span>{item.title}</span>
+                                <small>Replace as revision {item.revision + 1}</small>
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </>
             ) : null}
           </div>
