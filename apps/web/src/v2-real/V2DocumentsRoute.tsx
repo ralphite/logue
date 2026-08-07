@@ -1172,7 +1172,6 @@ export function V2DocumentsRoute({
             >
               <strong>{item.title}</strong>
               <span>{item.project || "No Project"}</span>
-              <small>Revision {item.revision}</small>
             </button>
           ))}
         </aside>
@@ -1325,14 +1324,7 @@ export function V2DocumentsRoute({
                     </Button>
                   </>
                 ) : (
-                  <Button
-                    size="sm"
-                    disabled={targetBusy || Boolean(preview)}
-                    onClick={() => void chooseInput()}
-                  >
-                    <Send size={14} />
-                    Choose input…
-                  </Button>
+                  null
                 )}
                   <details className="v2-document-more">
                     <summary aria-label="More Document actions" title="More Document actions">
@@ -1352,20 +1344,18 @@ export function V2DocumentsRoute({
                         <Copy size={14} />
                         Copy Document
                       </button>
-                      {selectedInputTarget ? (
-                        <button
-                          type="button"
-                          role="menuitem"
-                          disabled={targetBusy || Boolean(preview)}
-                          onClick={(event) => {
-                            void chooseInput();
-                            event.currentTarget.closest("details")?.removeAttribute("open");
-                          }}
-                        >
-                          <Send size={14} />
-                          Change input
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled={targetBusy || Boolean(preview)}
+                        onClick={(event) => {
+                          void chooseInput();
+                          event.currentTarget.closest("details")?.removeAttribute("open");
+                        }}
+                      >
+                        <Send size={14} />
+                        {selectedInputTarget ? "Change input" : "Send to input…"}
+                      </button>
                       <button className="is-danger" type="button" role="menuitem" onClick={() => void reviewDocumentDeletion()} disabled={Boolean(preview)}>
                         <Trash2 size={14} />
                         Delete Document

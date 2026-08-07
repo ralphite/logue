@@ -2062,11 +2062,11 @@ export function V2LibraryRoute({
           <div className="v2-page-heading">
             <div className="v2-page-heading-copy">
               <h1>{query.trim() ? "Find" : "Library"}</h1>
-              <p>
-                {query.trim()
-                  ? `${searching ? "Searching" : `${groups.length + visibleDocumentMatches.length} results`} · ${strategy === "semantic" ? "meaning and exact words" : "exact words"}`
-                  : "Everything you capture stays private on this Host until you delete it."}
-              </p>
+              {query.trim() ? (
+                <p>
+                  {`${searching ? "Searching" : `${groups.length + visibleDocumentMatches.length} results`} · ${strategy === "semantic" ? "meaning and exact words" : "exact words"}`}
+                </p>
+              ) : null}
             </div>
           </div>
           <label className="v2-search-field v2-global-find">

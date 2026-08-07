@@ -409,6 +409,7 @@
 }
 
 .v2-editor-scroll {
+  container-type: inline-size;
   min-height: 0;
   flex: 1;
   overflow: auto;
@@ -3421,7 +3422,7 @@
   background: #f9ece9;
 }
 
-@container (max-width: 1180px) {
+@container (max-width: 760px) {
   .v2-project-shell[data-inspector-open="true"] > .v2-inspector-resizer {
     display: none;
   }
