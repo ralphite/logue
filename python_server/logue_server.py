@@ -2143,7 +2143,9 @@ class Store:
             run = self.get("skill-runs", identifier)
             if run.get("status") != "complete":
                 raise ValueError("only a completed result can be saved as a document")
-            adoption_id = str(value.get("adoption_id", "")).strip() or make_id("adp_")
+            adoption_id = str(value.get("adoption_id", "")).strip()
+            if not adoption_id:
+                raise ValueError("adoption_id is required")
             action = str(value.get("action", "document")).strip() or "document"
             if action not in {"document", "replace", "undo"}:
                 raise ValueError("invalid Document adoption action")
@@ -2559,6 +2561,8 @@ class Store:
                 raise ValueError("invalid adoption action")
             revisions = list(run.get("adoption_revisions")) if isinstance(run.get("adoption_revisions"), list) else []
             adoption_id = str(value.get("adoption_id", "")).strip()
+            if not adoption_id:
+                raise ValueError("adoption_id is required")
             target = value.get("target") if isinstance(value.get("target"), dict) else {}
             target = {
                 key: str(target.get(key, "")).strip()
@@ -2632,7 +2636,6 @@ class Store:
             output = str(value.get("output", "")).strip()
             if not output:
                 raise ValueError("adopted output is required")
-            adoption_id = adoption_id or make_id("adp_")
             existing = next((entry for entry in revisions if isinstance(entry, dict) and entry.get("id") == adoption_id), None)
             if existing:
                 if existing.get("action") != action or str(existing.get("content", "")) != output or existing.get("target", {}) != target:

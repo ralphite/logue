@@ -992,3 +992,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 只保留手动 Retry 不满足 V2 §10.15 的重连上传；新增周期 alarm 会增加权限和持续轮询，而当前 surface/worker 唤醒已经提供低成本的可达确认点。
 - **已有证据：** queue 已持久化并具备幂等 `retryPendingVoice()`，但调用方只有单条 Web/Side Panel action；`listPendingVoices()` 还按最新优先排序，没有 reconnect replay producer。
 - **开放问题：** 无；真实断网/重启时序留 Phase 5，本批不进入浏览器 QA。
+
+### DR-093 — Adoption identity 由调用边界创建并由 Host 强制校验
+
+- **优先级：** V2 API / lineage P1 / `V2-OPS-02`
+- **状态：** 已 CODED/INTEGRATED；Python compile、production consumer 静态合同与 diff check 通过，真实重试/Undo 验收留 Phase 5。
+- **决定：** Run、Document 与 Voice adoption 都必须携带调用边界生成的稳定 `adoption_id`；Host 不再为缺失 ID 静默生成新事件，也不允许缺 ID 的 Undo 猜测最近一次 adoption。
+- **用户可见影响：** 网络失败后的重试只会补写原动作，Undo 精确指向用户刚执行的 Insert/Replace，不会意外创建重复 AI Source/Document revision 或撤销另一动作。
+- **替代方案：** Host 自动补 ID 无法让客户端重试复用同一 identity；缺 ID 时撤销最近一次会在 Copy → Insert → Document 等顺序采用后产生歧义。
+- **已有证据：** Web 与 Extension production API 已把 `adoptionId` 设为必填，并在 Copy/Insert/Replace/Keep/Document 动作边界生成、失败重试时复用；但 Host 的 Run 与 Document adoption 仍接受空值并自动生成 ID，Run Undo 还会在空值时选择最近一次事件。Voice adoption 已采用严格校验，本批统一三条合同。
+- **开放问题：** 无；不改变 adoption 对象模型、可见动作或 IA。
