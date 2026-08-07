@@ -959,3 +959,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 分别保存目标和 Topic 会留下跨对象部分成功；前端失败后反向补偿无法覆盖断进程和 Host 写入错误。
 - **已有证据：** production Web 已调用 `/v1/topics/:id/remember-vocabulary`；Host 当前先写目标对象、最后写 Topic，没有 rollback，而 inventory 明确要求失败原子回滚。
 - **开放问题：** 无；本批不改变 suggestion 生成、目标选择或 UI。
+
+### DR-090 — Topic merge、split、convert 共用 Host root transaction
+
+- **优先级：** V2 Topics P1 / `V2-TOP-03`
+- **状态：** 已 CODED/INTEGRATED；三条路径的窄范围故障注入、Python compile 与 diff check 通过，真实运行验收留 Phase 5。
+- **决定：** merge、split、convert-to-Project 在完成输入验证后、第一次持久写入前创建同一现有 Host root transaction snapshot；新旧 Topic、Project 与涉及的 Source membership 全部写入共同提交或共同回滚。
+- **用户可见影响：** Topic 结构操作失败时保持操作前状态，不会丢失旧 Topic、留下半个 split、空 Project 或只有部分 Sources 加入 Project。
+- **替代方案：** 按对象局部补偿难以覆盖 unlink、bundle membership 和进程中断之间的失败；前端重试也无法判断哪些对象已写入。
+- **已有证据：** production Host 当前 merge 先建后删、split 先改后建、convert 依次创建 Project/更新 Sources/隐藏 Topic，三条路径均无统一 rollback。
+- **开放问题：** 无；本批不改变 Topic 操作语义或 UI。

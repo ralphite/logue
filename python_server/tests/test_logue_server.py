@@ -235,6 +235,132 @@ class RuntimeTest(unittest.TestCase):
         failed.exception.close()
         self.assertEqual(list((self.data / "items").glob("*")), [])
 
+    def test_topic_structure_transactions_roll_back_on_failure(self) -> None:
+        def topic_store(label: str):
+            store = logue_server.Store(Path(self.temporary.name) / label)
+            first = store.create_item(
+                {"kind": "text", "content": f"{label} first Source"},
+                organization_status="confirmed",
+            )
+            second = store.create_item(
+                {"kind": "text", "content": f"{label} second Source"},
+                organization_status="confirmed",
+            )
+            timestamp = logue_server.now()
+            topics = [
+                {
+                    "id": f"top_{label}a",
+                    "name": f"{label} A",
+                    "source_ids": [first["id"], second["id"]],
+                    "reason": "Test Topic",
+                    "automatic": False,
+                    "manual_membership": True,
+                    "custom_name": True,
+                    "hidden": False,
+                    "created_at": timestamp,
+                    "updated_at": timestamp,
+                },
+                {
+                    "id": f"top_{label}b",
+                    "name": f"{label} B",
+                    "source_ids": [second["id"]],
+                    "reason": "Test Topic",
+                    "automatic": False,
+                    "manual_membership": True,
+                    "custom_name": True,
+                    "hidden": False,
+                    "created_at": timestamp,
+                    "updated_at": timestamp,
+                },
+            ]
+            for topic in topics:
+                logue_server.atomic_json(
+                    store.root / "topics" / f"{topic['id']}.json",
+                    topic,
+                )
+            return store, first, second, topics
+
+        merge_store, _, _, merge_topics = topic_store("merge")
+        merge_before = {
+            topic["id"]: logue_server.read_json(
+                merge_store.root / "topics" / f"{topic['id']}.json",
+            )
+            for topic in merge_topics
+        }
+        real_unlink = Path.unlink
+
+        def fail_second_merge_delete(path: Path, missing_ok: bool = False):
+            if path == merge_store.root / "topics" / f"{merge_topics[1]['id']}.json":
+                raise OSError("simulated merge delete failure")
+            return real_unlink(path, missing_ok=missing_ok)
+
+        with mock.patch.object(Path, "unlink", new=fail_second_merge_delete):
+            with self.assertRaisesRegex(OSError, "merge delete failure"):
+                merge_store.merge_topics(
+                    [merge_topics[0]["id"], merge_topics[1]["id"]],
+                    "Merged",
+                )
+        self.assertEqual(
+            {path.stem for path in (merge_store.root / "topics").glob("*.json")},
+            set(merge_before),
+        )
+        for identifier, expected in merge_before.items():
+            self.assertEqual(
+                logue_server.read_json(merge_store.root / "topics" / f"{identifier}.json"),
+                expected,
+            )
+
+        split_store, split_first, _, split_topics = topic_store("split")
+        split_before = logue_server.read_json(
+            split_store.root / "topics" / f"{split_topics[0]['id']}.json",
+        )
+        real_atomic_json = logue_server.atomic_json
+
+        def fail_new_split_topic(path, value):
+            if path.parent == split_store.root / "topics" and value.get("id") != split_topics[0]["id"]:
+                raise OSError("simulated split create failure")
+            return real_atomic_json(path, value)
+
+        with mock.patch.object(logue_server, "atomic_json", side_effect=fail_new_split_topic):
+            with self.assertRaisesRegex(OSError, "split create failure"):
+                split_store.split_topic(
+                    split_topics[0]["id"],
+                    [split_first["id"]],
+                    "Split out",
+                )
+        self.assertEqual(
+            logue_server.read_json(split_store.root / "topics" / f"{split_topics[0]['id']}.json"),
+            split_before,
+        )
+        self.assertEqual(
+            {path.stem for path in (split_store.root / "topics").glob("*.json")},
+            {topic["id"] for topic in split_topics},
+        )
+
+        convert_store, convert_first, convert_second, convert_topics = topic_store("convert")
+        convert_topic_before = logue_server.read_json(
+            convert_store.root / "topics" / f"{convert_topics[0]['id']}.json",
+        )
+
+        def fail_converted_topic(path, value):
+            if path.parent == convert_store.root / "topics" and value.get("converted_project"):
+                raise OSError("simulated convert Topic write failure")
+            return real_atomic_json(path, value)
+
+        with mock.patch.object(logue_server, "atomic_json", side_effect=fail_converted_topic):
+            with self.assertRaisesRegex(OSError, "convert Topic write failure"):
+                convert_store.convert_topic_to_project(
+                    convert_topics[0]["id"],
+                    "Converted Project",
+                )
+        self.assertEqual(convert_store.projects(), [])
+        self.assertEqual(convert_store.get("items", convert_first["id"])["projects"], [])
+        self.assertEqual(convert_store.get("items", convert_second["id"])["projects"], [])
+        self.assertEqual(
+            logue_server.read_json(convert_store.root / "topics" / f"{convert_topics[0]['id']}.json"),
+            convert_topic_before,
+        )
+
     def test_selection_and_page_context_flow(self) -> None:
         _, result = self.request("/v1/selections", "POST", {"request_id": "selection-1", "source_content": "quoted source", "annotation": "my note", "source": {"url": "https://example.com", "title": "Page"}})
         self.assertEqual(result["annotation"]["parent_ids"], [result["source"]["id"]])

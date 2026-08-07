@@ -784,10 +784,18 @@ class Store:
                 raise ValueError("choose at least two Topics to merge")
             label = name.strip() or str(topics[0].get("name", "Merged Topic"))
             merged = {"id": make_id("top_"), "name": label, "source_ids": normalize([source_id for topic in topics for source_id in normalize(topic.get("source_ids"))]), "reason": "Merged by you", "automatic": False, "manual_membership": True, "custom_name": True, "hidden": False, "created_at": now(), "updated_at": now()}
-            atomic_json(self.root / "topics" / f"{merged['id']}.json", merged)
-            for topic in topics:
-                (self.root / "topics" / f"{topic['id']}.json").unlink(missing_ok=True)
-            return self.topic_insights(merged)
+            snapshot = self.transaction_snapshot("logue-topic-merge-")
+            try:
+                atomic_json(self.root / "topics" / f"{merged['id']}.json", merged)
+                for topic in topics:
+                    (self.root / "topics" / f"{topic['id']}.json").unlink(missing_ok=True)
+                result = self.topic_insights(merged)
+            except BaseException as error:
+                self.finish_transaction(snapshot, error)
+                raise
+            else:
+                self.finish_transaction(snapshot)
+                return result
 
     def split_topic(self, identifier: str, source_ids: list[str], name: str) -> dict[str, Any]:
         with self.lock:
@@ -795,10 +803,19 @@ class Store:
             selected = [source_id for source_id in normalize(source_ids) if source_id in normalize(topic.get("source_ids"))]
             if not selected or len(selected) == len(normalize(topic.get("source_ids"))):
                 raise ValueError("choose some, but not all, Sources to split")
-            self.save_topic(identifier, {"source_ids": [source_id for source_id in normalize(topic.get("source_ids")) if source_id not in selected]})
+            remaining = [source_id for source_id in normalize(topic.get("source_ids")) if source_id not in selected]
             created = {"id": make_id("top_"), "name": name.strip() or f"{topic.get('name', 'Topic')} split", "source_ids": selected, "reason": "Split by you", "automatic": False, "manual_membership": True, "custom_name": True, "hidden": False, "created_at": now(), "updated_at": now()}
-            atomic_json(self.root / "topics" / f"{created['id']}.json", created)
-            return self.topic_insights(created)
+            snapshot = self.transaction_snapshot("logue-topic-split-")
+            try:
+                self.save_topic(identifier, {"source_ids": remaining})
+                atomic_json(self.root / "topics" / f"{created['id']}.json", created)
+                result = self.topic_insights(created)
+            except BaseException as error:
+                self.finish_transaction(snapshot, error)
+                raise
+            else:
+                self.finish_transaction(snapshot)
+                return result
 
     def convert_topic_to_project(self, identifier: str, name: str) -> dict[str, Any]:
         with self.lock:
@@ -806,15 +823,22 @@ class Store:
             project_name = name.strip() or str(topic.get("name", "")).strip()
             if not project_name:
                 raise ValueError("project name is required")
-            project = self.save_project("", {"name": project_name, "overview": f"Created from Topic {topic.get('name', project_name)}.", "transcription_profile": {"mode": "inherited"}})
-            for source_id in normalize(topic.get("source_ids")):
-                item = self.get("items", source_id)
-                self.update_item(source_id, {"projects": normalize(item.get("projects")) + [project_name]})
-            topic["converted_project"] = project_name
-            topic["hidden"] = True
-            topic["updated_at"] = now()
-            atomic_json(self.root / "topics" / f"{identifier}.json", topic)
-            return project
+            snapshot = self.transaction_snapshot("logue-topic-convert-")
+            try:
+                project = self.save_project("", {"name": project_name, "overview": f"Created from Topic {topic.get('name', project_name)}.", "transcription_profile": {"mode": "inherited"}})
+                for source_id in normalize(topic.get("source_ids")):
+                    item = self.get("items", source_id)
+                    self.update_item(source_id, {"projects": normalize(item.get("projects")) + [project_name]})
+                topic["converted_project"] = project_name
+                topic["hidden"] = True
+                topic["updated_at"] = now()
+                atomic_json(self.root / "topics" / f"{identifier}.json", topic)
+            except BaseException as error:
+                self.finish_transaction(snapshot, error)
+                raise
+            else:
+                self.finish_transaction(snapshot)
+                return project
 
     def transcript_revisions(self, material_id: str) -> list[dict[str, Any]]:
         item = self.get("items", material_id)
