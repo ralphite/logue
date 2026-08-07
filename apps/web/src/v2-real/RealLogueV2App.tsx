@@ -41,7 +41,7 @@ type LibraryTab = "saved" | "activity";
 function routeFromLocation(): V2PrimaryRoute {
   const value = new URLSearchParams(window.location.search).get("view");
   if (value === "projects" || value === "documents" || value === "skills" || value === "settings") return value;
-  if (value === "stream" || value === "library") return "library";
+  if (value === "library") return "library";
   return "projects";
 }
 
@@ -148,7 +148,7 @@ export function RealLogueV2App() {
 
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => { const listener = () => setRoute(routeFromLocation()); window.addEventListener("popstate", listener); return () => window.removeEventListener("popstate", listener); }, []);
-  const navigate = useCallback((next: V2PrimaryRoute) => { const url = new URL(window.location.href); url.searchParams.set("view", next === "library" ? "stream" : next); window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`); setRoute(next); }, []);
+  const navigate = useCallback((next: V2PrimaryRoute) => { const url = new URL(window.location.href); url.searchParams.set("view", next); window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`); setRoute(next); }, []);
 
   if (error) return <ProjectShell route={route} onRouteChange={navigate}><div className="v2-editor-scroll"><div className="v2-list-axis"><div className="v2-page-heading-copy"><h1>Logue Host</h1><p>Your interface is ready, but the local Host needs attention.</p></div><div className="v2-recovery-card"><p>{error}</p><Button variant="primary" onClick={() => void refresh()}>Retry</Button></div></div></div></ProjectShell>;
   const hasExplicitLocalRoute = new URLSearchParams(window.location.search).has("view");

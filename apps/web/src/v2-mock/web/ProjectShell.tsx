@@ -30,7 +30,7 @@ export function ProjectShell({ route, projectName, projects = [], activeProjectI
   });
   const openGlobalFind = () => {
     const url = new URL(window.location.href);
-    url.searchParams.set("view", "stream");
+    url.searchParams.set("view", "library");
     url.searchParams.set("find", "1");
     url.searchParams.delete("q");
     window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);

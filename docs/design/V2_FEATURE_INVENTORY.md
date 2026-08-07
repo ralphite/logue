@@ -84,7 +84,7 @@
 
 - V2-PROJ-01 — INTEGRATED — 创建、切换、稳定 ID rename、archive/restore、依赖预览 delete 已接；rename 在单一可回滚 root transaction 中同步当前 Source/Document/Run、classification 与 membership origin。
 - V2-PROJ-02 — INTEGRATED — Project name、goal/overview、instructions 的 Host/Web 数据链。
-- V2-PROJ-03 — INTEGRATED — 无显式 view 的 Web 根入口默认回到 Projects；workspace 显示并恢复最近 Project、Document、Ask/Compare/Draft 模式与最近工作，Document 路由恢复最近选择、caret 与 scroll；`view=stream` / Global Find 仍明确进入 Library。
+- V2-PROJ-03 — INTEGRATED — 无显式 view 的 Web 根入口默认回到 Projects；workspace 显示并恢复最近 Project、Document、Ask/Compare/Draft 模式与最近工作，Document 路由恢复最近选择、caret 与 scroll；`view=library` / Global Find 明确进入 Library。
 - V2-PROJ-04 — INTEGRATED — Context review 的 Suggested/Added/Excluded、reason、Add/Remove/Exclude/Undo exclusion。
 - V2-PROJ-05 — INTEGRATED — Context review 区分 Auto-added / Added / Suggested / Excluded / Duplicate-linked；Change Project 使用 bundle 级 Host 合同，重复 Source 保留但 Run/Project retrieval 不重复加权。
 - V2-PROJ-06 — INTEGRATED — 本次 Run Sources 可 Pin/Exclude/补充，不改变 membership。
@@ -170,7 +170,7 @@
 - V2-OPS-01 — INTEGRATED — Host 数据目录为唯一权威；Extension 仅持有 client connection、tab/target 与 pending capture 状态；MV3 worker 启动或任一 surface 确认 Host 可达后，以单一 replay 从最旧到最新重试 pending captures，失败项保留且不阻塞后项。
 - V2-OPS-02 — INTEGRATED — Source/membership/comment/run/document/profile/topic/skill API 主链已接；所有 Run / Document / Voice adoption 均由调用边界生成且由 Host 强制要求稳定 ID，幂等重试与 Undo 不再退化为隐式新事件或“最近一次”；Run 同时记录 AI Source 与后续 Document adoption，不再用单一字段互相覆盖。
 - V2-OPS-03 — INTEGRATED — 当前 `.logue-data` 的 Voice/Profile/revision schema 已完成显式备份和一次性更新；production Python Host 与 Web callers 已删除四条绕过 Run/adoption 的旧 route，通用 Run PATCH 也拒绝直接写 `adopted_output` / `document_id` / `material_id`，无 production 入口且语义冲突的 Go Host 已移除，当前 schema/API/runtime 是唯一权威。
-- V2-OPS-04 — ACTIVE — Material 内嵌 `annotation` 已在 Host、Extension、Web、Search、共享 types 与 Backup/Export schema 中删除；当前唯一旧记录已在外部完整备份后一次性转换为 Web+You Comment bundle，未保留迁移代码或双读。Production Web 仍写入/接受 `view=stream` 作为 Library route alias，下一批收敛为唯一 `view=library`。
+- V2-OPS-04 — INTEGRATED — Material 内嵌 `annotation` 已在 Host、Extension、Web、Search、共享 types 与 Backup/Export schema 中删除；当前唯一旧记录已在外部完整备份后一次性转换为 Web+You Comment bundle，未保留迁移代码或双读。Production V2 Web 的入口解析、导航与 Global Find 只写入和接受权威 `view=library`，不再保留 `view=stream` 别名或双解析。
 - V2-OPS-05 — INTEGRATED — installer 在 managed 写入前拒绝 data/snapshot 路径重叠；旧 Linux 默认 workspace 与全部 Host snapshots 使用需确认、停服冻结校验、失败恢复旧 version/unit/path/active/enabled 的一次性迁移；程序 rollback 永不接管 data root。真实安装验收留 Phase 5。
 - V2-OPS-06 — INTEGRATED — workspace packages、release tag、Host VERSION、Extension version/version_name、split installer、fixtures 与 remote smoke 已使用同一 release identity；首次 Load 与升级 Reload 状态准确。真实 artifact 发布验收留 Phase 5。
 - V2-OPS-07 — INTEGRATED — production bundle 在 logue.ai/www.logue.ai 挂载 V2 Landing，本机仍直接进入 Projects；真实 release/installer、Docs、Privacy 与未擅自选择开源模式的 License section 已连接。
