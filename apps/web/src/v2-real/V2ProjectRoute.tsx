@@ -827,11 +827,12 @@ export function V2ProjectRoute({
       ...current,
       documents: { ...current.documents, selectedId: identifier },
     }));
+    onRoute("documents");
     const url = new URL(window.location.href);
     url.searchParams.set("doc", identifier);
+    url.searchParams.delete("document");
     if (project?.name) url.searchParams.set("project", project.name);
     window.history.replaceState(null, "", url);
-    onRoute("documents");
   }
 
   async function copyCandidate() {

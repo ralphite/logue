@@ -1084,3 +1084,12 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **真实证据：** 当前数据根 `/Users/yadong/dev2/logue/.logue-data` 与远程 Gemini provider ready；真实 Chrome 中生成并插入 `Logue voice input must transcribe...`，textarea 从 `Existing start:` 变为含 Candidate，Undo 后恢复原值；Keep in Logue 显示即时 Undo，`http://127.0.0.1:8787/?view=library` 首条显示同一 AI Saved Source。临时 diagnostic client 与 pairing code 已删除。
 - **Voice Write 真实闭环证据：** 使用同一已安装 release、隔离临时 Chromium profile 与公开真人录音，通过真实 Host 和当前数据根完成录音 → 转写 → Library 持久化 → Insert → Undo。录音 `cap_090c8e2f17188115.webm` 为 186,599 bytes；永久 Source `mat_02ba7e62dcced73b`、revision 1 与 Candidate 均保留 `raw_transcript` 和实际 transcript `She had your dark suit in greasy wash water all year.`，来源为测试页。Library 在 Insert 前已显示该 Source；目标 textarea 从 `Existing start: ` 变为含完整 transcript，Undo 后逐字恢复。测试前已复制完整 425 文件数据快照；结束后只删除本批 Source、audio/context、transcript revision、临时 client，并恢复本批更新的 provider health 与原 client last-seen，`diff -qr` 证明当前数据根与测试前 byte-for-byte 一致。Chrome headless 不加载 Extension service worker，因此改用离屏隔离 Chromium；没有读取或修改用户 Chrome profile。
 - **剩余风险：** 其余已确认 CUJ 仍需按用户优先级逐个真实恢复；本批不恢复被冻结的 Skill/model/config WIP，也不扩大全面 QA。
+
+### DR-100 — CUJ Recovery：真实 Saved result 打开正确 Document 并返回来源列表
+
+- **优先级：** 用户当前唯一 P0 / Web Recent work、Library、Documents 导航闭环。
+- **状态：** 已通过当前真实 Host、当前 `.logue-data` 与生产 Web 的窄范围运行时验证。
+- **根因与决定：** 已构建 Web 仍写出旧 `document` query，Source 详情也没有消费现有 `source.document_id`，导致 Recent work 被默认首篇 Document 掩盖错误、Library 永远无法进入关联 Document。所有入口统一写出权威 `doc`；先 push `view=documents` 的目标历史项，再只在目标项 replace Document/Project query，从而保留干净且精确的来源列表历史。Library 仅在真实 `document_id` 匹配当前 Document 时显示 `Open Document`，不猜测或新建对象。
+- **用户可见影响：** Project Recent work 和 Library 已保存 AI Source 都能打开对应的既有 Document；浏览器返回后分别回到原 Project Workspace 与 Library 列表，不会携带目标 Document query 污染来源页。
+- **真实证据：** Host 使用 `/Users/yadong/dev2/logue/.logue-data` 重启后，Projects `Logue` → `AI Document Logue 核心产品闭环` 打开 `doc_99b3c08877042230`（revision 7），Back 精确返回 `?view=projects&project=Logue`；Library `Logue Dev Notes · revision 103` → `Open Document` 打开 `doc_b3a53ec0adaa22c9`，Back 精确返回 `?view=library`。两条原列表记录仍存在，控制台 error 为 0。Library 点击前后用户内容目录聚合 SHA-256 均为 `0915997a36b8b2fcabefe93da8388466f8c5c2ec6365a798be3f2e74fe68d6a5`，items 110、docs 13 不变；未创建测试数据。
+- **剩余风险：** 现有 `GET topics()` 会刷新自动 Topic 的 `updated_at`，因此全 data root 指纹会变化；它没有新增或修改本批 Source/Document，且不阻断导航，留在后续对应 CUJ 单独处理。其他坏 CUJ 继续按用户优先级逐条恢复；本批不触碰 provider/model/config、新 feature、UI polish、审计资产或冻结 stash。

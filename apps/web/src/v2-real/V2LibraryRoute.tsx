@@ -5,6 +5,7 @@ import {
   Download,
   ExternalLink,
   FilePlus2,
+  FileText,
   Filter,
   PanelRightClose,
   Pin,
@@ -197,6 +198,7 @@ function SourceInspector({
   documents,
   onClose,
   onOpenSource,
+  onOpenDocument,
   onRefresh,
   onReviewDelete,
   onReviewDeleteComment,
@@ -207,6 +209,7 @@ function SourceInspector({
   documents: LogueDocument[];
   onClose: () => void;
   onOpenSource: (id: string) => void;
+  onOpenDocument: (document: LogueDocument) => void;
   onRefresh: () => Promise<void>;
   onReviewDelete: () => void;
   onReviewDeleteComment: () => void;
@@ -220,6 +223,9 @@ function SourceInspector({
       : undefined;
   const anchor = anchorOwner?.source?.anchor;
   const originalSource = evidence?.source?.url ? evidence : primary;
+  const linkedDocument = documents.find((document) =>
+    group.items.some((item) => item.source?.document_id === document.id),
+  );
   const [project, setProject] = useState(group.projects[0] ?? "");
   const [documentId, setDocumentId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -437,6 +443,12 @@ function SourceInspector({
             {originalSource.source?.domain || "This Mac"}
           </div>
           <div className="v2-inline-actions">
+            {linkedDocument ? (
+              <Button size="sm" onClick={() => onOpenDocument(linkedDocument)}>
+                <FileText size={14} />
+                Open Document
+              </Button>
+            ) : null}
             {originalSource.source?.url ? (
               <a
                 className="v2-download-button"
@@ -1749,6 +1761,16 @@ export function V2LibraryRoute({
     selectedKeys.includes(group.key),
   );
 
+  function openDocument(document: LogueDocument) {
+    onRoute("documents");
+    const url = new URL(window.location.href);
+    url.searchParams.set("doc", document.id);
+    url.searchParams.delete("document");
+    if (document.project) url.searchParams.set("project", document.project);
+    else url.searchParams.delete("project");
+    window.history.replaceState(null, "", url);
+  }
+
   async function applyMembership(mode: "add" | "exclude") {
     if (!bulkProject || !selectedGroups.length) return;
     setBusy(true);
@@ -1971,6 +1993,7 @@ export function V2LibraryRoute({
         )[0];
         if (target) setOpenKey(target.key);
       }}
+      onOpenDocument={openDocument}
       onRefresh={onRefresh}
       onReviewDelete={() => void reviewDeletion([openGroup])}
       onReviewDeleteComment={() => {
@@ -2362,12 +2385,7 @@ export function V2LibraryRoute({
                         <button
                           type="button"
                           className="v2-library-row-main"
-                          onClick={() => {
-                            const url = new URL(window.location.href);
-                            url.searchParams.set("doc", document.id);
-                            window.history.replaceState(null, "", url);
-                            onRoute("documents");
-                          }}
+                          onClick={() => openDocument(document)}
                         >
                           <OriginLabel origin="ai" detail="Document" />
                           <h3>{document.title}</h3>
