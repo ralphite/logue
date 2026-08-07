@@ -32,6 +32,8 @@ bin_dir="${LOGUE_BIN_DIR:-${logue_home}/.local/bin}"
 launch_agents_dir="${LOGUE_LAUNCH_AGENTS_DIR:-${logue_home}/Library/LaunchAgents}"
 launch_label="${LOGUE_LAUNCH_LABEL:-com.ralphite.logue}"
 launch_plist="${launch_agents_dir}/${launch_label}.plist"
+launch_domain="gui/$(id -u)"
+launch_service="${launch_domain}/${launch_label}"
 systemd_user_dir="${LOGUE_SYSTEMD_USER_DIR:-${XDG_CONFIG_HOME:-${logue_home}/.config}/systemd/user}"
 systemd_unit_name="${LOGUE_SYSTEMD_UNIT_NAME:-logue.service}"
 if [[ ! "${systemd_unit_name}" =~ ^[A-Za-z0-9_.@-]+\.service$ ]]; then
@@ -469,17 +471,49 @@ systemd_unit_backup="${systemd_user_dir}/.${systemd_unit_name}.previous.$$"
 had_extension_manifest="no"
 had_cli="no"
 had_launch_plist="no"
+launch_job_was_loaded="no"
+launch_job_was_running="no"
 had_systemd_unit="no"
 systemd_was_enabled="no"
 
+managed_command_belongs_to_install() {
+  [[ "$1" == *"${install_root}/"*"/python_server/logue_server.py"* ]]
+}
+
+launch_job_pid() {
+  launchctl print "${launch_service}" 2>/dev/null |
+    awk '/^[[:space:]]*pid = [1-9][0-9]*$/ { print $3; exit }' || true
+}
+
+snapshot_launch_job_state() {
+  local launch_pid
+  [[ "${logue_platform}" == "darwin" ]] || return 0
+  if launchctl print "${launch_service}" >/dev/null 2>&1; then
+    launch_job_was_loaded="yes"
+    launch_pid="$(launch_job_pid)"
+    if [[ "${launch_pid}" =~ ^[1-9][0-9]*$ ]] && kill -0 "${launch_pid}" >/dev/null 2>&1; then
+      launch_job_was_running="yes"
+    fi
+  fi
+}
+
 validate_managed_service() {
-  local old_command systemd_pid
+  local old_command systemd_pid launch_pid
   managed_pid=""
+  if [[ "${logue_platform}" == "darwin" ]]; then
+    launch_pid="$(launch_job_pid)"
+    if [[ "${launch_pid}" =~ ^[1-9][0-9]*$ ]] && kill -0 "${launch_pid}" >/dev/null 2>&1; then
+      old_command="$(ps -p "${launch_pid}" -o command= 2>/dev/null || true)"
+      managed_command_belongs_to_install "${old_command}" || fail "The loaded LaunchAgent does not belong to this Logue installation; stopped to avoid terminating another process."
+      managed_pid="${launch_pid}"
+      return
+    fi
+  fi
   if [[ "${logue_platform}" == "linux" && -f "${systemd_unit}" ]] && command -v systemctl >/dev/null 2>&1; then
     systemd_pid="$(systemctl --user show --property MainPID --value "${systemd_unit_name}" 2>/dev/null || true)"
     if [[ "${systemd_pid}" =~ ^[1-9][0-9]*$ ]] && kill -0 "${systemd_pid}" >/dev/null 2>&1; then
       old_command="$(ps -p "${systemd_pid}" -o command= 2>/dev/null || true)"
-      [[ "${old_command}" == *"${install_root}"*"/logue"* ]] || fail "The systemd user service does not belong to this Logue installation; stopped to avoid terminating another process."
+      managed_command_belongs_to_install "${old_command}" || fail "The systemd user service does not belong to this Logue installation; stopped to avoid terminating another process."
       managed_pid="${systemd_pid}"
       return
     fi
@@ -488,7 +522,7 @@ validate_managed_service() {
     managed_pid="$(tr -dc '0-9' < "${pid_file}")"
     if [[ -n "${managed_pid}" ]] && kill -0 "${managed_pid}" >/dev/null 2>&1; then
       old_command="$(ps -p "${managed_pid}" -o command= 2>/dev/null || true)"
-      [[ "${old_command}" == *"${install_root}"*"/logue"* ]] || fail "The PID file does not belong to this Logue installation; stopped to avoid terminating another process."
+      managed_command_belongs_to_install "${old_command}" || fail "The PID file does not belong to this Logue installation; stopped to avoid terminating another process."
     else
       managed_pid=""
     fi
@@ -499,10 +533,12 @@ stop_managed_service() {
   local old_command wait_count systemd_state systemd_main_pid
   if [[ -n "${managed_pid}" ]] && kill -0 "${managed_pid}" >/dev/null 2>&1; then
     old_command="$(ps -p "${managed_pid}" -o command= 2>/dev/null || true)"
-    [[ "${old_command}" == *"${install_root}"*"/logue"* ]] || return 1
+    managed_command_belongs_to_install "${old_command}" || return 1
   fi
   if [[ "${logue_platform}" == "darwin" ]]; then
-    launchctl bootout "gui/$(id -u)" "${launch_plist}" >/dev/null 2>&1 || launchctl unload "${launch_plist}" >/dev/null 2>&1 || true
+    if launchctl print "${launch_service}" >/dev/null 2>&1; then
+      launchctl bootout "${launch_service}" >/dev/null 2>&1 || return 1
+    fi
   elif [[ -f "${systemd_unit}" ]]; then
     systemctl --user stop "${systemd_unit_name}" >/dev/null 2>&1 || return 1
     systemd_state="$(systemctl --user show --property ActiveState --value "${systemd_unit_name}" 2>/dev/null || true)"
@@ -696,6 +732,61 @@ start_service() {
   return 1
 }
 
+wait_for_launch_service() {
+  local expected_version="$1" wait_count launch_output launch_pid old_command listener_pids status_body
+  for ((wait_count = 0; wait_count < 60; wait_count++)); do
+    launch_output="$(launchctl print "${launch_service}" 2>/dev/null || true)"
+    launch_pid="$(printf '%s\n' "${launch_output}" | awk '/^[[:space:]]*pid = [1-9][0-9]*$/ { print $3; exit }')"
+    if [[ "${launch_output}" == *"state = running"* && "${launch_pid}" =~ ^[1-9][0-9]*$ ]] && kill -0 "${launch_pid}" >/dev/null 2>&1; then
+      old_command="$(ps -p "${launch_pid}" -o command= 2>/dev/null || true)"
+      if managed_command_belongs_to_install "${old_command}"; then
+        listener_pids="$(lsof -nP -iTCP:"${address_port}" -sTCP:LISTEN -t 2>/dev/null | sort -u | paste -sd ' ' -)"
+        if [[ "${listener_pids}" == "${launch_pid}" ]]; then
+          status_body="$(curl -fsS --max-time 1 "${health_url}" 2>/dev/null || true)"
+          if STATUS_BODY="${status_body}" EXPECTED_VERSION="${expected_version}" EXPECTED_ROOT="${data_root}" "${python_bin}" - <<'PY'
+import json
+import os
+
+try:
+    value = json.loads(os.environ["STATUS_BODY"])
+except Exception:
+    raise SystemExit(1)
+raise SystemExit(0 if value.get("ok") is True and value.get("version") == os.environ["EXPECTED_VERSION"] and value.get("storage_root") == os.environ["EXPECTED_ROOT"] else 1)
+PY
+          then
+            managed_pid="${launch_pid}"
+            rm -f -- "${pid_file}"
+            return 0
+          fi
+        fi
+      fi
+    fi
+    sleep 0.25
+  done
+  return 1
+}
+
+start_launch_service() {
+  local expected_version="$1"
+  command -v lsof >/dev/null 2>&1 || return 1
+  launchctl bootstrap "${launch_domain}" "${launch_plist}" >/dev/null 2>&1 || return 1
+  launchctl kickstart -k "${launch_service}" >/dev/null 2>&1 || return 1
+  wait_for_launch_service "${expected_version}"
+}
+
+restore_previous_service() {
+  local expected_version="$1"
+  if [[ "${logue_platform}" == "darwin" && "${launch_job_was_loaded}" == "yes" ]]; then
+    launchctl bootstrap "${launch_domain}" "${launch_plist}" >/dev/null 2>&1 || return 1
+    if [[ "${launch_job_was_running}" == "yes" ]]; then
+      launchctl kickstart -k "${launch_service}" >/dev/null 2>&1 || return 1
+      wait_for_launch_service "${expected_version}" || return 1
+    fi
+    return 0
+  fi
+  start_service "${expected_version}"
+}
+
 create_launch_plist() {
   local escaped_label escaped_python escaped_server escaped_address escaped_data escaped_web escaped_log escaped_version
   escaped_label="$(xml_escape "${launch_label}")"
@@ -720,6 +811,7 @@ create_launch_plist() {
     printf '    <key>LOGUE_VERSION</key><string>%s</string>\n' "${escaped_version}"
     printf '%s\n' '  </dict>'
     printf '%s\n' '  <key>RunAtLoad</key><true/>'
+    printf '%s\n' '  <key>KeepAlive</key><true/>'
     printf '  <key>StandardOutPath</key><string>%s</string>\n' "${escaped_log}"
     printf '  <key>StandardErrorPath</key><string>%s</string>\n' "${escaped_log}"
     printf '%s\n' '</dict></plist>'
@@ -797,15 +889,38 @@ mkdir -p "${extension_stage}"
 cp -R "${release_dir}/extension/." "${extension_stage}/"
 rm -f -- "${extension_stage}/manifest.json"
 mv "${extension_stage}" "${staged_extension_assets}"
-sed \
-  -e "s|\"service_worker\": \"background.js\"|\"service_worker\": \"releases/${extension_asset_id}/background.js\"|" \
-  -e "s|\"js\": \[\"content.js\"\]|\"js\": [\"releases/${extension_asset_id}/content.js\"]|" \
-  -e "s|\"default_path\": \"sidepanel.html\"|\"default_path\": \"releases/${extension_asset_id}/sidepanel.html\"|" \
-  "${release_dir}/extension/manifest.json" > "${extension_manifest_next}"
+EXTENSION_MANIFEST_SOURCE="${release_dir}/extension/manifest.json" \
+EXTENSION_MANIFEST_TARGET="${extension_manifest_next}" \
+EXTENSION_ASSET_ID="${extension_asset_id}" \
+"${python_bin}" - <<'PY'
+import json
+import os
+from pathlib import Path
+
+source = Path(os.environ["EXTENSION_MANIFEST_SOURCE"])
+target = Path(os.environ["EXTENSION_MANIFEST_TARGET"])
+asset_id = os.environ["EXTENSION_ASSET_ID"]
+manifest = json.loads(source.read_text())
+prefix = f"releases/{asset_id}"
+manifest["background"]["service_worker"] = f"{prefix}/background.js"
+manifest["side_panel"]["default_path"] = f"{prefix}/sidepanel.html"
+for script in manifest.get("content_scripts", []):
+    if script.get("js") == ["content.js"]:
+        script["js"] = [f"{prefix}/content.js"]
+target.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
+PY
 validate_manifest_identity "${extension_manifest_next}" || fail "Staged Extension identity does not match VERSION; the existing installation was not changed."
-grep -Fq "\"service_worker\": \"releases/${extension_asset_id}/background.js\"" "${extension_manifest_next}" || fail "Extension manifest is missing a versioned worker; the existing installation was not changed."
-grep -Fq "\"js\": [\"releases/${extension_asset_id}/content.js\"]" "${extension_manifest_next}" || fail "Extension manifest is missing a versioned content script; the existing installation was not changed."
-grep -Fq "\"default_path\": \"releases/${extension_asset_id}/sidepanel.html\"" "${extension_manifest_next}" || fail "Extension manifest is missing a versioned Side Panel; the existing installation was not changed."
+EXTENSION_MANIFEST_TARGET="${extension_manifest_next}" EXTENSION_ASSET_ID="${extension_asset_id}" "${python_bin}" - <<'PY' || fail "Extension manifest is missing versioned runtime assets; the existing installation was not changed."
+import json
+import os
+from pathlib import Path
+
+manifest = json.loads(Path(os.environ["EXTENSION_MANIFEST_TARGET"]).read_text())
+prefix = f"releases/{os.environ['EXTENSION_ASSET_ID']}"
+assert manifest.get("background", {}).get("service_worker") == f"{prefix}/background.js"
+assert manifest.get("side_panel", {}).get("default_path") == f"{prefix}/sidepanel.html"
+assert any(entry.get("js") == [f"{prefix}/content.js"] for entry in manifest.get("content_scripts", []))
+PY
 [[ -f "${staged_extension_assets}/background.js" && -f "${staged_extension_assets}/content.js" && -f "${staged_extension_assets}/sidepanel.html" && -f "${staged_extension_assets}/microphone.html" ]] || fail "Extension assets are incomplete; the existing installation was not changed."
 validate_extension_html_assets "${staged_extension_assets}/sidepanel.html" || fail "Extension Side Panel references missing or non-versioned assets; the existing installation was not changed."
 validate_extension_html_assets "${staged_extension_assets}/microphone.html" || fail "Extension microphone permission page references missing or non-versioned assets; the existing installation was not changed."
@@ -872,6 +987,7 @@ else
   fi
 fi
 
+snapshot_launch_job_state
 validate_managed_service
 if [[ -n "${managed_pid}" ]]; then
   service_was_active="yes"
@@ -890,7 +1006,13 @@ commit_install() {
   current_switched="yes"
   say "App switched to ${logue_version}"
 
-  start_service "${logue_version}" || return 1
+  if [[ "${logue_platform}" == "darwin" && "${autostart}" == "yes" ]]; then
+    replace_path "${launch_plist_next}" "${launch_plist}" || return 1
+    launch_plist_next=""
+    start_launch_service "${logue_version}" || return 1
+  else
+    start_service "${logue_version}" || return 1
+  fi
   say "Service started: ${health_url}"
 
   /bin/mv -f "${extension_manifest_next}" "${extension_dir}/manifest.json" || return 1
@@ -901,9 +1023,7 @@ commit_install() {
   inject_failure cli || return 1
 
   if [[ "${logue_platform}" == "darwin" ]]; then
-    if [[ "${autostart}" == "yes" ]]; then
-      replace_path "${launch_plist_next}" "${launch_plist}" || return 1
-    else
+    if [[ "${autostart}" != "yes" ]]; then
       rm -f -- "${launch_plist}" || return 1
     fi
   else
@@ -984,10 +1104,10 @@ rollback_install() {
     migration_rollback_ok="no"
   fi
 
-  if [[ "${migration_rollback_ok}" == "yes" && "${service_was_active}" == "yes" && -f "${current_link}/python_server/logue_server.py" ]]; then
+  if [[ "${migration_rollback_ok}" == "yes" && ( "${service_was_active}" == "yes" || "${launch_job_was_loaded}" == "yes" ) && -f "${current_link}/python_server/logue_server.py" ]]; then
     restored_version="${previous_current_version}"
     [[ -n "${restored_version}" ]] || restored_version="$(tr -d '\r\n' < "${current_link}/VERSION" 2>/dev/null || true)"
-    start_service "${restored_version}" || rollback_failed="yes"
+    restore_previous_service "${restored_version}" || rollback_failed="yes"
   fi
   [[ "${rollback_failed}" == "no" ]]
 }
@@ -998,8 +1118,8 @@ if ! stop_managed_service; then
 fi
 if [[ "${data_migration_required}" == "yes" ]] && ! prepare_legacy_migration; then
   data_root="${legacy_default_data_root}"
-  if [[ "${service_was_active}" == "yes" && -n "${previous_current_version}" ]]; then
-    if ! start_service "${previous_current_version}" >/dev/null 2>&1; then
+  if [[ ( "${service_was_active}" == "yes" || "${launch_job_was_loaded}" == "yes" ) && -n "${previous_current_version}" ]]; then
+    if ! restore_previous_service "${previous_current_version}" >/dev/null 2>&1; then
       fail "The legacy workspace copy failed. The old data path and release are intact, but the previous service could not restart; run ${bin_dir}/logue after checking ${log_file}."
     fi
   fi

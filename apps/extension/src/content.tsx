@@ -37,7 +37,7 @@ import { V2SelectionSurface, type SelectionCommentPhase } from "./v2-real/V2Sele
 import styles from "./v2-real/v2ExtensionSurface.css?inline";
 
 interface ContentRequestMessage {
-  type: "logue:insert-text" | "logue:undo-insert" | "logue:get-page-context" | "logue:locate-page-anchor" | "logue:get-current-selection-anchor" | "logue:discover-input-target" | "logue:insert-external-document" | "logue:undo-external-document" | "logue:start-inline-voice" | "logue:start-voice-command" | "logue:resume-voice-command";
+  type: "logue:insert-text" | "logue:undo-insert" | "logue:get-page-context" | "logue:probe-content-runtime" | "logue:locate-page-anchor" | "logue:get-current-selection-anchor" | "logue:discover-input-target" | "logue:insert-external-document" | "logue:undo-external-document" | "logue:start-inline-voice" | "logue:start-voice-command" | "logue:resume-voice-command";
   text?: string;
   expectedTargetSessionId?: string;
   token?: string;
@@ -54,6 +54,7 @@ interface ContentRequestMessage {
   activitySourceId?: string;
   pendingVoiceId?: string;
   needsClarification?: boolean;
+  nonce?: string;
 }
 
 type InlineRecorderAction = "start" | "stop" | "cancel";
@@ -2284,6 +2285,19 @@ function ExtensionLauncher() {
         return false;
       }
       const contentMessage = message as ContentMessage;
+      if (contentMessage?.type === "logue:probe-content-runtime") {
+        const nonce = contentMessage.nonce;
+        if (!nonce) {
+          sendResponse({ ok: false });
+          return false;
+        }
+        void chrome.runtime.sendMessage({ type: "logue:content-runtime-probe", nonce })
+          .then((response: { ok?: boolean; nonce?: string } | undefined) => {
+            sendResponse({ ok: response?.ok === true && response.nonce === nonce, nonce });
+          })
+          .catch(() => sendResponse({ ok: false, nonce }));
+        return true;
+      }
       if (contentMessage?.type === "logue:start-inline-voice") {
         const target = targetRef.current;
         if (!target || !isEditableTargetAvailable(target)) {

@@ -30,6 +30,7 @@ import {
   type SidePanelChrome,
 } from "./sidePanelController";
 import { createRequestId } from "./requestId";
+import { installedExtensionAssetPath } from "./extensionAssets";
 import { googleDocsEditableSelector } from "./dom";
 import type { RecordingBridgeEvent, RecordingControlAction, RecordingPanelEvent } from "./recordingBridge";
 import { assertLogueServerStatus, getServerURL, normalizeServerURL } from "./serverConnection";
@@ -178,6 +179,11 @@ interface PageContextReadyMessage {
   type: "logue:page-context-ready" | "logue:page-context-changed";
 }
 
+interface ContentRuntimeProbeMessage {
+  type: "logue:content-runtime-probe";
+  nonce: string;
+}
+
 interface TabProjectsMessage {
   type: "logue:get-tab-projects";
 }
@@ -204,7 +210,7 @@ interface WebTargetBridgeMessage {
   request: ExtensionTargetBridgeRequest;
 }
 
-type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage | RecordingBridgeEvent | PageContextReadyMessage | TabProjectsMessage | InlineRecorderControlMessage | ExtensionRecorderEvent | MicrophonePermissionResult | WebTargetBridgeMessage;
+type RuntimeMessage = ApiMessage | OpenPanelMessage | PanelStateMessage | RecordingBridgeEvent | PageContextReadyMessage | ContentRuntimeProbeMessage | TabProjectsMessage | InlineRecorderControlMessage | ExtensionRecorderEvent | MicrophonePermissionResult | WebTargetBridgeMessage;
 
 const nativeSidePanel = chrome.sidePanel as unknown as SidePanelChrome & {
   onOpened?: chrome.events.Event<(info: { tabId?: number; windowId?: number }) => void>;
@@ -1696,25 +1702,56 @@ async function resolveTabProjects(tab: chrome.tabs.Tab): Promise<string[]> {
   return [association.project_name];
 }
 
-async function ensureTabContentScript(tabId: number) {
+const contentScriptRecoveryByTab = new Map<number, Promise<boolean>>();
+
+async function pingTabContentScript(tabId: number) {
   try {
-    const response = await chrome.tabs.sendMessage(tabId, { type: "logue:get-page-context" }) as { ok?: boolean } | undefined;
-    if (response?.ok) return true;
+    const nonce = crypto.randomUUID();
+    const response = await Promise.race([
+      chrome.tabs.sendMessage(tabId, {
+        type: "logue:probe-content-runtime",
+        nonce,
+      }) as Promise<{ ok?: boolean; nonce?: string } | undefined>,
+      new Promise<undefined>((resolve) => setTimeout(resolve, 400)),
+    ]);
+    return response?.ok === true && response.nonce === nonce;
   } catch {
-    // A stale content script loses its runtime connection when the extension reloads.
+    return false;
   }
+}
+
+async function recoverTabContentScript(tabId: number) {
+  if (await pingTabContentScript(tabId)) return true;
   try {
+    const background = chrome.runtime.getManifest().background;
+    const serviceWorkerPath = background && "service_worker" in background
+      ? background.service_worker
+      : undefined;
     await chrome.scripting.executeScript({
       // A restricted browser-owned child frame must not block recovery of the
       // actual page target. Eligible frames load their declared content script
       // normally; this recovery is specifically for the top-level stale host.
       target: { tabId },
-      files: ["content.js"],
+      files: [installedExtensionAssetPath(serviceWorkerPath, "content.js")],
     });
-    return true;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (await pingTabContentScript(tabId)) return true;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return false;
   } catch {
     return false;
   }
+}
+
+function ensureTabContentScript(tabId: number) {
+  const existing = contentScriptRecoveryByTab.get(tabId);
+  if (existing) return existing;
+  const recovery = recoverTabContentScript(tabId).finally(() => {
+    if (contentScriptRecoveryByTab.get(tabId) === recovery) contentScriptRecoveryByTab.delete(tabId);
+  });
+  contentScriptRecoveryByTab.set(tabId, recovery);
+  return recovery;
 }
 
 async function recoverContentScriptsAfterExtensionReload() {
@@ -1761,9 +1798,11 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 chrome.action.onClicked.addListener((tab) => {
   if (typeof tab.id !== "number") return;
   // Clicking the action grants activeTab access, so it is also the reliable
-  // recovery point for pages left behind by an extension reload.
+  // recovery point for pages left behind by an extension reload. Open the
+  // panel in the original user gesture; content recovery can finish beside it.
+  void toggleTabPanel(tab).catch(() => undefined);
   void ensureTabContentScript(tab.id)
-    .then(() => toggleTabPanel(tab))
+    .then((ready) => ready ? undefined : chrome.tabs.reload(tab.id!))
     .catch(() => undefined);
 });
 
@@ -1885,6 +1924,10 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
+  if (message?.type === "logue:content-runtime-probe") {
+    sendResponse({ ok: typeof sender.tab?.id === "number", nonce: message.nonce });
+    return false;
+  }
   if (message?.type === "logue:web-target-bridge") {
     void handleWebTargetBridge(message, sender)
       .then(sendResponse)
