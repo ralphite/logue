@@ -805,7 +805,7 @@ class Store:
         ]
         return [{**revision, "current": revision.get("revision") == current} for revision in revisions]
 
-    def save_transcript_revision(self, material_id: str, raw_transcript: str, transcript: str, applied_context: dict[str, Any], *, created_at: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
+    def save_transcript_revision(self, material_id: str, raw_transcript: str, transcript: str, applied_context: dict[str, Any], *, created_at: str | None = None, adopt_transcript: bool = False) -> tuple[dict[str, Any], dict[str, Any]]:
         with self.lock:
             item = self.get("items", material_id)
             capture_id = str(item.get("capture_id", "")).strip()
@@ -831,6 +831,9 @@ class Store:
             item["raw_transcript"] = raw_text
             item["transcript"] = text
             item["applied_context"] = dict(applied_context)
+            if adopt_transcript:
+                item["content"] = text
+                item.pop("transcription_pending", None)
             try:
                 atomic_json(self.root / "items" / f"{material_id}.json", item)
             except BaseException:
@@ -1021,6 +1024,7 @@ class Store:
             "activity_type": activity_type,
             "run_id": str(value.get("run_id", "")).strip(),
             "comment_state": comment_state,
+            "transcription_pending": bool(value.get("transcription_pending")),
         }
         item.update({key: entry for key, entry in optional.items() if entry})
         if kind == "derived" and actor.lower() != "user":
@@ -3541,6 +3545,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.method_error()
         elif path == "/v1/transcribe" and method == "POST":
             self.transcribe()
+        elif path == "/v1/voice-comments" and method == "POST":
+            self.save_voice_comment()
         elif path.startswith("/v1/captures/") and method == "DELETE":
             identifier = path.removeprefix("/v1/captures/")
             store.capture_path(identifier)
@@ -3849,8 +3855,68 @@ class Handler(BaseHTTPRequestHandler):
         transcript = self.server.gemini.apply_transcription_skill(raw_transcript, fields, skill_instructions)
         if correction_spoken:
             store.remember_preferred_spelling(correction_scope, correction_spoken, correction_preferred, profile_project=profile["project_name"], topic_vocabulary_id=profile["topic_vocabulary_id"])
-        material, revision = store.save_transcript_revision(identifier, raw_transcript, transcript, resolved_context)
+        material, revision = store.save_transcript_revision(
+            identifier,
+            raw_transcript,
+            transcript,
+            resolved_context,
+            adopt_transcript=bool(item.get("transcription_pending")),
+        )
         self.json(HTTPStatus.CREATED, {"material": material, "revision": revision})
+
+    def save_voice_comment(self) -> None:
+        content_type = self.headers.get("Content-Type", "")
+        length = int(self.headers.get("Content-Length", "0"))
+        if length > MAX_AUDIO + (1 << 20) or "multipart/form-data" not in content_type:
+            raise ValueError("audio request exceeds 20MB or is invalid")
+        message = BytesParser(policy=email_policy).parsebytes(
+            f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode()
+            + self.rfile.read(length)
+        )
+        audio = b""
+        mime_type = "audio/webm"
+        material_value: dict[str, Any] | None = None
+        for part in message.iter_parts():
+            name = part.get_param("name", header="content-disposition")
+            payload = part.get_payload(decode=True) or b""
+            if name == "audio":
+                audio = payload
+                mime_type = part.get_content_type()
+            elif name == "material":
+                parsed = json.loads(payload.decode("utf-8", errors="strict"))
+                material_value = parsed if isinstance(parsed, dict) else None
+        if not audio or len(audio) > MAX_AUDIO:
+            raise ValueError("audio file is required or exceeds 20MB")
+        if material_value is None:
+            raise ValueError("voice comment metadata is required")
+        request_id = str(material_value.get("request_id", "")).strip()
+        if not request_id:
+            raise ValueError("request id is required")
+        existing = self.server.store._request_item(request_id)
+        if existing:
+            self.json(HTTPStatus.OK, existing)
+            return
+        applied_context = material_value.get("applied_context")
+        if not isinstance(applied_context, dict):
+            raise ValueError("frozen transcription context is required")
+        capture_id = self.server.store.save_capture(audio, mime_type, applied_context)
+        try:
+            item = self.server.store.create_item({
+                **material_value,
+                "kind": "voice",
+                "content": "Voice comment",
+                "projects": [],
+                "actor": "user",
+                "comment_state": "unlinked",
+                "capture_id": capture_id,
+                "transcription_pending": True,
+            })
+        except BaseException:
+            for path in (self.server.store.root / "audio").glob(f"{capture_id}.*"):
+                path.unlink(missing_ok=True)
+            raise
+        self.json(HTTPStatus.CREATED, item)
+        self.server.schedule_organization(item)
 
     def transcribe(self) -> None:
         content_type = self.headers.get("Content-Type", "")

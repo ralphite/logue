@@ -919,3 +919,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 保留单一 text material 并只嵌入 `source` metadata；这无法满足权威 V2 对两个 Sources、comments-on lineage 与 bundle 删除语义的明确合同。
 - **已有证据：** `V2-CAP-03` 与权威 V2 §10.3 要求 Page/Selection Text Comment 建立 Web+You bundle；production `saveContent` 仅在存在 selection 时调用原子 bundle API，Page 路径仍调用 `saveMaterial` 创建孤立条目。
 - **开放问题：** Advanced Voice Comment 的 Stop-first 持久化另属 `V2-CAP-05`，不混入本批。
+
+### DR-086 — Advanced Voice Comment 的 Stop 是永久 You Comment 边界
+
+- **优先级：** V2 Capture / Phase 2 P0
+- **状态：** 已修复并通过 Extension typecheck、Python compile 与 diff check；真实 provider failure/restart 留到统一 QA 阶段
+- **决定：** Stop 后先由 Host 以同一 request identity 原子保存原音、冻结转写 context 与 Unlinked You Comment，再启动 provider 转写。首次转写写回同一 Comment identity；失败时现有 pending queue 只重试该 material，不创建第二个 Source。Finish linking 继续复用该 Comment，并保持已有 page/selection source、Project suggestion、tags 与 lineage 合同。
+- **用户可见影响：** 用户停止录音后，即使 provider 离线或转写失败，Comment 及原音也已经永久进入 Logue；稍后 Retry、Finish linking 或 Delete 操作的是同一条 Comment。
+- **替代方案：** 只保存 Extension pending queue，等转写成功再创建 Source；这不是可在 Library/Project 中管理的永久 Source，并直接违反权威 V2 的 Stop 边界。先调用旧 `/transcribe` 再补 Source也会让 provider 成为持久化前置条件。
+- **已有证据：** production `transcribeAndSave` 先写 Chrome queue，但直到 `transcribeAudio` 成功后才调用 `saveMaterial`；失败分支没有 Host material ID。Host 已具备原音、冻结 context、transcript revision 与同 identity link/delete 原语，可直接复用。
+- **开放问题：** 无；默认 Selection Voice Comment 的 Accept/Cancel 原子合同不在本批改变。

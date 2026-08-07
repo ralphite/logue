@@ -135,6 +135,7 @@ export interface PageMaterial {
   parentIds?: string[];
   captureId?: string;
   commentState?: "unlinked" | "linked";
+  transcriptionPending?: boolean;
   source?: SourceInfo;
   createdAt: string;
   projects: string[];

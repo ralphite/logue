@@ -1148,6 +1148,8 @@ export function V2SidePanelSurface({
                       const anchorStatus =
                         anchorMaterial?.source?.anchor?.status;
                       const unlinked = material.commentState === "unlinked";
+                      const transcriptionPending =
+                        Boolean(material.transcriptionPending);
                       const included = Boolean(
                         activeProject &&
                           group.items.some((item) =>
@@ -1229,8 +1231,10 @@ export function V2SidePanelSurface({
                             <V2Origin
                               origin="you"
                               detail={
-                                unlinked
-                                  ? "Unlinked voice comment"
+                                transcriptionPending
+                                  ? "Transcription pending"
+                                  : unlinked
+                                    ? "Unlinked voice comment"
                                   : group.source
                                     ? `Web + You · ${classification}`
                                     : classification
@@ -1359,7 +1363,11 @@ export function V2SidePanelSurface({
                               </div>
                             </div>
                           ) : (
-                            <p>{material.content}</p>
+                            <p>
+                              {transcriptionPending
+                                ? "Transcription pending…"
+                                : material.content}
+                            </p>
                           )}
                           {group.source ? (
                             <small className="v2x-comment-source">
@@ -1368,8 +1376,10 @@ export function V2SidePanelSurface({
                           ) : null}
                           <div className="v2-library-meta">
                             {[
-                              unlinked
-                                ? "Saved · Finish linking to this page"
+                              transcriptionPending
+                                ? "Saved · Retry transcription"
+                                : unlinked
+                                  ? "Saved · Finish linking to this page"
                                 : assignedProjects.length
                                   ? assignedProjects.join(", ")
                                   : "Saved only",
@@ -1423,14 +1433,16 @@ export function V2SidePanelSurface({
                           {!editing &&
                             (unlinked ? (
                               <div className="v2-inline-actions">
-                                <V2Button
-                                  primary
-                                  onClick={() =>
-                                    onFinishUnlinkedVoiceComment(material)
-                                  }
-                                >
-                                  Finish comment
-                                </V2Button>
+                                {!transcriptionPending ? (
+                                  <V2Button
+                                    primary
+                                    onClick={() =>
+                                      onFinishUnlinkedVoiceComment(material)
+                                    }
+                                  >
+                                    Finish comment
+                                  </V2Button>
+                                ) : null}
                                 <V2Button
                                   onClick={() =>
                                     onDeleteUnlinkedVoiceComment(material)

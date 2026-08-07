@@ -123,7 +123,7 @@ async function logueFetch(input: RequestInfo | URL, init?: RequestInit) {
 
 interface ApiMessage {
   type: "logue:api";
-  action: "status" | "test-server" | "context" | "create-project" | "save-project-association" | "delete-project-association" | "page-materials" | "project-sources" | "transcribe" | "save-material" | "update-material" | "update-comment-bundle" | "update-source-anchor" | "adopt-voice-material" | "link-voice-comment" | "delete-material" | "retranscribe-material" | "cancel-material-save" | "save-selection" | "delete-capture" | "skills" | "settings" | "skill-run" | "adopt-skill-run" | "adopt-skill-run-document" | "create-document" | "pending-voice-status" | "pending-voice-queue" | "pending-voice-list" | "pending-voice-mark-transcribed" | "pending-voice-complete" | "pending-voice-retry" | "pending-voice-export" | "pending-voice-delete";
+  action: "status" | "test-server" | "context" | "create-project" | "save-project-association" | "delete-project-association" | "page-materials" | "project-sources" | "transcribe" | "save-voice-comment" | "save-material" | "update-material" | "update-comment-bundle" | "update-source-anchor" | "adopt-voice-material" | "link-voice-comment" | "delete-material" | "retranscribe-material" | "cancel-material-save" | "save-selection" | "delete-capture" | "skills" | "settings" | "skill-run" | "adopt-skill-run" | "adopt-skill-run-document" | "create-document" | "pending-voice-status" | "pending-voice-queue" | "pending-voice-list" | "pending-voice-mark-transcribed" | "pending-voice-complete" | "pending-voice-retry" | "pending-voice-export" | "pending-voice-delete";
   payload?: Record<string, unknown>;
 }
 
@@ -1096,6 +1096,24 @@ async function retryPendingVoice(apiBase: string, id: string) {
     error: undefined,
   });
   try {
+    if (plan.materialId) {
+      const profile = plan.transcription.profileRequest ?? {};
+      const materialId = encodeURIComponent(plan.materialId);
+      const result = await parseResponse(await logueFetch(`${apiBase}/v1/items/${materialId}/retranscribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reference_project: profile.project ?? "",
+          profile_project: profile.profile_project ?? "",
+          disable_project_profile: Boolean(profile.disable_project_profile),
+          use_default_profile: Boolean(profile.use_default_profile),
+          primary_language: profile.primary_language ?? "",
+          topic_vocabulary_id: profile.topic_vocabulary_id ?? "",
+        }),
+      }));
+      await removePendingVoice(id);
+      return result;
+    }
     const transcription = await transcribePendingVoice(apiBase, record, plan);
     const voiceFields = {
       request_id: record.id,
@@ -1353,6 +1371,21 @@ async function handleApiMessage(message: ApiMessage) {
     form.append("instructions", String(payload.instructions ?? ""));
     if (payload.appliedContext) form.append("applied_context", JSON.stringify(payload.appliedContext));
     return parseResponse(await logueFetch(`${apiBase}/v1/transcribe`, { method: "POST", body: form }));
+  }
+  if (message.action === "save-voice-comment") {
+    const audioBase64 = String(payload.audioBase64 ?? "");
+    if (!audioBase64) throw new Error("The recording is empty.");
+    const mimeType = String(payload.mimeType ?? "audio/webm");
+    const form = new FormData();
+    form.append("audio", new Blob([decodeBase64(audioBase64)], { type: mimeType }), "logue-recording.webm");
+    form.append("material", JSON.stringify({
+      request_id: payload.requestId,
+      source: payload.source,
+      suggested_projects: payload.suggestedProjects ?? [],
+      tags: payload.tags ?? [],
+      applied_context: payload.appliedContext,
+    }));
+    return parseResponse(await logueFetch(`${apiBase}/v1/voice-comments`, { method: "POST", body: form }));
   }
   if (message.action === "save-material") {
     return parseResponse(

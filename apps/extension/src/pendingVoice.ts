@@ -30,6 +30,8 @@ export interface PendingVoiceTranscriptionRequest {
 
 export interface PendingVoicePlan {
   kind: PendingVoiceSaveKind;
+  /** Existing Stop-first You Comment to update instead of creating another Source. */
+  materialId?: string;
   transcription: PendingVoiceTranscriptionRequest;
   /** Body template for /v1/items or /v1/selections. Voice result fields are added on retry. */
   save: Record<string, unknown>;

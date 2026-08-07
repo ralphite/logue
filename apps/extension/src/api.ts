@@ -331,6 +331,7 @@ export async function getPageMaterials(pageUrl: string) {
       parent_ids?: string[];
       capture_id?: string;
       comment_state?: "unlinked" | "linked";
+      transcription_pending?: boolean;
       source?: SourceInfo;
       created_at: string;
       projects?: string[];
@@ -356,6 +357,7 @@ export async function getPageMaterials(pageUrl: string) {
       parentIds: item.parent_ids ?? [],
       captureId: item.capture_id,
       commentState: item.comment_state,
+      transcriptionPending: Boolean(item.transcription_pending),
       source: item.source,
       createdAt: item.created_at,
       projects: item.projects ?? [],
@@ -438,6 +440,25 @@ export async function transcribeAudio(input: {
     projectContext: input.projectContext ?? "",
     glossary: input.glossary ?? "",
     instructions: input.instructions ?? "",
+    appliedContext: input.appliedContext,
+  });
+}
+
+export async function saveVoiceCommentRecording(input: {
+  requestId: string;
+  audio: Blob;
+  source: SourceInfo;
+  suggestedProjects?: string[];
+  tags?: string[];
+  appliedContext: AppliedContext;
+}) {
+  return request<{ id: string; capture_id: string }>("save-voice-comment", {
+    requestId: input.requestId,
+    audioBase64: await blobToBase64(input.audio),
+    mimeType: input.audio.type || "audio/webm",
+    source: input.source,
+    suggestedProjects: input.suggestedProjects ?? [],
+    tags: input.tags ?? [],
     appliedContext: input.appliedContext,
   });
 }

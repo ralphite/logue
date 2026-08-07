@@ -31,6 +31,7 @@ import {
   saveProjectAssociation,
   saveMaterial,
   saveSelection,
+  saveVoiceCommentRecording,
   transcribeAudio,
   updateCommentBundle,
   updateSourceAnchor,
@@ -557,6 +558,7 @@ function SidePanelApp() {
     const current = stateRef.current;
     if (!current) return;
     const pendingId = session?.id ?? requestIdRef.current;
+    let savedCommentId = "";
     setPhase("processing");
     setError(undefined);
     try {
@@ -621,6 +623,7 @@ function SidePanelApp() {
           glossary: profile.vocabulary.join("\n"),
           instructions,
           appliedContext: provenance,
+          profileRequest: { project: referenceProject ?? "", ...frozen.overrides },
         },
         save: savePlan,
       };
@@ -631,6 +634,59 @@ function SidePanelApp() {
         pageTitle: current.source.title,
         plan,
       });
+      if (current.intent !== "input" && current.intent !== "generate") {
+        const saved = await saveVoiceCommentRecording({
+          requestId: pendingId,
+          audio: blob,
+          source: commentSource,
+          suggestedProjects: organization.projects,
+          tags: organization.tags,
+          appliedContext: provenance,
+        });
+        savedCommentId = saved.id;
+        const commentPlan: PendingVoicePlan = { ...plan, materialId: saved.id };
+        await queuePendingVoice({
+          id: pendingId,
+          tabId: current.tabId,
+          pageUrl: current.source.url,
+          pageTitle: current.source.title,
+          plan: commentPlan,
+        });
+        await refreshPageMaterials(current.source.url);
+        const transcribed = await retranscribeMaterial(saved.id, {
+          referenceProject,
+          profileOverrides: frozen.overrides,
+        });
+        provenance = transcribed.revision.applied_context;
+        await markPendingVoiceTranscribed({
+          id: pendingId,
+          captureId: transcribed.revision.capture_id,
+          rawTranscript: transcribed.revision.raw_transcript,
+          text: transcribed.revision.transcript,
+          appliedContext: provenance,
+        });
+        setTranscript(transcribed.revision.transcript);
+        setDraft(transcribed.revision.transcript);
+        persistDraft({
+          draft: transcribed.revision.transcript,
+          transcript: transcribed.revision.transcript,
+        });
+        await refreshPageMaterials(current.source.url);
+        await completePendingVoice(pendingId);
+        setPendingVoices((items) => items.filter((item) => item.id !== pendingId));
+        setVoiceCandidate({
+          materialId: saved.id,
+          text: transcribed.revision.transcript,
+          revision: transcribed.revision.revision,
+          profileLabel:
+            provenance.voice_profile_label || profile.label,
+          referenceProject,
+          purpose: "comment",
+        });
+        setVoiceProfilePickerOpen(false);
+        setPhase("idle");
+        return;
+      }
       const result = await transcribeAudio({
         requestId: pendingId,
         audio: blob,
@@ -747,32 +803,21 @@ function SidePanelApp() {
       setTranscript(result.text);
       setDraft(result.text);
       persistDraft({ draft: result.text, transcript: result.text });
-      const materialId = current.intent === "input"
-        ? await saveContent(result.text, result.capture_id, result.raw_transcript, result.text, provenance, true, pendingId)
-        : (await saveMaterial({
-            requestId: pendingId,
-            kind: "voice",
-            content: result.text,
-            rawTranscript: result.raw_transcript,
-            transcript: result.text,
-            source: commentSource,
-            projects: [],
-            suggestedProjects: organization.projects,
-            tags: organization.tags,
-            captureId: result.capture_id,
-            appliedContext: provenance,
-            actor: "user",
-            commentState: "unlinked",
-          })).id;
+      const materialId = await saveContent(result.text, result.capture_id, result.raw_transcript, result.text, provenance, true, pendingId);
       if (!materialId) throw new Error("The recording was transcribed but could not be saved.");
-      if (current.intent !== "input") await refreshPageMaterials(current.source.url);
       await completePendingVoice(pendingId);
       setPendingVoices((items) => items.filter((item) => item.id !== pendingId));
-      setVoiceCandidate({ materialId, text: result.text, revision: 1, profileLabel: provenance.voice_profile_label || profile.label, referenceProject, purpose: current.intent === "input" ? "write" : "comment" });
+      setVoiceCandidate({ materialId, text: result.text, revision: 1, profileLabel: provenance.voice_profile_label || profile.label, referenceProject, purpose: "write" });
       setVoiceProfilePickerOpen(false);
       setPhase("idle");
     } catch {
-      setError({ kind: "transcription", message: "Recording saved locally. Retry when Logue is available.", action: "retry" });
+      setError({
+        kind: "transcription",
+        message: savedCommentId
+          ? "Comment saved. Retry transcription when Logue is available."
+          : "Recording saved locally. Retry when Logue is available.",
+        action: "retry",
+      });
       void getPendingVoices().then(setPendingVoices).catch(() => undefined);
       setPhase("error");
     }
@@ -1653,12 +1698,21 @@ function SidePanelApp() {
     if (!current || item.commentState !== "unlinked") return;
     try {
       await deleteMaterial(item.id);
+      const pending = pendingVoices.find(
+        (record) => record.plan?.materialId === item.id,
+      );
+      if (pending) {
+        await deletePendingVoice(pending.id);
+        setPendingVoices((items) =>
+          items.filter((record) => record.id !== pending.id),
+        );
+      }
       await refreshPageMaterials(current.source.url);
       setError(undefined);
     } catch (cause) {
       setError(friendlyLocalError(cause, "save"));
     }
-  }, [refreshPageMaterials]);
+  }, [pendingVoices, refreshPageMaterials]);
 
   const locatePageAnchor = useCallback(async (item: PageMaterial) => {
     const current = stateRef.current;
@@ -1738,9 +1792,18 @@ function SidePanelApp() {
   }, []);
 
   const removeSavedRecording = useCallback(async (id: string) => {
-    try { await deletePendingVoice(id); await refreshPendingVoices(); }
+    try {
+      const pending = pendingVoices.find((item) => item.id === id);
+      if (pending?.plan?.materialId) {
+        await deleteMaterial(pending.plan.materialId);
+        const current = stateRef.current;
+        if (current) await refreshPageMaterials(current.source.url);
+      }
+      await deletePendingVoice(id);
+      await refreshPendingVoices();
+    }
     catch (cause) { setError(friendlyLocalError(cause, "save")); }
-  }, [refreshPendingVoices]);
+  }, [pendingVoices, refreshPageMaterials, refreshPendingVoices]);
 
   const returnToPage = useCallback(() => {
     if (typeof panelTabId !== "number") return;
