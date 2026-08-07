@@ -50,6 +50,7 @@ import {
   resolveDocumentUndoFailure,
   resolveDocumentUndoResult,
   saveSkillRunAsDocument,
+  skillResolutionLabel,
   type DocumentAdoption,
 } from "../skillApi";
 import { Button, IconButton } from "../components/ui";
@@ -1185,7 +1186,7 @@ export function RunInspector({
           <h3>{run.instruction || "Deleted Run"}</h3>
           <div className="v2-source-meta">
             {shortDate(run.created_at)} · Skill revision {run.skill_revision} ·{" "}
-            {run.sources.length} frozen Sources{run.pinned ? " · pinned" : ""}
+            {skillResolutionLabel(run.skill_resolution)} · {run.sources.length} frozen Sources{run.pinned ? " · pinned" : ""}
             {run.retry_run_id ? " · retry" : ""}
           </div>
         </article>

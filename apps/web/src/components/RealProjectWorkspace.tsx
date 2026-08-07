@@ -322,6 +322,8 @@ export function RealProjectWorkspace({
       });
       const run = await createSkillRun({
         skill_id: skill.id,
+        skill_explicit: false,
+        skill_slot: requestMode === "ask" ? "ask" : "draft",
         instruction,
         project: project.name,
         source_ids: projectMaterials.map((material) => material.id),

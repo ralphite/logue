@@ -158,6 +158,7 @@ function SidePanelApp() {
   const [skills, setSkills] = useState<ExtensionSkill[]>([]);
   const [documents, setDocuments] = useState<ExtensionDocument[]>([]);
   const [skillId, setSkillId] = useState("");
+  const [skillExplicit, setSkillExplicit] = useState(false);
   const [commandResult, setCommandResult] = useState<CommandResult>();
   const [generating, setGenerating] = useState(false);
   const [autoRunToken, setAutoRunToken] = useState("");
@@ -408,6 +409,7 @@ function SidePanelApp() {
           ? captureContext.projects.find((item) => item.name === projectName)?.skill_bindings?.command
           : undefined;
         setSkillId(available.find((item) => item.id === (projectSkill || settings.default_extension_skill))?.id ?? available[0]?.id ?? "");
+        setSkillExplicit(false);
       }
     } catch (cause) {
       if (stateRef.current?.tabId === current.tabId && !current.pendingInsert) {
@@ -447,6 +449,7 @@ function SidePanelApp() {
       setPageMaterials([]);
       setSkills([]);
       setSkillId("");
+      setSkillExplicit(false);
       setError((active) => pendingInsert ? active : undefined);
       await refreshServerConnection();
     }).catch((cause: unknown) => {
@@ -477,6 +480,7 @@ function SidePanelApp() {
       setPageMaterials([]);
       setSkills([]);
       setSkillId("");
+      setSkillExplicit(false);
       setError((active) => pendingInsert ? active : undefined);
       await refreshServerConnection();
     }).catch(() => {
@@ -763,9 +767,12 @@ function SidePanelApp() {
           stateRef.current = nextState;
           setState(nextState);
           setSkillId(resolvedSkill.id);
+          setSkillExplicit(false);
           persistDraft({ generationSourceIds: nextState.generationSourceIds, pinnedSourceIds: [] });
           const run = await createExtensionSkillRun({
             skillId: resolvedSkill.id,
+            skillExplicit: false,
+            skillSlot: "command",
             instruction: result.text,
             project,
             pageTitle: current.source.title,
@@ -1108,6 +1115,8 @@ function SidePanelApp() {
       const run = await createExtensionSkillRun({
         requestId: current.commandRunRequestId ?? (autoRunTokenToConsume ? `${autoRunTokenToConsume}:run` : undefined),
         skillId,
+        skillExplicit,
+        skillSlot: "command",
         instruction: draft.trim(),
         project: explicitProjects(current)[0],
         pageTitle: current.source.title,
@@ -1164,7 +1173,7 @@ function SidePanelApp() {
     } finally {
       setGenerating(false);
     }
-  }, [commitCommandResult, draft, panelTabId, persistDraft, resolveActiveProject, skillId]);
+  }, [commitCommandResult, draft, panelTabId, persistDraft, resolveActiveProject, skillExplicit, skillId]);
 
   runGenerationRef.current = runGeneration;
 
@@ -1682,6 +1691,7 @@ function SidePanelApp() {
             setSkillId((currentSkill) => skills.some((item) => item.id === (binding || settings.default_extension_skill))
               ? (binding || settings.default_extension_skill)
               : currentSkill);
+            setSkillExplicit(false);
           });
         }
       }
@@ -1979,6 +1989,7 @@ function SidePanelApp() {
         setVoiceCandidate(undefined);
         setSkills([]);
         setSkillId("");
+        setSkillExplicit(false);
       }
       if (!preserveActiveCapture) {
         setPhase("idle");
@@ -2194,7 +2205,10 @@ function SidePanelApp() {
       onUndoGeneratedDocument={() => void undoGeneratedDocumentUpdate()}
       onUndoGenerated={() => void undoGeneratedText()}
       onRetryGeneratedAdoption={() => void retryGeneratedAdoption()}
-      onSkillIdChange={setSkillId}
+      onSkillIdChange={(value) => {
+        setSkillId(value);
+        setSkillExplicit(true);
+      }}
       onGenerationSourceIdsChange={selectGenerationSources}
       onPinGenerationSource={pinGenerationSource}
       onProjectsChange={selectProjects}

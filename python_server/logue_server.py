@@ -45,6 +45,19 @@ VALID_TASKS = {"transcribe", "organize", "generate"}
 VALID_OUTPUTS = {"insert", "material", "qa", "document"}
 VALID_SURFACES = {"web", "extension", "background"}
 VALID_CONTEXTS = {"page", "target", "selection", "project", "materials", "personal"}
+SKILL_RESOLUTIONS = {"explicit", "project", "global", "system"}
+GENERATION_SKILL_SLOTS = {
+    "command": {"project": "command", "global": "default_extension_skill", "system": "sk_reply", "output": "insert", "surface": "extension"},
+    "ask": {"project": "ask", "global": "default_qa_skill", "system": "sk_qa", "output": "qa", "surface": "web"},
+    "draft": {"project": "draft", "global": "default_document_skill", "system": "sk_document", "output": "document", "surface": "web"},
+}
+GLOBAL_SKILL_DEFAULTS = {
+    "default_transcription_skill": "sk_transcribe",
+    "default_organization_skill": "sk_organize",
+    "default_extension_skill": "sk_reply",
+    "default_qa_skill": "sk_qa",
+    "default_document_skill": "sk_document",
+}
 VALID_ANCHOR_STATUSES = {"anchored", "page_changed", "reanchored", "snapshot_only"}
 PROVIDER_HEALTH_STATES = {"unverified", "ready", "needs_attention"}
 PROVIDER_ERROR_MESSAGES = {
@@ -435,22 +448,70 @@ class Store:
         history.sort(key=lambda value: int(value.get("revision", 0)), reverse=True)
         return [{**current, "skill_id": identifier, "current": True}, *history]
 
+    def resolve_generation_skill(self, value: dict[str, Any]) -> tuple[dict[str, Any], str, str]:
+        explicit = value.get("skill_explicit")
+        if not isinstance(explicit, bool):
+            raise ValueError("skill_explicit is required")
+        slot = str(value.get("skill_slot", "")).strip()
+        if explicit:
+            skill = self.get("skills", str(value.get("skill_id", "")).strip())
+            if skill.get("task") != "generate" or not skill.get("enabled") or skill.get("archived_at"):
+                raise ValueError("this skill is unavailable")
+            if slot and slot not in GENERATION_SKILL_SLOTS:
+                raise ValueError("invalid Skill binding slot")
+            return skill, "explicit", slot
+        if slot not in GENERATION_SKILL_SLOTS:
+            raise ValueError("a Skill binding slot is required")
+        contract = GENERATION_SKILL_SLOTS[slot]
+
+        def available(identifier: str) -> dict[str, Any] | None:
+            if not identifier:
+                return None
+            try:
+                skill = self.get("skills", identifier)
+            except FileNotFoundError:
+                return None
+            if (
+                skill.get("task") != "generate"
+                or skill.get("output") != contract["output"]
+                or contract["surface"] not in normalize(skill.get("surfaces"))
+                or not skill.get("enabled")
+                or skill.get("archived_at")
+            ):
+                return None
+            return skill
+
+        project_name = str(value.get("project", "")).strip()
+        if project_name:
+            try:
+                project = self.get_project(project_name)
+            except FileNotFoundError:
+                project = None
+            if project and not project.get("archived_at"):
+                project_skill = available(str(dict(project.get("skill_bindings") or {}).get(contract["project"], "")))
+                if project_skill:
+                    return project_skill, "project", slot
+        settings = self.settings()
+        if contract["global"] in normalize(settings.get("explicit_skill_bindings")):
+            global_skill = available(str(settings.get(contract["global"], "")))
+            if global_skill:
+                return global_skill, "global", slot
+        system_skill = available(str(contract["system"]))
+        if not system_skill:
+            raise RuntimeError(f"no available {slot} Skill")
+        return system_skill, "system", slot
+
     def skill_archive_impact(self, identifier: str) -> dict[str, Any]:
         with self.lock:
             skill = self.get("skills", identifier)
             if skill.get("system"):
                 raise ValueError("Built-in Skills cannot be archived")
             settings = self.settings()
+            explicit_bindings = set(normalize(settings.get("explicit_skill_bindings")))
             global_bindings = [
                 key
-                for key in (
-                    "default_transcription_skill",
-                    "default_organization_skill",
-                    "default_extension_skill",
-                    "default_qa_skill",
-                    "default_document_skill",
-                )
-                if settings.get(key) == identifier
+                for key in GLOBAL_SKILL_DEFAULTS
+                if key in explicit_bindings and settings.get(key) == identifier
             ]
             project_bindings = [
                 {
@@ -494,17 +555,14 @@ class Store:
                 atomic_json(self.root / "skills" / f"{identifier}.json", archived)
                 settings = self.settings()
                 settings_changed = False
-                for key in (
-                    "default_transcription_skill",
-                    "default_organization_skill",
-                    "default_extension_skill",
-                    "default_qa_skill",
-                    "default_document_skill",
-                ):
+                explicit_bindings = set(normalize(settings.get("explicit_skill_bindings")))
+                for key in GLOBAL_SKILL_DEFAULTS:
                     if settings.get(key) == identifier:
-                        settings.pop(key, None)
+                        settings[key] = GLOBAL_SKILL_DEFAULTS[key]
+                        explicit_bindings.discard(key)
                         settings_changed = True
                 if settings_changed:
+                    settings["explicit_skill_bindings"] = sorted(explicit_bindings)
                     self.save_settings(settings)
                 for project in self.projects():
                     bindings = dict(project.get("skill_bindings") or {})
@@ -578,7 +636,7 @@ class Store:
             if preserve_lineage:
                 timestamp = now()
                 sources = [{"id": source_id, "content": "", "projects": [], "tags": [], "created_at": timestamp} for source_id in normalize(run.get("source_ids"))]
-                tombstone = {key: run[key] for key in ("id", "skill_id", "skill_revision", "skill_name", "project", "document_id", "material_id", "activity_source_id", "retry_run_id", "continue_run_id", "created_at") if run.get(key)}
+                tombstone = {key: run[key] for key in ("id", "skill_id", "skill_revision", "skill_name", "skill_resolution", "skill_slot", "project", "document_id", "material_id", "activity_source_id", "retry_run_id", "continue_run_id", "created_at") if run.get(key)}
                 tombstone.update({"source_ids": normalize(run.get("source_ids")), "sources": sources, "status": "deleted", "tombstone": True, "deleted_at": timestamp, "updated_at": timestamp})
                 atomic_json(path, tombstone)
             else:
@@ -2096,17 +2154,56 @@ class Store:
     def settings(self) -> dict[str, Any]:
         path = self.root / "settings.json"
         if not path.exists():
-            return {"personal_context": "", "ignored_terms": [], "voice_profile": normalize_voice_profile({}), "default_transcription_skill": "sk_transcribe", "default_organization_skill": "sk_organize", "default_extension_skill": "sk_reply", "default_qa_skill": "sk_qa", "default_document_skill": "sk_document", "project_associations": []}
+            return {"personal_context": "", "ignored_terms": [], "voice_profile": normalize_voice_profile({}), **GLOBAL_SKILL_DEFAULTS, "explicit_skill_bindings": [], "project_associations": []}
         value = read_json(path)
         value["ignored_terms"] = normalize(value.get("ignored_terms"))
         value["voice_profile"] = normalize_voice_profile(value.get("voice_profile"))
+        raw_explicit_bindings = value.get("explicit_skill_bindings")
+        if isinstance(raw_explicit_bindings, list):
+            explicit_bindings = {
+                key for key in raw_explicit_bindings if key in GLOBAL_SKILL_DEFAULTS
+            }
+        else:
+            explicit_bindings = {
+                key
+                for key, system_id in GLOBAL_SKILL_DEFAULTS.items()
+                if str(value.get(key, system_id)) != system_id
+            }
+        value["explicit_skill_bindings"] = sorted(explicit_bindings)
+        for key, system_id in GLOBAL_SKILL_DEFAULTS.items():
+            value[key] = str(value.get(key, system_id))
         value["project_associations"] = [entry for entry in value.get("project_associations", []) if isinstance(entry, dict)]
         return value
 
     def save_settings(self, value: dict[str, Any]) -> dict[str, Any]:
         previous = self.settings() if (self.root / "settings.json").exists() else {}
         associations = value.get("project_associations", previous.get("project_associations", []))
-        result = {"personal_context": str(value.get("personal_context", "")), "ignored_terms": normalize(value.get("ignored_terms")), "voice_profile": normalize_voice_profile(value.get("voice_profile")), "default_transcription_skill": str(value.get("default_transcription_skill", "sk_transcribe")), "default_organization_skill": str(value.get("default_organization_skill", "sk_organize")), "default_extension_skill": str(value.get("default_extension_skill", "sk_reply")), "default_qa_skill": str(value.get("default_qa_skill", "sk_qa")), "default_document_skill": str(value.get("default_document_skill", "sk_document")), "project_associations": [entry for entry in associations if isinstance(entry, dict)]}
+        if isinstance(value.get("explicit_skill_bindings"), list):
+            explicit_bindings = {
+                key
+                for key in value["explicit_skill_bindings"]
+                if key in GLOBAL_SKILL_DEFAULTS
+            }
+        else:
+            explicit_bindings = set(normalize(previous.get("explicit_skill_bindings")))
+            for key, system_id in GLOBAL_SKILL_DEFAULTS.items():
+                if key not in value:
+                    continue
+                if str(value.get(key, system_id)) == system_id:
+                    explicit_bindings.discard(key)
+                else:
+                    explicit_bindings.add(key)
+        result = {
+            "personal_context": str(value.get("personal_context", previous.get("personal_context", ""))),
+            "ignored_terms": normalize(value.get("ignored_terms", previous.get("ignored_terms"))),
+            "voice_profile": normalize_voice_profile(value.get("voice_profile", previous.get("voice_profile"))),
+            **{
+                key: str(value.get(key, previous.get(key, system_id)))
+                for key, system_id in GLOBAL_SKILL_DEFAULTS.items()
+            },
+            "explicit_skill_bindings": sorted(explicit_bindings),
+            "project_associations": [entry for entry in associations if isinstance(entry, dict)],
+        }
         atomic_json(self.root / "settings.json", result)
         return result
 
@@ -2692,6 +2789,11 @@ class Store:
         retry_id = str(value.get("retry_run_id", "")).strip()
         if continuation_id and retry_id:
             raise ValueError("a Run cannot be both continued and retried")
+        skill_resolution = str(value.get("skill_resolution", "")).strip()
+        if skill_resolution and skill_resolution not in SKILL_RESOLUTIONS:
+            raise ValueError("invalid Skill resolution source")
+        if not (continuation_id or retry_id) and not skill_resolution:
+            raise ValueError("Skill resolution source is required")
         continuation_sources: dict[str, dict[str, Any]] = {}
         if continuation_id:
             previous = self.get("skill-runs", continuation_id)
@@ -2766,11 +2868,13 @@ class Store:
             })
         timestamp = now()
         run = {"id": make_id("run_"), "skill_id": skill["id"], "skill_revision": skill["revision"], "skill_name": skill["name"], "skill_instructions": skill["instructions"], "task": skill["task"], "output_type": skill["output"], "instruction": instruction, "source_ids": [source["id"] for source in sources], "sources": sources, "pinned": False, "status": "running", "created_at": timestamp, "updated_at": timestamp}
+        if skill_resolution:
+            run["skill_resolution"] = skill_resolution
         if retry_run:
-            for field in ("skill_id", "skill_revision", "skill_name", "skill_instructions", "task", "output_type"):
+            for field in ("skill_id", "skill_revision", "skill_name", "skill_instructions", "task", "output_type", "skill_resolution", "skill_slot"):
                 if field in retry_run:
                     run[field] = retry_run[field]
-        for field in ("request_id", "project", "page_title", "page_url", "target_text", "selection", "activity_source_id", "continue_run_id", "retry_run_id"):
+        for field in ("request_id", "project", "page_title", "page_url", "target_text", "selection", "activity_source_id", "continue_run_id", "retry_run_id", "skill_slot"):
             text = str(value.get(field, "")).strip()
             if text:
                 run[field] = text
@@ -4099,6 +4203,11 @@ class Handler(BaseHTTPRequestHandler):
         request_id = str(value.get("request_id", "")).strip()
         if request_id and request_id in self.server.cancelled:
             raise Conflict("Run was cancelled")
+        if request_id:
+            existing = next((run for run in store.skill_runs() if run.get("request_id") == request_id), None)
+            if existing:
+                self.json(HTTPStatus.OK, existing)
+                return
         retry_id = str(value.get("retry_run_id", "")).strip()
         continuation_id = str(value.get("continue_run_id", "")).strip()
         frozen_model_context = None
@@ -4111,6 +4220,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("the retried Run has no frozen Context")
             frozen_skill = frozen_model_context.get("skill") if isinstance(frozen_model_context.get("skill"), dict) else {}
             frozen_project = frozen_model_context.get("project") if isinstance(frozen_model_context.get("project"), dict) else {}
+            skill_resolution = str(frozen_model_context.get("skill_resolution") or previous.get("skill_resolution") or "").strip()
+            skill_slot = str(frozen_model_context.get("skill_slot") or previous.get("skill_slot") or "").strip()
             skill = {
                 "id": frozen_skill.get("id"),
                 "revision": frozen_skill.get("revision"),
@@ -4132,6 +4243,8 @@ class Handler(BaseHTTPRequestHandler):
                 "selection": frozen_model_context.get("selection", ""),
                 "activity_source_id": previous.get("activity_source_id", ""),
                 "auto_search": False,
+                "skill_resolution": skill_resolution,
+                "skill_slot": skill_slot,
             }
         elif continuation_id:
             previous = store.get("skill-runs", continuation_id)
@@ -4140,6 +4253,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("the continued Run has no frozen Context")
             frozen_skill = frozen_model_context.get("skill") if isinstance(frozen_model_context.get("skill"), dict) else {}
             frozen_project = frozen_model_context.get("project") if isinstance(frozen_model_context.get("project"), dict) else {}
+            skill_resolution = str(frozen_model_context.get("skill_resolution") or previous.get("skill_resolution") or "").strip()
+            skill_slot = str(frozen_model_context.get("skill_slot") or previous.get("skill_slot") or "").strip()
             skill = {
                 "id": frozen_skill.get("id"),
                 "revision": frozen_skill.get("revision"),
@@ -4156,9 +4271,17 @@ class Handler(BaseHTTPRequestHandler):
                 "source_ids": previous.get("source_ids", []),
                 "target_text": str(value.get("target_text") or previous.get("adopted_output") or previous.get("original_output") or ""),
                 "auto_search": False,
+                "skill_resolution": skill_resolution,
+                "skill_slot": skill_slot,
             }
         else:
-            skill = store.get("skills", str(value.get("skill_id", "")).strip())
+            skill, skill_resolution, skill_slot = store.resolve_generation_skill(value)
+            value = {
+                **value,
+                "skill_id": skill["id"],
+                "skill_resolution": skill_resolution,
+                "skill_slot": skill_slot,
+            }
         if skill.get("task") != "generate" or not skill.get("enabled") or (not retry_id and not continuation_id and skill.get("archived_at")):
             raise ValueError("this skill is unavailable")
         source_ids = normalize(value.get("source_ids"))
@@ -4214,6 +4337,8 @@ class Handler(BaseHTTPRequestHandler):
                     "revision": int(skill.get("revision", 1)),
                     "instructions": str(skill.get("instructions", "")),
                 },
+                "skill_resolution": str(run.get("skill_resolution", "")),
+                "skill_slot": str(run.get("skill_slot", "")),
                 "sources": json.loads(json.dumps(run.get("sources", []))),
             }
         run["updated_at"] = now()
@@ -4777,6 +4902,7 @@ class Handler(BaseHTTPRequestHandler):
                         "default_extension_skill",
                         "default_qa_skill",
                         "default_document_skill",
+                        "explicit_skill_bindings",
                         "project_associations",
                     )
                     if key in settings_source

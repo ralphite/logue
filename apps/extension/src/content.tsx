@@ -1333,6 +1333,8 @@ function ExtensionLauncher() {
     const run = await createExtensionSkillRun({
       requestId: execution.runRequestId,
       skillId: skill.id,
+      skillExplicit: false,
+      skillSlot: "command",
       instruction: execution.instruction,
       project: execution.project || undefined,
       pageTitle: execution.source.title,

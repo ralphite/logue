@@ -341,6 +341,9 @@ function normalizeWorkspaceSettings(
       ? settings.ignored_terms
       : [],
     voice_profile: normalizeVoiceProfile(settings.voice_profile),
+    explicit_skill_bindings: Array.isArray(settings.explicit_skill_bindings)
+      ? settings.explicit_skill_bindings
+      : [],
   };
 }
 
@@ -408,6 +411,8 @@ export interface SkillRun {
   skill_id: string;
   skill_revision: number;
   skill_name: string;
+  skill_resolution?: "explicit" | "project" | "global" | "system";
+  skill_slot?: "command" | "ask" | "draft";
   instruction: string;
   project?: string;
   continue_run_id?: string;
@@ -442,6 +447,8 @@ export interface SkillRun {
       revision: number;
       instructions: string;
     };
+    skill_resolution?: "explicit" | "project" | "global" | "system";
+    skill_slot?: "command" | "ask" | "draft";
     sources: SkillRunSourceSnapshot[];
   };
   adoption?: "copy" | "insert" | "replace" | "keep" | "document";
@@ -483,6 +490,13 @@ export interface WorkspaceSettings {
   default_extension_skill?: string;
   default_qa_skill?: string;
   default_document_skill?: string;
+  explicit_skill_bindings?: Array<
+    | "default_transcription_skill"
+    | "default_organization_skill"
+    | "default_extension_skill"
+    | "default_qa_skill"
+    | "default_document_skill"
+  >;
 }
 
 export interface GlossarySuggestion {

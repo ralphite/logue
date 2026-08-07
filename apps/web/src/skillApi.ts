@@ -17,6 +17,16 @@ export type SkillOutput = "insert" | "material" | "qa" | "document";
 export type SkillSurface = "web" | "extension" | "background";
 export type SkillContext =
   "page" | "target" | "selection" | "project" | "materials" | "personal";
+export type SkillResolution = "explicit" | "project" | "global" | "system";
+export type SkillBindingSlot = "command" | "ask" | "draft";
+
+export function skillResolutionLabel(resolution?: SkillResolution) {
+  if (resolution === "explicit") return "Explicit Skill";
+  if (resolution === "project") return "Project override";
+  if (resolution === "global") return "Global default";
+  if (resolution === "system") return "System default";
+  return "Resolution not recorded";
+}
 
 export interface LogueSkill {
   id: string;
@@ -64,6 +74,8 @@ export interface LogueSkillRun {
   skill_id: string;
   skill_revision: number;
   skill_name: string;
+  skill_resolution?: SkillResolution;
+  skill_slot?: SkillBindingSlot;
   skill_instructions: string;
   task: SkillTask;
   output_type: SkillOutput;
@@ -396,6 +408,8 @@ export async function createSkillRun(input: {
   continue_run_id?: string;
   auto_search?: boolean;
   activity_source_id?: string;
+  skill_explicit?: boolean;
+  skill_slot?: SkillBindingSlot;
 }) {
   const requestId =
     globalThis.crypto?.randomUUID?.() ??
@@ -404,7 +418,11 @@ export async function createSkillRun(input: {
     await fetch(`${apiBase}/v1/skill-runs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...input, request_id: requestId }),
+      body: JSON.stringify({
+        ...input,
+        skill_explicit: input.skill_explicit ?? true,
+        request_id: requestId,
+      }),
     }),
   );
 }

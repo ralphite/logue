@@ -500,10 +500,10 @@ class RuntimeTest(unittest.TestCase):
     def test_skill_crud_and_generation_run(self) -> None:
         _, skill = self.request("/v1/skills", "POST", {"name": "Shorten", "purpose": "Shorten text", "instructions": "Shorten", "task": "generate", "output": "insert", "surfaces": ["web", "extension"], "contexts": ["selection"], "enabled": True})
         self.server.gemini.run_skill = lambda *args, **kwargs: "short result\nsecond line"
-        _, run = self.request("/v1/skill-runs", "POST", {"request_id": "run-one", "skill_id": skill["id"], "instruction": "Shorten", "selection": "long text"})
+        _, run = self.request("/v1/skill-runs", "POST", {"request_id": "run-one", "skill_id": skill["id"], "skill_explicit": True, "instruction": "Shorten", "selection": "long text"})
         self.assertEqual(run["status"], "complete")
         self.assertEqual(run["original_output"], "short result\nsecond line")
-        _, repeated = self.request("/v1/skill-runs", "POST", {"request_id": "run-one", "skill_id": skill["id"], "instruction": "Shorten", "selection": "long text"})
+        _, repeated = self.request("/v1/skill-runs", "POST", {"request_id": "run-one", "skill_id": skill["id"], "skill_explicit": True, "instruction": "Shorten", "selection": "long text"})
         self.assertEqual(repeated["id"], run["id"])
         _, adopted = self.request(f"/v1/skill-runs/{run['id']}", "PATCH", {"adopted_output": "kept\nlines"})
         self.assertEqual(adopted["adopted_output"], "kept\nlines")
@@ -534,6 +534,7 @@ class RuntimeTest(unittest.TestCase):
         _, run = self.request("/v1/skill-runs", "POST", {
             "request_id": "archive-skill-run",
             "skill_id": skill["id"],
+            "skill_explicit": True,
             "instruction": "Draft",
             "selection": "Evidence",
         })
@@ -574,6 +575,7 @@ class RuntimeTest(unittest.TestCase):
             self.request("/v1/skill-runs", "POST", {
                 "request_id": "archived-new-run",
                 "skill_id": skill["id"],
+                "skill_explicit": True,
                 "instruction": "Draft again",
             })
         self.assertEqual(unavailable.exception.code, 400)
@@ -593,6 +595,122 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(self.server.store.settings()["default_extension_skill"], "sk_reply")
         self.assertEqual(self.server.store.get_project("Archive contract")["skill_bindings"], {})
 
+    def test_generation_skill_resolution_freezes_project_global_system_and_explicit_origin(self) -> None:
+        def create_document_skill(name: str):
+            return self.request("/v1/skills", "POST", {
+                "name": name,
+                "purpose": "Draft from Project Sources",
+                "instructions": f"Use {name}",
+                "task": "generate",
+                "output": "document",
+                "surfaces": ["web"],
+                "contexts": ["project", "materials"],
+                "enabled": True,
+            })[1]
+
+        project_skill = create_document_skill("Project Draft")
+        global_skill = create_document_skill("Global Draft")
+        explicit_skill = create_document_skill("Explicit Draft")
+        self.request("/v1/settings", "PATCH", {
+            "default_document_skill": global_skill["id"],
+            "explicit_skill_bindings": ["default_document_skill"],
+        })
+        self.request("/v1/projects", "POST", {
+            "name": "Resolution",
+            "overview": "Resolve one exact Skill revision",
+            "skill_bindings": {"draft": project_skill["id"]},
+        })
+        self.server.gemini.run_skill = lambda skill, *_args, **_kwargs: f"{skill['name']} result"
+
+        automatic_payload = {
+            "request_id": "project-resolution",
+            "skill_id": global_skill["id"],
+            "skill_explicit": False,
+            "skill_slot": "draft",
+            "instruction": "Draft from the current binding",
+            "project": "Resolution",
+            "source_ids": [],
+            "auto_search": False,
+        }
+        _, project_run = self.request("/v1/skill-runs", "POST", automatic_payload)
+        self.assertEqual(project_run["skill_id"], project_skill["id"])
+        self.assertEqual(project_run["skill_resolution"], "project")
+        self.assertEqual(project_run["skill_slot"], "draft")
+        self.assertEqual(project_run["model_context"]["skill_resolution"], "project")
+        self.assertEqual(project_run["model_context"]["skill"]["revision"], project_skill["revision"])
+
+        _, explicit_run = self.request("/v1/skill-runs", "POST", {
+            **automatic_payload,
+            "request_id": "explicit-resolution",
+            "skill_id": explicit_skill["id"],
+            "skill_explicit": True,
+        })
+        self.assertEqual(explicit_run["skill_id"], explicit_skill["id"])
+        self.assertEqual(explicit_run["skill_resolution"], "explicit")
+
+        self.server.store.archive_skill(project_skill["id"])
+        _, global_run = self.request("/v1/skill-runs", "POST", {
+            **automatic_payload,
+            "request_id": "global-resolution",
+        })
+        self.assertEqual(global_run["skill_id"], global_skill["id"])
+        self.assertEqual(global_run["skill_resolution"], "global")
+
+        self.server.store.archive_skill(global_skill["id"])
+        _, system_run = self.request("/v1/skill-runs", "POST", {
+            **automatic_payload,
+            "request_id": "system-resolution",
+        })
+        self.assertEqual(system_run["skill_id"], "sk_document")
+        self.assertEqual(system_run["skill_resolution"], "system")
+
+        self.request("/v1/settings", "PATCH", {
+            "default_document_skill": "sk_document",
+            "explicit_skill_bindings": ["default_document_skill"],
+        })
+        _, explicit_builtin_global_run = self.request("/v1/skill-runs", "POST", {
+            **automatic_payload,
+            "request_id": "explicit-builtin-global-resolution",
+        })
+        self.assertEqual(explicit_builtin_global_run["skill_id"], "sk_document")
+        self.assertEqual(explicit_builtin_global_run["skill_resolution"], "global")
+
+        _, repeated = self.request("/v1/skill-runs", "POST", automatic_payload)
+        self.assertEqual(repeated["id"], project_run["id"])
+        self.assertEqual(repeated["skill_id"], project_skill["id"])
+        with self.assertRaises(urllib.error.HTTPError) as unavailable:
+            self.request("/v1/skill-runs", "POST", {
+                **automatic_payload,
+                "request_id": "archived-explicit-resolution",
+                "skill_id": project_skill["id"],
+                "skill_explicit": True,
+            })
+        self.assertEqual(unavailable.exception.code, 400)
+        unavailable.exception.close()
+
+        _, retried = self.request("/v1/skill-runs", "POST", {
+            "request_id": "retry-project-resolution",
+            "retry_run_id": project_run["id"],
+        })
+        self.assertEqual(retried["skill_id"], project_skill["id"])
+        self.assertEqual(retried["skill_revision"], project_run["skill_revision"])
+        self.assertEqual(retried["skill_resolution"], "project")
+        self.assertEqual(retried["model_context"], project_run["model_context"])
+
+        _, continued = self.request("/v1/skill-runs", "POST", {
+            "request_id": "continue-project-resolution",
+            "continue_run_id": project_run["id"],
+            "instruction": "Continue the frozen Draft",
+            "project": "Resolution",
+            "target_text": project_run["original_output"],
+            "source_ids": [],
+            "auto_search": False,
+        })
+        self.assertEqual(continued["skill_id"], project_skill["id"])
+        self.assertEqual(continued["skill_revision"], project_run["skill_revision"])
+        self.assertEqual(continued["skill_resolution"], "project")
+        self.assertEqual(continued["model_context"]["skill"]["instructions"], project_run["model_context"]["skill"]["instructions"])
+
     def test_project_generation_retrieval_is_scoped_and_freezes_actual_sources(self) -> None:
         self.request("/v1/projects", "POST", {"name": "Project A", "overview": "Use only Project A evidence"})
         _, project_source = self.request("/v1/items", "POST", {"kind": "text", "content": "Shared evidence from Project A", "projects": ["Project A"], "source": {"url": "https://example.com/a", "title": "Project A evidence", "selection": "Shared evidence"}})
@@ -604,7 +722,7 @@ class RuntimeTest(unittest.TestCase):
             return "Grounded reply [Source 1]"
 
         self.server.gemini.run_skill = grounded_reply
-        _, run = self.request("/v1/skill-runs", "POST", {"request_id": "project-a-command", "skill_id": "sk_reply", "instruction": "Shared evidence", "project": "Project A", "source_ids": []})
+        _, run = self.request("/v1/skill-runs", "POST", {"request_id": "project-a-command", "skill_id": "sk_reply", "skill_explicit": True, "instruction": "Shared evidence", "project": "Project A", "source_ids": []})
         self.assertEqual(run["source_ids"], [project_source["id"]])
         self.assertEqual([source["id"] for source in run["sources"]], [project_source["id"]])
         self.assertEqual([source["id"] for source in captured_sources], [project_source["id"]])
@@ -640,6 +758,7 @@ class RuntimeTest(unittest.TestCase):
         _, original = self.request("/v1/skill-runs", "POST", {
             "request_id": "frozen-original",
             "skill_id": "sk_document",
+            "skill_explicit": True,
             "instruction": "Create the first Draft",
             "project": "Frozen",
             "source_ids": [source["id"]],
@@ -702,7 +821,7 @@ class RuntimeTest(unittest.TestCase):
     def test_generation_without_project_keeps_global_saved_retrieval(self) -> None:
         _, saved_source = self.request("/v1/items", "POST", {"kind": "text", "content": "Global saved evidence remains available"})
         self.server.gemini.run_skill = lambda *_args, **_kwargs: "Global reply [Source 1]"
-        _, run = self.request("/v1/skill-runs", "POST", {"request_id": "global-command", "skill_id": "sk_reply", "instruction": "Global saved evidence", "source_ids": []})
+        _, run = self.request("/v1/skill-runs", "POST", {"request_id": "global-command", "skill_id": "sk_reply", "skill_explicit": True, "instruction": "Global saved evidence", "source_ids": []})
         self.assertEqual(run["source_ids"], [saved_source["id"]])
         self.assertEqual(run["sources"][0]["content"], "Global saved evidence remains available")
 

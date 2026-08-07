@@ -143,6 +143,8 @@ export interface ExtensionSkillRun {
   id: string;
   skill_id: string;
   skill_name: string;
+  skill_resolution?: "explicit" | "project" | "global" | "system";
+  skill_slot?: "command" | "ask" | "draft";
   instruction?: string;
   project?: string;
   page_url?: string;
@@ -213,6 +215,8 @@ export async function createExtensionSkillRun(input: {
   selection?: string;
   autoSearch?: boolean;
   activitySourceId?: string;
+  skillExplicit?: boolean;
+  skillSlot?: "command" | "ask" | "draft";
 }) {
   return request<ExtensionSkillRun>("skill-run", {
     request_id: input.requestId ?? createRequestId(),
@@ -225,6 +229,8 @@ export async function createExtensionSkillRun(input: {
     target_text: input.targetText,
     selection: input.selection,
     activity_source_id: input.activitySourceId,
+    skill_explicit: input.skillExplicit ?? true,
+    skill_slot: input.skillSlot,
     ...(input.autoSearch !== undefined
       ? { auto_search: input.autoSearch }
       : {}),

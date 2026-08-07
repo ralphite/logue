@@ -138,10 +138,10 @@
 - V2-SKILL-01 — INTEGRATED — Built-in / My Skills 两种来源与五类执行合同。
 - V2-SKILL-02 — INTEGRATED — My Skill create/edit new revision/copy/archive 与 Built-in copy/bind；Archive 使用 Host root transaction 保留 Skill/revisions/Run lineage并清理 Global、pinned 与全部 Project bindings，失败完整回滚。
 - V2-SKILL-03 — INTEGRATED — My Skill revision history/restore、Archived (N) 恢复入口与 Built-in Pin/Hide 已接 Host/Web；Restore 规范化为 active，但不恢复 defaults、pinned、recent 或 Project overrides。最终 runtime 验证留到 Phase 5。
-- V2-SKILL-04 — INTEGRATED — Global default bindings 与 Project inherit/override/reset。
-- V2-SKILL-05 — INTEGRATED — resolver explicit → Project → Global → system。
+- V2-SKILL-04 — INTEGRATED — Global default bindings 与 Project inherit/override/reset 已统一由 Host 解析；显式 Global binding 与未配置的 system fallback 分开持久化，Archive 原子清除对应 Global/Project binding，不能继续解析 archived Skill。
+- V2-SKILL-05 — INTEGRATED — Run 统一按 explicit → Project → Global → system 解析 active Skill；实际 resolution、slot、Skill ID/revision 冻结到 Run/model Context，Retry/Continue 沿用原 revision 与来源，不受后续归档或 binding 变化影响。
 - V2-SKILL-06 — INTEGRATED — Selection 快捷条先显示用户配置的 pinned Skills，再按当前 Extension recent use 排序；Built-in 与 My Skills 都可配置 pin，隐藏 Skill 不进入 More Skills，选择后立即运行。
-- V2-SKILL-07 — INTEGRATED — Run details 显示 Skill ID/revision、解析来源、actual Context/state。
+- V2-SKILL-07 — INTEGRATED — Project History 与 Library Run details 显示 Skill ID/revision、Host 记录的解析来源及 actual Context/state；旧 Run 不伪造来源。
 - V2-SKILL-08 — INTEGRATED — Copy/Replace/Insert/Keep/Document consumers 复用统一 adoption event/revision 合同与稳定 action union；Keep 以稳定 identity 物化永久 AI Source、冻结 exact Run Sources/target/content，并通过同一 event 幂等重试或即时 Undo 为 lineage tombstone；Selection/Page Candidate 新建或更新 Document 后均保留统一恢复入口，同 ID Undo 保留 exact frozen Sources 与 lineage，Document consumers 不保留第二套保存语义。
 
 ## Web — Settings / Provider / data controls (J1/J9)

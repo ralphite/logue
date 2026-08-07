@@ -53,6 +53,7 @@ import {
   type ExtensionPendingCapture,
   type ExtensionShortcut,
 } from "@logue/ui";
+
 import type { LogueSkill } from "../skillApi";
 import { Button, IconButton } from "../components/ui";
 import {
@@ -67,6 +68,18 @@ import {
 import { ProjectShell, type V2PrimaryRoute } from "../v2-mock/web/ProjectShell";
 import { OriginLabel } from "../v2-mock/primitives/OriginLabel";
 import { RunInspector } from "./V2LibraryRoute";
+
+type GlobalSkillBindingKey = NonNullable<
+  WorkspaceSettings["explicit_skill_bindings"]
+>[number];
+
+const systemSkillDefaults: Record<GlobalSkillBindingKey, string> = {
+  default_transcription_skill: "sk_transcribe",
+  default_organization_skill: "sk_organize",
+  default_extension_skill: "sk_reply",
+  default_qa_skill: "sk_qa",
+  default_document_skill: "sk_document",
+};
 
 type SettingsTab = "Host" | "Models" | "Voice" | "Privacy" | "Backup";
 type VocabularyCategory = Exclude<
@@ -632,6 +645,20 @@ export function SettingsRoute({
       );
     }
   }
+
+  function withGlobalSkillBinding(
+    key: GlobalSkillBindingKey,
+    value: string,
+  ): WorkspaceSettings {
+    const explicit = new Set(draft.explicit_skill_bindings ?? []);
+    if (value) explicit.add(key);
+    else explicit.delete(key);
+    return {
+      ...draft,
+      [key]: value || systemSkillDefaults[key],
+      explicit_skill_bindings: Array.from(explicit),
+    };
+  }
   function connectionInput(): AIConnectionInput {
     return {
       provider: connection.provider,
@@ -938,7 +965,7 @@ export function SettingsRoute({
             skill.task === "generate" && skill.output === "document",
         ],
       ] as Array<
-        [keyof WorkspaceSettings, string, (skill: LogueSkill) => boolean]
+        [GlobalSkillBindingKey, string, (skill: LogueSkill) => boolean]
       >,
     [],
   );
@@ -1267,13 +1294,20 @@ export function SettingsRoute({
                       Transcription Skill
                       <select
                         className="v2-input"
-                        value={draft.default_transcription_skill ?? ""}
+                        value={
+                          draft.explicit_skill_bindings?.includes(
+                            "default_transcription_skill",
+                          )
+                            ? draft.default_transcription_skill ?? ""
+                            : ""
+                        }
                         onChange={(event) =>
-                          void persist({
-                            ...draft,
-                            default_transcription_skill:
-                              event.target.value || undefined,
-                          })
+                          void persist(
+                            withGlobalSkillBinding(
+                              "default_transcription_skill",
+                              event.target.value,
+                            ),
+                          )
                         }
                       >
                         <option value="">System default</option>
@@ -1720,12 +1754,15 @@ export function SettingsRoute({
                     >
                       <select
                         className="v2-input"
-                        value={String(draft[key] ?? "")}
+                        value={
+                          draft.explicit_skill_bindings?.includes(key)
+                            ? String(draft[key] ?? "")
+                            : ""
+                        }
                         onChange={(event) =>
-                          void persist({
-                            ...draft,
-                            [key]: event.target.value || undefined,
-                          })
+                          void persist(
+                            withGlobalSkillBinding(key, event.target.value),
+                          )
                         }
                       >
                         <option value="">System default</option>

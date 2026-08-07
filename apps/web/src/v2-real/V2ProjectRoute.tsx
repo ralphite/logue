@@ -51,6 +51,7 @@ import {
   createSkillRun,
   documentAdoptionFromResult,
   retrySkillRun,
+  skillResolutionLabel,
   resolveDocumentUndoFailure,
   resolveDocumentUndoResult,
   saveSkillRunAsDocument,
@@ -723,6 +724,8 @@ export function V2ProjectRoute({
       });
       const created = await createSkillRun({
         skill_id: skill.id,
+        skill_explicit: false,
+        skill_slot: mode === "draft" ? "draft" : "ask",
         instruction,
         project: project.name,
         source_ids: ordered,
@@ -2001,6 +2004,7 @@ export function V2ProjectRoute({
                             { month: "short", day: "numeric" },
                           )}{" "}
                           · {item.sources.length} frozen Sources
+                          {` · ${skillResolutionLabel(item.skill_resolution)}`}
                           {item.adopted_output
                             ? " · adopted"
                             : item.status === "failed"

@@ -431,7 +431,10 @@ export function V2SkillsRoute({
     }
   }
 
-  async function updateDefault(key: keyof WorkspaceSettings, value: string) {
+  async function updateDefault(
+    key: NonNullable<WorkspaceSettings["explicit_skill_bindings"]>[number],
+    value: string,
+  ) {
     if (!settings) return;
     setBusy(true);
     setError("");
@@ -439,6 +442,9 @@ export function V2SkillsRoute({
       await saveWorkspaceSettings({
         ...settings,
         [key]: value || undefined,
+        explicit_skill_bindings: Array.from(
+          new Set([...(settings.explicit_skill_bindings ?? []), key]),
+        ),
       });
       await refreshSkillIndex();
       setNotice("Global default updated.");
@@ -483,7 +489,11 @@ export function V2SkillsRoute({
       (skill: LogueSkill) =>
         skill.task === "generate" && skill.output === "document",
     ],
-  ] as Array<[keyof WorkspaceSettings, string, (skill: LogueSkill) => boolean]>;
+  ] as Array<[
+    NonNullable<WorkspaceSettings["explicit_skill_bindings"]>[number],
+    string,
+    (skill: LogueSkill) => boolean,
+  ]>;
 
   return (
     <ProjectShell

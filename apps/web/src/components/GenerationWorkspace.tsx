@@ -2,7 +2,7 @@ import type { Material } from "@logue/ui";
 import { CheckCircle2, ChevronDown, Clipboard, Copy, FileText, LoaderCircle, Plus, Search, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { adoptSkillRun, createAdoptionId, createSkill, createSkillRun, defaultSkillPurpose, getSkillRuns, getSkills, saveSkillRunAsDocument, updateSkill, type LogueSkill, type LogueSkillRun, type SkillContext, type SkillOutput, type SkillSurface, type SkillTask } from "../skillApi";
-import { createDocument, getDocuments, getWorkspaceSettings, saveWorkspaceSettings, type LogueDocument } from "../api";
+import { createDocument, getDocuments, getWorkspaceSettings, saveWorkspaceSettings, type LogueDocument, type WorkspaceSettings } from "../api";
 import { groupIdenticalMaterials } from "../materialGroups";
 import { matchesMaterialSearchText, orderMaterialSearchResults, useDocumentSearch, useMaterialSearch } from "../materialSearch";
 import { ViewWorkspace } from "./DocumentWorkspace";
@@ -718,7 +718,16 @@ function SkillEditor({ skills, selectedSkillId, onSelect, onSkillsChange }: { sk
           : draft.output === "document"
             ? { default_document_skill: draft.id }
             : { default_extension_skill: draft.id };
-    await saveWorkspaceSettings({ ...settings, ...changes });
+    const bindingKey = Object.keys(changes)[0] as NonNullable<
+      WorkspaceSettings["explicit_skill_bindings"]
+    >[number];
+    await saveWorkspaceSettings({
+      ...settings,
+      ...changes,
+      explicit_skill_bindings: Array.from(
+        new Set([...(settings.explicit_skill_bindings ?? []), bindingKey]),
+      ),
+    });
   }
   if (!draft) return <main className="flex flex-1 items-center justify-center text-[14px] text-[#999]">No skills yet</main>;
   const toggle = <T extends string>(items: T[], value: T) => (items.includes(value) ? items.filter((item) => item !== value) : [...items, value]);
