@@ -482,17 +482,26 @@ function SidePanelApp() {
       : context ?? await getCaptureContext(current.source.url, explicitProjects(current)[0] ?? "");
     const provenance = appliedContextOverride ?? appliedContext(currentContext!);
     const organization = captureOrganization(current);
-    const selectionText = current.selectionText;
+    const selectionText = current.selectionText?.trim();
+    const pageTextComment =
+      !captureId && current.intent !== "input" && current.intent !== "generate";
+    const commentSourceContent =
+      selectionText ||
+      (pageTextComment
+        ? current.pageText?.trim() || current.source.title.trim()
+        : "");
     let savedId = "";
-    if (selectionText) {
+    if (commentSourceContent) {
       const saved = await saveThenRefreshPageHistory(
         () => saveSelection({
           requestId,
-          sourceContent: selectionText,
+          sourceContent: commentSourceContent,
           annotation: content.trim() || undefined,
           rawTranscript: captureId ? rawTranscript : undefined,
           transcript: captureId ? transformedTranscript : undefined,
-          source: { ...current.source, selection: selectionText },
+          source: selectionText
+            ? { ...current.source, selection: selectionText }
+            : current.source,
           ...organization,
           captureId,
           appliedContext: provenance,

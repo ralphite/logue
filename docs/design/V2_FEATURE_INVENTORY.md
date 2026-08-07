@@ -61,7 +61,7 @@
 
 - V2-CAP-01 — INTEGRATED — Page / Selection Capture 保存 Web Source，并应用 tab-scoped Project/Saved-only 规则。
 - V2-CAP-02 — INTEGRATED — Selection Voice Comment 默认 `Mic → Accept/Enter`，原子 Web+You bundle；Cancel/Esc 零写入。
-- V2-CAP-03 — INTEGRATED — Page/Selection Text Comment 建立 Web+You bundle。
+- V2-CAP-03 — INTEGRATED — Page/Selection Text Comment 均通过 production Side Panel 建立原子 Web+You bundle；页面正文/标题保留为可恢复 Web snapshot。
 - V2-CAP-04 — INTEGRATED — Side Panel Comment 可编辑正文、tags 与多 Project membership，并显示 Auto-added / Suggested / Excluded / Duplicate-linked reason；保存复用现有 bundle members，不创建重复 Comment。
 - V2-CAP-05 — INTEGRATED — Advanced Voice Comment Stop 先存 Unlinked You Comment；Candidate 与重开页面都可 Finish linking/Delete，同一 Comment identity 成为 Web+You bundle。
 - V2-CAP-06 — INTEGRATED — Page/Selection scope 与 Save / Translate / Rewrite / Summarize / Explain 等 Skill 动作。

@@ -909,3 +909,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 继续让快捷键直接打开 Side Panel 并自动录音；这隐藏作用范围，并把缺少 Project 的 clarification 延迟到 Activity 已保存之后。另造第二套 generation/adoption API 会分裂 lineage，因此拒绝。
 - **已有证据：** Production Extension 已由页面内 Launcher 统一普通网页与 Google Docs 的 Voice/Text Command；Scope/Project/target clarification、永久 Activity、幂等 evidence/Run、局部 Candidate、Project Side Panel handoff、Insert/Replace/Copy/Undo、parse/provider typed error、pending recovery 与 request-level Cancel 均闭合到真实 producer/consumer。Extension typecheck、Python syntax 与 diff check 通过；fresh scope/product/engineering final gates 全部 PASS，未运行本阶段禁止的浏览器 QA。
 - **开放问题：** 无；不改变 Project、Source、Run、provider 或 adoption 对象模型。
+
+### DR-085 — Page Text Comment 与 Selection Comment 使用同一 Web+You bundle 合同
+
+- **优先级：** V2 Capture / Phase 2 P1
+- **状态：** 已修复并通过 Extension typecheck 与 diff check；真实运行旅程留到统一 QA 阶段
+- **决定：** Side Panel 的 Page Text Comment 不再保存为孤立的 text material；Save 与 Selection Text Comment 一样，原子创建 Web Source 与以 `parent_ids` 连接的 You Comment，并共享本次 Project/tags 决定。页面正文作为 Web snapshot；页面无法提供正文时才以标题作为最小可恢复 snapshot。
+- **用户可见影响：** 用户针对整页写下的文字 Comment 会在 Library、Project Context 与 Side Panel 中保持一个可理解的 Web+You bundle，后续能回到原页面证据，而不是出现无法区分来源的独立笔记。
+- **替代方案：** 保留单一 text material 并只嵌入 `source` metadata；这无法满足权威 V2 对两个 Sources、comments-on lineage 与 bundle 删除语义的明确合同。
+- **已有证据：** `V2-CAP-03` 与权威 V2 §10.3 要求 Page/Selection Text Comment 建立 Web+You bundle；production `saveContent` 仅在存在 selection 时调用原子 bundle API，Page 路径仍调用 `saveMaterial` 创建孤立条目。
+- **开放问题：** Advanced Voice Comment 的 Stop-first 持久化另属 `V2-CAP-05`，不混入本批。
