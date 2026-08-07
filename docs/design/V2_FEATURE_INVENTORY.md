@@ -142,7 +142,7 @@
 - V2-SKILL-05 — INTEGRATED — resolver explicit → Project → Global → system。
 - V2-SKILL-06 — INTEGRATED — Selection 快捷条先显示用户配置的 pinned Skills，再按当前 Extension recent use 排序；Built-in 与 My Skills 都可配置 pin，隐藏 Skill 不进入 More Skills，选择后立即运行。
 - V2-SKILL-07 — INTEGRATED — Run details 显示 Skill ID/revision、解析来源、actual Context/state。
-- V2-SKILL-08 — INTEGRATED — Copy/Replace/Insert/Keep/Document consumers 复用统一 adoption event/revision 合同与稳定 action union；Keep 以稳定 identity 物化永久 AI Source、冻结 exact Run Sources，并通过同一 event 幂等重试或即时 Undo 为 lineage tombstone；Document consumers 不保留第二套保存语义。
+- V2-SKILL-08 — INTEGRATED — Copy/Replace/Insert/Keep/Document consumers 复用统一 adoption event/revision 合同与稳定 action union；Keep 以稳定 identity 物化永久 AI Source、冻结 exact Run Sources/target/content，并通过同一 event 幂等重试或即时 Undo 为 lineage tombstone；普通页面与 Google Docs proxy 的 Selection/Page Candidate 保留统一恢复入口，Document consumers 不保留第二套保存语义。
 
 ## Web — Settings / Provider / data controls (J1/J9)
 

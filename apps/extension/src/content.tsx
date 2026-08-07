@@ -21,6 +21,12 @@ import {
 } from "./recordingBridge";
 import { recordingShortcutAction } from "./recordingShortcuts";
 import { createRequestId } from "./requestId";
+import {
+  completeSelectionActionKeep,
+  prepareSelectionActionKeep,
+  type SelectionActionKeepAdoption,
+  type SelectionActionKeepAttempt,
+} from "./selectionActionKeep";
 import { shouldDismissSelectionSkills } from "./selectionSkillEscape";
 import { completeSelectionVoiceInput } from "./transaction";
 import { V2InlineVoiceSurface, type InlineVoicePhase } from "./v2-real/V2InlineVoiceSurface";
@@ -149,7 +155,12 @@ interface SelectionActionCandidateState {
   insertTargetText?: string;
   insertTargetSessionId?: string;
   sources: NonNullable<ExtensionSkillRun["sources"]>;
-  adoptionAttempts?: Partial<Record<"copy" | "keep" | "document", { id: string; content: string; targetKey?: string }>>;
+  adoptionAttempts?: {
+    copy?: { id: string; content: string };
+    keep?: SelectionActionKeepAttempt;
+    document?: { id: string; content: string; targetKey?: string };
+  };
+  keepAdoption?: SelectionActionKeepAdoption;
   documentAdoption?: { id: string; documentId: string; documentRevision: number };
 }
 
@@ -1744,6 +1755,7 @@ function ExtensionLauncher() {
     if (command.action === "command-candidate-primary") void applySelectionActionCandidate(command.text);
     if (command.action === "command-candidate-copy") void copySelectionActionCandidate(command.text);
     if (command.action === "command-candidate-keep") void keepSelectionActionCandidate(command.text);
+    if (command.action === "command-candidate-keep-undo") void undoSelectionActionKeep();
     if (command.action === "command-candidate-document") void saveSelectionActionDocument(command.text, command.document);
     if (command.action === "command-candidate-document-undo") void undoSelectionActionDocument();
     if (command.action === "command-candidate-dismiss") dismissSelectionActionCandidate();
@@ -2008,6 +2020,7 @@ function ExtensionLauncher() {
         error: selectionActionError,
         project: selectionActionCandidate.projects[0],
         documents: candidateDocuments,
+        keepUndoAvailable: Boolean(selectionActionCandidate.keepAdoption),
         documentUndoAvailable: Boolean(selectionActionCandidate.documentAdoption),
       } : undefined,
     })).catch(() => undefined);
@@ -2710,15 +2723,73 @@ function ExtensionLauncher() {
     if (!candidate || selectionActionBusy) return;
     setSelectionActionBusy("keep");
     setSelectionActionError("");
-    const previousAttempt = candidate.adoptionAttempts?.keep;
-    const adoptionId = previousAttempt?.content === candidate.text ? previousAttempt.id : createRequestId();
-    const pendingCandidate = { ...candidate, adoptionAttempts: { ...candidate.adoptionAttempts, keep: { id: adoptionId, content: candidate.text } } };
+    const target = {
+      surface: "inline-selection",
+      url: candidate.source.url,
+      target_key: `selection:${candidate.runId}`,
+    };
+    const attempt = prepareSelectionActionKeep(
+      candidate.adoptionAttempts?.keep,
+      candidate.text,
+      target,
+      createRequestId,
+    );
+    const pendingCandidate = {
+      ...candidate,
+      adoptionAttempts: { ...candidate.adoptionAttempts, keep: attempt },
+    };
     setSelectionActionCandidate(pendingCandidate);
     try {
-      await adoptExtensionSkillRun(candidate.runId, candidate.text, { action: "keep", adoptionId, target: { surface: "inline-selection", url: candidate.source.url, target_key: `selection:${candidate.runId}` } });
-      dismissSelectionActionCandidate();
+      await adoptExtensionSkillRun(candidate.runId, attempt.content, {
+        action: "keep",
+        adoptionId: attempt.id,
+        target: attempt.target,
+      });
+      setSelectionActionCandidate((current) =>
+        current?.runId === candidate.runId
+          ? {
+              ...current,
+              adoptionAttempts: {
+                ...current.adoptionAttempts,
+                keep: undefined,
+              },
+              keepAdoption: completeSelectionActionKeep(
+                candidate.runId,
+                attempt,
+              ),
+            }
+          : current,
+      );
     } catch (cause) {
       setSelectionActionError(cause instanceof Error ? cause.message : "Could not keep this result.");
+    } finally {
+      setSelectionActionBusy(undefined);
+    }
+  }
+
+  async function undoSelectionActionKeep() {
+    const candidate = selectionActionCandidate;
+    const adoption = candidate?.keepAdoption;
+    if (!candidate || !adoption || selectionActionBusy) return;
+    setSelectionActionBusy("keep");
+    setSelectionActionError("");
+    try {
+      await adoptExtensionSkillRun(adoption.runId, adoption.content, {
+        action: "undo",
+        adoptionId: adoption.id,
+        target: adoption.target,
+      });
+      setSelectionActionCandidate((current) =>
+        current?.runId === adoption.runId
+          ? { ...current, keepAdoption: undefined }
+          : current,
+      );
+    } catch (cause) {
+      setSelectionActionError(
+        cause instanceof Error
+          ? cause.message
+          : "Could not undo Keep in Logue.",
+      );
     } finally {
       setSelectionActionBusy(undefined);
     }
@@ -2903,11 +2974,13 @@ function ExtensionLauncher() {
         error={selectionActionError}
         project={selectionActionCandidate.projects[0]}
         documents={candidateDocuments}
+        keepUndoAvailable={Boolean(selectionActionCandidate.keepAdoption)}
         documentUndoAvailable={Boolean(selectionActionCandidate.documentAdoption)}
         onTextChange={(text) => setSelectionActionCandidate((current) => current ? { ...current, text } : current)}
         onPrimary={() => void applySelectionActionCandidate()}
         onCopy={() => void copySelectionActionCandidate()}
         onKeep={() => void keepSelectionActionCandidate()}
+        onUndoKeep={() => void undoSelectionActionKeep()}
         onSaveDocument={(document) => void saveSelectionActionDocument(undefined, document as ExtensionDocument | undefined)}
         onUndoDocument={() => void undoSelectionActionDocument()}
         onCancel={dismissSelectionActionCandidate}
@@ -3012,11 +3085,13 @@ function ExtensionLauncher() {
         error={googleDocsProxy.commandCandidate.error}
         project={googleDocsProxy.commandCandidate.project}
         documents={googleDocsProxy.commandCandidate.documents}
+        keepUndoAvailable={googleDocsProxy.commandCandidate.keepUndoAvailable}
         documentUndoAvailable={googleDocsProxy.commandCandidate.documentUndoAvailable}
         onTextChange={(text) => controlGoogleDocsProxy("command-candidate-text", { text })}
         onPrimary={() => controlGoogleDocsProxy("command-candidate-primary", { text: googleDocsProxy.commandCandidate?.text })}
         onCopy={() => controlGoogleDocsProxy("command-candidate-copy", { text: googleDocsProxy.commandCandidate?.text })}
         onKeep={() => controlGoogleDocsProxy("command-candidate-keep", { text: googleDocsProxy.commandCandidate?.text })}
+        onUndoKeep={() => controlGoogleDocsProxy("command-candidate-keep-undo")}
         onSaveDocument={(document) => controlGoogleDocsProxy("command-candidate-document", { text: googleDocsProxy.commandCandidate?.text, document: document as ExtensionDocument | undefined })}
         onUndoDocument={() => controlGoogleDocsProxy("command-candidate-document-undo")}
         onCancel={() => controlGoogleDocsProxy("command-candidate-dismiss")}

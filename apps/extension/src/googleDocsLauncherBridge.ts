@@ -6,7 +6,7 @@ import type { ExtensionDocument } from "./api";
 
 const messageType = "logue:google-docs-launcher";
 
-export type GoogleDocsLauncherAction = "start" | "stop" | "cancel" | "candidate-text" | "candidate-copy" | "candidate-insert" | "candidate-undo" | "candidate-retry" | "candidate-dismiss" | "candidate-retranscribe" | "candidate-overrides" | "command-open" | "command-text" | "command-project" | "command-scope" | "command-submit" | "command-start-voice" | "command-stop-voice" | "command-cancel-voice" | "command-retry" | "command-switch-write" | "command-close" | "command-candidate-text" | "command-candidate-primary" | "command-candidate-copy" | "command-candidate-keep" | "command-candidate-document" | "command-candidate-document-undo" | "command-candidate-dismiss";
+export type GoogleDocsLauncherAction = "start" | "stop" | "cancel" | "candidate-text" | "candidate-copy" | "candidate-insert" | "candidate-undo" | "candidate-retry" | "candidate-dismiss" | "candidate-retranscribe" | "candidate-overrides" | "command-open" | "command-text" | "command-project" | "command-scope" | "command-submit" | "command-start-voice" | "command-stop-voice" | "command-cancel-voice" | "command-retry" | "command-switch-write" | "command-close" | "command-candidate-text" | "command-candidate-primary" | "command-candidate-copy" | "command-candidate-keep" | "command-candidate-keep-undo" | "command-candidate-document" | "command-candidate-document-undo" | "command-candidate-dismiss";
 export interface GoogleDocsLauncherCommand {
   action: GoogleDocsLauncherAction;
   overrides?: VoiceProfileOverrides;
@@ -52,6 +52,7 @@ export interface GoogleDocsLauncherState {
     error: string;
     project?: string;
     documents?: ExtensionDocument[];
+    keepUndoAvailable?: boolean;
     documentUndoAvailable?: boolean;
   };
 }
@@ -81,7 +82,7 @@ export function readGoogleDocsLauncherAction(value: unknown): GoogleDocsLauncher
   if (!value || typeof value !== "object") return undefined;
   const message = value as Partial<{ type: string; kind: string; action: string }>;
   if (message.type !== messageType || message.kind !== "action") return undefined;
-  return ["start", "stop", "cancel", "candidate-text", "candidate-copy", "candidate-insert", "candidate-undo", "candidate-retry", "candidate-dismiss", "candidate-retranscribe", "candidate-overrides", "command-open", "command-text", "command-project", "command-scope", "command-submit", "command-start-voice", "command-stop-voice", "command-cancel-voice", "command-retry", "command-switch-write", "command-close", "command-candidate-text", "command-candidate-primary", "command-candidate-copy", "command-candidate-keep", "command-candidate-document", "command-candidate-document-undo", "command-candidate-dismiss"].includes(String(message.action))
+  return ["start", "stop", "cancel", "candidate-text", "candidate-copy", "candidate-insert", "candidate-undo", "candidate-retry", "candidate-dismiss", "candidate-retranscribe", "candidate-overrides", "command-open", "command-text", "command-project", "command-scope", "command-submit", "command-start-voice", "command-stop-voice", "command-cancel-voice", "command-retry", "command-switch-write", "command-close", "command-candidate-text", "command-candidate-primary", "command-candidate-copy", "command-candidate-keep", "command-candidate-keep-undo", "command-candidate-document", "command-candidate-document-undo", "command-candidate-dismiss"].includes(String(message.action))
     ? {
       action: message.action as GoogleDocsLauncherAction,
       overrides: (value as GoogleDocsLauncherCommand).overrides,

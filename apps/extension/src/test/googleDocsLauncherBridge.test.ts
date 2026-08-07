@@ -17,4 +17,12 @@ describe("Google Docs launcher bridge", () => {
     expect(readGoogleDocsLauncherAction(googleDocsLauncherActionMessage("start"))).toEqual({ action: "start", overrides: undefined, text: undefined, retranscribeInput: undefined });
     expect(readGoogleDocsLauncherAction({ type: "logue:google-docs-launcher", kind: "action", action: "pause" })).toBeUndefined();
   });
+
+  it("round-trips Selection Action Keep Undo for the Google Docs proxy", () => {
+    expect(
+      readGoogleDocsLauncherAction(
+        googleDocsLauncherActionMessage("command-candidate-keep-undo"),
+      ),
+    ).toMatchObject({ action: "command-candidate-keep-undo" });
+  });
 });
