@@ -167,7 +167,7 @@
 
 ## Host/API、install、release
 
-- V2-OPS-01 — INTEGRATED — Host 数据目录为唯一权威；Extension 仅持有 tab/target/pending 状态。
+- V2-OPS-01 — INTEGRATED — Host 数据目录为唯一权威；Extension 仅持有 client connection、tab/target 与 pending capture 状态；MV3 worker 启动或任一 surface 确认 Host 可达后，以单一 replay 从最旧到最新重试 pending captures，失败项保留且不阻塞后项。
 - V2-OPS-02 — INTEGRATED — Source/membership/comment/run/document/profile/topic/skill API 主链已接；adoption 使用稳定 ID 幂等，Run 同时记录 AI Source 与后续 Document adoption，不再用单一字段互相覆盖。
 - V2-OPS-03 — INTEGRATED — 当前 `.logue-data` 的 Voice/Profile/revision schema 已完成显式备份和一次性更新；production Python Host 与 Web callers 已删除四条绕过 Run/adoption 的旧 route，无 production 入口且语义冲突的 Go Host 已移除，当前 schema/API/runtime 是唯一权威。
 - V2-OPS-04 — INTEGRATED — 不保留 V1 route/schema alias 或永久 migration path。

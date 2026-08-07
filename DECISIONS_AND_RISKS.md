@@ -982,3 +982,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **已有工程证据：** `convert_topic_to_project()` 调用 `save_project("", ...)`；create 路径只在 rename 时检查 collision，随后写出第二个 Project 文件，而读取层按名称字典覆盖。
 - **三路 gate 结论：** scope 与 product/UX 均排除 B/C、推荐 A，但认为 §10.8 未定义 collision，Project identity/default recovery 属用户决策；engineering 认为 A 是唯一安全且不扩范围的实现，并要求 active/archived 均在共享 create 边界、snapshot 前返回 conflict。因三路对“能否无需用户确认实施”不一致，本项不写代码。
 - **开放问题：** 用户确认 A 后再定义精确 inline recovery；此前保留现状并转下一 inventory family。
+
+### DR-092 — Extension 在确认 Host 可达后按创建时间 replay pending captures
+
+- **优先级：** V2 Host/Extension failure recovery P1 / `V2-OPS-01`
+- **状态：** 已 CODED/INTEGRATED；Extension typecheck 与 diff check 通过，真实断网/重启时序留 Phase 5。
+- **决定：** pending queue 继续只由 Extension 持有；MV3 worker 启动以及任一 surface 成功确认当前 Host 后，Extension 用单一 in-flight replay 按 `createdAt` 从旧到新调用现有幂等 Retry。单条失败保留原记录并继续后项，不新增 alarm 权限、后台轮询或第二份 Host queue。
+- **用户可见影响：** Host 恢复后，等待中的录音无需逐条手动 Retry；失败录音仍留在现有 Settings/Side Panel 恢复入口，不阻塞其他较新的录音。
+- **替代方案：** 只保留手动 Retry 不满足 V2 §10.15 的重连上传；新增周期 alarm 会增加权限和持续轮询，而当前 surface/worker 唤醒已经提供低成本的可达确认点。
+- **已有证据：** queue 已持久化并具备幂等 `retryPendingVoice()`，但调用方只有单条 Web/Side Panel action；`listPendingVoices()` 还按最新优先排序，没有 reconnect replay producer。
+- **开放问题：** 无；真实断网/重启时序留 Phase 5，本批不进入浏览器 QA。

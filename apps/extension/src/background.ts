@@ -636,6 +636,9 @@ async function handleWebTargetBridge(message: WebTargetBridgeMessage, sender: ch
     const list = async () =>
       (await listPendingVoices()).map(pendingCaptureForWeb);
     if (request.action === "pending-captures") {
+      void getServerURL()
+        .then((apiBase) => replayPendingVoices(apiBase))
+        .catch(() => undefined);
       return { ok: true, pendingCaptures: await list() };
     }
     const id = request.pendingCaptureId?.trim();
@@ -1244,6 +1247,32 @@ async function retryPendingVoice(apiBase: string, id: string) {
   }
 }
 
+let pendingVoiceReplay: Promise<void> | undefined;
+
+function replayPendingVoices(apiBase: string) {
+  if (pendingVoiceReplay) return pendingVoiceReplay;
+  pendingVoiceReplay = (async () => {
+    const pending = (await listPendingVoices())
+      .filter((record) => record.state !== "retrying")
+      .sort((first, second) => first.createdAt - second.createdAt);
+    for (const record of pending) {
+      const current = await readPendingVoice(record.id);
+      if (!current || current.state === "retrying") continue;
+      await retryPendingVoice(apiBase, record.id).catch(() => undefined);
+    }
+  })().finally(() => {
+    pendingVoiceReplay = undefined;
+  });
+  return pendingVoiceReplay;
+}
+
+async function replayPendingVoicesForConfiguredHost() {
+  const apiBase = await getServerURL();
+  const status = await parseResponse(await logueFetch(`${apiBase}/v1/status`));
+  assertLogueServerStatus(status);
+  await replayPendingVoices(apiBase);
+}
+
 async function deletePendingVoiceRecord(apiBase: string, id: string) {
   const record = await readPendingVoice(id);
   if (!record) throw new Error("The locally saved recording is no longer available.");
@@ -1307,6 +1336,7 @@ async function handleApiMessage(message: ApiMessage) {
       const status = await parseResponse(await logueFetch(`${apiBase}/v1/status`, { signal: controller.signal }));
       assertLogueServerStatus(status);
       await parseResponse(await logueFetch(`${apiBase}/v1/settings`, { signal: controller.signal }));
+      void replayPendingVoices(apiBase);
       return status;
     } catch (cause) {
       if (cause instanceof DOMException && cause.name === "AbortError") {
@@ -1320,6 +1350,7 @@ async function handleApiMessage(message: ApiMessage) {
   if (message.action === "status") {
     const status = await parseResponse(await logueFetch(`${apiBase}/v1/status`));
     assertLogueServerStatus(status);
+    void replayPendingVoices(apiBase);
     return status;
   }
   if (message.action === "context") {
@@ -1653,6 +1684,8 @@ chrome.runtime.onInstalled.addListener(() => {
     }
   }).catch(() => undefined);
 });
+
+void replayPendingVoicesForConfiguredHost().catch(() => undefined);
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (
