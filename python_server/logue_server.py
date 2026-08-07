@@ -242,6 +242,22 @@ class Store:
             if not path.exists():
                 atomic_json(path, skill)
 
+    def storage_usage_bytes(self) -> int:
+        total = 0
+        directories = [self.root]
+        with self.lock:
+            while directories:
+                directory = directories.pop()
+                with os.scandir(directory) as entries:
+                    for entry in entries:
+                        if entry.is_symlink():
+                            continue
+                        if entry.is_dir(follow_symlinks=False):
+                            directories.append(Path(entry.path))
+                        elif entry.is_file(follow_symlinks=False):
+                            total += entry.stat(follow_symlinks=False).st_size
+        return total
+
     def transaction_snapshot(self, prefix: str) -> Path:
         snapshot = Path(tempfile.mkdtemp(prefix=prefix, dir=self.root.parent))
         shutil.rmtree(snapshot)
@@ -3132,7 +3148,16 @@ class Handler(BaseHTTPRequestHandler):
         if not self.authorize_extension(path):
             return
         if path == "/v1/status":
-            self.json(HTTPStatus.OK, {"ok": True, "api_version": 1, "ai_configured": self.server.gemini.configured, "provider": self.server.gemini.provider, "model": self.server.gemini.model, "storage_root": str(store.root), "version": VERSION})
+            self.json(HTTPStatus.OK, {
+                "ok": True,
+                "api_version": 1,
+                "ai_configured": self.server.gemini.configured,
+                "provider": self.server.gemini.provider,
+                "model": self.server.gemini.model,
+                "storage_root": str(store.root),
+                "storage_bytes": store.storage_usage_bytes(),
+                "version": VERSION,
+            })
         elif path == "/v1/ai-connection":
             self.json(HTTPStatus.OK, self.server.gemini.public_config())
         elif path == "/v1/clients":

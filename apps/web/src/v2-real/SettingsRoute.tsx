@@ -155,7 +155,8 @@ function shortcutFromKey(event: React.KeyboardEvent<HTMLInputElement>) {
 function formatExportSize(bytes: number) {
   if (bytes < 1_024) return `${bytes} B`;
   if (bytes < 1_048_576) return `${Math.ceil(bytes / 1_024)} KB`;
-  return `${(bytes / 1_048_576).toFixed(1)} MB`;
+  if (bytes < 1_073_741_824) return `${(bytes / 1_048_576).toFixed(1)} MB`;
+  return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
 }
 
 function formatBackupTime(value: string) {
@@ -1009,6 +1010,12 @@ export function SettingsRoute({
                     title="This Mac"
                     detail={status?.storage_root || "Local Logue data"}
                   />
+                  {status ? (
+                    <SettingRow
+                      title="Storage used"
+                      detail={formatExportSize(status.storage_bytes)}
+                    />
+                  ) : null}
                   <SettingRow
                     title="Local address"
                     detail="An Extension on this Mac pairs automatically. Another device needs a one-time code."

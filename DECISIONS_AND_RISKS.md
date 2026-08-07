@@ -933,9 +933,19 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 ### DR-087 — Web Settings 通过受信任 Extension bridge 管理 pending captures
 
 - **优先级：** V2 Settings / Failure recovery P1
-- **状态：** pending capture producer→consumer 已 CODED/INTEGRATED，并通过 Extension/Web typecheck 与 diff check；真实断线恢复验证留统一 QA 阶段。`V2-SET-04` 因 storage 使用量仍缺 producer，整体保持 CODED。
+- **状态：** pending capture producer→consumer 已 CODED/INTEGRATED，并通过 Extension/Web typecheck 与 diff check；真实断线恢复验证留统一 QA 阶段。`V2-SET-04` 的 storage usage 余项由 DR-088 闭合。
 - **决定：** pending capture 继续由产生它的 Extension storage 持有，不复制到 Host 第二份队列。当前已配对 Host 的 Web Settings 复用现有同源、Host-bound Web↔Extension bridge，提供 List / Retry / Export audio / Delete；Stop-first Voice Comment 的 Delete 同时删除其 Host material 与 Extension queue，普通离线录音只删除本地 pending record。
 - **用户可见影响：** 用户能在 Settings 找到浏览器里等待恢复的录音，直接重试、导出原音或删除，不必先知道应打开哪个 tab 的 Side Panel；删除不会留下隐藏的 pending Comment 或孤立队列。
 - **替代方案：** 把 Extension pending queue 镜像进 Host；会产生两个 owner 和断线冲突，违反 Host/Extension 数据边界。只在 Side Panel 展示则继续违背权威 V2 §10.14 与 `V2-SET-04`。
 - **已有证据：** production 只有 Side Panel 调用 `getPendingVoices/retry/export/delete`，Web Settings 没有任何 pending consumer；现有 target/shortcut bridge 已验证 configured Host origin、配对身份与 request-response 隔离，可最小扩展而不新增通信通道。
 - **开放问题：** 无；不在本批执行断网/重启/浏览器 QA。
+
+### DR-088 — Settings storage usage 使用当前 Host 数据根目录的真实文件字节数
+
+- **优先级：** V2 Settings P1 / `V2-SET-04`
+- **状态：** 已 CODED/INTEGRATED；Python compile、Web typecheck 与 diff check 通过，真实运行验收留 Phase 5。
+- **决定：** `/v1/status` 由 Host 统计当前 `storage_root` 内全部普通文件的实际字节数，跳过链接；Web Settings 直接显示该值。口径包含当前 Sources、音频、Documents、revisions 与根配置，不包含数据根目录外的备份副本。
+- **用户可见影响：** 用户能看到这台 Mac 上当前 Logue 数据实际占用，而不是静态、估算或导出预览值。
+- **替代方案：** Web 根据已加载对象估算会漏掉音频、revision 与配置；统计父目录会把独立备份和临时文件混进当前 workspace。
+- **已有证据：** 当前 `/v1/status` 已返回权威 `storage_root`，但没有 usage producer；Settings 因此无法实现权威 V2 §10.14 的 storage usage 合同。
+- **开放问题：** 无；不在本批执行性能采样、浏览器或重启 QA。

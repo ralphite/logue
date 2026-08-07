@@ -149,6 +149,7 @@ export interface ServiceStatus {
   model: string;
   provider?: "gemini" | "openai-compatible";
   storage_root: string;
+  storage_bytes: number;
   version: string;
 }
 

@@ -39,6 +39,8 @@ describe("application navigation shell", () => {
       ai_configured: false,
       model: "",
       storage_root: "/tmp/logue-test",
+      storage_bytes: 0,
+      version: "test",
     });
     apiMocks.searchMaterials.mockReset().mockResolvedValue({ matches: [], strategy: "local" });
     apiMocks.getProjects.mockReset().mockResolvedValue([{ name: "Logue", glossary: [], count: 0 }]);
