@@ -285,7 +285,8 @@
 }
 
 .v2-global-find-result:hover,
-.v2-global-find-result:focus-visible {
+.v2-global-find-result:focus-visible,
+.v2-global-find-result.is-active {
   outline: 0;
   background: var(--v2-surface-muted);
 }

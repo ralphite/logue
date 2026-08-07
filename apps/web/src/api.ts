@@ -141,6 +141,14 @@ export interface DocumentSearchResponse {
   strategy: "semantic" | "local";
 }
 
+export interface ProjectSearchResponse {
+  matches: Array<
+    | { id: string; match: "title" | "content" | "project"; reason?: string }
+    | { id: string; match: "related"; reason: string }
+  >;
+  strategy: "semantic" | "local";
+}
+
 export interface ServiceStatus {
   ok: boolean;
   api_version: number;
@@ -748,6 +756,15 @@ export async function searchDocuments(query: string, signal?: AbortSignal) {
   return parseResponse<DocumentSearchResponse>(
     await fetch(
       `${apiBase}/v1/document-search?query=${encodeURIComponent(query)}`,
+      { signal },
+    ),
+  );
+}
+
+export async function searchProjects(query: string, signal?: AbortSignal) {
+  return parseResponse<ProjectSearchResponse>(
+    await fetch(
+      `${apiBase}/v1/project-search?query=${encodeURIComponent(query)}`,
       { signal },
     ),
   );

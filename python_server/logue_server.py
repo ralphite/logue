@@ -3195,6 +3195,21 @@ def document_search_candidates(values: list[dict[str, Any]]) -> list[dict[str, s
     return candidates
 
 
+def project_search_candidates(values: list[dict[str, Any]]) -> list[dict[str, str]]:
+    candidates: list[dict[str, str]] = []
+    for item in values:
+        candidate = {
+            "id": str(item["id"]),
+            "title": bounded(item.get("name"), 240),
+            "content": bounded(item.get("overview"), 1400),
+        }
+        if candidate["title"] or candidate["content"]:
+            candidates.append(candidate)
+        if len(candidates) == SEARCH_CANDIDATE_LIMIT:
+            break
+    return candidates
+
+
 def semantic_search(gemini: "Gemini", query: str, candidates: list[dict[str, Any]], kind: str, limit: int = 50) -> list[dict[str, str]]:
     if not query or not candidates:
         return []
@@ -3843,6 +3858,22 @@ class Handler(BaseHTTPRequestHandler):
                 if match["match"] not in {"title", "content", "project"}:
                     if match["match"] != "related":
                         match["match"] = "content"
+            self.json(HTTPStatus.OK, {"matches": matches, "strategy": strategy})
+        elif path == "/v1/project-search":
+            query_text = (query.get("query") or [""])[0].strip()
+            projects = [project for project in store.projects() if not project.get("archived_at")]
+            searchable = [
+                {
+                    **project,
+                    "title": project.get("name", ""),
+                    "content": project.get("overview", ""),
+                    "projects": [project.get("name", "")],
+                    "tags": [],
+                }
+                for project in projects
+            ]
+            provider = self.server.gemini
+            matches, strategy = self.provider_io(provider, lambda: ranked_search(provider, query_text, searchable, project_search_candidates(projects), "projects"))
             self.json(HTTPStatus.OK, {"matches": matches, "strategy": strategy})
         elif path == "/v1/context":
             self.json(HTTPStatus.OK, self.context(query))
