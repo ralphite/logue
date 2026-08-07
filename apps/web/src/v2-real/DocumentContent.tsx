@@ -1,5 +1,9 @@
 import { useEffect, type RefObject } from "react";
 import {
+  applyMarkdownBlockShortcut,
+  insertMarkdownAtSelection,
+  insertPlainTextAtSelection,
+  looksLikeMarkdown,
   sanitizeEditorHTML,
   toEditorHTML,
 } from "../components/DocumentWorkspace";
@@ -152,6 +156,30 @@ export function DocumentContent({
       aria-label="Document content"
       aria-multiline="true"
       onInput={(event) => {
+        onChange?.(sanitizeEditorHTML(event.currentTarget.innerHTML));
+        reportCaret(event.currentTarget);
+      }}
+      onKeyDown={(event) => {
+        if (
+          event.key === " " &&
+          !event.altKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.shiftKey &&
+          !event.repeat &&
+          !event.nativeEvent.isComposing &&
+          applyMarkdownBlockShortcut(event.currentTarget)
+        ) {
+          event.preventDefault();
+          onChange?.(sanitizeEditorHTML(event.currentTarget.innerHTML));
+          reportCaret(event.currentTarget);
+        }
+      }}
+      onPaste={(event) => {
+        event.preventDefault();
+        const pasted = event.clipboardData.getData("text/plain");
+        if (looksLikeMarkdown(pasted)) insertMarkdownAtSelection(event.currentTarget, pasted);
+        else insertPlainTextAtSelection(event.currentTarget, pasted);
         onChange?.(sanitizeEditorHTML(event.currentTarget.innerHTML));
         reportCaret(event.currentTarget);
       }}

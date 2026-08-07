@@ -5,6 +5,7 @@ import {
   Download,
   FilePlus2,
   History,
+  MoreHorizontal,
   PanelRightClose,
   RotateCcw,
   Redo2,
@@ -165,6 +166,9 @@ export function V2DocumentsRoute({
   }>();
   const editorRef = useRef<HTMLDivElement>(null);
   const editorScrollRef = useRef<HTMLDivElement>(null);
+  const editVersionRef = useRef(0);
+  const baseRevisionRef = useRef(0);
+  const selectedDocumentIdRef = useRef<string | undefined>(undefined);
   const sourceIds = preview?.source_ids ?? selected?.source_ids ?? [];
   const frozenSources = preview?.sources ?? selected?.sources ?? [];
   const sources = useMemo(
@@ -218,6 +222,9 @@ export function V2DocumentsRoute({
     setTargetError("");
     setEditorHistory({ undo: false, redo: false });
     setError("");
+    editVersionRef.current += 1;
+    baseRevisionRef.current = selected?.revision ?? 0;
+    selectedDocumentIdRef.current = selected?.id;
     const saved = selected?.id
       ? readNavigationState().documents?.positions?.[selected.id]
       : undefined;
@@ -245,13 +252,18 @@ export function V2DocumentsRoute({
     });
   }
 
+  function markEdited() {
+    editVersionRef.current += 1;
+    setDirty(true);
+  }
+
   function applyEditorHistory(direction: "undo" | "redo") {
     const editor = editorRef.current;
     if (!editor || preview) return;
     editor.focus({ preventScroll: true });
     document.execCommand(direction);
     setContent(sanitizeEditorHTML(editor.innerHTML));
-    setDirty(true);
+    markEdited();
     window.requestAnimationFrame(refreshEditorHistory);
   }
   useEffect(() => {
@@ -268,16 +280,22 @@ export function V2DocumentsRoute({
   useEffect(() => {
     if (!selected || !dirty || saving || preview) return;
     const timer = window.setTimeout(() => {
+      const saveVersion = editVersionRef.current;
+      const saveDocumentId = selected.id;
+      const snapshot = { title, content, project };
       setSaving(true);
       setError("");
       void updateDocument(selected.id, {
-        title,
-        content,
-        project,
-        expectedRevision: selected.revision,
+        ...snapshot,
+        expectedRevision: baseRevisionRef.current,
       })
-        .then(onRefresh)
-        .then(() => setDirty(false))
+        .then(async (updated) => {
+          if (selectedDocumentIdRef.current !== saveDocumentId) return;
+          baseRevisionRef.current = updated.revision;
+          if (editVersionRef.current !== saveVersion) return;
+          setDirty(false);
+          await onRefresh();
+        })
         .catch((cause) =>
           setError(
             cause instanceof Error
@@ -288,7 +306,7 @@ export function V2DocumentsRoute({
         .finally(() => setSaving(false));
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [content, dirty, preview, project, saving, selected, title, onRefresh]);
+  }, [content, dirty, preview, project, saving, selected?.id, title, onRefresh]);
 
   async function createNew() {
     const created = await createDocument({
@@ -1167,18 +1185,19 @@ export function V2DocumentsRoute({
                 disabled={Boolean(preview)}
                 onChange={(event) => {
                   setTitle(event.target.value);
-                  setDirty(true);
+                  markEdited();
                 }}
               />
               <div className="v2-document-toolbar">
-                <select
+                <div className="v2-document-toolbar-primary">
+                  <select
                   className="v2-input"
                   aria-label="Project"
                   value={preview?.project ?? project}
                   disabled={Boolean(preview)}
                   onChange={(event) => {
                     setProject(event.target.value);
-                    setDirty(true);
+                    markEdited();
                   }}
                 >
                   <option value="">No Project</option>
@@ -1187,8 +1206,8 @@ export function V2DocumentsRoute({
                       {item.name}
                     </option>
                   ))}
-                </select>
-                <select
+                  </select>
+                  <select
                   className="v2-input"
                   aria-label="Document action"
                   value={actionSkillId}
@@ -1207,15 +1226,17 @@ export function V2DocumentsRoute({
                         {skill.name}
                       </option>
                     ))}
-                </select>
-                <Button
+                  </select>
+                  <Button
                   size="sm"
                   disabled={Boolean(preview) || !actionSkillId || actionBusy}
                   onClick={() => void runSelectionAction()}
                 >
                   <Sparkles size={14} />
                   Apply
-                </Button>
+                  </Button>
+                </div>
+                <div className="v2-document-toolbar-actions">
                 {actionUndo?.documentId === selected.id && actionUndo.content === content && actionUndo.title === title && actionUndo.project === project ? (
                   <Button
                     size="sm"
@@ -1300,14 +1321,18 @@ export function V2DocumentsRoute({
                     Choose input…
                   </Button>
                 )}
-                <Button
-                  size="sm"
-                  onClick={() => void reviewDocumentDeletion()}
-                  disabled={Boolean(preview)}
-                >
-                  <Trash2 size={14} />
-                  Delete
-                </Button>
+                  <details className="v2-document-more">
+                    <summary aria-label="More Document actions" title="More Document actions">
+                      <MoreHorizontal size={17} aria-hidden="true" />
+                    </summary>
+                    <div role="menu">
+                      <button type="button" role="menuitem" onClick={() => void reviewDocumentDeletion()} disabled={Boolean(preview)}>
+                        <Trash2 size={14} />
+                        Delete Document
+                      </button>
+                    </div>
+                  </details>
+                </div>
               </div>
               {targetPickerOpen ? (
                 <section
@@ -1390,7 +1415,7 @@ export function V2DocumentsRoute({
                   editorRef={editorRef}
                   onChange={(value) => {
                     setContent(value);
-                    setDirty(true);
+                    markEdited();
                     window.requestAnimationFrame(refreshEditorHistory);
                   }}
                   onCaretChange={(caret) => {

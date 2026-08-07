@@ -1563,6 +1563,9 @@ export function V2LibraryRoute({
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const requestedSourceId = new URLSearchParams(window.location.search).get(
+    "source",
+  );
 
   useEffect(() => {
     void getTopics()
@@ -1616,9 +1619,21 @@ export function V2LibraryRoute({
     };
   }, [query]);
 
-  const savedMaterials = materials.filter(
-    (item) => !item.activityType && !item.tombstone,
+  const savedMaterials = useMemo(
+    () => materials.filter((item) => !item.activityType && !item.tombstone),
+    [materials],
   );
+  const allGroups = useMemo(
+    () => groupLibraryMaterials(savedMaterials, savedMaterials),
+    [savedMaterials],
+  );
+  useEffect(() => {
+    if (!requestedSourceId) return;
+    const target = allGroups.find((group) =>
+      group.items.some((item) => item.id === requestedSourceId),
+    );
+    if (target) setOpenKey(target.key);
+  }, [allGroups, requestedSourceId]);
   const matchById = useMemo(
     () => new Map(matches.map((match) => [match.id, match])),
     [matches],
@@ -1749,6 +1764,7 @@ export function V2LibraryRoute({
   );
   const openGroup =
     groups.find((group) => group.key === openKey) ??
+    allGroups.find((group) => group.key === openKey) ??
     deleteGroups.find((group) => group.key === openKey);
   const openRun = runs.find((run) => run.id === openRunId);
   const openActivity = materials.find(
@@ -1769,6 +1785,20 @@ export function V2LibraryRoute({
     if (document.project) url.searchParams.set("project", document.project);
     else url.searchParams.delete("project");
     window.history.replaceState(null, "", url);
+  }
+
+  function closeSource() {
+    setOpenKey(undefined);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("source");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  }
+
+  function openSource(group: LibraryMaterialGroup) {
+    setOpenKey(group.key);
+    const url = new URL(window.location.href);
+    url.searchParams.set("source", group.representative.id);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   }
 
   async function applyMembership(mode: "add" | "exclude") {
@@ -1985,13 +2015,13 @@ export function V2LibraryRoute({
       materials={materials}
       projects={projects}
       documents={documents}
-      onClose={() => setOpenKey(undefined)}
+      onClose={closeSource}
       onOpenSource={(id) => {
         const target = groupLibraryMaterials(
           materials.filter((item) => item.id === id),
           materials,
         )[0];
-        if (target) setOpenKey(target.key);
+        if (target) openSource(target);
       }}
       onOpenDocument={openDocument}
       onRefresh={onRefresh}
@@ -2019,7 +2049,7 @@ export function V2LibraryRoute({
       inspectorOpen={Boolean(inspector)}
       onInspectorOpenChange={(open) => {
         if (!open) {
-          setOpenKey(undefined);
+          closeSource();
           setOpenRunId(undefined);
           setOpenActivityId(undefined);
           setDeleteGroups([]);
@@ -2345,7 +2375,7 @@ export function V2LibraryRoute({
                       <button
                         type="button"
                         className="v2-library-row-main"
-                        onClick={() => setOpenKey(group.key)}
+                        onClick={() => openSource(group)}
                       >
                         <OriginLabel
                           origin={group.bundle ? "you" : sourceOrigin(material)}

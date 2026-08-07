@@ -1118,3 +1118,12 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **已有证据：** 当前生产 Web 对目标列表已显示 `Features Bugs Refactors`，详情 Inspector 同时稳定显示原始 `<p># Features</p>...`；根因是详情非 Comment 分支直接输出 `displayedContent`，而同组件其余 Source/revision 摘要均使用 `contentSummary()`。
 - **真实运行证据（2026-08-07）：** 当前安装升级到 `v0.2.13-p0.5` 后，真实 Web 的目标 `mat_792fba6631c4d02e` 在 Library 列表与详情均显示 `Features Bugs Refactors`，详情文本不含 `<p>` / `<br>`；`Open Document` 打开 `doc_b3a53ec0adaa22c9`，浏览器 Back 精确回到原 `?view=library&q=Logue+Dev+Notes+%C2%B7+revision+103` 列表。终止 LaunchAgent PID `20699` 后 launchd 以 PID `21046` 恢复，且该 PID 持有 `*:8787`；重载后目标列表/详情仍可读，控制台 error 为 0。用户内容目录聚合 SHA-256 前后均为 `13357cfd985b2d1bc82f8f4751b3bbd0afca72ec724043de68790a8089497430`，目标 JSON SHA-256 前后均为 `db940329538965fcb0711249978e97dba47965a775c7cdc44399d059d5f5ad1d`；未创建或修改 Source、Document、audio、transcript revision。
 - **开放问题：** 无；本批不涉及模型、Provider、配置、新功能或视觉优化。
+
+### DR-103 — 共享 UI/IA 可用性基线修复
+
+- **优先级：** 用户当前 P0 / Web Shell、Global Find、Document editor、Extension Side Panel。
+- **状态：** CODED/INTEGRATED；Web 与 Extension typecheck 通过，代表性 Document/Shell 与 Global Find 截图 post-gate PASS；未运行全面交互 QA。
+- **用户最新决定：** UI 必须从一开始就清晰可用；“不优化/不测试”不等于可以交付破损 UI。侧栏必须有 Logue 标识、折叠/展开和 resizer；Search 必须直接执行全局语义搜索，不能跳到另一个搜索；Document 必须可靠编辑并使用连续可读的工作区；Side Panel 的 Host 和已有条目应能在新标签打开。
+- **实施边界：** 保持五个一级入口 Projects / Library / Documents / Skills / Settings，不改变 V2 IA 或数据对象。复用已验证的不可见 Logo/resizer 原语；Global Find 在当前 Shell 内搜索 Sources、Documents 与 Projects；Library 使用 canonical `view=library&source=<id>` 深链；Document 继续 autosave，但用串行 revision 合同避免保存时覆盖后续输入，并把低频删除等动作渐进披露。
+- **替代方案：** 逐页局部补丁会继续产生互相冲突的视觉语言；Search 跳转 Library 会制造第二个搜索入口；固定侧栏和暴露全部编辑器操作都已由截图证明不可接受，因此拒绝。
+- **风险与恢复：** 不迁移或改写用户内容；导航宽度与折叠仅保存在浏览器偏好。实现后只做最低静态检查和一次截图复核，明显 P0/P1 继续按共享根因修复。

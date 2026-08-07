@@ -204,7 +204,7 @@ function currentEditableBlock(editor: HTMLElement) {
   return { block, range, selection };
 }
 
-function applyMarkdownBlockShortcut(editor: HTMLElement) {
+export function applyMarkdownBlockShortcut(editor: HTMLElement) {
   const editable = currentEditableBlock(editor);
   if (!editable) return false;
   const { block, range, selection } = editable;
@@ -250,7 +250,7 @@ function applyInlineMarkdownAtCaret(editor: HTMLElement) {
   return true;
 }
 
-function insertMarkdownAtSelection(editor: HTMLElement, value: string) {
+export function insertMarkdownAtSelection(editor: HTMLElement, value: string) {
   const selection = window.getSelection();
   const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
   if (!selection || !range || !editor.contains(range.commonAncestorContainer)) return false;
@@ -283,7 +283,7 @@ function insertMarkdownAtSelection(editor: HTMLElement, value: string) {
   return true;
 }
 
-function insertPlainTextAtSelection(editor: HTMLElement, value: string) {
+export function insertPlainTextAtSelection(editor: HTMLElement, value: string) {
   const selection = window.getSelection();
   const range = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
   if (!selection || !range || !editor.contains(range.commonAncestorContainer)) return false;

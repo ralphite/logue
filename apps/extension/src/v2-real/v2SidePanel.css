@@ -20,6 +20,9 @@ button:disabled { cursor: default; }
 .v2-panel-section { min-width: 0; }
 .v2-panel-section-heading > a { display: inline-flex; color: var(--v2-muted); }
 .v2-panel-section-heading > a:hover { color: var(--v2-ink); }
+.v2x-heading-actions { display: inline-flex; align-items: center; gap: 6px; }
+.v2x-heading-actions > a { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 6px; color: var(--v2-muted); }
+.v2x-heading-actions > a:hover { background: var(--v2-surface-muted); color: var(--v2-ink); }
 .v2-settings-section { padding: 2px 0 20px; }
 .v2-comment-card,
 .v2-context-card,
@@ -55,6 +58,7 @@ button:disabled { cursor: default; }
   font-size: 13px;
   font-weight: 540;
 }
+.logue-v2 a.v2x-button { text-decoration: none; }
 
 .v2x-button:hover:not(:disabled) { border-color: var(--v2-line-strong); background: var(--v2-surface-muted); color: var(--v2-ink); }
 .v2x-button:disabled { opacity: .46; }

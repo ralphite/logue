@@ -62,6 +62,13 @@ function sourceTitle(state: PanelCaptureState) {
   }
 }
 
+function logueHostURL(hostURL: string, view: string, sourceId?: string) {
+  const url = new URL(hostURL.replace(/\/$/, "") || "http://127.0.0.1:8787");
+  url.searchParams.set("view", view);
+  if (sourceId) url.searchParams.set("source", sourceId);
+  return url.toString();
+}
+
 function commandSourceLabel(source: CommandSourceSnapshot, index: number) {
   return (
     source.source?.title?.trim() ||
@@ -398,6 +405,7 @@ export interface V2SidePanelSurfaceProps {
   canRetry: boolean;
   pendingVoices?: PendingVoiceSummary[];
   retryingPendingVoiceId?: string;
+  hostURL: string;
   serverURLDraft: string;
   serverPairingCodeDraft: string;
   serverCandidateURL?: string;
@@ -505,6 +513,7 @@ export function V2SidePanelSurface({
   generating,
   pendingVoices = [],
   retryingPendingVoiceId,
+  hostURL,
   serverURLDraft,
   serverPairingCodeDraft,
   serverCandidateURL,
@@ -596,7 +605,11 @@ export function V2SidePanelSurface({
     return (
       <div className="logue-v2 v2-side-panel-frame">
         <div className="v2-recovery-card v2x-empty">
-          Open Logue from a page to begin.
+          <p>Open Logue from a page to begin.</p>
+          <a className="v2x-button" href={logueHostURL(hostURL, "projects")} target="_blank" rel="noreferrer">
+            Open Logue
+            <ExternalLink size={14} />
+          </a>
         </div>
       </div>
     );
@@ -651,6 +664,16 @@ export function V2SidePanelSurface({
               <ChevronDown size={11} />
             </span>
           </button>
+          <a
+            className="v2x-button is-icon"
+            href={logueHostURL(hostURL, "projects")}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Open Logue"
+            title="Open Logue"
+          >
+            <ExternalLink size={16} aria-hidden="true" />
+          </a>
           <OverlayMenu
             open={moreOpen}
             onOpenChange={setMoreOpen}
@@ -1116,15 +1139,20 @@ export function V2SidePanelSurface({
                           }
                           detail="Source used"
                         />
+                        <span className="v2x-heading-actions">
+                          <a href={logueHostURL(hostURL, "library", openedSource.id)} target="_blank" rel="noreferrer" aria-label="Open saved Source in Logue" title="Open in Logue">
+                            <ExternalLink size={14} />
+                          </a>
                         {openedSource.source?.url ? (
                           <a
                             href={openedSource.source.url}
                             target="_blank"
                             rel="noreferrer"
                           >
-                            <ExternalLink size={14} />
+                            <Globe2 size={14} />
                           </a>
                         ) : null}
+                        </span>
                       </div>
                       <strong>
                         {commandSourceLabel(
@@ -1299,6 +1327,10 @@ export function V2SidePanelSurface({
                                     : classification
                               }
                             />
+                            <span className="v2x-heading-actions">
+                              <a href={logueHostURL(hostURL, "library", material.id)} target="_blank" rel="noreferrer" aria-label="Open saved item in Logue" title="Open in Logue">
+                                <ExternalLink size={14} />
+                              </a>
                             {editable && !editing ? (
                               <V2Button
                                 onClick={() => {
@@ -1311,6 +1343,7 @@ export function V2SidePanelSurface({
                                 Edit
                               </V2Button>
                             ) : null}
+                            </span>
                           </div>
                           {editing ? (
                             <div className="v2-settings-section">

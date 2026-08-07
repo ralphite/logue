@@ -2179,6 +2179,7 @@ function SidePanelApp() {
       canRetry={false}
       pendingVoices={pendingVoices}
       retryingPendingVoiceId={retryingPendingVoiceId}
+      hostURL={serverURL}
       serverURLDraft={serverURLDraft}
       serverPairingCodeDraft={serverPairingCodeDraft}
       serverCandidateURL={state?.candidateServerURL && state.candidateServerURL !== serverURL ? state.candidateServerURL : undefined}
