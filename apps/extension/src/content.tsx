@@ -3163,7 +3163,12 @@ function ExtensionLauncher() {
   );
 }
 
-if (!isLogueExtensionDisabledDocument(document, window.location.href) && !document.getElementById("logue-extension-host")) {
+if (!isLogueExtensionDisabledDocument(document, window.location.href)) {
+  // An unpacked-extension Reload invalidates the old content-script context
+  // without removing its visible launcher. The newly injected script owns the
+  // document, so replace that inert host instead of leaving every open tab
+  // stuck on "Extension context invalidated" until a manual page refresh.
+  document.getElementById("logue-extension-host")?.remove();
   const host = document.createElement("div");
   host.id = "logue-extension-host";
   host.dataset.logueExtension = "disabled";

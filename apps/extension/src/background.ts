@@ -77,6 +77,7 @@ let inlineRecorderDocument: Promise<void> | undefined;
 let inlineRecorderPermission: { token: string; sessionId: string } | undefined;
 
 interface PairingCredential { clientId: string; credential: string; }
+const pairingRequests = new Map<string, Promise<PairingCredential>>();
 
 async function extensionClientId() {
   const stored = await chrome.storage.local.get(extensionClientIdStorageKey);
@@ -100,12 +101,22 @@ async function pairWithHost(origin: string) {
   return pairing;
 }
 
+function pairWithHostOnce(origin: string) {
+  const active = pairingRequests.get(origin);
+  if (active) return active;
+  const request = pairWithHost(origin).finally(() => {
+    if (pairingRequests.get(origin) === request) pairingRequests.delete(origin);
+  });
+  pairingRequests.set(origin, request);
+  return request;
+}
+
 async function logueFetch(input: RequestInfo | URL, init?: RequestInit) {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
   if (url.pathname === "/v1/status" || url.pathname === "/v1/pairings") return globalThis.fetch(input, init);
   const key = `${pairingCredentialStoragePrefix}${url.origin}`;
   let pairing = (await chrome.storage.local.get(key))[key] as PairingCredential | undefined;
-  if (!pairing?.clientId || !pairing.credential) pairing = await pairWithHost(url.origin);
+  if (!pairing?.clientId || !pairing.credential) pairing = await pairWithHostOnce(url.origin);
   const authorized = (value: PairingCredential) => {
     const headers = new Headers(init?.headers);
     headers.set("X-Logue-Client", value.clientId);
@@ -114,8 +125,13 @@ async function logueFetch(input: RequestInfo | URL, init?: RequestInit) {
   };
   let response = await authorized(pairing);
   if (response.status === 401) {
-    await chrome.storage.local.remove(key);
-    pairing = await pairWithHost(url.origin);
+    const latest = (await chrome.storage.local.get(key))[key] as PairingCredential | undefined;
+    if (latest?.clientId && latest.credential && latest.credential !== pairing.credential) {
+      pairing = latest;
+    } else {
+      await chrome.storage.local.remove(key);
+      pairing = await pairWithHostOnce(url.origin);
+    }
     response = await authorized(pairing);
   }
   return response;
@@ -1680,6 +1696,34 @@ async function resolveTabProjects(tab: chrome.tabs.Tab): Promise<string[]> {
   return [association.project_name];
 }
 
+async function ensureTabContentScript(tabId: number) {
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, { type: "logue:get-page-context" }) as { ok?: boolean } | undefined;
+    if (response?.ok) return true;
+  } catch {
+    // A stale content script loses its runtime connection when the extension reloads.
+  }
+  try {
+    await chrome.scripting.executeScript({
+      // A restricted browser-owned child frame must not block recovery of the
+      // actual page target. Eligible frames load their declared content script
+      // normally; this recovery is specifically for the top-level stale host.
+      target: { tabId },
+      files: ["content.js"],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function recoverContentScriptsAfterExtensionReload() {
+  const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
+  await Promise.all(tabs.map(async (tab) => {
+    if (typeof tab.id === "number") await ensureTabContentScript(tab.id);
+  }));
+}
+
 chrome.runtime.onInstalled.addListener(() => {
   void disableDefaultSidePanel(nativeSidePanel).catch(() => undefined);
   chrome.contextMenus.removeAll(() => {
@@ -1692,6 +1736,7 @@ chrome.runtime.onInstalled.addListener(() => {
   }).catch(() => undefined);
 });
 
+void recoverContentScriptsAfterExtensionReload();
 void replayPendingVoicesForConfiguredHost().catch(() => undefined);
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -1714,7 +1759,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 chrome.action.onClicked.addListener((tab) => {
-  void toggleTabPanel(tab).catch(() => undefined);
+  if (typeof tab.id !== "number") return;
+  // Clicking the action grants activeTab access, so it is also the reliable
+  // recovery point for pages left behind by an extension reload.
+  void ensureTabContentScript(tab.id)
+    .then(() => toggleTabPanel(tab))
+    .catch(() => undefined);
 });
 
 chrome.commands.onCommand.addListener((command, tab) => {

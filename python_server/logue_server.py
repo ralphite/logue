@@ -67,6 +67,7 @@ PROVIDER_ERROR_MESSAGES = {
     "invalid_response": "The provider returned an unusable response. Check the model in Settings → Models.",
 }
 ID_RE = re.compile(r"^(?:mat|doc|prj|sk|run|cap|voc|top)_[A-Za-z0-9]+$")
+CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{8,80}$")
 CITATION_RE = re.compile(r"\[Source (\d+)\]")
 GLOSSARY_RE = re.compile(r"\b[A-Z][A-Za-z0-9.-]{2,}\b")
 VOCABULARY_CATEGORIES = ("people", "companies", "products", "places", "acronyms")
@@ -654,7 +655,7 @@ class Store:
         return {"code": value["code"], "expires_at": datetime.fromtimestamp(value["expires_at"], timezone.utc).isoformat().replace("+00:00", "Z")}
 
     def pair_client(self, client_id: str, name: str, pairing_code: str, *, local: bool) -> dict[str, Any]:
-        if not client_id or not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", client_id):
+        if not CLIENT_ID_RE.fullmatch(client_id):
             raise ValueError("invalid Extension client id")
         if not local:
             path = self.root / "pairing-code.json"
@@ -668,9 +669,17 @@ class Store:
         atomic_json(self.root / "clients" / f"{client_id}.json", client)
         return {"client": {key: value for key, value in client.items() if key != "token_hash"}, "credential": token}
 
+    def get_client(self, identifier: str) -> dict[str, Any]:
+        if not CLIENT_ID_RE.fullmatch(identifier):
+            raise ValueError("invalid Extension client id")
+        path = self.root / "clients" / f"{identifier}.json"
+        if not path.exists():
+            raise FileNotFoundError(identifier)
+        return read_json(path)
+
     def authorize_client(self, client_id: str, token: str) -> bool:
         try:
-            client = self.get("clients", client_id)
+            client = self.get_client(client_id)
         except (FileNotFoundError, ValueError):
             return False
         if client.get("revoked") or not secrets.compare_digest(str(client.get("token_hash", "")), hashlib.sha256(token.encode()).hexdigest()):
@@ -681,7 +690,7 @@ class Store:
         return True
 
     def update_client(self, identifier: str, value: dict[str, Any]) -> dict[str, Any]:
-        client = self.get("clients", identifier)
+        client = self.get_client(identifier)
         if "name" in value:
             name = str(value.get("name", "")).strip()
             if not name:
@@ -692,7 +701,7 @@ class Store:
         return {key: entry for key, entry in client.items() if key != "token_hash"}
 
     def revoke_client(self, identifier: str) -> dict[str, Any]:
-        client = self.get("clients", identifier)
+        client = self.get_client(identifier)
         client["revoked"] = True
         client["updated_at"] = now()
         atomic_json(self.root / "clients" / f"{identifier}.json", client)

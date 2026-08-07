@@ -1073,3 +1073,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **final gate：** 收紧后的 scope、product/UX、engineering 均 PASS，无剩余 P0/P1。工程 gate 明确 Archive 规范化为 `enabled=false/pinned=false`，Restore 规范化为 `enabled=true/pinned=false`，不保存 prior state；Host 必须提供当前 binding impact 并在执行时重新读取后原子清理。历史 Run 的 Retry/Continue 继续使用 frozen Skill revision，因为 V2 §7.6、§10.12 与库存均要求可重现，且这不等于重新解析 active archived Skill；新动作 resolver 必须排除 archived Skill。
 - **实现与静态证据：** Host active list 默认排除 archived，并为 Web 管理入口提供显式 include-archived 与 archive-impact；Archive 在 root transaction 中保留 Skill/revisions/Run、清五类 Global defaults、pinned 与所有 Project bindings，失败回滚，Restore 只恢复 active 对象。新 explicit Run、transcription 与 background organization resolver 排除 archived，历史 Retry/Continue 继续消费 frozen revision；portable all-export、Backup 与 workspace deletion preview 仍包含 archived Skill。Web My Skills 默认 active，通过 `Archived (N)` 打开只读详情与 Restore；有 binding 影响时先显示摘要和不重绑说明，旧 Enabled/Delete UI 已移除。窄 Host 测试覆盖故障注入回滚、active/all API、lineage 保留、新 Run 拒绝、frozen Retry、Restore 不重绑；Python compile、Web typecheck、production retired-delete residue 与 diff check 通过。未运行 Browser/CU、UX/UI 或全面 QA。
 - **开放问题：** 无；实施后只报告 CODED/INTEGRATED，真实浏览器旅程留统一 QA 阶段。
+
+### DR-099 — CUJ Recovery：Extension 安装产物、页面重载恢复与 Host client 授权
+
+- **优先级：** 用户最高 P0 / Extension、Side Panel、Host、Web canonical CUJ。
+- **状态：** 已完成当前真实安装纵向恢复并通过窄范围运行时验证。
+- **问题与决定：** 当前 Chrome 实际加载稳定安装目录中的旧 release，而开发构建未进入该目录；Extension reload 又让已开页面保留失效 launcher。安装仍保持稳定根目录与同一 Extension ID，当前构建写入新的 versioned release 后原子切换 manifest；worker 启动时只在 content script 无响应时重注入顶层页面，受限子 frame 不再阻断整页恢复。同一 Host 的配对请求使用 single-flight 与最新 credential，避免并发 401 相互覆盖。
+- **Host 根因：** client 使用合法 `chrome-<uuid>` identity，但授权、更新与撤销错误复用只接受产品对象前缀的通用 `ID_RE`，导致配对创建成功后永远无法读取。client 改用独立且与 pairing producer 一致的 `CLIENT_ID_RE`。
+- **用户可见影响：** 已安装 Extension 可打开并连接当前 Host；Voice Write 能进入录音；Voice Command 能生成真实 Candidate、Insert 到真实 textarea 并 Undo；Keep in Logue 后结果立即出现在当前 Host Web Library。Extension reload 后旧顶层页面无需手动刷新即可重新获得当前 launcher。
+- **真实证据：** 当前数据根 `/Users/yadong/dev2/logue/.logue-data` 与远程 Gemini provider ready；真实 Chrome 中生成并插入 `Logue voice input must transcribe...`，textarea 从 `Existing start:` 变为含 Candidate，Undo 后恢复原值；Keep in Logue 显示即时 Undo，`http://127.0.0.1:8787/?view=library` 首条显示同一 AI Saved Source。临时 diagnostic client 与 pairing code 已删除。
+- **剩余风险：** 其余已确认 CUJ 仍需按用户优先级逐个真实恢复；本批不恢复被冻结的 Skill/model/config WIP，也不扩大全面 QA。
