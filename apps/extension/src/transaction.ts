@@ -65,7 +65,7 @@ export async function completeVoiceInput(input: {
   }
 }
 
-/** Transcribes and persists a voice annotation without an intermediate review/confirm step. */
+/** Transcribes and persists a voice Comment without an intermediate review/confirm step. */
 export async function completeSelectionVoiceInput(input: {
   transcribe: () => Promise<VoiceTranscription>;
   save: (transcription: VoiceTranscription) => Promise<unknown>;

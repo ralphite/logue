@@ -16,7 +16,6 @@ interface ApiMaterial {
   content: string;
   raw_transcript?: string;
   transcript?: string;
-  annotation?: string;
   source?: SourceInfo;
   projects?: string[];
   excluded_projects?: string[];
@@ -39,7 +38,7 @@ interface ApiMaterial {
 export type MaterialSearchMatch =
   | {
       id: string;
-      match: "content" | "annotation" | "source" | "tag" | "project";
+      match: "content" | "source" | "tag" | "project";
       reason?: string;
     }
   | { id: string; match: "related"; reason: string };
@@ -491,7 +490,6 @@ export function fromApiMaterial(item: ApiMaterial): Material {
     content: item.content,
     rawTranscript: item.raw_transcript,
     transcript: item.transcript,
-    annotation: item.annotation,
     source: item.source,
     projects: item.projects ?? [],
     excludedProjects: item.excluded_projects ?? [],
@@ -670,7 +668,6 @@ export async function searchMaterials(query: string, signal?: AbortSignal) {
 export async function createMaterial(input: {
   kind: MaterialKind;
   content: string;
-  annotation?: string;
   projects?: string[];
   tags?: string[];
   parentIds?: string[];
@@ -687,7 +684,6 @@ export async function createMaterial(input: {
       body: JSON.stringify({
         kind: input.kind,
         content: input.content,
-        annotation: input.annotation,
         projects: input.projects,
         tags: input.tags,
         parent_ids: input.parentIds,

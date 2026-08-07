@@ -35,7 +35,7 @@ Release 同时包含 macOS/Linux 的 amd64 与 arm64 完整资产，每个资产
   settings.json      # 全局写作偏好、术语和忽略项
 ```
 
-写入使用临时文件 + rename。`request_id` 在资料层提供幂等创建；选区请求派生稳定的 `:source` / `:annotation` ID；Agent 写回同样支持稳定 `request_id`。
+写入使用临时文件 + rename。`request_id` 在 Source 层提供幂等创建；选区请求派生稳定的 `:source` / `:comment` ID；AI 写回同样支持稳定 `request_id`。
 
 ## API v1
 

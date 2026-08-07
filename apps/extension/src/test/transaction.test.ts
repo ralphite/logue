@@ -95,7 +95,7 @@ describe("automatic voice input transaction", () => {
   });
 });
 
-describe("automatic selection voice annotation", () => {
+describe("automatic selection voice Comment", () => {
   it("transcribes and saves in one ordered operation without a review confirmation", async () => {
     const order: string[] = [];
     const result = await completeSelectionVoiceInput({

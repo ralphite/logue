@@ -1181,7 +1181,7 @@ async function retryPendingVoice(apiBase: string, id: string) {
     };
     const endpoint = plan.kind === "selection" ? "/v1/selections" : "/v1/items";
     const body = plan.kind === "selection"
-      ? { ...plan.save, ...voiceFields, annotation: transcription.text }
+      ? { ...plan.save, ...voiceFields, comment: transcription.text }
       : { ...plan.save, ...voiceFields, content: transcription.text };
     const result = await parseResponse(await logueFetch(`${apiBase}${endpoint}`, {
       method: "POST",

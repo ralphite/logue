@@ -51,7 +51,7 @@ CITATION_RE = re.compile(r"\[Source (\d+)\]")
 GLOSSARY_RE = re.compile(r"\b[A-Z][A-Za-z0-9.-]{2,}\b")
 VOCABULARY_CATEGORIES = ("people", "companies", "products", "places", "acronyms")
 CAPTURE_MIME_TYPES = {".mp3": "audio/mpeg", ".wav": "audio/wav", ".m4a": "audio/mp4", ".ogg": "audio/ogg", ".webm": "audio/webm"}
-BACKUP_SCHEMA = 1
+BACKUP_SCHEMA = 2
 BACKUP_MARKER = ".logue-backup.json"
 WORKSPACE_DIRECTORIES = (
     "items",
@@ -953,6 +953,8 @@ class Store:
         return next((item for item in self.items() if item.get("request_id") == request_id), None)
 
     def create_item(self, value: dict[str, Any], *, organization_status: str = "pending") -> dict[str, Any]:
+        if "annotation" in value:
+            raise ValueError("save Comments as independent Sources")
         kind = str(value.get("kind", "")).strip()
         content = str(value.get("content", "")).strip()
         request_id = str(value.get("request_id", "")).strip()
@@ -1064,7 +1066,6 @@ class Store:
             "request_id": request_id,
             "raw_transcript": str(value.get("raw_transcript", "")).strip(),
             "transcript": str(value.get("transcript", "")).strip(),
-            "annotation": str(value.get("annotation", "")).strip(),
             "source": source,
             "parent_ids": normalize(value.get("parent_ids")),
             "capture_id": str(value.get("capture_id", "")).strip(),
@@ -1673,7 +1674,7 @@ class Store:
         }
 
     def create_selection(self, value: dict[str, Any]) -> dict[str, Any]:
-        allowed = {"request_id", "source_content", "annotation", "raw_transcript", "transcript", "source", "projects", "tags", "capture_id", "applied_context", "membership_origin"}
+        allowed = {"request_id", "source_content", "comment", "raw_transcript", "transcript", "source", "projects", "tags", "capture_id", "applied_context", "membership_origin"}
         unknown = sorted(set(value) - allowed)
         if unknown:
             raise ValueError(f"unsupported selection field {unknown[0]!r}")
@@ -1687,15 +1688,15 @@ class Store:
             return entry.strip()
 
         source_content = text_field("source_content")
-        annotation = text_field("annotation")
+        comment = text_field("comment")
         raw_transcript = text_field("raw_transcript")
         transcript = text_field("transcript")
         capture_id = text_field("capture_id")
         request_id = text_field("request_id")
         if not source_content:
             raise ValueError("source content is required")
-        if capture_id and not annotation:
-            raise ValueError("captured audio requires an adopted annotation")
+        if capture_id and not comment:
+            raise ValueError("captured audio requires an adopted Comment")
         source_value = value.get("source")
         if source_value is not None and not isinstance(source_value, dict):
             raise ValueError("source must be an object")
@@ -1738,12 +1739,12 @@ class Store:
         source_info = dict(source_value or {})
         source_info.setdefault("selection", source_content)
         source_request_id = f"{request_id}:source" if request_id else ""
-        annotation_request_id = f"{request_id}:annotation" if request_id else ""
+        comment_request_id = f"{request_id}:comment" if request_id else ""
         source_input = {"request_id": source_request_id, "kind": "selection", "content": source_content, "source": source_info, "projects": value.get("projects"), "tags": value.get("tags"), "membership_origin": membership_origin}
-        annotation_input = {"request_id": annotation_request_id, "kind": "derived", "content": annotation, "raw_transcript": raw_transcript, "transcript": transcript, "source": source_info, "projects": value.get("projects"), "tags": value.get("tags"), "capture_id": capture_id, "applied_context": applied_context, "membership_origin": membership_origin}
+        comment_input = {"request_id": comment_request_id, "kind": "derived", "content": comment, "raw_transcript": raw_transcript, "transcript": transcript, "source": source_info, "projects": value.get("projects"), "tags": value.get("tags"), "capture_id": capture_id, "applied_context": applied_context, "membership_origin": membership_origin}
 
         # Validate both material payloads before either file can become visible.
-        for item in (source_input, annotation_input) if annotation else (source_input,):
+        for item in (source_input, comment_input) if comment else (source_input,):
             kind = str(item.get("kind", "")).strip()
             content = str(item.get("content", "")).strip()
             if kind not in VALID_KINDS:
@@ -1754,22 +1755,22 @@ class Store:
         with self.lock:
             if request_id:
                 existing_source = self._request_item(source_request_id)
-                existing_annotation = self._request_item(annotation_request_id)
+                existing_comment = self._request_item(comment_request_id)
                 if existing_source:
                     result: dict[str, Any] = {"source": existing_source}
-                    if existing_annotation:
-                        result["annotation"] = existing_annotation
+                    if existing_comment:
+                        result["comment"] = existing_comment
                     return result
-                if existing_annotation:
+                if existing_comment:
                     raise ValueError("selection bundle is incomplete")
 
             source = self.create_item(source_input, organization_status="confirmed")
             result = {"source": source}
-            if not annotation:
+            if not comment:
                 return result
-            annotation_input["parent_ids"] = [source["id"]]
+            comment_input["parent_ids"] = [source["id"]]
             try:
-                result["annotation"] = self.create_item(annotation_input, organization_status="confirmed")
+                result["comment"] = self.create_item(comment_input, organization_status="confirmed")
             except BaseException:
                 # Readers also use this RLock, so a failed second write never
                 # exposes a half-created bundle through Store APIs.
@@ -2783,13 +2784,13 @@ def search_items(query: str, values: list[dict[str, Any]], limit: int = 50) -> l
         return []
     ranked: list[tuple[int, int, dict[str, str]]] = []
     for order, item in enumerate(values):
-        fields = [("title", item.get("title", "")), ("content", item.get("content", "")), ("annotation", item.get("annotation", "")), ("source", " ".join([str((item.get("source") or {}).get("title", "")), str((item.get("source") or {}).get("domain", ""))])), ("tag", " ".join(item.get("tags", []))), ("project", " ".join(item.get("projects", [])))]
+        fields = [("title", item.get("title", "")), ("content", item.get("content", "")), ("source", " ".join([str((item.get("source") or {}).get("title", "")), str((item.get("source") or {}).get("domain", ""))])), ("tag", " ".join(item.get("tags", []))), ("project", " ".join(item.get("projects", [])))]
         matches = [(kind, normalized_query in str(value).casefold()) for kind, value in fields]
         score = sum((3 if kind in {"tag", "project"} else 1) for kind, matched in matches if matched)
         if score:
             kind = next(kind for kind, matched in matches if matched)
             match = {"id": item["id"], "match": kind}
-            if kind in {"annotation", "source", "tag", "project"}:
+            if kind in {"source", "tag", "project"}:
                 match["reason"] = f"Matches {kind}"
             ranked.append((-score, order, match))
     ranked.sort()
@@ -2803,7 +2804,6 @@ def material_search_candidates(values: list[dict[str, Any]]) -> list[dict[str, A
         candidate = {
             "id": item["id"],
             "content": bounded(item.get("content"), 900),
-            "annotation": bounded(item.get("annotation"), 300),
             "source": bounded(" ".join([str(source.get("title", "")), str(source.get("domain", ""))]), 240),
             "projects": normalize(item.get("projects")),
             "tags": normalize(item.get("tags")),
@@ -4404,7 +4404,7 @@ class Handler(BaseHTTPRequestHandler):
 
             projection = {
                 "export_format": "logue-portable-export",
-                "schema_version": 1,
+                "schema_version": 2,
                 "scope": {
                     "kind": scope,
                     "project_id": project_id if scope == "project" else "",
@@ -4739,6 +4739,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def validate_snapshot_json(self, directory: str, path: Path, value: dict[str, Any]) -> None:
         stem = path.name.removesuffix(".json")
+        if directory in {"items", "item-revisions"} and "annotation" in value:
+            raise ValueError("backup contains the retired annotation schema")
+        if directory in {"items", "item-revisions"} and str(value.get("request_id", "")).endswith(":annotation"):
+            raise ValueError("backup contains the retired Comment request identity")
         identity_fields = {
             "items": "id",
             "docs": "id",

@@ -1002,3 +1002,15 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** Host 自动补 ID 无法让客户端重试复用同一 identity；缺 ID 时撤销最近一次会在 Copy → Insert → Document 等顺序采用后产生歧义。
 - **已有证据：** Web 与 Extension production API 已把 `adoptionId` 设为必填，并在 Copy/Insert/Replace/Keep/Document 动作边界生成、失败重试时复用；但 Host 的 Run 与 Document adoption 仍接受空值并自动生成 ID，Run Undo 还会在空值时选择最近一次事件。Voice adoption 已采用严格校验，本批统一三条合同。
 - **开放问题：** 无；不改变 adoption 对象模型、可见动作或 IA。
+
+### DR-094 — Comment 只使用独立 You Source，不保留内嵌 annotation schema
+
+- **优先级：** V2 API / Comment bundle P1 / `V2-OPS-04`
+- **状态：** scope / product / engineering 三路 fresh 静态 gate 均 PASS；CODED/INTEGRATED 并完成当前真实数据的一次性离线迁移，浏览器旅程按当前阶段顺序留到后续统一 QA。
+- **决定：** 删除通用 Material 的 `annotation` 存储字段及 producer/consumer；Selection/Page Comment API 使用 `comment` 输入并返回独立 `comment` Source，Web/Extension 只从 Web+You bundle 读取 Comment。当前 `.logue-data` 唯一一条内嵌 annotation 在外部备份后一次性转换为同时间、Project、tags、source metadata 且以 `parent_ids` 指向原 Web Source 的 You Comment；转换后删除迁移代码，不保留双格式读取。
+- **用户可见影响：** 这条现有 Comment 继续作为同一 Web evidence 的 Comment 出现在 Library/Project；以后不会出现一部分 Comment 藏在 Web Source 字段、另一部分是独立 You Source，导致 bundle、删除、分类或 lineage 行为不一致。
+- **替代方案：** 永久保留 `annotation` fallback 会违反当前 schema 唯一权威并让 bundle 操作遗漏旧 Comment；只停止新写但继续双读仍是永久兼容层；丢弃现有 annotation 会删除用户内容。
+- **已有证据：** production `create_item`、Extension `saveMaterial`、Web/Extension material types、Library/Search 仍读取可选 `annotation`；真实 `.logue-data/items/mat_7e5ec5101de8a0ff.json` 仍以内嵌字段保存一条 Comment。当前 Selection/Page Comment 主路径已经由 `/v1/selections` 原子创建 Web Source + derived user Source，因此可收敛到现有 V2 对象，不新增 feature 或 IA。
+- **三路 gate：** scope PASS：这是对既定 Web+You Comment topology 与 `V2-OPS-04` 的 schema 收敛，不增删功能或 IA；product PASS：必须保留原 Web Source 为 bundle root，并维持单 bundle 计数/搜索、Project membership 与删除语义；engineering PASS：Host/API/types/search/backup schema 必须同批改为 `comment`，停服后在 data root 外全量备份并以可回滚的一次性事务转换真实记录，迁移后不得残留 annotation 双读。
+- **迁移与静态证据：** 真实 Host 当时未运行；完整 `.logue-data` 的 410 个文件已物理备份到 `/Users/yadong/dev2/logue-data-backups/dr094-comment-schema-2026-08-07`，`diff -qr` 与原记录 SHA-256 一致。一次性 staging + 原子目录切换保留原 Web Source `mat_7e5ec5101de8a0ff`，新增 You Comment `mat_e99f18aac0098f47`，内容、时间、Project、tags 与 source metadata 相等，唯一 `parent_ids` 指向原 Source；9 个 live Comments 与数据根内 1 个历史副本的幂等 suffix 同批从 `:annotation` 一次性改为 `:comment`。102 个 items / 非空 request IDs 唯一，items 与 revisions 的 annotation 字段、整个当前数据根的旧 suffix 计数均为 0。窄范围只读验证确认 bundle 恰好两成员、删除预览为 2 Sources / 0 外部 derived、Agent Harness Export 同时包含两者且 parent 不悬空、Export schema 为 2。Python compile、Web/Extension typecheck、installer syntax 与 diff check 通过；未按当前阶段禁止项运行 Browser/CU 或视觉 QA。
+- **开放问题：** Production Web 的 `view=stream` → Library route alias 仍属 `V2-OPS-04` 下一批；DR-091 仍独立冻结。

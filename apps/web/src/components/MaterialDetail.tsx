@@ -1,7 +1,6 @@
 import {
   ArrowUpRight,
   ArrowLeft,
-  AudioLines,
   Check,
   CircleAlert,
   FileText,
@@ -37,7 +36,7 @@ const materialTitles = {
 export function MaterialDetail({
   material,
   onClose,
-  onAddAnnotation,
+  onAddComment,
   onUpdateContent,
   onRetranscribe,
   onUpdateOrganization,
@@ -53,7 +52,7 @@ export function MaterialDetail({
 }: {
   material: Material;
   onClose: () => void;
-  onAddAnnotation: (text: string) => Promise<void>;
+  onAddComment: (text: string) => Promise<void>;
   onUpdateContent: (id: string, content: string) => Promise<void>;
   onRetranscribe?: (id: string, options: { referenceProject?: string; disableProjectProfile?: boolean; primaryLanguage?: string; topicVocabularyId?: string; correction?: { spoken: string; preferred: string; scope: "only" | "topic" | "project" | "global" } }) => Promise<Material>;
   onUpdateOrganization: (id: string, projects: string[], tags: string[]) => Promise<void>;
@@ -67,9 +66,9 @@ export function MaterialDetail({
   parents: Material[];
   dependents: Material[];
 }) {
-  const [annotation, setAnnotation] = useState("");
+  const [comment, setComment] = useState("");
   const [saving, setSaving] = useState(false);
-  const [annotationError, setAnnotationError] = useState<string>();
+  const [commentError, setCommentError] = useState<string>();
   const [contentDraft, setContentDraft] = useState(material.content);
   const [contentSaving, setContentSaving] = useState(false);
   const [contentError, setContentError] = useState<string>();
@@ -186,15 +185,15 @@ export function MaterialDetail({
     };
   }, [material.projects]);
 
-  async function submitAnnotation() {
-    if (!annotation.trim() || saving) return;
+  async function submitComment() {
+    if (!comment.trim() || saving) return;
     setSaving(true);
-    setAnnotationError(undefined);
+    setCommentError(undefined);
     try {
-      await onAddAnnotation(annotation.trim());
-      setAnnotation("");
+      await onAddComment(comment.trim());
+      setComment("");
     } catch (cause) {
-      setAnnotationError(cause instanceof Error ? cause.message : "Could not save annotation");
+      setCommentError(cause instanceof Error ? cause.message : "Could not save Comment");
     } finally {
       setSaving(false);
     }
@@ -473,7 +472,7 @@ export function MaterialDetail({
                       </button>
                     ))}
                   </div>
-                ) : <p className="mt-1 text-[14px] text-[#9a9b96]">No derived annotations or follow-up content yet</p>}
+                ) : <p className="mt-1 text-[14px] text-[#9a9b96]">No Comments or follow-up content yet</p>}
               </li>
             </ol>
           </section>
@@ -513,19 +512,6 @@ export function MaterialDetail({
               <p><span className="font-medium text-[#4d4e4a]">Recent adopted phrases: </span>{material.appliedContext.recent_adopted_ids?.length ?? 0}</p>
             </div>
             {material.appliedContext.recent_adopted_texts?.length ? <details className="mt-2"><summary className="cursor-pointer text-[14px] font-medium text-[#6469c8]">View adopted phrases</summary><ul className="mt-2 space-y-1 border-l-2 border-[#dfe0f4] pl-3 text-[14px] leading-4 text-[#73746f]">{material.appliedContext.recent_adopted_texts.map((text, index) => <li key={`${index}-${text.slice(0, 12)}`}>{text}</li>)}</ul></details> : null}
-          </section>
-        )}
-
-        {material.annotation && (
-          <section className="mt-5">
-            <h3 className="mb-2 text-[15px] font-semibold uppercase tracking-[0.12em] text-[#858980]">Existing annotations</h3>
-            <div className="border-l-2 border-[#cfd1ca] pl-3">
-              <div className="mb-1.5 flex items-center gap-2 text-[#777873]">
-                <AudioLines size={14} />
-                <span className="text-[15px] font-semibold">Annotation</span>
-              </div>
-              <p className="text-[15px] leading-5 text-[#4b4f59]">{material.annotation}</p>
-            </div>
           </section>
         )}
 
@@ -573,27 +559,27 @@ export function MaterialDetail({
         </div>
 
       <footer className="mt-10 border-t border-[#e7e7e2] bg-[#fcfcfa] py-4 max-[640px]:mt-7 max-[640px]:py-2">
-        <label className="mb-2 block text-[15px] font-semibold text-[#656961] max-[640px]:sr-only" htmlFor="detail-annotation">
-          {isComment ? "Add follow-up" : "Add annotation"}
+        <label className="mb-2 block text-[15px] font-semibold text-[#656961] max-[640px]:sr-only" htmlFor="detail-comment">
+          {isComment ? "Add follow-up" : "Add Comment"}
         </label>
         <div className="max-[640px]:flex max-[640px]:items-stretch max-[640px]:gap-2">
           <textarea
-            id="detail-annotation"
-            value={annotation}
-            onChange={(event) => setAnnotation(event.target.value)}
+            id="detail-comment"
+            value={comment}
+            onChange={(event) => setComment(event.target.value)}
             placeholder="Add context or note the next step…"
             className="min-h-16 w-full resize-none rounded-md border border-[#dadcd5] bg-white px-3 py-2.5 text-[14px] leading-5 outline-none placeholder:text-[#a1a49c] focus:border-[#aaa] max-[640px]:h-11 max-[640px]:min-h-11 max-[640px]:min-w-0 max-[640px]:resize-none max-[640px]:py-2.5"
           />
           <button
             type="button"
-            onClick={submitAnnotation}
-            disabled={!annotation.trim() || saving}
+            onClick={submitComment}
+            disabled={!comment.trim() || saving}
             className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-md bg-[#242522] text-[15px] font-medium text-white transition hover:bg-[#393a36] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5b64f4] disabled:cursor-not-allowed disabled:bg-[#c8cad2] max-[640px]:mt-0 max-[640px]:h-11 max-[640px]:w-auto max-[640px]:shrink-0 max-[640px]:px-3"
           >
-            {saving ? "Saving…" : "Save annotation"}
+            {saving ? "Saving…" : "Save Comment"}
           </button>
         </div>
-        {annotationError && <p className="mt-2 rounded-md bg-[#fbefec] px-2.5 py-2 text-[14px] leading-4 text-[#a34b42]">{annotationError}</p>}
+        {commentError && <p className="mt-2 rounded-md bg-[#fbefec] px-2.5 py-2 text-[14px] leading-4 text-[#a34b42]">{commentError}</p>}
         {deleteConfirming ? (
           <div className="mt-2 rounded-md border border-[#efd3ce] bg-[#fff8f6] p-3">
             <p className="text-[14px] leading-5 text-[#8e4a43]">Delete this {detailTitle.toLowerCase()}? Its original audio will also be deleted when nothing else references it.</p>

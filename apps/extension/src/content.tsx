@@ -764,7 +764,7 @@ function ExtensionLauncher() {
             const saved = await saveSelection({
               requestId: session.id,
               sourceContent: session.snapshot.text,
-              annotation: transcription.text,
+              comment: transcription.text,
               rawTranscript: transcription.rawTranscript,
               transcript: transcription.text,
               source: session.snapshot.source,
@@ -855,8 +855,8 @@ function ExtensionLauncher() {
 
   const saveTextSelectionComment = useCallback(() => {
     const snapshot = pageSelectionSnapshotRef.current;
-    const annotation = selectionTextComment.trim();
-    if (!snapshot || !annotation || selectionTextCommentSaving) return;
+    const comment = selectionTextComment.trim();
+    if (!snapshot || !comment || selectionTextCommentSaving) return;
     setSelectionTextCommentSaving(true);
     setSelectionCommentError("");
     void (async () => {
@@ -865,7 +865,7 @@ function ExtensionLauncher() {
       await saveSelection({
         requestId: createRequestId(),
         sourceContent: snapshot.text,
-        annotation,
+        comment,
         source: snapshot.source,
         projects,
       });

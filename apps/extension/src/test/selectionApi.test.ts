@@ -65,13 +65,13 @@ describe("selection API", () => {
       sent.push(message);
       attempt += 1;
       if (attempt === 1) return { ok: false, error: "offline" };
-      return { ok: true, value: { source: { id: "mat_source" }, annotation: { id: "mat_annotation" } } };
+      return { ok: true, value: { source: { id: "mat_source" }, comment: { id: "mat_comment" } } };
     });
     vi.stubGlobal("chrome", { runtime: { sendMessage } });
     const input = {
       requestId: "stable-selection-voice",
       sourceContent: "完整原文",
-      annotation: "语音批注",
+      comment: "语音批注",
       transcript: "语音批注",
       source: { url: "https://example.com/article", title: "Article", selection: "完整原文" },
       projects: ["Logue"],
@@ -88,7 +88,7 @@ describe("selection API", () => {
     await expect(saveSelection(input)).rejects.toThrow("offline");
     await expect(saveSelection(input)).resolves.toEqual({
       source: { id: "mat_source" },
-      annotation: { id: "mat_annotation" },
+      comment: { id: "mat_comment" },
     });
 
     expect(sent).toHaveLength(2);
@@ -133,15 +133,15 @@ describe("selection API", () => {
       value: {
         items: [
           { id: "older", content: "Earlier note", created_at: "2026-08-01T10:00:00Z" },
-          { id: "newer", content: "Latest note", annotation: "Voice note", created_at: "2026-08-02T10:00:00Z" },
+          { id: "newer", content: "Latest note", created_at: "2026-08-02T10:00:00Z" },
         ],
       },
     }));
     vi.stubGlobal("chrome", { runtime: { sendMessage } });
 
     await expect(getPageMaterials("https://example.com/current page")).resolves.toEqual([
-      { id: "newer", content: "Latest note", annotation: "Voice note", createdAt: "2026-08-02T10:00:00Z" },
-      { id: "older", content: "Earlier note", annotation: undefined, createdAt: "2026-08-01T10:00:00Z" },
+      { id: "newer", content: "Latest note", createdAt: "2026-08-02T10:00:00Z" },
+      { id: "older", content: "Earlier note", createdAt: "2026-08-01T10:00:00Z" },
     ]);
     expect(sendMessage).toHaveBeenCalledWith({
       type: "logue:api",

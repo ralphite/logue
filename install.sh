@@ -343,7 +343,7 @@ def validate_tree(path: Path, *, snapshot_id: str = "") -> None:
             parse_object(child)
     if snapshot_id:
         marker = parse_object(path / ".logue-backup.json")
-        if marker.get("schema_version") != 1 or marker.get("snapshot_id") != snapshot_id:
+        if marker.get("schema_version") != 2 or marker.get("snapshot_id") != snapshot_id:
             raise ValueError(f"snapshot marker does not match {path.name}")
 
 validate_tree(root)
@@ -574,7 +574,7 @@ def validate_live(path: Path) -> None:
 def validate_snapshot(path: Path, snapshot_id: str) -> None:
     validate_live(path)
     marker = parse_object(path / ".logue-backup.json")
-    if marker.get("schema_version") != 1 or marker.get("snapshot_id") != snapshot_id:
+    if marker.get("schema_version") != 2 or marker.get("snapshot_id") != snapshot_id:
         raise ValueError(f"snapshot marker does not match {path.name}")
 
 def manifest(path: Path) -> dict[str, tuple[int, str]]:
@@ -622,7 +622,7 @@ try:
         snapshot_id = new.name.removeprefix(f"{destination.name}.backup-")
         validate_snapshot(new, snapshot_id)
     plan_path.write_text(json.dumps({
-        "schema_version": 1,
+        "schema_version": 2,
         "source": str(source),
         "destination": str(destination),
         "backup": str(backup),

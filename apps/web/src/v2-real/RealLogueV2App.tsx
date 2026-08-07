@@ -47,7 +47,7 @@ function routeFromLocation(): V2PrimaryRoute {
 
 function sourceOrigin(material: Material): OriginLabelType {
   if (material.actor && material.actor.toLowerCase() !== "user") return "ai";
-  if (material.kind === "selection" && !material.annotation) return "web";
+  if (material.kind === "selection") return "web";
   return "you";
 }
 
@@ -58,9 +58,7 @@ function materialTitle(material: Material) {
 }
 
 function groupCopy(group: LibraryMaterialGroup) {
-  return group.bundle?.primaryComment.annotation?.trim()
-    || group.bundle?.primaryComment.content.trim()
-    || group.representative.annotation?.trim()
+  return group.bundle?.primaryComment.content.trim()
     || group.representative.content.trim();
 }
 
@@ -110,7 +108,7 @@ function LibraryRoute({ materials, runs, projects, onRoute, onRefresh }: { mater
   const [query, setQuery] = useState("");
   const [openKey, setOpenKey] = useState<string>();
   const groups = useMemo(() => groupLibraryMaterials(
-    materials.filter((item) => !item.activityType && `${materialTitle(item)} ${item.content} ${item.annotation ?? ""} ${item.projects.join(" ")} ${item.tags.join(" ")}`.toLowerCase().includes(query.trim().toLowerCase())),
+    materials.filter((item) => !item.activityType && `${materialTitle(item)} ${item.content} ${item.projects.join(" ")} ${item.tags.join(" ")}`.toLowerCase().includes(query.trim().toLowerCase())),
     materials,
   ), [materials, query]);
   const openGroup = groups.find((group) => group.key === openKey);

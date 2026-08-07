@@ -327,7 +327,6 @@ export async function getPageMaterials(pageUrl: string) {
       kind: "voice" | "selection" | "text" | "derived";
       actor?: string;
       content: string;
-      annotation?: string;
       parent_ids?: string[];
       capture_id?: string;
       comment_state?: "unlinked" | "linked";
@@ -353,7 +352,6 @@ export async function getPageMaterials(pageUrl: string) {
       kind: item.kind,
       actor: item.actor,
       content: item.content,
-      annotation: item.annotation,
       parentIds: item.parent_ids ?? [],
       captureId: item.capture_id,
       commentState: item.comment_state,
@@ -548,7 +546,6 @@ export async function saveMaterial(input: {
   requestId: string;
   kind: MaterialKind;
   content: string;
-  annotation?: string;
   source: SourceInfo;
   projects?: string[];
   suggestedProjects?: string[];
@@ -567,7 +564,6 @@ export async function saveMaterial(input: {
     request_id: input.requestId,
     kind: input.kind,
     content: input.content,
-    annotation: input.annotation,
     source: input.source,
     projects: input.projects ?? [],
     suggested_projects: input.suggestedProjects ?? [],
@@ -820,7 +816,7 @@ export async function cancelMaterialSave(requestId: string) {
 export async function saveSelection(input: {
   requestId: string;
   sourceContent: string;
-  annotation?: string;
+  comment?: string;
   rawTranscript?: string;
   transcript?: string;
   source: SourceInfo;
@@ -829,12 +825,12 @@ export async function saveSelection(input: {
   captureId?: string;
   appliedContext?: AppliedContext;
 }) {
-  return request<{ source: { id: string }; annotation?: { id: string } }>(
+  return request<{ source: { id: string }; comment?: { id: string } }>(
     "save-selection",
     {
       request_id: input.requestId,
       source_content: input.sourceContent,
-      annotation: input.annotation,
+      comment: input.comment,
       raw_transcript: input.rawTranscript,
       transcript: input.transcript,
       source: input.source,

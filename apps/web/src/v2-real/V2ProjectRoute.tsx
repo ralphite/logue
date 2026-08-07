@@ -117,11 +117,7 @@ function materialTitle(material: DisplaySource) {
 function sourceOrigin(material: DisplaySource) {
   if (material.actor && material.actor.toLowerCase() !== "user")
     return "ai" as const;
-  if (
-    material.kind === "selection" &&
-    !("annotation" in material && material.annotation)
-  )
-    return "web" as const;
+  if (material.kind === "selection") return "web" as const;
   return "you" as const;
 }
 

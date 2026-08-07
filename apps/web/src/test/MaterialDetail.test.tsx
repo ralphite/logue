@@ -32,7 +32,7 @@ function renderDetail(overrides: Partial<Material> = {}, onUpdateContent = vi.fn
       mode="page"
       onClose={() => undefined}
       onExpand={() => undefined}
-      onAddAnnotation={vi.fn().mockResolvedValue(undefined)}
+      onAddComment={vi.fn().mockResolvedValue(undefined)}
       onUpdateContent={onUpdateContent}
       onUpdateOrganization={vi.fn().mockResolvedValue(undefined)}
       onDelete={vi.fn().mockResolvedValue(undefined)}
@@ -52,7 +52,7 @@ describe("MaterialDetail", () => {
         peekWidth={540}
         onClose={() => undefined}
         onExpand={() => undefined}
-        onAddAnnotation={vi.fn().mockResolvedValue(undefined)}
+        onAddComment={vi.fn().mockResolvedValue(undefined)}
         onUpdateContent={vi.fn().mockResolvedValue(undefined)}
         onUpdateOrganization={vi.fn().mockResolvedValue(undefined)}
         onDelete={vi.fn().mockResolvedValue(undefined)}
@@ -78,7 +78,7 @@ describe("MaterialDetail", () => {
     expect(scrollSurface.contains(screen.getByRole("banner"))).toBe(false);
     expect(content.className).not.toContain("overflow-y-auto");
     expect(readingColumn.contains(content)).toBe(true);
-    expect(readingColumn.contains(screen.getByLabelText("Add annotation"))).toBe(true);
+    expect(readingColumn.contains(screen.getByLabelText("Add Comment"))).toBe(true);
     expect(readingColumn.contains(screen.getByRole("button", { name: "Delete this note" }))).toBe(true);
   });
 
@@ -88,7 +88,7 @@ describe("MaterialDetail", () => {
         material={material}
         onClose={() => undefined}
         onExpand={() => undefined}
-        onAddAnnotation={vi.fn().mockResolvedValue(undefined)}
+        onAddComment={vi.fn().mockResolvedValue(undefined)}
         onUpdateContent={vi.fn().mockResolvedValue(undefined)}
         onUpdateOrganization={vi.fn().mockResolvedValue(undefined)}
         onDelete={vi.fn().mockResolvedValue(undefined)}
@@ -119,7 +119,7 @@ describe("MaterialDetail", () => {
         mode="page"
         onClose={() => undefined}
         onExpand={() => undefined}
-        onAddAnnotation={vi.fn().mockResolvedValue(undefined)}
+        onAddComment={vi.fn().mockResolvedValue(undefined)}
         onUpdateContent={vi.fn().mockResolvedValue(undefined)}
         onUpdateOrganization={onUpdateOrganization}
         onDelete={vi.fn().mockResolvedValue(undefined)}

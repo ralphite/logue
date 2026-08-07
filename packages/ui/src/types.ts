@@ -90,7 +90,6 @@ export interface Material {
   content: string;
   rawTranscript?: string;
   transcript?: string;
-  annotation?: string;
   source?: SourceInfo;
   projects: string[];
   excludedProjects?: string[];

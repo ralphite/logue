@@ -60,7 +60,6 @@ export function matchesMaterialSearchText(material: Material, normalizedQuery: s
   if (!normalizedQuery) return true;
   return [
     material.content,
-    material.annotation,
     material.source?.title,
     material.source?.domain,
     ...material.projects,

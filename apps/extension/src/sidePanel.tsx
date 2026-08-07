@@ -497,7 +497,7 @@ function SidePanelApp() {
         () => saveSelection({
           requestId,
           sourceContent: commentSourceContent,
-          annotation: content.trim() || undefined,
+          comment: content.trim() || undefined,
           rawTranscript: captureId ? rawTranscript : undefined,
           transcript: captureId ? transformedTranscript : undefined,
           source: selectionText
@@ -509,7 +509,7 @@ function SidePanelApp() {
         }),
         () => refreshPageMaterials(current.source.url),
       );
-      savedId = saved.annotation?.id ?? saved.source.id;
+      savedId = saved.comment?.id ?? saved.source.id;
     } else {
       const voiceWrite = Boolean(captureId && current.intent === "input");
       const saved = await saveThenRefreshPageHistory(
@@ -575,7 +575,7 @@ function SidePanelApp() {
       const instructions = current.intent === "generate"
         ? "Transcribe this as a direct instruction for Logue. Preserve the user's requested action and output intent."
         : current.selectionText
-        ? "Transcribe this as an annotation to the selected source."
+        ? "Transcribe this as a comment on the selected source."
         : "Transcribe this as concise text linked to the current page.";
       const commentSource = current.selectionText ? { ...current.source, selection: current.selectionText } : current.source;
       const savePlan = {

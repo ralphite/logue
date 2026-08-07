@@ -63,7 +63,7 @@ type AdoptedFilter = "all" | "adopted" | "not-adopted";
 
 function sourceOrigin(material: Material): OriginLabelType {
   if (material.actor && material.actor.toLowerCase() !== "user") return "ai";
-  if (material.kind === "selection" && !material.annotation) return "web";
+  if (material.kind === "selection") return "web";
   return "you";
 }
 
@@ -85,9 +85,7 @@ function groupTitle(group: LibraryMaterialGroup) {
 
 function groupCopy(group: LibraryMaterialGroup) {
   return contentSummary(
-    group.bundle?.primaryComment.annotation?.trim() ||
     group.bundle?.primaryComment.content.trim() ||
-    group.representative.annotation?.trim() ||
     group.representative.content.trim(),
   );
 }
@@ -160,7 +158,6 @@ function anchorStatusLabel(
 function matchLabel(match?: MaterialSearchMatch) {
   if (!match) return "";
   if (match.reason) return match.reason;
-  if (match.match === "annotation") return "Matched your comment";
   if (match.match === "source") return "Matched the original page";
   if (match.match === "project") return "Matched a Project";
   if (match.match === "tag") return "Matched a tag";

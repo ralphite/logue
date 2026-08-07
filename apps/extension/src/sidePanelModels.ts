@@ -131,7 +131,6 @@ export interface PageMaterial {
   kind?: "voice" | "selection" | "text" | "derived";
   actor?: string;
   content: string;
-  annotation?: string;
   parentIds?: string[];
   captureId?: string;
   commentState?: "unlinked" | "linked";
