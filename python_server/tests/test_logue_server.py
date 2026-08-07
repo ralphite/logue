@@ -101,6 +101,135 @@ class RuntimeTest(unittest.TestCase):
             self.request(f"/v1/docs/{document['id']}", "PATCH", {"content": "stale", "expected_revision": 1})
         self.assertEqual(conflict.exception.code, 409)
 
+    def test_new_document_adoption_undo_preserves_recovery_and_is_idempotent(self) -> None:
+        run_id = "run_newdocumentundo"
+        frozen_source = {
+            "id": "mat_frozen_source",
+            "kind": "selection",
+            "actor": "user",
+            "content": "Frozen evidence",
+            "projects": ["Research"],
+            "tags": ["evidence"],
+            "created_at": "2026-08-07T00:00:00Z",
+            "source": {"url": "https://example.com/evidence", "title": "Evidence"},
+        }
+        logue_server.atomic_json(self.data / "skill-runs" / f"{run_id}.json", {
+            "id": run_id,
+            "skill_id": "skill_draft",
+            "skill_revision": 1,
+            "skill_name": "Draft",
+            "instruction": "Draft from evidence",
+            "project": "Research",
+            "source_ids": [frozen_source["id"]],
+            "sources": [frozen_source],
+            "status": "complete",
+            "original_output": "Sourced draft",
+            "created_at": "2026-08-07T00:00:00Z",
+            "updated_at": "2026-08-07T00:00:00Z",
+        })
+        payload = {
+            "title": "Sourced draft",
+            "content": "Sourced draft [Source 1]",
+            "project": "Research",
+            "source_ids": [frozen_source["id"]],
+            "sources": [frozen_source],
+            "context_source_ids": [frozen_source["id"]],
+            "context_sources": [frozen_source],
+            "adoption_id": "adopt_new_document",
+            "action": "document",
+            "target": {"surface": "inline-selection", "target_key": "project:Research:new-document"},
+        }
+        _, created = self.request(f"/v1/skill-runs/{run_id}/document", "POST", payload)
+        document = created["document"]
+        _, undone = self.request(f"/v1/skill-runs/{run_id}/document", "POST", {
+            **payload,
+            "document_id": document["id"],
+            "expected_revision": document["revision"],
+            "action": "undo",
+        })
+        tombstone = undone["document"]
+        self.assertTrue(tombstone["tombstone"])
+        self.assertEqual(tombstone["recovery_revision"], 1)
+        _, listed = self.request("/v1/docs")
+        self.assertNotIn(document["id"], [entry["id"] for entry in listed["documents"]])
+        recovery = logue_server.read_json(self.data / "doc-revisions" / f"{document['id']}-r1.json")
+        self.assertEqual(recovery["content"], "Sourced draft [Source 1]")
+        self.assertEqual(recovery["source_ids"], [frozen_source["id"]])
+        self.assertEqual(recovery["sources"], [frozen_source])
+        before_retry = {
+            path.relative_to(self.data).as_posix(): path.read_bytes()
+            for path in self.data.rglob("*")
+            if path.is_file()
+        }
+        _, repeated = self.request(f"/v1/skill-runs/{run_id}/document", "POST", {
+            **payload,
+            "document_id": document["id"],
+            "expected_revision": document["revision"],
+            "action": "undo",
+        })
+        after_retry = {
+            path.relative_to(self.data).as_posix(): path.read_bytes()
+            for path in self.data.rglob("*")
+            if path.is_file()
+        }
+        self.assertEqual(repeated["document"], tombstone)
+        self.assertEqual(after_retry, before_retry)
+        _, resaved = self.request(f"/v1/skill-runs/{run_id}/document", "POST", {
+            **payload,
+            "adoption_id": "adopt_new_document_again",
+        })
+        self.assertNotEqual(resaved["document"]["id"], document["id"])
+        self.assertEqual(resaved["document"]["sources"], [frozen_source])
+
+    def test_new_document_adoption_undo_rejects_a_changed_document(self) -> None:
+        run_id = "run_changeddocumentundo"
+        logue_server.atomic_json(self.data / "skill-runs" / f"{run_id}.json", {
+            "id": run_id,
+            "skill_id": "skill_draft",
+            "skill_revision": 1,
+            "skill_name": "Draft",
+            "instruction": "Draft",
+            "source_ids": [],
+            "sources": [],
+            "status": "complete",
+            "original_output": "Draft",
+            "created_at": "2026-08-07T00:00:00Z",
+            "updated_at": "2026-08-07T00:00:00Z",
+        })
+        payload = {
+            "title": "Draft",
+            "content": "Draft",
+            "adoption_id": "adopt_changed_document",
+            "action": "document",
+            "target": {"surface": "inline-selection", "target_key": "project::new-document"},
+        }
+        _, created = self.request(f"/v1/skill-runs/{run_id}/document", "POST", payload)
+        document = created["document"]
+        self.request(f"/v1/docs/{document['id']}", "PATCH", {
+            "content": "User edit",
+            "expected_revision": document["revision"],
+        })
+        before = {
+            path.relative_to(self.data).as_posix(): path.read_bytes()
+            for path in self.data.rglob("*")
+            if path.is_file()
+        }
+        with self.assertRaises(urllib.error.HTTPError) as conflict:
+            self.request(f"/v1/skill-runs/{run_id}/document", "POST", {
+                **payload,
+                "document_id": document["id"],
+                "expected_revision": document["revision"],
+                "action": "undo",
+            })
+        self.assertEqual(conflict.exception.code, 409)
+        conflict.exception.close()
+        after = {
+            path.relative_to(self.data).as_posix(): path.read_bytes()
+            for path in self.data.rglob("*")
+            if path.is_file()
+        }
+        self.assertEqual(after, before)
+
     def test_semantic_search_keeps_direct_matches_and_falls_back_to_local(self) -> None:
         self.assertEqual(
             logue_server.search_items("测试一下看看能不能输入", [{"id": "mat_short", "content": "试一下"}]),

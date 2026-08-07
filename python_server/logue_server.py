@@ -410,7 +410,7 @@ class Store:
             return restored
 
     def documents(self) -> list[dict[str, Any]]:
-        return self._list("docs", "updated_at")
+        return [document for document in self._list("docs", "updated_at") if not document.get("tombstone")]
 
     def document_revisions(self, identifier: str) -> list[dict[str, Any]]:
         current = self.get("docs", identifier)
@@ -2193,13 +2193,78 @@ class Store:
                 None,
             )
             if action == "undo":
-                if not existing_event or existing_event.get("action") != "replace":
-                    raise ValueError("replace adoption not found")
+                if not existing_event or existing_event.get("action") not in {"document", "replace"}:
+                    raise ValueError("Document adoption not found")
                 document_id = str(existing_event.get("document_id", "")).strip()
                 if not document_id:
                     raise ValueError("the adopted Document is unavailable")
                 if existing_event.get("undone"):
-                    return run, self.get("docs", document_id)
+                    document = self.get("docs", document_id)
+                    if existing_event.get("action") == "document" and (
+                        not document.get("tombstone")
+                        or int(document.get("recovery_revision", 0) or 0) != int(existing_event.get("document_revision", 0) or 0)
+                    ):
+                        raise Conflict("the Document Undo lineage is inconsistent")
+                    return run, document
+                if existing_event.get("action") == "document":
+                    document = self.get("docs", document_id)
+                    if document.get("tombstone"):
+                        raise Conflict("this Document was already removed")
+                    expected_revision = value.get("expected_revision")
+                    event_revision = int(existing_event.get("document_revision", 0) or 0)
+                    current_revision = int(document.get("revision", 1))
+                    if expected_revision is None:
+                        raise Conflict("expected_revision is required to undo a new Document")
+                    if int(expected_revision) != event_revision or current_revision != event_revision:
+                        raise Conflict("This Document changed, so it wasn’t undone.")
+                    snapshot = self.transaction_snapshot("logue-document-adoption-undo-")
+                    try:
+                        recovery = {**json.loads(json.dumps(document)), "document_id": document_id, "current": False}
+                        atomic_json(
+                            self.root / "doc-revisions" / f"{document_id}-r{event_revision}.json",
+                            recovery,
+                        )
+                        undone_at = now()
+                        existing_event["undone"] = True
+                        existing_event["undone_at"] = undone_at
+                        if adoption_target:
+                            existing_event["undo_target"] = adoption_target
+                        document_events = list(document.get("adoption_revisions")) if isinstance(document.get("adoption_revisions"), list) else []
+                        document_event = next(
+                            (
+                                entry
+                                for entry in document_events
+                                if isinstance(entry, dict) and entry.get("id") == adoption_id
+                            ),
+                            None,
+                        )
+                        if document_event:
+                            document_event["undone"] = True
+                            document_event["undone_at"] = undone_at
+                            if adoption_target:
+                                document_event["undo_target"] = adoption_target
+                        tombstone = {
+                            "id": document_id,
+                            "title": "Undone Document",
+                            "revision": current_revision + 1,
+                            "recovery_revision": event_revision,
+                            "adoption_revisions": document_events,
+                            "created_at": document.get("created_at", undone_at),
+                            "updated_at": undone_at,
+                            "deleted_at": undone_at,
+                            "tombstone": True,
+                        }
+                        atomic_json(self.root / "docs" / f"{document_id}.json", tombstone)
+                        run["adoption_revisions"] = revisions
+                        run["adoption_undone"] = True
+                        run["updated_at"] = undone_at
+                        atomic_json(self.root / "skill-runs" / f"{identifier}.json", run)
+                    except BaseException as error:
+                        self.finish_transaction(snapshot, error)
+                        raise
+                    else:
+                        self.finish_transaction(snapshot)
+                        return run, tombstone
                 previous_document = existing_event.get("previous_document") if isinstance(existing_event.get("previous_document"), dict) else None
                 if not previous_document:
                     raise ValueError("the previous Document revision is unavailable")
@@ -2325,6 +2390,8 @@ class Store:
     def update_document(self, identifier: str, changes: dict[str, Any]) -> dict[str, Any]:
         with self.lock:
             document = self.get("docs", identifier)
+            if document.get("tombstone"):
+                raise Conflict("this Document is no longer active")
             expected = changes.get("expected_revision")
             if expected is not None and int(expected) != int(document.get("revision", 1)):
                 raise Conflict("This document changed elsewhere. Reload it before continuing.")
@@ -2361,6 +2428,8 @@ class Store:
         if snapshot.get("tombstone"):
             raise ValueError("a deleted revision cannot be restored")
         current = self.get("docs", identifier)
+        if current.get("tombstone"):
+            raise Conflict("this Document is no longer active")
         return self.update_document(identifier, {
             "title": snapshot.get("title", "Untitled"),
             "content": snapshot.get("content", ""),
@@ -2374,6 +2443,8 @@ class Store:
 
     def document_revision_dependencies(self, identifier: str, revision: int) -> dict[str, Any]:
         document = self.get("docs", identifier)
+        if document.get("tombstone") and int(document.get("recovery_revision", 0) or 0) == revision:
+            raise Conflict("the recovery revision cannot be deleted")
         if int(document.get("revision", 1)) == revision:
             raise ValueError("the current revision cannot be deleted")
         path = self.root / "doc-revisions" / f"{identifier}-r{revision}.json"
@@ -3833,6 +3904,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.json(HTTPStatus.OK, store.update_document(identifier, self.body_json()))
             elif method == "DELETE":
                 document = store.get("docs", identifier)
+                if document.get("tombstone"):
+                    raise Conflict("an undone Document is preserved for recovery")
                 for run in store.skill_runs():
                     if run.get("document_id") != identifier:
                         continue
@@ -4830,6 +4903,8 @@ class Handler(BaseHTTPRequestHandler):
                 if len(target_ids) != 1:
                     raise ValueError("choose one Document")
                 document = store.get("docs", target_ids[0])
+                if document.get("tombstone"):
+                    raise Conflict("an undone Document is preserved for recovery")
                 revisions = store.document_revisions(target_ids[0])
                 linked_runs = [entry for entry in store.skill_runs() if str(entry.get("document_id", "")) == target_ids[0]]
                 summary.update({"documents": 1, "runs": len(linked_runs), "revisions": max(0, len(revisions) - 1)})
@@ -4946,6 +5021,8 @@ class Handler(BaseHTTPRequestHandler):
                     elif scope == "document":
                         identifier = target_ids[0]
                         document = store.get("docs", identifier)
+                        if document.get("tombstone"):
+                            raise Conflict("an undone Document is preserved for recovery")
                         for run in store.skill_runs():
                             if run.get("document_id") != identifier:
                                 continue

@@ -1020,7 +1020,9 @@ async function parseResponse(response: Response) {
     const error = new Error(message) as Error & {
       captureId?: string;
       run?: unknown;
+      status?: number;
     };
+    error.status = response.status;
     if (typeof value === "object" && value && "capture_id" in value) {
       error.captureId = String((value as { capture_id: unknown }).capture_id);
     }
@@ -2130,6 +2132,10 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
         run:
           error instanceof Error && "run" in error
             ? (error as Error & { run?: unknown }).run
+            : undefined,
+        status:
+          error instanceof Error && "status" in error
+            ? (error as Error & { status?: number }).status
             : undefined,
       }),
     );

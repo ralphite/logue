@@ -1,7 +1,7 @@
 import { SelectionActionCandidate, SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionWithUndoIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type ExtensionInputTarget, type ExtensionTargetBridgeRequest, type ExtensionTargetBridgeResponse, type SelectionSkillApplyTransaction, type SelectionSkillReplacementTransaction, type SourceInfo } from "@logue/ui";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ExtensionApiError, adoptExtensionSkillRun, adoptVoiceMaterial, cancelMaterialSave, completePendingVoice, createExtensionSkillRun, getCaptureContext, getExtensionDocuments, getExtensionSettings, getExtensionSkills, getPageMaterials, getPendingVoiceQueueStatus, getServerURL, markPendingVoiceTranscribed, queuePendingVoice, retranscribeMaterial, retryExtensionSkillRun, saveExtensionSkillRunAsDocument, saveMaterial, saveSelection, transcribeAudio, updateMaterial, updateSourceAnchor, type AppliedContext, type CaptureContext, type ExtensionDocument, type ExtensionSkill, type ExtensionSkillRun, type PendingVoicePlan, type VoiceProfileOverrides } from "./api";
+import { ExtensionApiError, adoptExtensionSkillRun, adoptVoiceMaterial, cancelMaterialSave, completePendingVoice, createExtensionSkillRun, getCaptureContext, getExtensionDocuments, getExtensionSettings, getExtensionSkills, getPageMaterials, getPendingVoiceQueueStatus, getServerURL, isExtensionDocumentTombstone, markPendingVoiceTranscribed, queuePendingVoice, retranscribeMaterial, retryExtensionSkillRun, saveExtensionSkillRunAsDocument, saveMaterial, saveSelection, transcribeAudio, updateMaterial, updateSourceAnchor, type AppliedContext, type CaptureContext, type ExtensionDocument, type ExtensionDocumentAdoption, type ExtensionSkill, type ExtensionSkillRun, type PendingVoicePlan, type VoiceProfileOverrides } from "./api";
 import { activeEditableElement, getEditableText, googleDocsEditableTarget, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElementWithUndo, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused, type LocalInsertTransaction } from "./dom";
 import { hasNativeSelectionSkillOwner, isLogueExtensionDisabledDocument, logueServerCandidate } from "./eligibility";
 import {
@@ -161,7 +161,7 @@ interface SelectionActionCandidateState {
     document?: { id: string; content: string; targetKey?: string };
   };
   keepAdoption?: SelectionActionKeepAdoption;
-  documentAdoption?: { id: string; documentId: string; documentRevision: number };
+  documentAdoption?: ExtensionDocumentAdoption;
 }
 
 type CommandScope = "selection" | "page" | "project";
@@ -2022,6 +2022,7 @@ function ExtensionLauncher() {
         documents: candidateDocuments,
         keepUndoAvailable: Boolean(selectionActionCandidate.keepAdoption),
         documentUndoAvailable: Boolean(selectionActionCandidate.documentAdoption),
+        documentUndoAction: selectionActionCandidate.documentAdoption?.action,
       } : undefined,
     })).catch(() => undefined);
   }, [candidateDocuments, commandError, commandFailedRun, commandInstruction, commandOpen, commandParseError, commandPhase, commandProject, commandScope, keyboardActive, pendingCopyText, selectionActionBusy, selectionActionCandidate, selectionActionError, targetRect, voiceCandidate, voiceError, voicePhase, voiceProfileContext, voiceProfileOverrides]);
@@ -2823,10 +2824,19 @@ function ExtensionLauncher() {
         adoptionAction: targetDocument ? "replace" : "document",
         target: { surface: "inline-selection", url: candidate.source.url, target_key: targetDocument ? `document:${targetDocument.id}` : `project:${candidate.projects[0] ?? ""}:new-document` },
       });
-      if (targetDocument) {
-        setCandidateDocuments((items) => [saved.document, ...items.filter((item) => item.id !== saved.document.id)]);
-        setSelectionActionCandidate((current) => current ? { ...current, documentAdoption: { id: adoptionId, documentId: saved.document.id, documentRevision: saved.document.revision } } : current);
-      } else dismissSelectionActionCandidate();
+      if (isExtensionDocumentTombstone(saved.document)) throw new Error("Could not save this Document.");
+      const activeDocument = saved.document;
+      setCandidateDocuments((items) => [activeDocument, ...items.filter((item) => item.id !== activeDocument.id)]);
+      setSelectionActionCandidate((current) => current ? {
+        ...current,
+        adoptionAttempts: { ...current.adoptionAttempts, document: undefined },
+        documentAdoption: {
+          id: adoptionId,
+          documentId: saved.document.id,
+          documentRevision: saved.document.revision,
+          action: targetDocument ? "replace" : "document",
+        },
+      } : current);
     } catch (cause) {
       setSelectionActionError(cause instanceof Error ? cause.message : "Could not save this document.");
     } finally {
@@ -2850,10 +2860,26 @@ function ExtensionLauncher() {
         adoptionAction: "undo",
         target: { surface: "inline-selection", url: candidate.source.url, target_key: `document:${adoption.documentId}` },
       });
-      setCandidateDocuments((items) => [restored.document, ...items.filter((item) => item.id !== restored.document.id)]);
-      dismissSelectionActionCandidate();
+      if (adoption.action === "document") {
+        if (!isExtensionDocumentTombstone(restored.document)) throw new Error("Could not undo the new Document.");
+        setCandidateDocuments((items) => items.filter((item) => item.id !== adoption.documentId));
+      } else {
+        if (isExtensionDocumentTombstone(restored.document)) throw new Error("Could not restore this Document update.");
+        const activeDocument = restored.document;
+        setCandidateDocuments((items) => [activeDocument, ...items.filter((item) => item.id !== activeDocument.id)]);
+      }
+      setSelectionActionCandidate((current) => current ? {
+        ...current,
+        adoptionAttempts: { ...current.adoptionAttempts, document: undefined },
+        documentAdoption: undefined,
+      } : current);
     } catch (cause) {
-      setSelectionActionError(cause instanceof Error ? cause.message : "Could not undo this Document update.");
+      if (cause instanceof ExtensionApiError && cause.status === 409) {
+        setSelectionActionCandidate((current) => current ? { ...current, documentAdoption: undefined } : current);
+        setSelectionActionError("This Document changed, so it wasn’t undone.");
+      } else {
+        setSelectionActionError(cause instanceof Error ? cause.message : "Could not undo this Document save.");
+      }
     } finally {
       setSelectionActionBusy(undefined);
     }
@@ -2976,6 +3002,7 @@ function ExtensionLauncher() {
         documents={candidateDocuments}
         keepUndoAvailable={Boolean(selectionActionCandidate.keepAdoption)}
         documentUndoAvailable={Boolean(selectionActionCandidate.documentAdoption)}
+        documentUndoAction={selectionActionCandidate.documentAdoption?.action}
         onTextChange={(text) => setSelectionActionCandidate((current) => current ? { ...current, text } : current)}
         onPrimary={() => void applySelectionActionCandidate()}
         onCopy={() => void copySelectionActionCandidate()}
@@ -3087,6 +3114,7 @@ function ExtensionLauncher() {
         documents={googleDocsProxy.commandCandidate.documents}
         keepUndoAvailable={googleDocsProxy.commandCandidate.keepUndoAvailable}
         documentUndoAvailable={googleDocsProxy.commandCandidate.documentUndoAvailable}
+        documentUndoAction={googleDocsProxy.commandCandidate.documentUndoAction}
         onTextChange={(text) => controlGoogleDocsProxy("command-candidate-text", { text })}
         onPrimary={() => controlGoogleDocsProxy("command-candidate-primary", { text: googleDocsProxy.commandCandidate?.text })}
         onCopy={() => controlGoogleDocsProxy("command-candidate-copy", { text: googleDocsProxy.commandCandidate?.text })}

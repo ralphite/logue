@@ -382,6 +382,7 @@ export interface V2SidePanelSurfaceProps {
   insertingGenerated?: boolean;
   savingGeneratedDocument?: boolean;
   generatedDocumentUndoAvailable?: boolean;
+  generatedDocumentUndoAction?: "document" | "replace";
   generatedKeepUndoAvailable?: boolean;
   documents?: PanelDocument[];
   skills: ExtensionSkill[];
@@ -489,6 +490,7 @@ export function V2SidePanelSurface({
   insertingGenerated = false,
   savingGeneratedDocument = false,
   generatedDocumentUndoAvailable = false,
+  generatedDocumentUndoAction = "replace",
   generatedKeepUndoAvailable = false,
   documents = [],
   skills,
@@ -1036,7 +1038,7 @@ export function V2SidePanelSurface({
                       {generatedDocumentUndoAvailable ? (
                         <V2Button disabled={savingGeneratedDocument} onClick={onUndoGeneratedDocument}>
                           <RotateCcw size={14} />
-                          {savingGeneratedDocument ? "Undoing…" : "Undo Document update"}
+                          {savingGeneratedDocument ? "Undoing…" : generatedDocumentUndoAction === "document" ? "Undo Save as document" : "Undo Document update"}
                         </V2Button>
                       ) : <div className="v2-action-menu-wrap">
                         <V2Button

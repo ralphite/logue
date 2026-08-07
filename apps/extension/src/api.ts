@@ -47,19 +47,22 @@ interface ApiResponse<T> {
   ok: boolean;
   value?: T;
   error?: string;
+  status?: number;
   captureId?: string;
   run?: ExtensionSkillRun;
 }
 
 export class ExtensionApiError extends Error {
+  status?: number;
   captureId?: string;
   run?: ExtensionSkillRun;
 
-  constructor(message: string, captureId?: string, run?: ExtensionSkillRun) {
+  constructor(message: string, captureId?: string, run?: ExtensionSkillRun, status?: number) {
     super(message);
     this.name = "ExtensionApiError";
     this.captureId = captureId;
     this.run = run;
+    this.status = status;
   }
 }
 
@@ -74,6 +77,7 @@ async function request<T>(action: string, payload?: Record<string, unknown>) {
       response?.error || "Could not connect to the Logue service.",
       response?.captureId,
       response?.run,
+      response?.status,
     );
   }
   return response.value as T;
@@ -590,6 +594,29 @@ export interface ExtensionDocument {
   source_ids: string[];
   revision: number;
   updated_at?: string;
+  tombstone?: false;
+}
+
+export interface ExtensionDocumentTombstone {
+  id: string;
+  title: string;
+  revision: number;
+  recovery_revision: number;
+  tombstone: true;
+  deleted_at?: string;
+}
+
+export interface ExtensionDocumentAdoption {
+  id: string;
+  documentId: string;
+  documentRevision: number;
+  action: "document" | "replace";
+}
+
+export function isExtensionDocumentTombstone(
+  document: ExtensionDocument | ExtensionDocumentTombstone,
+): document is ExtensionDocumentTombstone {
+  return document.tombstone === true;
 }
 
 export async function getExtensionDocuments() {
@@ -628,7 +655,10 @@ export async function saveExtensionSkillRunAsDocument(
     target?: { surface?: string; url?: string; target_key?: string };
   },
 ) {
-  return request<{ run: ExtensionSkillRun; document: ExtensionDocument }>(
+  return request<{
+    run: ExtensionSkillRun;
+    document: ExtensionDocument | ExtensionDocumentTombstone;
+  }>(
     "adopt-skill-run-document",
     {
       id,

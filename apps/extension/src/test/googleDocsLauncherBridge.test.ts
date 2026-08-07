@@ -25,4 +25,26 @@ describe("Google Docs launcher bridge", () => {
       ),
     ).toMatchObject({ action: "command-candidate-keep-undo" });
   });
+
+  it("preserves the Document adoption action in Google Docs Candidate state", () => {
+    const state = {
+      visible: true,
+      phase: "idle" as const,
+      error: "",
+      pendingCopyText: "",
+      commandCandidate: {
+        skillName: "Summarize",
+        text: "Candidate",
+        primaryAction: "Copy" as const,
+        error: "",
+        documentUndoAvailable: true,
+        documentUndoAction: "document" as const,
+      },
+    };
+
+    expect(
+      readGoogleDocsLauncherState(googleDocsLauncherStateMessage(state))
+        ?.commandCandidate?.documentUndoAction,
+    ).toBe("document");
+  });
 });

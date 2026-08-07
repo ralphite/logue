@@ -22,6 +22,7 @@ import {
   defaultServerURL,
   getServerURL,
   getServiceStatus,
+  isExtensionDocumentTombstone,
   markPendingVoiceTranscribed,
   queuePendingVoice,
   retranscribeMaterial,
@@ -1508,13 +1509,19 @@ function SidePanelApp() {
           target_key: targetDocument ? `document:${targetDocument.id}` : `project:${explicitProjects(current)[0] ?? ""}:new-document`,
         },
       });
-      if (!created.document.id) throw new Error("Could not save this Document.");
-      setDocuments((items) => [created.document, ...items.filter((item) => item.id !== created.document.id)]);
+      if (!created.document.id || isExtensionDocumentTombstone(created.document)) throw new Error("Could not save this Document.");
+      const activeDocument = created.document;
+      setDocuments((items) => [activeDocument, ...items.filter((item) => item.id !== activeDocument.id)]);
       commitCommandResult({
         ...pendingResult,
         adopted: true,
         adoptionAttempts: { ...pendingResult.adoptionAttempts, document: undefined },
-        documentAdoption: targetDocument ? { id: adoptionId, documentId: created.document.id, documentRevision: created.document.revision } : undefined,
+        documentAdoption: {
+          id: adoptionId,
+          documentId: created.document.id,
+          documentRevision: created.document.revision,
+          action: targetDocument ? "replace" : "document",
+        },
       });
     } catch (cause) {
       setError(friendlyLocalError(cause, "save"));
@@ -1539,10 +1546,26 @@ function SidePanelApp() {
         adoptionAction: "undo",
         target: { surface: "side-panel", url: result.sourceURL, target_key: `document:${adoption.documentId}` },
       });
-      setDocuments((items) => [restored.document, ...items.filter((item) => item.id !== restored.document.id)]);
+      if (adoption.action === "document") {
+        if (!isExtensionDocumentTombstone(restored.document)) throw new Error("Could not undo the new Document.");
+        setDocuments((items) => items.filter((item) => item.id !== adoption.documentId));
+      } else {
+        if (isExtensionDocumentTombstone(restored.document)) throw new Error("Could not restore this Document update.");
+        const activeDocument = restored.document;
+        setDocuments((items) => [activeDocument, ...items.filter((item) => item.id !== activeDocument.id)]);
+      }
       commitCommandResult({ ...result, documentAdoption: undefined });
     } catch (cause) {
-      setError(friendlyLocalError(cause, "save"));
+      if (cause instanceof ExtensionApiError && cause.status === 409) {
+        commitCommandResult({ ...result, documentAdoption: undefined });
+        setError({
+          kind: "save",
+          message: "This Document changed, so it wasn’t undone.",
+          action: "retry",
+        });
+      } else {
+        setError(friendlyLocalError(cause, "save"));
+      }
     } finally {
       setSavingGeneratedDocument(false);
     }
@@ -2135,6 +2158,7 @@ function SidePanelApp() {
       insertingGenerated={insertingGenerated}
       savingGeneratedDocument={savingGeneratedDocument}
       generatedDocumentUndoAvailable={Boolean(commandResult?.documentAdoption)}
+      generatedDocumentUndoAction={commandResult?.documentAdoption?.action}
       generatedKeepUndoAvailable={Boolean(commandResult?.keepAdoptionId)}
       documents={documents}
       skills={skills}

@@ -54,6 +54,7 @@ export interface GoogleDocsLauncherState {
     documents?: ExtensionDocument[];
     keepUndoAvailable?: boolean;
     documentUndoAvailable?: boolean;
+    documentUndoAction?: "document" | "replace";
   };
 }
 

@@ -66,7 +66,7 @@ export interface CommandResult {
   undoNeedsInsert?: boolean;
   adoptionId?: string;
   adoptionAttempts?: Partial<Record<"copy" | "keep" | "document", { id: string; content: string; targetKey?: string }>>;
-  documentAdoption?: { id: string; documentId: string; documentRevision: number };
+  documentAdoption?: { id: string; documentId: string; documentRevision: number; action: "document" | "replace" };
   keepAdoptionId?: string;
   allowInsert?: boolean;
 }
