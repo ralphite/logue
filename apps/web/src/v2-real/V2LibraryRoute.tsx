@@ -2381,7 +2381,7 @@ export function V2LibraryRoute({
                           origin={group.bundle ? "you" : sourceOrigin(material)}
                           detail={
                             group.bundle
-                              ? "Web + You"
+                              ? "Comment on Web"
                               : material.kind === "voice"
                                 ? "Voice"
                                 : "Saved"
@@ -2438,7 +2438,11 @@ export function V2LibraryRoute({
                 !visibleDocumentMatches.length &&
                 !searching ? (
                   <div className="v2-recovery-card">
-                    <p>No saved content matches this search.</p>
+                    <p>
+                      {query.trim() || activeFilterCount
+                        ? "No saved content matches these filters."
+                        : "No saved content yet."}
+                    </p>
                   </div>
                 ) : null}
               </div>
