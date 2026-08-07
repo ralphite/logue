@@ -13,6 +13,7 @@ import {
   Pin,
   PinOff,
   Plus,
+  RotateCcw,
   Settings2,
   Sparkles,
   Trash2,
@@ -363,6 +364,7 @@ export function V2ProjectRoute({
   const candidateAdoptionAttempts = useRef<Partial<Record<"copy" | "document", { id: string; content: string; targetKey?: string }>>>({});
   const [documentTargetOpen, setDocumentTargetOpen] = useState(false);
   const [savingDocument, setSavingDocument] = useState(false);
+  const [documentAdoption, setDocumentAdoption] = useState<{ id: string; runId: string; documentId: string; documentRevision: number }>();
   const [continuation, setContinuation] = useState<{
     runId: string;
     output: string;
@@ -875,10 +877,38 @@ export function V2ProjectRoute({
       delete candidateAdoptionAttempts.current.document;
       setDocumentTargetOpen(false);
       setDocumentId(result.document.id);
-      setRun(undefined);
-      setCandidate("");
+      if (targetDocument) {
+        setDocumentAdoption({ id: adoptionId, runId: run.id, documentId: result.document.id, documentRevision: result.document.revision });
+      } else {
+        setDocumentAdoption(undefined);
+        setRun(undefined);
+        setCandidate("");
+      }
     } catch (cause) {
       setRunError(cause instanceof Error ? cause.message : "Could not save this Document.");
+    } finally {
+      setSavingDocument(false);
+    }
+  }
+
+  async function undoCandidateDocumentUpdate() {
+    if (!run || !documentAdoption || documentAdoption.runId !== run.id || savingDocument) return;
+    setSavingDocument(true);
+    setRunError("");
+    try {
+      await saveSkillRunAsDocument(run.id, {
+        title: run.instruction.slice(0, 72),
+        content: candidate,
+        documentId: documentAdoption.documentId,
+        expectedRevision: documentAdoption.documentRevision,
+        adoptionId: documentAdoption.id,
+        adoptionAction: "undo",
+        target: { surface: "project-workspace", target_key: `document:${documentAdoption.documentId}` },
+      });
+      await onRefresh();
+      setDocumentAdoption(undefined);
+    } catch (cause) {
+      setRunError(cause instanceof Error ? cause.message : "Could not undo this Document update.");
     } finally {
       setSavingDocument(false);
     }
@@ -1157,7 +1187,12 @@ export function V2ProjectRoute({
                     Continue
                   </Button>
                 ) : null}
-                <div className="v2-action-menu-wrap">
+                {documentAdoption?.runId === run.id ? (
+                  <Button size="sm" variant="primary" disabled={savingDocument} onClick={() => void undoCandidateDocumentUpdate()}>
+                    <RotateCcw size={14} />
+                    {savingDocument ? "Undoing…" : "Undo Document update"}
+                  </Button>
+                ) : <div className="v2-action-menu-wrap">
                   <Button
                     size="sm"
                     variant="primary"
@@ -1191,7 +1226,7 @@ export function V2ProjectRoute({
                       </div>
                     </div>
                   ) : null}
-                </div>
+                </div>}
               </>
             ) : null}
           </div>

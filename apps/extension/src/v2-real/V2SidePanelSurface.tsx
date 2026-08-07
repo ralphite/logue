@@ -381,6 +381,7 @@ export interface V2SidePanelSurfaceProps {
   generatedAdoptionPending?: boolean;
   insertingGenerated?: boolean;
   savingGeneratedDocument?: boolean;
+  generatedDocumentUndoAvailable?: boolean;
   documents?: PanelDocument[];
   skills: ExtensionSkill[];
   skillId: string;
@@ -412,6 +413,7 @@ export interface V2SidePanelSurfaceProps {
   onCopyGenerated?: () => void;
   onKeepGenerated?: () => void;
   onSaveGeneratedDocument?: (document?: PanelDocument) => void;
+  onUndoGeneratedDocument?: () => void;
   onUndoGenerated?: () => void;
   onRetryGeneratedAdoption?: () => void;
   onSkillIdChange: (value: string) => void;
@@ -484,6 +486,7 @@ export function V2SidePanelSurface({
   generatedAdoptionPending = false,
   insertingGenerated = false,
   savingGeneratedDocument = false,
+  generatedDocumentUndoAvailable = false,
   documents = [],
   skills,
   skillId,
@@ -514,6 +517,7 @@ export function V2SidePanelSurface({
   onCopyGenerated,
   onKeepGenerated,
   onSaveGeneratedDocument,
+  onUndoGeneratedDocument,
   onUndoGenerated,
   onRetryGeneratedAdoption,
   onSkillIdChange,
@@ -1027,7 +1031,12 @@ export function V2SidePanelSurface({
                           Keep in Logue
                         </V2Button>
                       ) : null}
-                      <div className="v2-action-menu-wrap">
+                      {generatedDocumentUndoAvailable ? (
+                        <V2Button disabled={savingGeneratedDocument} onClick={onUndoGeneratedDocument}>
+                          <RotateCcw size={14} />
+                          {savingGeneratedDocument ? "Undoing…" : "Undo Document update"}
+                        </V2Button>
+                      ) : <div className="v2-action-menu-wrap">
                         <V2Button
                           disabled={savingGeneratedDocument || generatedAdoptionPending}
                           aria-expanded={documentTargetOpen}
@@ -1060,7 +1069,7 @@ export function V2SidePanelSurface({
                             </div>
                           </div>
                         ) : null}
-                      </div>
+                      </div>}
                       {generatedAdoptionPending ? (
                         <V2Button
                           disabled={insertingGenerated}

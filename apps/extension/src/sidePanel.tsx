@@ -1494,13 +1494,43 @@ function SidePanelApp() {
       });
       if (!created.document.id) throw new Error("Could not save this Document.");
       setDocuments((items) => [created.document, ...items.filter((item) => item.id !== created.document.id)]);
-      commitCommandResult({ ...pendingResult, adopted: true, adoptionAttempts: { ...pendingResult.adoptionAttempts, document: undefined } });
+      commitCommandResult({
+        ...pendingResult,
+        adopted: true,
+        adoptionAttempts: { ...pendingResult.adoptionAttempts, document: undefined },
+        documentAdoption: targetDocument ? { id: adoptionId, documentId: created.document.id, documentRevision: created.document.revision } : undefined,
+      });
     } catch (cause) {
       setError(friendlyLocalError(cause, "save"));
     } finally {
       setSavingGeneratedDocument(false);
     }
   }, [commitCommandResult, draft, savingGeneratedDocument]);
+
+  const undoGeneratedDocumentUpdate = useCallback(async () => {
+    const result = commandResultRef.current;
+    const adoption = result?.documentAdoption;
+    if (!result || !adoption || savingGeneratedDocument) return;
+    setSavingGeneratedDocument(true);
+    setError(undefined);
+    try {
+      const restored = await saveExtensionSkillRunAsDocument(result.runId, {
+        title: "Logue draft",
+        content: result.text,
+        documentId: adoption.documentId,
+        expectedRevision: adoption.documentRevision,
+        adoptionId: adoption.id,
+        adoptionAction: "undo",
+        target: { surface: "side-panel", url: result.sourceURL, target_key: `document:${adoption.documentId}` },
+      });
+      setDocuments((items) => [restored.document, ...items.filter((item) => item.id !== restored.document.id)]);
+      commitCommandResult({ ...result, documentAdoption: undefined });
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "save"));
+    } finally {
+      setSavingGeneratedDocument(false);
+    }
+  }, [commitCommandResult, savingGeneratedDocument]);
 
   const stopRecording = useCallback(() => {
     const session = recordingSessionRef.current;
@@ -2088,6 +2118,7 @@ function SidePanelApp() {
       generatedAdoptionPending={Boolean(commandResult?.adoptionPending)}
       insertingGenerated={insertingGenerated}
       savingGeneratedDocument={savingGeneratedDocument}
+      generatedDocumentUndoAvailable={Boolean(commandResult?.documentAdoption)}
       documents={documents}
       skills={skills}
       skillId={skillId}
@@ -2124,6 +2155,7 @@ function SidePanelApp() {
       onCopyGenerated={() => void copyGeneratedText()}
       onKeepGenerated={() => void keepGeneratedText()}
       onSaveGeneratedDocument={(document) => void saveGeneratedDocument(document)}
+      onUndoGeneratedDocument={() => void undoGeneratedDocumentUpdate()}
       onUndoGenerated={() => void undoGeneratedText()}
       onRetryGeneratedAdoption={() => void retryGeneratedAdoption()}
       onSkillIdChange={setSkillId}
