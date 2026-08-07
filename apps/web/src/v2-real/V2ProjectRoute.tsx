@@ -1272,6 +1272,7 @@ export function V2ProjectRoute({
   ) : historyRun ? (
     <RunInspector
       run={historyRun}
+      documents={documents}
       onClose={() => setOpenHistoryRunId(undefined)}
       onRefresh={onRefresh}
     />

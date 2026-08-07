@@ -116,7 +116,7 @@
 - V2-LIB-05 — INTEGRATED — 可调宽 Source inspector 从 Comment bundle 单条入口核验 Web/You 两层，并呈现 original/raw/transformed/saved、audio、可打开 parents、adopted versions、实际 Profile/Topic/Skill/language lineage。
 - V2-LIB-06 — INTEGRATED — Source 打开、回原 URL、Project membership、Exclude/Undo。
 - V2-LIB-07 — INTEGRATED — content-first 多选使用 bundle 级 Add/Exclude；普通 Source 与完整 Comment bundle 共用依赖感知 Delete，bundle 内部 Web→You 关系不再产生假 tombstone；所选范围可 Export 或作为指定 Project Draft 的本次 Run Sources而不改变 membership。
-- V2-LIB-08 — INTEGRATED — All activity 从 Ask/Compare/Draft/Voice/Text Command 的准确永久 You Activity 打开关联 Run，可恢复未采用 Candidate，并支持 failed Run Retry、Pin/Unpin、依赖预览 Delete；Activity/Run 保持在 Project Context 外。
+- V2-LIB-08 — INTEGRATED — All activity 从 Ask/Compare/Draft/Voice/Text Command 的准确永久 You Activity 打开关联 Run，可恢复未采用 Candidate，并支持 Copy、选择 New/Existing Project Document、exact frozen Sources、Document update 即时 Undo、failed Run Retry、Pin/Unpin 与依赖预览 Delete；Activity/Run 保持在 Project Context 外。
 - V2-LIB-09 — INTEGRATED — Global Find 打开并在 Library 定位真实结果。
 - V2-LIB-10 — INTEGRATED — AI Source revision/history/restore 由 V2-LIN-11 与 V2-LIB-05 的 production inspector 完整接通。
 

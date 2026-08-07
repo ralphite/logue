@@ -906,10 +906,12 @@ function SourceInspector({
 
 export function RunInspector({
   run,
+  documents = [],
   onClose,
   onRefresh,
 }: {
   run: SkillRun;
+  documents?: LogueDocument[];
   onClose: () => void;
   onRefresh: () => Promise<void>;
 }) {
@@ -920,7 +922,10 @@ export function RunInspector({
   const [error, setError] = useState("");
   const [deletePreview, setDeletePreview] = useState<DeletionPreview>();
   const [deleteConfirm, setDeleteConfirm] = useState("");
-  const adoptionAttempts = useRef<Partial<Record<"copy" | "document", { id: string; content: string }>>>({});
+  const [documentTargetOpen, setDocumentTargetOpen] = useState(false);
+  const [documentAdoption, setDocumentAdoption] = useState<{ id: string; documentId: string; documentRevision: number }>();
+  const adoptionAttempts = useRef<Partial<Record<"copy" | "document", { id: string; content: string; targetKey?: string }>>>({});
+  const projectDocuments = documents.filter((document) => document.project === run.project);
   const adopted = Boolean(
     run.adopted_output || run.document_id || run.material_id,
   );
@@ -948,24 +953,69 @@ export function RunInspector({
       setBusy(false);
     }
   };
-  const saveDocument = async () => {
+  const saveDocument = async (targetDocument?: LogueDocument) => {
     setBusy(true);
     setError("");
+    const targetKey = targetDocument?.id ?? "new";
     const previousAttempt = adoptionAttempts.current.document;
-    const adoptionId = previousAttempt?.content === draft ? previousAttempt.id : createAdoptionId();
-    adoptionAttempts.current.document = { id: adoptionId, content: draft };
+    const adoptionId = previousAttempt?.content === draft && previousAttempt.targetKey === targetKey ? previousAttempt.id : createAdoptionId();
+    adoptionAttempts.current.document = { id: adoptionId, content: draft, targetKey };
     try {
-      await saveSkillRunAsDocument(run.id, {
-        title: run.skill_name,
+      const frozenSources = run.sources.map((source) => ({
+        id: source.id,
+        kind: source.kind,
+        actor: source.actor,
+        content: source.content,
+        projects: source.projects ?? [],
+        tags: source.tags ?? [],
+        created_at: source.created_at ?? "",
+        source: source.source ?? null,
+      }));
+      const sourceIds = frozenSources.map((source) => source.id);
+      const result = await saveSkillRunAsDocument(run.id, {
+        title: targetDocument?.title ?? run.skill_name,
         content: draft,
+        documentId: targetDocument?.id,
+        project: run.project,
+        sourceIds,
+        contextSourceIds: sourceIds,
+        sources: frozenSources,
+        contextSources: frozenSources,
+        expectedRevision: targetDocument?.revision,
         adoptionId,
+        adoptionAction: targetDocument ? "replace" : "document",
+        target: { surface: "activity-inspector", target_key: targetDocument ? `document:${targetDocument.id}` : `activity:${run.id}:new-document` },
       });
       await onRefresh();
       delete adoptionAttempts.current.document;
+      setDocumentTargetOpen(false);
+      setDocumentAdoption(targetDocument ? { id: adoptionId, documentId: result.document.id, documentRevision: result.document.revision } : undefined);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not create a Document.",
       );
+    } finally {
+      setBusy(false);
+    }
+  };
+  const undoDocumentUpdate = async () => {
+    if (!documentAdoption || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await saveSkillRunAsDocument(run.id, {
+        title: run.skill_name,
+        content: draft,
+        documentId: documentAdoption.documentId,
+        expectedRevision: documentAdoption.documentRevision,
+        adoptionId: documentAdoption.id,
+        adoptionAction: "undo",
+        target: { surface: "activity-inspector", target_key: `document:${documentAdoption.documentId}` },
+      });
+      await onRefresh();
+      setDocumentAdoption(undefined);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not undo this Document update.");
     } finally {
       setBusy(false);
     }
@@ -1093,14 +1143,31 @@ export function RunInspector({
                 <Copy size={14} />
                 Copy
               </Button>
-              <Button
-                variant="primary"
-                disabled={busy || !draft.trim()}
-                onClick={() => void saveDocument()}
-              >
-                <FilePlus2 size={14} />
-                Save as Document
-              </Button>
+              {documentAdoption ? (
+                <Button variant="primary" disabled={busy} onClick={() => void undoDocumentUpdate()}>
+                  <RotateCcw size={14} />
+                  Undo Document update
+                </Button>
+              ) : <div className="v2-action-menu-wrap">
+                <Button variant="primary" disabled={busy || !draft.trim()} aria-expanded={documentTargetOpen} onClick={() => setDocumentTargetOpen((open) => !open)}>
+                  <FilePlus2 size={14} />
+                  Save as Document…
+                </Button>
+                {documentTargetOpen ? (
+                  <div className="v2-skill-picker" role="menu" aria-label="Choose Document target">
+                    <div className="v2-skill-picker-scroll">
+                      <div className="v2-skill-picker-group">
+                        <div className="v2-skill-picker-label">Create</div>
+                        <button type="button" role="menuitem" onClick={() => void saveDocument()}><span>New Document</span><small>Start with this recovered Candidate</small></button>
+                      </div>
+                      {projectDocuments.length ? <div className="v2-skill-picker-group">
+                        <div className="v2-skill-picker-label">Update existing</div>
+                        {projectDocuments.map((document) => <button key={document.id} type="button" role="menuitem" onClick={() => void saveDocument(document)}><span>{document.title}</span><small>Replace as revision {document.revision + 1}</small></button>)}
+                      </div> : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>}
             </div>
           </section>
         ) : null}
@@ -1787,6 +1854,7 @@ export function V2LibraryRoute({
   ) : openRun ? (
     <RunInspector
       run={openRun}
+      documents={documents}
       onClose={() => setOpenRunId(undefined)}
       onRefresh={onRefresh}
     />
