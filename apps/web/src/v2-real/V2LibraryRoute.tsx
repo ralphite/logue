@@ -435,7 +435,7 @@ function SourceInspector({
                       : "Saved content"
                 }
               />
-              <p>{displayedContent}</p>
+              <p>{contentSummary(displayedContent)}</p>
             </>
           )}
           <div className="v2-source-meta">
