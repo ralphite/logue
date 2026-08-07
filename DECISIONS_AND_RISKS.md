@@ -1015,3 +1015,14 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **迁移与静态证据：** 真实 Host 当时未运行；完整 `.logue-data` 的 410 个文件已物理备份到 `/Users/yadong/dev2/logue-data-backups/dr094-comment-schema-2026-08-07`，`diff -qr` 与原记录 SHA-256 一致。一次性 staging + 原子目录切换保留原 Web Source `mat_7e5ec5101de8a0ff`，新增 You Comment `mat_e99f18aac0098f47`，内容、时间、Project、tags 与 source metadata 相等，唯一 `parent_ids` 指向原 Source；9 个 live Comments 与数据根内 1 个历史副本的幂等 suffix 同批从 `:annotation` 一次性改为 `:comment`。102 个 items / 非空 request IDs 唯一，items 与 revisions 的 annotation 字段、整个当前数据根的旧 suffix 计数均为 0。窄范围只读验证确认 bundle 恰好两成员、删除预览为 2 Sources / 0 外部 derived、Agent Harness Export 同时包含两者且 parent 不悬空、Export schema 为 2。Python compile、Web/Extension typecheck、installer syntax 与 diff check 通过；未按当前阶段禁止项运行 Browser/CU 或视觉 QA。
 - **路由收敛证据：** Production V2 入口只将 `view=library` 解析为 Library，主导航和 Global Find 也只写出 `view=library`；production V2 imports 中无 `view=stream` caller。Web typecheck 与 diff check 通过；未运行 Browser/CU、UX/UI 或全面 QA。
 - **开放问题：** DR-091 仍独立冻结，等待用户确认方案 A。
+
+### DR-095 — Provider Ready 必须同时验证生成与语音转写
+
+- **优先级：** V2 首次设置 / readiness P1 / `V2-SET-01`、`V2-SET-02`
+- **状态：** 已 CODED/INTEGRATED；只完成 production producer-consumer 静态闭环，真实 provider 调用留 Phase 5。
+- **决定：** `/v1/ai-connection/test` 与保存连接前的 Host check 必须分别向配置的 generation model 和 transcription endpoint 发送最小真实请求；只有两者都成功才返回 Ready。语音 probe 使用进程内生成的短 WAV，不读取或发送用户录音，也不持久化 probe 或响应。
+- **用户可见影响：** Setup / Settings 不再因为 generation model 单独可用就错误显示 “Voice and AI ready”；错误停留在当前连接表单，用户可修正 transcription model、endpoint 或凭据后重试。
+- **替代方案：** 只检查 generation 保留当前虚假 Ready；等第一次真实录音才发现失败会直接破坏 J1；保存一份用户录音作为 probe 会扩大隐私与数据生命周期，不需要。
+- **已有证据：** V2 §10.15 与 J1 要求 Host 同时显示 Voice ready / AI ready；production Web 的 Check/Save 均调用 Host `Gemini.test()`，但该方法只执行 `generate()`，完全不触达 `transcription_model` 或 `/audio/transcriptions`，随后 UI 同时宣告 Voice 与 AI Ready。
+- **静态证据：** Web Setup 与 Settings 的 Test/Save 继续消费同一 Host check；Host 现在先验证 generation，再用进程内生成的 16 kHz WAV 验证 Gemini audio input 或 OpenAI-compatible `/audio/transcriptions`。probe WAV header/length postcondition、Python compile 与 diff check 通过；probe 与响应均不写入 data root。未运行真实 provider、Browser/CU、UX/UI 或全面 QA。
+- **开放问题：** 无；不改变 provider 范围、IA、凭据边界或用户数据。
