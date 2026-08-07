@@ -152,13 +152,13 @@ export function RealLogueV2App() {
 
   if (error) return <ProjectShell route={route} onRouteChange={navigate}><div className="v2-editor-scroll"><div className="v2-list-axis"><div className="v2-page-heading-copy"><h1>Logue Host</h1><p>Your interface is ready, but the local Host needs attention.</p></div><div className="v2-recovery-card"><p>{error}</p><Button variant="primary" onClick={() => void refresh()}>Retry</Button></div></div></div></ProjectShell>;
   const hasExplicitLocalRoute = new URLSearchParams(window.location.search).has("view");
-  if (status && !status.ai_configured && !hasExplicitLocalRoute) {
+  if (status && !status.overall_ready && !hasExplicitLocalRoute) {
     return <V2SetupRoute status={status} onReady={refresh} onBrowseLocal={() => navigate("library")} />;
   }
   const content = route === "projects"
-    ? <V2ProjectRoute projects={projects} materials={materials} documents={documents} runs={runs} skills={skills} settings={settings} aiReady={Boolean(status?.ai_configured)} loading={loading} onRoute={navigate} onRefresh={refresh} />
+    ? <V2ProjectRoute projects={projects} materials={materials} documents={documents} runs={runs} skills={skills} settings={settings} aiReady={Boolean(status?.generation_ready)} loading={loading} onRoute={navigate} onRefresh={refresh} />
     : route === "documents"
-      ? <V2DocumentsRoute documents={documents} projects={projects} materials={materials} skills={skills} aiReady={Boolean(status?.ai_configured)} loading={loading} onRoute={navigate} onRefresh={refresh} />
+      ? <V2DocumentsRoute documents={documents} projects={projects} materials={materials} skills={skills} aiReady={Boolean(status?.generation_ready)} loading={loading} onRoute={navigate} onRefresh={refresh} />
       : route === "skills"
         ? <V2SkillsRoute skills={skills} settings={settings} onRoute={navigate} onRefresh={refresh} />
         : route === "settings"

@@ -147,7 +147,7 @@
 ## Web — Settings / Provider / data controls (J1/J9)
 
 - V2-SET-01 — INTEGRATED — 无显式 route 的首次打开挂载远程 provider Connect/Test/Save Setup；Host 的 Test 与 Save check 都必须以进程内最小 WAV probe 同时验证 generation 与 transcription，成功后才返回 Ready；无账号、无本地模型，并可直接 Browse local Library，不阻断本机内容。
-- V2-SET-02 — INTEGRATED — Voice/AI Ready 由 generation + transcription 双检查共同产生；任一路失败都保持 Needs attention，不再由 generation 单独冒充完整 Ready。
+- V2-SET-02 — INTEGRATED — 初始与运行后 readiness 使用 canonical provider health：generation/voice 独立验证、失败、恢复和持久化；overall 只用于 Setup，Projects/Documents 只消费 generation，Extension 保持 Host/local composer 可用并在失败能力局部提供 Retry 与 Models 入口；配置存在不再冒充 Ready。
 - V2-SET-03 — INTEGRATED — provider 未 Ready 不阻断本地内容浏览，AI/Voice 使用时提示 Settings → Models。
 - V2-SET-04 — INTEGRATED — Host `/v1/status` 以当前 `storage_root` 内普通文件的真实字节数提供 storage usage，Settings 与数据目录、模型处理边界共同消费；pending captures 通过受信任 Extension bridge 提供 List / Retry / Export audio / Delete，Stop-first Comment 删除同步 Host material 与本地 queue。最终真实运行验收留 Phase 5。
 - V2-SET-05 — INTEGRATED — paired Extension clients 查看/命名/撤销。

@@ -144,7 +144,15 @@ export interface DocumentSearchResponse {
 export interface ServiceStatus {
   ok: boolean;
   api_version: number;
-  ai_configured: boolean;
+  provider_configured: boolean;
+  generation_ready: boolean;
+  voice_ready: boolean;
+  overall_ready: boolean;
+  provider_needs_attention: boolean;
+  provider_errors: {
+    generation?: { code: string; message: string; action: "open-model-settings" } | null;
+    voice?: { code: string; message: string; action: "open-model-settings" } | null;
+  };
   model: string;
   provider?: "gemini" | "openai-compatible";
   storage_root: string;

@@ -5,7 +5,15 @@ export const serverURLStorageKey = "logue:server-url";
 export interface LogueServerStatus {
   ok: boolean;
   api_version: number;
-  ai_configured: boolean;
+  provider_configured: boolean;
+  generation_ready: boolean;
+  voice_ready: boolean;
+  overall_ready: boolean;
+  provider_needs_attention: boolean;
+  provider_errors: {
+    generation?: { code: string; message: string; action: "open-model-settings" } | null;
+    voice?: { code: string; message: string; action: "open-model-settings" } | null;
+  };
   model: string;
   version: string;
 }
@@ -33,7 +41,18 @@ export function serverPermissionOrigin(value: string) {
 
 export function assertLogueServerStatus(value: unknown): asserts value is LogueServerStatus {
   const status = value as Partial<LogueServerStatus> | undefined;
-  if (!status || status.ok !== true || typeof status.version !== "string" || typeof status.ai_configured !== "boolean") {
+  if (
+    !status ||
+    status.ok !== true ||
+    typeof status.version !== "string" ||
+    typeof status.provider_configured !== "boolean" ||
+    typeof status.generation_ready !== "boolean" ||
+    typeof status.voice_ready !== "boolean" ||
+    typeof status.overall_ready !== "boolean" ||
+    typeof status.provider_needs_attention !== "boolean" ||
+    !status.provider_errors ||
+    typeof status.provider_errors !== "object"
+  ) {
     throw new Error("This address is not a Logue server.");
   }
   if (status.api_version !== logueApiVersion) {

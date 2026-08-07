@@ -33,7 +33,7 @@ from email.policy import default as email_policy
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Callable
 
 
 VERSION = os.environ.get("LOGUE_VERSION", "dev")
@@ -46,6 +46,13 @@ VALID_OUTPUTS = {"insert", "material", "qa", "document"}
 VALID_SURFACES = {"web", "extension", "background"}
 VALID_CONTEXTS = {"page", "target", "selection", "project", "materials", "personal"}
 VALID_ANCHOR_STATUSES = {"anchored", "page_changed", "reanchored", "snapshot_only"}
+PROVIDER_HEALTH_STATES = {"unverified", "ready", "needs_attention"}
+PROVIDER_ERROR_MESSAGES = {
+    "unverified": "Check this connection in Settings → Models.",
+    "rejected": "The provider rejected this request. Check the model and credentials in Settings → Models.",
+    "unreachable": "The provider could not be reached. Check the endpoint and connection in Settings → Models.",
+    "invalid_response": "The provider returned an unusable response. Check the model in Settings → Models.",
+}
 ID_RE = re.compile(r"^(?:mat|doc|prj|sk|run|cap|voc|top)_[A-Za-z0-9]+$")
 CITATION_RE = re.compile(r"\[Source (\d+)\]")
 GLOSSARY_RE = re.compile(r"\b[A-Z][A-Za-z0-9.-]{2,}\b")
@@ -2912,7 +2919,7 @@ def merge_search_matches(direct: list[dict[str, str]], semantic: list[dict[str, 
 
 def ranked_search(gemini: "Gemini", query: str, values: list[dict[str, Any]], candidates: list[dict[str, Any]], kind: str) -> tuple[list[dict[str, str]], str]:
     direct = search_items(query, values)
-    if not query or not gemini.configured:
+    if not query or not gemini.generation_ready:
         return direct, "local"
     try:
         semantic = semantic_search(gemini, query, candidates, kind)
@@ -2947,10 +2954,94 @@ class Gemini:
             self.model = self.model or "gpt-4.1-mini"
             self.transcription_model = self.transcription_model or "whisper-1"
             self.base_url = self.base_url or "https://api.openai.com/v1"
+        self.health_lock = threading.RLock()
+        self.config_fingerprint = hashlib.sha256(json.dumps({
+            "provider": self.provider,
+            "model": self.model,
+            "transcription_model": self.transcription_model,
+            "base_url": self.base_url,
+            "api_key_hash": hashlib.sha256(self.key.encode()).hexdigest() if self.key else "",
+        }, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        health = value.get("health") if isinstance(value.get("health"), dict) else {}
+        trusted_health = health if health.get("config_fingerprint") == self.config_fingerprint else {}
+        self.generation_health = str(trusted_health.get("generation", "unverified"))
+        self.voice_health = str(trusted_health.get("voice", "unverified"))
+        if self.generation_health not in PROVIDER_HEALTH_STATES:
+            self.generation_health = "unverified"
+        if self.voice_health not in PROVIDER_HEALTH_STATES:
+            self.voice_health = "unverified"
+        errors = trusted_health.get("errors") if isinstance(trusted_health.get("errors"), dict) else {}
+        self.generation_error = str(errors.get("generation", "unverified")) if self.generation_health != "ready" else ""
+        self.voice_error = str(errors.get("voice", "unverified")) if self.voice_health != "ready" else ""
+        self._health_commit: Callable[[str, str, str], None] | None = None
 
     @property
     def configured(self) -> bool:
         return bool(self.key) if self.provider == "gemini" else bool(self.base_url and self.model and self.transcription_model)
+
+    @property
+    def generation_ready(self) -> bool:
+        return self.configured and self.generation_health == "ready"
+
+    @property
+    def voice_ready(self) -> bool:
+        return self.configured and self.voice_health == "ready"
+
+    @property
+    def overall_ready(self) -> bool:
+        return self.generation_ready and self.voice_ready
+
+    def bind_health(self, commit: Callable[[str, str, str], None]) -> None:
+        self._health_commit = commit
+
+    def _apply_health(self, capability: str, state: str, error_code: str = "", *, persist: bool = False) -> None:
+        if capability not in {"generation", "voice"} or state not in PROVIDER_HEALTH_STATES:
+            raise ValueError("invalid provider health update")
+        with self.health_lock:
+            if capability == "generation":
+                self.generation_health = state
+                self.generation_error = "" if state == "ready" else error_code or "unverified"
+            else:
+                self.voice_health = state
+                self.voice_error = "" if state == "ready" else error_code or "unverified"
+            if persist and self.path.exists():
+                self.save()
+
+    def mark_ready(self, capability: str) -> None:
+        if self._health_commit:
+            self._health_commit(capability, "ready", "")
+        else:
+            self._apply_health(capability, "ready")
+
+    def mark_needs_attention(self, capability: str, error_code: str) -> None:
+        code = error_code if error_code in PROVIDER_ERROR_MESSAGES else "invalid_response"
+        if self._health_commit:
+            self._health_commit(capability, "needs_attention", code)
+        else:
+            self._apply_health(capability, "needs_attention", code)
+
+    def health_status(self) -> dict[str, Any]:
+        with self.health_lock:
+            errors = {
+                "generation": {
+                    "code": self.generation_error or "unverified",
+                    "message": PROVIDER_ERROR_MESSAGES.get(self.generation_error or "unverified", PROVIDER_ERROR_MESSAGES["invalid_response"]),
+                    "action": "open-model-settings",
+                } if not self.generation_ready else None,
+                "voice": {
+                    "code": self.voice_error or "unverified",
+                    "message": PROVIDER_ERROR_MESSAGES.get(self.voice_error or "unverified", PROVIDER_ERROR_MESSAGES["invalid_response"]),
+                    "action": "open-model-settings",
+                } if not self.voice_ready else None,
+            }
+            return {
+                "provider_configured": self.configured,
+                "generation_ready": self.generation_ready,
+                "voice_ready": self.voice_ready,
+                "overall_ready": self.overall_ready,
+                "provider_needs_attention": self.configured and not self.overall_ready,
+                "provider_errors": errors,
+            }
 
     def public_config(self) -> dict[str, Any]:
         return {
@@ -2960,16 +3051,28 @@ class Gemini:
             "base_url": self.base_url,
             "configured": self.configured,
             "has_api_key": bool(self.key),
+            **self.health_status(),
         }
 
     def save(self) -> None:
-        atomic_json(self.path, {
-            "provider": self.provider,
-            "api_key": self.key,
-            "model": self.model,
-            "transcription_model": self.transcription_model,
-            "base_url": self.base_url,
-        })
+        with self.health_lock:
+            atomic_json(self.path, {
+                "provider": self.provider,
+                "api_key": self.key,
+                "model": self.model,
+                "transcription_model": self.transcription_model,
+                "base_url": self.base_url,
+                "health": {
+                    "config_fingerprint": self.config_fingerprint,
+                    "generation": self.generation_health,
+                    "voice": self.voice_health,
+                    "errors": {
+                        "generation": self.generation_error,
+                        "voice": self.voice_error,
+                    },
+                    "updated_at": now(),
+                },
+            })
 
     def test(self) -> None:
         result = self.generate("Return only the word READY.", timeout=20, temperature=0)
@@ -2995,6 +3098,7 @@ class Gemini:
     def generate(self, prompt: str, audio: bytes | None = None, mime_type: str = "audio/webm", json_output: bool = False, timeout: int = 100, temperature: float = 0.1) -> str:
         if not self.configured:
             raise RuntimeError("AI connection is not configured")
+        capability = "voice" if audio is not None else "generation"
         if self.provider == "openai-compatible":
             if audio is not None:
                 raise RuntimeError("Audio must use the configured transcription endpoint")
@@ -3009,13 +3113,23 @@ class Gemini:
                 with urllib.request.urlopen(request, timeout=timeout) as response:
                     result = json.load(response)
             except urllib.error.HTTPError as error:
+                self.mark_needs_attention(capability, "rejected")
                 detail = error.read(1 << 20).decode(errors="replace")
                 raise RuntimeError(f"Model endpoint rejected the request: {detail or error.reason}") from error
             except OSError as error:
+                self.mark_needs_attention(capability, "unreachable")
                 raise RuntimeError(f"Could not reach the model endpoint: {error}") from error
+            except (TypeError, ValueError) as error:
+                self.mark_needs_attention(capability, "invalid_response")
+                raise RuntimeError("The model endpoint returned an invalid response") from error
+            if not isinstance(result, dict):
+                self.mark_needs_attention(capability, "invalid_response")
+                raise RuntimeError("The model endpoint returned an invalid response")
             text = str((((result.get("choices") or [{}])[0].get("message") or {}).get("content") or "")).strip()
             if not text:
+                self.mark_needs_attention(capability, "invalid_response")
                 raise RuntimeError("The model returned no result")
+            self.mark_ready(capability)
             return text
         if not self.key:
             raise RuntimeError("Gemini API key is not configured")
@@ -3030,13 +3144,27 @@ class Gemini:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 result = json.load(response)
         except urllib.error.HTTPError as error:
+            self.mark_needs_attention(capability, "rejected")
             detail = error.read(1 << 20).decode(errors="replace")
             raise RuntimeError(f"Gemini rejected the request: {detail or error.reason}") from error
         except OSError as error:
+            self.mark_needs_attention(capability, "unreachable")
             raise RuntimeError(f"call Gemini: {error}") from error
-        text = "\n".join(part.get("text", "").strip() for part in result.get("candidates", [{}])[0].get("content", {}).get("parts", []) if part.get("text", "").strip()).strip()
+        except (TypeError, ValueError) as error:
+            self.mark_needs_attention(capability, "invalid_response")
+            raise RuntimeError("Gemini returned an invalid response") from error
+        if not isinstance(result, dict):
+            self.mark_needs_attention(capability, "invalid_response")
+            raise RuntimeError("Gemini returned an invalid response")
+        try:
+            text = "\n".join(part.get("text", "").strip() for part in result.get("candidates", [{}])[0].get("content", {}).get("parts", []) if part.get("text", "").strip()).strip()
+        except (AttributeError, IndexError, TypeError) as error:
+            self.mark_needs_attention(capability, "invalid_response")
+            raise RuntimeError("Gemini returned an invalid response") from error
         if not text:
+            self.mark_needs_attention(capability, "invalid_response")
             raise RuntimeError("Gemini returned no result")
+        self.mark_ready(capability)
         return text
 
     def transcribe(self, audio: bytes, mime_type: str, fields: dict[str, str], *, allow_empty: bool = False) -> str:
@@ -3058,13 +3186,23 @@ class Gemini:
                 with urllib.request.urlopen(request, timeout=100) as response:
                     value = json.load(response)
             except urllib.error.HTTPError as error:
+                self.mark_needs_attention("voice", "rejected")
                 detail = error.read(1 << 20).decode(errors="replace")
                 raise RuntimeError(f"Transcription endpoint rejected the recording: {detail or error.reason}") from error
             except OSError as error:
+                self.mark_needs_attention("voice", "unreachable")
                 raise RuntimeError(f"Could not reach the transcription endpoint: {error}") from error
+            except (TypeError, ValueError) as error:
+                self.mark_needs_attention("voice", "invalid_response")
+                raise RuntimeError("The transcription endpoint returned an invalid response") from error
+            if not isinstance(value, dict):
+                self.mark_needs_attention("voice", "invalid_response")
+                raise RuntimeError("The transcription endpoint returned an invalid response")
             text = str(value.get("text", "")).strip()
             if not text and not allow_empty:
+                self.mark_needs_attention("voice", "invalid_response")
                 raise RuntimeError("The transcription endpoint returned no text")
+            self.mark_ready("voice")
             return text
         return self.generate(prompt, audio, mime_type)
 
@@ -3094,16 +3232,36 @@ class LogueHTTPServer(ThreadingHTTPServer):
 
     def __init__(self, address: tuple[str, int], store: Store, web_dist: Path | None):
         self.store = store
-        self.gemini = Gemini(store.root)
         self.web_dist = web_dist
         self.cancelled: set[str] = set()
         self.workspace_lock = threading.RLock()
         self.workspace_generation = 1
+        self.gemini = Gemini(store.root)
+        self.activate_provider(self.gemini)
         super().__init__(address, Handler)
+
+    def activate_provider(self, provider: Gemini, *, bump_generation: bool = False) -> None:
+        if bump_generation:
+            self.workspace_generation += 1
+        self.gemini = provider
+        generation = self.workspace_generation
+        provider.bind_health(lambda capability, state, error_code: self.commit_provider_health(
+            provider,
+            generation,
+            capability,
+            state,
+            error_code,
+        ))
+
+    def commit_provider_health(self, provider: Gemini, generation: int, capability: str, state: str, error_code: str) -> None:
+        with self.workspace_lock:
+            if self.gemini is not provider or self.workspace_generation != generation:
+                return
+            provider._apply_health(capability, state, error_code, persist=True)
 
     def schedule_organization(self, item: dict[str, Any]) -> None:
         if (
-            not self.gemini.configured
+            not self.gemini.generation_ready
             or (item.get("organization") or {}).get("status") != "pending"
             or item.get("kind") == "voice"
             or str(item.get("actor", "user")).strip().lower() != "user"
@@ -3200,6 +3358,25 @@ class Handler(BaseHTTPRequestHandler):
     def parsed(self) -> urllib.parse.SplitResult:
         return urllib.parse.urlsplit(self.path)
 
+    def provider_io(self, provider: Gemini, operation: Callable[[], Any], *, require_active: bool = True) -> Any:
+        """Run remote I/O without blocking local workspace requests."""
+        generation = self.server.workspace_generation
+        self.server.workspace_lock.release()
+        result: Any = None
+        failure: BaseException | None = None
+        try:
+            result = operation()
+        except BaseException as error:
+            failure = error
+        finally:
+            self.server.workspace_lock.acquire()
+        stale = self.server.workspace_generation != generation or (require_active and self.server.gemini is not provider)
+        if stale:
+            raise Conflict("The provider or workspace changed while this request was running") from failure
+        if failure is not None:
+            raise failure
+        return result
+
     def do_GET(self) -> None:
         try:
             with self.server.workspace_lock:
@@ -3223,12 +3400,12 @@ class Handler(BaseHTTPRequestHandler):
             self.json(HTTPStatus.OK, {
                 "ok": True,
                 "api_version": 1,
-                "ai_configured": self.server.gemini.configured,
                 "provider": self.server.gemini.provider,
                 "model": self.server.gemini.model,
                 "storage_root": str(store.root),
                 "storage_bytes": store.storage_usage_bytes(),
                 "version": VERSION,
+                **self.server.gemini.health_status(),
             })
         elif path == "/v1/ai-connection":
             self.json(HTTPStatus.OK, self.server.gemini.public_config())
@@ -3253,7 +3430,8 @@ class Handler(BaseHTTPRequestHandler):
                 if str((item.get("organization") or {}).get("duplicate_of", "")) not in candidate_ids
             ]
             if query_text:
-                matches, _strategy = ranked_search(self.server.gemini, query_text, candidates, material_search_candidates(candidates), "materials")
+                provider = self.server.gemini
+                matches, _strategy = self.provider_io(provider, lambda: ranked_search(provider, query_text, candidates, material_search_candidates(candidates), "materials"))
                 by_id = {item["id"]: item for item in candidates}
                 candidates = [by_id[match["id"]] for match in matches if match["id"] in by_id]
             else:
@@ -3311,12 +3489,14 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/v1/material-search":
             query_text = (query.get("query") or [""])[0].strip()
             items = store.items()
-            matches, strategy = ranked_search(self.server.gemini, query_text, items, material_search_candidates(items), "materials")
+            provider = self.server.gemini
+            matches, strategy = self.provider_io(provider, lambda: ranked_search(provider, query_text, items, material_search_candidates(items), "materials"))
             self.json(HTTPStatus.OK, {"matches": matches, "strategy": strategy})
         elif path == "/v1/document-search":
             query_text = (query.get("query") or [""])[0].strip()
             documents = store.documents()
-            matches, strategy = ranked_search(self.server.gemini, query_text, [{**document, "projects": [document.get("project", "")], "tags": []} for document in documents], document_search_candidates(documents), "documents")
+            provider = self.server.gemini
+            matches, strategy = self.provider_io(provider, lambda: ranked_search(provider, query_text, [{**document, "projects": [document.get("project", "")], "tags": []} for document in documents], document_search_candidates(documents), "documents"))
             for match in matches:
                 if match["match"] not in {"title", "content", "project"}:
                     if match["match"] != "related":
@@ -3404,16 +3584,16 @@ class Handler(BaseHTTPRequestHandler):
             if value.get("keep_api_key") and not str(value.get("api_key", "")).strip():
                 value["api_key"] = self.server.gemini.key
             candidate = Gemini(store.root, value)
-            candidate.test()
+            self.provider_io(candidate, candidate.test, require_active=False)
             self.json(HTTPStatus.OK, {"ok": True, **candidate.public_config()})
         elif path == "/v1/ai-connection" and method == "PATCH":
             value = self.body_json()
             if value.get("keep_api_key") and not str(value.get("api_key", "")).strip():
                 value["api_key"] = self.server.gemini.key
             candidate = Gemini(store.root, value)
-            candidate.test()
+            self.provider_io(candidate, candidate.test, require_active=False)
             candidate.save()
-            self.server.gemini = candidate
+            self.server.activate_provider(candidate, bump_generation=True)
             self.json(HTTPStatus.OK, candidate.public_config())
         elif path == "/v1/deletions/preview" and method == "POST":
             self.json(HTTPStatus.OK, self.deletion_preview(self.body_json()))
@@ -3680,9 +3860,8 @@ class Handler(BaseHTTPRequestHandler):
                 (store.root / "pairing-code.json").unlink(missing_ok=True)
                 for skill in default_skills():
                     atomic_json(store.root / "skills" / f"{skill['id']}.json", skill)
-                self.server.workspace_generation += 1
                 self.server.cancelled.clear()
-                self.server.gemini = Gemini(store.root)
+                self.server.activate_provider(Gemini(store.root), bump_generation=True)
             self.json(HTTPStatus.OK, {"status": "deleted", "backup": self.snapshot_metadata(backup)})
         else:
             self.error(HTTPStatus.NOT_FOUND, "not found")
@@ -3833,7 +4012,8 @@ class Handler(BaseHTTPRequestHandler):
             self.error(HTTPStatus.UNPROCESSABLE_ENTITY, run["error"], run=run)
             return
         try:
-            output = self.server.gemini.run_skill(skill, value, run["sources"], settings, project_overview)
+            provider = self.server.gemini
+            output = self.provider_io(provider, lambda: provider.run_skill(skill, value, run["sources"], settings, project_overview))
             if request_id and request_id in self.server.cancelled:
                 run["status"] = "cancelled"
                 run["updated_at"] = now()
@@ -3940,8 +4120,11 @@ class Handler(BaseHTTPRequestHandler):
         if correction_instruction:
             skill_instructions = f"{skill_instructions}\n\nOne correction:\n{correction_instruction}"
         mime_type = CAPTURE_MIME_TYPES.get(capture_path.suffix.lower(), "audio/webm")
-        raw_transcript = self.server.gemini.transcribe(capture_path.read_bytes(), mime_type, fields)
-        transcript = self.server.gemini.apply_transcription_skill(raw_transcript, fields, skill_instructions)
+        provider = self.server.gemini
+        raw_transcript, transcript = self.provider_io(provider, lambda: (
+            (raw := provider.transcribe(capture_path.read_bytes(), mime_type, fields)),
+            provider.apply_transcription_skill(raw, fields, skill_instructions),
+        ))
         if correction_spoken:
             store.remember_preferred_spelling(correction_scope, correction_spoken, correction_preferred, profile_project=profile["project_name"], topic_vocabulary_id=profile["topic_vocabulary_id"])
         material, revision = store.save_transcript_revision(
@@ -4082,8 +4265,11 @@ class Handler(BaseHTTPRequestHandler):
                 skill_instructions = f"{skill_instructions}\n\nFormatting preference:\n{resolved_context['formatting_preference']}"
             if resolved_context.get("avoid_terms"):
                 skill_instructions = f"{skill_instructions}\n\nAvoid these mistaken forms when the audio supports the preferred wording:\n{', '.join(resolved_context['avoid_terms'])}"
-            raw_transcript = self.server.gemini.transcribe(audio, mime_type, fields)
-            text = self.server.gemini.apply_transcription_skill(raw_transcript, fields, skill_instructions)
+            provider = self.server.gemini
+            raw_transcript, text = self.provider_io(provider, lambda: (
+                (raw := provider.transcribe(audio, mime_type, fields)),
+                provider.apply_transcription_skill(raw, fields, skill_instructions),
+            ))
         except Exception as error:
             self.error(HTTPStatus.BAD_GATEWAY, f"transcription failed; capture remains saved: {error}", capture_id=capture_id)
             return
@@ -4695,14 +4881,13 @@ class Handler(BaseHTTPRequestHandler):
                     (store.root / "pairing-code.json").unlink(missing_ok=True)
                     for skill in default_skills():
                         atomic_json(store.root / "skills" / f"{skill['id']}.json", skill)
-                    self.server.workspace_generation += 1
                     self.server.cancelled.clear()
-                    self.server.gemini = Gemini(store.root)
+                    self.server.activate_provider(Gemini(store.root), bump_generation=True)
                 except BaseException:
                     shutil.rmtree(store.root)
                     shutil.copytree(backup, store.root)
                     (store.root / BACKUP_MARKER).unlink(missing_ok=True)
-                    self.server.gemini = Gemini(store.root)
+                    self.server.activate_provider(Gemini(store.root), bump_generation=True)
                     raise
             else:
                 snapshot = Path(tempfile.mkdtemp(prefix="logue-delete-", dir=store.root.parent))
@@ -5035,11 +5220,10 @@ class Handler(BaseHTTPRequestHandler):
                 except BaseException:
                     shutil.rmtree(store.root, ignore_errors=True)
                     os.replace(previous, store.root)
-                    self.server.gemini = Gemini(store.root)
+                    self.server.activate_provider(Gemini(store.root), bump_generation=True)
                     raise
-                self.server.workspace_generation += 1
                 self.server.cancelled.clear()
-                self.server.gemini = restored_gemini
+                self.server.activate_provider(restored_gemini, bump_generation=True)
                 shutil.rmtree(previous, ignore_errors=True)
         except BaseException:
             shutil.rmtree(staging, ignore_errors=True)

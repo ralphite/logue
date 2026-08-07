@@ -43,6 +43,7 @@ import {
   type PageMaterial,
   type PendingVoicePlan,
   type PendingVoiceSummary,
+  type LogueServerStatus,
   type VoiceProfileOverrides,
 } from "./api";
 import {
@@ -165,6 +166,7 @@ function SidePanelApp() {
   const [serverSettingsOpen, setServerSettingsOpen] = useState(false);
   const [serverConnecting, setServerConnecting] = useState(false);
   const [serverSettingsError, setServerSettingsError] = useState<string>();
+  const [providerStatus, setProviderStatus] = useState<LogueServerStatus>();
   const timerRef = useRef<number | undefined>(undefined);
   const requestIdRef = useRef(createRequestId());
   const generationSourcesTouchedRef = useRef(false);
@@ -377,7 +379,8 @@ function SidePanelApp() {
     if (!current) return;
     setServerConnecting(true);
     try {
-      await getServiceStatus();
+      const nextProviderStatus = await getServiceStatus();
+      setProviderStatus(nextProviderStatus);
       if (stateRef.current?.tabId !== current.tabId) return;
       const resolvedState = await resolveActiveProject(current);
       if (!resolvedState || resolvedState.tabId !== current.tabId || resolvedState.source.url !== current.source.url) return;
@@ -402,6 +405,7 @@ function SidePanelApp() {
       }
     } catch (cause) {
       if (stateRef.current?.tabId === current.tabId && !current.pendingInsert) {
+        setProviderStatus(undefined);
         setError(friendlyLocalError(cause, "service"));
       }
     } finally {
@@ -2073,6 +2077,9 @@ function SidePanelApp() {
       serverSettingsOpen={serverSettingsOpen}
       serverConnecting={serverConnecting}
       serverSettingsError={serverSettingsError}
+      providerNotice={state?.intent === "generate" && providerStatus && !providerStatus.generation_ready
+        ? providerStatus.provider_errors.generation?.message || "Generation needs attention. Check Settings → Models."
+        : undefined}
       voiceProfileContext={context}
       voiceProfileOverrides={voiceProfileOverrides}
       voiceProfilePickerOpen={voiceProfilePickerOpen}
@@ -2105,7 +2112,10 @@ function SidePanelApp() {
       onStartRecording={startRecording}
       onStopRecording={stopRecording}
       onCancelRecording={cancelRecording}
-      onRetryTranscription={() => undefined}
+      onRetryTranscription={() => {
+        const pending = pendingVoices[0];
+        if (pending) void retrySavedRecording(pending.id);
+      }}
       onRetryPendingVoice={(id) => void retrySavedRecording(id)}
       onExportPendingVoice={(id) => void exportSavedRecording(id)}
       onDeletePendingVoice={(id) => void removeSavedRecording(id)}

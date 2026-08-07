@@ -2,7 +2,6 @@ import {
   Archive,
   Copy,
   Download,
-  KeyRound,
   Monitor,
   Trash2,
   Upload,
@@ -110,6 +109,17 @@ function SettingRow({
       {children ? <div className="v2-inline-actions">{children}</div> : null}
     </div>
   );
+}
+
+function providerCapabilityStatus(
+  configured: boolean,
+  ready: boolean,
+  error?: { code: string; message: string } | null,
+) {
+  if (!configured) return { label: "Connection required", detail: "Connect a provider to use this capability." };
+  if (ready) return { label: "Ready", detail: "The saved connection was verified." };
+  if (!error || error.code === "unverified") return { label: "Check connection", detail: error?.message || "Verify the saved connection before using this capability." };
+  return { label: "Needs attention", detail: error.message };
 }
 
 const shortcutLabels: Record<ExtensionShortcut["command"], string> = {
@@ -1130,19 +1140,15 @@ export function SettingsRoute({
             {tab === "Models" ? (
               <section className="v2-settings-section">
                 <h2>Voice and AI</h2>
-                <div className="v2-setting-row">
-                  <div>
-                    <strong>
-                      {connection.configured ? "Ready" : "Connection required"}
-                    </strong>
-                    <p>
-                      {connection.configured
-                        ? `${connection.provider} · ${connection.model}`
-                        : "Connect a provider before using transcription, Ask, Draft, or Skills."}
-                    </p>
-                  </div>
-                  <KeyRound size={18} />
-                </div>
+                {(() => {
+                  const configured = status?.provider_configured ?? connection.configured;
+                  const generation = providerCapabilityStatus(configured, Boolean(status?.generation_ready), status?.provider_errors.generation);
+                  const voice = providerCapabilityStatus(configured, Boolean(status?.voice_ready), status?.provider_errors.voice);
+                  return <>
+                    <SettingRow title="Generation" detail={generation.detail}><span className="v2-local-ready">{generation.label}</span></SettingRow>
+                    <SettingRow title="Transcription" detail={voice.detail}><span className="v2-local-ready">{voice.label}</span></SettingRow>
+                  </>;
+                })()}
                 <div className="v2-form-grid">
                   <label>
                     Provider

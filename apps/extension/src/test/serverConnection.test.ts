@@ -12,7 +12,12 @@ import {
 const compatibleStatus = {
   ok: true,
   api_version: 1,
-  ai_configured: true,
+  provider_configured: true,
+  generation_ready: true,
+  voice_ready: true,
+  overall_ready: true,
+  provider_needs_attention: false,
+  provider_errors: { generation: null, voice: null },
   model: "gemini-test",
   version: "test",
 };

@@ -30,6 +30,7 @@ import type {
 } from "./pendingVoice";
 
 export type { ExtensionSkill, PageMaterial } from "./sidePanelModels";
+export type { LogueServerStatus } from "./serverConnection";
 export type {
   CaptureContext,
   ExtensionProjectSkillBindings,

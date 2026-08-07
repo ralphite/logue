@@ -399,6 +399,7 @@ export interface V2SidePanelSurfaceProps {
   serverSettingsOpen: boolean;
   serverConnecting: boolean;
   serverSettingsError?: string;
+  providerNotice?: string;
   voiceProfileContext?: CaptureContext;
   voiceProfileOverrides?: VoiceProfileOverrides;
   voiceProfilePickerOpen?: boolean;
@@ -499,6 +500,7 @@ export function V2SidePanelSurface({
   serverSettingsOpen,
   serverConnecting,
   serverSettingsError,
+  providerNotice,
   voiceProfileContext,
   voiceProfileOverrides = {},
   voiceProfilePickerOpen = false,
@@ -528,6 +530,7 @@ export function V2SidePanelSurface({
   onStartRecording,
   onStopRecording,
   onCancelRecording,
+  onRetryTranscription,
   onRetryPendingVoice = () => undefined,
   onExportPendingVoice = () => undefined,
   onDeletePendingVoice = () => undefined,
@@ -844,10 +847,20 @@ export function V2SidePanelSurface({
             Host unavailable · new recordings stay on this Mac.
           </div>
         ) : null}
+        {providerNotice && error?.kind !== "service" ? (
+          <div className="v2-warning-bar" role="status">
+            <span>{providerNotice}</span>
+            <V2Button onClick={onOpenModelSettings}>Model settings…</V2Button>
+          </div>
+        ) : null}
         {error?.kind === "target" ? (
           <div className="v2-warning-bar" role="alert">{error.message}</div>
         ) : error && error.kind !== "service" ? (
-          <div className="v2-warning-bar" role="alert">{error.message}</div>
+          <div className="v2-warning-bar" role="alert">
+            <span>{error.message}</span>
+            {error.kind === "transcription" ? <div className="v2-inline-actions"><V2Button onClick={onRetryTranscription}>Retry</V2Button><V2Button onClick={onOpenModelSettings}>Model settings…</V2Button></div> : null}
+            {error.kind === "model" ? <div className="v2-inline-actions"><V2Button onClick={onRetryModel} disabled={generating}>{generating ? "Retrying…" : "Retry"}</V2Button><V2Button onClick={onOpenModelSettings}>Model settings…</V2Button></div> : null}
+          </div>
         ) : null}
         <div className="v2-panel-scroll">
           {serverSettingsOpen ? (
@@ -1680,8 +1693,7 @@ export function V2SidePanelSurface({
         {!serverSettingsOpen &&
         !voiceCandidate &&
         !generatedText &&
-        error?.kind !== "service" &&
-        error?.kind !== "model" ? (
+        error?.kind !== "service" ? (
           <footer className="v2-panel-footer">
             {phase === "recording" ? (
               <div className="v2-panel-composer">
@@ -1807,18 +1819,6 @@ export function V2SidePanelSurface({
                 {serverConnecting ? "Retrying…" : "Retry Host"}
               </V2Button>
               <V2Button onClick={onOpenServerSettings}>Change Host…</V2Button>
-            </div>
-          </footer>
-        ) : null}
-        {error?.kind === "model" && !serverSettingsOpen ? (
-          <footer className="v2-panel-footer">
-            <div className="v2-inline-actions">
-              <V2Button onClick={onRetryModel} disabled={generating}>
-                {generating ? "Retrying…" : "Retry"}
-              </V2Button>
-              <V2Button onClick={onOpenModelSettings}>
-                Model settings…
-              </V2Button>
             </div>
           </footer>
         ) : null}

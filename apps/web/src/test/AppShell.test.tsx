@@ -36,7 +36,12 @@ describe("application navigation shell", () => {
     apiMocks.getStatus.mockReset().mockResolvedValue({
       ok: true,
       api_version: 1,
-      ai_configured: false,
+      provider_configured: false,
+      generation_ready: false,
+      voice_ready: false,
+      overall_ready: false,
+      provider_needs_attention: false,
+      provider_errors: { generation: null, voice: null },
       model: "",
       storage_root: "/tmp/logue-test",
       storage_bytes: 0,
