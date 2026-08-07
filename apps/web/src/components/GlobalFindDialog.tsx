@@ -8,16 +8,25 @@ import {
   searchDocuments,
   searchMaterials,
   searchProjects,
+  type DocumentSearchMatch,
   type LogueDocument,
+  type MaterialSearchMatch,
   type ProjectSummary,
 } from "../api";
 import type { Material } from "@logue/ui";
+import { groupLibraryMaterials } from "../commentBundles";
 import { contentSummary } from "../v2-real/contentPresentation";
 
 type FindResult =
   | { kind: "source"; id: string; title: string; detail: string }
   | { kind: "document"; id: string; title: string; detail: string; project?: string }
   | { kind: "project"; id: string; title: string; detail: string };
+
+type ProjectSearchMatch = {
+  id: string;
+  match: "title" | "content" | "project" | "related";
+  reason?: string;
+};
 
 function sourceTitle(source: Material) {
   return source.source?.title?.trim() || contentSummary(source.content, "Saved Source");
@@ -46,24 +55,28 @@ export function GlobalFindDialog({ open, onOpenChange }: { open: boolean; onOpen
   const [materials, setMaterials] = useState<Material[]>([]);
   const [documents, setDocuments] = useState<LogueDocument[]>([]);
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [sourceIds, setSourceIds] = useState<string[]>([]);
-  const [documentIds, setDocumentIds] = useState<string[]>([]);
-  const [projectIds, setProjectIds] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [sourceMatches, setSourceMatches] = useState<MaterialSearchMatch[]>([]);
+  const [documentMatches, setDocumentMatches] = useState<DocumentSearchMatch[]>([]);
+  const [projectMatches, setProjectMatches] = useState<ProjectSearchMatch[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
+  const [warning, setWarning] = useState("");
+  const [searchAttempt, setSearchAttempt] = useState(0);
   const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dialogRef = useFocusBoundary<HTMLElement>({ open, onClose: () => onOpenChange(false) });
+  const dialogRef = useFocusBoundary<HTMLElement>({ open, onClose: () => onOpenChange(false), trap: true });
 
   useEffect(() => {
     if (!open) return;
     setQuery("");
-    setSourceIds([]);
-    setDocumentIds([]);
-    setProjectIds([]);
+    setSourceMatches([]);
+    setDocumentMatches([]);
+    setProjectMatches([]);
     setActiveIndex(-1);
     setError("");
-    setLoading(true);
+    setWarning("");
+    setCatalogLoading(true);
     void Promise.all([getMaterials(), getDocuments(), getProjects()])
       .then(([nextMaterials, nextDocuments, nextProjects]) => {
         setMaterials(nextMaterials);
@@ -71,7 +84,7 @@ export function GlobalFindDialog({ open, onOpenChange }: { open: boolean; onOpen
         setProjects(nextProjects);
       })
       .catch((cause) => setError(cause instanceof Error ? cause.message : "Search is unavailable."))
-      .finally(() => setLoading(false));
+      .finally(() => setCatalogLoading(false));
     window.requestAnimationFrame(() => inputRef.current?.focus());
   }, [open]);
 
@@ -79,34 +92,42 @@ export function GlobalFindDialog({ open, onOpenChange }: { open: boolean; onOpen
     if (!open) return;
     const normalized = query.trim();
     if (normalized.length < 2) {
-      setSourceIds([]);
-      setDocumentIds([]);
-      setProjectIds([]);
+      setSourceMatches([]);
+      setDocumentMatches([]);
+      setProjectMatches([]);
+      setSearching(false);
+      setError("");
+      setWarning("");
       return;
     }
     const controller = new AbortController();
     let active = true;
     let requestTimeout = 0;
     const timer = window.setTimeout(() => {
-      setLoading(true);
+      setSearching(true);
       setError("");
-      requestTimeout = window.setTimeout(() => controller.abort(), 2500);
-      void Promise.all([
+      setWarning("");
+      requestTimeout = window.setTimeout(() => controller.abort(), 14_000);
+      void Promise.allSettled([
         searchMaterials(normalized, controller.signal),
         searchDocuments(normalized, controller.signal),
         searchProjects(normalized, controller.signal),
       ])
-        .then(([sourceMatches, documentMatches, projectMatches]) => {
-          setSourceIds(sourceMatches.matches.map((match) => match.id));
-          setDocumentIds(documentMatches.matches.map((match) => match.id));
-          setProjectIds(projectMatches.matches.map((match) => match.id));
-        })
-        .catch((cause) => {
-          if ((cause as Error).name !== "AbortError") setError(cause instanceof Error ? cause.message : "Search is unavailable.");
+        .then(([sourceResult, documentResult, projectResult]) => {
+          if (!active) return;
+          if (sourceResult.status === "fulfilled") setSourceMatches(sourceResult.value.matches);
+          else setSourceMatches([]);
+          if (documentResult.status === "fulfilled") setDocumentMatches(documentResult.value.matches);
+          else setDocumentMatches([]);
+          if (projectResult.status === "fulfilled") setProjectMatches(projectResult.value.matches);
+          else setProjectMatches([]);
+          const failed = [sourceResult, documentResult, projectResult].filter((result) => result.status === "rejected").length;
+          if (failed === 3) setError("Search is unavailable. Try again.");
+          else if (failed) setWarning("Some results are temporarily unavailable.");
         })
         .finally(() => {
           window.clearTimeout(requestTimeout);
-          if (active) setLoading(false);
+          if (active) setSearching(false);
         });
     }, 180);
     return () => {
@@ -115,41 +136,54 @@ export function GlobalFindDialog({ open, onOpenChange }: { open: boolean; onOpen
       window.clearTimeout(requestTimeout);
       controller.abort();
     };
-  }, [open, query]);
+  }, [open, query, searchAttempt]);
 
   const results = useMemo<FindResult[]>(() => {
     const normalized = query.trim().toLocaleLowerCase();
     if (normalized.length < 2) return [];
-    const byMaterial = new Map(materials.map((item) => [item.id, item]));
+    const savedMaterials = materials.filter((item) => !item.activityType && !item.tombstone);
+    const sourceGroups = groupLibraryMaterials(savedMaterials, savedMaterials);
     const byDocument = new Map(documents.map((item) => [item.id, item]));
-    const localSourceIds = materials
-      .filter((item) => `${sourceTitle(item)} ${contentSummary(item.content)} ${(item.projects || []).join(" ")} ${(item.tags || []).join(" ")}`.toLocaleLowerCase().includes(normalized))
-      .map((item) => item.id);
+    const sourceMatchById = new Map(sourceMatches.map((match) => [match.id, match]));
+    const documentMatchById = new Map(documentMatches.map((match) => [match.id, match]));
+    const projectMatchById = new Map(projectMatches.map((match) => [match.id, match]));
     const localDocumentIds = documents
       .filter((item) => `${item.title} ${contentSummary(item.content)} ${item.project || ""}`.toLocaleLowerCase().includes(normalized))
       .map((item) => item.id);
-    const sourceResults = [...new Set([...sourceIds, ...localSourceIds])].flatMap((id) => {
-      const item = byMaterial.get(id);
-      return item ? [{ kind: "source" as const, id, title: sourceTitle(item), detail: contentSummary(item.content, item.source?.domain || "Saved Source") }] : [];
+    const sourceResults = sourceGroups.flatMap((group) => {
+      const primary = group.bundle?.primaryComment ?? group.representative;
+      const match = group.items.map((item) => sourceMatchById.get(item.id)).find(Boolean);
+      const localMatch = `${sourceTitle(group.representative)} ${contentSummary(primary.content)} ${group.projects.join(" ")} ${group.items.flatMap((item) => item.tags || []).join(" ")}`.toLocaleLowerCase().includes(normalized);
+      if (!match && !localMatch) return [];
+      return [{
+        kind: "source" as const,
+        id: group.representative.id,
+        title: contentSummary(primary.content, sourceTitle(group.representative)),
+        detail: match?.reason || sourceTitle(group.representative),
+      }];
     });
-    const documentResults = [...new Set([...documentIds, ...localDocumentIds])].flatMap((id) => {
+    const documentIds = [...new Set([...documentMatches.map((match) => match.id), ...localDocumentIds])];
+    const documentResults = documentIds.flatMap((id) => {
       const item = byDocument.get(id);
-      return item ? [{ kind: "document" as const, id, title: item.title, detail: contentSummary(item.content, item.project || "Document"), project: item.project }] : [];
+      const match = documentMatchById.get(id);
+      return item ? [{ kind: "document" as const, id, title: item.title, detail: match?.reason || contentSummary(item.content, item.project || "Document"), project: item.project }] : [];
     });
     const byProject = new Map(projects.map((item) => [item.id || item.name, item]));
     const localProjectIds = projects
       .filter((item) => `${item.name} ${item.overview || ""}`.toLocaleLowerCase().includes(normalized))
       .map((item) => item.id || item.name);
-    const projectResults = [...new Set([...projectIds, ...localProjectIds])].flatMap((id) => {
+    const projectIds = [...new Set([...projectMatches.map((match) => match.id), ...localProjectIds])];
+    const projectResults = projectIds.flatMap((id) => {
       const item = byProject.get(id);
-      return item ? [{ kind: "project" as const, id, title: item.name, detail: item.overview || "Project" }] : [];
+      const match = projectMatchById.get(id);
+      return item ? [{ kind: "project" as const, id, title: item.name, detail: match?.reason || item.overview || "Project" }] : [];
     });
     return [
       ...projectResults.slice(0, 6),
       ...documentResults.slice(0, 10),
       ...sourceResults.slice(0, 14),
     ];
-  }, [documentIds, documents, materials, projectIds, projects, query, sourceIds]);
+  }, [documentMatches, documents, materials, projectMatches, projects, query, sourceMatches]);
 
   useEffect(() => {
     setActiveIndex(results.length ? 0 : -1);
@@ -198,21 +232,24 @@ export function GlobalFindDialog({ open, onOpenChange }: { open: boolean; onOpen
             aria-controls="global-find-results"
             aria-activedescendant={activeIndex >= 0 ? `global-find-result-${activeIndex}` : undefined}
           />
-          {loading ? <span className="v2-global-find-loading">Searching…</span> : null}
+          {catalogLoading || searching ? <span className="v2-global-find-loading">Searching…</span> : null}
           <button type="button" aria-label="Close search" onClick={() => onOpenChange(false)}><X size={17} /></button>
         </div>
         <h2 id="global-find-title" className="sr-only">Global search</h2>
         <div id="global-find-results" className="v2-global-find-results" role="listbox" aria-label="Search results">
           {error ? <div className="v2-global-find-message" role="alert">{error}</div> : null}
+          {error ? <button type="button" className="v2-global-find-retry" onClick={() => setSearchAttempt((value) => value + 1)}>Try again</button> : null}
+          {warning ? <div className="v2-global-find-warning" role="status">{warning}</div> : null}
           {!query.trim() ? <div className="v2-global-find-message">Search Sources, Documents, and Projects.</div> : null}
           {query.trim().length === 1 ? <div className="v2-global-find-message">Type one more character to search.</div> : null}
-          {query.trim().length >= 2 && !loading && !error && !results.length ? <div className="v2-global-find-message">No results</div> : null}
+          {query.trim().length >= 2 && !searching && !catalogLoading && !error && !results.length ? <div className="v2-global-find-message">No results</div> : null}
           {results.map((result, index) => {
             const Icon = result.kind === "source" ? Library : result.kind === "document" ? FileText : FolderKanban;
             return <button
               type="button"
               id={`global-find-result-${index}`}
               role="option"
+              tabIndex={-1}
               aria-selected={index === activeIndex}
               key={`${result.kind}:${result.id}`}
               className={`v2-global-find-result${index === activeIndex ? " is-active" : ""}`}
@@ -226,7 +263,7 @@ export function GlobalFindDialog({ open, onOpenChange }: { open: boolean; onOpen
             </button>;
           })}
         </div>
-        <footer><span>↑↓ Navigate</span><span>↵ Open</span><span>Esc Close</span></footer>
+        <footer>{results.length ? <><span>↑↓ Navigate</span><span>↵ Open</span></> : null}<span>Esc Close</span></footer>
       </section>
     </div>
   );

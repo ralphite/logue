@@ -334,6 +334,22 @@
   text-align: center;
 }
 
+.v2-global-find-warning {
+  padding: 6px 12px;
+  color: var(--v2-warning);
+  font-size: 12px;
+}
+
+.v2-global-find-retry {
+  display: block;
+  margin: -18px auto 18px;
+  border: 0;
+  border-radius: var(--v2-radius-sm);
+  background: var(--v2-surface-muted);
+  color: var(--v2-ink-soft);
+  padding: 7px 11px;
+}
+
 .v2-global-find-dialog footer {
   display: flex;
   gap: 14px;

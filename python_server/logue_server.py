@@ -3845,7 +3845,7 @@ class Handler(BaseHTTPRequestHandler):
             self.json(HTTPStatus.OK, store.get("docs", path.removeprefix("/v1/docs/")))
         elif path == "/v1/material-search":
             query_text = (query.get("query") or [""])[0].strip()
-            items = store.items()
+            items = [item for item in store.items() if not item.get("activity_type") and not item.get("tombstone")]
             provider = self.server.gemini
             matches, strategy = self.provider_io(provider, lambda: ranked_search(provider, query_text, items, material_search_candidates(items), "materials"))
             self.json(HTTPStatus.OK, {"matches": matches, "strategy": strategy})
