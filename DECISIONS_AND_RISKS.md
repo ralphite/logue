@@ -929,3 +929,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** 只保存 Extension pending queue，等转写成功再创建 Source；这不是可在 Library/Project 中管理的永久 Source，并直接违反权威 V2 的 Stop 边界。先调用旧 `/transcribe` 再补 Source也会让 provider 成为持久化前置条件。
 - **已有证据：** production `transcribeAndSave` 先写 Chrome queue，但直到 `transcribeAudio` 成功后才调用 `saveMaterial`；失败分支没有 Host material ID。Host 已具备原音、冻结 context、transcript revision 与同 identity link/delete 原语，可直接复用。
 - **开放问题：** 无；默认 Selection Voice Comment 的 Accept/Cancel 原子合同不在本批改变。
+
+### DR-087 — Web Settings 通过受信任 Extension bridge 管理 pending captures
+
+- **优先级：** V2 Settings / Failure recovery P1
+- **状态：** pending capture producer→consumer 已 CODED/INTEGRATED，并通过 Extension/Web typecheck 与 diff check；真实断线恢复验证留统一 QA 阶段。`V2-SET-04` 因 storage 使用量仍缺 producer，整体保持 CODED。
+- **决定：** pending capture 继续由产生它的 Extension storage 持有，不复制到 Host 第二份队列。当前已配对 Host 的 Web Settings 复用现有同源、Host-bound Web↔Extension bridge，提供 List / Retry / Export audio / Delete；Stop-first Voice Comment 的 Delete 同时删除其 Host material 与 Extension queue，普通离线录音只删除本地 pending record。
+- **用户可见影响：** 用户能在 Settings 找到浏览器里等待恢复的录音，直接重试、导出原音或删除，不必先知道应打开哪个 tab 的 Side Panel；删除不会留下隐藏的 pending Comment 或孤立队列。
+- **替代方案：** 把 Extension pending queue 镜像进 Host；会产生两个 owner 和断线冲突，违反 Host/Extension 数据边界。只在 Side Panel 展示则继续违背权威 V2 §10.14 与 `V2-SET-04`。
+- **已有证据：** production 只有 Side Panel 调用 `getPendingVoices/retry/export/delete`，Web Settings 没有任何 pending consumer；现有 target/shortcut bridge 已验证 configured Host origin、配对身份与 request-response 隔离，可最小扩展而不新增通信通道。
+- **开放问题：** 无；不在本批执行断网/重启/浏览器 QA。

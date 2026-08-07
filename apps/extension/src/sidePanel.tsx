@@ -1697,7 +1697,6 @@ function SidePanelApp() {
     const current = stateRef.current;
     if (!current || item.commentState !== "unlinked") return;
     try {
-      await deleteMaterial(item.id);
       const pending = pendingVoices.find(
         (record) => record.plan?.materialId === item.id,
       );
@@ -1706,6 +1705,8 @@ function SidePanelApp() {
         setPendingVoices((items) =>
           items.filter((record) => record.id !== pending.id),
         );
+      } else {
+        await deleteMaterial(item.id);
       }
       await refreshPageMaterials(current.source.url);
       setError(undefined);
@@ -1794,12 +1795,11 @@ function SidePanelApp() {
   const removeSavedRecording = useCallback(async (id: string) => {
     try {
       const pending = pendingVoices.find((item) => item.id === id);
+      await deletePendingVoice(id);
       if (pending?.plan?.materialId) {
-        await deleteMaterial(pending.plan.materialId);
         const current = stateRef.current;
         if (current) await refreshPageMaterials(current.source.url);
       }
-      await deletePendingVoice(id);
       await refreshPendingVoices();
     }
     catch (cause) { setError(friendlyLocalError(cause, "save")); }

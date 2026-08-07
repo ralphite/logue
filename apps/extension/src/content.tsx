@@ -2212,7 +2212,18 @@ function ExtensionLauncher() {
       const request = event.data as Partial<ExtensionTargetBridgeRequest> | undefined;
       if (
         request?.source !== "logue-web" || request.type !== "logue:target-bridge-request" ||
-        typeof request.requestId !== "string" || !["list", "insert", "undo", "shortcuts", "update-shortcut", "reset-shortcut"].includes(String(request.action))
+        typeof request.requestId !== "string" || ![
+          "list",
+          "insert",
+          "undo",
+          "shortcuts",
+          "update-shortcut",
+          "reset-shortcut",
+          "pending-captures",
+          "retry-pending-capture",
+          "export-pending-capture",
+          "delete-pending-capture",
+        ].includes(String(request.action))
       ) return;
       void getServerURL().then(async (serverURL) => {
         if (new URL(serverURL).origin !== window.location.origin) return;
@@ -2226,6 +2237,8 @@ function ExtensionLauncher() {
           target: result?.target,
           undoToken: result?.undoToken,
           shortcuts: result?.shortcuts,
+          pendingCaptures: result?.pendingCaptures,
+          pendingCaptureExport: result?.pendingCaptureExport,
           error: result?.error,
         };
         window.postMessage(response, window.location.origin);

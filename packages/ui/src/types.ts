@@ -152,17 +152,39 @@ export type ExtensionTargetBridgeRequest = {
     | "undo"
     | "shortcuts"
     | "update-shortcut"
-    | "reset-shortcut";
+    | "reset-shortcut"
+    | "pending-captures"
+    | "retry-pending-capture"
+    | "export-pending-capture"
+    | "delete-pending-capture";
   sessionId?: string;
   text?: string;
   undoToken?: string;
   command?: "start-voice-write" | "start-voice-command";
   shortcut?: string;
+  pendingCaptureId?: string;
 };
 
 export interface ExtensionShortcut {
   command: "start-voice-write" | "start-voice-command";
   shortcut: string;
+}
+
+export interface ExtensionPendingCapture {
+  id: string;
+  createdAt: number;
+  pageTitle?: string;
+  state: "pending" | "retrying" | "failed";
+  attempts: number;
+  error?: string;
+  materialId?: string;
+}
+
+export interface ExtensionPendingCaptureExport {
+  audioBase64: string;
+  mimeType: string;
+  pageTitle?: string;
+  createdAt: number;
 }
 
 export type ExtensionTargetBridgeResponse = {
@@ -174,5 +196,7 @@ export type ExtensionTargetBridgeResponse = {
   target?: ExtensionInputTarget;
   undoToken?: string;
   shortcuts?: ExtensionShortcut[];
+  pendingCaptures?: ExtensionPendingCapture[];
+  pendingCaptureExport?: ExtensionPendingCaptureExport;
   error?: string;
 };

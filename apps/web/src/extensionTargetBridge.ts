@@ -1,6 +1,13 @@
-import type { ExtensionInputTarget, ExtensionShortcut, ExtensionTargetBridgeRequest, ExtensionTargetBridgeResponse } from "@logue/ui";
+import type {
+  ExtensionInputTarget,
+  ExtensionPendingCapture,
+  ExtensionPendingCaptureExport,
+  ExtensionShortcut,
+  ExtensionTargetBridgeRequest,
+  ExtensionTargetBridgeResponse,
+} from "@logue/ui";
 
-function bridgeRequest(action: ExtensionTargetBridgeRequest["action"], input: Partial<Pick<ExtensionTargetBridgeRequest, "sessionId" | "text" | "undoToken" | "command" | "shortcut">> = {}) {
+function bridgeRequest(action: ExtensionTargetBridgeRequest["action"], input: Partial<Pick<ExtensionTargetBridgeRequest, "sessionId" | "text" | "undoToken" | "command" | "shortcut" | "pendingCaptureId">> = {}) {
   const requestId = crypto.randomUUID();
   const request: ExtensionTargetBridgeRequest = {
     source: "logue-web",
@@ -31,7 +38,11 @@ function bridgeRequest(action: ExtensionTargetBridgeRequest["action"], input: Pa
         new Error(
           action === "shortcuts" ||
             action === "update-shortcut" ||
-            action === "reset-shortcut"
+            action === "reset-shortcut" ||
+            action === "pending-captures" ||
+            action === "retry-pending-capture" ||
+            action === "export-pending-capture" ||
+            action === "delete-pending-capture"
             ? "Open or install the Logue Extension, then try again."
             : "Open the input you want in Chrome, then try again.",
         ),
@@ -73,4 +84,28 @@ export async function resetExtensionShortcut(
   command: ExtensionShortcut["command"],
 ) {
   return (await bridgeRequest("reset-shortcut", { command })).shortcuts ?? [];
+}
+
+export async function getExtensionPendingCaptures(): Promise<ExtensionPendingCapture[]> {
+  return (await bridgeRequest("pending-captures")).pendingCaptures ?? [];
+}
+
+export async function retryExtensionPendingCapture(id: string): Promise<ExtensionPendingCapture[]> {
+  return (
+    await bridgeRequest("retry-pending-capture", { pendingCaptureId: id })
+  ).pendingCaptures ?? [];
+}
+
+export async function exportExtensionPendingCapture(id: string): Promise<ExtensionPendingCaptureExport> {
+  const recording = (
+    await bridgeRequest("export-pending-capture", { pendingCaptureId: id })
+  ).pendingCaptureExport;
+  if (!recording) throw new Error("The recording could not be exported.");
+  return recording;
+}
+
+export async function deleteExtensionPendingCapture(id: string): Promise<ExtensionPendingCapture[]> {
+  return (
+    await bridgeRequest("delete-pending-capture", { pendingCaptureId: id })
+  ).pendingCaptures ?? [];
 }

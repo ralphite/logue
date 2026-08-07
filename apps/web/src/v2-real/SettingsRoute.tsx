@@ -49,12 +49,20 @@ import {
   type VoiceProfileVocabulary,
   type WorkspaceSettings,
 } from "../api";
-import { useFocusBoundary, type ExtensionShortcut } from "@logue/ui";
+import {
+  useFocusBoundary,
+  type ExtensionPendingCapture,
+  type ExtensionShortcut,
+} from "@logue/ui";
 import type { LogueSkill } from "../skillApi";
 import { Button, IconButton } from "../components/ui";
 import {
+  deleteExtensionPendingCapture,
+  exportExtensionPendingCapture,
+  getExtensionPendingCaptures,
   getExtensionShortcuts,
   resetExtensionShortcut,
+  retryExtensionPendingCapture,
   updateExtensionShortcut,
 } from "../extensionTargetBridge";
 import { ProjectShell, type V2PrimaryRoute } from "../v2-mock/web/ProjectShell";
@@ -246,6 +254,11 @@ export function SettingsRoute({
     ExtensionShortcut["command"]
   >();
   const [shortcutError, setShortcutError] = useState("");
+  const [pendingCaptures, setPendingCaptures] = useState<
+    ExtensionPendingCapture[]
+  >();
+  const [pendingCaptureBusy, setPendingCaptureBusy] = useState("");
+  const [pendingCaptureError, setPendingCaptureError] = useState("");
   const [draft, setDraft] = useState<WorkspaceSettings>(
     settings ?? {
       personal_context: "",
@@ -273,6 +286,87 @@ export function SettingsRoute({
       cancelled = true;
     };
   }, [extensionShortcuts, tab]);
+
+  useEffect(() => {
+    if (tab !== "Host" || pendingCaptures) return;
+    let cancelled = false;
+    void getExtensionPendingCaptures()
+      .then((captures) => {
+        if (!cancelled) {
+          setPendingCaptures(captures);
+          setPendingCaptureError("");
+        }
+      })
+      .catch((cause: unknown) => {
+        if (!cancelled)
+          setPendingCaptureError(
+            cause instanceof Error
+              ? cause.message
+              : "Could not reach the Logue Extension.",
+          );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingCaptures, tab]);
+
+  async function retryPendingCapture(id: string) {
+    setPendingCaptureBusy(`retry:${id}`);
+    setPendingCaptureError("");
+    try {
+      setPendingCaptures(await retryExtensionPendingCapture(id));
+      setNotice("Recording recovered.");
+    } catch (cause) {
+      setPendingCaptureError(
+        cause instanceof Error ? cause.message : "Could not retry this recording.",
+      );
+    } finally {
+      setPendingCaptureBusy("");
+    }
+  }
+
+  async function downloadPendingCapture(id: string) {
+    setPendingCaptureBusy(`export:${id}`);
+    setPendingCaptureError("");
+    try {
+      const recording = await exportExtensionPendingCapture(id);
+      const bytes = Uint8Array.from(atob(recording.audioBase64), (value) =>
+        value.charCodeAt(0),
+      );
+      const href = URL.createObjectURL(
+        new Blob([bytes], { type: recording.mimeType }),
+      );
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = `logue-recording-${new Date(recording.createdAt)
+        .toISOString()
+        .replace(/[:.]/g, "-")}.webm`;
+      anchor.click();
+      window.setTimeout(() => URL.revokeObjectURL(href), 1_000);
+      setNotice("Recording downloaded.");
+    } catch (cause) {
+      setPendingCaptureError(
+        cause instanceof Error ? cause.message : "Could not export this recording.",
+      );
+    } finally {
+      setPendingCaptureBusy("");
+    }
+  }
+
+  async function removePendingCapture(id: string) {
+    setPendingCaptureBusy(`delete:${id}`);
+    setPendingCaptureError("");
+    try {
+      setPendingCaptures(await deleteExtensionPendingCapture(id));
+      setNotice("Recording deleted.");
+    } catch (cause) {
+      setPendingCaptureError(
+        cause instanceof Error ? cause.message : "Could not delete this recording.",
+      );
+    } finally {
+      setPendingCaptureBusy("");
+    }
+  }
 
   async function changeShortcut(
     command: ExtensionShortcut["command"],
@@ -970,6 +1064,60 @@ export function SettingsRoute({
                     </div>
                   )}
                 </section>
+                {pendingCaptures?.length || pendingCaptureError ? (
+                  <section className="v2-settings-section">
+                    <h2>Saved recordings</h2>
+                    {pendingCaptureError ? (
+                      <div className="v2-recovery-card" role="alert">
+                        {pendingCaptureError}
+                      </div>
+                    ) : null}
+                    {pendingCaptures?.map((capture) => {
+                      const state =
+                        capture.state === "failed"
+                          ? "Needs retry"
+                          : capture.state === "retrying"
+                            ? "Retrying"
+                            : "Waiting for Host";
+                      return (
+                        <SettingRow
+                          key={capture.id}
+                          title={capture.pageTitle || "Voice recording"}
+                          detail={`${new Date(capture.createdAt).toLocaleString(
+                            "en-US",
+                            {
+                              month: "short",
+                              day: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                            },
+                          )} · ${state}${capture.error ? ` · ${capture.error}` : ""}`}
+                        >
+                          <Button
+                            disabled={Boolean(pendingCaptureBusy)}
+                            onClick={() => void retryPendingCapture(capture.id)}
+                          >
+                            Retry
+                          </Button>
+                          <Button
+                            disabled={Boolean(pendingCaptureBusy)}
+                            onClick={() => void downloadPendingCapture(capture.id)}
+                          >
+                            <Download size={14} />
+                            Export audio
+                          </Button>
+                          <Button
+                            disabled={Boolean(pendingCaptureBusy)}
+                            onClick={() => void removePendingCapture(capture.id)}
+                          >
+                            <Trash2 size={14} />
+                            Delete
+                          </Button>
+                        </SettingRow>
+                      );
+                    })}
+                  </section>
+                ) : null}
               </>
             ) : null}
             {tab === "Models" ? (

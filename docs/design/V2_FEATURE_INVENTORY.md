@@ -149,7 +149,7 @@
 - V2-SET-01 — INTEGRATED — 无显式 route 的首次打开挂载远程 provider Connect/Test/Save Setup；无账号、无本地模型，并可直接 Browse local Library，不阻断本机内容。
 - V2-SET-02 — INTEGRATED — Voice/AI Ready 与 credential Needs attention。
 - V2-SET-03 — INTEGRATED — provider 未 Ready 不阻断本地内容浏览，AI/Voice 使用时提示 Settings → Models。
-- V2-SET-04 — INTEGRATED — Host、数据目录、storage 使用量、pending captures、模型处理边界。
+- V2-SET-04 — CODED — Host、数据目录与模型处理边界已有 production consumer；pending captures 已通过受信任 Extension bridge 接入 Web Settings 的 List / Retry / Export audio / Delete，Stop-first Comment 删除同步 Host material 与本地 queue。storage 使用量仍缺真实 producer，整项不得标为 INTEGRATED。
 - V2-SET-05 — INTEGRATED — paired Extension clients 查看/命名/撤销。
 - V2-SET-06 — INTEGRATED — Settings 使用内容列表消费 Host-managed snapshots，支持 fresh/default workspace 创建备份、下载当前 schema `.logue-backup`、安全迁入另一台 Host、明确确认与恢复；Host 在 snapshot staging 物化默认 settings，并以 opaque ID、archive 白名单、workspace barrier/generation、Restore 前备份、可回滚 swap 和 runtime reload 闭合真实 producer-consumer。
 - V2-SET-07 — INTEGRATED — V2 Settings 与 Project 使用稳定 Project ID 选择 All saved data / Library / Project；scope-safe Export、classification outcomes 投影、统一 deletion 与 backup 静态合同已闭合。

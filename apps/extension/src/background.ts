@@ -1,4 +1,4 @@
-import type { ExtensionInputTarget, ExtensionTargetBridgeRequest, ExtensionTargetBridgeResponse } from "@logue/ui";
+import type { ExtensionInputTarget, ExtensionPendingCapture, ExtensionTargetBridgeRequest, ExtensionTargetBridgeResponse } from "@logue/ui";
 import {
   explicitProjects,
   mergePanelCaptureState,
@@ -231,6 +231,20 @@ function pendingVoiceStorageKey(id: string) {
 function pendingVoiceSummary(record: PendingVoiceRecord): PendingVoiceSummary {
   const { audioBase64: _audioBase64, ...summary } = record;
   return summary;
+}
+
+function pendingCaptureForWeb(
+  record: PendingVoiceSummary,
+): ExtensionPendingCapture {
+  return {
+    id: record.id,
+    createdAt: record.createdAt,
+    pageTitle: record.pageTitle,
+    state: record.state,
+    attempts: record.attempts,
+    error: record.error,
+    materialId: record.plan?.materialId,
+  };
 }
 
 function broadcastPendingVoicesChanged() {
@@ -565,6 +579,10 @@ async function handleWebTargetBridge(message: WebTargetBridgeMessage, sender: ch
       "shortcuts",
       "update-shortcut",
       "reset-shortcut",
+      "pending-captures",
+      "retry-pending-capture",
+      "export-pending-capture",
+      "delete-pending-capture",
     ].includes(request.action)
   ) return { ok: false, error: "Invalid input request." };
   if (
@@ -608,6 +626,42 @@ async function handleWebTargetBridge(message: WebTargetBridgeMessage, sender: ch
     }
     await editableCommands.update({ name: request.command, shortcut });
     return { ok: true, shortcuts: await list() };
+  }
+  if (
+    request.action === "pending-captures" ||
+    request.action === "retry-pending-capture" ||
+    request.action === "export-pending-capture" ||
+    request.action === "delete-pending-capture"
+  ) {
+    const list = async () =>
+      (await listPendingVoices()).map(pendingCaptureForWeb);
+    if (request.action === "pending-captures") {
+      return { ok: true, pendingCaptures: await list() };
+    }
+    const id = request.pendingCaptureId?.trim();
+    if (!id) return { ok: false, error: "Choose a saved recording." };
+    if (request.action === "export-pending-capture") {
+      const record = await readPendingVoice(id);
+      if (!record) {
+        return { ok: false, error: "The locally saved recording is no longer available." };
+      }
+      return {
+        ok: true,
+        pendingCaptureExport: {
+          audioBase64: record.audioBase64,
+          mimeType: record.mimeType,
+          pageTitle: record.pageTitle,
+          createdAt: record.createdAt,
+        },
+      };
+    }
+    const apiBase = await getServerURL();
+    if (request.action === "retry-pending-capture") {
+      await retryPendingVoice(apiBase, id);
+    } else {
+      await deletePendingVoiceRecord(apiBase, id);
+    }
+    return { ok: true, pendingCaptures: await list() };
   }
   const targets = await discoverLiveInputTargets(sender.tab?.id);
   if (request.action === "list") return { ok: true, targets: targets.map((target) => target.descriptor) };
@@ -1190,6 +1244,20 @@ async function retryPendingVoice(apiBase: string, id: string) {
   }
 }
 
+async function deletePendingVoiceRecord(apiBase: string, id: string) {
+  const record = await readPendingVoice(id);
+  if (!record) throw new Error("The locally saved recording is no longer available.");
+  if (record.plan?.materialId) {
+    await parseResponse(
+      await logueFetch(
+        `${apiBase}/v1/items/${encodeURIComponent(record.plan.materialId)}`,
+        { method: "DELETE" },
+      ),
+    );
+  }
+  await removePendingVoice(id);
+}
+
 async function handleApiMessage(message: ApiMessage) {
   const payload = message.payload ?? {};
   if (message.action === "pending-voice-status") return pendingVoiceQueueStatus();
@@ -1198,10 +1266,6 @@ async function handleApiMessage(message: ApiMessage) {
     const record = await readPendingVoice(String(payload.id ?? ""));
     if (!record) throw new Error("The locally saved recording is no longer available.");
     return { audioBase64: record.audioBase64, mimeType: record.mimeType, pageTitle: record.pageTitle, createdAt: record.createdAt };
-  }
-  if (message.action === "pending-voice-delete") {
-    await removePendingVoice(String(payload.id ?? ""));
-    return null;
   }
   if (message.action === "pending-voice-queue") {
     const record = await queuePendingVoice({
@@ -1228,6 +1292,10 @@ async function handleApiMessage(message: ApiMessage) {
     ? normalizeServerURL(String(payload.serverURL ?? ""))
     : await getServerURL();
   if (message.action === "pending-voice-retry") return retryPendingVoice(apiBase, String(payload.id ?? ""));
+  if (message.action === "pending-voice-delete") {
+    await deletePendingVoiceRecord(apiBase, String(payload.id ?? ""));
+    return null;
+  }
   if (message.action === "test-server") {
     const pairingCode = String(payload.pairingCode ?? "").trim();
     if (pairingCode) {
