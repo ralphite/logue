@@ -33,6 +33,7 @@ import {
   adoptSkillRun,
   createAdoptionId,
   createSkillRun,
+  isLogueDocumentTombstone,
   retrySkillRun,
   saveSkillRunAsDocument,
   SkillRunFailure,
@@ -799,6 +800,9 @@ export function V2DocumentsRoute({
           target_key: `document:${actionUndo.documentId}`,
         },
       });
+      if (isLogueDocumentTombstone(result.document)) {
+        throw new Error("Could not restore this Document update.");
+      }
       setContent(result.document.content);
       setDirty(false);
       setActionUndo(undefined);

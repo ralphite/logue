@@ -110,6 +110,69 @@ export class SkillRunFailure extends Error {
   }
 }
 
+export class SkillApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "SkillApiError";
+    this.status = status;
+  }
+}
+
+export interface LogueDocumentTombstone {
+  id: string;
+  title: string;
+  revision: number;
+  recovery_revision: number;
+  tombstone: true;
+  deleted_at?: string;
+}
+
+export interface DocumentAdoption {
+  id: string;
+  documentId: string;
+  documentRevision: number;
+  action: "document" | "replace";
+}
+
+export function isLogueDocumentTombstone(
+  document: LogueDocument | LogueDocumentTombstone,
+): document is LogueDocumentTombstone {
+  return (document as LogueDocumentTombstone).tombstone === true;
+}
+
+export function documentAdoptionFromResult(
+  id: string,
+  document: LogueDocument,
+  action: DocumentAdoption["action"],
+): DocumentAdoption {
+  return {
+    id,
+    documentId: document.id,
+    documentRevision: document.revision,
+    action,
+  };
+}
+
+export function resolveDocumentUndoResult(
+  adoption: DocumentAdoption,
+  document: LogueDocument | LogueDocumentTombstone,
+):
+  | { kind: "remove"; documentId: string }
+  | { kind: "replace"; document: LogueDocument } {
+  if (adoption.action === "document") {
+    if (!isLogueDocumentTombstone(document)) {
+      throw new Error("Could not undo the new Document.");
+    }
+    return { kind: "remove", documentId: adoption.documentId };
+  }
+  if (isLogueDocumentTombstone(document)) {
+    throw new Error("Could not restore this Document update.");
+  }
+  return { kind: "replace", document };
+}
+
 async function parse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const body = await response.text();
@@ -120,7 +183,10 @@ async function parse<T>(response: Response): Promise<T> {
     } catch {
       // Keep a plain-text server response as-is.
     }
-    throw new Error(message || `Request failed (${response.status})`);
+    throw new SkillApiError(
+      message || `Request failed (${response.status})`,
+      response.status,
+    );
   }
   return response.json() as Promise<T>;
 }
@@ -315,24 +381,42 @@ export async function adoptSkillRun(
   return response.run;
 }
 
+interface SaveSkillRunDocumentInput {
+  title?: string;
+  content: string;
+  documentId?: string;
+  project?: string;
+  sourceIds?: string[];
+  contextSourceIds?: string[];
+  sources?: SkillRunSource[];
+  contextSources?: SkillRunSource[];
+  expectedRevision?: number;
+  adoptionId: string;
+  adoptionAction?: "document" | "replace" | "undo";
+  target?: { surface?: string; url?: string; target_key?: string };
+}
+
+export function saveSkillRunAsDocument(
+  id: string,
+  input: SaveSkillRunDocumentInput & { adoptionAction: "undo" },
+): Promise<{
+  run: LogueSkillRun;
+  document: LogueDocument | LogueDocumentTombstone;
+}>;
+export function saveSkillRunAsDocument(
+  id: string,
+  input: SaveSkillRunDocumentInput & {
+    adoptionAction?: "document" | "replace";
+  },
+): Promise<{ run: LogueSkillRun; document: LogueDocument }>;
 export async function saveSkillRunAsDocument(
   id: string,
-  input: {
-    title?: string;
-    content: string;
-    documentId?: string;
-    project?: string;
-    sourceIds?: string[];
-    contextSourceIds?: string[];
-    sources?: SkillRunSource[];
-    contextSources?: SkillRunSource[];
-    expectedRevision?: number;
-    adoptionId: string;
-    adoptionAction?: "document" | "replace" | "undo";
-    target?: { surface?: string; url?: string; target_key?: string };
-  },
+  input: SaveSkillRunDocumentInput,
 ) {
-  return parse<{ run: LogueSkillRun; document: LogueDocument }>(
+  return parse<{
+    run: LogueSkillRun;
+    document: LogueDocument | LogueDocumentTombstone;
+  }>(
     await fetch(`${apiBase}/v1/skill-runs/${encodeURIComponent(id)}/document`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -49,8 +49,13 @@ import {
   adoptSkillRun,
   createAdoptionId,
   createSkillRun,
+  documentAdoptionFromResult,
   retrySkillRun,
+  resolveDocumentUndoResult,
   saveSkillRunAsDocument,
+  isLogueDocumentTombstone,
+  SkillApiError,
+  type DocumentAdoption,
   SkillRunFailure,
   type LogueSkill,
   type LogueSkillRun,
@@ -365,7 +370,9 @@ export function V2ProjectRoute({
   const [keepAdoption, setKeepAdoption] = useState<{ id: string; runId: string }>();
   const [documentTargetOpen, setDocumentTargetOpen] = useState(false);
   const [savingDocument, setSavingDocument] = useState(false);
-  const [documentAdoption, setDocumentAdoption] = useState<{ id: string; runId: string; documentId: string; documentRevision: number }>();
+  const [documentAdoption, setDocumentAdoption] = useState<
+    DocumentAdoption & { runId: string }
+  >();
   const [continuation, setContinuation] = useState<{
     runId: string;
     output: string;
@@ -874,17 +881,22 @@ export function V2ProjectRoute({
           target_key: targetDocument ? `document:${targetDocument.id}` : `project:${project?.id ?? ""}:new-document`,
         },
       });
+      if (isLogueDocumentTombstone(result.document)) {
+        throw new Error("Could not save this Document.");
+      }
+      const activeDocument = result.document;
       await onRefresh();
       delete candidateAdoptionAttempts.current.document;
       setDocumentTargetOpen(false);
-      setDocumentId(result.document.id);
-      if (targetDocument) {
-        setDocumentAdoption({ id: adoptionId, runId: run.id, documentId: result.document.id, documentRevision: result.document.revision });
-      } else {
-        setDocumentAdoption(undefined);
-        setRun(undefined);
-        setCandidate("");
-      }
+      setDocumentId(activeDocument.id);
+      setDocumentAdoption({
+        ...documentAdoptionFromResult(
+          adoptionId,
+          activeDocument,
+          targetDocument ? "replace" : "document",
+        ),
+        runId: run.id,
+      });
     } catch (cause) {
       setRunError(cause instanceof Error ? cause.message : "Could not save this Document.");
     } finally {
@@ -940,7 +952,7 @@ export function V2ProjectRoute({
     setSavingDocument(true);
     setRunError("");
     try {
-      await saveSkillRunAsDocument(run.id, {
+      const result = await saveSkillRunAsDocument(run.id, {
         title: run.instruction.slice(0, 72),
         content: candidate,
         documentId: documentAdoption.documentId,
@@ -949,10 +961,20 @@ export function V2ProjectRoute({
         adoptionAction: "undo",
         target: { surface: "project-workspace", target_key: `document:${documentAdoption.documentId}` },
       });
+      const undoResult = resolveDocumentUndoResult(
+        documentAdoption,
+        result.document,
+      );
       await onRefresh();
+      if (undoResult.kind === "remove") setDocumentId(undefined);
       setDocumentAdoption(undefined);
     } catch (cause) {
-      setRunError(cause instanceof Error ? cause.message : "Could not undo this Document update.");
+      if (cause instanceof SkillApiError && cause.status === 409) {
+        setDocumentAdoption(undefined);
+        setRunError("This Document changed, so it wasn’t undone.");
+      } else {
+        setRunError(cause instanceof Error ? cause.message : "Could not undo this Document save.");
+      }
     } finally {
       setSavingDocument(false);
     }
@@ -1238,7 +1260,11 @@ export function V2ProjectRoute({
                 {documentAdoption?.runId === run.id ? (
                   <Button size="sm" variant="primary" disabled={savingDocument} onClick={() => void undoCandidateDocumentUpdate()}>
                     <RotateCcw size={14} />
-                    {savingDocument ? "Undoing…" : "Undo Document update"}
+                    {savingDocument
+                      ? "Undoing…"
+                      : documentAdoption.action === "document"
+                        ? "Undo Save as document"
+                        : "Undo Document update"}
                   </Button>
                 ) : <div className="v2-action-menu-wrap">
                   <Button

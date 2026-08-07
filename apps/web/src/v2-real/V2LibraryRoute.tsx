@@ -42,7 +42,16 @@ import {
   groupLibraryMaterials,
   type LibraryMaterialGroup,
 } from "../commentBundles";
-import { adoptSkillRun, createAdoptionId, saveSkillRunAsDocument } from "../skillApi";
+import {
+  adoptSkillRun,
+  createAdoptionId,
+  documentAdoptionFromResult,
+  isLogueDocumentTombstone,
+  resolveDocumentUndoResult,
+  saveSkillRunAsDocument,
+  SkillApiError,
+  type DocumentAdoption,
+} from "../skillApi";
 import { Button, IconButton } from "../components/ui";
 import { RecordingAudioPlayer } from "../components/RecordingAudioPlayer";
 import {
@@ -923,7 +932,8 @@ export function RunInspector({
   const [deletePreview, setDeletePreview] = useState<DeletionPreview>();
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [documentTargetOpen, setDocumentTargetOpen] = useState(false);
-  const [documentAdoption, setDocumentAdoption] = useState<{ id: string; documentId: string; documentRevision: number }>();
+  const [documentAdoption, setDocumentAdoption] =
+    useState<DocumentAdoption>();
   const [keepAdoptionId, setKeepAdoptionId] = useState<string>();
   const adoptionAttempts = useRef<Partial<Record<"copy" | "keep" | "document", { id: string; content: string; targetKey?: string }>>>({});
   const projectDocuments = documents.filter((document) => document.project === run.project);
@@ -987,10 +997,19 @@ export function RunInspector({
         adoptionAction: targetDocument ? "replace" : "document",
         target: { surface: "activity-inspector", target_key: targetDocument ? `document:${targetDocument.id}` : `activity:${run.id}:new-document` },
       });
+      if (isLogueDocumentTombstone(result.document)) {
+        throw new Error("Could not create this Document.");
+      }
       await onRefresh();
       delete adoptionAttempts.current.document;
       setDocumentTargetOpen(false);
-      setDocumentAdoption(targetDocument ? { id: adoptionId, documentId: result.document.id, documentRevision: result.document.revision } : undefined);
+      setDocumentAdoption(
+        documentAdoptionFromResult(
+          adoptionId,
+          result.document,
+          targetDocument ? "replace" : "document",
+        ),
+      );
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not create a Document.",
@@ -1044,7 +1063,7 @@ export function RunInspector({
     setBusy(true);
     setError("");
     try {
-      await saveSkillRunAsDocument(run.id, {
+      const result = await saveSkillRunAsDocument(run.id, {
         title: run.skill_name,
         content: draft,
         documentId: documentAdoption.documentId,
@@ -1053,10 +1072,16 @@ export function RunInspector({
         adoptionAction: "undo",
         target: { surface: "activity-inspector", target_key: `document:${documentAdoption.documentId}` },
       });
+      resolveDocumentUndoResult(documentAdoption, result.document);
       await onRefresh();
       setDocumentAdoption(undefined);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not undo this Document update.");
+      if (cause instanceof SkillApiError && cause.status === 409) {
+        setDocumentAdoption(undefined);
+        setError("This Document changed, so it wasn’t undone.");
+      } else {
+        setError(cause instanceof Error ? cause.message : "Could not undo this Document save.");
+      }
     } finally {
       setBusy(false);
     }
@@ -1191,7 +1216,9 @@ export function RunInspector({
               {documentAdoption ? (
                 <Button variant="primary" disabled={busy} onClick={() => void undoDocumentUpdate()}>
                   <RotateCcw size={14} />
-                  Undo Document update
+                  {documentAdoption.action === "document"
+                    ? "Undo Save as document"
+                    : "Undo Document update"}
                 </Button>
               ) : <div className="v2-action-menu-wrap">
                 <Button variant="primary" disabled={busy || !draft.trim()} aria-expanded={documentTargetOpen} onClick={() => setDocumentTargetOpen((open) => !open)}>

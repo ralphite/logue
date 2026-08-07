@@ -88,7 +88,7 @@
 - V2-PROJ-04 — INTEGRATED — Context review 的 Suggested/Added/Excluded、reason、Add/Remove/Exclude/Undo exclusion。
 - V2-PROJ-05 — INTEGRATED — Context review 区分 Auto-added / Added / Suggested / Excluded / Duplicate-linked；Change Project 使用 bundle 级 Host 合同，重复 Source 保留但 Run/Project retrieval 不重复加权。
 - V2-PROJ-06 — INTEGRATED — 本次 Run Sources 可 Pin/Exclude/补充，不改变 membership。
-- V2-PROJ-07 — INTEGRATED — production-owned Project Composer 以真实 submit 连接 Ask/Draft Candidate、实际 Sources、Copy、canonical Keep in Logue/Undo，以及明确选择 New Document / 当前 Project Existing Document；Keep 与 Document 均继承 exact Run Sources 和稳定 lineage；不显示无 handler 的重复 Mic。
+- V2-PROJ-07 — INTEGRATED — production-owned Project Composer 以真实 submit 连接 Ask/Draft Candidate、实际 Sources、Copy、canonical Keep in Logue/Undo，以及明确选择 New Document / 当前 Project Existing Document；两类 Document adoption 均保留 Candidate 与 typed 即时 Undo，新建 Undo 使用 recovery revision/tombstone，更新 Undo 创建恢复 revision；Keep 与 Document 均继承 exact Run Sources 和稳定 lineage；不显示无 handler 的重复 Mic。
 - V2-PROJ-08 — INTEGRATED — Compare 独立选择 Sources/Topics并要求结构化差异与证据缺口，Activity 持久化为独立 `compare` subtype；Continue/Retry 从历史 Run frozen snapshots 与 model context 创建带 lineage 的新 Run，即使 Source 已删除也不失效；持久化 `model_context` 与 provider 实际输入逐字段一致，并且不覆盖旧 Candidate。
 - V2-PROJ-09 — INTEGRATED — Ask/Compare/Draft/Continue 的 prompt 先成为具有准确 subtype 的永久 You Activity Source，再创建带同一 lineage 的 Run。
 - V2-PROJ-10 — INTEGRATED — Project History 打开 Run、Candidate、Sources、Skill revision 与 adopted target。
@@ -116,7 +116,7 @@
 - V2-LIB-05 — INTEGRATED — 可调宽 Source inspector 从 Comment bundle 单条入口核验 Web/You 两层，并呈现 original/raw/transformed/saved、audio、可打开 parents、adopted versions、实际 Profile/Topic/Skill/language lineage。
 - V2-LIB-06 — INTEGRATED — Source 打开、回原 URL、Project membership、Exclude/Undo。
 - V2-LIB-07 — INTEGRATED — content-first 多选使用 bundle 级 Add/Exclude；普通 Source 与完整 Comment bundle 共用依赖感知 Delete，bundle 内部 Web→You 关系不再产生假 tombstone；所选范围可 Export 或作为指定 Project Draft 的本次 Run Sources而不改变 membership。
-- V2-LIB-08 — INTEGRATED — All activity 从 Ask/Compare/Draft/Voice/Text Command 的准确永久 You Activity 打开关联 Run，可恢复未采用 Candidate，并支持 Copy、canonical Keep in Logue → 永久 AI Source、Keep 即时 Undo、选择 New/Existing Project Document、exact frozen Sources、Document update 即时 Undo、failed Run Retry、Pin/Unpin 与依赖预览 Delete；Activity/Run 保持在 Project Context 外。
+- V2-LIB-08 — INTEGRATED — All activity 从 Ask/Compare/Draft/Voice/Text Command 的准确永久 You Activity 打开关联 Run，可恢复未采用 Candidate，并支持 Copy、canonical Keep in Logue → 永久 AI Source、Keep 即时 Undo、选择 New/Existing Project Document、exact frozen Sources、两类 Document adoption 保留 Candidate与即时 Undo、failed Run Retry、Pin/Unpin 与依赖预览 Delete；新建 Undo 使用 recovery revision/tombstone，更新 Undo 创建恢复 revision；Activity/Run 保持在 Project Context 外。
 - V2-LIB-09 — INTEGRATED — Global Find 打开并在 Library 定位真实结果。
 - V2-LIB-10 — INTEGRATED — AI Source revision/history/restore 由 V2-LIN-11 与 V2-LIB-05 的 production inspector 完整接通。
 
