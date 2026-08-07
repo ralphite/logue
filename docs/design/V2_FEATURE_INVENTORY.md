@@ -66,7 +66,7 @@
 - V2-CAP-05 — INTEGRATED — Advanced Voice Comment Stop 先在 Host 永久保存原音、冻结 context 与 Unlinked You Comment；转写失败只重试同一 identity，Candidate 与重开页面均可 Finish linking/Delete 成为 Web+You bundle。
 - V2-CAP-06 — INTEGRATED — Page/Selection scope 与 Save / Translate / Rewrite / Summarize / Explain 等 Skill 动作。
 - V2-CAP-07 — INTEGRATED — pinned/recent 具体 Skills 一击运行，More Skills 选择后立即运行。
-- V2-CAP-08 — INTEGRATED — editable selection Replace/Undo、静态 Copy/Keep 与可选 Document target 使用统一 adoption 合同；Document 更新创建新 revision并可从 Candidate 撤销为新的恢复 revision，新建 Document 后保留 Candidate 并可即时 Undo 为可恢复 tombstone；普通页面、Google Docs proxy 与 Side Panel 使用同一 typed adoption。
+- V2-CAP-08 — INTEGRATED — editable selection Replace/Undo、静态 Copy/Keep 与可选 Document target 使用统一 adoption 合同；Document 更新创建新 revision并可从 Candidate 撤销为新的恢复 revision，新建 Document 后保留 Candidate 并可即时 Undo 为可恢复 tombstone；Document Undo 的终态 4xx 清除失效 adoption并恢复正常操作，只有网络/503 保留同一 adoption 与 Retry；普通页面、Google Docs proxy 与 Side Panel 使用同一 typed adoption。
 - V2-CAP-09 — INTEGRATED — 原文不被 Candidate 静默覆盖；Cancel 不改原文。
 
 ## Extension — Active Project、Side Panel、offline

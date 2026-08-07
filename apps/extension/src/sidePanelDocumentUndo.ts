@@ -1,4 +1,4 @@
-import { ExtensionApiError } from "./api";
+import { classifyExtensionDocumentUndoFailure } from "./documentUndoFailure";
 import type { CommandResult, LocalError } from "./sidePanelModels";
 
 export interface SidePanelDocumentUndoFailure {
@@ -10,7 +10,8 @@ export function resolveSidePanelDocumentUndoFailure(
   result: CommandResult,
   cause: unknown,
 ): SidePanelDocumentUndoFailure {
-  if (cause instanceof ExtensionApiError && cause.status === 409) {
+  const kind = classifyExtensionDocumentUndoFailure(cause);
+  if (kind === "conflict") {
     return {
       result: { ...result, documentAdoption: undefined },
       error: {
@@ -19,11 +20,7 @@ export function resolveSidePanelDocumentUndoFailure(
       },
     };
   }
-  const message = cause instanceof Error ? cause.message : String(cause ?? "");
-  const retryable = cause instanceof ExtensionApiError
-    ? cause.status === 503 || (cause.status === undefined && /network|failed to fetch|connection/i.test(message))
-    : cause instanceof TypeError || /network|failed to fetch|connection/i.test(message);
-  if (retryable) {
+  if (kind === "retryable") {
     return {
       result,
       error: {

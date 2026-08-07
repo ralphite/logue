@@ -39,6 +39,7 @@ describe("Google Docs launcher bridge", () => {
         error: "",
         documentUndoAvailable: true,
         documentUndoAction: "document" as const,
+        documentUndoRetryable: true,
       },
     };
 
@@ -46,5 +47,9 @@ describe("Google Docs launcher bridge", () => {
       readGoogleDocsLauncherState(googleDocsLauncherStateMessage(state))
         ?.commandCandidate?.documentUndoAction,
     ).toBe("document");
+    expect(
+      readGoogleDocsLauncherState(googleDocsLauncherStateMessage(state))
+        ?.commandCandidate?.documentUndoRetryable,
+    ).toBe(true);
   });
 });

@@ -27,6 +27,7 @@ import {
   type SelectionActionKeepAdoption,
   type SelectionActionKeepAttempt,
 } from "./selectionActionKeep";
+import { resolveSelectionDocumentUndoFailure } from "./selectionDocumentUndo";
 import { shouldDismissSelectionSkills } from "./selectionSkillEscape";
 import { completeSelectionVoiceInput } from "./transaction";
 import { V2InlineVoiceSurface, type InlineVoicePhase } from "./v2-real/V2InlineVoiceSurface";
@@ -162,6 +163,7 @@ interface SelectionActionCandidateState {
   };
   keepAdoption?: SelectionActionKeepAdoption;
   documentAdoption?: ExtensionDocumentAdoption;
+  documentUndoRetryable?: boolean;
 }
 
 type CommandScope = "selection" | "page" | "project";
@@ -2023,6 +2025,7 @@ function ExtensionLauncher() {
         keepUndoAvailable: Boolean(selectionActionCandidate.keepAdoption),
         documentUndoAvailable: Boolean(selectionActionCandidate.documentAdoption),
         documentUndoAction: selectionActionCandidate.documentAdoption?.action,
+        documentUndoRetryable: selectionActionCandidate.documentUndoRetryable,
       } : undefined,
     })).catch(() => undefined);
   }, [candidateDocuments, commandError, commandFailedRun, commandInstruction, commandOpen, commandParseError, commandPhase, commandProject, commandScope, keyboardActive, pendingCopyText, selectionActionBusy, selectionActionCandidate, selectionActionError, targetRect, voiceCandidate, voiceError, voicePhase, voiceProfileContext, voiceProfileOverrides]);
@@ -2836,6 +2839,7 @@ function ExtensionLauncher() {
           documentRevision: saved.document.revision,
           action: targetDocument ? "replace" : "document",
         },
+        documentUndoRetryable: false,
       } : current);
     } catch (cause) {
       setSelectionActionError(cause instanceof Error ? cause.message : "Could not save this document.");
@@ -2872,14 +2876,21 @@ function ExtensionLauncher() {
         ...current,
         adoptionAttempts: { ...current.adoptionAttempts, document: undefined },
         documentAdoption: undefined,
+        documentUndoRetryable: false,
       } : current);
     } catch (cause) {
-      if (cause instanceof ExtensionApiError && cause.status === 409) {
-        setSelectionActionCandidate((current) => current ? { ...current, documentAdoption: undefined } : current);
-        setSelectionActionError("This Document changed, so it wasn’t undone.");
-      } else {
-        setSelectionActionError(cause instanceof Error ? cause.message : "Could not undo this Document save.");
-      }
+      const failure = resolveSelectionDocumentUndoFailure(candidate, cause);
+      setSelectionActionCandidate((current) =>
+        current
+          ? {
+              ...current,
+              documentAdoption: failure.candidate.documentAdoption,
+              documentUndoRetryable:
+                failure.candidate.documentUndoRetryable,
+            }
+          : current,
+      );
+      setSelectionActionError(failure.error);
     } finally {
       setSelectionActionBusy(undefined);
     }
@@ -3003,6 +3014,7 @@ function ExtensionLauncher() {
         keepUndoAvailable={Boolean(selectionActionCandidate.keepAdoption)}
         documentUndoAvailable={Boolean(selectionActionCandidate.documentAdoption)}
         documentUndoAction={selectionActionCandidate.documentAdoption?.action}
+        documentUndoRetryable={selectionActionCandidate.documentUndoRetryable}
         onTextChange={(text) => setSelectionActionCandidate((current) => current ? { ...current, text } : current)}
         onPrimary={() => void applySelectionActionCandidate()}
         onCopy={() => void copySelectionActionCandidate()}
@@ -3115,6 +3127,7 @@ function ExtensionLauncher() {
         keepUndoAvailable={googleDocsProxy.commandCandidate.keepUndoAvailable}
         documentUndoAvailable={googleDocsProxy.commandCandidate.documentUndoAvailable}
         documentUndoAction={googleDocsProxy.commandCandidate.documentUndoAction}
+        documentUndoRetryable={googleDocsProxy.commandCandidate.documentUndoRetryable}
         onTextChange={(text) => controlGoogleDocsProxy("command-candidate-text", { text })}
         onPrimary={() => controlGoogleDocsProxy("command-candidate-primary", { text: googleDocsProxy.commandCandidate?.text })}
         onCopy={() => controlGoogleDocsProxy("command-candidate-copy", { text: googleDocsProxy.commandCandidate?.text })}
