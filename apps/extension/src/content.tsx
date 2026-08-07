@@ -1178,10 +1178,66 @@ function ExtensionLauncher() {
         });
         await completePendingVoice(session.id);
         if (voiceSessionRef.current?.id !== session.id) return;
-        setVoiceCandidate({ materialId: saved.id, text: transcription.text, revision: 1, profileLabel: appliedContext.voice_profile_label || profile.label, referenceProject: activeProject });
+        const text = transcription.text.trim();
+        const profileLabel = appliedContext.voice_profile_label || profile.label;
+        const transaction = isEditableTargetAvailable(session.target)
+          ? insertIntoElementWithUndo(session.target, text)
+          : undefined;
+        if (!transaction) {
+          setVoiceCandidate({
+            materialId: saved.id,
+            text,
+            revision: 1,
+            profileLabel,
+            referenceProject: activeProject,
+            error: "The original input is no longer available. Copy the saved text instead.",
+          });
+          setVoiceError("");
+          setPendingCopyText(text);
+          setInlineVoicePhase("idle");
+          return;
+        }
+        const adoptionId = createRequestId();
+        const adoptionTarget = { surface: "inline-voice", url: session.source.url, target_key: session.id };
+        lastInsertUndoRef.current = { token: adoptionId, transaction };
+        setVoiceCandidate({
+          materialId: saved.id,
+          text,
+          revision: 1,
+          profileLabel,
+          referenceProject: activeProject,
+          busy: true,
+          inserted: true,
+          canUndo: true,
+          adoptionId,
+          adoptionPending: "insert",
+          adoptionTarget,
+          undoNeedsInsert: false,
+        });
         setVoiceError("");
         setPendingCopyText("");
         setInlineVoicePhase("idle");
+        void adoptVoiceMaterial(saved.id, {
+          adoptionId,
+          action: "insert",
+          content: text,
+          target: adoptionTarget,
+        }).then(() => {
+          setVoiceCandidate((current) => current?.adoptionId === adoptionId
+            ? { ...current, busy: false, adoptionPending: undefined, error: undefined }
+            : current);
+        }).catch((cause: unknown) => {
+          setVoiceCandidate((current) => current?.adoptionId === adoptionId
+            ? {
+                ...current,
+                busy: false,
+                adoptionPending: "insert",
+                error: cause instanceof Error
+                  ? `Inserted, but Logue could not record it: ${cause.message}`
+                  : "Inserted, but Logue could not record it.",
+              }
+            : current);
+        });
       } catch {
         if (voiceSessionRef.current?.id !== session.id) return;
         voiceSessionRef.current = undefined;
@@ -1687,6 +1743,7 @@ function ExtensionLauncher() {
   const stopAndInsertInlineVoice = useCallback(() => {
     const session = voiceSessionRef.current;
     if (!session || voicePhaseRef.current !== "recording") return;
+    setInlineVoicePhase("processing");
     void sendInlineRecorderControl(session.id, "stop").catch((cause: unknown) => {
       if (voiceSessionRef.current?.id !== session.id) return;
       voiceSessionRef.current = undefined;
