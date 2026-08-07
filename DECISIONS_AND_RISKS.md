@@ -949,3 +949,13 @@ DR-001 至 DR-018 记录已发布 V1 的真实运行问题、安装与 QA。它�
 - **替代方案：** Web 根据已加载对象估算会漏掉音频、revision 与配置；统计父目录会把独立备份和临时文件混进当前 workspace。
 - **已有证据：** 当前 `/v1/status` 已返回权威 `storage_root`，但没有 usage producer；Settings 因此无法实现权威 V2 §10.14 的 storage usage 合同。
 - **开放问题：** 无；不在本批执行性能采样、浏览器或重启 QA。
+
+### DR-089 — Topic vocabulary suggestion 采用单一 Host root transaction
+
+- **优先级：** V2 Topics P1 / `V2-TOP-02`
+- **状态：** 已 CODED/INTEGRATED；Python compile 与 diff check 通过，真实运行故障注入留 Phase 5。
+- **决定：** 用户把 Topic 建议 Remember 到 Topic / Project / Global 时，目标 vocabulary/profile 写入与 Topic suggestion resolved 标记共用现有 Host root transaction；任一步失败恢复同一事务前快照。
+- **用户可见影响：** Remember 要么完整生效并消失于待确认建议，要么完全不改变 Topic、Project 或 Global 设置，不会出现术语已写入但建议仍待处理的半完成状态。
+- **替代方案：** 分别保存目标和 Topic 会留下跨对象部分成功；前端失败后反向补偿无法覆盖断进程和 Host 写入错误。
+- **已有证据：** production Web 已调用 `/v1/topics/:id/remember-vocabulary`；Host 当前先写目标对象、最后写 Topic，没有 rollback，而 inventory 明确要求失败原子回滚。
+- **开放问题：** 无；本批不改变 suggestion 生成、目标选择或 UI。

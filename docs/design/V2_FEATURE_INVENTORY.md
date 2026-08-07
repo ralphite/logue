@@ -160,7 +160,7 @@
 ## Topics / PKM
 
 - V2-TOP-01 — INTEGRATED — dynamic Topics Host/API 与 Library → Topics production workbench 已挂载。
-- V2-TOP-02 — INTEGRATED — Topic 以 Comment bundle root 显示 exact duplicate 与 suggested conflict/supplement；Project/Vocabulary suggestions 只有用户明确 Add/Remember 后才写入 Context 或所选 Topic/Project/Global vocabulary，且失败原子回滚。
+- V2-TOP-02 — INTEGRATED — Topic 以 Comment bundle root 显示 exact duplicate 与 suggested conflict/supplement；Project/Vocabulary suggestions 只有用户明确 Add/Remember 后才写入 Context 或所选 Topic/Project/Global vocabulary；Remember 的目标写入与 resolved 标记使用单一 Host root transaction，任一步失败恢复事务前状态。
 - V2-TOP-03 — INTEGRATED — rename/merge/hide/split/convert-to-Project 的 Host/API 与 production consumer 已接通。
 - V2-TOP-04 — INTEGRATED — Topic Vocabulary 与 Project Context 权限隔离。
 - V2-TOP-05 — INTEGRATED — Duplicate-linked 保留原 Source；Project retrieval 过滤已链接副本，Host 在同 Run 同时选择 canonical/duplicate 时只冻结一次 evidence。

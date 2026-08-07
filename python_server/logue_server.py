@@ -700,55 +700,63 @@ class Store:
                 vocabulary[category] = normalize(vocabulary[category] + [clean])
                 return vocabulary
 
-            if destination == "topic":
-                vocabulary_id = str(topic.get("vocabulary_id", ""))
-                if vocabulary_id:
-                    vocabulary = self.get("topic-vocabularies", vocabulary_id)
-                    self.save_topic_vocabulary(vocabulary_id, {**vocabulary, "vocabulary": add_term(vocabulary.get("vocabulary"))})
-                else:
-                    vocabulary = next(
-                        (
-                            entry
-                            for entry in self.topic_vocabularies()
-                            if str(entry.get("name", "")).casefold() == str(topic.get("name", "Topic")).casefold()
-                        ),
-                        None,
-                    )
-                    if vocabulary:
-                        vocabulary = self.save_topic_vocabulary(
-                            str(vocabulary["id"]),
-                            {**vocabulary, "vocabulary": add_term(vocabulary.get("vocabulary"))},
-                        )
+            snapshot = self.transaction_snapshot("logue-topic-vocabulary-")
+            try:
+                if destination == "topic":
+                    vocabulary_id = str(topic.get("vocabulary_id", ""))
+                    if vocabulary_id:
+                        vocabulary = self.get("topic-vocabularies", vocabulary_id)
+                        self.save_topic_vocabulary(vocabulary_id, {**vocabulary, "vocabulary": add_term(vocabulary.get("vocabulary"))})
                     else:
-                        vocabulary = self.save_topic_vocabulary(None, {"name": str(topic.get("name", "Topic")), "vocabulary": add_term({})})
-                    topic["vocabulary_id"] = vocabulary["id"]
-            elif destination == "project":
-                project = next((entry for entry in self.projects() if str(entry.get("id", "")) == project_id and not entry.get("archived_at")), None)
-                if not project:
-                    raise FileNotFoundError(project_id)
-                profile = normalize_voice_profile(project.get("transcription_profile"), project=True)
-                if profile.get("mode") == "disabled":
-                    raise Conflict("this Project voice profile is disabled")
-                profile["mode"] = "customized"
-                profile["vocabulary"] = add_term(profile.get("vocabulary"))
-                self.save_project(str(project.get("name", "")), {
-                    "overview": project.get("overview", ""),
-                    "transcription_profile": profile,
-                    "skill_bindings": project.get("skill_bindings", {}),
-                })
-            elif destination == "global":
-                settings = self.settings()
-                profile = normalize_voice_profile(settings.get("voice_profile"))
-                profile["vocabulary"] = add_term(profile.get("vocabulary"))
-                self.save_settings({**settings, "voice_profile": profile})
+                        vocabulary = next(
+                            (
+                                entry
+                                for entry in self.topic_vocabularies()
+                                if str(entry.get("name", "")).casefold() == str(topic.get("name", "Topic")).casefold()
+                            ),
+                            None,
+                        )
+                        if vocabulary:
+                            vocabulary = self.save_topic_vocabulary(
+                                str(vocabulary["id"]),
+                                {**vocabulary, "vocabulary": add_term(vocabulary.get("vocabulary"))},
+                            )
+                        else:
+                            vocabulary = self.save_topic_vocabulary(None, {"name": str(topic.get("name", "Topic")), "vocabulary": add_term({})})
+                        topic["vocabulary_id"] = vocabulary["id"]
+                elif destination == "project":
+                    project = next((entry for entry in self.projects() if str(entry.get("id", "")) == project_id and not entry.get("archived_at")), None)
+                    if not project:
+                        raise FileNotFoundError(project_id)
+                    profile = normalize_voice_profile(project.get("transcription_profile"), project=True)
+                    if profile.get("mode") == "disabled":
+                        raise Conflict("this Project voice profile is disabled")
+                    profile["mode"] = "customized"
+                    profile["vocabulary"] = add_term(profile.get("vocabulary"))
+                    self.save_project(str(project.get("name", "")), {
+                        "overview": project.get("overview", ""),
+                        "transcription_profile": profile,
+                        "skill_bindings": project.get("skill_bindings", {}),
+                    })
+                elif destination == "global":
+                    settings = self.settings()
+                    profile = normalize_voice_profile(settings.get("voice_profile"))
+                    profile["vocabulary"] = add_term(profile.get("vocabulary"))
+                    self.save_settings({**settings, "voice_profile": profile})
+                else:
+                    raise ValueError("choose Topic, Project, or Global vocabulary")
+                topic["resolved_vocabulary_suggestions"] = normalize(
+                    (topic.get("resolved_vocabulary_suggestions") if isinstance(topic.get("resolved_vocabulary_suggestions"), list) else []) + [clean]
+                )
+                topic["updated_at"] = now()
+                atomic_json(self.root / "topics" / f"{identifier}.json", topic)
+                result = self.topic_insights(topic)
+            except BaseException as error:
+                self.finish_transaction(snapshot, error)
+                raise
             else:
-                raise ValueError("choose Topic, Project, or Global vocabulary")
-            topic["resolved_vocabulary_suggestions"] = normalize(
-                (topic.get("resolved_vocabulary_suggestions") if isinstance(topic.get("resolved_vocabulary_suggestions"), list) else []) + [clean]
-            )
-            topic["updated_at"] = now()
-            atomic_json(self.root / "topics" / f"{identifier}.json", topic)
-            return self.topic_insights(topic)
+                self.finish_transaction(snapshot)
+                return result
 
     def save_topic(self, identifier: str, value: dict[str, Any]) -> dict[str, Any]:
         with self.lock:
