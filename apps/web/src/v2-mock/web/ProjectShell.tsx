@@ -160,7 +160,7 @@ export function ProjectShell({ route, projectName, projects = [], activeProjectI
           <PanelResizer label="Resize primary navigation" value={navigationWidth} min={200} max={320} defaultValue={232} onChange={setNavigationWidth} className="v2-navigation-resizer" />
         ) : null}
         <main className="v2-app-stage">
-          <div className="v2-project-shell">
+          <div className="v2-project-shell" data-inspector-open={inspector && inspectorOpen ? "true" : "false"}>
             <section className="v2-project-main">
               <header className="v2-project-topbar">
                 <div className="v2-breadcrumbs"><span>{routeLabel}</span>{projectName ? <><ChevronRight aria-hidden="true" size={14} /><strong>{projectName}</strong></> : null}</div>
@@ -171,7 +171,7 @@ export function ProjectShell({ route, projectName, projects = [], activeProjectI
               </header>
               {children}
             </section>
-            {inspector && inspectorOpen ? <><PanelResizer edge="left" label="Resize source inspector" value={inspectorWidth} min={360} max={640} defaultValue={400} onChange={setInspectorWidth} className="max-[980px]:hidden" /><aside ref={inspectorRef} className="v2-inspector" style={{ width: inspectorWidth }} aria-label="Sources used" tabIndex={-1}>{inspector}</aside></> : null}
+            {inspector && inspectorOpen ? <><PanelResizer edge="left" label="Resize source inspector" value={inspectorWidth} min={360} max={640} defaultValue={400} onChange={setInspectorWidth} className="v2-inspector-resizer max-[980px]:hidden" /><aside ref={inspectorRef} className="v2-inspector" style={{ width: inspectorWidth }} aria-label="Sources used" tabIndex={-1}>{inspector}</aside></> : null}
           </div>
         </main>
         <GlobalFindDialog open={globalFindOpen} onOpenChange={setGlobalFindOpen} />

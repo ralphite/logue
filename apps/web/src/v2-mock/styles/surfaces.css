@@ -192,6 +192,7 @@
 }
 
 .v2-app-stage {
+  container-type: inline-size;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -361,6 +362,7 @@
 }
 
 .v2-project-shell {
+  position: relative;
   display: flex;
   width: 100%;
   height: 100%;
@@ -3243,10 +3245,13 @@
 
 .v2-document-layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   flex: 1;
+}
+
+.v2-document-list-resizer {
+  z-index: 5;
 }
 
 .v2-document-list {
@@ -3317,12 +3322,11 @@
 }
 
 .v2-document-toolbar {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
   min-width: 0;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   margin-bottom: 22px;
 }
 
@@ -3335,14 +3339,21 @@
 }
 
 .v2-document-toolbar-actions {
-  flex-wrap: wrap;
+  min-width: max-content;
   justify-content: flex-end;
+}
+
+.v2-document-skill-action {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
 }
 
 .v2-document-toolbar .v2-input {
   width: auto;
-  max-width: 168px;
-  min-width: 140px;
+  max-width: 150px;
+  min-width: 124px;
 }
 
 .v2-document-more {
@@ -3393,13 +3404,49 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--v2-danger);
+  color: var(--v2-ink-soft);
   padding: 0 9px;
   text-align: left;
 }
 
+.v2-document-more > div button.is-danger {
+  color: var(--v2-danger);
+}
+
 .v2-document-more > div button:hover {
+  background: var(--v2-surface-muted);
+}
+
+.v2-document-more > div button.is-danger:hover {
   background: #f9ece9;
+}
+
+@container (max-width: 1180px) {
+  .v2-project-shell[data-inspector-open="true"] > .v2-inspector-resizer {
+    display: none;
+  }
+
+  .v2-project-shell[data-inspector-open="true"] > .v2-inspector {
+    position: absolute;
+    z-index: 32;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    max-width: min(520px, calc(100% - 56px));
+    box-shadow: -16px 0 40px rgb(28 29 27 / 14%);
+  }
+}
+
+@container (max-width: 720px) {
+  .v2-document-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .v2-document-toolbar-actions {
+    min-width: 0;
+    justify-content: flex-start;
+  }
 }
 
 .v2-target-picker {

@@ -43,6 +43,7 @@ import {
   type LogueSkillRun,
 } from "../skillApi";
 import { Button, IconButton } from "../components/ui";
+import { PanelResizer, usePersistentPanelSize } from "../components/PanelResizer";
 import { sanitizeEditorHTML } from "../components/DocumentWorkspace";
 import { OriginLabel } from "../v2-mock/primitives/OriginLabel";
 import { ProjectShell, type V2PrimaryRoute } from "../v2-mock/web/ProjectShell";
@@ -100,6 +101,13 @@ export function V2DocumentsRoute({
   onRoute: (route: V2PrimaryRoute) => void;
   onRefresh: () => Promise<void>;
 }) {
+  const { size: documentListWidth, setSize: setDocumentListWidth } =
+    usePersistentPanelSize({
+      storageKey: "logue.documents.list.width",
+      defaultSize: 220,
+      min: 180,
+      max: 360,
+    });
   const [selectedId, setSelectedId] = useState<string | undefined>(
     () =>
       new URLSearchParams(window.location.search).get("doc") ??
@@ -1098,18 +1106,26 @@ export function V2DocumentsRoute({
                 <History size={15} />
                 History
               </Button>
-              <Button size="sm" onClick={exportMarkdown}>
-                <Download size={14} />
-                Export
-              </Button>
-              <Button
-                size="sm"
-                disabled={saving || Boolean(preview?.tombstone)}
-                onClick={() => void pinRevisionAsSource()}
-              >
-                <Sparkles size={14} />
-                Pin as Source
-              </Button>
+              <details className="v2-document-more">
+                <summary aria-label="More Document actions" title="More Document actions">
+                  <MoreHorizontal size={17} aria-hidden="true" />
+                </summary>
+                <div role="menu">
+                  <button type="button" role="menuitem" onClick={exportMarkdown}>
+                    <Download size={14} />
+                    Export Markdown
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={saving || Boolean(preview?.tombstone)}
+                    onClick={() => void pinRevisionAsSource()}
+                  >
+                    <Sparkles size={14} />
+                    Pin revision as Source
+                  </button>
+                </div>
+              </details>
             </>
           ) : null}
         </>
@@ -1138,7 +1154,10 @@ export function V2DocumentsRoute({
                 : undefined
         }
       />
-      <div className="v2-document-layout">
+      <div
+        className="v2-document-layout"
+        style={{ gridTemplateColumns: `${documentListWidth}px 1px minmax(0, 1fr)` }}
+      >
         <aside className="v2-document-list">
           <div className="v2-document-list-heading">
             <strong>Documents</strong>
@@ -1157,6 +1176,15 @@ export function V2DocumentsRoute({
             </button>
           ))}
         </aside>
+        <PanelResizer
+          label="Resize Document list"
+          value={documentListWidth}
+          min={180}
+          max={360}
+          defaultValue={220}
+          onChange={setDocumentListWidth}
+          className="v2-document-list-resizer"
+        />
         <div
           ref={editorScrollRef}
           className="v2-editor-scroll"
@@ -1207,34 +1235,37 @@ export function V2DocumentsRoute({
                     </option>
                   ))}
                   </select>
-                  <select
-                  className="v2-input"
-                  aria-label="Document action"
-                  value={actionSkillId}
-                  disabled={Boolean(preview) || actionBusy}
-                  onChange={(event) => setActionSkillId(event.target.value)}
-                >
-                  {skills
-                    .filter(
-                      (skill) =>
-                        skill.enabled &&
-                        skill.task === "generate" &&
-                        skill.surfaces.includes("web"),
-                    )
-                    .map((skill) => (
-                      <option key={skill.id} value={skill.id}>
-                        {skill.name}
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                  size="sm"
-                  disabled={Boolean(preview) || !actionSkillId || actionBusy}
-                  onClick={() => void runSelectionAction()}
-                >
-                  <Sparkles size={14} />
-                  Apply
-                  </Button>
+                  <div className="v2-document-skill-action">
+                    <select
+                      className="v2-input"
+                      aria-label="Document action"
+                      value={actionSkillId}
+                      disabled={Boolean(preview) || actionBusy}
+                      onChange={(event) => setActionSkillId(event.target.value)}
+                    >
+                      {skills
+                        .filter(
+                          (skill) =>
+                            skill.enabled &&
+                            skill.task === "generate" &&
+                            skill.surfaces.includes("web"),
+                        )
+                        .map((skill) => (
+                          <option key={skill.id} value={skill.id}>
+                            {skill.name}
+                          </option>
+                        ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      disabled={Boolean(preview) || !actionSkillId || actionBusy}
+                      onClick={() => void runSelectionAction()}
+                    >
+                      <Sparkles size={14} />
+                      Apply
+                    </Button>
+                  </div>
                 </div>
                 <div className="v2-document-toolbar-actions">
                 {actionUndo?.documentId === selected.id && actionUndo.content === content && actionUndo.title === title && actionUndo.project === project ? (
@@ -1247,35 +1278,24 @@ export function V2DocumentsRoute({
                     {actionUndoRetryable ? "Retry Undo" : "Undo Skill edit"}
                   </Button>
                 ) : null}
-                <IconButton
-                  label="Undo edit"
-                  variant="ghost"
-                  disabled={Boolean(preview) || !editorHistory.undo}
-                  onClick={() => applyEditorHistory("undo")}
-                >
-                  <Undo2 size={15} />
-                </IconButton>
-                <IconButton
-                  label="Redo edit"
-                  variant="ghost"
-                  disabled={Boolean(preview) || !editorHistory.redo}
-                  onClick={() => applyEditorHistory("redo")}
-                >
-                  <Redo2 size={15} />
-                </IconButton>
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    void navigator.clipboard.writeText(
-                      editorRef.current?.innerText ||
-                        preview?.content ||
-                        content,
-                    )
-                  }
-                >
-                  <Copy size={14} />
-                  Copy
-                </Button>
+                {!preview && editorHistory.undo ? (
+                  <IconButton
+                    label="Undo edit"
+                    variant="ghost"
+                    onClick={() => applyEditorHistory("undo")}
+                  >
+                    <Undo2 size={15} />
+                  </IconButton>
+                ) : null}
+                {!preview && editorHistory.redo ? (
+                  <IconButton
+                    label="Redo edit"
+                    variant="ghost"
+                    onClick={() => applyEditorHistory("redo")}
+                  >
+                    <Redo2 size={15} />
+                  </IconButton>
+                ) : null}
                 {targetUndo ? (
                   <>
                     <Button
@@ -1303,13 +1323,6 @@ export function V2DocumentsRoute({
                         ? "Sending…"
                         : `Send to ${selectedInputTarget.label}`}
                     </Button>
-                    <Button
-                      size="sm"
-                      disabled={targetBusy || Boolean(preview)}
-                      onClick={() => void chooseInput()}
-                    >
-                      Change input…
-                    </Button>
                   </>
                 ) : (
                   <Button
@@ -1326,7 +1339,34 @@ export function V2DocumentsRoute({
                       <MoreHorizontal size={17} aria-hidden="true" />
                     </summary>
                     <div role="menu">
-                      <button type="button" role="menuitem" onClick={() => void reviewDocumentDeletion()} disabled={Boolean(preview)}>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={(event) => {
+                          void navigator.clipboard.writeText(
+                            editorRef.current?.innerText || preview?.content || content,
+                          );
+                          event.currentTarget.closest("details")?.removeAttribute("open");
+                        }}
+                      >
+                        <Copy size={14} />
+                        Copy Document
+                      </button>
+                      {selectedInputTarget ? (
+                        <button
+                          type="button"
+                          role="menuitem"
+                          disabled={targetBusy || Boolean(preview)}
+                          onClick={(event) => {
+                            void chooseInput();
+                            event.currentTarget.closest("details")?.removeAttribute("open");
+                          }}
+                        >
+                          <Send size={14} />
+                          Change input
+                        </button>
+                      ) : null}
+                      <button className="is-danger" type="button" role="menuitem" onClick={() => void reviewDocumentDeletion()} disabled={Boolean(preview)}>
                         <Trash2 size={14} />
                         Delete Document
                       </button>
