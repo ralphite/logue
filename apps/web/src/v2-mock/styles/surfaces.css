@@ -926,10 +926,19 @@
 
 .v2-row-select {
   display: inline-flex;
+  opacity: 0;
   padding-top: 3px;
+  transition: opacity 120ms ease;
 }
 .v2-row-select input {
   accent-color: var(--v2-accent);
+}
+
+.v2-library-row:hover .v2-row-select,
+.v2-library-row:focus-within .v2-row-select,
+.v2-library-list.is-selecting .v2-row-select,
+.v2-row-select:has(input:checked) {
+  opacity: 1;
 }
 
 .v2-bulk-bar {

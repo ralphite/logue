@@ -2345,7 +2345,7 @@ export function V2LibraryRoute({
                   </IconButton>
                 </div>
               ) : null}
-              <div className="v2-library-list">
+              <div className={`v2-library-list${selectedKeys.length ? " is-selecting" : ""}`}>
                 {groups.map((group) => {
                   const material =
                     group.bundle?.primaryComment ?? group.representative;
