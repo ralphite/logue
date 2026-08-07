@@ -361,7 +361,8 @@ export function V2ProjectRoute({
   const [run, setRun] = useState<LogueSkillRun>();
   const [resultMode, setResultMode] = useState<RequestMode>("ask");
   const [candidate, setCandidate] = useState("");
-  const candidateAdoptionAttempts = useRef<Partial<Record<"copy" | "document", { id: string; content: string; targetKey?: string }>>>({});
+  const candidateAdoptionAttempts = useRef<Partial<Record<"copy" | "keep" | "document", { id: string; content: string; targetKey?: string }>>>({});
+  const [keepAdoption, setKeepAdoption] = useState<{ id: string; runId: string }>();
   const [documentTargetOpen, setDocumentTargetOpen] = useState(false);
   const [savingDocument, setSavingDocument] = useState(false);
   const [documentAdoption, setDocumentAdoption] = useState<{ id: string; runId: string; documentId: string; documentRevision: number }>();
@@ -891,6 +892,49 @@ export function V2ProjectRoute({
     }
   }
 
+  async function keepCandidate() {
+    if (!run || !candidate.trim() || running) return;
+    const content = candidate.trim();
+    const previousAttempt = candidateAdoptionAttempts.current.keep;
+    const adoptionId = previousAttempt?.content === content ? previousAttempt.id : createAdoptionId();
+    candidateAdoptionAttempts.current.keep = { id: adoptionId, content };
+    setRunning(true);
+    setRunError("");
+    try {
+      setRun(await adoptSkillRun(run.id, content, {
+        action: "keep",
+        adoptionId,
+        target: { surface: "project-workspace", target_key: `project:${project?.id ?? ""}:kept-source` },
+      }));
+      await onRefresh();
+      delete candidateAdoptionAttempts.current.keep;
+      setKeepAdoption({ id: adoptionId, runId: run.id });
+    } catch (cause) {
+      setRunError(cause instanceof Error ? cause.message : "Could not keep this result in Logue.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function undoKeepCandidate() {
+    if (!run || !keepAdoption || keepAdoption.runId !== run.id || running) return;
+    setRunning(true);
+    setRunError("");
+    try {
+      setRun(await adoptSkillRun(run.id, candidate, {
+        action: "undo",
+        adoptionId: keepAdoption.id,
+        target: { surface: "project-workspace", target_key: `project:${project?.id ?? ""}:kept-source` },
+      }));
+      await onRefresh();
+      setKeepAdoption(undefined);
+    } catch (cause) {
+      setRunError(cause instanceof Error ? cause.message : "Could not undo Keep in Logue.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
   async function undoCandidateDocumentUpdate() {
     if (!run || !documentAdoption || documentAdoption.runId !== run.id || savingDocument) return;
     setSavingDocument(true);
@@ -1181,6 +1225,10 @@ export function V2ProjectRoute({
                 <Button size="sm" onClick={() => void copyCandidate()}>
                   <Copy size={14} />
                   Copy
+                </Button>
+                <Button size="sm" disabled={running} onClick={() => void (keepAdoption?.runId === run.id ? undoKeepCandidate() : keepCandidate())}>
+                  {keepAdoption?.runId === run.id ? <RotateCcw size={14} /> : <Sparkles size={14} />}
+                  {keepAdoption?.runId === run.id ? "Undo Keep in Logue" : "Keep in Logue"}
                 </Button>
                 {run.output_type === "document" ? (
                   <Button size="sm" onClick={() => beginContinuation(run)}>

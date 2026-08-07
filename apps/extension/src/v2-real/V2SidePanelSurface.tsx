@@ -382,6 +382,7 @@ export interface V2SidePanelSurfaceProps {
   insertingGenerated?: boolean;
   savingGeneratedDocument?: boolean;
   generatedDocumentUndoAvailable?: boolean;
+  generatedKeepUndoAvailable?: boolean;
   documents?: PanelDocument[];
   skills: ExtensionSkill[];
   skillId: string;
@@ -412,6 +413,7 @@ export interface V2SidePanelSurfaceProps {
   onGeneratedTextChange: (value: string) => void;
   onCopyGenerated?: () => void;
   onKeepGenerated?: () => void;
+  onUndoGeneratedKeep?: () => void;
   onSaveGeneratedDocument?: (document?: PanelDocument) => void;
   onUndoGeneratedDocument?: () => void;
   onUndoGenerated?: () => void;
@@ -487,6 +489,7 @@ export function V2SidePanelSurface({
   insertingGenerated = false,
   savingGeneratedDocument = false,
   generatedDocumentUndoAvailable = false,
+  generatedKeepUndoAvailable = false,
   documents = [],
   skills,
   skillId,
@@ -516,6 +519,7 @@ export function V2SidePanelSurface({
   onGeneratedTextChange,
   onCopyGenerated,
   onKeepGenerated,
+  onUndoGeneratedKeep,
   onSaveGeneratedDocument,
   onUndoGeneratedDocument,
   onUndoGenerated,
@@ -1025,12 +1029,10 @@ export function V2SidePanelSurface({
                         <Copy size={14} />
                         Copy
                       </V2Button>
-                      {!generated ? (
-                        <V2Button disabled={generatedAdoptionPending} onClick={onKeepGenerated}>
-                          <Sparkles size={14} />
-                          Keep in Logue
-                        </V2Button>
-                      ) : null}
+                      <V2Button disabled={generatedAdoptionPending} onClick={generatedKeepUndoAvailable ? onUndoGeneratedKeep : onKeepGenerated}>
+                        {generatedKeepUndoAvailable ? <RotateCcw size={14} /> : <Sparkles size={14} />}
+                        {generatedKeepUndoAvailable ? "Undo Keep in Logue" : "Keep in Logue"}
+                      </V2Button>
                       {generatedDocumentUndoAvailable ? (
                         <V2Button disabled={savingGeneratedDocument} onClick={onUndoGeneratedDocument}>
                           <RotateCcw size={14} />

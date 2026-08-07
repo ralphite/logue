@@ -1395,7 +1395,23 @@ function SidePanelApp() {
     commitCommandResult(pendingResult);
     try {
       const adoptedRun = await adoptExtensionSkillRun(result.runId, result.text.trim(), { action: "keep", adoptionId, target: { surface: "side-panel", url: result.sourceURL, target_key: result.targetKey } });
-      commitCommandResult({ ...pendingResult, materialId: adoptedRun.material_id, adopted: true, adoptionAttempts: { ...pendingResult.adoptionAttempts, keep: undefined } });
+      commitCommandResult({ ...pendingResult, materialId: adoptedRun.material_id, adopted: true, keepAdoptionId: adoptionId, adoptionAttempts: { ...pendingResult.adoptionAttempts, keep: undefined } });
+    } catch (cause) {
+      setError(friendlyLocalError(cause, "save"));
+    }
+  }, [commitCommandResult]);
+
+  const undoGeneratedKeep = useCallback(async () => {
+    const result = commandResultRef.current;
+    if (!result?.keepAdoptionId || result.adoptionPending) return;
+    setError(undefined);
+    try {
+      await adoptExtensionSkillRun(result.runId, result.text.trim(), {
+        action: "undo",
+        adoptionId: result.keepAdoptionId,
+        target: { surface: "side-panel", url: result.sourceURL, target_key: result.targetKey },
+      });
+      commitCommandResult({ ...result, keepAdoptionId: undefined });
     } catch (cause) {
       setError(friendlyLocalError(cause, "save"));
     }
@@ -2119,6 +2135,7 @@ function SidePanelApp() {
       insertingGenerated={insertingGenerated}
       savingGeneratedDocument={savingGeneratedDocument}
       generatedDocumentUndoAvailable={Boolean(commandResult?.documentAdoption)}
+      generatedKeepUndoAvailable={Boolean(commandResult?.keepAdoptionId)}
       documents={documents}
       skills={skills}
       skillId={skillId}
@@ -2154,6 +2171,7 @@ function SidePanelApp() {
       }}
       onCopyGenerated={() => void copyGeneratedText()}
       onKeepGenerated={() => void keepGeneratedText()}
+      onUndoGeneratedKeep={() => void undoGeneratedKeep()}
       onSaveGeneratedDocument={(document) => void saveGeneratedDocument(document)}
       onUndoGeneratedDocument={() => void undoGeneratedDocumentUpdate()}
       onUndoGenerated={() => void undoGeneratedText()}

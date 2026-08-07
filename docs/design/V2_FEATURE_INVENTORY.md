@@ -52,7 +52,7 @@
 - V2-CMD-03 — INTEGRATED — Voice/Text Command 提交先创建永久 You Activity Source；pending recovery 与 Activity→evidence→Run 使用稳定幂等 lineage，失败或取消不丢用户输入。
 - V2-CMD-04 — INTEGRATED — parse/Model failure 保留可恢复 failed Run/Candidate；Side Panel 的 Voice/Text Command 与 Page/Selection Action 都从同一原 Run Retry，不虚假成功或重建 Source。
 - V2-CMD-05 — INTEGRATED — 多来源结果进入同 tab Side Panel，显示 actual Sources，支持 Pin/Exclude 本次 Context。
-- V2-CMD-06 — INTEGRATED — Side Panel Candidate 编辑与 Insert/Copy/Keep/Document 使用统一 adoption 合同；Document 明确选择新建或更新当前 Project Document，更新创建新 revision、冻结本次 Run exact Sources，并保留即时 Undo 入口创建恢复 revision。
+- V2-CMD-06 — INTEGRATED — Side Panel Ask/Draft Candidate 编辑与 Insert/Copy/Keep/Document 使用统一 adoption 合同；Keep 以稳定 identity 物化永久 AI Source、继承 exact Run Sources 并即时 Undo；Document 明确选择新建或更新当前 Project Document，更新创建新 revision并保留即时 Undo。
 - V2-CMD-07 — INTEGRATED — Insert 采用单一 AI Source 并追加稳定 adoption event；Undo 按 event ID 保留 target 与 persistent undone lineage，插入后保存失败可用同 ID 幂等重试。
 - V2-CMD-08 — INTEGRATED — target expired 禁用 Insert并保留 Copy/Open in Logue。
 - V2-CMD-09 — INTEGRATED — citation inspector 打开 frozen Web/You/AI snapshot 与原 URL。
@@ -88,7 +88,7 @@
 - V2-PROJ-04 — INTEGRATED — Context review 的 Suggested/Added/Excluded、reason、Add/Remove/Exclude/Undo exclusion。
 - V2-PROJ-05 — INTEGRATED — Context review 区分 Auto-added / Added / Suggested / Excluded / Duplicate-linked；Change Project 使用 bundle 级 Host 合同，重复 Source 保留但 Run/Project retrieval 不重复加权。
 - V2-PROJ-06 — INTEGRATED — 本次 Run Sources 可 Pin/Exclude/补充，不改变 membership。
-- V2-PROJ-07 — INTEGRATED — production-owned Project Composer 以真实 submit 连接 Ask/Draft Candidate、实际 Sources、Copy，以及明确选择 New Document / 当前 Project Existing Document；更新现有 Document 创建新 revision、冻结本次 Run exact Sources，并保留即时 Undo 入口创建恢复 revision；不显示无 handler 的重复 Mic。
+- V2-PROJ-07 — INTEGRATED — production-owned Project Composer 以真实 submit 连接 Ask/Draft Candidate、实际 Sources、Copy、canonical Keep in Logue/Undo，以及明确选择 New Document / 当前 Project Existing Document；Keep 与 Document 均继承 exact Run Sources 和稳定 lineage；不显示无 handler 的重复 Mic。
 - V2-PROJ-08 — INTEGRATED — Compare 独立选择 Sources/Topics并要求结构化差异与证据缺口，Activity 持久化为独立 `compare` subtype；Continue/Retry 从历史 Run frozen snapshots 与 model context 创建带 lineage 的新 Run，即使 Source 已删除也不失效；持久化 `model_context` 与 provider 实际输入逐字段一致，并且不覆盖旧 Candidate。
 - V2-PROJ-09 — INTEGRATED — Ask/Compare/Draft/Continue 的 prompt 先成为具有准确 subtype 的永久 You Activity Source，再创建带同一 lineage 的 Run。
 - V2-PROJ-10 — INTEGRATED — Project History 打开 Run、Candidate、Sources、Skill revision 与 adopted target。
