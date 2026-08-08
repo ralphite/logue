@@ -43,6 +43,19 @@ class RuntimeTest(unittest.TestCase):
         self.thread.join(timeout=2)
         self.temporary.cleanup()
 
+    def enable_generation(self) -> None:
+        """A configured provider is only usable once its health check passes."""
+        self.server.gemini.key = "test-key"
+        self.server.gemini.mark_ready("generation")
+
+    def save_capture(self, context=None) -> str:
+        """Voice content must point at stored audio with a frozen context."""
+        return self.server.store.save_capture(
+            b"real-audio-bytes",
+            "audio/webm",
+            context if context is not None else {"reference_project": "Mobile research"},
+        )
+
     def request(self, path: str, method: str = "GET", value=None, headers=None):
         data = json.dumps(value).encode() if value is not None else None
         request = urllib.request.Request(self.base + path, data=data, method=method, headers={"Content-Type": "application/json", **(headers or {})})
@@ -238,7 +251,7 @@ class RuntimeTest(unittest.TestCase):
         _, direct = self.request("/v1/items", "POST", {"kind": "text", "content": "Voice capture from a meeting"})
         _, related = self.request("/v1/items", "POST", {"kind": "text", "content": "Spoken notes collected from a webpage"})
         _, document = self.request("/v1/docs", "POST", {"title": "Planning notes", "content": "A draft for the next team meeting"})
-        self.server.gemini.key = "test-key"
+        self.enable_generation()
 
         def semantic_response(prompt, **_):
             if "saved materials" in prompt:
@@ -266,28 +279,50 @@ class RuntimeTest(unittest.TestCase):
         _, fallback = self.request("/v1/material-search?query=voice")
         self.assertEqual(fallback, {"matches": [{"id": direct["id"], "match": "content"}], "strategy": "local"})
 
+    def await_organization(self, identifier: str, status: str) -> dict:
+        deadline = time.monotonic() + 2
+        organized = {}
+        while time.monotonic() < deadline:
+            organized = logue_server.read_json(self.data / "items" / f"{identifier}.json")
+            if organized.get("organization", {}).get("status") == status:
+                return organized
+            time.sleep(0.01)
+        self.fail(f"organization never reached {status}: {organized.get('organization')}")
+
     def test_configured_agent_organizes_new_material_without_blocking_create(self) -> None:
         self.request("/v1/projects", "POST", {"name": "Research", "overview": "Voice research", "glossary": []})
-        self.server.gemini.key = "test-key"
+        self.enable_generation()
         self.server.gemini.classify = lambda *args, **kwargs: {"projects": ["Research"], "tags": ["voice"], "confidence": 0.9, "reason": "Direct match"}
-        _, item = self.request("/v1/items", "POST", {"kind": "text", "content": "New voice research"})
-        deadline = time.monotonic() + 2
-        organized = None
-        while time.monotonic() < deadline:
-            organized = logue_server.read_json(self.data / "items" / f"{item['id']}.json")
-            if organized.get("organization", {}).get("status") == "organized":
-                break
-            time.sleep(0.01)
+
+        # The agent proposes; it never files a material into a Project the user
+        # did not choose, so an unfiled capture comes back for review.
+        status, item = self.request("/v1/items", "POST", {"kind": "text", "content": "New voice research"})
+        self.assertEqual(status, 201)
+        self.assertEqual(item["organization"]["status"], "pending")
+        reviewed = self.await_organization(item["id"], "needs_review")
+        self.assertEqual(reviewed["projects"], [])
+        self.assertEqual(reviewed["organization"]["suggested_projects"], ["Research"])
+        self.assertEqual(reviewed["organization"]["suggested_tags"], ["voice"])
+        self.assertEqual(reviewed["organization"]["confidence"], 0.9)
+
+        # When the user already chose the Project, the agent confirms it and
+        # contributes its tags.
+        _, chosen = self.request("/v1/items", "POST", {"kind": "text", "content": "Filed voice research", "projects": ["Research"]})
+        organized = self.await_organization(chosen["id"], "organized")
         self.assertEqual(organized["projects"], ["Research"])
         self.assertEqual(organized["tags"], ["voice"])
+        self.assertEqual(organized["status"], "organized")
 
     def test_voice_selection_creates_a_sourced_comment_bundle(self) -> None:
+        # A material can only join a Project that exists.
+        self.request("/v1/projects", "POST", {"name": "Mobile research", "overview": "", "glossary": []})
+        capture_id = self.save_capture()
         status, result = self.request("/v1/selections", "POST", {
             "request_id": "selection-voice-1",
             "source_content": "The field team needs offline access.",
             "comment": "Keep this evidence in the launch decision.",
             "transcript": "Um keep this evidence in the launch decision",
-            "capture_id": "cap_voice1234",
+            "capture_id": capture_id,
             "source": {"url": "https://example.com/research", "title": "Field research"},
             "projects": ["Mobile research", " Mobile research "],
             "tags": ["evidence"],
@@ -304,7 +339,7 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(comment["kind"], "derived")
         self.assertEqual(comment["content"], "Keep this evidence in the launch decision.")
         self.assertEqual(comment["transcript"], "Um keep this evidence in the launch decision")
-        self.assertEqual(comment["capture_id"], "cap_voice1234")
+        self.assertEqual(comment["capture_id"], capture_id)
         self.assertEqual(comment["parent_ids"], [source["id"]])
         self.assertEqual(comment["projects"], ["Mobile research"])
         self.assertEqual(comment["organization"]["status"], "confirmed")
@@ -505,8 +540,18 @@ class RuntimeTest(unittest.TestCase):
         self.assertEqual(run["original_output"], "short result\nsecond line")
         _, repeated = self.request("/v1/skill-runs", "POST", {"request_id": "run-one", "skill_id": skill["id"], "skill_explicit": True, "instruction": "Shorten", "selection": "long text"})
         self.assertEqual(repeated["id"], run["id"])
-        _, adopted = self.request(f"/v1/skill-runs/{run['id']}", "PATCH", {"adopted_output": "kept\nlines"})
-        self.assertEqual(adopted["adopted_output"], "kept\nlines")
+        # Adoption creates the AI Source and its lineage, so it has its own endpoint.
+        with self.assertRaises(urllib.error.HTTPError) as rejected:
+            self.request(f"/v1/skill-runs/{run['id']}", "PATCH", {"adopted_output": "kept\nlines"})
+        self.assertEqual(rejected.exception.code, 400)
+        rejected.exception.close()
+        _, adopted = self.request(f"/v1/skill-runs/{run['id']}/adopt", "POST", {
+            "action": "insert",
+            "adoption_id": "adopt-one",
+            "output": "kept\nlines",
+        })
+        self.assertEqual(adopted["run"]["adopted_output"], "kept\nlines")
+        self.assertEqual(adopted["material"]["content"], "kept\nlines")
 
     def test_custom_skill_archive_is_atomic_and_restore_does_not_rebind(self) -> None:
         _, skill = self.request("/v1/skills", "POST", {
