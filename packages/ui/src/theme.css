@@ -64,6 +64,12 @@
   }
 }
 
+@theme {
+  /* The one chevron every select uses. Kept here rather than inline so the
+     URL-encoded `#` in the stroke color cannot be mangled by a class parser. */
+  --logue-chevron: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%2370726c' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.75 6 7.75 9 4.75'/%3E%3C/svg%3E");
+}
+
 @layer components {
   /* A floating surface is defined by its shadow, never a border. */
   .logue-float {

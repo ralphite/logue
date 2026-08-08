@@ -1,6 +1,7 @@
+import { cloneElement, useId } from "react";
 import type {
   InputHTMLAttributes,
-  ReactNode,
+  ReactElement,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from "react";
@@ -41,7 +42,7 @@ export function Select({ className, children, ...props }: SelectHTMLAttributes<H
     <select
       className={cn(
         control,
-        "h-control cursor-pointer appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 12 12%22 fill=%22none%22 stroke=%22%2370726c%22 stroke-width=%221.4%22 stroke-linecap=%22round%22><path d=%22M3 4.75 6 7.75 9 4.75%22/></svg>')] bg-[length:12px] bg-[position:right_6px_center] bg-no-repeat pr-6 pl-2",
+        "h-control cursor-pointer appearance-none bg-(image:--logue-chevron) bg-[length:12px] bg-[position:right_6px_center] bg-no-repeat pr-6 pl-2",
         width(className),
         className,
       )}
@@ -52,13 +53,28 @@ export function Select({ className, children, ...props }: SelectHTMLAttributes<H
   );
 }
 
-/** Label left, control right — a group of these reads as a table. */
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+/**
+ * Label left, control right — a group of these reads as a table.
+ *
+ * The label points at the control by id rather than wrapping it: a `<label>`
+ * around a `<select>` folds every option into the accessible name, so the
+ * field announces itself as "ProfileDefaultMobile researchLogue".
+ */
+export function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactElement<{ id?: string }>;
+}) {
+  const id = useId();
   return (
-    <label className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-2">
-      <span className="text-xs text-muted">{label}</span>
-      {children}
-    </label>
+    <div className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-2">
+      <label htmlFor={id} className="text-xs text-muted">
+        {label}
+      </label>
+      {cloneElement(children, { id })}
+    </div>
   );
 }
 
