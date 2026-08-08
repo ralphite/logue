@@ -1,4 +1,4 @@
-import { EyeOff, Inbox, MoreHorizontal, Search, Trash2 } from "lucide-react";
+import { EyeOff, Inbox, Layers, MoreHorizontal, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   Button,
@@ -14,7 +14,7 @@ import {
   cn,
   originOf,
 } from "@logue/ui";
-import { api, type Material, type Project } from "../api";
+import { api, type Material, type Project, type Topic } from "../api";
 import { Page, Row, RowActions, Rows } from "./AppShell";
 import { timeAgo, useAction, useHost } from "./useHost";
 import { MaterialPanel } from "./MaterialPanel";
@@ -108,25 +108,31 @@ export function StreamRoute() {
   const [query, setQuery] = useState("");
   const [tag, setTag] = useState<string>();
   const [reviewing, setReviewing] = useState(false);
+  const [group, setGroup] = useState<Topic>();
+  const [renaming, setRenaming] = useState("");
   const [openId, setOpenId] = useState<string>();
   const materials = useHost(() => api.materials(), []);
   const review = useHost(() => api.review(), []);
+  const topics = useHost(() => api.topics(), []);
   const projects = useHost(() => api.projects(), []);
   const action = useAction();
 
   const waiting = review.data?.materials;
+  const inGroup = group ? new Set(group.source_ids) : undefined;
 
   const visible = useMemo(() => {
     const list = (reviewing ? waiting : materials.data?.materials) ?? [];
     const needle = query.trim().toLowerCase();
     return list.filter((m) => {
+      if (inGroup && !inGroup.has(m.id)) return false;
       if (tag && !(m.tags ?? []).includes(tag)) return false;
       if (!needle) return true;
       return `${m.content} ${m.transcript ?? ""} ${m.source?.title ?? ""} ${m.source?.url ?? ""} ${(m.tags ?? []).join(" ")}`
         .toLowerCase()
         .includes(needle);
     });
-  }, [materials.data, waiting, reviewing, query, tag]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [materials.data, waiting, reviewing, query, tag, group]);
 
   const refresh = () => {
     void materials.refresh();
@@ -140,16 +146,40 @@ export function StreamRoute() {
     <Page
       title="Stream"
       actions={
-        <span className="relative">
-          <Search size={13} className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-faint" />
-          <Input
-            className="w-56 pl-6.5"
-            placeholder="Search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            aria-label="Search everything you have captured"
-          />
-        </span>
+        <>
+          <Menu
+            label="Groups"
+            trigger={(props) => (
+              <Button variant="ghost" {...props}>
+                <Layers size={13} /> Groups
+              </Button>
+            )}
+          >
+            {(topics.data?.topics ?? [])
+              .toSorted((a, b) => b.source_ids.length - a.source_ids.length)
+              .map((topic) => (
+                <MenuItem key={topic.id} onClick={() => setGroup(topic)}>
+                  <span className="truncate">{topic.name}</span>
+                  <span className="ml-auto pl-3 text-faint">{topic.source_ids.length}</span>
+                </MenuItem>
+              ))}
+            <MenuItem
+              onClick={() => void action.run(() => api.regroupTopics()).then(() => topics.refresh())}
+            >
+              Look for new groups
+            </MenuItem>
+          </Menu>
+          <span className="relative">
+            <Search size={13} className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-faint" />
+            <Input
+              className="w-56 pl-6.5"
+              placeholder="Search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              aria-label="Search everything you have captured"
+            />
+          </span>
+        </>
       }
     >
       {materials.error && <ErrorNote className="mb-2">{materials.error}</ErrorNote>}
@@ -159,6 +189,57 @@ export function StreamRoute() {
         <p className="mb-2 flex items-center gap-1.5 text-[11px] text-muted">
           Only <Tag name={tag} onRemove={() => setTag(undefined)} />
         </p>
+      )}
+
+      {group && (
+        <div className="mb-2 flex items-center gap-1.5 text-[11px] text-muted">
+          <span>Group</span>
+          {renaming ? (
+            <Input
+              autoFocus
+              value={renaming}
+              className="h-6 w-40 px-1.5 text-[11px]"
+              aria-label="Rename this group"
+              onChange={(event) => setRenaming(event.target.value)}
+              onBlur={() => setRenaming("")}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setRenaming("");
+                if (event.key !== "Enter") return;
+                const name = renaming.trim();
+                setRenaming("");
+                if (!name) return;
+                void action.run(() => api.renameTopic(group.id, name)).then(() => {
+                  setGroup({ ...group, name });
+                  void topics.refresh();
+                });
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              title="Rename"
+              onClick={() => setRenaming(group.name)}
+              className="rounded-sm bg-surface-muted px-1 text-ink-soft hover:text-ink"
+            >
+              {group.name}
+            </button>
+          )}
+          <Button variant="ghost" onClick={() => setGroup(undefined)}>
+            Clear
+          </Button>
+          <Button
+            variant="ghost"
+            title="Stop suggesting this grouping"
+            onClick={() =>
+              void action.run(() => api.hideTopic(group.id)).then(() => {
+                setGroup(undefined);
+                void topics.refresh();
+              })
+            }
+          >
+            Hide
+          </Button>
+        </div>
       )}
 
       {((waiting?.length ?? 0) > 0 || reviewing) && (

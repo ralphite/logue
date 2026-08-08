@@ -105,6 +105,17 @@ export interface Run {
   created_at: string;
 }
 
+export interface Topic {
+  id: string;
+  name: string;
+  /** What made this a group: a tag, a Project, or a domain. */
+  seed_key?: string;
+  automatic?: boolean;
+  hidden?: boolean;
+  source_ids: string[];
+  reason?: string;
+}
+
 export interface ModelStatus {
   configured: boolean;
   model: string;
@@ -175,6 +186,12 @@ export const api = {
   updateMaterial: (id: string, changes: Partial<Material>) =>
     send<{ material: Material }>("PATCH", `/v1/materials/${id}`, changes),
   deleteMaterial: (id: string) => send<{ ok: true }>("DELETE", `/v1/materials/${id}`),
+
+  /** Groupings Logue noticed: by tag, by Project, by where things came from. */
+  topics: () => request<{ topics: Topic[] }>("/v1/topics"),
+  regroupTopics: () => send<{ topics: Topic[] }>("POST", "/v1/topics/regroup", {}),
+  renameTopic: (id: string, name: string) => send<{ topic: Topic }>("PATCH", `/v1/topics/${id}`, { name }),
+  hideTopic: (id: string) => send<{ topic: Topic }>("PATCH", `/v1/topics/${id}`, { hidden: true }),
 
   /** Sources with a suggestion nobody has looked at, most confident first. */
   review: () => request<{ materials: Material[] }>("/v1/review"),

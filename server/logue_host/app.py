@@ -436,16 +436,23 @@ class App:
         # -- topics ---------------------------------------------------------
 
         @route("GET", "/v1/topics")
-        def list_topics(_: Request) -> dict[str, Any]:
-            return {"topics": store.topics.list(sort_key="updated_at")}
+        def list_topics(request: Request) -> dict[str, Any]:
+            found = store.topics.list(sort_key="updated_at")
+            if request.query.get("hidden") != "1":
+                found = [topic for topic in found if not topic.get("hidden")]
+            return {"topics": found}
 
         @route("POST", "/v1/topics/regroup")
         def regroup_topics(_: Request) -> dict[str, Any]:
             return {"topics": topics.regroup(store)}
 
         @route("PATCH", "/v1/topics/{id}")
-        def rename_topic(request: Request) -> dict[str, Any]:
-            return {"topic": topics.rename(store, request.params["id"], str(request.json().get("name") or ""))}
+        def change_topic(request: Request) -> dict[str, Any]:
+            body = request.json()
+            topic_id = request.params["id"]
+            if "hidden" in body:
+                return {"topic": topics.hide(store, topic_id, bool(body["hidden"]))}
+            return {"topic": topics.rename(store, topic_id, str(body.get("name") or ""))}
 
         @route("POST", "/v1/topics/{id}/add-to-project")
         def topic_to_project(request: Request) -> dict[str, Any]:

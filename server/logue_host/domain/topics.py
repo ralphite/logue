@@ -82,7 +82,21 @@ def rename(store: Store, topic_id: str, name: str) -> Record:
     if not name.strip():
         raise BadRequest("name is required")
     topic["name"] = name.strip()
+    # A named group is the person's, not ours to rebuild from a seed.
     topic["automatic"] = False
+    topic["updated_at"] = now()
+    return store.topics.put(topic)
+
+
+def hide(store: Store, topic_id: str, hidden: bool) -> Record:
+    """Put a grouping out of the way without losing it.
+
+    Grouping by domain finds real things and also finds "127.0.0.1". Deleting
+    that group would only mean recreating it on the next regroup; hiding it
+    says so once.
+    """
+    topic = store.topics.get(topic_id)
+    topic["hidden"] = hidden
     topic["updated_at"] = now()
     return store.topics.put(topic)
 
