@@ -5,9 +5,9 @@ import { describe, expect, it } from "vitest";
 describe("page launcher presentation", () => {
   it("starts voice input in place and replaces the launcher with accessible capture controls", () => {
     const content = readFileSync(resolve(process.cwd(), "src/content.tsx"), "utf8");
-    const surface = readFileSync(resolve(process.cwd(), "src/v2-real/V2InlineVoiceSurface.tsx"), "utf8");
+    const surface = readFileSync(resolve(process.cwd(), "src/surfaces/InlineVoiceSurface.tsx"), "utf8");
 
-    expect(content).toContain("<V2InlineVoiceSurface");
+    expect(content).toContain("<InlineVoiceSurface");
     expect(surface).toContain('aria-label="Start voice input"');
     expect(surface).toContain('aria-label="Cancel voice input"');
     expect(surface).toContain('aria-label="Stop voice input"');

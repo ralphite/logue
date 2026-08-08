@@ -1,6 +1,6 @@
-# Logue V1 历史设计：Skills 与生成
+# Logue 设计：Skills 与生成
 
-> 本文件描述已发布 V1，已被 V2 整体产品设计覆盖。当前权威稿见 [`logue-ai-product-positioning-2026-08-04.md`](./logue-ai-product-positioning-2026-08-04.md)。
+> 专题设计，服从 [`logue-ai-product-positioning-2026-08-04.md`](./logue-ai-product-positioning-2026-08-04.md)。
 
 状态：当前目标设计，不是已完成证据。
 

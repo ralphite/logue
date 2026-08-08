@@ -1,7 +1,7 @@
-import type { InlineVoicePhase } from "./v2-real/V2InlineVoiceSurface";
-import type { CommandLauncherPhase } from "./v2-real/V2CommandLauncherSurface";
+import type { InlineVoicePhase } from "./surfaces/InlineVoiceSurface";
+import type { CommandLauncherPhase } from "./surfaces/CommandLauncherSurface";
 import type { CaptureContext, VoiceProfileOverrides } from "./api";
-import type { VoiceCandidateRetranscribeInput, VoiceCandidateState } from "./v2-real/V2VoiceCandidateSurface";
+import type { VoiceCandidateRetranscribeInput, VoiceCandidateState } from "./surfaces/VoiceCandidateSurface";
 import type { ExtensionDocument } from "./api";
 
 const messageType = "logue:google-docs-launcher";

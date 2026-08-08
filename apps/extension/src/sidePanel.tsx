@@ -76,8 +76,8 @@ import {
   shouldPreservePanelCapturePresentation,
   type ActivePanelCaptureScope,
 } from "./sidePanelRecordingState";
-import { V2SidePanelSurface } from "./v2-real/V2SidePanelSurface";
-import type { VoiceCandidateRetranscribeInput, VoiceCandidateState } from "./v2-real/V2VoiceCandidateSurface";
+import { SidePanelSurface } from "./surfaces/SidePanelSurface";
+import type { VoiceCandidateRetranscribeInput, VoiceCandidateState } from "./surfaces/VoiceCandidateSurface";
 import type { PageMaterialChanges } from "./sidePanelModels";
 import "./sidePanel.css";
 
@@ -2148,7 +2148,7 @@ function SidePanelApp() {
   }, [persistDraft, stopTimer]);
 
   return (
-    <V2SidePanelSurface
+    <SidePanelSurface
       state={state}
       phase={phase}
       draft={draft}

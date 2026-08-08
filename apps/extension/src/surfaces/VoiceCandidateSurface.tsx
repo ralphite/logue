@@ -27,7 +27,7 @@ export interface VoiceCandidateRetranscribeInput {
   correction?: { spoken: string; preferred: string; scope: CorrectionScope };
 }
 
-export function V2VoiceCandidateSurface({
+export function VoiceCandidateSurface({
   candidate,
   context,
   overrides,

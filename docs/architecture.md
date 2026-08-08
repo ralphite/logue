@@ -73,7 +73,7 @@ Release 同时包含 macOS/Linux 的 amd64 与 arm64 完整资产，每个资产
 
 - 默认模型：`gemini-3.6-flash`。
 - 环境变量：`GEMINI_API_KEY`、`LOGUE_TRANSCRIPTION_MODEL`、`LOGUE_DICTATION_SKILL`、`LOGUE_TRANSCRIPTION_CONTEXT_LIMIT`。
-- 音频使用 inline data 直接发送 `generateContent`；V1 限制 20MB。
+- 音频使用 inline data 直接发送 `generateContent`；上限 20MB。
 - 转写 Prompt 把页面、目标文字、选区和项目背景放入带边界的不可信引用区；技能指令与上下文分离；只允许输出转写文本。
 - 文档生成接收用户选中的资料与项目概览，并要求使用 `[Source n]` 行内引用；Skill 短回复可自动检索相关资料。
 

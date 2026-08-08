@@ -31,11 +31,12 @@ import {
 import { resolveSelectionDocumentUndoFailure } from "./selectionDocumentUndo";
 import { shouldDismissSelectionSkills } from "./selectionSkillEscape";
 import { completeSelectionVoiceInput } from "./transaction";
-import { V2InlineVoiceSurface, type InlineVoicePhase } from "./v2-real/V2InlineVoiceSurface";
-import { V2CommandLauncherSurface, type CommandLauncherPhase } from "./v2-real/V2CommandLauncherSurface";
-import { V2VoiceCandidateSurface, type VoiceCandidateRetranscribeInput, type VoiceCandidateState } from "./v2-real/V2VoiceCandidateSurface";
-import { V2SelectionSurface, type SelectionCommentPhase } from "./v2-real/V2SelectionSurface";
+import { InlineVoiceSurface, type InlineVoicePhase } from "./surfaces/InlineVoiceSurface";
+import { CommandLauncherSurface, type CommandLauncherPhase } from "./surfaces/CommandLauncherSurface";
+import { VoiceCandidateSurface, type VoiceCandidateRetranscribeInput, type VoiceCandidateState } from "./surfaces/VoiceCandidateSurface";
+import { SelectionSurface, type SelectionCommentPhase } from "./surfaces/SelectionSurface";
 import styles from "./surface.css?inline";
+import { selectionFeedback } from "./surfaces/surfaceStyles";
 
 interface ContentRequestMessage {
   type: "logue:insert-text" | "logue:undo-insert" | "logue:get-page-context" | "logue:probe-content-runtime" | "logue:locate-page-anchor" | "logue:get-current-selection-anchor" | "logue:discover-input-target" | "logue:insert-external-document" | "logue:undo-external-document" | "logue:start-inline-voice" | "logue:start-voice-command" | "logue:resume-voice-command";
@@ -3045,7 +3046,7 @@ function ExtensionLauncher() {
   if (!visible && !hasSelectionSkillMenu && !googleDocsProxyVisible && !hasPageSelectionComment && !commandOpen) return null;
   return (
     <>
-      {commandOpen ? <V2CommandLauncherSurface
+      {commandOpen ? <CommandLauncherSurface
         phase={commandPhase}
         instruction={commandInstruction}
         project={commandProject}
@@ -3067,7 +3068,7 @@ function ExtensionLauncher() {
         onSwitchToVoiceWrite={commandParseError ? switchCommandToVoiceWrite : undefined}
         onClose={closeVoiceCommand}
       /> : null}
-      {hasPageSelectionComment && selectionCommentPosition && <V2SelectionSurface
+      {hasPageSelectionComment && selectionCommentPosition && <SelectionSurface
         phase={selectionCommentPhase}
         style={selectionCommentPosition}
         error={selectionCommentError}
@@ -3126,7 +3127,7 @@ function ExtensionLauncher() {
         onCancel={dismissSelectionActionCandidate}
       />}
       {selectionSkillNotice && <div
-        className="v2-selection-feedback"
+        className={selectionFeedback}
         role={selectionSkillNotice.history ? "status" : "alert"}
         style={{ left: selectionSkillNotice.anchor.left, top: selectionSkillNotice.anchor.top }}
       >
@@ -3134,7 +3135,7 @@ function ExtensionLauncher() {
         {selectionSkillNotice.history ? <button type="button" onClick={() => void retrySelectionSkillHistory()}>Retry save</button> : null}
         {selectionSkillNotice.undo ? <button type="button" onClick={() => void undoSelectionSkill()}>{selectionSkillNotice.undo.localApplied ? "Retry saving Undo" : "Undo"}</button> : null}
       </div>}
-      {visible && !commandOpen && !voiceCandidate && !selectionCommentActive && !hasPageSelectionComment && <V2InlineVoiceSurface
+      {visible && !commandOpen && !voiceCandidate && !selectionCommentActive && !hasPageSelectionComment && <InlineVoiceSurface
         phase={voicePhase}
         style={{ top: position?.top, left: position?.left }}
         onStart={() => startInlineVoice()}
@@ -3154,7 +3155,7 @@ function ExtensionLauncher() {
         onResetPosition={() => setMovedPosition(undefined)}
         moved={Boolean(movedPosition)}
       />}
-      {visible && voiceCandidate && candidatePosition && !isGoogleDocsDocumentTarget(targetRef.current) && <V2VoiceCandidateSurface
+      {visible && voiceCandidate && candidatePosition && !isGoogleDocsDocumentTarget(targetRef.current) && <VoiceCandidateSurface
         candidate={voiceCandidate}
         context={voiceProfileContext}
         overrides={voiceProfileOverrides}
@@ -3168,7 +3169,7 @@ function ExtensionLauncher() {
         onDismiss={dismissVoiceCandidate}
         style={{ top: candidatePosition.top, left: candidatePosition.left }}
       />}
-      {googleDocsProxyVisible && googleDocsProxy?.command && <V2CommandLauncherSurface
+      {googleDocsProxyVisible && googleDocsProxy?.command && <CommandLauncherSurface
         phase={googleDocsProxy.command.phase}
         instruction={googleDocsProxy.command.instruction}
         project={googleDocsProxy.command.project}
@@ -3202,7 +3203,7 @@ function ExtensionLauncher() {
         onSwitchToVoiceWrite={googleDocsProxy.command.switchWriteAvailable ? () => controlGoogleDocsProxy("command-switch-write") : undefined}
         onClose={() => controlGoogleDocsProxy("command-close")}
       />}
-      {googleDocsProxyVisible && googleDocsProxy && !googleDocsProxy.command && !googleDocsProxy.commandCandidate && !googleDocsProxy.candidate && <V2InlineVoiceSurface
+      {googleDocsProxyVisible && googleDocsProxy && !googleDocsProxy.command && !googleDocsProxy.commandCandidate && !googleDocsProxy.candidate && <InlineVoiceSurface
         phase={googleDocsProxy.phase}
         style={{ top: googleDocsPosition?.top, left: googleDocsPosition?.left }}
         onStart={() => controlGoogleDocsProxy("start")}
@@ -3244,7 +3245,7 @@ function ExtensionLauncher() {
         onUndoDocument={() => controlGoogleDocsProxy("command-candidate-document-undo")}
         onCancel={() => controlGoogleDocsProxy("command-candidate-dismiss")}
       />}
-      {googleDocsProxy?.candidate && googleDocsCandidatePosition && <V2VoiceCandidateSurface
+      {googleDocsProxy?.candidate && googleDocsCandidatePosition && <VoiceCandidateSurface
         candidate={googleDocsProxy.candidate}
         context={googleDocsProxy.profileContext}
         overrides={googleDocsProxy.profileOverrides ?? {}}

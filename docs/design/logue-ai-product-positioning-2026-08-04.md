@@ -1,17 +1,16 @@
-# Logue V2 产品定义
+# Logue 产品定义
 
 创建：2026-08-04
 重写：2026-08-05
-状态：V2 产品与实现的唯一权威稿；用户已授权构建真实端到端产品；实现继续允许按真实证据修订本文
+状态：产品与实现的唯一权威稿；用户已授权构建真实端到端产品；实现继续允许按真实证据修订本文
 
 ## 0. 文档角色
 
-- 已发布产品统一视为 V1。V1 的代码、界面、数据和设计不限制 V2。
 - 本文先定义 Logue 要解决什么问题、为谁解决、为什么值得存在，再定义功能与交互合同。
 - 竞品研究、独立审查和 mock 只是支持证据。它们不能覆盖本文，也不能反向决定产品。
-- 当前已审查的 Storybook V2 mock 是真实产品的结构、关键流程、状态与视觉基准；真实 Extension、Logue Host/API、Web App、本机数据和安装发布才是产品完成证据。V1 中仍符合 V2 的成熟部件可以保留，不延续与 V2 冲突的 IA、对象或交互。
-- V2 已进入真实端到端实现。按可独立使用的 vertical slice 交付，不用缩减产品范围冒充完成，也不等待一次性整体重写后才验证。
-- V2 的 reference platform 是 Mac + Chrome Extension + Logue Host/Web App；Host 默认在当前 Mac，也可显式连接自有 LAN Host。其他桌面浏览器、Windows、Linux client 与 Mobile 属于后续平台扩展，不阻断当前实现。
+- 真实 Extension、Logue Host/API、Web App、本机数据和安装发布是产品完成证据；Storybook 只作为设计核验。
+- 产品已进入真实端到端实现。按可独立使用的 vertical slice 交付，不用缩减产品范围冒充完成，也不等待一次性整体重写后才验证。
+- reference platform 是 Mac + Chrome Extension + Logue Host/Web App；Host 默认在当前 Mac，也可显式连接自有 LAN Host。其他桌面浏览器、Windows、Linux client 与 Mobile 属于后续平台扩展，不阻断当前实现。
 
 ---
 
@@ -509,7 +508,7 @@ Voice Command、Ask prompt 与其他 Activity 也不因 tab Project 自动进入
 
 ## 9. Project / Topic 的转写 Context 定制
 
-这是 V2 的核心功能，不属于普通全局设置的附属项。
+这是核心功能，不属于普通全局设置的附属项。
 
 ### 9.1 设计目标
 
@@ -719,7 +718,7 @@ Voice Comment 的持久化边界：
 
 **目的：** 保存页面、选区或用户输入为以后可用的 Source。
 
-V2 基线：
+基线：
 
 - Page；
 - Selection；
@@ -1469,7 +1468,7 @@ Logue 必须在切换次数、重复解释、找回准确度、来源核验和�
 
 ## 17. 未来团队扩展的自然接缝
 
-当前 V2 不提供账号、团队、成员、Workspace 或共享 UI，但保留以下语义：
+当前 不提供账号、团队、成员、Workspace 或共享 UI，但保留以下语义：
 
 1. Private Source 永远不因分类而自动共享；
 2. 用户可以从 Sources 形成明确确认的 Knowledge；
@@ -1597,7 +1596,7 @@ Logue 必须在切换次数、重复解释、找回准确度、来源核验和�
 - Host 必须有 Ready 的 transcription/generation providers；首设连接自己的远程 provider，不需要 Logue account，也不提供本地模型路径；
 - North Star 默认在 Host 本地计算，不强制上传 Source 或行为 telemetry；
 - 当前不做团队 UI，但保留显式 Publication 边界；
-- 现有 V2 mock 无效，不作为后续约束。
+- 现有 mock 无效，不作为后续约束。
 
 ### 需要用研究而不是主观决定验证
 

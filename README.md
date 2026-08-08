@@ -2,7 +2,7 @@
 
 Logue is a local-first tool for capturing and organizing information across the web. The browser extension enters text on the current page, captures selections, and adds Comments. A Python 3.13 service stores content, maintains source relationships, and processes audio with a connected remote provider. The React Web App organizes content and projects.
 
-Logue V2 spans the real Chrome Extension, local Host/API, Web App, persisted data, and release pipeline. Storybook is supporting design evidence, not the product deliverable. The single authoritative V2 design is [`docs/design/logue-ai-product-positioning-2026-08-04.md`](./docs/design/logue-ai-product-positioning-2026-08-04.md).
+Logue spans the real Chrome Extension, local Host/API, Web App, persisted data, and release pipeline. Storybook is supporting design evidence, not the product deliverable. The single authoritative design is [`docs/design/logue-ai-product-positioning-2026-08-04.md`](./docs/design/logue-ai-product-positioning-2026-08-04.md).
 
 ## Install and upgrade
 
@@ -92,7 +92,7 @@ npm run build:extension
 
 The extension build output is written to `apps/extension/dist`. Development data is stored in `.logue-data` at the repository root by default; set `LOGUE_DATA_DIR` to use another location.
 
-See the [`product design index`](./docs/design/README.md) for the V2 authority and V1 historical-document boundary.
+See the [`product design index`](./docs/design/README.md) for the authoritative design and its supporting evidence.
 
 ## Release
 

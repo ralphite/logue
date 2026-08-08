@@ -9,7 +9,7 @@ export type InlineVoicePhase = "idle" | "starting" | "recording" | "processing" 
 const NUDGE_STEP = 12;
 const NUDGE_STEP_LARGE = 48;
 
-export function V2InlineVoiceSurface({
+export function InlineVoiceSurface({
   phase,
   onStart,
   onStartCommand,

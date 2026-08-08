@@ -24,3 +24,4 @@ docs/qa/**/*.aiff
 docs/qa/**/*.webm
 docs/qa/**/*.mp3
 docs/qa/**/*.m4a
+.artifacts/

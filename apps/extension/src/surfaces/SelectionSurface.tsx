@@ -12,7 +12,7 @@ interface SelectionSkillOption {
   name: string;
 }
 
-export function V2SelectionSurface({
+export function SelectionSurface({
   phase,
   style,
   error,

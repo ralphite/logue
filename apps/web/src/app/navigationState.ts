@@ -24,7 +24,7 @@ export interface NavigationState {
   };
 }
 
-const storageKey = "logue:v2-navigation-state";
+const storageKey = "logue:navigation-state";
 
 export function readNavigationState(): NavigationState {
   try {

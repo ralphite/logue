@@ -50,7 +50,7 @@ import { VoiceProfilePicker } from "../VoiceProfilePicker";
 import type {
   VoiceCandidateRetranscribeInput,
   VoiceCandidateState,
-} from "./V2VoiceCandidateSurface";
+} from "./VoiceCandidateSurface";
 import { associationList, associations, button, buttonIcon, buttonPrimary, card, choiceList, citationChip, commentCard, commentSource, contextCard, correction, draftCard, field, headingActions, inlineActions, inserted, menu, meta, organize, originLabel, panelComposer, panelFooter, panelFrame, panelHeader, panelScroll, panelSection, panelSectionHeading, panelTitleButton, profileButton, profilePopover, quietPill, recordingStatus, settingsSection, skillPicker, skillPickerGroup, skillPickerLabel, sources, spin, warningBar } from "./panelStyles";
 
 function sourceTitle(state: PanelCaptureState) {
@@ -137,7 +137,7 @@ function anchorStatusLabel(
   return "";
 }
 
-function V2Button({
+function PanelButton({
   children,
   primary = false,
   icon = false,
@@ -157,7 +157,7 @@ function V2Button({
   );
 }
 
-function V2Origin({
+function PanelOrigin({
   origin,
   detail,
 }: {
@@ -176,7 +176,7 @@ function V2Origin({
   );
 }
 
-function V2VoiceCandidate({
+function PanelVoiceCandidate({
   candidate,
   context,
   overrides,
@@ -223,13 +223,13 @@ function V2VoiceCandidate({
   return (
     <section className={draftCard} aria-label="Voice input candidate">
       <div className={panelSectionHeading}>
-        <V2Origin
+        <PanelOrigin
           origin="you"
           detail={`Voice · revision ${candidate.revision}`}
         />
-        <V2Button icon aria-label="Close candidate" onClick={onDismiss}>
+        <PanelButton icon aria-label="Close candidate" onClick={onDismiss}>
           <X size={15} />
-        </V2Button>
+        </PanelButton>
       </div>
       {candidate.inserted || candidate.copied ? (
         <div className={inserted}>
@@ -291,7 +291,7 @@ function V2VoiceCandidate({
               </option>
               <option value="global">Remember globally</option>
             </select>
-            <V2Button
+            <PanelButton
               disabled={candidate.busy || invalidCorrection}
               onClick={() =>
                 onRetranscribe(
@@ -313,51 +313,51 @@ function V2VoiceCandidate({
                 <RotateCcw size={14} />
               )}
               Re-transcribe
-            </V2Button>
+            </PanelButton>
           </div>
         </div>
       ) : null}
       <div className={`${inlineActions} mt-3`}>
         {!candidate.inserted && !candidate.copied ? (
-          <V2Button
+          <PanelButton
             onClick={() => setOptionsOpen((value) => !value)}
             aria-expanded={optionsOpen}
           >
             {context?.resolved_voice_profile.label || candidate.profileLabel}
             <ChevronDown size={12} />
-          </V2Button>
+          </PanelButton>
         ) : null}
         {candidate.purpose === "comment" ? (
-          <V2Button disabled={candidate.busy} onClick={onDelete}>
+          <PanelButton disabled={candidate.busy} onClick={onDelete}>
             Delete comment
-          </V2Button>
+          </PanelButton>
         ) : null}
         <span className="flex-1" />
         {candidate.purpose !== "comment" &&
         !candidate.inserted &&
         !candidate.copied &&
         candidate.error ? (
-          <V2Button disabled={candidate.busy} onClick={onCopy}>
+          <PanelButton disabled={candidate.busy} onClick={onCopy}>
             <Copy size={14} />
             Copy
-          </V2Button>
+          </PanelButton>
         ) : null}
         {candidate.adoptionPending ? (
-          <V2Button disabled={candidate.busy} onClick={onRetryAdoption}>
+          <PanelButton disabled={candidate.busy} onClick={onRetryAdoption}>
             Retry save
-          </V2Button>
+          </PanelButton>
         ) : null}
         {candidate.canUndo ? (
-          <V2Button primary disabled={candidate.busy} onClick={onUndo}>
+          <PanelButton primary disabled={candidate.busy} onClick={onUndo}>
             <RotateCcw size={14} />
             Undo
-          </V2Button>
+          </PanelButton>
         ) : candidate.inserted || candidate.copied ? (
-          <V2Button primary disabled={candidate.busy} onClick={onDismiss}>
+          <PanelButton primary disabled={candidate.busy} onClick={onDismiss}>
             Done
-          </V2Button>
+          </PanelButton>
         ) : (
-          <V2Button
+          <PanelButton
             primary
             disabled={
               candidate.busy ||
@@ -367,14 +367,14 @@ function V2VoiceCandidate({
             onClick={onInsert}
           >
             {candidate.purpose === "comment" ? "Finish comment" : "Insert"}
-          </V2Button>
+          </PanelButton>
         )}
       </div>
     </section>
   );
 }
 
-export interface V2SidePanelSurfaceProps {
+export interface SidePanelSurfaceProps {
   state?: PanelCaptureState;
   phase: CapturePhase;
   draft: string;
@@ -483,7 +483,7 @@ export interface V2SidePanelSurfaceProps {
   onVoiceCandidateDismiss?: () => void;
 }
 
-export function V2SidePanelSurface({
+export function SidePanelSurface({
   state,
   phase,
   draft,
@@ -584,7 +584,7 @@ export function V2SidePanelSurface({
   onVoiceCandidateRetryAdoption = () => undefined,
   onVoiceCandidateDelete = () => undefined,
   onVoiceCandidateDismiss = () => undefined,
-}: V2SidePanelSurfaceProps) {
+}: SidePanelSurfaceProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [organizeOpen, setOrganizeOpen] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
@@ -681,9 +681,9 @@ export function V2SidePanelSurface({
             ariaLabel="More options"
             menuClassName={menu}
             trigger={(props) => (
-              <V2Button {...props} icon aria-label="More options">
+              <PanelButton {...props} icon aria-label="More options">
                 <Ellipsis size={17} />
-              </V2Button>
+              </PanelButton>
             )}
           >
             <button
@@ -702,13 +702,13 @@ export function V2SidePanelSurface({
           <section className={organize} aria-label="Organize capture">
             <div className={panelSectionHeading}>
               <h2>Project</h2>
-              <V2Button
+              <PanelButton
                 icon
                 aria-label="Close organize"
                 onClick={() => setOrganizeOpen(false)}
               >
                 <X size={14} />
-              </V2Button>
+              </PanelButton>
             </div>
             <div className={choiceList}>
               <button
@@ -753,7 +753,7 @@ export function V2SidePanelSurface({
                     </div>
                   ) : null}
                   <div className={inlineActions}>
-                    <V2Button
+                    <PanelButton
                       disabled={projectCreating}
                       onClick={() => {
                         setProjectCreateOpen(false);
@@ -761,8 +761,8 @@ export function V2SidePanelSurface({
                       }}
                     >
                       Cancel
-                    </V2Button>
-                    <V2Button
+                    </PanelButton>
+                    <PanelButton
                       primary
                       disabled={projectCreating || !projectName.trim()}
                       onClick={() => {
@@ -790,13 +790,13 @@ export function V2SidePanelSurface({
                       }}
                     >
                       {projectCreating ? "Creating…" : "Create Project"}
-                    </V2Button>
+                    </PanelButton>
                   </div>
                 </div>
               ) : (
-                <V2Button onClick={() => setProjectCreateOpen(true)}>
+                <PanelButton onClick={() => setProjectCreateOpen(true)}>
                   Create Project
-                </V2Button>
+                </PanelButton>
               )
             ) : null}
             {activeProject ? (
@@ -805,7 +805,7 @@ export function V2SidePanelSurface({
                   Use {activeProject} automatically
                 </div>
                 <div className={inlineActions}>
-                  <V2Button
+                  <PanelButton
                     disabled={projectAssociations.some(
                       (item) =>
                         item.scope === "page" &&
@@ -814,8 +814,8 @@ export function V2SidePanelSurface({
                     onClick={() => onRememberProject("page")}
                   >
                     For this page
-                  </V2Button>
-                  <V2Button
+                  </PanelButton>
+                  <PanelButton
                     disabled={projectAssociations.some(
                       (item) =>
                         item.scope === "site" &&
@@ -824,7 +824,7 @@ export function V2SidePanelSurface({
                     onClick={() => onRememberProject("site")}
                   >
                     For this site
-                  </V2Button>
+                  </PanelButton>
                 </div>
               </div>
             ) : null}
@@ -888,7 +888,7 @@ export function V2SidePanelSurface({
         {providerNotice && error?.kind !== "service" ? (
           <div className={warningBar} role="status">
             <span>{providerNotice}</span>
-            <V2Button onClick={onOpenModelSettings}>Model settings…</V2Button>
+            <PanelButton onClick={onOpenModelSettings}>Model settings…</PanelButton>
           </div>
         ) : null}
         {error?.kind === "target" ? (
@@ -896,9 +896,9 @@ export function V2SidePanelSurface({
         ) : error && error.kind !== "service" ? (
           <div className={warningBar} role="alert">
             <span>{error.message}</span>
-            {error.kind === "transcription" ? <div className={inlineActions}><V2Button onClick={onRetryTranscription}>Retry</V2Button><V2Button onClick={onOpenModelSettings}>Model settings…</V2Button></div> : null}
-            {error.kind === "model" ? <div className={inlineActions}><V2Button onClick={onRetryModel} disabled={generating}>{generating ? "Retrying…" : "Retry"}</V2Button><V2Button onClick={onOpenModelSettings}>Model settings…</V2Button></div> : null}
-            {error.kind === "save" && error.action === "retry" && generatedDocumentUndoAvailable ? <div className={inlineActions}><V2Button onClick={onUndoGeneratedDocument} disabled={savingGeneratedDocument}>{savingGeneratedDocument ? "Retrying…" : "Retry"}</V2Button></div> : null}
+            {error.kind === "transcription" ? <div className={inlineActions}><PanelButton onClick={onRetryTranscription}>Retry</PanelButton><PanelButton onClick={onOpenModelSettings}>Model settings…</PanelButton></div> : null}
+            {error.kind === "model" ? <div className={inlineActions}><PanelButton onClick={onRetryModel} disabled={generating}>{generating ? "Retrying…" : "Retry"}</PanelButton><PanelButton onClick={onOpenModelSettings}>Model settings…</PanelButton></div> : null}
+            {error.kind === "save" && error.action === "retry" && generatedDocumentUndoAvailable ? <div className={inlineActions}><PanelButton onClick={onUndoGeneratedDocument} disabled={savingGeneratedDocument}>{savingGeneratedDocument ? "Retrying…" : "Retry"}</PanelButton></div> : null}
           </div>
         ) : null}
         <div className={panelScroll}>
@@ -906,13 +906,13 @@ export function V2SidePanelSurface({
             <section className={settingsSection}>
               <div className={panelSectionHeading}>
                 <h2>Host</h2>
-                <V2Button
+                <PanelButton
                   icon
                   aria-label="Close Host settings"
                   onClick={onCloseServerSettings}
                 >
                   <X size={14} />
-                </V2Button>
+                </PanelButton>
               </div>
               <label className={field}>
                 Host address
@@ -944,22 +944,22 @@ export function V2SidePanelSurface({
                 <p className={warningBar}>{serverSettingsError}</p>
               ) : null}
               <div className={inlineActions}>
-                <V2Button onClick={onCloseServerSettings}>Cancel</V2Button>
+                <PanelButton onClick={onCloseServerSettings}>Cancel</PanelButton>
                 {serverCandidateURL ? (
-                  <V2Button
+                  <PanelButton
                     onClick={onConnectCandidateServer}
                     disabled={serverConnecting}
                   >
                     Use detected Host
-                  </V2Button>
+                  </PanelButton>
                 ) : null}
-                <V2Button
+                <PanelButton
                   primary
                   onClick={onConnectServer}
                   disabled={serverConnecting || !serverURLDraft.trim()}
                 >
                   {serverConnecting ? "Connecting…" : "Connect"}
-                </V2Button>
+                </PanelButton>
               </div>
             </section>
           ) : (
@@ -972,26 +972,26 @@ export function V2SidePanelSurface({
                   </div>
                   {pendingVoices.map((item) => (
                     <article className={commentCard} key={item.id}>
-                      <V2Origin
+                      <PanelOrigin
                         origin="you"
                         detail={item.error ? "Needs retry" : "Waiting for Host"}
                       />
                       <p>{item.pageTitle || "Voice recording"}</p>
                       <div className={inlineActions}>
-                        <V2Button
+                        <PanelButton
                           disabled={Boolean(retryingPendingVoiceId)}
                           onClick={() => onRetryPendingVoice(item.id)}
                         >
                           {retryingPendingVoiceId === item.id
                             ? "Retrying…"
                             : "Retry"}
-                        </V2Button>
-                        <V2Button onClick={() => onExportPendingVoice(item.id)}>
+                        </PanelButton>
+                        <PanelButton onClick={() => onExportPendingVoice(item.id)}>
                           Export audio
-                        </V2Button>
-                        <V2Button onClick={() => onDeletePendingVoice(item.id)}>
+                        </PanelButton>
+                        <PanelButton onClick={() => onDeletePendingVoice(item.id)}>
                           Delete
-                        </V2Button>
+                        </PanelButton>
                       </div>
                     </article>
                   ))}
@@ -999,7 +999,7 @@ export function V2SidePanelSurface({
               ) : null}
               {voiceCandidate ? (
                 <section className={panelSection}>
-                  <V2VoiceCandidate
+                  <PanelVoiceCandidate
                     candidate={voiceCandidate}
                     context={voiceProfileContext}
                     overrides={voiceProfileOverrides}
@@ -1051,28 +1051,28 @@ export function V2SidePanelSurface({
                       ))}
                     </div>
                     <div className={`${inlineActions} mt-3`}>
-                      <V2Button disabled={generatedAdoptionPending} onClick={onCopyGenerated}>
+                      <PanelButton disabled={generatedAdoptionPending} onClick={onCopyGenerated}>
                         <Copy size={14} />
                         Copy
-                      </V2Button>
-                      <V2Button disabled={generatedAdoptionPending} onClick={generatedKeepUndoAvailable ? onUndoGeneratedKeep : onKeepGenerated}>
+                      </PanelButton>
+                      <PanelButton disabled={generatedAdoptionPending} onClick={generatedKeepUndoAvailable ? onUndoGeneratedKeep : onKeepGenerated}>
                         {generatedKeepUndoAvailable ? <RotateCcw size={14} /> : <Sparkles size={14} />}
                         {generatedKeepUndoAvailable ? "Undo Keep in Logue" : "Keep in Logue"}
-                      </V2Button>
+                      </PanelButton>
                       {generatedDocumentUndoAvailable ? (
-                        <V2Button disabled={savingGeneratedDocument} onClick={onUndoGeneratedDocument}>
+                        <PanelButton disabled={savingGeneratedDocument} onClick={onUndoGeneratedDocument}>
                           <RotateCcw size={14} />
                           {savingGeneratedDocument ? "Undoing…" : generatedDocumentUndoAction === "document" ? "Undo Save as document" : "Undo Document update"}
-                        </V2Button>
+                        </PanelButton>
                       ) : <div className="relative w-fit">
-                        <V2Button
+                        <PanelButton
                           disabled={savingGeneratedDocument || generatedAdoptionPending}
                           aria-expanded={documentTargetOpen}
                           onClick={() => setDocumentTargetOpen((current) => !current)}
                         >
                           <FileText size={14} />
                           {savingGeneratedDocument ? "Saving…" : "Document…"}
-                        </V2Button>
+                        </PanelButton>
                         {documentTargetOpen ? (
                           <div className={skillPicker} role="menu" aria-label="Choose Document target">
                             <div className="max-h-90 overflow-auto p-1.5">
@@ -1099,37 +1099,37 @@ export function V2SidePanelSurface({
                         ) : null}
                       </div>}
                       {generatedAdoptionPending ? (
-                        <V2Button
+                        <PanelButton
                           disabled={insertingGenerated}
                           onClick={onRetryGeneratedAdoption}
                         >
                           {insertingGenerated ? "Saving…" : "Retry save"}
-                        </V2Button>
+                        </PanelButton>
                       ) : null}
                       {!generatedAdoptionPending && generatedUndoAvailable ? (
-                        <V2Button
+                        <PanelButton
                           primary
                           disabled={insertingGenerated}
                           onClick={onUndoGenerated}
                         >
                           <RotateCcw size={14} />
                           Undo
-                        </V2Button>
+                        </PanelButton>
                       ) : !generatedAdoptionPending && generated && generatedInsertAvailable ? (
-                        <V2Button
+                        <PanelButton
                           primary
                           disabled={insertingGenerated}
                           onClick={onInsertGenerated}
                         >
                           {insertingGenerated ? "Inserting…" : "Insert"}
-                        </V2Button>
+                        </PanelButton>
                       ) : null}
                     </div>
                   </div>
                   {openedSource ? (
                     <article className={contextCard}>
                       <div className={panelSectionHeading}>
-                        <V2Origin
+                        <PanelOrigin
                           origin={
                             openedSource.actor === "user"
                               ? "you"
@@ -1181,7 +1181,7 @@ export function V2SidePanelSurface({
                       ) : null}
                     </div>
                     <article className={contextCard}>
-                      <V2Origin
+                      <PanelOrigin
                         origin="web"
                         detail={
                           state.selectionText ? "Selected text" : "Current page"
@@ -1193,7 +1193,7 @@ export function V2SidePanelSurface({
                       </div>
                     </article>
                     <div className="mt-2.5 flex flex-wrap gap-[7px]">
-                      <V2Button
+                      <PanelButton
                         disabled={
                           generating || !(state.selectionText || state.pageText)
                         }
@@ -1201,12 +1201,12 @@ export function V2SidePanelSurface({
                       >
                         <Bookmark size={14} />
                         {state.selectionText ? "Save selection" : "Save page"}
-                      </V2Button>
+                      </PanelButton>
                       {skills
                         .filter((skill) => skill.task === "generate")
                         .slice(0, 3)
                         .map((skill) => (
-                          <V2Button
+                          <PanelButton
                             key={skill.id}
                             disabled={
                               generating ||
@@ -1216,7 +1216,7 @@ export function V2SidePanelSurface({
                           >
                             <Sparkles size={14} />
                             {skill.name}
-                          </V2Button>
+                          </PanelButton>
                         ))}
                     </div>
                   </section>
@@ -1315,7 +1315,7 @@ export function V2SidePanelSurface({
                       return (
                         <article className={commentCard} key={group.key}>
                           <div className={panelSectionHeading}>
-                            <V2Origin
+                            <PanelOrigin
                               origin="you"
                               detail={
                                 transcriptionPending
@@ -1332,7 +1332,7 @@ export function V2SidePanelSurface({
                                 <ExternalLink size={14} />
                               </a>
                             {editable && !editing ? (
-                              <V2Button
+                              <PanelButton
                                 onClick={() => {
                                   setEditingCommentId(group.key);
                                   setCommentDraft(material.content);
@@ -1341,7 +1341,7 @@ export function V2SidePanelSurface({
                                 }}
                               >
                                 Edit
-                              </V2Button>
+                              </PanelButton>
                             ) : null}
                             </span>
                           </div>
@@ -1393,13 +1393,13 @@ export function V2SidePanelSurface({
                                 <p>{classificationReason}</p>
                               </div>
                               <div className={inlineActions}>
-                                <V2Button
+                                <PanelButton
                                   disabled={commentSaving}
                                   onClick={() => setEditingCommentId(undefined)}
                                 >
                                   Cancel
-                                </V2Button>
-                                <V2Button
+                                </PanelButton>
+                                <PanelButton
                                   primary
                                   disabled={
                                     commentSaving || !commentDraft.trim()
@@ -1451,7 +1451,7 @@ export function V2SidePanelSurface({
                                   }}
                                 >
                                   {commentSaving ? "Saving…" : "Save changes"}
-                                </V2Button>
+                                </PanelButton>
                               </div>
                             </div>
                           ) : (
@@ -1489,13 +1489,13 @@ export function V2SidePanelSurface({
                           (anchorStatus === "anchored" ||
                             anchorStatus === "reanchored") ? (
                             <div className={inlineActions}>
-                              <V2Button
+                              <PanelButton
                                 onClick={() =>
                                   onLocatePageAnchor(anchorMaterial)
                                 }
                               >
                                 Locate on page
-                              </V2Button>
+                              </PanelButton>
                             </div>
                           ) : null}
                           {!editing &&
@@ -1503,22 +1503,22 @@ export function V2SidePanelSurface({
                           (anchorStatus === "page_changed" ||
                             anchorStatus === "snapshot_only") ? (
                             <div className={inlineActions}>
-                              <V2Button
+                              <PanelButton
                                 primary={anchorStatus === "page_changed"}
                                 onClick={() =>
                                   onReanchorPageMaterial(anchorMaterial)
                                 }
                               >
                                 Use current selection
-                              </V2Button>
+                              </PanelButton>
                               {anchorStatus === "page_changed" ? (
-                                <V2Button
+                                <PanelButton
                                   onClick={() =>
                                     onKeepSnapshotAnchor(anchorMaterial)
                                   }
                                 >
                                   Keep snapshot
-                                </V2Button>
+                                </PanelButton>
                               ) : null}
                             </div>
                           ) : null}
@@ -1526,27 +1526,27 @@ export function V2SidePanelSurface({
                             (unlinked ? (
                               <div className={inlineActions}>
                                 {!transcriptionPending ? (
-                                  <V2Button
+                                  <PanelButton
                                     primary
                                     onClick={() =>
                                       onFinishUnlinkedVoiceComment(material)
                                     }
                                   >
                                     Finish comment
-                                  </V2Button>
+                                  </PanelButton>
                                 ) : null}
-                                <V2Button
+                                <PanelButton
                                   onClick={() =>
                                     onDeleteUnlinkedVoiceComment(material)
                                   }
                                 >
                                   Delete comment
-                                </V2Button>
+                                </PanelButton>
                               </div>
                             ) : activeProject ? (
                               <div className={inlineActions}>
                                 {excluded ? (
-                                  <V2Button
+                                  <PanelButton
                                     onClick={() =>
                                       updateGroupQuietly({
                                         projects: assignedProjects.filter(
@@ -1566,10 +1566,10 @@ export function V2SidePanelSurface({
                                     }
                                   >
                                     Undo exclusion
-                                  </V2Button>
+                                  </PanelButton>
                                 ) : included ? (
                                   <>
-                                    <V2Button
+                                    <PanelButton
                                       onClick={() =>
                                         updateGroupQuietly({
                                           projects: assignedProjects.filter(
@@ -1589,8 +1589,8 @@ export function V2SidePanelSurface({
                                       }
                                     >
                                       Remove
-                                    </V2Button>
-                                    <V2Button
+                                    </PanelButton>
+                                    <PanelButton
                                       onClick={() =>
                                         updateGroupQuietly({
                                           projects: assignedProjects.filter(
@@ -1610,10 +1610,10 @@ export function V2SidePanelSurface({
                                       }
                                     >
                                       Exclude
-                                    </V2Button>
+                                    </PanelButton>
                                   </>
                                 ) : (
-                                  <V2Button
+                                  <PanelButton
                                     primary
                                     onClick={() =>
                                       updateGroupQuietly({
@@ -1635,7 +1635,7 @@ export function V2SidePanelSurface({
                                     }
                                   >
                                     Add to project
-                                  </V2Button>
+                                  </PanelButton>
                                 )}
                               </div>
                             ) : null)}
@@ -1654,13 +1654,13 @@ export function V2SidePanelSurface({
                 <section className={panelSection}>
                   <div className={panelSectionHeading}>
                     <h2>Draft with sources</h2>
-                    <V2Button
+                    <PanelButton
                       icon
                       aria-label="Back to page"
                       onClick={onReturnToPage}
                     >
                       <ArrowLeft size={16} />
-                    </V2Button>
+                    </PanelButton>
                   </div>
                   <label className={field}>
                     Skill
@@ -1751,16 +1751,16 @@ export function V2SidePanelSurface({
                       Logue.
                     </p>
                     <div className={inlineActions}>
-                      <V2Button onClick={onCopyPendingInsert}>Copy</V2Button>
+                      <PanelButton onClick={onCopyPendingInsert}>Copy</PanelButton>
                       {state.targetAvailable &&
                       state.source.url === pendingInsert.sourceURL ? (
-                        <V2Button
+                        <PanelButton
                           primary
                           disabled={insertingPending}
                           onClick={onRetryInsert}
                         >
                           {insertingPending ? "Inserting…" : "Insert again"}
-                        </V2Button>
+                        </PanelButton>
                       ) : null}
                     </div>
                   </div>
@@ -1781,27 +1781,27 @@ export function V2SidePanelSurface({
                   Recording {elapsed}s
                 </span>
                 <span className="flex-1" />
-                <V2Button
+                <PanelButton
                   primary
                   onClick={onStopRecording}
                   aria-keyshortcuts="Enter"
                 >
                   <Square size={13} fill="currentColor" />
                   Accept
-                </V2Button>
-                <V2Button
+                </PanelButton>
+                <PanelButton
                   onClick={onCancelRecording}
                   aria-keyshortcuts="Escape"
                 >
                   Cancel
-                </V2Button>
+                </PanelButton>
               </div>
             ) : presentation.captureActive ? (
               <div className={panelComposer}>
                 <LoaderCircle size={16} className={spin} />
                 <span>{presentation.status || "Preparing voice…"}</span>
                 <span className="flex-1" />
-                <V2Button onClick={onCancelRecording}>Cancel</V2Button>
+                <PanelButton onClick={onCancelRecording}>Cancel</PanelButton>
               </div>
             ) : (
               <>
@@ -1818,7 +1818,7 @@ export function V2SidePanelSurface({
                     }
                     aria-label={generated ? "Draft instruction" : "Comment"}
                   />
-                  <V2Button
+                  <PanelButton
                     icon
                     aria-label={
                       pendingVoiceQueueFull
@@ -1829,9 +1829,9 @@ export function V2SidePanelSurface({
                     onClick={onStartRecording}
                   >
                     <Mic size={17} />
-                  </V2Button>
+                  </PanelButton>
                   {generated ? (
-                    <V2Button
+                    <PanelButton
                       icon
                       primary
                       aria-label="Generate"
@@ -1843,9 +1843,9 @@ export function V2SidePanelSurface({
                       ) : (
                         <Send size={16} />
                       )}
-                    </V2Button>
+                    </PanelButton>
                   ) : (
-                    <V2Button
+                    <PanelButton
                       icon
                       primary
                       aria-label="Save comment"
@@ -1853,7 +1853,7 @@ export function V2SidePanelSurface({
                       onClick={onSave}
                     >
                       <Send size={16} />
-                    </V2Button>
+                    </PanelButton>
                   )}
                 </div>
                 <div className={`${inlineActions} mt-2`}>
@@ -1870,10 +1870,10 @@ export function V2SidePanelSurface({
                   </button>
                   <span className="flex-1" />
                   {!generated ? (
-                    <V2Button onClick={onRequestGeneration}>
+                    <PanelButton onClick={onRequestGeneration}>
                       <Sparkles size={14} />
                       Ask or draft
-                    </V2Button>
+                    </PanelButton>
                   ) : null}
                 </div>
                 {voiceProfilePickerOpen ? (
@@ -1894,10 +1894,10 @@ export function V2SidePanelSurface({
         {error?.kind === "service" && !serverSettingsOpen ? (
           <footer className={panelFooter}>
             <div className={inlineActions}>
-              <V2Button onClick={onRetryServer} disabled={serverConnecting}>
+              <PanelButton onClick={onRetryServer} disabled={serverConnecting}>
                 {serverConnecting ? "Retrying…" : "Retry Host"}
-              </V2Button>
-              <V2Button onClick={onOpenServerSettings}>Change Host…</V2Button>
+              </PanelButton>
+              <PanelButton onClick={onOpenServerSettings}>Change Host…</PanelButton>
             </div>
           </footer>
         ) : null}

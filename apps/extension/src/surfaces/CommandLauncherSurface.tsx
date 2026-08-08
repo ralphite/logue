@@ -9,7 +9,7 @@ export type CommandLauncherPhase =
   | "transcribing"
   | "running";
 
-export interface V2CommandLauncherSurfaceProps {
+export interface CommandLauncherSurfaceProps {
   phase: CommandLauncherPhase;
   instruction: string;
   project: string;
@@ -32,7 +32,7 @@ export interface V2CommandLauncherSurfaceProps {
   onClose(): void;
 }
 
-export function V2CommandLauncherSurface({
+export function CommandLauncherSurface({
   phase,
   instruction,
   project,
@@ -53,7 +53,7 @@ export function V2CommandLauncherSurface({
   onRetry,
   onSwitchToVoiceWrite,
   onClose,
-}: V2CommandLauncherSurfaceProps) {
+}: CommandLauncherSurfaceProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const busy = phase !== "editing";
 

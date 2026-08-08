@@ -1,6 +1,6 @@
 import { ArrowRight, Check, Copy, Download, ExternalLink } from "lucide-react";
 import { useState } from "react";
-import preview from "../../../../docs/design/references/logue-v2-project-canvas-target.png";
+import preview from "./assets/product-preview.png";
 import { Button } from "../ui";
 
 const landingSection = "mx-auto w-[min(100%-32px,980px)] scroll-mt-18 border-t border-line pt-22 pb-24";

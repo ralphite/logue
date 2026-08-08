@@ -1,6 +1,6 @@
-# Logue V1 历史设计：从捕获到复用
+# Logue 设计：从捕获到复用
 
-> 本文件已被 V2 整体产品设计覆盖，仅保留为已发布 V1 的设计与审查记录。当前权威稿见 [`logue-ai-product-positioning-2026-08-04.md`](./logue-ai-product-positioning-2026-08-04.md)。
+> 专题设计，服从 [`logue-ai-product-positioning-2026-08-04.md`](./logue-ai-product-positioning-2026-08-04.md)。
 
 日期：2026-08-04
 状态：产品与 UX 设计；尚未代表实现完成
@@ -8,7 +8,6 @@
 
 ## 0. 规范优先级与证据口径
 
-以下优先级和证据口径只用于解释 V1 当时的设计与实现，不适用于 V2。
 
 文档中的“已有基础”必须区分三件事：
 

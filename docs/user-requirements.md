@@ -4,14 +4,14 @@
 
 ## 2026-08-05 最新实施授权
 
-- 用户已明确结束“只做 UI mock”的阶段，要求直接把 Logue V2 真实端到端构建出来；旧 Goal 的产品范围、canonical journey、完整性优先级和审查标准继续保留，但 Storybook 不再是交付物。
+- 用户已明确结束“只做 UI mock”的阶段，要求直接把 Logue 真实端到端构建出来；旧 Goal 的产品范围、canonical journey、完整性优先级和审查标准继续保留，但 Storybook 不再是交付物。
 - 执行顺序固定为：功能和状态完整 → 用户旅程合理 → UX 极低摩擦且可恢复 → 高质量 UI；不得为了边角视觉优化延迟核心流程，也不得因追求速度牺牲明显的 UI 质量。
-- 真实产品包括 Chrome Extension、Web App、后端、本机持久数据与 CI/CD/安装发布。优先闭合可独立使用的 vertical slice，再扩至全部已定义 V2 能力。
+- 真实产品包括 Chrome Extension、Web App、后端、本机持久数据与 CI/CD/安装发布。优先闭合可独立使用的 vertical slice，再扩至全部已定义能力。
 - 用户授权当前开始实现并允许 commit；验证过的批次应及时提交。最终完整产品需要独立 designer agents 与 Claude Code Opus 5 审查。
 
 ## 2026-08-05 已确认的长期扩展模型
 
-- 用户已确认：当前个人-first 定位保持不变；团队方向作为 V2 的长期扩展原则，不把 LOGUE.ai 立即改成团队知识库或企业搜索产品。
+- 用户已确认：当前个人-first 定位保持不变；团队方向作为长期扩展原则，不把 LOGUE.ai 立即改成团队知识库或企业搜索产品。
 - 用户已确认：个人与团队之间使用显式 `Publication` 边界，采用 `Source + Knowledge + Scope + Publication` 产品语义，不再使用 `Private Source → Personal Knowledge → Share Candidate → Project Knowledge → Team Knowledge` 五层晋升模型。
 - `Source` 是来自 Web、You 或 AI 的可追溯记录或证据；原始与派生状态另行区分。`Knowledge` 只能由用户明确采纳或确认“值得持续依赖”的判断、决定、结论或方法形成；Personal、Project、Workspace 是 Scope，不是不同知识类型。
 - 私人 Source 默认不共享。自动分类只决定个人 Project Context，不改变可见范围；AI 可以建议分享，不能静默发布。`Share Candidate` 不建立长期对象、Inbox 或一级导航。
@@ -23,9 +23,8 @@
 
 ## 2026-08-04 最新产品定位要求
 
-- 已发布的现有产品统一视为 V1；当前讨论的是 V2 整体产品重新设计。V1 的代码、设计、规格、数据和 Release 不限制 V2。
-- 当前只迭代并保存 V2 产品设计，用户会继续补充想法；现在不开始实现、不定义“只证明一个 Project”的 MVP，也不制定 Release 范围。
-- V2 只维护一份持续更新的权威整体设计稿；后续想法直接覆盖或整合进去，不得堆积多份相互冲突、难以判断优先级的总体设计文档。
+- 当前只迭代并保存产品设计，用户会继续补充想法；现在不开始实现、不定义“只证明一个 Project”的 MVP，也不制定 Release 范围。
+- 只维护一份持续更新的权威整体设计稿；后续想法直接覆盖或整合进去，不得堆积多份相互冲突、难以判断优先级的总体设计文档。
 - 正式品牌名为 `LOGUE.ai`，产品简称 `Logue`。
 - 产品有三个不可拆分的核心：`Voice / Log / AI`。
 - Voice 不只是听写：任意需要用户输入的地方都应能语音输入；用户也能用语音执行命令，并与已有 Resources、Topics 和 Projects 交互。
@@ -159,6 +158,6 @@
 
 ## 强制执行关系
 
-- `docs/user-requirements.md` 记录用户事实；`docs/design/logue-ai-product-positioning-2026-08-04.md` 是当前 V2 唯一权威整体设计。
-- `/GOAL.md`、`docs/product-spec.md`、`docs/interaction-spec.md`、`docs/design-system.md`、旧专题设计与 QA 只解释已发布 V1，不限制 V2。
-- V2 设计阶段的新想法直接更新用户事实、V2 权威设计与 `DECISIONS_AND_RISKS.md`；当前不得据此开始实现。
+- `docs/user-requirements.md` 记录用户事实；`docs/design/logue-ai-product-positioning-2026-08-04.md` 是当前唯一权威整体设计。
+- `docs/qa/`、`docs/design/audits/` 与 `docs/source-specs/` 是历史记录，用于追溯当时的判断，不构成当前设计依据。
+- 新想法直接更新用户事实、权威设计与 `DECISIONS_AND_RISKS.md`；当前不得据此开始实现。

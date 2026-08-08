@@ -56,3 +56,7 @@ export const candidateAction =
 
 export const fieldInput =
   "h-8.5 min-w-0 rounded-[7px] border border-line-strong bg-surface px-2 text-ink";
+
+/** A short confirmation or failure pinned beside the selection it belongs to. */
+export const selectionFeedback =
+  "fixed z-hint max-w-65 rounded-md border border-line bg-surface px-[9px] py-[7px] text-xs leading-[1.4] text-ink-soft shadow-[0_7px_22px_rgb(25_27_23/12%)] [&_button]:ml-[7px] [&_button]:font-[650] [&_button]:text-accent [&_button]:underline [&_button]:underline-offset-2";

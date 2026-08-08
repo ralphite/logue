@@ -36,7 +36,7 @@ describe("side panel initial focus", () => {
 
   it("hands keyboard control to the quiet panel surface without focusing an editor", () => {
     const panel = readFileSync(resolve(process.cwd(), "src/sidePanel.tsx"), "utf8");
-    const surface = readFileSync(resolve(process.cwd(), "src/v2-real/V2SidePanelSurface.tsx"), "utf8");
+    const surface = readFileSync(resolve(process.cwd(), "src/surfaces/SidePanelSurface.tsx"), "utf8");
 
     expect(panel).toContain("const panelMainRef = useRef<HTMLElement>(null)");
     expect(panel).toContain("if (!previous) focusPanelOnHydrationRef.current = true");
