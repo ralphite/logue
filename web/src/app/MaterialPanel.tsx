@@ -68,6 +68,18 @@ export function MaterialPanel({
               <audio controls src={api.audioUrl(material.capture_id)} className="h-8 w-full" />
             )}
 
+            {material.capture_id && (
+              <Transcript
+                material={material}
+                busy={action.busy}
+                onChanged={() => {
+                  void lineage.refresh();
+                  onChanged();
+                }}
+                run={action.run}
+              />
+            )}
+
             <HowItWasHeard applied={material.applied_context} />
 
             <Lineage title="Came from" items={lineage.data?.parents ?? []} />
@@ -152,6 +164,116 @@ export function MaterialPanel({
         )}
       </div>
     </aside>
+  );
+}
+
+/**
+ * Hearing it again, and telling Logue what it got wrong.
+ *
+ * The audio is kept, so a mishearing is fixable rather than something to
+ * retype — and a correction made here is remembered, because correcting the
+ * same name every week is the clearest sign the product is not listening.
+ */
+function Transcript({
+  material,
+  busy,
+  onChanged,
+  run,
+}: {
+  material: Material;
+  busy: boolean;
+  onChanged: () => void;
+  run: (work: () => Promise<unknown>) => Promise<boolean>;
+}) {
+  const history = useHost(() => api.transcriptRevisions(material.id), [material.id]);
+  const [fixing, setFixing] = useState(false);
+  const [spoken, setSpoken] = useState("");
+  const [preferred, setPreferred] = useState("");
+  const revisions = history.data?.revisions ?? [];
+
+  const again = (correction?: { spoken: string; preferred: string }) =>
+    void run(() => api.retranscribe(material.id, correction)).then((ok) => {
+      if (!ok) return;
+      setFixing(false);
+      setSpoken("");
+      setPreferred("");
+      void history.refresh();
+      onChanged();
+    });
+
+  return (
+    <div className="grid gap-1.5 border-t border-line pt-3">
+      <span className="flex items-center gap-2 text-xs text-muted">
+        Transcript
+        {revisions.length > 0 && <span className="text-faint">{revisions.length} earlier</span>}
+        <span className="ml-auto flex gap-1">
+          <Button variant="ghost" disabled={busy} onClick={() => setFixing(!fixing)}>
+            Fix a word
+          </Button>
+          <Button variant="ghost" disabled={busy} onClick={() => again()}>
+            {busy ? <Spinner size={12} /> : null} Hear it again
+          </Button>
+        </span>
+      </span>
+
+      {fixing && (
+        <div className="flex flex-wrap items-center gap-1 text-[11px]">
+          <Input
+            autoFocus
+            value={spoken}
+            placeholder="It wrote…"
+            aria-label="What it wrote"
+            className="h-6 w-28 px-1.5 text-[11px]"
+            onChange={(event) => setSpoken(event.target.value)}
+          />
+          <span className="text-faint">→</span>
+          <Input
+            value={preferred}
+            placeholder="…should be"
+            aria-label="What it should be"
+            className="h-6 w-28 px-1.5 text-[11px]"
+            onChange={(event) => setPreferred(event.target.value)}
+          />
+          <Button
+            variant="primary"
+            disabled={busy || !spoken.trim() || !preferred.trim()}
+            onClick={() => again({ spoken: spoken.trim(), preferred: preferred.trim() })}
+          >
+            Fix and remember
+          </Button>
+        </div>
+      )}
+
+      {revisions.length > 0 && (
+        <details className="text-meta text-muted">
+          <summary className="cursor-pointer select-none">What it said before</summary>
+          <div className="mt-1 grid gap-1">
+            {revisions
+              .toSorted((a, b) => b.created_at.localeCompare(a.created_at))
+              .map((revision) => (
+                <div key={revision.id} className="flex items-start gap-2 rounded-md bg-surface-muted px-2 py-1.5">
+                  <span className="min-w-0 flex-1 leading-normal text-ink-soft">
+                    {revision.transcript ?? revision.text}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(() => api.useRevision(material.id, revision.id)).then((ok) => {
+                        if (!ok) return;
+                        void history.refresh();
+                        onChanged();
+                      })
+                    }
+                  >
+                    Use this
+                  </Button>
+                </div>
+              ))}
+          </div>
+        </details>
+      )}
+    </div>
   );
 }
 

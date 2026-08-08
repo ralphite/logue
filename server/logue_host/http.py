@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from .errors import BadRequest, HostError
 
@@ -113,7 +113,10 @@ class Router:
                 continue
             found = pattern.match(path)
             if found:
-                return handler, found.groupdict()
+                # Decoded here, once. A path segment can carry a space or a
+                # non-ASCII character — a misheard word, for instance — and a
+                # handler comparing it raw would simply never match.
+                return handler, {key: unquote(value) for key, value in found.groupdict().items()}
         return None
 
     def allows(self, path: str) -> bool:

@@ -1,6 +1,6 @@
-import { Check, Download } from "lucide-react";
+import { Check, Download, X } from "lucide-react";
 import { useState } from "react";
-import { Button, ErrorNote, Field, Input, Select, Spinner } from "@logue/ui";
+import { Button, ErrorNote, Field, IconButton, Input, Select, Spinner } from "@logue/ui";
 import { api, type Skill } from "../api";
 import { Page } from "./AppShell";
 import { useAction, useHost } from "./useHost";
@@ -43,6 +43,7 @@ export function SettingsRoute() {
   const model = useHost(() => api.model(), []);
   const settings = useHost(() => api.settings(), []);
   const skills = useHost(() => api.skills(), []);
+  const corrections = useHost(() => api.corrections(), []);
   const backup = useHost(() => api.backupPreview(), []);
 
   const [apiKey, setApiKey] = useState("");
@@ -134,6 +135,37 @@ export function SettingsRoute() {
               ))}
             </Select>
           </Field>
+        </Section>
+
+        <Section title="Corrections">
+          <p className="text-meta text-muted">
+            Words Logue has misheard before. Every recording is transcribed knowing these.
+          </p>
+          {(corrections.data?.corrections ?? []).length === 0 ? (
+            <p className="text-meta text-faint">
+              None yet — fix a word on a recording and it will be remembered here.
+            </p>
+          ) : (
+            <div className="grid gap-1">
+              {(corrections.data?.corrections ?? []).map((fix) => (
+                <div key={fix.spoken} className="flex items-center gap-2 text-xs">
+                  <span className="truncate text-muted">{fix.spoken}</span>
+                  <span className="text-faint">→</span>
+                  <span className="truncate text-ink-soft">{fix.preferred}</span>
+                  <IconButton
+                    label={`Forget ${fix.spoken}`}
+                    className="ml-auto"
+                    disabled={action.busy}
+                    onClick={() =>
+                      void action.run(() => api.forgetCorrection(fix.spoken)).then(() => corrections.refresh())
+                    }
+                  >
+                    <X size={13} />
+                  </IconButton>
+                </div>
+              ))}
+            </div>
+          )}
         </Section>
 
         <Section title="Default Skills">

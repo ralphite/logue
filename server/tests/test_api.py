@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from logue_host.app import App
 from logue_host.build import installed_extension_build
-from logue_host.domain import capture, organize
+from logue_host.domain import capture, corrections, organize
 from logue_host.errors import BadRequest, Conflict, NotFound
 from logue_host.http import Request, serve
 from logue_host.providers import Provider
@@ -206,7 +206,68 @@ class HostTest(Workspace, unittest.TestCase):
         material = self.call("POST", "/v1/voice-materials", {"capture_id": result["capture_id"], "text": "first pass"})["material"]
         self.call("POST", f"/v1/materials/{material['id']}/retranscribe", {})
         kept = [r for r in self.app.store.transcript_revisions.all() if r["material_id"] == material["id"]]
-        self.assertEqual(kept[0]["text"], "first pass")
+        # `transcript` is the key the 72 revisions in the real workspace use.
+        self.assertEqual(kept[0]["transcript"], "first pass")
+        self.assertEqual(kept[0]["revision"], 1)
+
+    def test_a_record_that_keeps_its_id_only_in_its_filename_is_still_read(self) -> None:
+        """How 72 transcript revisions in the real workspace are stored."""
+        folder = self.app.store.transcript_revisions.path
+        (folder / "mat_old-r1.json").write_text(
+            json.dumps({"material_id": "mat_old", "revision": 1, "transcript": "what it said"}), encoding="utf-8"
+        )
+        found = [r for r in self.app.store.transcript_revisions.all() if r["material_id"] == "mat_old"]
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["id"], "mat_old-r1")
+
+    def test_an_earlier_transcript_can_be_taken_back(self) -> None:
+        result = self.call("POST", "/v1/transcribe", {"audio": base64.b64encode(b"fake").decode()})
+        material = self.call("POST", "/v1/voice-materials", {"capture_id": result["capture_id"], "text": "first pass"})["material"]
+        self.call("POST", f"/v1/materials/{material['id']}/retranscribe", {})
+        first = [r for r in self.app.store.transcript_revisions.all() if r["material_id"] == material["id"]][0]
+
+        restored = self.call("POST", f"/v1/materials/{material['id']}/use-revision", {"revision_id": first["id"]})
+        self.assertEqual(restored["material"]["content"], "first pass")
+
+        # Restoring is an edit too, so what it replaced is still there.
+        kept = [r for r in self.app.store.transcript_revisions.all() if r["material_id"] == material["id"]]
+        self.assertEqual(len(kept), 2)
+
+    def test_a_correction_is_applied_and_remembered(self) -> None:
+        """Correcting the same name every week means the product is not listening."""
+        result = self.call("POST", "/v1/transcribe", {"audio": base64.b64encode(b"fake").decode()})
+        material = self.call("POST", "/v1/voice-materials", {"capture_id": result["capture_id"], "text": "Marchetti"})["material"]
+        self.call(
+            "POST",
+            f"/v1/materials/{material['id']}/retranscribe",
+            {"correction": {"spoken": "Marketty", "preferred": "Marchetti"}},
+        )
+
+        remembered = self.call("GET", "/v1/corrections")["corrections"]
+        self.assertEqual([(c["spoken"], c["preferred"]) for c in remembered], [("Marketty", "Marchetti")])
+        self.assertIn("Marchetti", capture.transcription_plan(self.app.store, "")["instructions"])
+
+    def test_correcting_the_same_word_twice_replaces_the_first_answer(self) -> None:
+        self.call("PATCH", "/v1/settings", {"voice_profile": {}})
+        corrections.remember(self.app.store, "Marketty", "Marchetti")
+        corrections.remember(self.app.store, "marketty", "Marchetty")
+        remembered = corrections.all_of(self.app.store)
+        self.assertEqual(len(remembered), 1, "two contradictory rules would go to the model")
+        self.assertEqual(remembered[0]["preferred"], "Marchetty")
+
+    def test_a_correction_can_be_forgotten(self) -> None:
+        corrections.remember(self.app.store, "Marketty", "Marchetti")
+        self.call("DELETE", "/v1/corrections/Marketty")
+        self.assertEqual(corrections.all_of(self.app.store), [])
+
+    def test_a_correction_with_a_space_in_it_can_be_forgotten(self) -> None:
+        """Misheard words are words; a path segment must be decoded."""
+        corrections.remember(self.app.store, "market E", "Marchetti")
+        match = self.app.router.match("DELETE", "/v1/corrections/market%20E")
+        assert match
+        handler, params = match
+        handler(Request(method="DELETE", path="", query={}, params=params, headers={}, body=b""))
+        self.assertEqual(corrections.all_of(self.app.store), [])
 
     # -- model health -------------------------------------------------------
 

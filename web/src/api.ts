@@ -105,6 +105,22 @@ export interface Run {
   created_at: string;
 }
 
+export interface TranscriptRevision {
+  id: string;
+  material_id: string;
+  revision?: number;
+  transcript?: string;
+  /** Written by earlier versions under a different name. */
+  text?: string;
+  created_at: string;
+}
+
+export interface Correction {
+  spoken: string;
+  preferred: string;
+  at?: string;
+}
+
 export interface Topic {
   id: string;
   name: string;
@@ -186,6 +202,17 @@ export const api = {
   updateMaterial: (id: string, changes: Partial<Material>) =>
     send<{ material: Material }>("PATCH", `/v1/materials/${id}`, changes),
   deleteMaterial: (id: string) => send<{ ok: true }>("DELETE", `/v1/materials/${id}`),
+
+  /** Earlier transcripts of the same recording, newest kept last. */
+  transcriptRevisions: (id: string) =>
+    request<{ current: Material; revisions: TranscriptRevision[] }>(`/v1/materials/${id}/transcript-revisions`),
+  retranscribe: (id: string, correction?: { spoken: string; preferred: string }) =>
+    send<{ material: Material }>("POST", `/v1/materials/${id}/retranscribe`, { correction }),
+  useRevision: (id: string, revisionId: string) =>
+    send<{ material: Material }>("POST", `/v1/materials/${id}/use-revision`, { revision_id: revisionId }),
+  corrections: () => request<{ corrections: Correction[] }>("/v1/corrections"),
+  forgetCorrection: (spoken: string) =>
+    send<{ corrections: Correction[] }>("DELETE", `/v1/corrections/${encodeURIComponent(spoken)}`),
 
   /** Groupings Logue noticed: by tag, by Project, by where things came from. */
   topics: () => request<{ topics: Topic[] }>("/v1/topics"),

@@ -11,7 +11,19 @@ from pathlib import Path
 from typing import Any
 
 from .build import installed_extension_build
-from .domain import backup, capture, defaults, documents, generation, materials, organize, projects, skills, topics
+from .domain import (
+    backup,
+    capture,
+    corrections,
+    defaults,
+    documents,
+    generation,
+    materials,
+    organize,
+    projects,
+    skills,
+    topics,
+)
 from .errors import BadRequest, NotFound
 from .http import Request, Response, Router
 from .ids import new_id, now
@@ -416,8 +428,22 @@ class App:
                     material_id=request.params["id"],
                     correction=body.get("correction"),
                     overrides=body.get("overrides"),
+                    remember=bool(body.get("remember", True)),
                 )
             }
+
+        @route("POST", "/v1/materials/{id}/use-revision")
+        def use_transcript_revision(request: Request) -> dict[str, Any]:
+            revision_id = str(request.json().get("revision_id") or "")
+            return {"material": capture.use_revision(store, request.params["id"], revision_id)}
+
+        @route("GET", "/v1/corrections")
+        def list_corrections(_: Request) -> dict[str, Any]:
+            return {"corrections": corrections.all_of(store)}
+
+        @route("DELETE", "/v1/corrections/{spoken}")
+        def forget_correction(request: Request) -> dict[str, Any]:
+            return {"corrections": corrections.forget(store, request.params["spoken"])}
 
         @route("GET", "/v1/materials/{id}/transcript-revisions")
         def transcript_revisions(request: Request) -> dict[str, Any]:

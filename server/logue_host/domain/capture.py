@@ -13,7 +13,7 @@ from ..errors import BadRequest
 from ..ids import new_id, now
 from ..providers import Provider
 from ..store import Record, Store
-from . import defaults, materials, projects
+from . import corrections, defaults, materials, projects
 
 
 #: Enough of the surrounding page to fix a name, without becoming the prompt.
@@ -87,6 +87,10 @@ def transcription_plan(
         parts.append("Spell these terms exactly: " + ", ".join(terms) + ".")
     if profile.get("custom_instructions"):
         parts.append(str(profile["custom_instructions"]))
+    remembered = corrections.all_of(store)
+    fixes = corrections.as_instruction(remembered)
+    if fixes:
+        parts.append(fixes)
     trimmed = nearby.strip()[:NEARBY_LIMIT]
     if trimmed:
         parts.append(_quoted(trimmed))
@@ -101,6 +105,7 @@ def transcription_plan(
             "terms": terms,
             "vocabulary": vocabulary_name,
             "custom_instructions": str(profile.get("custom_instructions") or ""),
+            "corrections": remembered,
             "skill": (
                 {"id": skill["id"], "name": skill.get("name"), "revision": skill.get("revision")} if skill else None
             ),
@@ -180,6 +185,7 @@ def retranscribe(
     material_id: str,
     correction: dict[str, str] | None = None,
     overrides: dict[str, Any] | None = None,
+    remember: bool = True,
 ) -> Record:
     """Transcribe the kept audio again, preserving the previous text."""
     material = store.materials.get(material_id)
@@ -189,18 +195,63 @@ def retranscribe(
         raise BadRequest("The original recording is no longer available.")
 
     project = (material.get("projects") or [""])[0]
-    instructions = transcription_instructions(store, project, overrides)
+    plan = transcription_plan(store, project, overrides)
+    instructions = str(plan["instructions"])
     if correction and correction.get("spoken") and correction.get("preferred"):
         instructions += f" When you hear \"{correction['spoken']}\", write \"{correction['preferred']}\"."
+        plan["applied"]["correction"] = dict(correction)
+        plan["applied"]["instructions"] = instructions
+        if remember:
+            corrections.remember(store, str(correction["spoken"]), str(correction["preferred"]))
 
     media_type = {".webm": "audio/webm", ".mp4": "audio/mp4", ".wav": "audio/wav"}.get(path.suffix, "audio/webm")
     text = provider.transcribe(path.read_bytes(), media_type, instructions)
+    if not text.strip():
+        raise BadRequest("Nothing was heard the second time either. The recording is unchanged.")
 
+    # Keep the text being replaced, in the shape the 72 existing revisions use.
+    kept = [r for r in store.transcript_revisions.list() if r.get("material_id") == material_id]
     store.transcript_revisions.put(
         {
             "id": new_id("revision"),
             "material_id": material_id,
-            "text": material.get("content"),
+            "capture_id": capture_id,
+            "revision": len(kept) + 1,
+            "transcript": material.get("content"),
+            "applied_context": material.get("applied_context") or {},
+            "created_at": now(),
+        }
+    )
+    material["content"] = text
+    material["transcript"] = text
+    material["applied_context"] = plan["applied"]
+    material["updated_at"] = now()
+    return store.materials.put(material)
+
+
+def use_revision(store: Store, material_id: str, revision_id: str) -> Record:
+    """Go back to an earlier transcript, keeping the one being replaced.
+
+    Restoring is itself an edit, so it leaves a revision too — otherwise
+    changing your mind twice loses the middle answer.
+    """
+    material = store.materials.get(material_id)
+    wanted = store.transcript_revisions.get(revision_id)
+    if wanted.get("material_id") != material_id:
+        raise BadRequest("That revision belongs to a different Source.")
+    text = str(wanted.get("transcript") or wanted.get("text") or "")
+    if not text.strip():
+        raise BadRequest("That revision has no text.")
+
+    kept = [r for r in store.transcript_revisions.list() if r.get("material_id") == material_id]
+    store.transcript_revisions.put(
+        {
+            "id": new_id("revision"),
+            "material_id": material_id,
+            "capture_id": material.get("capture_id"),
+            "revision": len(kept) + 1,
+            "transcript": material.get("content"),
+            "applied_context": material.get("applied_context") or {},
             "created_at": now(),
         }
     )

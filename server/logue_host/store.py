@@ -97,8 +97,13 @@ class Collection:
     def all(self) -> Iterator[Record]:
         for path in self.path.glob("*.json"):
             record = read_json(path)
-            if isinstance(record, dict) and "id" in record:
-                yield record
+            if not isinstance(record, dict):
+                continue
+            # The filename *is* the id here. Older records kept it only there,
+            # and requiring the field silently hid 72 transcript revisions —
+            # data that was written, backed up, and unreadable.
+            record.setdefault("id", path.stem)
+            yield record
 
     def list(self, *, sort_key: str = "created_at", reverse: bool = True) -> list[Record]:
         return sorted(self.all(), key=lambda r: str(r.get(sort_key) or ""), reverse=reverse)
