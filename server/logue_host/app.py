@@ -83,6 +83,7 @@ class App:
                     projects=body.get("projects"),
                     parent_ids=body.get("parent_ids"),
                     capture_id=body.get("capture_id"),
+                    context=body.get("context"),
                     actor=str(body.get("actor") or "user"),
                 )
             }

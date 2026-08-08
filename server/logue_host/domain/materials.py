@@ -26,6 +26,7 @@ def create(
     parent_ids: list[str] | None = None,
     capture_id: str | None = None,
     transcript: str | None = None,
+    context: str | None = None,
     actor: str = "user",
     extra: dict[str, Any] | None = None,
 ) -> Record:
@@ -49,6 +50,10 @@ def create(
     }
     if transcript is not None:
         record["transcript"] = transcript
+    if context:
+        # The passage the quote came from, kept so a citation can be read in
+        # context after the page it came from has changed.
+        record["context"] = context
     if capture_id:
         record["capture_id"] = capture_id
     if extra:

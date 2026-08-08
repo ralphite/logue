@@ -28,15 +28,23 @@ export function OriginMark({ origin, detail, className }: { origin: Origin; deta
   );
 }
 
-/** A numbered Source behind a generated claim. Pressed means its panel is open. */
+/**
+ * A numbered Source behind a generated claim.
+ *
+ * `quote` becomes the tooltip, so a citation can be checked without opening
+ * anything — hovering is the difference between a label and evidence. Pressed
+ * means its passage is open below.
+ */
 export function Citation({
   n,
+  quote,
   className,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { n: number }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { n: number; quote?: string }) {
   return (
     <button
       type="button"
+      title={quote ? `Source ${n} — ${quote.slice(0, 300)}` : `Source ${n}`}
       className={cn(
         "inline-flex h-5 items-center rounded-full border border-accent-line bg-accent-soft px-1.5 text-[11px] font-[650] text-[#424ebc] align-baseline",
         "hover:bg-[#e4e6fc] aria-pressed:border-accent aria-pressed:bg-[#dfe1fb]",

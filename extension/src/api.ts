@@ -74,6 +74,7 @@ export const host = {
   saveMaterial: (body: {
     kind: string;
     content: string;
+    context?: string;
     source?: unknown;
     projects?: string[];
     parent_ids?: string[];

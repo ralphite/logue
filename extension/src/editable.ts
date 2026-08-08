@@ -122,7 +122,18 @@ export function restoreCaret(target: Editable, caret: CaretPosition | undefined)
 
 export interface SelectionSnapshot {
   text: string;
+  /** The paragraph the quote sits in, so a citation can be read in context. */
+  context: string;
   rect: { left: number; right: number; top: number; bottom: number };
+}
+
+/** The block the selection belongs to, trimmed to something readable. */
+function surroundingText(range: Range): string {
+  const node = range.commonAncestorContainer;
+  const element = node instanceof Element ? node : node.parentElement;
+  const block = element?.closest("p, li, blockquote, td, h1, h2, h3, h4, article, main") ?? element;
+  const text = block instanceof HTMLElement ? block.innerText : "";
+  return text.replace(/\s+/g, " ").trim().slice(0, 2000);
 }
 
 /** The current page selection, ignoring anything inside our own surfaces. */
@@ -135,7 +146,11 @@ export function pageSelection(): SelectionSnapshot | undefined {
   if (isOurs(range.commonAncestorContainer) || isOurs(range.commonAncestorContainer.parentElement)) return undefined;
   const box = range.getBoundingClientRect();
   if (!box.width && !box.height) return undefined;
-  return { text, rect: { left: box.left, right: box.right, top: box.top, bottom: box.bottom } };
+  return {
+    text,
+    context: surroundingText(range),
+    rect: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
+  };
 }
 
 export function pageSource() {

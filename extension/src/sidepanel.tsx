@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { Button, Empty, ErrorNote, OriginMark, Select, Spinner, type Origin } from "@logue/ui";
 import { host, type Context, type Material } from "./api";
 import { Answer } from "./surfaces/Answer";
+import { readablePageText } from "./readable";
 
 const WEB_APP = "http://127.0.0.1:5173";
 
@@ -25,7 +26,7 @@ function originOf(kind: string): Origin {
  * to ask using it. Everything else lives in the Web App, one click away.
  */
 function Panel() {
-  const [tab, setTab] = useState<{ url: string; title: string }>();
+  const [tab, setTab] = useState<{ id?: number; url: string; title: string }>();
   const [context, setContext] = useState<Context>();
   const [saved, setSaved] = useState<Material[]>([]);
   const [project, setProject] = useState("");
@@ -38,7 +39,7 @@ function Panel() {
   const load = useCallback(async () => {
     const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
     const url = active?.url ?? "";
-    setTab({ url, title: active?.title ?? "" });
+    setTab({ id: active?.id, url, title: active?.title ?? "" });
     try {
       const [ctx, page] = await Promise.all([host.context(project), url ? host.pageMaterials(url) : { materials: [] }]);
       setContext(ctx);
@@ -61,12 +62,24 @@ function Panel() {
   }, [load]);
 
   const capture = async () => {
-    if (!tab?.url) return;
+    if (!tab?.url || tab.id === undefined) return;
     setBusy(true);
     try {
+      // Keep the page's text, not just its address. A Source that is only a URL
+      // stops being evidence the first time the page changes or disappears.
+      let body = "";
+      try {
+        const [result] = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: readablePageText,
+        });
+        body = typeof result?.result === "string" ? result.result : "";
+      } catch {
+        // A restricted page cannot be read; the title and URL still stand.
+      }
       await host.saveMaterial({
         kind: "page",
-        content: tab.title || tab.url,
+        content: body || tab.title || tab.url,
         source: { url: tab.url, title: tab.title, domain: new URL(tab.url).hostname },
         projects: project ? [project] : [],
       });
@@ -165,7 +178,7 @@ function Panel() {
           <div className="mt-3 grid gap-2 rounded-lg border border-line bg-surface p-2.5">
             <OriginMark origin="ai" detail={`${answer.sources.length} Sources`} />
             <p className="text-[13px] leading-[1.6] whitespace-pre-wrap text-ink">
-              <Answer text={answer.text} open={openSource} onCite={setOpenSource} />
+              <Answer text={answer.text} open={openSource} onCite={setOpenSource} sources={answer.sources} />
             </p>
             {openSource !== undefined && answer.sources[openSource - 1] && (
               <p className="line-clamp-6 rounded-md bg-surface-muted p-2 text-xs leading-[1.45] text-ink-soft">

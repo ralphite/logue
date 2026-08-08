@@ -13,10 +13,12 @@ export function Answer({
   text,
   open,
   onCite,
+  sources,
 }: {
   text: string;
   open: number | undefined;
   onCite: (n: number | undefined) => void;
+  sources?: { content: string }[];
 }) {
   // Keyed by character offset: stable across renders and unique per token.
   let offset = 0;
@@ -38,6 +40,7 @@ export function Answer({
                 <Citation
                   key={`${at}-${found.index}`}
                   n={n}
+                  quote={sources?.[n - 1]?.content}
                   className="mx-0.5"
                   aria-pressed={open === n}
                   onClick={() => onCite(open === n ? undefined : n)}

@@ -1,7 +1,8 @@
-import { ChevronDown, CornerDownLeft, X } from "lucide-react";
-import { Fragment, useState, type CSSProperties } from "react";
-import { Button, Citation, ErrorNote, IconButton, Select, Spinner } from "@logue/ui";
+import { CornerDownLeft, X } from "lucide-react";
+import { useState, type CSSProperties } from "react";
+import { Button, ErrorNote, IconButton, Select, Spinner } from "@logue/ui";
 import type { Context, Material } from "../api";
+import { Answer } from "./Answer";
 
 /**
  * Ask about this page without leaving it. An instruction box, the scope it
@@ -76,7 +77,7 @@ export function CommandBox({
       ) : (
         <div className="grid gap-2 p-2.5 pr-8">
           <p className="text-[13px] leading-[1.6] whitespace-pre-wrap text-ink">
-            <Answer text={answer} open={openSource} onCite={setOpenSource} />
+            <Answer text={answer} open={openSource} onCite={setOpenSource} sources={sources} />
           </p>
           {openSource !== undefined && sources[openSource - 1] && (
             <p className="line-clamp-5 rounded-md bg-surface-muted p-2 text-xs leading-[1.45] text-ink-soft">
@@ -132,45 +133,3 @@ export function CommandBox({
   );
 }
 
-/** Renders `[Source n]` — in either form a model writes — as opening chips. */
-function Answer({
-  text,
-  open,
-  onCite,
-}: {
-  text: string;
-  open: number | undefined;
-  onCite: (n: number | undefined) => void;
-}) {
-  let offset = 0;
-  const tokens = text.split(/(\[Source[^\]]*\])/g).map((part) => {
-    const token = { part, at: offset };
-    offset += part.length;
-    return token;
-  });
-  return (
-    <>
-      {tokens.map(({ part, at }) => {
-        if (!/^\[Source[^\]]*\]$/.test(part)) return <Fragment key={at}>{part}</Fragment>;
-        return (
-          <Fragment key={at}>
-            {[...part.matchAll(/\d+/g)].map((found) => {
-              const n = Number(found[0]);
-              return (
-                <Citation
-                  key={`${at}-${found.index}`}
-                  n={n}
-                  className="mx-0.5"
-                  aria-pressed={open === n}
-                  onClick={() => onCite(open === n ? undefined : n)}
-                />
-              );
-            })}
-          </Fragment>
-        );
-      })}
-    </>
-  );
-}
-
-export { ChevronDown };

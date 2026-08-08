@@ -251,6 +251,7 @@ function Surfaces() {
       const { material } = await host.saveMaterial({
         kind: "selection",
         content: selection.text,
+        context: selection.context,
         source: pageSource(),
         projects: project ? [project] : [],
       });
