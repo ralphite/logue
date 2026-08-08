@@ -100,6 +100,9 @@ def search(store: Store, query: str = "", project: str = "", kind: str = "") -> 
                     str(record.get("transcript") or ""),
                     str((record.get("source") or {}).get("title") or ""),
                     str((record.get("source") or {}).get("url") or ""),
+                    # Tags are how a lot of this workspace is already labelled;
+                    # leaving them out made searching for one find nothing.
+                    " ".join(str(tag) for tag in record.get("tags") or []),
                 ]
             ).lower()
             if needle not in haystack:

@@ -1,10 +1,13 @@
 import { EyeOff, MoreHorizontal, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Empty, ErrorNote, IconButton, Input, Menu, MenuItem, OriginMark, Spinner, originOf } from "@logue/ui";
+import { Empty, ErrorNote, IconButton, Input, Menu, MenuItem, OriginMark, Spinner, Tag, originOf } from "@logue/ui";
 import { api, type Material, type Project } from "../api";
 import { Page, Row, RowActions, Rows } from "./AppShell";
 import { timeAgo, useAction, useHost } from "./useHost";
 import { MaterialPanel } from "./MaterialPanel";
+
+/** Past this the row's own text stops being what you read first. */
+const TAGS_ON_A_ROW = 3;
 
 function title(material: Material): string {
   const text = (material.content || "").trim().replace(/\s+/g, " ");
@@ -18,6 +21,7 @@ function where(material: Material): string {
 /** Everything captured, newest first. The one page you can start from. */
 export function StreamRoute() {
   const [query, setQuery] = useState("");
+  const [tag, setTag] = useState<string>();
   const [openId, setOpenId] = useState<string>();
   const materials = useHost(() => api.materials(), []);
   const projects = useHost(() => api.projects(), []);
@@ -26,13 +30,14 @@ export function StreamRoute() {
   const visible = useMemo(() => {
     const list = materials.data?.materials ?? [];
     const needle = query.trim().toLowerCase();
-    if (!needle) return list;
-    return list.filter((m) =>
-      `${m.content} ${m.transcript ?? ""} ${m.source?.title ?? ""} ${m.source?.url ?? ""}`
+    return list.filter((m) => {
+      if (tag && !(m.tags ?? []).includes(tag)) return false;
+      if (!needle) return true;
+      return `${m.content} ${m.transcript ?? ""} ${m.source?.title ?? ""} ${m.source?.url ?? ""} ${(m.tags ?? []).join(" ")}`
         .toLowerCase()
-        .includes(needle),
-    );
-  }, [materials.data, query]);
+        .includes(needle);
+    });
+  }, [materials.data, query, tag]);
 
   const refresh = () => void materials.refresh();
 
@@ -55,6 +60,12 @@ export function StreamRoute() {
       {materials.error && <ErrorNote className="mb-2">{materials.error}</ErrorNote>}
       {action.error && <ErrorNote className="mb-2">{action.error}</ErrorNote>}
 
+      {tag && (
+        <p className="mb-2 flex items-center gap-1.5 text-[11px] text-muted">
+          Only <Tag name={tag} onRemove={() => setTag(undefined)} />
+        </p>
+      )}
+
       {materials.loading ? (
         <div className="flex items-center gap-2 py-8 text-xs text-muted">
           <Spinner /> Loading
@@ -76,6 +87,20 @@ export function StreamRoute() {
                       {name}
                     </span>
                   ))}
+                  {(material.tags ?? []).slice(0, TAGS_ON_A_ROW).map((name) => (
+                    <Tag
+                      key={name}
+                      name={name}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setTag(name);
+                        setOpenId(undefined);
+                      }}
+                    />
+                  ))}
+                  {(material.tags?.length ?? 0) > TAGS_ON_A_ROW && (
+                    <span className="text-faint">+{(material.tags?.length ?? 0) - TAGS_ON_A_ROW}</span>
+                  )}
                   {material.excluded && <span className="text-warning">excluded</span>}
                 </span>
               </span>

@@ -1,5 +1,6 @@
 import { ExternalLink, X } from "lucide-react";
-import { Button, ErrorNote, IconButton, OriginMark, Spinner, originOf } from "@logue/ui";
+import { useState } from "react";
+import { Button, ErrorNote, IconButton, Input, OriginMark, Spinner, Tag, originOf } from "@logue/ui";
 import { api, type Material, type Project } from "../api";
 import { timeAgo, useAction, useHost } from "./useHost";
 
@@ -70,6 +71,16 @@ export function MaterialPanel({
             <Lineage title="Came from" items={lineage.data?.parents ?? []} />
             <Lineage title="Led to" items={lineage.data?.children ?? []} />
 
+            <Tags
+              material={material}
+              busy={action.busy}
+              onSave={(tags) =>
+                void action
+                  .run(() => api.updateMaterial(material.id, { tags }))
+                  .then((ok) => ok && (lineage.refresh(), onChanged()))
+              }
+            />
+
             <div className="grid gap-1.5 border-t border-line pt-3">
               <span className="text-xs text-muted">Projects</span>
               <div className="flex flex-wrap gap-1">
@@ -96,6 +107,58 @@ export function MaterialPanel({
         )}
       </div>
     </aside>
+  );
+}
+
+/**
+ * What this Source is about, in the person's own words.
+ *
+ * Tags were recorded from the start and never shown anywhere, so a third of
+ * this workspace carries labels nobody could read back.
+ */
+function Tags({
+  material,
+  busy,
+  onSave,
+}: {
+  material: Material;
+  busy: boolean;
+  onSave: (tags: string[]) => void;
+}) {
+  const [adding, setAdding] = useState("");
+  const tags = material.tags ?? [];
+
+  const add = () => {
+    const name = adding.trim().replace(/^#/, "");
+    setAdding("");
+    if (name && !tags.includes(name)) onSave([...tags, name]);
+  };
+
+  return (
+    <div className="grid gap-1.5 border-t border-line pt-3">
+      <span className="text-xs text-muted">Tags</span>
+      <div className="flex flex-wrap items-center gap-1 text-[11px]">
+        {tags.map((name) => (
+          <Tag key={name} name={name} onRemove={() => onSave(tags.filter((t) => t !== name))} />
+        ))}
+        <Input
+          value={adding}
+          disabled={busy}
+          onChange={(event) => setAdding(event.target.value)}
+          onBlur={add}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              add();
+            }
+            if (event.key === "Escape") setAdding("");
+          }}
+          placeholder={tags.length ? "Add" : "Add a tag"}
+          aria-label="Add a tag"
+          className="h-6 w-24 px-1.5 text-[11px]"
+        />
+      </div>
+    </div>
   );
 }
 

@@ -11,6 +11,7 @@ export interface Material {
   transcript?: string;
   source?: { url?: string; title?: string; domain?: string };
   projects: string[];
+  tags?: string[];
   parent_ids?: string[];
   capture_id?: string;
   excluded?: boolean;
