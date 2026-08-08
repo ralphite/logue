@@ -55,7 +55,7 @@ import {
 } from "@logue/ui";
 
 import type { LogueSkill } from "../lib/skillApi";
-import { Button, IconButton } from "../ui/Button";
+import { Banner, Button, Card, CheckboxField, Dialog, FieldGrid, IconButton, InlineActions, Input, Meta, OriginLabel, Pill, Select, Textarea } from "../ui";
 import {
   deleteExtensionPendingCapture,
   exportExtensionPendingCapture,
@@ -66,9 +66,9 @@ import {
   updateExtensionShortcut,
 } from "../lib/extensionTargetBridge";
 import { AppShell, type PrimaryRoute } from "./AppShell";
-import { OriginLabel } from "../ui/OriginLabel";
 import { RunInspector } from "./LibraryRoute";
-import { cardClass, checkboxRowClass, chipButtonClass, dangerCardClass, dialogBackdropClass, dialogClass, formGridClass, inlineActionsClass, inputClass, leadClass, metaClass, panelHeadingClass, pillClass, readyBarClass, reviewListClass, reviewRowClass, scrollClass, settingRowClass, settingsSectionClass, textareaClass, warningBarClass } from "./layout";
+import { Lead, PageScroll, PanelSectionHeading, ReviewList, ReviewRow, SettingRow, SettingsSection } from "./layout";
+import { Chip } from "./Inspector";
 
 type GlobalSkillBindingKey = NonNullable<
   WorkspaceSettings["explicit_skill_bindings"]
@@ -104,26 +104,6 @@ const defaultConnection: AIConnection = {
   configured: false,
   has_api_key: false,
 };
-
-function SettingRow({
-  title,
-  detail,
-  children,
-}: {
-  title: string;
-  detail: string;
-  children?: ReactNode;
-}) {
-  return (
-    <div className={settingRowClass}>
-      <div>
-        <strong>{title}</strong>
-        <p>{detail}</p>
-      </div>
-      {children ? <div className={inlineActionsClass}>{children}</div> : null}
-    </div>
-  );
-}
 
 function providerCapabilityStatus(
   configured: boolean,
@@ -217,7 +197,7 @@ function ClientRow({
   const [name, setName] = useState(client.name);
   useEffect(() => setName(client.name), [client.name]);
   return (
-    <div className={settingRowClass}>
+    <SettingRow>
       <div>
         <strong>{client.name}</strong>
         <p>
@@ -226,9 +206,8 @@ function ClientRow({
             : `Last used ${new Date(client.last_seen_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
         </p>
       </div>
-      <div className={inlineActionsClass}>
-        <input
-          className={inputClass}
+      <InlineActions>
+        <Input
           aria-label={`Name for ${client.name}`}
           value={name}
           onChange={(event) => setName(event.target.value)}
@@ -243,8 +222,8 @@ function ClientRow({
           Rename
         </Button>
         {!client.revoked ? <Button onClick={onRevoke}>Revoke</Button> : null}
-      </div>
-    </div>
+      </InlineActions>
+    </SettingRow>
   );
 }
 
@@ -995,7 +974,7 @@ export function SettingsRoute({
         if (!open) setOpenRunId(undefined);
       }}
     >
-      <div className={scrollClass}>
+      <PageScroll>
         <div className="mx-auto grid w-full max-w-settings grid-cols-1 gap-5.5 px-6 pt-8.5 pb-18 min-[820px]:grid-cols-[190px_minmax(0,1fr)] min-[820px]:gap-13 min-[820px]:px-[42px] min-[820px]:pt-14 min-[820px]:pb-25">
           <nav className="flex flex-row gap-0.5 overflow-x-auto min-[820px]:sticky min-[820px]:top-6 min-[820px]:flex-col min-[820px]:self-start" aria-label="Settings sections">
             {tabs.map((item) => (
@@ -1014,7 +993,7 @@ export function SettingsRoute({
           </nav>
           <main>
             <h1 className="text-[32px] leading-[1.16] font-[690] tracking-[-0.04em] text-ink">{tab}</h1>
-            <p className={leadClass}>
+            <Lead>
               {tab === "Host"
                 ? "This Mac owns your Logue data. There is no Logue account."
                 : tab === "Models"
@@ -1024,25 +1003,25 @@ export function SettingsRoute({
                     : tab === "Privacy"
                       ? "Control what leaves this Host for each task."
                       : "Take your local data with you and understand every destructive action."}
-            </p>
+            </Lead>
             {notice ? (
-              <div className={readyBarClass} role="status">
+              <Banner tone="neutral"  role="status">
                 {notice}
-              </div>
+              </Banner>
             ) : null}
             {error ? (
-              <div className={warningBarClass} role="alert">
+              <Banner tone="warning"  role="alert">
                 {error}
-              </div>
+              </Banner>
             ) : null}
             {!error && loadErrors[tab] ? (
-              <div className={warningBarClass} role="alert">
+              <Banner tone="warning"  role="alert">
                 {loadErrors[tab]}
-              </div>
+              </Banner>
             ) : null}
             {tab === "Host" ? (
               <>
-                <section className={settingsSectionClass}>
+                <SettingsSection>
                   <h2>Current Host</h2>
                   <SettingRow
                     title="This Mac"
@@ -1058,18 +1037,18 @@ export function SettingsRoute({
                     title="Local address"
                     detail="An Extension on this Mac pairs automatically. Another device needs a one-time code."
                   />
-                </section>
-                <section className={settingsSectionClass}>
-                  <div className={inlineActionsClass}>
+                </SettingsSection>
+                <SettingsSection>
+                  <InlineActions>
                     <h2>Chrome Extensions</h2>
                     <span style={{ marginLeft: "auto" }} />
                     <Button onClick={() => void beginPairing()}>
                       <Monitor size={14} />
                       Pair another device
                     </Button>
-                  </div>
+                  </InlineActions>
                   {pairing ? (
-                    <div className={cardClass}>
+                    <Card>
                       <p>
                         Enter this code in the Extension on the other device. It
                         expires at{" "}
@@ -1079,7 +1058,7 @@ export function SettingsRoute({
                         })}
                         .
                       </p>
-                      <div className={inlineActionsClass}>
+                      <InlineActions>
                         <strong className="text-2xl tracking-[0.18em] tabular-nums">
                           {pairing.code}
                         </strong>
@@ -1091,8 +1070,8 @@ export function SettingsRoute({
                           <Copy size={14} />
                           Copy
                         </Button>
-                      </div>
-                    </div>
+                      </InlineActions>
+                    </Card>
                   ) : null}
                   {clients.length ? (
                     clients.map((client) => (
@@ -1104,18 +1083,18 @@ export function SettingsRoute({
                       />
                     ))
                   ) : (
-                    <div className={cardClass}>
+                    <Card>
                       No Extension has paired with this Host yet.
-                    </div>
+                    </Card>
                   )}
-                </section>
+                </SettingsSection>
                 {pendingCaptures?.length || pendingCaptureError ? (
-                  <section className={settingsSectionClass}>
+                  <SettingsSection>
                     <h2>Saved recordings</h2>
                     {pendingCaptureError ? (
-                      <div className={cardClass} role="alert">
+                      <Card  role="alert">
                         {pendingCaptureError}
-                      </div>
+                      </Card>
                     ) : null}
                     {pendingCaptures?.map((capture) => {
                       const state =
@@ -1161,12 +1140,12 @@ export function SettingsRoute({
                         </SettingRow>
                       );
                     })}
-                  </section>
+                  </SettingsSection>
                 ) : null}
               </>
             ) : null}
             {tab === "Models" ? (
-              <section className={settingsSectionClass}>
+              <SettingsSection>
                 <h2>Voice and AI</h2>
                 {(() => {
                   const configured = status?.provider_configured ?? connection.configured;
@@ -1177,11 +1156,10 @@ export function SettingsRoute({
                     <SettingRow title="Transcription" detail={voice.detail}><span className="text-[13px] text-[#4c7052]">{voice.label}</span></SettingRow>
                   </>;
                 })()}
-                <div className={formGridClass}>
+                <FieldGrid>
                   <label>
                     Provider
-                    <select
-                      className={inputClass}
+                    <Select
                       value={connection.provider}
                       onChange={(event) => {
                         const provider = event.target
@@ -1209,12 +1187,11 @@ export function SettingsRoute({
                       <option value="openai-compatible">
                         OpenAI-compatible provider
                       </option>
-                    </select>
+                    </Select>
                   </label>
                   <label>
                     API key
-                    <input
-                      className={inputClass}
+                    <Input
                       type="password"
                       autoComplete="off"
                       value={apiKey}
@@ -1228,8 +1205,7 @@ export function SettingsRoute({
                   </label>
                   <label className="col-span-full">
                     Endpoint
-                    <input
-                      className={inputClass}
+                    <Input
                       value={connection.base_url}
                       onChange={(event) =>
                         setConnection({
@@ -1242,8 +1218,7 @@ export function SettingsRoute({
                   </label>
                   <label>
                     Generation model
-                    <input
-                      className={inputClass}
+                    <Input
                       value={connection.model}
                       onChange={(event) =>
                         setConnection({
@@ -1256,8 +1231,7 @@ export function SettingsRoute({
                   </label>
                   <label>
                     Transcription model
-                    <input
-                      className={inputClass}
+                    <Input
                       value={connection.transcription_model}
                       onChange={(event) =>
                         setConnection({
@@ -1268,8 +1242,8 @@ export function SettingsRoute({
                       }
                     />
                   </label>
-                </div>
-                <div className={inlineActionsClass}>
+                </FieldGrid>
+                <InlineActions>
                   <Button
                     onClick={() => void runAI("test")}
                     disabled={Boolean(aiBusy)}
@@ -1283,18 +1257,17 @@ export function SettingsRoute({
                   >
                     Save and use
                   </Button>
-                </div>
-              </section>
+                </InlineActions>
+              </SettingsSection>
             ) : null}
             {tab === "Voice" ? (
               <>
-                <section className={settingsSectionClass}>
+                <SettingsSection>
                   <h2>Default voice profile</h2>
-                  <div className={formGridClass}>
+                  <FieldGrid>
                     <label>
                       Transcription Skill
-                      <select
-                        className={inputClass}
+                      <Select
                         value={
                           draft.explicit_skill_bindings?.includes(
                             "default_transcription_skill",
@@ -1322,12 +1295,11 @@ export function SettingsRoute({
                               {skill.name}
                             </option>
                           ))}
-                      </select>
+                      </Select>
                     </label>
                     <label>
                       Primary language
-                      <input
-                        className={inputClass}
+                      <Input
                         value={draft.voice_profile.primary_language}
                         onChange={(event) =>
                           setDraft({
@@ -1343,8 +1315,7 @@ export function SettingsRoute({
                     </label>
                     <label className="col-span-full">
                       Mixed languages
-                      <input
-                        className={inputClass}
+                      <Input
                         value={draft.voice_profile.mixed_languages.join(", ")}
                         onChange={(event) =>
                           setDraft({
@@ -1363,8 +1334,7 @@ export function SettingsRoute({
                     </label>
                     <label className="col-span-full">
                       Known phrases
-                      <textarea
-                        className={textareaClass}
+                      <Textarea
                         value={draft.voice_profile.phrases.join("\n")}
                         onChange={(event) =>
                           setDraft({
@@ -1384,8 +1354,7 @@ export function SettingsRoute({
                     </label>
                     <label className="col-span-full">
                       Avoid mistaken terms
-                      <textarea
-                        className={textareaClass}
+                      <Textarea
                         value={draft.voice_profile.avoid_terms.join("\n")}
                         onChange={(event) =>
                           setDraft({
@@ -1405,8 +1374,7 @@ export function SettingsRoute({
                     </label>
                     <label className="col-span-full">
                       Formatting preference
-                      <textarea
-                        className={textareaClass}
+                      <Textarea
                         value={draft.voice_profile.formatting_preference}
                         onChange={(event) =>
                           setDraft({
@@ -1423,8 +1391,7 @@ export function SettingsRoute({
                     </label>
                     <label className="col-span-full">
                       Personal context
-                      <textarea
-                        className={textareaClass}
+                      <Textarea
                         value={draft.personal_context}
                         onChange={(event) =>
                           setDraft({
@@ -1435,9 +1402,9 @@ export function SettingsRoute({
                         onBlur={() => void persist()}
                       />
                     </label>
-                  </div>
-                </section>
-                <section className={settingsSectionClass}>
+                  </FieldGrid>
+                </SettingsSection>
+                <SettingsSection>
                   <h2>Personal vocabulary</h2>
                   <div className="my-4 grid gap-3 [&>div>span]:mb-[7px] [&>div>span]:block [&>div>span]:text-xs [&>div>span]:text-muted [&>div>div]:flex [&>div>div]:flex-wrap [&>div>div]:gap-1.5">
                     {vocabularyCategories.map((category) =>
@@ -1476,8 +1443,7 @@ export function SettingsRoute({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <select
-                      className={inputClass}
+                    <Select
                       value={termCategory}
                       onChange={(event) =>
                         setTermCategory(
@@ -1490,9 +1456,8 @@ export function SettingsRoute({
                           {category.label}
                         </option>
                       ))}
-                    </select>
-                    <input
-                      className={inputClass}
+                    </Select>
+                    <Input
                       value={term}
                       onChange={(event) => setTerm(event.target.value)}
                       placeholder="Add a term"
@@ -1500,14 +1465,12 @@ export function SettingsRoute({
                     <Button onClick={addVocabularyTerm}>Add</Button>
                   </div>
                   <div className="flex items-center gap-2">
-                    <input
-                      className={inputClass}
+                    <Input
                       value={heard}
                       onChange={(event) => setHeard(event.target.value)}
                       placeholder="What Logue may hear"
                     />
-                    <input
-                      className={inputClass}
+                    <Input
                       value={preferred}
                       onChange={(event) => setPreferred(event.target.value)}
                       placeholder="Preferred spelling"
@@ -1516,8 +1479,8 @@ export function SettingsRoute({
                   </div>
                   {draft.voice_profile.vocabulary.preferred_spellings.map(
                     (entry) => (
-                      <button
-                        className={pillClass}
+                      <Pill
+                        
                         key={entry.spoken}
                         onClick={() =>
                           void persist({
@@ -1536,15 +1499,14 @@ export function SettingsRoute({
                         }
                       >
                         {entry.spoken} → {entry.preferred} ×
-                      </button>
+                      </Pill>
                     ),
                   )}
-                </section>
-                <section className={settingsSectionClass}>
+                </SettingsSection>
+                <SettingsSection>
                   <h2>Topic Vocabularies</h2>
                   <div className="flex items-center gap-2">
-                    <select
-                      className={inputClass}
+                    <Select
                       value={topicId}
                       onChange={(event) => chooseTopic(event.target.value)}
                     >
@@ -1554,7 +1516,7 @@ export function SettingsRoute({
                           {topic.name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     {topicId ? (
                       <Button
                         onClick={() =>
@@ -1570,22 +1532,20 @@ export function SettingsRoute({
                       </Button>
                     ) : null}
                   </div>
-                  <input
-                    className={inputClass}
+                  <Input
                     value={topicName}
                     onChange={(event) => setTopicName(event.target.value)}
                     placeholder="Topic name"
                   />
-                  <textarea
-                    className={textareaClass}
+                  <Textarea
                     value={topicTerms}
                     onChange={(event) => setTopicTerms(event.target.value)}
                     placeholder="One term per line. Use heard → preferred for a spelling."
                   />
-                  <div className={inlineActionsClass}>
-                    <span className={metaClass}>
+                  <InlineActions>
+                    <Meta>
                       Used only for transcription. Never grants Project Context.
-                    </span>
+                    </Meta>
                     <Button
                       variant="primary"
                       disabled={!topicName.trim()}
@@ -1593,10 +1553,10 @@ export function SettingsRoute({
                     >
                       Save Topic
                     </Button>
-                  </div>
-                </section>
+                  </InlineActions>
+                </SettingsSection>
                 {suggestions.length ? (
-                  <section className={settingsSectionClass}>
+                  <SettingsSection>
                     <h2>Term suggestions</h2>
                     {suggestions.map((suggestion) => (
                       <SettingRow
@@ -1604,8 +1564,7 @@ export function SettingsRoute({
                         title={suggestion.term}
                         detail={`${suggestion.count} confirmed uses`}
                       >
-                        <select
-                          className={inputClass}
+                        <Select
                           aria-label={`Remember ${suggestion.term} in`}
                           value={suggestionTargets[suggestion.term] ?? "global"}
                           onChange={(event) =>
@@ -1651,7 +1610,7 @@ export function SettingsRoute({
                               ))}
                             </optgroup>
                           ) : null}
-                        </select>
+                        </Select>
                         <Button
                           disabled={suggestionBusy === suggestion.term}
                           onClick={() => void ignoreSuggestion(suggestion)}
@@ -1667,9 +1626,9 @@ export function SettingsRoute({
                         </Button>
                       </SettingRow>
                     ))}
-                  </section>
+                  </SettingsSection>
                 ) : null}
-                <section className={settingsSectionClass}>
+                <SettingsSection>
                   <h2>Extension shortcuts</h2>
                   {shortcutCommands.map((command) => {
                     const shortcut = extensionShortcuts?.find(
@@ -1686,7 +1645,7 @@ export function SettingsRoute({
                         }
                       >
                         <input
-                          className={`${inputClass} w-[150px] text-center tracking-[0.04em]`}
+                          className="w-[150px] text-center tracking-[0.04em]"
                           aria-label={`${shortcutLabels[command]} shortcut`}
                           aria-busy={shortcutBusy === command}
                           readOnly
@@ -1740,12 +1699,12 @@ export function SettingsRoute({
                     );
                   })}
                   {shortcutError ? (
-                    <div className={warningBarClass} role="alert">
+                    <Banner tone="warning"  role="alert">
                       {shortcutError}
-                    </div>
+                    </Banner>
                   ) : null}
-                </section>
-                <section className={settingsSectionClass}>
+                </SettingsSection>
+                <SettingsSection>
                   <h2>Global Skill defaults</h2>
                   {globalBindings.map(([key, label, accepts]) => (
                     <SettingRow
@@ -1753,8 +1712,7 @@ export function SettingsRoute({
                       title={label}
                       detail="Projects inherit this unless they define an override."
                     >
-                      <select
-                        className={inputClass}
+                      <Select
                         value={
                           draft.explicit_skill_bindings?.includes(key)
                             ? String(draft[key] ?? "")
@@ -1774,15 +1732,15 @@ export function SettingsRoute({
                               {skill.name}
                             </option>
                           ))}
-                      </select>
+                      </Select>
                     </SettingRow>
                   ))}
-                </section>
+                </SettingsSection>
               </>
             ) : null}
             {tab === "Privacy" ? (
               <>
-                <section className={settingsSectionClass}>
+                <SettingsSection>
                   <h2>Processing boundary</h2>
                   <SettingRow
                     title="Private Library"
@@ -1792,18 +1750,18 @@ export function SettingsRoute({
                     title="Sensitive fields"
                     detail="Passwords and payment fields never show Voice Write."
                   />
-                </section>
-                <section className={settingsSectionClass}>
+                </SettingsSection>
+                <SettingsSection>
                   <h2>Model activity</h2>
-                  <p className={leadClass}>
+                  <Lead>
                     Open a task to inspect the exact instruction, Skill revision, and frozen Context sent to your provider.
-                  </p>
+                  </Lead>
                   {modelRuns.length ? (
-                    <div className={reviewListClass}>
+                    <ReviewList>
                       {modelRuns.slice(0, 12).map((run) => (
-                        <button
+                        <ReviewRow
                           type="button"
-                          className={reviewRowClass}
+                          
                           key={run.id}
                           onClick={() => setOpenRunId(run.id)}
                         >
@@ -1813,16 +1771,16 @@ export function SettingsRoute({
                               {run.skill_name} · revision {run.skill_revision} · {run.sources.length} frozen Sources
                             </p>
                           </div>
-                        </button>
+                        </ReviewRow>
                       ))}
-                    </div>
+                    </ReviewList>
                   ) : (
-                    <div className={cardClass}>
+                    <Card>
                       New model tasks will appear here with their exact frozen Context.
-                    </div>
+                    </Card>
                   )}
-                </section>
-                <section className={settingsSectionClass}>
+                </SettingsSection>
+                <SettingsSection>
                   <h2>Delete all local data</h2>
                   {!deleteOpen ? (
                     <Button onClick={() => void reviewWorkspaceDeletion()}>
@@ -1830,7 +1788,7 @@ export function SettingsRoute({
                       Review deletion
                     </Button>
                   ) : (
-                    <div className={dangerCardClass}>
+                    <Banner tone="danger">
                       <p>
                         Removes Sources, audio, Projects, Documents, Activity,
                         and My Skills. Logue creates a complete local backup
@@ -1843,15 +1801,14 @@ export function SettingsRoute({
                       </p>
                       <label>
                         Type DELETE to continue
-                        <input
-                          className={inputClass}
+                        <Input
                           value={deleteConfirm}
                           onChange={(event) =>
                             setDeleteConfirm(event.target.value)
                           }
                         />
                       </label>
-                      <div className={inlineActionsClass}>
+                      <InlineActions>
                         <Button
                           onClick={() => {
                             setDeleteOpen(false);
@@ -1868,21 +1825,21 @@ export function SettingsRoute({
                         >
                           Delete all local data
                         </Button>
-                      </div>
-                    </div>
+                      </InlineActions>
+                    </Banner>
                   )}
-                </section>
+                </SettingsSection>
               </>
             ) : null}
             {tab === "Backup" ? (
-              <section className={settingsSectionClass}>
+              <SettingsSection>
                 <h2>Backups</h2>
-                <p className={leadClass}>
+                <Lead>
                   Complete, restorable Host snapshots. Backup files can contain
                   recordings, saved provider credentials, and paired Extension
                   access.
-                </p>
-                <div className={inlineActionsClass}>
+                </Lead>
+                <InlineActions>
                   <Button
                     disabled={Boolean(backupBusy)}
                     onClick={() => void createBackup()}
@@ -1890,7 +1847,7 @@ export function SettingsRoute({
                     <Archive size={14} />
                     {backupBusy === "create" ? "Backing up…" : "Back up now"}
                   </Button>
-                  <label className={chipButtonClass}>
+                  <Chip>
                     <Upload size={14} />
                     {backupBusy === "import" ? "Importing…" : "Import backup"}
                     <input
@@ -1903,8 +1860,8 @@ export function SettingsRoute({
                         event.currentTarget.value = "";
                       }}
                     />
-                  </label>
-                </div>
+                  </Chip>
+                </InlineActions>
                 {backups.length ? (
                   <div>
                     {backups.map((snapshot) => (
@@ -1936,10 +1893,10 @@ export function SettingsRoute({
                     ))}
                   </div>
                 ) : (
-                  <div className={cardClass}>
+                  <Card>
                     No backups yet. Create one before a major change, or import a
                     Logue backup from another Host.
-                  </div>
+                  </Card>
                 )}
 
                 <h2>Export</h2>
@@ -1953,12 +1910,11 @@ export function SettingsRoute({
                   </Button>
                 </SettingRow>
                 {exportOpen ? (
-                  <div className={cardClass}>
-                    <div className={formGridClass}>
+                  <Card>
+                    <FieldGrid>
                       <label>
                         Scope
-                        <select
-                          className={inputClass}
+                        <Select
                           value={exportScope}
                           onChange={(event) => {
                             const scope = event.target.value as ExportScope;
@@ -1971,13 +1927,12 @@ export function SettingsRoute({
                           <option value="all">All saved data</option>
                           <option value="library">Library</option>
                           <option value="project">Project</option>
-                        </select>
+                        </Select>
                       </label>
                       {exportScope === "project" ? (
                         <label>
                           Project
-                          <select
-                            className={inputClass}
+                          <Select
                             value={exportProjectId}
                             onChange={(event) => setExportProjectId(event.target.value)}
                           >
@@ -1986,10 +1941,10 @@ export function SettingsRoute({
                                 {project.name}
                               </option>
                             ))}
-                          </select>
+                          </Select>
                         </label>
                       ) : null}
-                      <label className={checkboxRowClass}>
+                      <CheckboxField>
                         <input
                           type="checkbox"
                           checked={exportAudio}
@@ -1998,67 +1953,56 @@ export function SettingsRoute({
                           }
                         />
                         Include original audio
-                      </label>
-                      <label className={checkboxRowClass}>
+                      </CheckboxField>
+                      <CheckboxField>
                         <input
                           type="checkbox"
                           checked={exportActivity}
                           onChange={(event) => setExportActivity(event.target.checked)}
                         />
                         Include activity history and unused AI drafts
-                      </label>
-                    </div>
-                    <p className={metaClass}>
+                      </CheckboxField>
+                    </FieldGrid>
+                    <Meta>
                       {exportPreview ? exportSummary(exportPreview) : "Preparing scope…"}
-                    </p>
+                    </Meta>
                     {exportPreview ? (
-                      <p className={metaClass}>
+                      <Meta>
                         Original audio: {exportPreview.include_audio ? "Included" : "Excluded"}
                         {exportPreview.include_audio ? ` · ${exportPreview.recordings} recordings` : ""}
                         {` · About ${formatExportSize(exportPreview.estimated_bytes)}`}
-                      </p>
+                      </Meta>
                     ) : null}
-                    <p className={metaClass}>
+                    <Meta>
                       Export files cannot restore Logue. Provider keys and paired
                       Extensions stay on this Host, but selected private content and
                       included recordings remain in the file.
-                    </p>
-                    <div className={inlineActionsClass}>
-                      <Button
-                        className={chipButtonClass}
+                    </Meta>
+                    <InlineActions>
+                      <Chip
+                        
                         disabled={!exportPreview || exportBusy}
                         onClick={() => void createExport()}
                       >
                         <Download size={14} />
                         {exportBusy ? "Creating…" : "Create local copy"}
-                      </Button>
-                    </div>
-                  </div>
+                      </Chip>
+                    </InlineActions>
+                  </Card>
                 ) : null}
-              </section>
+              </SettingsSection>
             ) : null}
           </main>
         </div>
-      </div>
+      </PageScroll>
       {restoreTarget ? (
-        <div
-          className={dialogBackdropClass}
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && backupBusy !== "restore") {
-              setRestoreTarget(undefined);
-            }
-          }}
+        <Dialog
+          open
+          onClose={() => backupBusy !== "restore" && setRestoreTarget(undefined)}
+          label="Restore this backup"
         >
-          <section
-            ref={restoreDialogRef}
-            className={dialogClass}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="restore-backup-title"
-            tabIndex={-1}
-          >
-            <div className={panelHeadingClass}>
+          <>
+            <PanelSectionHeading>
               <div>
                 <OriginLabel origin="you" detail="Complete Host snapshot" />
                 <h2 id="restore-backup-title">Restore this backup?</h2>
@@ -2071,12 +2015,12 @@ export function SettingsRoute({
               >
                 <X size={16} />
               </IconButton>
-            </div>
+            </PanelSectionHeading>
             <p>
               {formatBackupTime(restoreTarget.created_at)} from {restoreTarget.source_host}
               {restoreTarget.imported_at ? " · Imported to this Host" : ""}
             </p>
-            <div className={cardClass}>
+            <Card>
               <p>
                 This replaces the entire live workspace, including Sources, audio,
                 Projects, Documents, Activity, Skills, saved provider credentials,
@@ -2086,13 +2030,13 @@ export function SettingsRoute({
                 Logue backs up the current workspace first. Provider credentials set
                 through Host environment variables stay unchanged.
               </p>
-            </div>
+            </Card>
             {error ? (
-              <div className={warningBarClass} role="alert">
+              <Banner tone="warning"  role="alert">
                 {error}
-              </div>
+              </Banner>
             ) : null}
-            <div className={`${inlineActionsClass} justify-end`}>
+            <InlineActions className="justify-end">
               <Button
                 disabled={backupBusy === "restore"}
                 onClick={() => setRestoreTarget(undefined)}
@@ -2107,9 +2051,9 @@ export function SettingsRoute({
               >
                 {backupBusy === "restore" ? "Restoring…" : "Restore workspace"}
               </Button>
-            </div>
-          </section>
-        </div>
+            </InlineActions>
+          </>
+        </Dialog>
       ) : null}
     </AppShell>
   );

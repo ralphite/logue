@@ -1,7 +1,7 @@
 import { ArrowRight, Check, Copy, Download, ExternalLink } from "lucide-react";
 import { useState } from "react";
-import { Button } from "../ui/Button";
 import preview from "../../../../docs/design/references/logue-v2-project-canvas-target.png";
+import { Button } from "../ui";
 
 const landingSection = "mx-auto w-[min(100%-32px,980px)] scroll-mt-18 border-t border-line pt-22 pb-24";
 const landingSectionHeading = "mb-9 max-w-170 [&>h2]:mt-2 [&>h2]:mb-3.5 [&>h2]:text-[clamp(30px,4vw,44px)] [&>h2]:leading-[1.08] [&>h2]:font-[680] [&>h2]:tracking-[-0.045em] [&>h2]:text-ink [&>p]:text-[15px] [&>p]:leading-[1.65] [&>p]:text-muted";

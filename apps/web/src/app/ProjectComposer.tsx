@@ -1,7 +1,6 @@
 import { ArrowUp } from "lucide-react";
 import { useId, type FormEvent } from "react";
-import { IconButton } from "../ui/Button";
-import { Tooltip, TooltipProvider } from "../ui/Tooltip";
+import { IconButton, Tooltip, TooltipProvider } from "../ui";
 
 type ProjectRequestMode = "ask" | "compare" | "draft";
 

@@ -12,10 +12,9 @@ import {
   type DiscoveredTopic,
   type ProjectSummary,
 } from "../lib/api";
-import { Button } from "../ui/Button";
-import { OriginLabel } from "../ui/OriginLabel";
+import { Banner, Button, Card, InlineActions, Input, OriginLabel, Select } from "../ui";
 import { contentSummary } from "./contentPresentation";
-import { cardClass, headingCopyClass, inlineActionsClass, inputClass, panelHeadingClass, reviewListClass, reviewRowClass, settingsSectionClass, warningBarClass } from "./layout";
+import { HeadingCopy, PanelSectionHeading, ReviewList, ReviewRow, SettingsSection } from "./layout";
 
 function sourceTitle(source: Material | undefined) {
   return (
@@ -145,18 +144,18 @@ export function TopicsPanel({
           </button>
         ))}
         {!topics.length ? (
-          <div className={cardClass}>
+          <Card>
             <p>
               Topics appear when at least two saved Sources share a confirmed
               tag or site.
             </p>
-          </div>
+          </Card>
         ) : null}
       </aside>
 
       {selected ? (
         <main className="min-w-0 [&_label]:flex [&_label]:min-w-0 [&_label]:gap-2.5 [&_label>input]:mt-1 [&_label>input]:accent-accent">
-          <div className={headingCopyClass}>
+          <HeadingCopy>
             <OriginLabel
               origin="ai"
               detail={selected.automatic ? "Discovered Topic" : "Your Topic"}
@@ -171,9 +170,9 @@ export function TopicsPanel({
               {selected.reason}. Topics help discovery; they never grant
               Project Context or change voice vocabulary without your action.
             </p>
-          </div>
+          </HeadingCopy>
 
-          <div className={inlineActionsClass}>
+          <InlineActions>
             <Button
               disabled={busy || !name.trim()}
               onClick={() =>
@@ -208,22 +207,21 @@ export function TopicsPanel({
               <ArrowRight size={14} />
               Convert to Project
             </Button>
-          </div>
+          </InlineActions>
 
           {(selected.project_suggestions ?? []).length ? (
-            <section className={settingsSectionClass}>
-              <div className={panelHeadingClass}>
+            <SettingsSection>
+              <PanelSectionHeading>
                 <div>
                   <h2>Related Projects</h2>
                   <p>Suggestions only. Sources move into Context when you add them.</p>
                 </div>
-              </div>
-              <div className={reviewListClass}>
+              </PanelSectionHeading>
+              <ReviewList>
                 {selected.project_suggestions.map((suggestion) => (
-                  <article
-                    className={reviewRowClass}
-                    key={suggestion.project_id}
-                  >
+                  <ReviewRow
+                    
+                    key={suggestion.project_id}>
                     <div>
                       <OriginLabel origin="ai" detail="Project suggestion" />
                       <h3>{suggestion.project_name}</h3>
@@ -244,31 +242,30 @@ export function TopicsPanel({
                       Add {suggestion.source_ids.length}{" "}
                       {suggestion.source_ids.length === 1 ? "Source" : "Sources"}
                     </Button>
-                  </article>
+                  </ReviewRow>
                 ))}
-              </div>
-            </section>
+              </ReviewList>
+            </SettingsSection>
           ) : null}
 
           {(selected.vocabulary_suggestions ?? []).length ? (
-            <section className={settingsSectionClass}>
-              <div className={panelHeadingClass}>
+            <SettingsSection>
+              <PanelSectionHeading>
                 <div>
                   <h2>Vocabulary suggestions</h2>
                   <p>Choose exactly where each confirmed term should apply.</p>
                 </div>
-              </div>
-              <div className={reviewListClass}>
+              </PanelSectionHeading>
+              <ReviewList>
                 {selected.vocabulary_suggestions.map((suggestion) => (
-                  <article className={reviewRowClass} key={suggestion.term}>
+                  <ReviewRow  key={suggestion.term}>
                     <div>
                       <OriginLabel origin="ai" detail="Not remembered yet" />
                       <h3>{suggestion.term}</h3>
                       <p>{suggestion.reason}</p>
                     </div>
-                    <div className={inlineActionsClass}>
-                      <select
-                        className={inputClass}
+                    <InlineActions>
+                      <Select
                         aria-label={`Where to remember ${suggestion.term}`}
                         value={vocabularyDestinations[suggestion.term] ?? "topic"}
                         onChange={(event) =>
@@ -291,7 +288,7 @@ export function TopicsPanel({
                             </option>
                           ))}
                         <option value="global">Global voice settings</option>
-                      </select>
+                      </Select>
                       <Button
                         size="sm"
                         disabled={busy}
@@ -299,30 +296,29 @@ export function TopicsPanel({
                       >
                         Remember
                       </Button>
-                    </div>
-                  </article>
+                    </InlineActions>
+                  </ReviewRow>
                 ))}
-              </div>
-            </section>
+              </ReviewList>
+            </SettingsSection>
           ) : null}
 
-          <section className={settingsSectionClass}>
-            <div className={panelHeadingClass}>
+          <SettingsSection>
+            <PanelSectionHeading>
               <div>
                 <h2>Source relationships</h2>
                 <p>Duplicate links are exact. Conflict and supplement labels are suggestions to review.</p>
               </div>
-            </div>
-            <div className={reviewListClass}>
+            </PanelSectionHeading>
+            <ReviewList>
               {(selected.relationships ?? []).map((relationship) => {
                 const [leftId, rightId] = relationship.source_ids;
                 const left = materials.find((item) => item.id === leftId);
                 const right = materials.find((item) => item.id === rightId);
                 return (
-                  <article
-                    className={reviewRowClass}
-                    key={`${relationship.type}:${relationship.source_ids.join(":")}`}
-                  >
+                  <ReviewRow
+                    
+                    key={`${relationship.type}:${relationship.source_ids.join(":")}`}>
                     <div>
                       <OriginLabel
                         origin="ai"
@@ -333,7 +329,7 @@ export function TopicsPanel({
                       </h3>
                       <p>{relationship.reason}</p>
                     </div>
-                    <div className={inlineActionsClass}>
+                    <InlineActions>
                       {left ? (
                         <Button size="sm" onClick={() => onOpenSource(left.id)}>
                           Open first
@@ -344,23 +340,23 @@ export function TopicsPanel({
                           Open second
                         </Button>
                       ) : null}
-                    </div>
-                  </article>
+                    </InlineActions>
+                  </ReviewRow>
                 );
               })}
               {!selected.relationships?.length ? (
-                <div className={cardClass}>
+                <Card>
                   <p>Add another distinct Source to compare relationships.</p>
-                </div>
+                </Card>
               ) : null}
-            </div>
-          </section>
+            </ReviewList>
+          </SettingsSection>
 
-          <section className={settingsSectionClass}>
+          <SettingsSection>
             <h2>Related Sources</h2>
-            <div className={reviewListClass}>
+            <ReviewList>
               {sources.map((source) => (
-                <article className={reviewRowClass} key={source.id}>
+                <ReviewRow  key={source.id}>
                   <label>
                     <input
                       type="checkbox"
@@ -381,16 +377,15 @@ export function TopicsPanel({
                   <Button size="sm" onClick={() => onOpenSource(source.id)}>
                     Open
                   </Button>
-                </article>
+                </ReviewRow>
               ))}
-            </div>
-          </section>
+            </ReviewList>
+          </SettingsSection>
 
-          <section className={settingsSectionClass}>
+          <SettingsSection>
             <h2>Merge or split</h2>
             <div className="flex items-center gap-2">
-              <select
-                className={inputClass}
+              <Select
                 value={mergeId}
                 onChange={(event) => setMergeId(event.target.value)}
               >
@@ -402,7 +397,7 @@ export function TopicsPanel({
                       {topic.name}
                     </option>
                   ))}
-              </select>
+              </Select>
               <Button
                 disabled={busy || !mergeId || !name.trim()}
                 onClick={() =>
@@ -416,8 +411,7 @@ export function TopicsPanel({
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <input
-                className={inputClass}
+              <Input
                 value={splitName}
                 onChange={(event) => setSplitName(event.target.value)}
                 placeholder="New Topic name"
@@ -439,12 +433,12 @@ export function TopicsPanel({
                 Split selected
               </Button>
             </div>
-          </section>
+          </SettingsSection>
 
           {error ? (
-            <div className={warningBarClass} role="alert">
+            <Banner tone="warning"  role="alert">
               {error}
-            </div>
+            </Banner>
           ) : null}
         </main>
       ) : null}

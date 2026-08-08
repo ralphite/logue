@@ -17,7 +17,7 @@ import {
   getSkills,
   type LogueSkill,
 } from "../lib/skillApi";
-import { Button } from "../ui/Button";
+
 import { AppShell, type PrimaryRoute } from "./AppShell";
 import { SettingsRoute } from "./SettingsRoute";
 import { ProjectRoute } from "./ProjectRoute";
@@ -26,7 +26,8 @@ import { DocumentsRoute } from "./DocumentsRoute";
 import { LibraryRoute } from "./LibraryRoute";
 import { SetupRoute } from "./SetupRoute";
 import { RouteErrorBoundary } from "./RouteErrorBoundary";
-import { Card, CardText, PageAxis, PageHeading, PageScroll } from "./layout";
+import { PageAxis, PageHeading, PageScroll } from "./layout";
+import { Button, Card, CardText } from "../ui";
 
 function routeFromLocation(): PrimaryRoute {
   const value = new URLSearchParams(window.location.search).get("view");

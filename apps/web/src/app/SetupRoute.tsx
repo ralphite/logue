@@ -2,7 +2,7 @@ import { Check, Mic, Sparkles } from "lucide-react";
 import { ProductStatus } from "@logue/ui";
 import { useEffect, useState } from "react";
 import { getAIConnection, saveAIConnection, testAIConnection, type AIConnection, type AIConnectionInput, type ServiceStatus } from "../lib/api";
-import { Button } from "../ui/Button";
+import { Banner, Button, Field, FieldGrid, Input, Select } from "../ui";
 
 const initialConnection: AIConnection = {
   provider: "gemini",
@@ -12,8 +12,6 @@ const initialConnection: AIConnection = {
   configured: false,
   has_api_key: false,
 };
-
-const fieldClass = "grid gap-[7px] text-[13px] text-ink-soft [&_input]:h-10 [&_input]:rounded-md [&_input]:border [&_input]:border-line-strong [&_input]:px-[11px] [&_input]:outline-0 [&_select]:h-10 [&_select]:rounded-md [&_select]:border [&_select]:border-line-strong [&_select]:px-2 [&_select]:outline-0";
 
 export function SetupRoute({ status, onReady, onBrowseLocal }: { status: ServiceStatus; onReady: () => Promise<void>; onBrowseLocal: () => void }) {
   const [connection, setConnection] = useState<AIConnection>(initialConnection);
@@ -51,9 +49,9 @@ export function SetupRoute({ status, onReady, onBrowseLocal }: { status: Service
         <h1 className="max-w-[620px] text-[34px] leading-[1.15] font-[690] tracking-[-0.045em] text-ink">Connect voice and AI</h1>
         <p className="mt-3.5 mb-6.5 max-w-[620px] text-[15px] leading-[1.55] text-muted">No account is required. Your Library stays on this Host; only the Context needed for a task is sent to the provider you connect.</p>
         <section className="mt-4 border-t border-line pt-4">
-          <div className="my-4.5 grid grid-cols-2 gap-3.5 max-[640px]:grid-cols-1">
-            <label className={fieldClass}>Provider
-              <select
+          <FieldGrid>
+            <Field>Provider
+              <Select
                 value={connection.provider}
                 onChange={(event) => {
                   const provider = event.target.value as AIConnection["provider"];
@@ -63,23 +61,23 @@ export function SetupRoute({ status, onReady, onBrowseLocal }: { status: Service
               >
                 <option value="gemini">Gemini</option>
                 <option value="openai-compatible">OpenAI-compatible provider</option>
-              </select>
-            </label>
-            <label className={fieldClass}>API key
-              <input type="password" autoComplete="off" value={apiKey} onChange={(event) => { setApiKey(event.target.value); setTested(false); }} placeholder="Stored only on this Host" />
-            </label>
-            <label className={`${fieldClass} col-span-full`}>Endpoint
-              <input value={connection.base_url} onChange={(event) => { setConnection({ ...connection, base_url: event.target.value }); setTested(false); }} />
-            </label>
-            <label className={fieldClass}>Generation model
-              <input value={connection.model} onChange={(event) => { setConnection({ ...connection, model: event.target.value }); setTested(false); }} />
-            </label>
-            <label className={fieldClass}>Transcription model
-              <input value={connection.transcription_model} onChange={(event) => { setConnection({ ...connection, transcription_model: event.target.value }); setTested(false); }} />
-            </label>
-          </div>
+              </Select>
+            </Field>
+            <Field>API key
+              <Input type="password" autoComplete="off" value={apiKey} onChange={(event) => { setApiKey(event.target.value); setTested(false); }} placeholder="Stored only on this Host" />
+            </Field>
+            <Field span>Endpoint
+              <Input value={connection.base_url} onChange={(event) => { setConnection({ ...connection, base_url: event.target.value }); setTested(false); }} />
+            </Field>
+            <Field>Generation model
+              <Input value={connection.model} onChange={(event) => { setConnection({ ...connection, model: event.target.value }); setTested(false); }} />
+            </Field>
+            <Field>Transcription model
+              <Input value={connection.transcription_model} onChange={(event) => { setConnection({ ...connection, transcription_model: event.target.value }); setTested(false); }} />
+            </Field>
+          </FieldGrid>
         </section>
-        {error ? <div className="mb-3 rounded-md border border-[#ead8b3] bg-[#fffaf1] px-[11px] py-[9px] text-xs leading-[1.45] text-[#755117]" role="alert">{error}</div> : null}
+        {error ? <Banner tone="warning" className="mb-3" role="alert">{error}</Banner> : null}
         {!tested ? (
           <div className="mt-7 flex items-center justify-between gap-4.5">
             <Button variant="primary" disabled={Boolean(busy) || !connection.base_url.trim() || !connection.model.trim() || !connection.transcription_model.trim()} onClick={() => void test()}>{busy === "test" ? "Checking…" : "Check voice and AI"}</Button>

@@ -31,14 +31,9 @@ import {
   type SkillSurface,
   type SkillTask,
 } from "../lib/skillApi";
-import { Button } from "../ui/Button";
-import {
-  PanelResizer,
-  usePersistentPanelSize,
-} from "../ui/PanelResizer";
-import { OriginLabel } from "../ui/OriginLabel";
+import { Banner, Button, Card, Field, FieldGrid, InlineActions, Input, Meta, OriginLabel, PanelResizer, Select, Textarea, usePersistentPanelSize } from "../ui";
 import { AppShell, type PrimaryRoute } from "./AppShell";
-import { axisClass, cardClass, fieldLabelClass, formGridClass, headingCopyClass, inlineActionsClass, inputClass, leadClass, metaClass, readyBarClass, scrollClass, settingRowClass, textareaClass, warningBarClass } from "./layout";
+import { HeadingCopy, Lead, PageAxis, PageScroll, SettingRow } from "./layout";
 
 type SkillTab = "built-in" | "mine" | "defaults";
 type SkillDraft = Pick<
@@ -526,15 +521,15 @@ export function SkillsRoute({
         </Button>
       }
     >
-      <div className={scrollClass}>
-        <div className={axisClass("list")}>
-          <div className={headingCopyClass}>
+      <PageScroll>
+        <PageAxis axis="list">
+          <HeadingCopy>
             <h1>Skills</h1>
             <p>
               Reusable instructions. Built-ins are safe defaults; My Skills are
               yours to change.
             </p>
-          </div>
+          </HeadingCopy>
           <div
             className="flex gap-5 border-b border-line"
             role="tablist"
@@ -565,25 +560,25 @@ export function SkillsRoute({
             ))}
           </div>
           {notice ? (
-            <div className={readyBarClass} role="status">
+            <Banner tone="neutral"  role="status">
               {notice}
-            </div>
+            </Banner>
           ) : null}
           {error ? (
-            <div className={warningBarClass} role="alert">
+            <Banner tone="warning"  role="alert">
               {error}
-            </div>
+            </Banner>
           ) : null}
 
           {tab === "defaults" ? (
             <div>
               <section className="mt-8">
                 <h2 className="mb-1.5 text-base font-[650]">Default Skills</h2>
-                <p className={leadClass}>
+                <Lead>
                   Projects inherit these unless they define an override.
-                </p>
+                </Lead>
                 {bindings.map(([key, label, accepts]) => (
-                  <div className={settingRowClass} key={key}>
+                  <SettingRow  key={key}>
                     <div>
                       <strong>{label}</strong>
                       <p>
@@ -591,8 +586,7 @@ export function SkillsRoute({
                         revision is frozen in Activity.
                       </p>
                     </div>
-                    <select
-                      className={inputClass}
+                    <Select
                       value={String(settings?.[key] ?? "")}
                       disabled={busy}
                       onChange={(event) =>
@@ -613,8 +607,8 @@ export function SkillsRoute({
                             {skill.hidden ? " · Hidden" : ""}
                           </option>
                         ))}
-                    </select>
-                  </div>
+                    </Select>
+                  </SettingRow>
                 ))}
               </section>
             </div>
@@ -627,7 +621,7 @@ export function SkillsRoute({
                 }
               >
                 {tab === "mine" ? (
-                  <div className={inlineActionsClass}>
+                  <InlineActions>
                     <Button
                       size="sm"
                       variant={showArchived ? "secondary" : "primary"}
@@ -650,7 +644,7 @@ export function SkillsRoute({
                     >
                       Archived ({archivedSkills.length})
                     </Button>
-                  </div>
+                  </InlineActions>
                 ) : null}
                 {visible.map((skill) => (
                   <button
@@ -681,7 +675,7 @@ export function SkillsRoute({
                   </button>
                 ))}
                 {!visible.length ? (
-                  <div className={cardClass}>
+                  <Card>
                     <p>
                       {showArchived
                         ? "No archived Skills."
@@ -692,7 +686,7 @@ export function SkillsRoute({
                         Create a Skill
                       </Button>
                     ) : null}
-                  </div>
+                  </Card>
                 ) : null}
               </section>
 
@@ -745,12 +739,12 @@ export function SkillsRoute({
                   </div>
 
                   {selected.archived_at ? (
-                    <div className={cardClass}>
+                    <Card>
                       <p>{selected.purpose}</p>
                       <p>{selected.instructions}</p>
-                      <div className={metaClass}>
+                      <Meta>
                         {selected.task} · {selected.output} · revision {selected.revision}
-                      </div>
+                      </Meta>
                       <Button
                         variant="primary"
                         disabled={busy}
@@ -759,18 +753,17 @@ export function SkillsRoute({
                         <ArchiveRestore size={14} />
                         Restore Skill
                       </Button>
-                    </div>
+                    </Card>
                   ) : selected.system ? (
                     <>
                       <p>{selected.instructions}</p>
-                      <div className={metaClass}>
+                      <Meta>
                         Surfaces: {selected.surfaces.join(", ")} · Context:{" "}
                         {selected.contexts.join(", ")}
-                      </div>
-                      <div
-                        className={inlineActionsClass}
-                        style={{ marginTop: 18 }}
-                      >
+                      </Meta>
+                      <InlineActions
+                        
+                        style={{ marginTop: 18 }}>
                         {supportsPin(selected) && !selected.hidden ? (
                           <Button
                             size="sm"
@@ -805,34 +798,31 @@ export function SkillsRoute({
                           )}
                           {selected.hidden ? "Show" : "Hide"}
                         </Button>
-                      </div>
+                      </InlineActions>
                     </>
                   ) : draft ? (
                     <>
-                      <label className={fieldLabelClass}>
+                      <Field>
                         Name
-                        <input
-                          className={inputClass}
+                        <Input
                           value={draft.name}
                           onChange={(event) =>
                             setDraft({ ...draft, name: event.target.value })
                           }
                         />
-                      </label>
-                      <label className={fieldLabelClass}>
+                      </Field>
+                      <Field>
                         Purpose
-                        <input
-                          className={inputClass}
+                        <Input
                           value={draft.purpose}
                           onChange={(event) =>
                             setDraft({ ...draft, purpose: event.target.value })
                           }
                         />
-                      </label>
-                      <label className={fieldLabelClass}>
+                      </Field>
+                      <Field>
                         Instructions
-                        <textarea
-                          className={textareaClass}
+                        <Textarea
                           value={draft.instructions}
                           onChange={(event) =>
                             setDraft({
@@ -841,15 +831,14 @@ export function SkillsRoute({
                             })
                           }
                         />
-                      </label>
+                      </Field>
                       <details className="mt-1 mb-4.5 border-t border-line pt-[11px] [&>summary]:cursor-pointer [&>summary]:text-xs [&>summary]:font-[620] [&>summary]:text-ink-soft">
                         <summary>Advanced</summary>
                         <div className="mt-3.5 grid gap-[13px]">
-                      <div className={formGridClass}>
+                      <FieldGrid>
                         <label>
                           Task
-                          <select
-                            className={inputClass}
+                          <Select
                             value={draft.task}
                             onChange={(event) =>
                               setDraft({
@@ -861,12 +850,11 @@ export function SkillsRoute({
                             <option value="transcribe">Transcribe</option>
                             <option value="organize">Organize</option>
                             <option value="generate">Generate</option>
-                          </select>
+                          </Select>
                         </label>
                         <label>
                           Output
-                          <select
-                            className={inputClass}
+                          <Select
                             value={draft.output}
                             onChange={(event) =>
                               setDraft({
@@ -879,9 +867,9 @@ export function SkillsRoute({
                             <option value="material">Saved material</option>
                             <option value="qa">Answer</option>
                             <option value="document">Document candidate</option>
-                          </select>
+                          </Select>
                         </label>
-                      </div>
+                      </FieldGrid>
                       <fieldset className="mt-4 grid grid-cols-2 gap-x-4 gap-y-[9px] [&>legend]:mb-1 [&>legend]:w-full [&>legend]:text-[13px] [&>legend]:font-[610] [&>legend]:text-ink-soft [&_label]:inline-flex [&_label]:items-center [&_label]:gap-1.5 [&_label]:text-xs [&_label]:whitespace-nowrap [&_label]:text-muted">
                         <legend>Available surfaces</legend>
                         {surfaces.map((item) => (
@@ -926,7 +914,7 @@ export function SkillsRoute({
                       </fieldset>
                         </div>
                       </details>
-                      <div className={settingRowClass}>
+                      <SettingRow>
                         <div>
                           <strong>Revision history</strong>
                           <p>
@@ -943,11 +931,11 @@ export function SkillsRoute({
                           <History size={14} />
                           {historyOpen ? "Close" : "History"}
                         </Button>
-                      </div>
+                      </SettingRow>
 
                       {historyOpen ? (
                         <section aria-label="Skill revision history">
-                          <div className={inlineActionsClass}>
+                          <InlineActions>
                             {revisions.map((revision) => (
                               <Button
                                 key={`${revision.skill_id}-${revision.revision}`}
@@ -970,19 +958,18 @@ export function SkillsRoute({
                                   : `Revision ${revision.revision}`}
                               </Button>
                             ))}
-                          </div>
+                          </InlineActions>
                           {previewRevision ? (
-                            <div
-                              className={cardClass}
-                              style={{ marginTop: 12 }}
-                            >
+                            <Card
+                              
+                              style={{ marginTop: 12 }}>
                               <strong>{previewRevision.name}</strong>
                               <p>{previewRevision.purpose}</p>
                               <p>{previewRevision.instructions}</p>
-                              <div className={metaClass}>
+                              <Meta>
                                 Revision {previewRevision.revision} ·{" "}
                                 {revisionDate(previewRevision)}
-                              </div>
+                              </Meta>
                               <Button
                                 size="sm"
                                 variant="primary"
@@ -992,20 +979,20 @@ export function SkillsRoute({
                                 <RotateCcw size={14} />
                                 Restore as new revision
                               </Button>
-                            </div>
+                            </Card>
                           ) : null}
                         </section>
                       ) : null}
 
                       {archiveImpact ? (
-                        <div className={cardClass} role="alert">
+                        <Card  role="alert">
                           <strong>Archive and update these choices?</strong>
                           <p>{archiveImpactCopy(archiveImpact)}</p>
                           <p>
                             These places will use their fallback. Restoring the
                             Skill later will not reapply them.
                           </p>
-                          <div className={inlineActionsClass}>
+                          <InlineActions>
                             <Button
                               disabled={busy}
                               onClick={() => setArchiveImpact(undefined)}
@@ -1020,12 +1007,12 @@ export function SkillsRoute({
                               <Archive size={14} />
                               Archive Skill
                             </Button>
-                          </div>
-                        </div>
+                          </InlineActions>
+                        </Card>
                       ) : null}
 
                       <div className="flex items-center justify-between gap-2">
-                        <div className={inlineActionsClass}>
+                        <InlineActions>
                           {supportsPin(selected) ? (
                             <Button
                               onClick={() =>
@@ -1050,7 +1037,7 @@ export function SkillsRoute({
                             <Archive size={14} />
                             Archive
                           </Button>
-                        </div>
+                        </InlineActions>
                         <Button
                           variant="primary"
                           onClick={() => void saveCurrent()}
@@ -1071,8 +1058,8 @@ export function SkillsRoute({
               ) : null}
             </div>
           )}
-        </div>
-      </div>
+        </PageAxis>
+      </PageScroll>
     </AppShell>
   );
 }

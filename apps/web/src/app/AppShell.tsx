@@ -12,9 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { GlobalFindDialog } from "./GlobalFindDialog";
-import { IconButton } from "../ui/Button";
-import { PanelResizer, usePersistentPanelSize } from "../ui/PanelResizer";
-import { Tooltip, TooltipProvider } from "../ui/Tooltip";
+import { IconButton, PanelResizer, Tooltip, TooltipProvider, usePersistentPanelSize } from "../ui";
 
 export type PrimaryRoute = "projects" | "library" | "documents" | "skills" | "settings";
 

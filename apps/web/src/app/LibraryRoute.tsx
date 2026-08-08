@@ -54,17 +54,13 @@ import {
   skillResolutionLabel,
   type DocumentAdoption,
 } from "../lib/skillApi";
-import { Button, IconButton } from "../ui/Button";
-import { RecordingAudioPlayer } from "../ui/RecordingAudioPlayer";
-import {
-  OriginLabel,
-  type OriginLabelType,
-} from "../ui/OriginLabel";
+import { Banner, Button, Card, CheckboxField, IconButton, InlineActions, Input, Meta, OriginLabel, RecordingAudioPlayer, Select, Tab, Tabs, Textarea, type OriginLabelType } from "../ui";
 import { AppShell, type PrimaryRoute } from "./AppShell";
 import { TopicsPanel } from "./TopicsPanel";
 import { updateNavigationState } from "./navigationState";
 import { ContentSummary, contentSummary } from "./contentPresentation";
-import { axisClass, cardClass, checkboxRowClass, chipButtonClass, dangerCardClass, headingCopyClass, inlineActionsClass, inputClass, inspectorHeaderClass, inspectorScrollClass, leadClass, libraryListClass, libraryRowClass, libraryRowMainClass, metaClass, reviewListClass, reviewRowClass, rowSelectClass, scrollClass, segmentedTabClass, settingRowClass, settingsSectionClass, skillPickerGroupClass, sourceBodyClass, sourceBundleActiveClass, sourceBundleClass, sourceMetaClass, sourceToggleClass, textareaClass, warningBarClass } from "./layout";
+import { HeadingCopy, Lead, LibraryList, LibraryRow, LibraryRowMain, PageAxis, PageScroll, PickerGroup, ReviewList, ReviewRow, RowSelect, SettingRow, SettingsSection } from "./layout";
+import { Chip, InspectorHeader, InspectorScroll, SourceBody, SourceBundle, SourceMeta, SourceToggle } from "./Inspector";
 
 type LibraryTab = "saved" | "activity" | "topics";
 type OriginFilter = "all" | "web" | "you" | "ai";
@@ -399,7 +395,7 @@ function SourceInspector({
   );
   return (
     <>
-      <header className={inspectorHeaderClass}>
+      <InspectorHeader>
         <div>
           <OriginLabel
             origin={group.bundle ? "you" : sourceOrigin(primary)}
@@ -410,19 +406,19 @@ function SourceInspector({
         <IconButton label="Close source" variant="ghost" onClick={onClose}>
           <PanelRightClose size={17} />
         </IconButton>
-      </header>
-      <div className={inspectorScrollClass}>
-        <article className={`${sourceBundleClass} ${sourceBundleActiveClass}`}>
+      </InspectorHeader>
+      <InspectorScroll>
+        <SourceBundle active>
           {group.bundle ? (
             <>
-              <div className={sourceBodyClass}>
+              <SourceBody>
                 <OriginLabel origin="you" detail="Your comment" />
                 <p>{groupCopy(group)}</p>
-              </div>
-              <div className={`${sourceBodyClass}`}>
+              </SourceBody>
+              <SourceBody>
                 <OriginLabel origin="web" detail="Original evidence" />
                 <p>{contentSummary(evidence?.content)}</p>
-              </div>
+              </SourceBody>
             </>
           ) : (
             <>
@@ -439,11 +435,11 @@ function SourceInspector({
               <p>{contentSummary(displayedContent)}</p>
             </>
           )}
-          <div className={sourceMetaClass}>
+          <SourceMeta>
             {shortDate(primary.createdAt)} ·{" "}
             {originalSource.source?.domain || "This Mac"}
-          </div>
-          <div className={inlineActionsClass}>
+          </SourceMeta>
+          <InlineActions>
             {linkedDocument ? (
               <Button size="sm" onClick={() => onOpenDocument(linkedDocument)}>
                 <FileText size={14} />
@@ -451,63 +447,62 @@ function SourceInspector({
               </Button>
             ) : null}
             {originalSource.source?.url ? (
-              <a
-                className={chipButtonClass}
+              <Chip
+                
                 href={originalSource.source.url}
                 target="_blank"
-                rel="noreferrer"
-              >
+                rel="noreferrer">
                 <ExternalLink size={14} />
                 Open original
-              </a>
+              </Chip>
             ) : null}
-          </div>
-        </article>
+          </InlineActions>
+        </SourceBundle>
         {anchor ? (
-          <section className={settingsSectionClass}>
+          <SettingsSection>
             <h2>{anchorStatusLabel(anchor.status)}</h2>
             {anchor.status === "page_changed" ? (
-              <p className={leadClass}>
+              <Lead>
                 The saved passage no longer matches this page. Open the original
                 page, select the replacement passage, then use Re-anchor in the
                 Side Panel.
-              </p>
+              </Lead>
             ) : anchor.status === "snapshot_only" ? (
-              <p className={leadClass}>
+              <Lead>
                 The original passage remains saved even without a live page
                 anchor. Re-anchor it later from the Side Panel.
-              </p>
+              </Lead>
             ) : (
-              <p className={leadClass}>
+              <Lead>
                 The saved passage can be located on the original page from the
                 Side Panel.
-              </p>
+              </Lead>
             )}
             {anchor.status === "reanchored" &&
             anchor.quote &&
             anchor.quote !== anchorOwner?.content ? (
-              <div className={`${sourceBodyClass}`}>
+              <SourceBody>
                 <OriginLabel
                   origin="web"
                   detail={`Current anchor · Revision ${anchor.revision}`}
                 />
                 <p>{anchor.quote}</p>
-              </div>
+              </SourceBody>
             ) : null}
-          </section>
+          </SettingsSection>
         ) : null}
         {primary.captureId ? (
-          <section className={settingsSectionClass}>
+          <SettingsSection>
             <h2>Original audio</h2>
             <RecordingAudioPlayer
               src={captureAudioURL(primary.captureId)}
               label="Play original recording"
             />
-          </section>
+          </SettingsSection>
         ) : null}
         {isAISource ? (
-          <section className={settingsSectionClass}>
-            <div className={inlineActionsClass}>
+          <SettingsSection>
+            <InlineActions>
               <h2>Revision history</h2>
               <span style={{ marginLeft: "auto" }} />
               {!editingSource &&
@@ -522,16 +517,15 @@ function SourceInspector({
                   Edit
                 </Button>
               ) : null}
-            </div>
+            </InlineActions>
             {editingSource ? (
               <>
-                <textarea
-                  className={textareaClass}
+                <Textarea
                   aria-label="AI Source content"
                   value={sourceDraft}
                   onChange={(event) => setSourceDraft(event.target.value)}
                 />
-                <div className={inlineActionsClass}>
+                <InlineActions>
                   <Button
                     size="sm"
                     onClick={() => {
@@ -549,12 +543,11 @@ function SourceInspector({
                   >
                     Save new revision
                   </Button>
-                </div>
+                </InlineActions>
               </>
             ) : (
               <>
-                <select
-                  className={inputClass}
+                <Select
                   aria-label="Source revision"
                   value={previewRevision?.revision ?? primary.revision ?? 1}
                   onChange={(event) => {
@@ -568,13 +561,13 @@ function SourceInspector({
                       {revision.current ? " · Current" : ""}
                     </option>
                   ))}
-                </select>
+                </Select>
                 {revisionSources.length ? (
-                  <div className={reviewListClass}>
+                  <ReviewList>
                     {revisionSources.map((source) => (
-                      <button
+                      <ReviewRow
                         type="button"
-                        className={reviewRowClass}
+                        
                         key={source.id}
                         aria-pressed={openRevisionSourceId === source.id}
                         onClick={() =>
@@ -603,10 +596,10 @@ function SourceInspector({
                           </strong>
                           <p>{contentSummary(source.content)}</p>
                         </div>
-                      </button>
+                      </ReviewRow>
                     ))}
                     {openRevisionSource ? (
-                      <div className={`${sourceBodyClass}`}>
+                      <SourceBody>
                         <OriginLabel
                           origin={
                             openRevisionSource.actor !== "user"
@@ -619,34 +612,33 @@ function SourceInspector({
                         />
                         <p>{contentSummary(openRevisionSource.content)}</p>
                         {openRevisionSource.source?.url ? (
-                          <a
-                            className={chipButtonClass}
+                          <Chip
+                            
                             href={openRevisionSource.source.url}
                             target="_blank"
-                            rel="noreferrer"
-                          >
+                            rel="noreferrer">
                             <ExternalLink size={14} />
                             Open original
-                          </a>
+                          </Chip>
                         ) : null}
-                      </div>
+                      </SourceBody>
                     ) : null}
-                  </div>
+                  </ReviewList>
                 ) : previewRevision?.parent_ids?.length ? (
-                  <div className={reviewListClass}>
+                  <ReviewList>
                     {previewRevision.parent_ids.map((id) => (
-                      <div className={reviewRowClass} key={id}>
+                      <ReviewRow  key={id}>
                         <div>
                           <strong>Frozen Source ID</strong>
                           <p>{id}</p>
                         </div>
-                      </div>
+                      </ReviewRow>
                     ))}
-                  </div>
+                  </ReviewList>
                 ) : (
-                  <p className={leadClass}>
+                  <Lead>
                     No parent Sources were attached to this revision.
-                  </p>
+                  </Lead>
                 )}
                 {previewRevision && !previewRevision.current ? (
                   <Button
@@ -661,34 +653,34 @@ function SourceInspector({
                 ) : null}
               </>
             )}
-          </section>
+          </SettingsSection>
         ) : null}
         {primary.transcript ? (
-          <section className={settingsSectionClass}>
+          <SettingsSection>
             <h2>Voice history</h2>
             {primary.rawTranscript ? (
-              <div className={settingRowClass}>
+              <SettingRow>
                 <div>
                   <strong>Raw transcript</strong>
                   <p>{primary.rawTranscript}</p>
                 </div>
-              </div>
+              </SettingRow>
             ) : null}
-            <div className={settingRowClass}>
+            <SettingRow>
               <div>
                 <strong>Transformed transcript</strong>
                 <p>{primary.transcript}</p>
               </div>
-            </div>
-            <div className={settingRowClass}>
+            </SettingRow>
+            <SettingRow>
               <div>
                 <strong>Saved version</strong>
                 <p>{contentSummary(primary.content)}</p>
               </div>
-            </div>
+            </SettingRow>
             {primary.appliedContext ? (
               <>
-                <div className={settingRowClass}>
+                <SettingRow>
                   <div>
                     <strong>Profile</strong>
                     <p>
@@ -699,8 +691,8 @@ function SourceInspector({
                         : ""}
                     </p>
                   </div>
-                </div>
-                <div className={settingRowClass}>
+                </SettingRow>
+                <SettingRow>
                   <div>
                     <strong>Transcription Skill</strong>
                     <p>
@@ -712,8 +704,8 @@ function SourceInspector({
                         : ""}
                     </p>
                   </div>
-                </div>
-                <div className={settingRowClass}>
+                </SettingRow>
+                <SettingRow>
                   <div>
                     <strong>Language and vocabulary</strong>
                     <p>
@@ -725,14 +717,14 @@ function SourceInspector({
                         : " · No Topic Vocabulary"}
                     </p>
                   </div>
-                </div>
+                </SettingRow>
                 {primary.appliedContext.reference_project ? (
-                  <div className={settingRowClass}>
+                  <SettingRow>
                     <div>
                       <strong>Project used for transcription</strong>
                       <p>{primary.appliedContext.reference_project}</p>
                     </div>
-                  </div>
+                  </SettingRow>
                 ) : null}
                 {primary.appliedContext.custom_instructions ||
                 primary.appliedContext.formatting_preference ||
@@ -763,23 +755,23 @@ function SourceInspector({
                 ) : null}
               </>
             ) : null}
-          </section>
+          </SettingsSection>
         ) : null}
         {primary.adoptedRevisions?.length ? (
-          <section className={settingsSectionClass}>
+          <SettingsSection>
             <h2>Adopted versions</h2>
-            <div className={reviewListClass}>
+            <ReviewList>
               {[...primary.adoptedRevisions]
                 .sort((left, right) => right.revision - left.revision)
                 .map((revision) => (
-                  <article className={reviewRowClass} key={revision.id}>
+                  <ReviewRow  key={revision.id}>
                     <div>
                       <OriginLabel
                         origin="ai"
                         detail={`${adoptionActionLabel(revision.action)} · Revision ${revision.revision}${revision.undone ? " · Undone" : ""}`}
                       />
                       <p>{contentSummary(revision.content)}</p>
-                      <div className={metaClass}>
+                      <Meta>
                         {shortDate(revision.created_at)}
                         {revision.target?.surface
                           ? ` · ${revision.target.surface}`
@@ -787,18 +779,17 @@ function SourceInspector({
                         {revision.target?.url
                           ? ` · ${new URL(revision.target.url).hostname}`
                           : ""}
-                      </div>
+                      </Meta>
                     </div>
-                  </article>
+                  </ReviewRow>
                 ))}
-            </div>
-          </section>
+            </ReviewList>
+          </SettingsSection>
         ) : null}
-        <section className={settingsSectionClass}>
+        <SettingsSection>
           <h2>Project Context</h2>
           <div className="flex items-center gap-2">
-            <select
-              className={inputClass}
+            <Select
               value={project}
               onChange={(event) => setProject(event.target.value)}
             >
@@ -808,7 +799,7 @@ function SourceInspector({
                   {item.name}
                 </option>
               ))}
-            </select>
+            </Select>
             {project ? (
               excluded ? (
                 <Button
@@ -848,14 +839,13 @@ function SourceInspector({
             ) : null}
           </div>
           {primary.organization?.reason ? (
-            <p className={leadClass}>{primary.organization.reason}</p>
+            <Lead>{primary.organization.reason}</Lead>
           ) : null}
-        </section>
-        <section className={settingsSectionClass}>
+        </SettingsSection>
+        <SettingsSection>
           <h2>Use in a Document</h2>
           <div className="flex items-center gap-2">
-            <select
-              className={inputClass}
+            <Select
               value={documentId}
               onChange={(event) => setDocumentId(event.target.value)}
             >
@@ -865,7 +855,7 @@ function SourceInspector({
                   {item.title}
                 </option>
               ))}
-            </select>
+            </Select>
             <Button
               disabled={!documentId || busy}
               onClick={() => void addToDocument()}
@@ -873,19 +863,19 @@ function SourceInspector({
               Add Source
             </Button>
           </div>
-        </section>
+        </SettingsSection>
         {parentSources.length ? (
-          <section className={settingsSectionClass}>
+          <SettingsSection>
             <h2>Lineage</h2>
-            <p className={leadClass}>
+            <Lead>
               Derived from {parentSources.length} frozen Source
               {parentSources.length === 1 ? "" : "s"}.
-            </p>
-            <div className={reviewListClass}>
+            </Lead>
+            <ReviewList>
               {parentSources.map(({ id, source }) => (
-                <button
+                <ReviewRow
                   type="button"
-                  className={reviewRowClass}
+                  
                   key={id}
                   disabled={!source}
                   onClick={() => source && onOpenSource(source.id)}
@@ -898,18 +888,18 @@ function SourceInspector({
                     <strong>{source ? materialTitle(source) : id}</strong>
                     {source ? <p>{contentSummary(source.content)}</p> : null}
                   </div>
-                </button>
+                </ReviewRow>
               ))}
-            </div>
-          </section>
+            </ReviewList>
+          </SettingsSection>
         ) : null}
         {error ? (
-          <div className={warningBarClass} role="alert">
+          <Banner tone="warning"  role="alert">
             {error}
-          </div>
+          </Banner>
         ) : null}
-        <section className={settingsSectionClass}>
-          <div className={inlineActionsClass}>
+        <SettingsSection>
+          <InlineActions>
             {group.bundle ? (
               <Button size="sm" onClick={onReviewDeleteComment}>
                 <Trash2 size={14} />
@@ -920,9 +910,9 @@ function SourceInspector({
               <Trash2 size={14} />
               {group.bundle ? "Delete bundle" : "Review deletion"}
             </Button>
-          </div>
-        </section>
-      </div>
+          </InlineActions>
+        </SettingsSection>
+      </InspectorScroll>
     </>
   );
 }
@@ -1176,7 +1166,7 @@ export function RunInspector({
   };
   return (
     <>
-      <header className={inspectorHeaderClass}>
+      <InspectorHeader>
         <div>
           <OriginLabel
             origin="ai"
@@ -1187,9 +1177,9 @@ export function RunInspector({
         <IconButton label="Close Run" variant="ghost" onClick={onClose}>
           <PanelRightClose size={17} />
         </IconButton>
-      </header>
-      <div className={inspectorScrollClass}>
-        <article className={`${sourceBundleClass} ${sourceBundleActiveClass}`}>
+      </InspectorHeader>
+      <InspectorScroll>
+        <SourceBundle active>
           <OriginLabel
             origin="you"
             detail={
@@ -1197,26 +1187,25 @@ export function RunInspector({
             }
           />
           <h3>{run.instruction || "Deleted Run"}</h3>
-          <div className={sourceMetaClass}>
+          <SourceMeta>
             {shortDate(run.created_at)} · Skill revision {run.skill_revision} ·{" "}
             {skillResolutionLabel(run.skill_resolution)} · {run.sources.length} frozen Sources{run.pinned ? " · pinned" : ""}
             {run.retry_run_id ? " · retry" : ""}
-          </div>
-        </article>
+          </SourceMeta>
+        </SourceBundle>
         {run.error ? (
-          <div className={warningBarClass} role="alert">
+          <Banner tone="warning"  role="alert">
             {run.error}
-          </div>
+          </Banner>
         ) : null}
         {draft ? (
-          <section className={settingsSectionClass}>
+          <SettingsSection>
             <h2>{adopted ? "Adopted result" : "Recover candidate"}</h2>
-            <textarea
-              className={textareaClass}
+            <Textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
             />
-            <div className={inlineActionsClass}>
+            <InlineActions>
               <Button
                 disabled={busy || !draft.trim()}
                 onClick={() => void copy()}
@@ -1245,82 +1234,82 @@ export function RunInspector({
                 {documentTargetOpen ? (
                   <div className="absolute top-[calc(100%+8px)] right-0 left-0 z-10 w-full max-w-90 overflow-hidden rounded-md border border-line-strong bg-surface shadow-[0_14px_36px_rgba(30,31,29,0.16)]" role="menu" aria-label="Choose Document target">
                     <div className="max-h-90 overflow-auto p-1.5">
-                      <div className={skillPickerGroupClass}>
+                      <PickerGroup>
                         <div className="px-2 pt-1.5 pb-1 text-[11px] font-[650] text-muted">Create</div>
                         <button type="button" role="menuitem" onClick={() => void saveDocument()}><span>New Document</span><small>Start with this recovered Candidate</small></button>
-                      </div>
-                      {projectDocuments.length ? <div className={skillPickerGroupClass}>
+                      </PickerGroup>
+                      {projectDocuments.length ? <PickerGroup>
                         <div className="px-2 pt-1.5 pb-1 text-[11px] font-[650] text-muted">Update existing</div>
                         {projectDocuments.map((document) => <button key={document.id} type="button" role="menuitem" onClick={() => void saveDocument(document)}><span>{document.title}</span><small>Replace as revision {document.revision + 1}</small></button>)}
-                      </div> : null}
+                      </PickerGroup> : null}
                     </div>
                   </div>
                 ) : null}
               </div>}
-            </div>
-          </section>
+            </InlineActions>
+          </SettingsSection>
         ) : null}
         {run.adoption_revisions?.length ? (
-          <section className={settingsSectionClass}>
+          <SettingsSection>
             <h2>Adoption history</h2>
-            <div className={reviewListClass}>
+            <ReviewList>
               {[...run.adoption_revisions]
                 .sort((left, right) => right.revision - left.revision)
                 .map((revision) => (
-                  <article className={reviewRowClass} key={revision.id}>
+                  <ReviewRow  key={revision.id}>
                     <div>
                       <OriginLabel
                         origin="ai"
                         detail={`${adoptionActionLabel(revision.action)} · Revision ${revision.revision}${revision.undone ? " · Undone" : ""}`}
                       />
                       <ContentSummary value={revision.content} />
-                      <div className={metaClass}>
+                      <Meta>
                         {revision.created_at ? shortDate(revision.created_at) : "Saved"}
                         {revision.document_revision ? ` · Document revision ${revision.document_revision}` : ""}
                         {revision.target?.surface ? ` · ${revision.target.surface}` : ""}
-                      </div>
+                      </Meta>
                     </div>
-                  </article>
+                  </ReviewRow>
                 ))}
-            </div>
-          </section>
+            </ReviewList>
+          </SettingsSection>
         ) : null}
-        <section className={settingsSectionClass}>
+        <SettingsSection>
           <h2>Context sent</h2>
-          <article className={cardClass}>
+          <Card>
             <OriginLabel origin="you" detail="Instruction" />
             <p>{modelContext?.instruction || run.instruction}</p>
-          </article>
-          <article className={cardClass}>
+          </Card>
+          <Card>
             <OriginLabel origin="ai" detail={`Skill revision ${modelContext?.skill.revision ?? run.skill_revision}`} />
             <strong>{modelContext?.skill.name || run.skill_name}</strong>
             {modelContext?.skill.instructions ? (
               <p>{modelContext.skill.instructions}</p>
             ) : null}
-          </article>
+          </Card>
           {modelContext?.project.overview ? (
-            <article className={cardClass}>
+            <Card>
               <OriginLabel origin="you" detail={modelContext.project.name || "Project context"} />
               <p>{modelContext.project.overview}</p>
-            </article>
+            </Card>
           ) : null}
           {modelContext?.personal_context ? (
-            <article className={cardClass}>
+            <Card>
               <OriginLabel origin="you" detail="Personal context" />
               <p>{modelContext.personal_context}</p>
-            </article>
+            </Card>
           ) : null}
           {modelContext?.selection || modelContext?.target_text ? (
-            <article className={cardClass}>
+            <Card>
               <OriginLabel origin="web" detail="Page context" />
               <p>{modelContext.selection || modelContext.target_text}</p>
-            </article>
+            </Card>
           ) : null}
-        </section>
-        <section className={settingsSectionClass}>
+        </SettingsSection>
+        <SettingsSection>
           <h2>Sources used</h2>
           {run.sources.map((source, index) => (
-            <article className={cardClass} key={source.id}>
+            <Card  key={source.id}>
               <OriginLabel
                 origin={
                   source.actor === "user"
@@ -1338,20 +1327,19 @@ export function RunInspector({
               </strong>
               {source.content ? <p>{contentSummary(source.content)}</p> : null}
               {source.source?.url ? (
-                <a
-                  className={sourceToggleClass}
+                <SourceToggle
+                  
                   href={source.source.url}
                   target="_blank"
-                  rel="noreferrer"
-                >
+                  rel="noreferrer">
                   Open original
-                </a>
+                </SourceToggle>
               ) : null}
-            </article>
+            </Card>
           ))}
-        </section>
+        </SettingsSection>
         {!run.tombstone ? (
-          <div className={inlineActionsClass}>
+          <InlineActions>
             <Button disabled={busy} onClick={() => void togglePin()}>
               {run.pinned ? <PinOff size={14} /> : <Pin size={14} />}
               {run.pinned ? "Unpin" : "Pin"}
@@ -1371,15 +1359,15 @@ export function RunInspector({
               <Trash2 size={14} />
               Review deletion
             </Button>
-          </div>
+          </InlineActions>
         ) : (
-          <div className={cardClass}>
+          <Card>
             Run details were deleted. Minimal lineage remains for an adopted
             result.
-          </div>
+          </Card>
         )}
         {deletePreview ? (
-          <div className={dangerCardClass}>
+          <Banner tone="danger">
             <p>
               {adopted
                 ? "This Run has an adopted result. Its prompt, output, and frozen Source text will be deleted; a minimal lineage marker remains."
@@ -1390,14 +1378,13 @@ export function RunInspector({
             {deletePreview.requires_lineage ? (
               <label>
                 Type DELETE to continue
-                <input
-                  className={inputClass}
+                <Input
                   value={deleteConfirm}
                   onChange={(event) => setDeleteConfirm(event.target.value)}
                 />
               </label>
             ) : null}
-            <div className={inlineActionsClass}>
+            <InlineActions>
               <Button
                 onClick={() => {
                   setDeletePreview(undefined);
@@ -1416,15 +1403,15 @@ export function RunInspector({
               >
                 Delete Run details
               </Button>
-            </div>
-          </div>
+            </InlineActions>
+          </Banner>
         ) : null}
         {error ? (
-          <div className={warningBarClass} role="alert">
+          <Banner tone="warning"  role="alert">
             {error}
-          </div>
+          </Banner>
         ) : null}
-      </div>
+      </InspectorScroll>
     </>
   );
 }
@@ -1444,7 +1431,7 @@ function ActivityInspector({
 }) {
   return (
     <>
-      <header className={inspectorHeaderClass}>
+      <InspectorHeader>
         <div>
           <OriginLabel
             origin="you"
@@ -1455,51 +1442,51 @@ function ActivityInspector({
         <IconButton label="Close Activity" variant="ghost" onClick={onClose}>
           <PanelRightClose size={17} />
         </IconButton>
-      </header>
-      <div className={inspectorScrollClass}>
-        <article className={`${sourceBundleClass} ${sourceBundleActiveClass}`}>
+      </InspectorHeader>
+      <InspectorScroll>
+        <SourceBundle active>
           <h3>{materialTitle(item)}</h3>
           <p>{contentSummary(item.content)}</p>
-          <div className={sourceMetaClass}>
+          <SourceMeta>
             {shortDate(item.createdAt)} · Private Activity · never Project
             Context
-          </div>
-        </article>
+          </SourceMeta>
+        </SourceBundle>
         {item.captureId ? (
-          <section className={settingsSectionClass}>
+          <SettingsSection>
             <h2>Original audio</h2>
             <RecordingAudioPlayer
               src={captureAudioURL(item.captureId)}
               label="Play original voice command"
             />
-          </section>
+          </SettingsSection>
         ) : null}
         {item.transcript ? (
-          <section className={settingsSectionClass}>
+          <SettingsSection>
             <h2>Voice history</h2>
             {item.rawTranscript ? (
-              <div className={settingRowClass}>
+              <SettingRow>
                 <div>
                   <strong>Raw transcript</strong>
                   <p>{item.rawTranscript}</p>
                 </div>
-              </div>
+              </SettingRow>
             ) : null}
-            <div className={settingRowClass}>
+            <SettingRow>
               <div>
                 <strong>Transformed transcript</strong>
                 <p>{item.transcript}</p>
               </div>
-            </div>
-            <div className={settingRowClass}>
+            </SettingRow>
+            <SettingRow>
               <div>
                 <strong>Saved activity</strong>
                 <p>{contentSummary(item.content)}</p>
               </div>
-            </div>
-          </section>
+            </SettingRow>
+          </SettingsSection>
         ) : null}
-        <div className={inlineActionsClass}>
+        <InlineActions>
           {run ? (
             <Button variant="primary" onClick={onOpenRun}>
               Open generated Run
@@ -1509,8 +1496,8 @@ function ActivityInspector({
             <Trash2 size={14} />
             Review deletion
           </Button>
-        </div>
-      </div>
+        </InlineActions>
+      </InspectorScroll>
     </>
   );
 }
@@ -1904,7 +1891,7 @@ export function LibraryRoute({
   const dependencyTotals = sourceDeletePreview?.summary;
   const inspector = deleteGroups.length ? (
     <>
-      <header className={inspectorHeaderClass}>
+      <InspectorHeader>
         <div>
           <OriginLabel origin="you" detail="Local data" />
           <h2>Review deletion</h2>
@@ -1919,22 +1906,22 @@ export function LibraryRoute({
         >
           <X size={17} />
         </IconButton>
-      </header>
-      <div className={inspectorScrollClass}>
-        <div className={dangerCardClass}>
+      </InspectorHeader>
+      <InspectorScroll>
+        <Banner tone="danger">
           <p>
             Delete {deleteGroups.length} selected item
             {deleteGroups.length === 1 ? "" : "s"} from this Host. Existing text
             already inserted into other apps is unchanged.
           </p>
-          <div className={reviewListClass}>
-            <div className={reviewRowClass}>
+          <ReviewList>
+            <ReviewRow>
               <div>
                 <strong>{dependencyTotals?.projects ?? 0} Project links</strong>
                 <p>Removed with the Source.</p>
               </div>
-            </div>
-            <div className={reviewRowClass}>
+            </ReviewRow>
+            <ReviewRow>
               <div>
                 <strong>
                   {dependencyTotals?.documents ?? 0} Documents ·{" "}
@@ -1947,17 +1934,16 @@ export function LibraryRoute({
                   their private content and audio are deleted.
                 </p>
               </div>
-            </div>
-          </div>
+            </ReviewRow>
+          </ReviewList>
           <label>
             Type DELETE to continue
-            <input
-              className={inputClass}
+            <Input
               value={deleteConfirm}
               onChange={(event) => setDeleteConfirm(event.target.value)}
             />
           </label>
-          <div className={inlineActionsClass}>
+          <InlineActions>
             <Button
               onClick={() => {
                 setDeleteGroups([]);
@@ -1975,10 +1961,10 @@ export function LibraryRoute({
             >
               Delete from this Host
             </Button>
-          </div>
-        </div>
-        {error ? <div className={warningBarClass}>{error}</div> : null}
-      </div>
+          </InlineActions>
+        </Banner>
+        {error ? <Banner tone="warning">{error}</Banner> : null}
+      </InspectorScroll>
     </>
   ) : openRun ? (
     <RunInspector
@@ -2058,17 +2044,17 @@ export function LibraryRoute({
       }}
       inspector={inspector}
     >
-      <div className={scrollClass}>
-        <div className={axisClass("list")}>
+      <PageScroll>
+        <PageAxis axis="list">
           <div className="mb-10 flex items-start justify-between gap-6">
-            <div className={headingCopyClass}>
+            <HeadingCopy>
               <h1>{query.trim() ? "Find" : "Library"}</h1>
               {query.trim() ? (
                 <p>
                   {`${searching ? "Searching" : `${groups.length + visibleDocumentMatches.length} results`} · ${strategy === "semantic" ? "meaning and exact words" : "exact words"}`}
                 </p>
               ) : null}
-            </div>
+            </HeadingCopy>
           </div>
           <label className="my-4.5 mb-3.5 flex h-10 items-center gap-[9px] rounded-md border border-line-strong bg-surface px-3 text-muted [&_input]:min-w-0 [&_input]:flex-1 [&_input]:border-0 [&_input]:bg-transparent [&_input]:text-ink [&_input]:outline-0">
             <Search size={17} />
@@ -2091,36 +2077,26 @@ export function LibraryRoute({
               </button>
             ) : null}
           </label>
-          <div
-            className="flex items-center gap-0.5 border-b border-line"
-            role="tablist"
-            aria-label="Library content"
-          >
-            <button
-              role="tab"
-              aria-selected={tab === "saved"}
-              className={segmentedTabClass(tab === "saved")}
+          <Tabs label="Library content">
+            <Tab
+              active={tab === "saved"}
               onClick={() => setTab("saved")}
             >
               Saved content
-            </button>
-            <button
-              role="tab"
-              aria-selected={tab === "activity"}
-              className={segmentedTabClass(tab === "activity")}
+            </Tab>
+            <Tab
+              active={tab === "activity"}
               onClick={() => setTab("activity")}
             >
               All activity
-            </button>
-            <button
-              role="tab"
-              aria-selected={tab === "topics"}
-              className={segmentedTabClass(tab === "topics")}
+            </Tab>
+            <Tab
+              active={tab === "topics"}
               onClick={() => setTab("topics")}
             >
               Topics
-            </button>
-          </div>
+            </Tab>
+          </Tabs>
           {tab === "saved" ? (
             <>
               <div className="flex items-center gap-2">
@@ -2158,8 +2134,7 @@ export function LibraryRoute({
                 >
                   <label>
                     Project
-                    <select
-                      className={inputClass}
+                    <Select
                       value={projectFilter}
                       onChange={(event) => setProjectFilter(event.target.value)}
                     >
@@ -2169,12 +2144,11 @@ export function LibraryRoute({
                           {project.name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                   <label>
                     Topic
-                    <select
-                      className={inputClass}
+                    <Select
                       value={topicFilter}
                       onChange={(event) => setTopicFilter(event.target.value)}
                     >
@@ -2186,12 +2160,11 @@ export function LibraryRoute({
                             {topic.name}
                           </option>
                         ))}
-                    </select>
+                    </Select>
                   </label>
                   <label>
                     Origin
-                    <select
-                      className={inputClass}
+                    <Select
                       value={originFilter}
                       onChange={(event) =>
                         setOriginFilter(event.target.value as OriginFilter)
@@ -2201,12 +2174,11 @@ export function LibraryRoute({
                       <option value="web">Web</option>
                       <option value="you">You</option>
                       <option value="ai">AI</option>
-                    </select>
+                    </Select>
                   </label>
                   <label>
                     Time
-                    <select
-                      className={inputClass}
+                    <Select
                       value={timeFilter}
                       onChange={(event) =>
                         setTimeFilter(event.target.value as TimeFilter)
@@ -2217,12 +2189,11 @@ export function LibraryRoute({
                       <option value="week">Past 7 days</option>
                       <option value="month">Past 30 days</option>
                       <option value="year">Past year</option>
-                    </select>
+                    </Select>
                   </label>
                   <label>
                     Site
-                    <select
-                      className={inputClass}
+                    <Select
                       value={siteFilter}
                       onChange={(event) => setSiteFilter(event.target.value)}
                     >
@@ -2232,12 +2203,11 @@ export function LibraryRoute({
                           {site}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                   <label>
                     Type
-                    <select
-                      className={inputClass}
+                    <Select
                       value={contentTypeFilter}
                       onChange={(event) =>
                         setContentTypeFilter(
@@ -2251,12 +2221,11 @@ export function LibraryRoute({
                       <option value="selection">Web captures</option>
                       <option value="note">Saved notes</option>
                       <option value="ai-source">AI Sources</option>
-                    </select>
+                    </Select>
                   </label>
                   <label>
                     Adoption
-                    <select
-                      className={inputClass}
+                    <Select
                       value={adoptedFilter}
                       onChange={(event) =>
                         setAdoptedFilter(event.target.value as AdoptedFilter)
@@ -2265,23 +2234,22 @@ export function LibraryRoute({
                       <option value="all">Any adoption</option>
                       <option value="adopted">Adopted</option>
                       <option value="not-adopted">Not adopted</option>
-                    </select>
+                    </Select>
                   </label>
-                  <label className={checkboxRowClass}>
+                  <CheckboxField>
                     <input
                       type="checkbox"
                       checked={reviewOnly}
                       onChange={(event) => setReviewOnly(event.target.checked)}
                     />
                     Needs review
-                  </label>
+                  </CheckboxField>
                 </div>
               ) : null}
               {selectedGroups.length ? (
                 <div className="mt-3 flex items-center gap-2 rounded-lg border border-line bg-surface-muted px-2.5 py-2 [&>strong]:mr-auto [&>strong]:text-[13px] [&_select]:w-45">
                   <strong>{selectedGroups.length} selected</strong>
-                  <select
-                    className={inputClass}
+                  <Select
                     value={bulkProject}
                     onChange={(event) => setBulkProject(event.target.value)}
                   >
@@ -2291,7 +2259,7 @@ export function LibraryRoute({
                         {project.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                   <Button
                     size="sm"
                     disabled={!bulkProject || busy}
@@ -2346,7 +2314,7 @@ export function LibraryRoute({
                   </IconButton>
                 </div>
               ) : null}
-              <div className={`${libraryListClass} ${selectedKeys.length ? "[&_label]:opacity-100" : ""}`}>
+              <LibraryList selecting={selectedKeys.length > 0}>
                 {groups.map((group) => {
                   const material =
                     group.bundle?.primaryComment ?? group.representative;
@@ -2356,8 +2324,8 @@ export function LibraryRoute({
                   const copy = groupCopy(group);
                   const title = groupTitle(group);
                   return (
-                    <article className={`group/row ${libraryRowClass}`} key={group.key}>
-                      <label className={rowSelectClass}>
+                    <LibraryRow key={group.key}>
+                      <RowSelect>
                         <input
                           type="checkbox"
                           checked={selectedKeys.includes(group.key)}
@@ -2372,10 +2340,10 @@ export function LibraryRoute({
                           }
                         />
                         <span className="sr-only">Select {title}</span>
-                      </label>
-                      <button
+                      </RowSelect>
+                      <LibraryRowMain
                         type="button"
-                        className={libraryRowMainClass}
+                        
                         onClick={() => openSource(group)}
                       >
                         <OriginLabel
@@ -2390,16 +2358,16 @@ export function LibraryRoute({
                         />
                         <h3>{copy || title}</h3>
                         {copy !== title ? <p>{title}</p> : null}
-                        <div className={metaClass}>
+                        <Meta>
                           {match ? `${matchLabel(match)} · ` : ""}
                           {shortDate(material.createdAt)} ·{" "}
                           {material.source?.domain || "This Mac"}
                           {group.projects.length
                             ? ` · ${group.projects.join(", ")}`
                             : " · Saved only"}
-                        </div>
-                      </button>
-                    </article>
+                        </Meta>
+                      </LibraryRowMain>
+                    </LibraryRow>
                   );
                 })}
                 {query &&
@@ -2408,48 +2376,45 @@ export function LibraryRoute({
                       (item) => item.id === match.id,
                     );
                     return document ? (
-                      <article
-                        className={`group/row ${libraryRowClass}`}
-                        key={`document:${document.id}`}
-                      >
+                      <LibraryRow key={`document:${document.id}`}>
                         <span />
-                        <button
+                        <LibraryRowMain
                           type="button"
-                          className={libraryRowMainClass}
+                          
                           onClick={() => openDocument(document)}
                         >
                           <OriginLabel origin="ai" detail="Document" />
                           <h3>{document.title}</h3>
                           <p>{contentSummary(document.content)}</p>
-                          <div className={metaClass}>
+                          <Meta>
                             {documentMatchLabel(match)} ·{" "}
                             {document.project || "No Project"} · Revision{" "}
                             {document.revision}
-                          </div>
-                        </button>
-                      </article>
+                          </Meta>
+                        </LibraryRowMain>
+                      </LibraryRow>
                     ) : null;
                   })}
                 {loading && !groups.length && !visibleDocumentMatches.length ? (
-                  <div className={cardClass} aria-live="polite">
+                  <Card  aria-live="polite">
                     <p>Loading saved content…</p>
-                  </div>
+                  </Card>
                 ) : null}
                 {!loading && !groups.length &&
                 !visibleDocumentMatches.length &&
                 !searching ? (
-                  <div className={cardClass}>
+                  <Card>
                     <p>
                       {query.trim() || activeFilterCount
                         ? "No saved content matches these filters."
                         : "No saved content yet."}
                     </p>
-                  </div>
+                  </Card>
                 ) : null}
-              </div>
+              </LibraryList>
             </>
           ) : tab === "activity" ? (
-            <div className={reviewListClass}>
+            <ReviewList>
               {materials
                 .filter(
                   (item) =>
@@ -2458,7 +2423,7 @@ export function LibraryRoute({
                       item.content.toLowerCase().includes(query.toLowerCase())),
                 )
                 .map((item) => (
-                  <article className={reviewRowClass} key={item.id}>
+                  <ReviewRow  key={item.id}>
                     <div>
                       <OriginLabel
                         origin="you"
@@ -2466,10 +2431,10 @@ export function LibraryRoute({
                       />
                       <h3>{materialTitle(item)}</h3>
                       <ContentSummary value={item.content} />
-                      <div className={metaClass}>
+                      <Meta>
                         {shortDate(item.createdAt)} · Activity only · never
                         added to Project Context
-                      </div>
+                      </Meta>
                     </div>
                     <Button
                       size="sm"
@@ -2477,7 +2442,7 @@ export function LibraryRoute({
                     >
                       Open
                     </Button>
-                  </article>
+                  </ReviewRow>
                 ))}
               {runs
                 .filter(
@@ -2488,7 +2453,7 @@ export function LibraryRoute({
                       .includes(query.toLowerCase()),
                 )
                 .map((run) => (
-                  <article className={reviewRowClass} key={run.id}>
+                  <ReviewRow  key={run.id}>
                     <div>
                       <OriginLabel origin="ai" detail={run.status} />
                       <h3>{run.skill_name}</h3>
@@ -2496,7 +2461,7 @@ export function LibraryRoute({
                         value={run.instruction}
                         fallback="Deleted Run details"
                       />
-                      <div className={metaClass}>
+                      <Meta>
                         {shortDate(run.created_at)} · {run.sources.length}{" "}
                         frozen Sources
                         {run.tombstone
@@ -2506,20 +2471,20 @@ export function LibraryRoute({
                               run.material_id
                             ? " · adopted"
                             : " · candidate recoverable"}
-                      </div>
+                      </Meta>
                     </div>
                     <Button size="sm" onClick={() => setOpenRunId(run.id)}>
                       Open
                     </Button>
-                  </article>
+                  </ReviewRow>
                 ))}
               {runs.length === 0 &&
               materials.every((item) => !item.activityType) ? (
-                <div className={cardClass}>
+                <Card>
                   <p>No activity yet.</p>
-                </div>
+                </Card>
               ) : null}
-            </div>
+            </ReviewList>
           ) : (
             <TopicsPanel
               materials={savedMaterials}
@@ -2545,12 +2510,12 @@ export function LibraryRoute({
             />
           )}
           {error && !deleteGroups.length ? (
-            <div className={warningBarClass} role="alert">
+            <Banner tone="warning"  role="alert">
               {error}
-            </div>
+            </Banner>
           ) : null}
-        </div>
-      </div>
+        </PageAxis>
+      </PageScroll>
     </AppShell>
   );
 }
