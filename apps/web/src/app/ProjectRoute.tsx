@@ -68,7 +68,7 @@ import { RunInspector } from "./LibraryRoute";
 import { DocumentContent } from "./DocumentContent";
 import { readNavigationState, updateNavigationState } from "./navigationState";
 import { ContentSummary, contentSummary } from "./contentPresentation";
-import { ContextSummary, HeadingCopy, Lead, PageAxis, PageScroll, PanelSectionHeading, PickerGroup, ReviewList, ReviewRow, SettingRow, SettingsSection } from "./layout";
+import { ContextSummary, HeadingCopy, Lead, PageAxis, PageScroll, PanelSectionHeading, PickerGroup, ProvenanceRow, ReviewList, ReviewRow, SettingRow, SettingsSection } from "./layout";
 import { Chip, InspectorHeader, InspectorScroll, SourceBundle, SourceToggle } from "./Inspector";
 
 type ProjectView = "workspace" | "context" | "history" | "settings";
@@ -1502,20 +1502,18 @@ export function ProjectRoute({
                       </PanelSectionHeading>
                       <ReviewList>
                         {projectDocuments.slice(0, 2).map((item) => (
-                          <button
-                            type="button"
-                            className="grid grid-cols-[132px_minmax(0,1fr)] gap-3 border-b border-line py-3 text-[13px] text-ink-soft"
+                          <ProvenanceRow
+                            as="button"
                             key={item.id}
                             onClick={() => openDocumentInEditor(item.id)}
                           >
                             <OriginLabel origin="ai" detail="Document" />
                             <span>{item.title}</span>
-                          </button>
+                          </ProvenanceRow>
                         ))}
                         {recentProjectRuns.slice(0, 2).map((item) => (
-                          <button
-                            type="button"
-                            className="grid grid-cols-[132px_minmax(0,1fr)] gap-3 border-b border-line py-3 text-[13px] text-ink-soft"
+                          <ProvenanceRow
+                            as="button"
                             key={item.id}
                             onClick={() => setOpenHistoryRunId(item.id)}
                           >
@@ -1524,7 +1522,7 @@ export function ProjectRoute({
                               detail={`${item.skill_name} · ${item.status}`}
                             />
                             <span>{item.instruction}</span>
-                          </button>
+                          </ProvenanceRow>
                         ))}
                       </ReviewList>
                     </section>
@@ -1547,7 +1545,7 @@ export function ProjectRoute({
                       const item =
                         group.bundle?.primaryComment ?? group.representative;
                       return (
-                        <div className="grid grid-cols-[132px_minmax(0,1fr)] gap-3 border-b border-line py-3 text-[13px] text-ink-soft" key={group.key}>
+                        <ProvenanceRow key={group.key}>
                           <OriginLabel
                             origin={group.bundle ? "you" : sourceOrigin(item)}
                             detail={
@@ -1563,7 +1561,7 @@ export function ProjectRoute({
                               group.bundle?.source ?? group.representative,
                             )}
                           </span>
-                        </div>
+                        </ProvenanceRow>
                       );
                     })}
                   </section>

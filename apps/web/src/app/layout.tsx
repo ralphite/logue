@@ -120,8 +120,12 @@ export function SettingRow({
   return (
     <div
       className={cn(
-        "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-5 border-b border-line py-4",
+        // Below 640px the control drops under its label instead of overflowing.
+        "grid grid-cols-1 items-start gap-2 border-b border-line py-4",
+        "sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-5",
         "[&_strong]:block [&_strong]:text-sm [&_strong]:font-[610]",
+        // A row's control column stays one width so the rows read as a column.
+        "[&_select]:w-full sm:[&_select]:w-60",
         "[&>div>p]:mt-1 [&>div>p]:max-w-125 [&>div>p]:text-[13px] [&>div>p]:leading-[1.5] [&>div>p]:text-muted",
         className,
       )}
@@ -158,7 +162,8 @@ export function ReviewRow({
   return (
     <Tag
       className={cn(
-        "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-6 border-b border-line px-1 py-4.5",
+        "grid grid-cols-1 items-start gap-3 border-b border-line px-1 py-4.5",
+        "sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6",
         "[&_h3]:mt-1.5 [&_h3]:mb-1 [&_h3]:text-[15px] [&_h3]:font-[650]",
         "[&_p]:max-w-165 [&_p]:text-[13px] [&_p]:leading-[1.5] [&_p]:text-ink-soft",
         as === "button" && "w-full text-left disabled:opacity-60",
@@ -301,5 +306,32 @@ export function RowSelect({ className, children, ...props }: HTMLAttributes<HTML
     >
       {children}
     </label>
+  );
+}
+
+/**
+ * A provenance-first row: who or what produced it on the left, the thing itself
+ * on the right. The origin column has to fit "Draft reply · complete" without
+ * wrapping, which is what sets its width.
+ */
+export function ProvenanceRow({
+  as = "div",
+  className,
+  children,
+  ...props
+}: { as?: "div" | "button"; className?: string; children: ReactNode } & Record<string, unknown>) {
+  const Tag = as;
+  return (
+    <Tag
+      {...(as === "button" ? { type: "button" } : {})}
+      className={cn(
+        "grid w-full grid-cols-[190px_minmax(0,1fr)] items-start gap-3 border-b border-line py-3 text-left text-[13px] text-ink-soft",
+        as === "button" && "hover:bg-surface-muted",
+        className,
+      )}
+      {...(props as Record<string, unknown>)}
+    >
+      {children}
+    </Tag>
   );
 }

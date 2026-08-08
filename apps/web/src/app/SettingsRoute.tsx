@@ -208,6 +208,7 @@ function ClientRow({
       </div>
       <InlineActions>
         <Input
+          className="w-full sm:w-56"
           aria-label={`Name for ${client.name}`}
           value={name}
           onChange={(event) => setName(event.target.value)}
@@ -1039,14 +1040,13 @@ export function SettingsRoute({
                   />
                 </SettingsSection>
                 <SettingsSection>
-                  <InlineActions>
-                    <h2>Chrome Extensions</h2>
-                    <span style={{ marginLeft: "auto" }} />
+                  <div className="mt-[42px] mb-1.5 flex flex-wrap items-center justify-between gap-3">
+                    <h2 className="text-base font-[660]">Chrome Extensions</h2>
                     <Button onClick={() => void beginPairing()}>
                       <Monitor size={14} />
                       Pair another device
                     </Button>
-                  </InlineActions>
+                  </div>
                   {pairing ? (
                     <Card>
                       <p>
@@ -1414,7 +1414,7 @@ export function SettingsRoute({
                           <div>
                             {draft.voice_profile.vocabulary[category.key].map(
                               (value) => (
-                                <button
+                                <Pill
                                   key={value}
                                   onClick={() =>
                                     void persist({
@@ -1433,8 +1433,8 @@ export function SettingsRoute({
                                   }
                                 >
                                   {value}
-                                  <X size={11} />
-                                </button>
+                                  <X size={11} className="ml-1" />
+                                </Pill>
                               ),
                             )}
                           </div>

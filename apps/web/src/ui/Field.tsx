@@ -13,23 +13,32 @@ import type {
  */
 
 const control =
-  "w-full min-w-0 rounded-md border border-line-strong bg-surface text-ink outline-0 transition focus:border-accent-line focus:shadow-[0_0_0_2px_var(--color-accent-soft)] disabled:bg-panel disabled:text-muted";
+  "min-w-0 rounded-md border border-line-strong bg-surface text-ink outline-0 transition focus:border-accent-line focus:shadow-[0_0_0_2px_var(--color-accent-soft)] disabled:bg-panel disabled:text-muted";
+
+/**
+ * A control fills its row unless the caller gave it a width. Deciding this here
+ * rather than always emitting `w-full` means an explicit `w-56` actually wins:
+ * two competing width utilities would otherwise be settled by stylesheet order.
+ */
+function width(className?: string) {
+  return /(^|\s)(w-|max-w-)/.test(className ?? "") ? "" : "w-full";
+}
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(control, "h-9 px-[11px]", className)} {...props} />;
+  return <input className={cn(control, "h-9 px-[11px]", width(className), className)} {...props} />;
 }
 
 export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn(control, "min-h-[150px] resize-y px-3.5 py-3 leading-[1.6]", className)} {...props} />;
+  return <textarea className={cn(control, "min-h-[150px] resize-y px-3.5 py-3 leading-[1.6]", width(className), className)} {...props} />;
 }
 
 export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={cn(control, "h-9 px-2", className)} {...props} />;
+  return <select className={cn(control, "h-9 px-2", width(className), className)} {...props} />;
 }
 
 /** A select in a toolbar sizes to its content instead of filling the row. */
 export function ToolbarSelect({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <Select className={cn("w-auto max-w-37.5 min-w-31", className)} {...props} />;
+  return <Select className={cn("max-w-37.5 min-w-31", className)} {...props} />;
 }
 
 /**

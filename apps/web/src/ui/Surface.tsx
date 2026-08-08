@@ -77,7 +77,7 @@ export function Pill({
 
 export function InlineActions({ className, children, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("flex items-center gap-2", className)} {...props}>
+    <div className={cn("flex flex-wrap items-center gap-2", className)} {...props}>
       {children}
     </div>
   );
