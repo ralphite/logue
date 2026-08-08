@@ -25,7 +25,15 @@ const manifest = {
   description: "Capture voice and selections anywhere, and keep every source.",
   version,
   version_name: build,
-  permissions: ["activeTab", "alarms", "offscreen", "scripting", "sidePanel", "storage", "tabs"],
+  /*
+   * `audioCapture` is what makes the microphone work at all here. The recorder
+   * lives in an offscreen document, which has no window to show a permission
+   * prompt in — so without the declared permission getUserMedia simply fails,
+   * and the only symptom is our own "Microphone access is blocked" message
+   * with nowhere to go and grant it. The product is a microphone; declaring it
+   * is the honest thing to do.
+   */
+  permissions: ["activeTab", "alarms", "audioCapture", "offscreen", "scripting", "sidePanel", "storage", "tabs"],
   host_permissions: ["http://127.0.0.1:8787/*"],
   optional_host_permissions: ["http://*/*", "https://*/*"],
   action: { default_title: "Open Logue" },

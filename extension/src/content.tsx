@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { host, type Context, type Material } from "./api";
 import { caretRect } from "./caret";
 import * as googleDocs from "./googleDocs";
-import { activeEditable, insertAtCaret, isOurs, pageSelection, pageSource, readCaret, restoreCaret, type CaretPosition, type Editable, type SelectionSnapshot } from "./editable";
+import { activeEditable, insertAtCaret, isOurs, nearbyText, pageSelection, pageSource, readCaret, restoreCaret, type CaretPosition, type Editable, type SelectionSnapshot } from "./editable";
 import { isFromBackground, send } from "./messages";
 import { aboveSelection, besideCaret, BAR } from "./position";
 import { NO_OVERRIDES, type VoiceOverrides } from "./overrides";
@@ -210,7 +210,14 @@ function Surfaces() {
   const finishVoice = async () => {
     const at = caret;
     destination.current = target.current ? { editor: target.current, caret: readCaret(target.current) } : null;
-    const result = await voice.stop({ project, overrides, source: pageSource() });
+    const result = await voice.stop({
+      project,
+      overrides,
+      source: pageSource(),
+      // Read before the model is asked: what is on screen right now is what
+      // the person means, and they may click away while it transcribes.
+      nearby: nearbyText(target.current),
+    });
     if (result) {
       setAnchor(at);
       setCandidate(result);

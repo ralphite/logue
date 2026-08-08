@@ -1,5 +1,5 @@
 import { ExternalLink, X } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Button, ErrorNote, IconButton, Input, OriginMark, Spinner, Tag, originOf } from "@logue/ui";
 import { api, type Material, type Project } from "../api";
 import { timeAgo, useAction, useHost } from "./useHost";
@@ -67,6 +67,8 @@ export function MaterialPanel({
             {material.capture_id && (
               <audio controls src={api.audioUrl(material.capture_id)} className="h-8 w-full" />
             )}
+
+            <HowItWasHeard applied={material.applied_context} />
 
             <Lineage title="Came from" items={lineage.data?.parents ?? []} />
             <Lineage title="Led to" items={lineage.data?.children ?? []} />
@@ -150,6 +152,51 @@ export function MaterialPanel({
         )}
       </div>
     </aside>
+  );
+}
+
+/**
+ * Why the transcript came out the way it did.
+ *
+ * Folded away because it is only ever wanted when something is wrong — and
+ * when it is wanted, nothing else will do. The profile, the Skill and the term
+ * list have all moved on by then, so this is the record as it was, not a
+ * lookup of how things are now.
+ */
+function HowItWasHeard({ applied }: { applied?: Material["applied_context"] }) {
+  if (!applied) return null;
+  // Only what was actually recorded. Filling a blank with "Default voice"
+  // would claim a setting that may simply not have been captured — and the
+  // 80 recordings from before this was tracked keep a different set of keys.
+  const lines = (
+    [
+      ["Voice", applied.profile],
+      ["Project", applied.project ?? applied.reference_project],
+      ["Language", applied.language],
+      ["Skill", applied.skill ? `${applied.skill.name} · revision ${applied.skill.revision}` : ""],
+      ["Terms", (applied.terms ?? applied.glossary ?? []).join(", ")],
+      ["Vocabulary", applied.vocabulary],
+      ["From the page", applied.page_context_characters ? `${applied.page_context_characters} characters` : ""],
+    ] as [string, string | undefined][]
+  ).filter((line): line is [string, string] => Boolean(line[1]));
+  if (lines.length === 0 && !applied.instructions) return null;
+  return (
+    <details className="border-t border-line pt-3 text-meta text-muted">
+      <summary className="cursor-pointer select-none">How this was heard</summary>
+      <dl className="mt-1.5 grid grid-cols-[84px_minmax(0,1fr)] gap-x-2 gap-y-1">
+        {lines.map(([label, value]) => (
+          <Fragment key={label}>
+            <dt className="text-faint">{label}</dt>
+            <dd className="break-words text-ink-soft">{value}</dd>
+          </Fragment>
+        ))}
+      </dl>
+      {applied.instructions && (
+        <p className="mt-2 rounded-md bg-surface-muted px-2 py-1.5 leading-normal whitespace-pre-wrap text-ink-soft">
+          {applied.instructions}
+        </p>
+      )}
+    </details>
   );
 }
 

@@ -35,6 +35,32 @@ export function activeEditable(root: Document = document): Editable | undefined 
   return isEditable(candidate) ? candidate : undefined;
 }
 
+/** Enough to spell a name the way the document already spells it. */
+const NEARBY_LIMIT = 1500;
+
+/**
+ * The text the person is writing into, around the caret.
+ *
+ * The document in front of them is a vocabulary that is free, always current,
+ * and specific to this sentence — better than any list of terms kept in
+ * settings. It goes to the model as quoted material, never as instructions:
+ * this is somebody else's page.
+ */
+export function nearbyText(target: Editable | null | undefined): string {
+  if (!target) return "";
+  const whole =
+    target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
+      ? target.value
+      : (target.innerText ?? target.textContent ?? "");
+  if (whole.length <= NEARBY_LIMIT) return whole.trim();
+
+  const caret = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
+    ? (target.selectionStart ?? whole.length)
+    : whole.length;
+  const half = Math.floor(NEARBY_LIMIT / 2);
+  return whole.slice(Math.max(0, caret - half), caret + half).trim();
+}
+
 /**
  * Insert at the caret. Returns what was there before, so the caller can undo
  * without depending on the host page's history.

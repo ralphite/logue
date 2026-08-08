@@ -152,8 +152,25 @@ class Store:
 
     def audio_path(self, capture_id: str) -> Path | None:
         for path in self.audio.glob(f"{capture_id}.*"):
-            return path
+            if path.suffix != ".json":
+                return path
         return None
+
+    def save_capture_context(self, capture_id: str, applied: Record) -> None:
+        """What shaped this transcription, kept beside the audio.
+
+        A recording whose transcript came back empty never becomes a Source, so
+        there is nowhere else to put this — and that is exactly the recording
+        someone will want to try again, with the same terms and the same Skill.
+
+        The `.context.json` name is the one 80 recordings in this workspace
+        already use, so the older ones stay readable rather than becoming
+        orphaned files beside their audio.
+        """
+        write_json(self.audio / f"{capture_id}.context.json", applied)
+
+    def capture_context(self, capture_id: str) -> Record:
+        return read_json(self.audio / f"{capture_id}.context.json", {}) or {}
 
     def usage_bytes(self) -> int:
         return sum(f.stat().st_size for f in self.root.rglob("*") if f.is_file())

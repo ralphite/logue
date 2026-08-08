@@ -76,11 +76,24 @@ const post = <T,>(path: string, body: unknown) => call<T>(path, { method: "POST"
 export const host = {
   context: (project = "") => call<Context>(`/v1/context?project=${encodeURIComponent(project)}`),
 
-  transcribe: (body: { audio: string; media_type: string; project?: string; overrides?: unknown }) =>
-    post<{ capture_id: string; text: string }>("/v1/transcribe", body),
+  transcribe: (body: {
+    audio: string;
+    media_type: string;
+    project?: string;
+    overrides?: unknown;
+    /** The text around the caret, so names are spelled the way the page spells them. */
+    nearby?: string;
+  }) => post<{ capture_id: string; text: string; applied_context?: unknown }>("/v1/transcribe", body),
 
-  saveVoice: (body: { capture_id: string; text: string; source?: unknown; project?: string; parent_ids?: string[] }) =>
-    post<{ material: Material }>("/v1/voice-materials", body),
+  saveVoice: (body: {
+    capture_id: string;
+    text: string;
+    source?: unknown;
+    project?: string;
+    parent_ids?: string[];
+    /** What shaped the transcript, frozen alongside it. */
+    applied_context?: unknown;
+  }) => post<{ material: Material }>("/v1/voice-materials", body),
 
   saveMaterial: (body: {
     kind: string;

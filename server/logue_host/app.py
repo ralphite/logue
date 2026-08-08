@@ -368,6 +368,7 @@ class App:
                 project=str(body.get("project") or ""),
                 context=body.get("context"),
                 overrides=body.get("overrides"),
+                nearby=str(body.get("nearby") or ""),
             )
 
         @route("POST", "/v1/voice-materials")
@@ -382,9 +383,15 @@ class App:
                         source=body.get("source"),
                         project=str(body.get("project") or ""),
                         parent_ids=body.get("parent_ids"),
+                        applied_context=body.get("applied_context"),
                     )
                 )
             }
+
+        @route("GET", "/v1/captures/{id}/context")
+        def capture_context(request: Request) -> dict[str, Any]:
+            """What shaped a transcription, including one that produced nothing."""
+            return {"applied_context": store.capture_context(request.params["id"])}
 
         @route("POST", "/v1/materials/{id}/retranscribe")
         def retranscribe(request: Request) -> dict[str, Any]:

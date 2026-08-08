@@ -18,6 +18,22 @@ export interface Material {
   orphaned?: boolean;
   actor?: string;
   purpose?: string;
+  /** What shaped this transcript, frozen when it was made. */
+  applied_context?: {
+    profile?: string;
+    project?: string;
+    language?: string;
+    terms?: string[];
+    vocabulary?: string;
+    custom_instructions?: string;
+    skill?: { id: string; name?: string; revision?: number } | null;
+    page_context_characters?: number;
+    instructions?: string;
+    at?: string;
+    /** Written by earlier versions; kept readable rather than orphaned. */
+    reference_project?: string;
+    glossary?: string[];
+  };
   /** What automatic filing proposed, and what became of it. */
   organization?: {
     status?: string;

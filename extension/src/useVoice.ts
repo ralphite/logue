@@ -52,6 +52,8 @@ export function useVoice() {
       overrides?: VoiceOverrides;
       source?: unknown;
       parentIds?: string[];
+      /** What the person is writing into, so names match the page. */
+      nearby?: string;
     }): Promise<{ text: string; material: Material } | undefined> => {
       const id = session.current;
       setPhase("working");
@@ -67,18 +69,27 @@ export function useVoice() {
       }
 
       try {
-        const { capture_id, text } = await host.transcribe({
+        const { capture_id, text, applied_context } = await host.transcribe({
           audio: recorded.audio,
           media_type: recorded.mediaType ?? "audio/webm",
           project: options.project,
           overrides: options.overrides,
+          nearby: options.nearby,
         });
+        if (!text.trim()) {
+          // The Host kept the audio; only the words are missing. Say which,
+          // rather than letting an empty Source fail on the way in.
+          setPhase("error");
+          setError("Nothing was heard in that recording. The audio was kept.");
+          return undefined;
+        }
         const { material } = await host.saveVoice({
           capture_id,
           text,
           source: options.source,
           project: options.project,
           parent_ids: options.parentIds,
+          applied_context,
         });
         if (session.current !== id) return undefined;
         setPhase("idle");
