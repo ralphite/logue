@@ -1,0 +1,78 @@
+@import "tailwindcss";
+@import "@logue/ui/theme.css";
+@source "../src";
+@source "../../packages/ui/src";
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--color-accent-soft);
+  }
+}
+
+@layer components {
+  /* Editor-generated HTML: styled by tag, because the editor writes tags. */
+  .logue-prose {
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--color-ink);
+  }
+  .logue-prose > * + * {
+    margin-top: 0.7em;
+  }
+  .logue-prose h1,
+  .logue-prose h2,
+  .logue-prose h3 {
+    font-weight: 650;
+    line-height: 1.3;
+    margin-top: 1.4em;
+  }
+  .logue-prose h1 {
+    font-size: 1.5em;
+  }
+  .logue-prose h2 {
+    font-size: 1.2em;
+  }
+  .logue-prose h3 {
+    font-size: 1.05em;
+  }
+  .logue-prose ul,
+  .logue-prose ol {
+    padding-left: 1.3em;
+  }
+  .logue-prose ul {
+    list-style: disc;
+  }
+  .logue-prose ol {
+    list-style: decimal;
+  }
+  .logue-prose a {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .logue-prose code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--color-surface-muted);
+    border-radius: var(--radius-sm);
+    padding: 0.1em 0.3em;
+  }
+  .logue-prose blockquote {
+    border-left: 2px solid var(--color-line-strong);
+    padding-left: 0.8em;
+    color: var(--color-ink-soft);
+  }
+}

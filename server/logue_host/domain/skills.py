@@ -44,10 +44,24 @@ BUILT_INS: list[dict[str, Any]] = [
 
 
 def ensure_built_ins(store: Store) -> None:
-    """Create any missing built-in Skill; never overwrite an edited one."""
-    existing = {record.get("built_in_key") for record in store.skills.all()}
+    """Create any missing built-in Skill; never overwrite an edited one.
+
+    A workspace may already carry a Skill by the same name from before built-ins
+    were keyed. Adopt it instead of creating a twin — two "Answer questions" in
+    the picker is worse than either one.
+    """
+    records = list(store.skills.all())
+    existing = {record.get("built_in_key") for record in records}
     for template in BUILT_INS:
         if template["key"] in existing:
+            continue
+        same_name = next(
+            (r for r in records if r.get("name") == template["name"] and not r.get("built_in_key")), None
+        )
+        if same_name:
+            same_name["built_in_key"] = template["key"]
+            same_name["system"] = True
+            store.skills.put(same_name)
             continue
         timestamp = now()
         store.skills.put(

@@ -17,7 +17,9 @@ from ..providers import Provider
 from ..store import Record, Store
 from . import materials
 
-CITATION = re.compile(r"\[Source (\d+(?:\s*,\s*\d+)*)\]")
+#: Models write citations both ways — `[Source 3, 7]` and `[Source 3, Source 7]`
+#: — so match the bracket and pull every number out of it.
+CITATION = re.compile(r"\[Source[^\]]*\]")
 
 
 def _numbered(sources: list[Record]) -> str:
@@ -30,11 +32,11 @@ def _numbered(sources: list[Record]) -> str:
 
 
 def cited_indexes(text: str, count: int) -> list[int]:
-    """Every `[Source n]` in the output, in order, dropping out-of-range n."""
+    """Every Source cited in the output, in order, dropping out-of-range ones."""
     found: list[int] = []
     for match in CITATION.finditer(text):
-        for part in match.group(1).split(","):
-            index = int(part.strip())
+        for number in re.findall(r"\d+", match.group(0)):
+            index = int(number)
             if 1 <= index <= count and index not in found:
                 found.append(index)
     return found

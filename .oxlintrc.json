@@ -17,6 +17,8 @@
 
     // The build uses the automatic JSX runtime; importing React is dead weight.
     "react/react-in-jsx-scope": "off",
+    // Menu takes its trigger as a render prop so the caller owns the button.
+    "react/no-unstable-nested-components": ["error", { "allowAsProps": true }],
     // An effect that cleans up conditionally is the normal React shape.
     "typescript/consistent-return": "off"
   }

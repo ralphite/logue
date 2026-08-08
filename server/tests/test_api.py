@@ -88,6 +88,14 @@ class HostTest(unittest.TestCase):
         self.assertEqual(run["citations"], [1])
         self.assertTrue(run["activity_source_id"], "the question itself is kept")
 
+    def test_citations_are_read_in_both_forms_models_write(self) -> None:
+        from logue_host.domain.generation import cited_indexes
+
+        self.assertEqual(cited_indexes("a [Source 3, 7] b", 10), [3, 7])
+        self.assertEqual(cited_indexes("a [Source 3, Source 7] b", 10), [3, 7])
+        self.assertEqual(cited_indexes("[Source 11, Source 16, Source 23]", 30), [11, 16, 23])
+        self.assertEqual(cited_indexes("[Source 99]", 10), [], "out of range is dropped")
+
     def test_editing_a_skill_keeps_old_runs_explainable(self) -> None:
         skill = self.call("POST", "/v1/skills", {"name": "Summarize", "instructions": "Be brief."})["skill"]
         updated = self.call("PATCH", f"/v1/skills/{skill['id']}", {"instructions": "Be very brief."})["skill"]

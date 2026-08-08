@@ -1,0 +1,200 @@
+/** The Host's contract, typed once. Every call goes through `request`. */
+
+const HOST = import.meta.env.VITE_LOGUE_HOST ?? "http://127.0.0.1:8787";
+
+export interface Material {
+  id: string;
+  kind: "voice" | "selection" | "text" | "page" | "derived";
+  content: string;
+  transcript?: string;
+  source?: { url?: string; title?: string; domain?: string };
+  projects: string[];
+  parent_ids?: string[];
+  capture_id?: string;
+  excluded?: boolean;
+  orphaned?: boolean;
+  actor?: string;
+  purpose?: string;
+  organization?: { duplicate_of?: string; status?: string; reason?: string };
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  overview: string;
+  count?: number;
+  transcription_profile?: Record<string, unknown>;
+  updated_at?: string;
+}
+
+export interface Document {
+  id: string;
+  title: string;
+  content: string;
+  source_ids: string[];
+  revision: number;
+  run_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Skill {
+  id: string;
+  name: string;
+  purpose: string;
+  instructions: string;
+  task: string;
+  output: string;
+  surfaces: string[];
+  contexts: string[];
+  enabled: boolean;
+  system?: boolean;
+  built_in_key?: string;
+  revision: number;
+}
+
+export interface Run {
+  id: string;
+  skill_id: string;
+  skill_name?: string;
+  skill_revision?: number;
+  instruction: string;
+  project?: string;
+  output_type?: string;
+  sources: string[];
+  citations?: number[];
+  status: "running" | "complete" | "failed";
+  original_output?: string;
+  adopted_output?: string;
+  error?: string;
+  activity_source_id?: string;
+  created_at: string;
+}
+
+export interface ModelStatus {
+  configured: boolean;
+  model: string;
+  transcription_model?: string;
+  base_url?: string;
+  generation: string;
+  voice: string;
+  generation_error: string;
+  voice_error: string;
+}
+
+export interface HostStatus {
+  ok: boolean;
+  data_dir: string;
+  bytes: number;
+  model: ModelStatus & { generation_ready: boolean; voice_ready: boolean };
+}
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // Headers, not an object spread: HeadersInit may be an array of pairs, which
+  // spreads into numeric keys and silently drops the real headers.
+  const headers = new Headers(init?.headers);
+  headers.set("Content-Type", "application/json");
+
+  let response: Response;
+  try {
+    response = await fetch(`${HOST}${path}`, { ...init, headers });
+  } catch {
+    throw new ApiError("Logue is not running on this Mac.", 0);
+  }
+  if (!response.ok) {
+    const detail: unknown = await response.json().catch(() => null);
+    const message =
+      detail && typeof detail === "object" && "error" in detail ? String(detail.error) : response.statusText;
+    throw new ApiError(message, response.status);
+  }
+  const payload: unknown = await response.json();
+  // The one trust boundary in the app: the Host's response shape is asserted
+  // here so no other file has to. The Host is ours and its route table is the
+  // contract; if that drifts, this is the single place to add validation.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  return payload as T;
+}
+
+const send = <T,>(method: string, path: string, body?: unknown) =>
+  request<T>(path, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+
+export const api = {
+  host: HOST,
+  status: () => request<HostStatus>("/v1/status"),
+
+  materials: (query?: { q?: string; project?: string; kind?: string }) =>
+    request<{ materials: Material[] }>(`/v1/materials?${new URLSearchParams(query ?? {})}`),
+  material: (id: string) => request<{ material: Material }>(`/v1/materials/${id}`),
+  lineage: (id: string) =>
+    request<{ material: Material; parents: Material[]; children: Material[] }>(`/v1/materials/${id}/lineage`),
+  updateMaterial: (id: string, changes: Partial<Material>) =>
+    send<{ material: Material }>("PATCH", `/v1/materials/${id}`, changes),
+  deleteMaterial: (id: string) => send<{ ok: true }>("DELETE", `/v1/materials/${id}`),
+  setMembership: (materialId: string, project: string, member: boolean) =>
+    send<{ material: Material }>("POST", "/v1/project-membership", { material_id: materialId, project, member }),
+
+  projects: () => request<{ projects: Project[] }>("/v1/projects"),
+  project: (id: string) => request<{ project: Project; materials: Material[] }>(`/v1/projects/${id}`),
+  createProject: (name: string, overview = "") =>
+    send<{ project: Project }>("POST", "/v1/projects", { name, overview }),
+  updateProject: (id: string, changes: Partial<Project>) =>
+    send<{ project: Project }>("PATCH", `/v1/projects/${id}`, changes),
+  projectDeletionPreview: (id: string) =>
+    request<{ project: Project; materials_kept: number }>(`/v1/projects/${id}/deletion-preview`),
+  deleteProject: (id: string) => send<{ ok: true }>("DELETE", `/v1/projects/${id}`),
+
+  documents: () => request<{ documents: Document[] }>("/v1/documents"),
+  document: (id: string) => request<{ document: Document; sources: Material[] }>(`/v1/documents/${id}`),
+  createDocument: (body: { title?: string; content?: string; source_ids?: string[] }) =>
+    send<{ document: Document }>("POST", "/v1/documents", body),
+  updateDocument: (id: string, changes: Partial<Pick<Document, "title" | "content" | "source_ids">>) =>
+    send<{ document: Document }>("PATCH", `/v1/documents/${id}`, changes),
+  deleteDocument: (id: string) => send<{ ok: true }>("DELETE", `/v1/documents/${id}`),
+  documentMarkdownUrl: (id: string) => `${HOST}/v1/documents/${id}/markdown`,
+
+  skills: () => request<{ skills: Skill[] }>("/v1/skills"),
+  createSkill: (body: Partial<Skill>) => send<{ skill: Skill }>("POST", "/v1/skills", body),
+  updateSkill: (id: string, changes: Partial<Skill>) => send<{ skill: Skill }>("PATCH", `/v1/skills/${id}`, changes),
+  skillImpact: (id: string) => request<{ runs: number; projects: string[] }>(`/v1/skills/${id}/archive-impact`),
+  deleteSkill: (id: string) => send<{ ok: true }>("DELETE", `/v1/skills/${id}`),
+
+  runs: (project?: string) =>
+    request<{ runs: Run[] }>(`/v1/runs${project ? `?project=${encodeURIComponent(project)}` : ""}`),
+  run: (id: string) => request<{ run: Run; sources: Material[]; missing: string[] }>(`/v1/runs/${id}`),
+  createRun: (body: { skill_id: string; instruction: string; project?: string; source_ids?: string[] }) =>
+    send<{ run: Run; sources: Material[] }>("POST", "/v1/runs", body),
+  adoptRun: (id: string, text: string) => send<{ run: Run }>("POST", `/v1/runs/${id}/adopt`, { text }),
+  runToDocument: (id: string, title?: string) =>
+    send<{ document: Document }>("POST", `/v1/runs/${id}/document`, { title }),
+
+  topics: () => request<{ topics: { id: string; name: string; source_ids: string[]; automatic: boolean }[] }>("/v1/topics"),
+  regroupTopics: () => send<{ topics: unknown[] }>("POST", "/v1/topics/regroup"),
+
+  settings: () => request<{ settings: Record<string, unknown> }>("/v1/settings"),
+  updateSettings: (changes: Record<string, unknown>) =>
+    send<{ settings: Record<string, unknown> }>("PATCH", "/v1/settings", changes),
+
+  model: () => request<ModelStatus>("/v1/model"),
+  testModel: (body: { api_key?: string; model?: string }) =>
+    send<{ generation: { ok: boolean; error: string }; voice: { ok: boolean; error: string } }>(
+      "POST",
+      "/v1/model/test",
+      body,
+    ),
+  saveModel: (body: { api_key?: string; model?: string }) => send<ModelStatus>("PATCH", "/v1/model", body),
+
+  backupPreview: () => request<{ counts: Record<string, number>; audio: number; bytes: number }>("/v1/backup/preview"),
+  backupExportUrl: () => `${HOST}/v1/backup/export`,
+  audioUrl: (captureId: string) => `${HOST}/v1/captures/${captureId}/audio`,
+};

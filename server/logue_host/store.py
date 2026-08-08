@@ -19,6 +19,18 @@ from .errors import NotFound
 
 Record = dict[str, Any]
 
+#: Directory name → what the user calls the thing inside it.
+NOUNS = {
+    "items": "Source",
+    "projects": "Project",
+    "docs": "Document",
+    "skills": "Skill",
+    "skill-runs": "answer",
+    "topics": "Topic",
+    "topic-vocabularies": "vocabulary",
+    "clients": "device",
+}
+
 
 def write_json(path: Path, payload: Any) -> None:
     """Replace *path* atomically: write a neighbour file, then rename over."""
@@ -58,13 +70,18 @@ class Collection:
 
     def _file(self, record_id: str) -> Path:
         if "/" in record_id or record_id in ("", ".", ".."):
-            raise NotFound(f"{self.name} {record_id} does not exist")
+            raise NotFound(self.missing)
         return self.path / f"{record_id}.json"
+
+    @property
+    def missing(self) -> str:
+        """Errors reach the user's screen, so they name the thing, not its id."""
+        return f"That {NOUNS.get(self.name, self.name)} no longer exists."
 
     def get(self, record_id: str) -> Record:
         record = read_json(self._file(record_id))
         if record is None:
-            raise NotFound(f"{self.name} {record_id} does not exist")
+            raise NotFound(self.missing)
         return record
 
     def find(self, record_id: str) -> Record | None:
