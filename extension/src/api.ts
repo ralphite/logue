@@ -61,8 +61,6 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 const post = <T,>(path: string, body: unknown) => call<T>(path, { method: "POST", body: JSON.stringify(body) });
 
 export const host = {
-  status: () => call<{ ok: boolean; model: { voice_ready: boolean; generation_ready: boolean } }>("/v1/status"),
-
   context: (project = "") => call<Context>(`/v1/context?project=${encodeURIComponent(project)}`),
 
   transcribe: (body: { audio: string; media_type: string; project?: string; overrides?: unknown }) =>
@@ -85,8 +83,6 @@ export const host = {
       "/v1/runs",
       body,
     ),
-
-  adopt: (runId: string, text: string) => post<unknown>(`/v1/runs/${runId}/adopt`, { text }),
 
   pageMaterials: (url: string) =>
     call<{ materials: Material[] }>(`/v1/materials?${new URLSearchParams({ q: url })}`),

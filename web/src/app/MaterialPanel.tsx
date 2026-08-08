@@ -1,9 +1,7 @@
 import { ExternalLink, X } from "lucide-react";
-import { Button, ErrorNote, IconButton, OriginMark, Spinner } from "@logue/ui";
+import { Button, ErrorNote, IconButton, OriginMark, Spinner, originOf } from "@logue/ui";
 import { api, type Material, type Project } from "../api";
 import { timeAgo, useAction, useHost } from "./useHost";
-
-const ORIGIN = { voice: "you", selection: "web", page: "web", text: "you", derived: "ai" } as const;
 
 /**
  * One Source, and the chain it belongs to. This panel is where the product's
@@ -43,8 +41,14 @@ export function MaterialPanel({
         ) : (
           <div className="grid gap-3">
             <div className="grid gap-1.5">
-              <OriginMark origin={ORIGIN[material.kind]} detail={timeAgo(material.created_at)} />
-              <p className="text-[13px] leading-[1.55] whitespace-pre-wrap text-ink">{material.content}</p>
+              <OriginMark origin={originOf(material.kind)} detail={timeAgo(material.created_at)} />
+              <p className="text-[13px] leading-normal whitespace-pre-wrap text-ink">{material.content}</p>
+              {material.context && material.context !== material.content && (
+                <details className="text-meta text-muted">
+                  <summary className="cursor-pointer select-none">In context</summary>
+                  <p className="mt-1 leading-normal text-ink-soft">{material.context}</p>
+                </details>
+              )}
             </div>
 
             {material.source?.url && (
@@ -60,7 +64,6 @@ export function MaterialPanel({
             )}
 
             {material.capture_id && (
-              // eslint-disable-next-line jsx-a11y/media-has-caption
               <audio controls src={api.audioUrl(material.capture_id)} className="h-8 w-full" />
             )}
 
@@ -103,7 +106,7 @@ function Lineage({ title, items }: { title: string; items: Material[] }) {
       <span className="text-xs text-muted">{title}</span>
       {items.map((item) => (
         <div key={item.id} className="rounded-md bg-surface-muted px-2 py-1.5">
-          <OriginMark origin={ORIGIN[item.kind]} />
+          <OriginMark origin={originOf(item.kind)} />
           <p className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-ink-soft">{item.content}</p>
         </div>
       ))}

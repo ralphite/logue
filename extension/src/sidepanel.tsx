@@ -1,25 +1,12 @@
 import { Bookmark, CornerDownLeft, ExternalLink } from "lucide-react";
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Button, Empty, ErrorNote, OriginMark, Select, Spinner, type Origin } from "@logue/ui";
+import { Answer, Button, Empty, ErrorNote, OriginMark, Select, Spinner, originOf } from "@logue/ui";
 import { host, type Context, type Material } from "./api";
-import { Answer } from "./surfaces/Answer";
 import { readablePageText } from "./readable";
 
 const WEB_APP = "http://127.0.0.1:5173";
 
-
-const ORIGIN: Record<string, Origin> = {
-  voice: "you",
-  selection: "web",
-  page: "web",
-  text: "you",
-  derived: "ai",
-};
-
-function originOf(kind: string): Origin {
-  return ORIGIN[kind] ?? "you";
-}
 
 /**
  * The panel is about *this page*: what you already saved from it, and a place

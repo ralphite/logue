@@ -53,6 +53,21 @@ function recordTarget(state: string) {
   if (element) element.dataset.logueTarget = state;
 }
 
+/**
+ * One way to keep a quote, so every path stores the same evidence — the passage
+ * included. Three copies of this had drifted apart.
+ */
+async function keepSelection(snapshot: SelectionSnapshot, into: string) {
+  const { material } = await host.saveMaterial({
+    kind: "selection",
+    content: snapshot.text,
+    context: snapshot.context,
+    source: pageSource(),
+    projects: into ? [into] : [],
+  });
+  return material;
+}
+
 function Surfaces() {
   const [context, setContext] = useState<Context>();
   const [overrides, setOverrides] = useState<VoiceOverrides>(NO_OVERRIDES);
@@ -86,8 +101,18 @@ function Surfaces() {
 
   const project = overrides.project ?? context?.voice_profile.project_name ?? "";
 
+  const [hostError, setHostError] = useState<string>();
+
   useEffect(() => {
-    void host.context(project).then(setContext, () => undefined);
+    void host.context(project).then(
+      (loaded) => {
+        setContext(loaded);
+        setHostError(undefined);
+      },
+      // Without this the bar appears with no Skills and no explanation, which
+      // reads as the product being broken rather than the Host being off.
+      (cause: unknown) => setHostError(cause instanceof Error ? cause.message : "Logue is not running on this Mac."),
+    );
   }, [project]);
 
   // -- track the editor and the caret ------------------------------------
@@ -221,13 +246,7 @@ function Surfaces() {
     try {
       let sourceIds: string[] | undefined;
       if (scope === "selection" && selection) {
-        const { material } = await host.saveMaterial({
-          kind: "selection",
-          content: selection.text,
-          source: pageSource(),
-          projects: chosen ? [chosen] : [],
-        });
-        sourceIds = [material.id];
+        sourceIds = [(await keepSelection(selection, chosen)).id];
       } else if (scope === "page") {
         const { materials } = await host.pageMaterials(location.href);
         sourceIds = materials.map((item) => item.id);
@@ -248,13 +267,7 @@ function Surfaces() {
     setSelectionPhase("saving");
     setSelectionError(undefined);
     try {
-      const { material } = await host.saveMaterial({
-        kind: "selection",
-        content: selection.text,
-        context: selection.context,
-        source: pageSource(),
-        projects: project ? [project] : [],
-      });
+      const material = await keepSelection(selection, project);
       if (extra?.note) {
         await host.saveMaterial({
           kind: "derived",
@@ -284,20 +297,22 @@ function Surfaces() {
   const finishSelectionVoice = async () => {
     if (!selection) return;
     setSelectionPhase("saving");
-    const { material } = await host.saveMaterial({
-      kind: "selection",
-      content: selection.text,
-      source: pageSource(),
-      projects: project ? [project] : [],
-    });
-    const spoken = await selectionVoice.stop({
-      project,
-      overrides,
-      source: pageSource(),
-      parentIds: [material.id],
-    });
-    setSelectionPhase(spoken ? "saved" : "idle");
-    if (spoken) window.setTimeout(() => setSelectionPhase("idle"), 1400);
+    setSelectionError(undefined);
+    try {
+      const material = await keepSelection(selection, project);
+      const spoken = await selectionVoice.stop({
+        project,
+        overrides,
+        source: pageSource(),
+        parentIds: [material.id],
+      });
+      setSelectionPhase(spoken ? "saved" : "idle");
+      if (spoken) window.setTimeout(() => setSelectionPhase("idle"), 1400);
+    } catch (cause) {
+      // Without this the toolbar sits on "Saving…" with no way out.
+      setSelectionPhase("idle");
+      setSelectionError(cause instanceof Error ? cause.message : "Could not save.");
+    }
   };
 
   // -- placement ---------------------------------------------------------
@@ -328,7 +343,7 @@ function Surfaces() {
         <VoiceBar
           phase={voice.phase}
           style={{ left: barAt.left, top: barAt.top }}
-          error={voice.error}
+          error={voice.error ?? hostError}
           context={context}
           overrides={overrides}
           onOverrides={setOverrides}

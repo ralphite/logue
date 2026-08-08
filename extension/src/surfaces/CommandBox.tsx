@@ -1,8 +1,7 @@
 import { CornerDownLeft, X } from "lucide-react";
 import { useState, type CSSProperties } from "react";
-import { Button, ErrorNote, IconButton, Select, Spinner } from "@logue/ui";
+import { Answer, Button, ErrorNote, IconButton, Select, Spinner } from "@logue/ui";
 import type { Context, Material } from "../api";
-import { Answer } from "./Answer";
 
 /**
  * Ask about this page without leaving it. An instruction box, the scope it

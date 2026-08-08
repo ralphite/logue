@@ -6,6 +6,8 @@ export interface Material {
   id: string;
   kind: "voice" | "selection" | "text" | "page" | "derived";
   content: string;
+  /** The passage the quote sits in, kept at capture time. */
+  context?: string;
   transcript?: string;
   source?: { url?: string; title?: string; domain?: string };
   projects: string[];
@@ -135,7 +137,6 @@ export const api = {
 
   materials: (query?: { q?: string; project?: string; kind?: string }) =>
     request<{ materials: Material[] }>(`/v1/materials?${new URLSearchParams(query ?? {})}`),
-  material: (id: string) => request<{ material: Material }>(`/v1/materials/${id}`),
   lineage: (id: string) =>
     request<{ material: Material; parents: Material[]; children: Material[] }>(`/v1/materials/${id}/lineage`),
   updateMaterial: (id: string, changes: Partial<Material>) =>
@@ -177,9 +178,6 @@ export const api = {
   adoptRun: (id: string, text: string) => send<{ run: Run }>("POST", `/v1/runs/${id}/adopt`, { text }),
   runToDocument: (id: string, title?: string) =>
     send<{ document: Document }>("POST", `/v1/runs/${id}/document`, { title }),
-
-  topics: () => request<{ topics: { id: string; name: string; source_ids: string[]; automatic: boolean }[] }>("/v1/topics"),
-  regroupTopics: () => send<{ topics: unknown[] }>("POST", "/v1/topics/regroup"),
 
   settings: () => request<{ settings: Record<string, unknown> }>("/v1/settings"),
   updateSettings: (changes: Record<string, unknown>) =>

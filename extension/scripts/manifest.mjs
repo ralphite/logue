@@ -15,7 +15,7 @@ const manifest = {
   name: "Logue",
   description: "Capture voice and selections anywhere, and keep every source.",
   version,
-  permissions: ["activeTab", "offscreen", "scripting", "sidePanel", "storage", "tabs", "unlimitedStorage"],
+  permissions: ["activeTab", "offscreen", "scripting", "sidePanel", "tabs"],
   host_permissions: ["http://127.0.0.1:8787/*"],
   optional_host_permissions: ["http://*/*", "https://*/*"],
   action: { default_title: "Open Logue" },
@@ -46,4 +46,4 @@ const manifest = {
 };
 
 writeFileSync(resolve(root, "dist/manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
-console.warn(`manifest.json written for v${version}`);
+process.stdout.write(`manifest.json written for v${version}\n`);

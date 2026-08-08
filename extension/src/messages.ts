@@ -9,15 +9,9 @@ export type ToBackground =
   | { type: "logue:open-panel" }
   | { type: "logue:record-start"; sessionId: string }
   | { type: "logue:record-stop"; sessionId: string }
-  | { type: "logue:record-cancel"; sessionId: string }
-  | { type: "logue:page-context" };
+  | { type: "logue:record-cancel"; sessionId: string };
 
-export type FromBackground =
-  | { type: "logue:recording-started"; sessionId: string }
-  | { type: "logue:recording-stopped"; sessionId: string; audio: string; mediaType: string }
-  | { type: "logue:recording-failed"; sessionId: string; message: string }
-  | { type: "logue:start-voice" }
-  | { type: "logue:start-command" };
+export type FromBackground = { type: "logue:start-voice" } | { type: "logue:start-command" };
 
 /** The one place a message is narrowed; everything else receives a typed value. */
 export function tagOf(value: unknown): string | undefined {
@@ -26,8 +20,11 @@ export function tagOf(value: unknown): string | undefined {
   return typeof tag === "string" && tag.startsWith("logue:") ? tag : undefined;
 }
 
+const FROM_BACKGROUND = new Set(["logue:start-voice", "logue:start-command"]);
+
 export function isFromBackground(value: unknown): value is FromBackground {
-  return tagOf(value) !== undefined;
+  const tag = tagOf(value);
+  return tag !== undefined && FROM_BACKGROUND.has(tag);
 }
 
 export async function send<T = unknown>(message: ToBackground): Promise<T | undefined> {

@@ -1,6 +1,6 @@
 import { CornerDownLeft, FileText } from "lucide-react";
-import { Fragment, useState } from "react";
-import { Button, Citation, ErrorNote, OriginMark, Select, Spinner, Textarea } from "@logue/ui";
+import { useState } from "react";
+import { Answer, Button, ErrorNote, OriginMark, Select, Spinner, Textarea, originOf } from "@logue/ui";
 import { ApiError, api, type Material, type Run, type Skill } from "../api";
 import { useAction } from "./useHost";
 
@@ -40,6 +40,7 @@ export function GenerateBox({
   const action = useAction();
 
   const skill = usable.find((item) => item.id === skillId) ?? usable.find((item) => item.built_in_key === "ask") ?? usable[0];
+  const cited = openSource === undefined ? undefined : result?.sources[openSource - 1];
 
   const submit = async () => {
     if (!instruction.trim() || !skill) return;
@@ -102,18 +103,13 @@ export function GenerateBox({
         <div className="mt-1 grid gap-2 rounded-lg border border-line bg-surface p-3">
           <OriginMark origin="ai" detail={`${result.run.skill_name} · ${result.sources.length} Sources`} />
           <p className="text-[13px] leading-[1.6] whitespace-pre-wrap text-ink">
-            <Answer text={result.run.original_output ?? ""} onCite={setOpenSource} open={openSource} />
+            <Answer text={result.run.original_output ?? ""} onCite={setOpenSource} open={openSource} sources={result.sources} />
           </p>
 
-          {openSource !== undefined && result.sources[openSource - 1] && (
+          {cited && (
             <div className="rounded-md bg-surface-muted p-2">
-              <OriginMark
-                origin={result.sources[openSource - 1]!.kind === "selection" ? "web" : "you"}
-                detail={result.sources[openSource - 1]!.source?.domain || "This Mac"}
-              />
-              <p className="mt-1 line-clamp-6 text-xs leading-[1.5] text-ink-soft">
-                {result.sources[openSource - 1]!.content}
-              </p>
+              <OriginMark origin={originOf(cited.kind)} detail={cited.source?.domain || "This Mac"} />
+              <p className="mt-1 line-clamp-6 text-xs leading-[1.5] text-ink-soft">{cited.content}</p>
             </div>
           )}
 
@@ -140,50 +136,5 @@ export function GenerateBox({
         </div>
       )}
     </section>
-  );
-}
-
-/** Renders `[Source n]` as a chip that opens the Source it points at. */
-function Answer({
-  text,
-  onCite,
-  open,
-}: {
-  text: string;
-  onCite: (n: number | undefined) => void;
-  open: number | undefined;
-}) {
-  // Keyed by character offset: stable across renders and unique per token.
-  // The bracket is matched loosely because models write both `[Source 3, 7]`
-  // and `[Source 3, Source 7]`; every number inside becomes a chip.
-  let offset = 0;
-  const tokens = text.split(/(\[Source[^\]]*\])/g).map((part) => {
-    const token = { part, at: offset };
-    offset += part.length;
-    return token;
-  });
-
-  return (
-    <>
-      {tokens.map(({ part, at }) => {
-        if (!/^\[Source[^\]]*\]$/.test(part)) return <Fragment key={at}>{part}</Fragment>;
-        return (
-          <Fragment key={at}>
-            {[...part.matchAll(/\d+/g)].map((found) => {
-              const n = Number(found[0]);
-              return (
-                <Citation
-                  key={`${at}-${found.index}`}
-                  n={n}
-                  className="mx-0.5"
-                  aria-pressed={open === n}
-                  onClick={() => onCite(open === n ? undefined : n)}
-                />
-              );
-            })}
-          </Fragment>
-        );
-      })}
-    </>
   );
 }

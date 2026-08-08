@@ -1,24 +1,10 @@
 import { ArrowLeft, Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  Empty,
-  ErrorNote,
-  Field,
-  Input,
-  OriginMark,
-  Select,
-  Spinner,
-  Textarea,
-} from "@logue/ui";
+import { Button, Dialog, DialogActions, Empty, ErrorNote, Field, Input, OriginMark, Spinner, Textarea, originOf } from "@logue/ui";
 import { api } from "../api";
 import { Page, Row, Rows } from "./AppShell";
 import { timeAgo, useAction, useHost } from "./useHost";
 import { GenerateBox } from "./GenerateBox";
-
-const ORIGIN = { voice: "you", selection: "web", page: "web", text: "you", derived: "ai" } as const;
 
 export function ProjectsRoute({ onOpenDocument }: { onOpenDocument: (id: string) => void }) {
   const [openId, setOpenId] = useState<string>();
@@ -219,7 +205,7 @@ function ProjectDetail({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] text-ink">{material.content}</span>
                       <span className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
-                        <OriginMark origin={ORIGIN[material.kind]} />
+                        <OriginMark origin={originOf(material.kind)} />
                         <span className="truncate">{material.source?.domain || "This Mac"}</span>
                         <span>{timeAgo(material.created_at)}</span>
                       </span>
@@ -235,4 +221,3 @@ function ProjectDetail({
   );
 }
 
-export { Select };

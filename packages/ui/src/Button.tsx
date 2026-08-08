@@ -24,7 +24,13 @@ export function Button({
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
   return (
-    <button type="button" className={cn(base, variants[variant], className)} {...props}>
+    <button
+      type="button"
+      // Lets a container find its one committing action for ⌘↵.
+      data-primary={variant === "primary" ? "" : undefined}
+      className={cn(base, variants[variant], className)}
+      {...props}
+    >
       {children}
     </button>
   );

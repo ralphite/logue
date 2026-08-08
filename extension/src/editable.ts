@@ -33,11 +33,6 @@ export function activeEditable(root: Document = document): Editable | undefined 
   return isEditable(candidate) ? candidate : undefined;
 }
 
-export function readValue(target: Editable): string {
-  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return target.value;
-  return target.innerText || target.textContent || "";
-}
-
 /**
  * Insert at the caret. Returns what was there before, so the caller can undo
  * without depending on the host page's history.

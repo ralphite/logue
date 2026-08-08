@@ -13,8 +13,6 @@ from ..errors import BadRequest
 from ..ids import new_id, now
 from ..store import Record, Store
 
-CITATION = re.compile(r"\[Source (\d+)\]")
-
 
 def create(store: Store, *, title: str = "", content: str = "", source_ids: list[str] | None = None) -> Record:
     timestamp = now()

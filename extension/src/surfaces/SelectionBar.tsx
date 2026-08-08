@@ -1,6 +1,6 @@
 import { Bookmark, Check, MessageSquarePlus, Mic, MoreHorizontal, Sparkles, X } from "lucide-react";
 import { useState, type CSSProperties, type SyntheticEvent } from "react";
-import { Button, ErrorNote, IconButton, Menu, MenuItem, RecordingDot, Spinner } from "@logue/ui";
+import { Button, IconButton, Menu, MenuItem, RecordingDot, Spinner } from "@logue/ui";
 import type { Skill } from "../api";
 
 /** Pressing the toolbar must not collapse the selection it acts on. */
@@ -175,4 +175,3 @@ export function SelectionBar({
   );
 }
 
-export { ErrorNote };

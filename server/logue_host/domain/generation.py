@@ -27,6 +27,11 @@ def _numbered(sources: list[Record]) -> str:
     for index, source in enumerate(sources, start=1):
         origin = (source.get("source") or {}).get("title") or (source.get("source") or {}).get("url") or "This Mac"
         body = str(source.get("content") or "").strip()
+        # A quote read without its paragraph is easy to misread; give the model
+        # the surrounding passage when the capture kept one.
+        context = str(source.get("context") or "").strip()
+        if context and context != body:
+            body = f"{body}\n(in context: {context})"
         lines.append(f"[Source {index}] ({origin})\n{body}")
     return "\n\n".join(lines)
 

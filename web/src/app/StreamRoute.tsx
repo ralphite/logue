@@ -1,12 +1,10 @@
 import { EyeOff, MoreHorizontal, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Button, Empty, ErrorNote, IconButton, Input, Menu, MenuItem, OriginMark, Spinner } from "@logue/ui";
+import { Empty, ErrorNote, IconButton, Input, Menu, MenuItem, OriginMark, Spinner, originOf } from "@logue/ui";
 import { api, type Material, type Project } from "../api";
 import { Page, Row, RowActions, Rows } from "./AppShell";
 import { timeAgo, useAction, useHost } from "./useHost";
 import { MaterialPanel } from "./MaterialPanel";
-
-const ORIGIN = { voice: "you", selection: "web", page: "web", text: "you", derived: "ai" } as const;
 
 function title(material: Material): string {
   const text = (material.content || "").trim().replace(/\s+/g, " ");
@@ -70,7 +68,7 @@ export function StreamRoute() {
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[13px] text-ink">{title(material)}</span>
                 <span className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
-                  <OriginMark origin={ORIGIN[material.kind]} />
+                  <OriginMark origin={originOf(material.kind)} />
                   <span className="truncate">{where(material)}</span>
                   <span>{timeAgo(material.created_at)}</span>
                   {material.projects.map((name) => (
@@ -157,4 +155,3 @@ export function StreamRoute() {
   );
 }
 
-export { Button };

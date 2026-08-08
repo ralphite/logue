@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import json
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -88,7 +89,9 @@ def list_backups(store: Store) -> list[dict[str, Any]]:
             {
                 "id": path.stem,
                 "bytes": path.stat().st_size,
-                "created_at": now() if not path.exists() else "",
+                "created_at": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
             }
             for path in store.backups.glob("*.zip")
         ),

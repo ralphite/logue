@@ -35,6 +35,15 @@ export function Dialog({
         onClose();
         return;
       }
+      // ⌘↵ commits from anywhere inside, so a dialog never needs the mouse.
+      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+        const primary = panel.current?.querySelector<HTMLElement>("[data-primary]");
+        if (primary) {
+          event.preventDefault();
+          primary.click();
+        }
+        return;
+      }
       if (event.key !== "Tab" || !panel.current) return;
       const items = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)];
       const first = items[0];

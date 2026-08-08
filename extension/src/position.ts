@@ -21,7 +21,7 @@ const INSET = 8;
 const GAP = 10;
 
 /** Rendered sizes, so placement can be computed before the control mounts. */
-export const BAR = { idle: { width: 96, height: 32 }, busy: { width: 168, height: 32 }, recording: { width: 168, height: 32 } };
+export const BAR = { idle: { width: 96, height: 32 }, busy: { width: 168, height: 32 } };
 
 export function clamp(point: Point, viewport: Viewport, width: number, height: number): Point {
   return {

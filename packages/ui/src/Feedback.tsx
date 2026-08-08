@@ -17,28 +17,47 @@ export function RecordingDot({ className }: { className?: string }) {
   );
 }
 
-/** Announces work and results to assistive tech without occupying the layout. */
-export function LiveStatus({ message }: { message?: string }) {
-  if (!message) return null;
+export function ErrorNote({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <span role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-      {message}
-    </span>
+    <p role="alert" className={cn("text-xs leading-normal text-danger", className)}>
+      {children}
+    </p>
   );
 }
 
-export function ErrorNote({ children, className }: { children: ReactNode; className?: string }) {
+/** The same wait everywhere, so loading never looks like a different product. */
+export function Loading({ label = "Loading" }: { label?: string }) {
   return (
-    <p role="alert" className={cn("text-xs leading-[1.45] text-danger", className)}>
+    <div className="flex items-center gap-2 py-6 text-xs text-muted" role="status">
+      <Spinner /> {label}
+    </div>
+  );
+}
+
+/**
+ * A failure floating beside the surface that caused it.
+ *
+ * Injected surfaces cannot push layout around, so their errors hover; using the
+ * same component everywhere keeps them from drifting into hand-rolled colors.
+ */
+export function ErrorBubble({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div
+      role="alert"
+      className={cn(
+        "absolute w-max max-w-64 rounded-lg border border-danger-line bg-surface px-2 py-1.5 text-xs leading-normal text-danger shadow-[0_6px_18px_rgb(15_15_15/10%)]",
+        className,
+      )}
+    >
       {children}
-    </p>
+    </div>
   );
 }
 
 /** One line and one action — never a paragraph explaining what could be here. */
 export function Empty({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="flex flex-col items-start gap-2 px-1 py-8 text-xs text-muted">
+    <div className="flex flex-col items-start gap-2 px-1 py-6 text-xs text-muted">
       <span>{children}</span>
       {action}
     </div>

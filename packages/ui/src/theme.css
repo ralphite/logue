@@ -26,11 +26,20 @@
   --color-accent-hover: #4651c7;
   --color-accent-soft: #f0f1fd;
   --color-accent-line: #cfd2f6;
+  /* The citation chip: its own ink, hover, and pressed fills. */
+  --color-accent-ink: #424ebc;
+  --color-accent-hover-soft: #e4e6fc;
+  --color-accent-pressed: #dfe1fb;
 
   --color-danger: #a33d36;
   --color-danger-soft: #fdf3f2;
+  --color-danger-line: #efc9c4;
   --color-warning: #9a6814;
   --color-success: #347847;
+
+  /* The third and smallest type size: counts, timestamps, provenance detail. */
+  --text-meta: 11px;
+  --text-meta--line-height: 1.45;
 
   --radius-sm: 5px;
   --radius-md: 6px;
