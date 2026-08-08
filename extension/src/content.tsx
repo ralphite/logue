@@ -4,7 +4,7 @@ import { host, type Context, type Material } from "./api";
 import { caretRect } from "./caret";
 import * as googleDocs from "./googleDocs";
 import { activeEditable, insertAtCaret, isOurs, pageSelection, pageSource, readCaret, restoreCaret, type CaretPosition, type Editable, type SelectionSnapshot } from "./editable";
-import { isFromBackground } from "./messages";
+import { isFromBackground, send } from "./messages";
 import { aboveSelection, besideCaret, BAR } from "./position";
 import { NO_OVERRIDES, type VoiceOverrides } from "./overrides";
 import { useVoice } from "./useVoice";
@@ -479,6 +479,14 @@ function mount() {
   };
   place();
   new MutationObserver(place).observe(document.documentElement, { childList: true });
+
+  // Which build is on this page — the first question to answer when a surface
+  // behaves like code that was replaced days ago. Asking also wakes the worker,
+  // which is how a freshly deployed build gets noticed within a page load
+  // rather than at the next five-minute check.
+  void send<{ build?: string }>({ type: "logue:build" }).then((reply) => {
+    element.dataset.logueBuild = reply?.build ?? "unknown";
+  });
 
   // A content script's errors are invisible from the page, so record failure on
   // the host element. `document.getElementById("logue-host").dataset.logueError`

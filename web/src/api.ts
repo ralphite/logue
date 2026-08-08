@@ -107,6 +107,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // spreads into numeric keys and silently drops the real headers.
   const headers = new Headers(init?.headers);
   headers.set("Content-Type", "application/json");
+  // Forces a preflight on every write, which is where the Host checks the
+  // origin. Without it a page you happened to have open could post here.
+  headers.set("X-Logue-Client", "web");
 
   let response: Response;
   try {

@@ -10,6 +10,33 @@ Chrome Extension ──┐
 Web App ───────────┘         └── Gemini (transcription + generation)
 ```
 
+## Who can reach the Host
+
+The workspace is everything the person has ever captured, and the Host has no
+password. What stands between it and any page they happen to have open:
+
+- **Origin allowlist.** `Access-Control-Allow-Origin` reflects the caller when
+  it is an extension or a loopback address, and is absent otherwise. It used to
+  answer `*`, which let any site read and rewrite the whole workspace.
+- **A header on every write.** Blocking the *read* is not enough: a simple POST
+  needs no preflight. Writes must carry `X-Logue-Client`, which forces a
+  preflight — and the preflight is what the origin check refuses.
+- **Loopback `Host` header.** A name pointed at 127.0.0.1 would otherwise talk
+  to the Host same-origin and skip CORS entirely.
+- **Extension calls go through the service worker.** A content script's request
+  carries the *page's* origin, so surfaces on notion.com could not reach a Host
+  that checks origins. The worker calls under the extension's own.
+
+Local processes are deliberately not shut out: anything running as this user
+can read the data directory anyway.
+
+## Staying on one build
+
+`deploy.sh` stamps a build id into the extension and the Host reads it back out
+of the installed folder. A worker running an older build reloads itself — on
+the next page load, or within five minutes. Nobody has to visit
+`chrome://extensions`.
+
 ## Exposure levels
 
 - **Core** — visible by default. The value loop: capture → organize → generate with sources.

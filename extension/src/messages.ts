@@ -6,10 +6,22 @@
  */
 
 export type ToBackground =
+  | { type: "logue:build" }
+  | { type: "logue:host"; path: string; method?: string; body?: string }
   | { type: "logue:open-panel" }
   | { type: "logue:record-start"; sessionId: string }
   | { type: "logue:record-stop"; sessionId: string }
   | { type: "logue:record-cancel"; sessionId: string };
+
+/**
+ * The Host's answer, relayed.
+ *
+ * `ok: false` means the request never happened — the Host is not running. A
+ * request that reached it and came back a 404 is `ok: true` with that status,
+ * because "the Host said no" and "there is no Host" are different problems and
+ * only one of them is the person's to fix.
+ */
+export type HostReply = { ok: true; status: number; text: string } | { ok: false; message: string };
 
 export type FromBackground = { type: "logue:start-voice" } | { type: "logue:start-command" };
 

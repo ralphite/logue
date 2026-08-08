@@ -9,16 +9,22 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import sys
 import tempfile
+import threading
 import unittest
+import urllib.error
+import urllib.request
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from logue_host.app import App
+from logue_host.build import installed_extension_build
 from logue_host.errors import BadRequest, Conflict, NotFound
-from logue_host.http import Request
+from logue_host.http import Request, serve
 from logue_host.providers import Provider
 
 
@@ -239,6 +245,119 @@ class HostTest(unittest.TestCase):
     def test_ids_cannot_escape_the_workspace(self) -> None:
         with self.assertRaises(NotFound):
             self.call("GET", "/v1/materials/..%2f..%2fsettings")
+
+
+class ReachabilityTest(unittest.TestCase):
+    """Who is allowed to talk to the Host at all.
+
+    Exercised over a real socket, because the guard lives in the transport: the
+    route table never sees a refused request, so calling handlers directly
+    would prove nothing.
+    """
+
+    def setUp(self) -> None:
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        app = App(Path(self.dir.name))
+        self.server = serve(app.router, "127.0.0.1", 0)
+        self.port = self.server.server_address[1]
+        thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+
+    def ask(self, method: str, path: str, headers: dict[str, str] | None = None, body: bytes | None = None):
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{self.port}{path}", method=method, data=body, headers=headers or {}
+        )
+        try:
+            with urllib.request.urlopen(request) as response:
+                return response.status, dict(response.headers)
+        except urllib.error.HTTPError as error:
+            return error.code, dict(error.headers)
+
+    # -- reading ------------------------------------------------------------
+
+    def test_a_page_you_happen_to_visit_cannot_read_the_workspace(self) -> None:
+        status, headers = self.ask("GET", "/v1/materials", {"Origin": "https://evil.example"})
+        self.assertEqual(status, 403)
+        self.assertNotIn("Access-Control-Allow-Origin", headers)
+
+    def test_the_web_app_can_read(self) -> None:
+        status, headers = self.ask("GET", "/v1/materials", {"Origin": "http://localhost:5173"})
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get("Access-Control-Allow-Origin"), "http://localhost:5173")
+
+    def test_the_extension_can_read(self) -> None:
+        origin = "chrome-extension://dmoloijacfpekebfmnddpjcgooplbcfe"
+        status, headers = self.ask("GET", "/v1/materials", {"Origin": origin})
+        self.assertEqual(status, 200)
+        self.assertEqual(headers.get("Access-Control-Allow-Origin"), origin)
+
+    def test_no_origin_is_a_local_tool_and_is_answered_without_cors(self) -> None:
+        status, headers = self.ask("GET", "/v1/status")
+        self.assertEqual(status, 200)
+        self.assertNotIn("Access-Control-Allow-Origin", headers)
+
+    # -- writing ------------------------------------------------------------
+
+    def test_a_write_without_the_client_header_is_refused(self) -> None:
+        """Blocking the read is not enough — a simple POST needs no preflight."""
+        status, _ = self.ask(
+            "POST", "/v1/materials", {"Content-Type": "text/plain"}, b'{"kind":"text","content":"x"}'
+        )
+        self.assertEqual(status, 403)
+
+    def test_a_write_from_a_real_client_is_allowed(self) -> None:
+        status, _ = self.ask(
+            "POST",
+            "/v1/materials",
+            {"Content-Type": "application/json", "X-Logue-Client": "extension"},
+            b'{"kind":"text","content":"x"}',
+        )
+        self.assertEqual(status, 200)
+
+    def test_the_preflight_itself_refuses_a_stranger(self) -> None:
+        status, _ = self.ask("OPTIONS", "/v1/materials", {"Origin": "https://evil.example"})
+        self.assertEqual(status, 403)
+
+    # -- rebinding ----------------------------------------------------------
+
+    def test_a_hostname_pointed_at_this_machine_is_refused(self) -> None:
+        status, _ = self.ask("GET", "/v1/status", {"Host": f"logue.evil.example:{self.port}"})
+        self.assertEqual(status, 403)
+
+
+class InstalledBuildTest(unittest.TestCase):
+    """The number a stale browser reloads on. A wrong one reloads it forever."""
+
+    def setUp(self) -> None:
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.root = Path(self.dir.name)
+        install_root = mock.patch.dict(os.environ, {"LOGUE_INSTALL_ROOT": str(self.root)})
+        install_root.start()
+        self.addCleanup(install_root.stop)
+
+    def write_manifest(self, body: str) -> None:
+        folder = self.root / "extension"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "manifest.json").write_text(body, encoding="utf-8")
+
+    def test_reports_the_installed_build(self) -> None:
+        self.write_manifest(json.dumps({"version": "1.0.0", "version_name": "20260808T000000Z.abc1234"}))
+        self.assertEqual(installed_extension_build(), "20260808T000000Z.abc1234")
+
+    def test_nothing_installed_reports_nothing(self) -> None:
+        self.assertEqual(installed_extension_build(), "")
+
+    def test_a_broken_manifest_reports_nothing_rather_than_raising(self) -> None:
+        self.write_manifest("{not json")
+        self.assertEqual(installed_extension_build(), "")
+
+    def test_a_manifest_without_a_build_reports_nothing(self) -> None:
+        self.write_manifest(json.dumps({"version": "1.0.0"}))
+        self.assertEqual(installed_extension_build(), "")
 
 
 if __name__ == "__main__":

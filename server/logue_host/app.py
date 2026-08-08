@@ -10,6 +10,7 @@ import base64
 from pathlib import Path
 from typing import Any
 
+from .build import installed_extension_build
 from .domain import backup, capture, documents, generation, materials, projects, skills, topics
 from .errors import BadRequest, NotFound
 from .http import Request, Response, Router
@@ -45,6 +46,7 @@ class App:
             provider = self.provider()
             return {
                 "ok": True,
+                "build": installed_extension_build(),
                 "data_dir": str(store.root),
                 "bytes": store.usage_bytes(),
                 "model": {

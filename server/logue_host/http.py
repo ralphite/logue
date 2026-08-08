@@ -18,6 +18,37 @@ from .errors import BadRequest, HostError
 
 MAX_BODY = 64 * 1024 * 1024
 
+LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+CLIENT_HEADER = "X-Logue-Client"
+
+
+def is_local_origin(origin: str) -> bool:
+    """Whether a browser page is allowed to read this Host's answers.
+
+    The workspace is everything the person has ever captured, and the Host has
+    no password — so the only thing standing between it and a page they happen
+    to be reading is this function. It used to answer "everyone".
+
+    Extensions pass as a class. An extension with a host permission reaches
+    local servers whether or not CORS says so, so refusing them here would buy
+    nothing and break our own surfaces.
+    """
+    if origin.startswith("chrome-extension://") or origin.startswith("moz-extension://"):
+        return True
+    parsed = urlparse(origin)
+    return parsed.scheme in {"http", "https"} and parsed.hostname in LOCAL_HOSTS
+
+
+def is_local_host_header(value: str) -> bool:
+    """Guards against a hostname that resolves to this machine.
+
+    A page can point a name it controls at 127.0.0.1 and then talk to the Host
+    same-origin, which skips CORS entirely. Requests must arrive addressed to a
+    loopback name, not to `logue.attacker.example`.
+    """
+    return (urlparse(f"//{value}").hostname or "").lower() in LOCAL_HOSTS
+
 
 @dataclass
 class Request:
@@ -104,17 +135,48 @@ def serve(router: Router, host: str, port: int) -> ThreadingHTTPServer:
             self.send_response(response.status)
             self.send_header("Content-Type", response.media_type)
             self.send_header("Content-Length", str(len(payload)))
-            # The Web App and the Extension are separate origins from the Host.
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Logue-Client")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+            # The Web App and the Extension are separate origins from the Host,
+            # so they need naming — but only they do. Reflecting the origin
+            # rather than answering "*" is what keeps an unrelated page from
+            # reading the workspace.
+            origin = self.headers.get("Origin", "")
+            if origin and is_local_origin(origin):
+                self.send_header("Access-Control-Allow-Origin", origin)
+                self.send_header("Vary", "Origin")
+                self.send_header("Access-Control-Allow-Headers", f"Content-Type, {CLIENT_HEADER}")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+                self.send_header("Access-Control-Max-Age", "600")
             for key, value in response.headers.items():
                 self.send_header(key, value)
             self.end_headers()
             if self.command != "HEAD":
                 self.wfile.write(payload)
 
+        def _refuse(self, why: str) -> None:
+            self._send(Response({"error": why}, 403))
+
+        def _guard(self) -> str | None:
+            """What is wrong with this request, before a handler ever sees it."""
+            if not is_local_host_header(self.headers.get("Host", "")):
+                return "This Host only answers requests addressed to localhost."
+            origin = self.headers.get("Origin", "")
+            if origin and not is_local_origin(origin):
+                return "This Host only answers Logue."
+            # A cross-origin page can POST without a preflight, so blocking the
+            # read is not enough — it could still write. Demanding a header the
+            # browser must ask permission for turns every write into a
+            # preflight, and the preflight is what the origin check refuses.
+            if self.command not in SAFE_METHODS and CLIENT_HEADER.lower() not in {
+                key.lower() for key in self.headers
+            }:
+                return f"Writes require the {CLIENT_HEADER} header."
+            return None
+
         def _dispatch(self) -> None:
+            refusal = self._guard()
+            if refusal:
+                self._refuse(refusal)
+                return
             url = urlparse(self.path)
             match = router.match(self.command, url.path)
             if match is None:
@@ -151,6 +213,9 @@ def serve(router: Router, host: str, port: int) -> ThreadingHTTPServer:
         do_DELETE = _dispatch
 
         def do_OPTIONS(self) -> None:
-            self._send(Response(status=204))
+            # The preflight itself must be refused for an origin we do not
+            # know, or the browser goes on to send the write.
+            refusal = self._guard()
+            self._send(Response({"error": refusal}, 403) if refusal else Response(status=204))
 
     return ThreadingHTTPServer((host, port), RequestHandler)

@@ -105,11 +105,6 @@ export function SelectionBar({
             {phase === "starting" ? "Starting mic…" : "Saving…"}
           </span>
         </>
-      ) : phase === "saved" ? (
-        <>
-          <Check size={14} className="mx-1.5 text-success" />
-          <span className="pr-1.5 text-xs text-ink-soft">Saved</span>
-        </>
       ) : (
         <>
           <IconButton label="Voice comment" className="text-accent hover:bg-accent-soft" onClick={onVoice}>
@@ -118,9 +113,21 @@ export function SelectionBar({
           <IconButton label="Write comment" onClick={onOpenNote}>
             <MessageSquarePlus size={15} />
           </IconButton>
-          <IconButton label="Save selection" onClick={onSave}>
-            <Bookmark size={15} />
-          </IconButton>
+          {/*
+            The confirmation lands on the button that earned it rather than
+            replacing the toolbar. Standing the whole bar down for a second and
+            a half stranded the obvious next move — you keep a quote in order to
+            say something about it.
+          */}
+          {phase === "saved" ? (
+            <IconButton label="Saved" className="text-success" disabled>
+              <Check size={15} />
+            </IconButton>
+          ) : (
+            <IconButton label="Save selection" onClick={onSave}>
+              <Bookmark size={15} />
+            </IconButton>
+          )}
           {direct.length > 0 && <span aria-hidden className="mx-0.5 h-4.5 w-px bg-line" />}
           {direct.map((skill) => (
             <Button

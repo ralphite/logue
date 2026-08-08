@@ -28,9 +28,16 @@ case "${real_data}/" in
   "${extension_dir}"/*) fail "The data directory is inside the extension folder." ;;
 esac
 
+# Stamped into the extension and read back by the Host, so a browser still
+# running an older build can notice and reload itself. Time first so it always
+# moves forward; the commit is there to make a build traceable to source.
+commit="$(git -C "${repo}" rev-parse --short HEAD 2>/dev/null || echo nogit)"
+export LOGUE_BUILD="$(date -u +%Y%m%dT%H%M%SZ).${commit}"
+
 step "1/4  Build"
 (cd "${repo}" && npm run build >/dev/null) || fail "build failed"
 say "web, extension, and host compiled"
+say "build ${LOGUE_BUILD}"
 
 step "2/4  Install the one extension"
 mkdir -p "${extension_dir}"
@@ -68,15 +75,22 @@ if [[ -n "${existing}" ]]; then
 fi
 
 cd "${repo}/server"
-LOGUE_DATA_DIR="${data_dir}" nohup python3.13 -m logue_host --address "${address}" \
+LOGUE_DATA_DIR="${data_dir}" LOGUE_INSTALL_ROOT="${install_root}" \
+  nohup python3.13 -m logue_host --address "${address}" \
   >"${install_root}/host.log" 2>&1 &
 cd "${repo}"
 
+# Wait for the Host that reports *this* build. Waiting for any answer is not
+# enough: a dying process can still serve one, and then the deploy reports
+# success while the old code is what answered.
 for _ in $(seq 1 40); do
-  curl -sf "http://127.0.0.1:${port}/v1/status" >/dev/null && break
+  [[ "$(curl -sf "http://127.0.0.1:${port}/v1/status" | python3.13 -c \
+      'import json,sys;print(json.load(sys.stdin).get("build",""))' 2>/dev/null)" == "${LOGUE_BUILD}" ]] && break
   sleep 0.5
 done
-curl -sf "http://127.0.0.1:${port}/v1/status" >/dev/null || fail "the Host did not come up; see ${install_root}/host.log"
+[[ "$(curl -sf "http://127.0.0.1:${port}/v1/status" | python3.13 -c \
+    'import json,sys;print(json.load(sys.stdin).get("build",""))' 2>/dev/null)" == "${LOGUE_BUILD}" ]] \
+  || fail "the Host did not come up on ${LOGUE_BUILD}; see ${install_root}/host.log"
 say "Host on http://${address} using ${data_dir}"
 
 step "4/4  Keep it running"
@@ -97,7 +111,10 @@ if [[ "$(uname)" == "Darwin" ]]; then
   </array>
   <key>WorkingDirectory</key><string>${repo}/server</string>
   <key>EnvironmentVariables</key>
-  <dict><key>LOGUE_DATA_DIR</key><string>${data_dir}</string></dict>
+  <dict>
+    <key>LOGUE_DATA_DIR</key><string>${data_dir}</string>
+    <key>LOGUE_INSTALL_ROOT</key><string>${install_root}</string>
+  </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>${install_root}/host.log</string>
@@ -110,6 +127,6 @@ PLIST
 fi
 
 printf '\n✓ Logue %s is live\n' "${version}"
-say "Web:       cd ${repo} && npm run dev:web"
-say "Extension: chrome://extensions → Reload on the Logue card"
+say "Web:        cd ${repo} && npm run dev:web"
+say "Extension:  reloads itself within 5 minutes — no visit to chrome://extensions"
 say "First time: Load unpacked → ${extension_dir}"

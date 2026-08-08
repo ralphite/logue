@@ -1,5 +1,7 @@
 /** The Host, as the extension needs it. */
 
+import { send, type HostReply } from "./messages";
+
 export const HOST = "http://127.0.0.1:8787";
 
 export interface Skill {
@@ -36,23 +38,32 @@ export class HostError extends Error {
   }
 }
 
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  let response: Response;
+function parse(text: string): unknown {
   try {
-    response = await fetch(`${HOST}${path}`, {
-      ...init,
-      headers: { "Content-Type": "application/json" },
-    });
+    return JSON.parse(text);
   } catch {
-    throw new HostError("Logue is not running on this Mac.", 0);
+    return null;
   }
-  if (!response.ok) {
-    const detail: unknown = await response.json().catch(() => null);
+}
+
+/**
+ * Relayed through the service worker rather than fetched here.
+ *
+ * A content script's request carries the page's origin, so a direct call would
+ * only work if the Host allowed every origin on the web — and then so would
+ * every other page you have open. The worker calls under the extension's own
+ * origin, which the Host can recognise.
+ */
+async function call<T>(path: string, init?: { method?: string; body?: string }): Promise<T> {
+  const reply = await send<HostReply>({ type: "logue:host", path, method: init?.method, body: init?.body });
+  if (!reply) throw new HostError("Logue's background service is restarting. Try again in a moment.", 0);
+  if (!reply.ok) throw new HostError(reply.message, 0);
+  const payload = parse(reply.text);
+  if (reply.status >= 400) {
     const message =
-      detail && typeof detail === "object" && "error" in detail ? String(detail.error) : response.statusText;
-    throw new HostError(message, response.status);
+      payload && typeof payload === "object" && "error" in payload ? String(payload.error) : `HTTP ${reply.status}`;
+    throw new HostError(message, reply.status);
   }
-  const payload: unknown = await response.json();
   // The single trust boundary: the Host is ours and its route table is the contract.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   return payload as T;

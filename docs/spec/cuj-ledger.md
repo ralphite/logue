@@ -43,11 +43,39 @@ product was actually used:
 5. Tracking ran only on `requestAnimationFrame`, which never fires in a hidden
    tab.
 
+## What the second round found
+
+6. Two surfaces on screen at once. The caret bar and the selection toolbar each
+   kept their own list of the others to hide behind, and one entry was missing.
+7. `chrome.runtime.reload()` **disables** an unpacked extension when Developer
+   mode is off — the same reason code in Chrome 151 and Chrome for Testing 149.
+   It cannot happen in real use (with the toggle off Chrome would already have
+   disabled the extension), but it made every self-update run look like a
+   product failure until the test browser was set up the way a person's is.
+8. A deploy could report success against the *dying* Host: the readiness check
+   accepted any answer, so old code could satisfy it. It now waits for the Host
+   that reports the build just deployed.
+
+## The test browser
+
+Real Chrome, a throwaway profile, and three things that must match a real
+install or nothing about the extension can be trusted:
+
+- installed **unpacked over CDP** (`Extensions.loadUnpacked`), not
+  `--load-extension` — a command-line extension is disabled the moment it
+  reloads itself;
+- **Developer mode on**, set through `chrome://extensions`' own API, before the
+  install;
+- the Host running on the same build the folder holds.
+
+`scratch/browser.sh` does all three.
+
 ## Running them
 
 ```bash
-npm run build && bash scripts/deploy.sh     # one version on the machine
-node scratch/cdp.mjs 9666 scratch/cuj-voice.mjs
+bash scripts/deploy.sh                      # one version on the machine
+bash scratch/browser.sh 9888                # a browser set up like a person's
+node scratch/cdp.mjs 9888 scratch/cuj-voice.mjs
 ```
 
 The drivers live outside the repo because they carry machine-specific paths;
