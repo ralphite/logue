@@ -89,8 +89,8 @@ function lineHeightOf(computed: CSSStyleDeclaration) {
   return Number.isFinite(fontSize) && fontSize > 0 ? fontSize * 1.4 : 18;
 }
 
-/** An empty editor still has a caret: it sits at the start of the content box. */
-function emptyFieldCaret(target: HTMLElement): CaretRect {
+/** An empty element still has a caret: it sits at the start of the content box. */
+function contentStartCaret(target: HTMLElement): CaretRect {
   const box = rectOf(target);
   const computed = window.getComputedStyle(target);
   const left = box.left + styleLength(computed, "border-left-width") + styleLength(computed, "padding-left");
@@ -165,7 +165,11 @@ function editableCaretRect(target: HTMLElement): CaretRect | undefined {
       if (after) return { left: after.left, top: after.top, right: after.left, bottom: after.bottom };
     }
   }
-  return target.textContent?.trim() ? undefined : emptyFieldCaret(target);
+  // A fresh paragraph in a multi-block editor is empty even when the editor
+  // as a whole is not. The caret's own block still knows where its line is.
+  const block = container instanceof HTMLElement ? container : container.parentElement;
+  if (block && block !== target && target.contains(block)) return contentStartCaret(block);
+  return target.textContent?.trim() ? undefined : contentStartCaret(target);
 }
 
 /**

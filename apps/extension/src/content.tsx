@@ -3283,6 +3283,15 @@ if (!isLogueExtensionDisabledDocument(document, window.location.href)) {
   style.textContent = styles;
   const mount = document.createElement("div");
   shadow.append(style, mount);
-  document.documentElement.append(host);
+  // Overlays live in <body>: some apps (Notion) never paint a shadow host
+  // that entered the tree as a child of <html> before <body> existed. At
+  // document_start there is no body yet, so start on the root element and
+  // move in as soon as one appears — or when the app swaps it out.
+  const placeHost = () => {
+    const parent = document.body ?? document.documentElement;
+    if (host.parentElement !== parent) parent.append(host);
+  };
+  placeHost();
+  new MutationObserver(placeHost).observe(document.documentElement, { childList: true });
   createRoot(mount).render(<StrictMode><ExtensionLauncher /></StrictMode>);
 }

@@ -38,6 +38,32 @@ describe("caret anchor", () => {
       .toEqual({ left: 500, top: 320, right: 500, bottom: 320 });
   });
 
+  it("anchors a caret in an empty paragraph to that paragraph, not the editor corner", () => {
+    // jsdom has no Range geometry; measure "nothing", like a real empty line.
+    Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
+    Range.prototype.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 }) as DOMRect;
+    const target = document.createElement("div");
+    Object.defineProperty(target, "isContentEditable", { value: true });
+    const filled = document.createElement("p");
+    filled.textContent = "The editor as a whole is not empty.";
+    const empty = document.createElement("p");
+    target.append(filled, empty);
+    document.body.append(target);
+    target.getBoundingClientRect = () =>
+      ({ left: 100, top: 100, right: 700, bottom: 500, width: 600, height: 400 }) as DOMRect;
+    empty.getBoundingClientRect = () =>
+      ({ left: 120, top: 260, right: 680, bottom: 282, width: 560, height: 22 }) as DOMRect;
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.setStart(empty, 0);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    expect(caretAnchorRect(target)).toMatchObject({ left: 120, top: 260 });
+    target.remove();
+  });
+
   it("reports no caret for a target that is not an editor", () => {
     const target = document.createElement("div");
     document.body.append(target);
