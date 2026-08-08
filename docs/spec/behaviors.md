@@ -19,6 +19,9 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   tests are necessary and never sufficient. No mocks standing in for a run.
 - **Never stop early, never wait to be unblocked.** If something is in the way,
   find another route; a computer is available.
+- **Start the next task the moment the last one is done.** Do not stop to
+  report, do not wait to be told to carry on. Report when there is something
+  worth reading, not between every item.
 - **Work in parallel where the work is independent.**
 - **No TDD.** Tests pin the rules that would silently corrupt data, and the
   contracts the UI reads. Not every line.

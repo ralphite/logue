@@ -71,7 +71,7 @@ export function App() {
 
   return (
     <AppShell route={route} onRoute={go} offline={Boolean(status.error)} onFind={() => setFinding(true)}>
-      {route === "stream" && <StreamRoute openId={sourceId} onOpen={setSourceId} />}
+      {route === "stream" && <StreamRoute openId={sourceId} onOpen={setSourceId} onOpenDocument={openDocument} />}
       {route === "projects" && (
         <ProjectsRoute openId={projectId} onOpen={setProjectId} onOpenDocument={openDocument} />
       )}

@@ -1,4 +1,4 @@
-import { ExternalLink, X } from "lucide-react";
+import { ExternalLink, FileText, Sparkles, X } from "lucide-react";
 import { Fragment, useState } from "react";
 import { Button, ErrorNote, IconButton, Input, OriginMark, SourceLink, Spinner, Tag, originOf } from "@logue/ui";
 import { api, type Material, type Project } from "../api";
@@ -13,11 +13,13 @@ export function MaterialPanel({
   onClose,
   onChanged,
   projects,
+  onOpenDocument,
 }: {
   materialId: string;
   onClose: () => void;
   onChanged: () => void;
   projects: Project[];
+  onOpenDocument?: (id: string) => void;
 }) {
   const lineage = useHost(() => api.lineage(materialId), [materialId]);
   const action = useAction();
@@ -83,7 +85,7 @@ export function MaterialPanel({
             <HowItWasHeard applied={material.applied_context} />
 
             <Lineage title="Came from" items={lineage.data?.parents ?? []} />
-            <Lineage title="Led to" items={lineage.data?.children ?? []} />
+            <UsedIn materialId={material.id} onOpenDocument={onOpenDocument} />
 
             {material.organization?.status === "needs_review" && (
               <div className="grid gap-1.5 rounded-lg border border-accent-line bg-accent-soft px-2.5 py-2">
@@ -370,6 +372,63 @@ function Tags({
           className="h-6 w-24 px-1.5 text-[11px]"
         />
       </div>
+    </div>
+  );
+}
+
+/**
+ * What has been built on this Source.
+ *
+ * "Led to" used to list only the comments made on it, which is the smallest
+ * part of the answer. The question worth asking of a Source is which answers
+ * cited it and which documents are standing on it — that is what makes
+ * deleting it consequential, and what makes keeping it worthwhile.
+ */
+function UsedIn({
+  materialId,
+  onOpenDocument,
+}: {
+  materialId: string;
+  onOpenDocument?: (id: string) => void;
+}) {
+  const used = useHost(() => api.dependencies(materialId), [materialId]);
+  const runs = used.data?.runs ?? [];
+  const documents = used.data?.documents ?? [];
+  const derived = used.data?.derived ?? [];
+  const total = runs.length + documents.length + derived.length;
+
+  return (
+    <div className="grid gap-1 border-t border-line pt-3">
+      <span className="text-xs text-muted">
+        Used in {total === 0 ? <span className="text-faint">nothing yet</span> : total}
+      </span>
+
+      {documents.map((document) => (
+        <button
+          key={document.id}
+          type="button"
+          disabled={!onOpenDocument}
+          onClick={() => onOpenDocument?.(document.id)}
+          className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs text-ink-soft enabled:hover:bg-hover enabled:hover:text-ink"
+        >
+          <FileText size={12} className="shrink-0 text-muted" />
+          <span className="truncate">{document.title || "Untitled"}</span>
+        </button>
+      ))}
+
+      {runs.map((run) => (
+        <span key={run.id} className="flex items-center gap-1.5 px-1.5 py-1 text-xs text-ink-soft">
+          <Sparkles size={12} className="shrink-0 text-muted" />
+          <span className="truncate">{run.instruction}</span>
+        </span>
+      ))}
+
+      {derived.map((item) => (
+        <span key={item.id} className="rounded-md bg-surface-muted px-2 py-1.5">
+          <OriginMark origin="ai" />
+          <p className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-ink-soft">{item.content}</p>
+        </span>
+      ))}
     </div>
   );
 }

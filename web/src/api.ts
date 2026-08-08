@@ -203,6 +203,14 @@ export const api = {
     send<{ material: Material }>("PATCH", `/v1/materials/${id}`, changes),
   deleteMaterial: (id: string) => send<{ ok: true }>("DELETE", `/v1/materials/${id}`),
 
+  /** What has been built on this Source — and what a deletion would take with it. */
+  dependencies: (id: string) =>
+    request<{
+      runs: { id: string; instruction: string; created_at: string }[];
+      documents: { id: string; title: string }[];
+      derived: { id: string; content: string }[];
+    }>(`/v1/materials/${id}/dependencies`),
+
   /** Earlier transcripts of the same recording, newest kept last. */
   transcriptRevisions: (id: string) =>
     request<{ current: Material; revisions: TranscriptRevision[] }>(`/v1/materials/${id}/transcript-revisions`),

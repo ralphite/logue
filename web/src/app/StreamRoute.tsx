@@ -18,6 +18,7 @@ import {
 import { api, type Material, type Project, type Topic } from "../api";
 import { Page, Row, RowActions, Rows } from "./AppShell";
 import { timeAgo, useAction, useHost } from "./useHost";
+import { ConfirmDelete } from "./ConfirmDelete";
 import { MaterialPanel } from "./MaterialPanel";
 
 /** Past this the row's own text stops being what you read first. */
@@ -105,12 +106,21 @@ function where(material: Material): string {
 }
 
 /** Everything captured, newest first. The one page you can start from. */
-export function StreamRoute({ openId, onOpen }: { openId?: string; onOpen: (id: string | undefined) => void }) {
+export function StreamRoute({
+  openId,
+  onOpen,
+  onOpenDocument,
+}: {
+  openId?: string;
+  onOpen: (id: string | undefined) => void;
+  onOpenDocument?: (id: string) => void;
+}) {
   const [query, setQuery] = useState("");
   const [tag, setTag] = useState<string>();
   const [reviewing, setReviewing] = useState(false);
   const [group, setGroup] = useState<Topic>();
   const [renaming, setRenaming] = useState("");
+  const [deleting, setDeleting] = useState<Material>();
   const setOpenId = onOpen;
   const materials = useHost(() => api.materials(), []);
   const review = useHost(() => api.review(), []);
@@ -345,7 +355,7 @@ export function StreamRoute({ openId, onOpen }: { openId?: string; onOpen: (id: 
                     tone="danger"
                     onClick={(event) => {
                       event.stopPropagation();
-                      void action.run(() => api.deleteMaterial(material.id)).then(refresh);
+                      setDeleting(material);
                     }}
                   >
                     <Trash2 size={13} />
@@ -364,12 +374,40 @@ export function StreamRoute({ openId, onOpen }: { openId?: string; onOpen: (id: 
         </p>
       )}
 
+      <ConfirmDelete
+        open={Boolean(deleting)}
+        title="Delete this Source"
+        what={deleting ? title(deleting) : ""}
+        busy={action.busy}
+        error={action.error}
+        kept="Anything you said about it stays, and says it lost its Source."
+        impact={async () => {
+          if (!deleting) return [];
+          const used = await api.dependencies(deleting.id);
+          return [
+            ...used.documents.map((d) => `Document · ${d.title || "Untitled"}`),
+            ...used.runs.map((r) => `Answer · ${r.instruction}`),
+            ...used.derived.map((d) => `Your comment · ${d.content}`),
+          ];
+        }}
+        onCancel={() => setDeleting(undefined)}
+        onConfirm={() =>
+          deleting &&
+          void action.run(() => api.deleteMaterial(deleting.id)).then((ok) => {
+            if (!ok) return;
+            setDeleting(undefined);
+            refresh();
+          })
+        }
+      />
+
       {openId && (
         <MaterialPanel
           materialId={openId}
           onClose={() => setOpenId(undefined)}
           onChanged={refresh}
           projects={projects.data?.projects ?? []}
+          onOpenDocument={onOpenDocument}
         />
       )}
     </Page>

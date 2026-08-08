@@ -1,8 +1,9 @@
-import { Plus, Sparkles } from "lucide-react";
+import { Plus, Sparkles, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button, Dialog, DialogActions, Empty, ErrorNote, Field, Input, OriginMark, SourceLink, Spinner, Textarea, originOf } from "@logue/ui";
 import { api, type Run } from "../api";
 import { Page, Row, RowActions, Rows } from "./AppShell";
+import { ConfirmDelete } from "./ConfirmDelete";
 import { timeAgo, useAction, useHost } from "./useHost";
 import { GenerateBox } from "./GenerateBox";
 
@@ -130,6 +131,7 @@ function ProjectDetail({
   const skills = useHost(() => api.skills(), []);
   const runs = useHost(() => api.runs(), []);
   const [editing, setEditing] = useState(false);
+  const [deleting, setDeleting] = useState<{ id: string; name: string }>();
   const [overview, setOverview] = useState("");
   const action = useAction();
   const project = detail.data?.project;
@@ -150,6 +152,13 @@ function ProjectDetail({
       title="Projects"
       onBack={onBack}
       here={project?.name ?? ""}
+      actions={
+        project && (
+          <Button variant="ghost" onClick={() => setDeleting(project)}>
+            <Trash2 size={13} /> Delete
+          </Button>
+        )
+      }
     >
       {detail.error && <ErrorNote className="mb-2">{detail.error}</ErrorNote>}
       {!project ? (
@@ -231,6 +240,31 @@ function ProjectDetail({
               </Rows>
             </section>
           )}
+
+          <ConfirmDelete
+            open={Boolean(deleting)}
+            title="Delete this Project"
+            what={deleting?.name ?? ""}
+            busy={action.busy}
+            error={action.error}
+            kept="Every Source stays in the Stream. Only the grouping goes."
+            impact={async () => {
+              if (!deleting) return [];
+              const preview = await api.projectDeletionPreview(deleting.id);
+              return preview.materials_kept > 0
+                ? [`${preview.materials_kept} Sources stop being grouped by it`]
+                : [];
+            }}
+            onCancel={() => setDeleting(undefined)}
+            onConfirm={() =>
+              deleting &&
+              void action.run(() => api.deleteProject(deleting.id)).then((ok) => {
+                if (!ok) return;
+                setDeleting(undefined);
+                onBack();
+              })
+            }
+          />
 
           <section className="grid gap-1.5">
             <h2 className="text-xs text-muted">{detail.data?.materials.length} Sources</h2>

@@ -16,6 +16,7 @@ import {
 } from "@logue/ui";
 import { api, type Skill } from "../api";
 import { Page, Row, RowActions, Rows } from "./AppShell";
+import { ConfirmDelete } from "./ConfirmDelete";
 import { useAction, useHost } from "./useHost";
 
 const BLANK = {
@@ -34,6 +35,7 @@ const BLANK = {
 export function SkillsRoute() {
   const skills = useHost(() => api.skills(), []);
   const [editing, setEditing] = useState<Partial<Skill>>();
+  const [deleting, setDeleting] = useState<Skill>();
   const action = useAction();
 
   const save = async () => {
@@ -110,7 +112,7 @@ export function SkillsRoute() {
                       tone="danger"
                       onClick={(event) => {
                         event.stopPropagation();
-                        void action.run(() => api.deleteSkill(skill.id)).then(() => skills.refresh());
+                        setDeleting(skill);
                       }}
                     >
                       <Trash2 size={13} /> Delete
@@ -168,6 +170,31 @@ export function SkillsRoute() {
           </>
         )}
       </Dialog>
+      <ConfirmDelete
+        open={Boolean(deleting)}
+        title="Delete this Skill"
+        what={deleting?.name ?? ""}
+        busy={action.busy}
+        error={action.error}
+        kept="Runs that used it keep the exact prompt they ran with."
+        impact={async () => {
+          if (!deleting) return [];
+          const found = await api.skillImpact(deleting.id);
+          return [
+            ...(found.runs > 0 ? [`${found.runs} answers were generated with it`] : []),
+            ...found.projects.map((name) => `Project · ${name} reaches for it`),
+          ];
+        }}
+        onCancel={() => setDeleting(undefined)}
+        onConfirm={() =>
+          deleting &&
+          void action.run(() => api.deleteSkill(deleting.id)).then((ok) => {
+            if (!ok) return;
+            setDeleting(undefined);
+            void skills.refresh();
+          })
+        }
+      />
     </Page>
   );
 }
