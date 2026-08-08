@@ -1,8 +1,8 @@
-import { Plus, Sparkles, Trash2 } from "lucide-react";
+import { Sparkles, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Button, Dialog, DialogActions, Empty, ErrorNote, Field, Input, OriginMark, SourceLink, Spinner, Textarea, originOf } from "@logue/ui";
+import { Button, Empty, ErrorNote, OriginMark, SourceLink, Spinner, Textarea, originOf } from "@logue/ui";
 import { api, type Run } from "../api";
-import { Page, Row, RowActions, Rows } from "./AppShell";
+import { Nothing, Page, Row, RowActions, Rows } from "./AppShell";
 import { ConfirmDelete } from "./ConfirmDelete";
 import { timeAgo, useAction, useHost } from "./useHost";
 import { GenerateBox } from "./GenerateBox";
@@ -19,80 +19,7 @@ export function ProjectsRoute({
   return openId ? (
     <ProjectDetail id={openId} onBack={() => onOpen(undefined)} onOpenDocument={onOpenDocument} />
   ) : (
-    <ProjectList onOpen={onOpen} />
-  );
-}
-
-function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
-  const projects = useHost(() => api.projects(), []);
-  const [creating, setCreating] = useState(false);
-  const [name, setName] = useState("");
-  const [overview, setOverview] = useState("");
-  const action = useAction();
-
-  const create = async () => {
-    const ok = await action.run(() => api.createProject(name, overview));
-    if (!ok) return;
-    setCreating(false);
-    setName("");
-    setOverview("");
-    void projects.refresh();
-  };
-
-  return (
-    <Page
-      title="Projects"
-      actions={
-        <Button variant="primary" onClick={() => setCreating(true)}>
-          <Plus size={13} /> New
-        </Button>
-      }
-    >
-      {projects.error && <ErrorNote className="mb-2">{projects.error}</ErrorNote>}
-      {projects.loading ? (
-        <div className="flex items-center gap-2 py-8 text-xs text-muted">
-          <Spinner /> Loading
-        </div>
-      ) : (projects.data?.projects.length ?? 0) === 0 ? (
-        <Empty action={<Button variant="primary" onClick={() => setCreating(true)}>New Project</Button>}>
-          A Project gives Logue the background to sound like your work.
-        </Empty>
-      ) : (
-        <Rows>
-          {projects.data?.projects.map((project) => (
-            <Row key={project.id} onClick={() => onOpen(project.id)}>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13px] font-[560] text-ink">{project.name}</span>
-                {project.overview && (
-                  <span className="mt-0.5 block truncate text-[11px] text-muted">{project.overview}</span>
-                )}
-              </span>
-              <span className="shrink-0 text-[11px] text-faint">{project.count} Sources</span>
-            </Row>
-          ))}
-        </Rows>
-      )}
-
-      <Dialog open={creating} onClose={() => setCreating(false)} title="New Project">
-        <Field label="Name">
-          <Input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="Mobile research" />
-        </Field>
-        <Field label="Context">
-          <Textarea
-            value={overview}
-            onChange={(event) => setOverview(event.target.value)}
-            placeholder="What this Project is about"
-          />
-        </Field>
-        {action.error && <ErrorNote>{action.error}</ErrorNote>}
-        <DialogActions>
-          <Button onClick={() => setCreating(false)}>Cancel</Button>
-          <Button variant="primary" disabled={!name.trim() || action.busy} onClick={() => void create()}>
-            Create
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Page>
+    <Nothing section="Projects" hint="Pick one from the list, or start a new Project." />
   );
 }
 

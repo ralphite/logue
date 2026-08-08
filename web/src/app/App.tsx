@@ -4,6 +4,7 @@ import { AppShell, ROUTES, type Route } from "./AppShell";
 import { DocumentsRoute } from "./DocumentsRoute";
 import { FindDialog, type FindTarget } from "./FindDialog";
 import { ProjectsRoute } from "./ProjectsRoute";
+import { DocumentsRail, ProjectsRail, SkillsRail, StreamRail } from "./Rails";
 import { SettingsRoute } from "./SettingsRoute";
 import { SkillsRoute } from "./SkillsRoute";
 import { StreamRoute } from "./StreamRoute";
@@ -29,6 +30,7 @@ export function App() {
   const [documentId, setDocumentId] = useState<string>();
   const [projectId, setProjectId] = useState<string>();
   const [sourceId, setSourceId] = useState<string>();
+  const [skillId, setSkillId] = useState<string>();
   const [finding, setFinding] = useState(false);
   const status = useHost(() => api.status(), []);
 
@@ -69,14 +71,33 @@ export function App() {
     go("stream");
   };
 
+  // The rail carries the open section's list; the main area carries the one
+  // thing chosen from it.
+  const list =
+    route === "stream" ? (
+      <StreamRail selectedId={sourceId} onSelect={setSourceId} />
+    ) : route === "projects" ? (
+      <ProjectsRail selectedId={projectId} onSelect={setProjectId} />
+    ) : route === "documents" ? (
+      <DocumentsRail selectedId={documentId} onSelect={setDocumentId} />
+    ) : route === "skills" ? (
+      <SkillsRail selectedId={skillId} onSelect={setSkillId} />
+    ) : undefined;
+
   return (
-    <AppShell route={route} onRoute={go} offline={Boolean(status.error)} onFind={() => setFinding(true)}>
+    <AppShell
+      route={route}
+      onRoute={go}
+      offline={Boolean(status.error)}
+      onFind={() => setFinding(true)}
+      list={list}
+    >
       {route === "stream" && <StreamRoute openId={sourceId} onOpen={setSourceId} onOpenDocument={openDocument} />}
       {route === "projects" && (
         <ProjectsRoute openId={projectId} onOpen={setProjectId} onOpenDocument={openDocument} />
       )}
       {route === "documents" && <DocumentsRoute openId={documentId} onOpen={setDocumentId} />}
-      {route === "skills" && <SkillsRoute />}
+      {route === "skills" && <SkillsRoute openId={skillId} onOpen={setSkillId} />}
       {route === "settings" && <SettingsRoute />}
       <FindDialog open={finding} onClose={() => setFinding(false)} onGo={goTo} />
     </AppShell>

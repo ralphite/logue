@@ -40,6 +40,7 @@ export function AppShell({
   children,
   offline = false,
   onFind,
+  list,
 }: {
   route: Route;
   onRoute: (route: Route) => void;
@@ -47,6 +48,8 @@ export function AppShell({
   /** The Host is unreachable — nothing on any screen is current. */
   offline?: boolean;
   onFind?: () => void;
+  /** The open section's own list, shown under it in the rail. */
+  list?: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(wasCollapsed);
   const { size, setSize } = usePersistentSize({
@@ -160,6 +163,15 @@ export function AppShell({
             </button>
           );
         })}
+
+        {/*
+          The section's own list, under the section — the arrangement
+          chatgpt.com and Codex use. Only the open section shows one, so the
+          rail stays a thing you scan rather than a thing you scroll. It
+          scrolls on its own so the offline note below never leaves the screen.
+        */}
+        {!collapsed && list && <div className="logue-scroll min-h-0 flex-1 pt-1 pb-2">{list}</div>}
+
         {offline && (
           // Kept in both states: a rail narrowed to icons is exactly when
           // someone would otherwise stare at stale data and wonder.
@@ -259,6 +271,20 @@ export function Page({
         <div className={cn("mx-auto px-8 py-6", width)}>{children}</div>
       </div>
     </>
+  );
+}
+
+/**
+ * A section with nothing chosen yet.
+ *
+ * Says which section you are in and what to do, rather than a blank page or a
+ * second copy of the list that is already in the rail.
+ */
+export function Nothing({ section, hint }: { section: string; hint: string }) {
+  return (
+    <Page title={section}>
+      <p className="py-10 text-center text-xs text-muted">{hint}</p>
+    </Page>
   );
 }
 

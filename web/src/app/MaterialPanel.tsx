@@ -26,15 +26,18 @@ export function MaterialPanel({
   const material = lineage.data?.material;
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-popover flex w-[380px] flex-col border-l border-line bg-panel shadow-[-9px_0_24px_rgb(15_15_15/6%)]">
-      <header className="flex h-row shrink-0 items-center justify-between gap-2 border-b border-line px-2">
-        <span className="truncate text-xs text-muted">{material ? material.kind : "Source"}</span>
+    // Not a drawer any more: the list lives in the rail, so this is simply
+    // what the main area is for.
+    <section className="flex min-h-0 flex-1 flex-col">
+      <header className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-line px-4">
+        <span className="truncate text-[13px] font-[560] text-ink">{material ? material.kind : "Source"}</span>
         <IconButton label="Close" onClick={onClose}>
           <X size={14} />
         </IconButton>
       </header>
 
-      <div className="logue-scroll flex-1 p-3">
+      <div className="logue-scroll min-h-0 flex-1">
+        <div className="mx-auto grid max-w-reading gap-3 px-8 py-6">
         {lineage.error && <ErrorNote>{lineage.error}</ErrorNote>}
         {action.error && <ErrorNote className="mb-2">{action.error}</ErrorNote>}
         {!material ? (
@@ -42,7 +45,7 @@ export function MaterialPanel({
             <Spinner /> Loading
           </div>
         ) : (
-          <div className="grid gap-3">
+          <>
             <div className="grid gap-1.5">
               <OriginMark origin={originOf(material.kind)} detail={timeAgo(material.created_at)} />
               <p className="text-[13px] leading-normal whitespace-pre-wrap text-ink">{material.content}</p>
@@ -162,10 +165,11 @@ export function MaterialPanel({
                 })}
               </div>
             </div>
-          </div>
+          </>
         )}
+        </div>
       </div>
-    </aside>
+    </section>
   );
 }
 

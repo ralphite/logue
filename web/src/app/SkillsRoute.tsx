@@ -1,175 +1,108 @@
-import { MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useState } from "react";
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  ErrorNote,
-  Field,
-  IconButton,
-  Input,
-  Menu,
-  MenuItem,
-  Select,
-  Spinner,
-  Textarea,
-} from "@logue/ui";
+import { Button, ErrorNote, Field, Input, Select, Spinner, Textarea } from "@logue/ui";
 import { api, type Skill } from "../api";
-import { Page, Row, RowActions, Rows } from "./AppShell";
+import { Nothing, Page } from "./AppShell";
 import { ConfirmDelete } from "./ConfirmDelete";
 import { useAction, useHost } from "./useHost";
 
-const BLANK = {
-  name: "",
-  purpose: "",
-  instructions: "",
-  task: "generate",
-  output: "insert",
-  contexts: ["selection"],
-};
-
 /**
- * Prompts you can edit. Built-ins are ordinary Skills — editing one is how you
- * make Logue write the way you write.
+ * One Skill, full width. The list of them is in the rail.
+ *
+ * A prompt is a piece of writing, so it gets a page rather than a dialog with
+ * a scroll bar — which is what it had, and why nobody edited one twice.
  */
-export function SkillsRoute() {
+export function SkillsRoute({
+  openId,
+  onOpen,
+}: {
+  openId?: string;
+  onOpen: (id: string | undefined) => void;
+}) {
   const skills = useHost(() => api.skills(), []);
-  const [editing, setEditing] = useState<Partial<Skill>>();
+  const [draft, setDraft] = useState<Partial<Skill>>();
   const [deleting, setDeleting] = useState<Skill>();
   const action = useAction();
 
-  const save = async () => {
-    if (!editing) return;
-    const ok = await action.run(() =>
-      editing.id
-        ? api.updateSkill(editing.id, {
-            name: editing.name,
-            purpose: editing.purpose,
-            instructions: editing.instructions,
-            output: editing.output,
-          })
-        : api.createSkill(editing),
-    );
-    if (ok) {
-      setEditing(undefined);
-      void skills.refresh();
-    }
-  };
+  const skill = (skills.data?.skills ?? []).find((item) => item.id === openId);
+  const editing = draft?.id === openId ? draft : skill;
+
+  if (!openId || !skill || !editing) {
+    return <Nothing section="Skills" hint="Pick a Skill from the list to read or change its prompt." />;
+  }
+
+  const save = () =>
+    void action
+      .run(() =>
+        api.updateSkill(skill.id, {
+          name: editing.name,
+          purpose: editing.purpose,
+          instructions: editing.instructions,
+          output: editing.output,
+          enabled: editing.enabled,
+        }),
+      )
+      .then((ok) => {
+        if (!ok) return;
+        setDraft(undefined);
+        void skills.refresh();
+      });
+
+  const dirty = draft?.id === openId;
 
   return (
     <Page
       title="Skills"
+      onBack={() => onOpen(undefined)}
+      here={skill.name}
+      axis="reading"
       actions={
-        <Button variant="primary" onClick={() => setEditing({ ...BLANK })}>
-          <Plus size={13} /> New
-        </Button>
+        <>
+          {!skill.system && (
+            <Button variant="ghost" onClick={() => setDeleting(skill)}>
+              <Trash2 size={13} /> Delete
+            </Button>
+          )}
+          <Button variant="primary" disabled={!dirty || action.busy} onClick={save}>
+            {action.busy ? <Spinner size={13} /> : null} Save
+          </Button>
+        </>
       }
     >
-      {skills.error && <ErrorNote className="mb-2">{skills.error}</ErrorNote>}
-      {skills.loading ? (
-        <div className="flex items-center gap-2 py-8 text-xs text-muted">
-          <Spinner /> Loading
-        </div>
-      ) : (
-        <Rows>
-          {skills.data?.skills.map((skill) => (
-            <Row key={skill.id} onClick={() => setEditing(skill)}>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-1.5">
-                  <span className="truncate text-[13px] text-ink">{skill.name}</span>
-                  {skill.system && <span className="text-[11px] text-faint">built-in</span>}
-                </span>
-                <span className="mt-0.5 block truncate text-[11px] text-muted">
-                  {skill.purpose || skill.instructions}
-                </span>
-              </span>
-              <RowActions>
-                <Menu
-                  label="Skill actions"
-                  trigger={(props) => (
-                    <IconButton
-                      label="More actions"
-                      {...props}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        props.onClick();
-                      }}
-                    >
-                      <MoreHorizontal size={15} />
-                    </IconButton>
-                  )}
-                >
-                  <MenuItem
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setEditing({ ...skill, id: undefined, name: `${skill.name} copy`, system: false });
-                    }}
-                  >
-                    Duplicate
-                  </MenuItem>
-                  {!skill.system && (
-                    <MenuItem
-                      tone="danger"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setDeleting(skill);
-                      }}
-                    >
-                      <Trash2 size={13} /> Delete
-                    </MenuItem>
-                  )}
-                </Menu>
-              </RowActions>
-            </Row>
-          ))}
-        </Rows>
-      )}
+      {action.error && <ErrorNote className="mb-2">{action.error}</ErrorNote>}
 
-      <Dialog
-        open={Boolean(editing)}
-        onClose={() => setEditing(undefined)}
-        title={editing?.id ? editing.name || "Skill" : "New Skill"}
-        width="w-[min(520px,calc(100vw-32px))]"
-      >
-        {editing && (
-          <>
-            <Field label="Name">
-              <Input
-                autoFocus
-                value={editing.name ?? ""}
-                onChange={(event) => setEditing({ ...editing, name: event.target.value })}
-              />
-            </Field>
-            <Field label="Result">
-              <Select
-                value={editing.output ?? "insert"}
-                onChange={(event) => setEditing({ ...editing, output: event.target.value })}
-              >
-                <option value="insert">Text to insert</option>
-                <option value="document">Document</option>
-              </Select>
-            </Field>
-            <Textarea
-              className="min-h-40 font-mono text-xs"
-              value={editing.instructions ?? ""}
-              onChange={(event) => setEditing({ ...editing, instructions: event.target.value })}
-              placeholder="Tell the model exactly what to produce."
-              aria-label="Instructions"
-            />
-            {action.error && <ErrorNote>{action.error}</ErrorNote>}
-            <DialogActions>
-              <Button onClick={() => setEditing(undefined)}>Cancel</Button>
-              <Button
-                variant="primary"
-                disabled={!editing.name?.trim() || !editing.instructions?.trim() || action.busy}
-                onClick={() => void save()}
-              >
-                Save
-              </Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
+      <div className="grid gap-3">
+        <Field label="Name">
+          <Input
+            value={editing.name ?? ""}
+            onChange={(event) => setDraft({ ...editing, id: skill.id, name: event.target.value })}
+          />
+        </Field>
+        <Field label="Result">
+          <Select
+            value={editing.output ?? "insert"}
+            onChange={(event) => setDraft({ ...editing, id: skill.id, output: event.target.value })}
+          >
+            <option value="insert">Text to insert</option>
+            <option value="document">Document</option>
+            <option value="qa">An answer</option>
+          </Select>
+        </Field>
+        <Field label="Used where">
+          <span className="flex flex-wrap gap-1 text-[11px] text-muted">
+            {skill.contexts.length === 0 ? "Anywhere" : skill.contexts.join(" · ")}
+          </span>
+        </Field>
+        <Textarea
+          className="min-h-64 font-mono text-xs"
+          value={editing.instructions ?? ""}
+          onChange={(event) => setDraft({ ...editing, id: skill.id, instructions: event.target.value })}
+          placeholder="Tell the model exactly what to produce."
+          aria-label="Instructions"
+        />
+        <p className="text-meta text-faint">Revision {skill.revision}. Runs keep the revision they used.</p>
+      </div>
+
       <ConfirmDelete
         open={Boolean(deleting)}
         title="Delete this Skill"
@@ -191,6 +124,7 @@ export function SkillsRoute() {
           void action.run(() => api.deleteSkill(deleting.id)).then((ok) => {
             if (!ok) return;
             setDeleting(undefined);
+            onOpen(undefined);
             void skills.refresh();
           })
         }
