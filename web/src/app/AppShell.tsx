@@ -1,4 +1,4 @@
-import { ChevronRight, FileText, FolderOpen, Layers, PanelLeft, Settings2, Sparkles } from "lucide-react";
+import { ChevronRight, FileText, FolderOpen, Layers, PanelLeft, Search, Settings2, Sparkles } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { LogueLogo, LogueMark, Resizer, cn, usePersistentSize } from "@logue/ui";
 
@@ -39,12 +39,14 @@ export function AppShell({
   onRoute,
   children,
   offline = false,
+  onFind,
 }: {
   route: Route;
   onRoute: (route: Route) => void;
   children: ReactNode;
   /** The Host is unreachable — nothing on any screen is current. */
   offline?: boolean;
+  onFind?: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(wasCollapsed);
   const { size, setSize } = usePersistentSize({
@@ -111,6 +113,28 @@ export function AppShell({
             </>
           )}
         </div>
+
+        {onFind && (
+          // Above the destinations, because it reaches all of them.
+          <button
+            type="button"
+            aria-label="Find anything"
+            title="Find anything · ⌘K"
+            onClick={onFind}
+            className={cn(
+              "flex h-control items-center rounded-md text-left text-[13px] text-ink-soft hover:bg-hover",
+              collapsed ? "justify-center" : "gap-2 px-2",
+            )}
+          >
+            <Search size={15} className="shrink-0 text-muted" />
+            {!collapsed && (
+              <>
+                <span className="truncate">Find</span>
+                <kbd className="ml-auto font-sans text-[11px] text-faint">⌘K</kbd>
+              </>
+            )}
+          </button>
+        )}
 
         {ROUTES.map((key) => {
           const { label, icon: Icon } = NAV[key];

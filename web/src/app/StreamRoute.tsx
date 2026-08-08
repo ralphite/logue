@@ -104,13 +104,13 @@ function where(material: Material): string {
 }
 
 /** Everything captured, newest first. The one page you can start from. */
-export function StreamRoute() {
+export function StreamRoute({ openId, onOpen }: { openId?: string; onOpen: (id: string | undefined) => void }) {
   const [query, setQuery] = useState("");
   const [tag, setTag] = useState<string>();
   const [reviewing, setReviewing] = useState(false);
   const [group, setGroup] = useState<Topic>();
   const [renaming, setRenaming] = useState("");
-  const [openId, setOpenId] = useState<string>();
+  const setOpenId = onOpen;
   const materials = useHost(() => api.materials(), []);
   const review = useHost(() => api.review(), []);
   const topics = useHost(() => api.topics(), []);

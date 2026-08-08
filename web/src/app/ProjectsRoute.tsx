@@ -6,12 +6,19 @@ import { Page, Row, RowActions, Rows } from "./AppShell";
 import { timeAgo, useAction, useHost } from "./useHost";
 import { GenerateBox } from "./GenerateBox";
 
-export function ProjectsRoute({ onOpenDocument }: { onOpenDocument: (id: string) => void }) {
-  const [openId, setOpenId] = useState<string>();
+export function ProjectsRoute({
+  openId,
+  onOpen,
+  onOpenDocument,
+}: {
+  openId?: string;
+  onOpen: (id: string | undefined) => void;
+  onOpenDocument: (id: string) => void;
+}) {
   return openId ? (
-    <ProjectDetail id={openId} onBack={() => setOpenId(undefined)} onOpenDocument={onOpenDocument} />
+    <ProjectDetail id={openId} onBack={() => onOpen(undefined)} onOpenDocument={onOpenDocument} />
   ) : (
-    <ProjectList onOpen={setOpenId} />
+    <ProjectList onOpen={onOpen} />
   );
 }
 

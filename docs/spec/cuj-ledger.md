@@ -56,6 +56,21 @@ product was actually used:
    accepted any answer, so old code could satisfy it. It now waits for the Host
    that reports the build just deployed.
 
+## Where the checks put what they make
+
+Everything a check creates goes into the **Logue QA** Project and carries the
+`qa` tag, and nothing is deleted afterwards.
+
+The checks run against the real workspace, because a check against a fixture
+proves the fixture works. That means they leave real records behind. Deleting
+them afterwards is the wrong answer twice over: a run that cleans up after
+itself erases the evidence that it worked, and deleting from someone's
+workspace is a destructive act performed by a script nobody is watching.
+
+A check that borrows an existing Source — filing it, renaming its group,
+restoring an older transcript — puts that Source back exactly as it found it.
+Only the things it *made* stay, and they stay somewhere obvious.
+
 ## The test browser
 
 Real Chrome, a throwaway profile, and three things that must match a real
