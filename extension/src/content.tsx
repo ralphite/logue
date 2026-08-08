@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { host, type Context, type Material } from "./api";
 import { caretRect } from "./caret";
 import * as googleDocs from "./googleDocs";
-import { activeEditable, insertAtCaret, isOurs, pageSelection, pageSource, type Editable, type SelectionSnapshot } from "./editable";
+import { activeEditable, insertAtCaret, isOurs, pageSelection, pageSource, readCaret, restoreCaret, type CaretPosition, type Editable, type SelectionSnapshot } from "./editable";
 import { isFromBackground } from "./messages";
 import { aboveSelection, besideCaret, BAR } from "./position";
 import { NO_OVERRIDES, type VoiceOverrides } from "./overrides";
@@ -59,12 +59,18 @@ function Surfaces() {
 
   // -- the caret-following bar -------------------------------------------
   const target = useRef<Editable | null>(null);
+  /** The editor and caret the transcript belongs to, held across a focus change. */
+  const destination = useRef<{ editor: Editable; caret: CaretPosition | undefined } | null>(null);
   const [caret, setCaret] = useState<{ left: number; top: number; bottom: number }>();
   const [moved, setMoved] = useState<{ left: number; top: number }>();
 
   // -- what each surface is doing ----------------------------------------
   const voice = useVoice();
   const [candidate, setCandidate] = useState<{ text: string; material: Material }>();
+  // Where the candidate belongs, frozen when it arrives. Focus often moves the
+  // moment recording stops, and a transcript that vanishes with the caret is a
+  // transcript the person cannot use.
+  const [anchor, setAnchor] = useState<{ left: number; top: number; bottom: number }>();
   const [inserted, setInserted] = useState<{ undo: () => void }>();
   const [commandOpen, setCommandOpen] = useState(false);
   const [command, setCommand] = useState<{ busy: boolean; answer?: string; sources: Material[]; error?: string }>({
@@ -173,8 +179,13 @@ function Surfaces() {
   }, [voice.phase]);
 
   const finishVoice = async () => {
+    const at = caret;
+    destination.current = target.current ? { editor: target.current, caret: readCaret(target.current) } : null;
     const result = await voice.stop({ project, overrides, source: pageSource() });
-    if (result) setCandidate(result);
+    if (result) {
+      setAnchor(at);
+      setCandidate(result);
+    }
   };
 
   const insert = () => {
@@ -184,8 +195,14 @@ function Surfaces() {
       if (googleDocs.insert(candidate.text)) setInserted({ undo: () => undefined });
       return;
     }
-    if (!target.current) return;
-    const done = insertAtCaret(target.current, candidate.text);
+    const held = destination.current;
+    const editor = held?.editor ?? target.current;
+    if (!editor) return;
+    // Focus moved to our own panel while the transcript was reviewed. Focusing
+    // an element puts the caret at its start, so put the caret back too —
+    // otherwise the transcript lands at the top of what the person was writing.
+    restoreCaret(editor, held?.caret);
+    const done = insertAtCaret(editor, candidate.text);
     if (done) setInserted(done);
   };
 
@@ -289,7 +306,10 @@ function Surfaces() {
     : caret
       ? besideCaret(caret, viewport(), barSize.width, barSize.height)
       : undefined;
-  const candidateAt = caret ? besideCaret(caret, viewport(), CANDIDATE.width, CANDIDATE.height) : undefined;
+  const candidateSpot = anchor ?? caret;
+  const candidateAt = candidateSpot
+    ? besideCaret(candidateSpot, viewport(), CANDIDATE.width, CANDIDATE.height)
+    : { left: 16, top: 16 };
   const commandAt = caret
     ? besideCaret(caret, viewport(), COMMAND.width, COMMAND.height)
     : { left: 16, top: 16 };
@@ -332,10 +352,12 @@ function Surfaces() {
             inserted?.undo();
             setInserted(undefined);
             setCandidate(undefined);
+            setAnchor(undefined);
           }}
           onDismiss={() => {
             setInserted(undefined);
             setCandidate(undefined);
+            setAnchor(undefined);
           }}
         />
       )}

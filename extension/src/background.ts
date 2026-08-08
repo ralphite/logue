@@ -4,14 +4,28 @@
  */
 
 import { tagOf } from "./messages";
+import { siblingOf } from "./paths";
 
-const OFFSCREEN_PATH = "offscreen.html";
+/**
+ * The offscreen page sits beside this worker.
+ *
+ * The installer keeps a stable extension folder whose manifest points at a
+ * versioned `releases/<id>/` directory, so a hard-coded "offscreen.html"
+ * resolves to the extension root — where the file does not exist, and the only
+ * symptom is a recording that never starts. Derive it from where this worker
+ * actually lives instead.
+ */
+function offscreenPath(): string {
+  const background = chrome.runtime.getManifest().background;
+  const worker = background && "service_worker" in background ? background.service_worker : "";
+  return siblingOf(worker, "offscreen.html");
+}
 
 async function ensureOffscreen(): Promise<void> {
   const existing = await chrome.offscreen.hasDocument?.();
   if (existing) return;
   await chrome.offscreen.createDocument({
-    url: OFFSCREEN_PATH,
+    url: offscreenPath(),
     reasons: [chrome.offscreen.Reason.USER_MEDIA],
     justification: "Record the microphone for voice capture.",
   });

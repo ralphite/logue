@@ -85,6 +85,41 @@ export function insertAtCaret(target: Editable, text: string): { undo: () => voi
   };
 }
 
+/**
+ * Where the caret was, so it can be restored later.
+ *
+ * Focusing an element puts the caret at its start, which would insert a
+ * transcript at the top of whatever the person was writing.
+ */
+export interface CaretPosition {
+  start: number;
+  end: number;
+  range?: Range;
+}
+
+export function readCaret(target: Editable): CaretPosition | undefined {
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+    return { start: target.selectionStart ?? 0, end: target.selectionEnd ?? 0 };
+  }
+  const selection = window.getSelection();
+  if (!selection?.rangeCount) return undefined;
+  const range = selection.getRangeAt(0);
+  return target.contains(range.endContainer) ? { start: 0, end: 0, range: range.cloneRange() } : undefined;
+}
+
+export function restoreCaret(target: Editable, caret: CaretPosition | undefined): void {
+  target.focus();
+  if (!caret) return;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+    target.setSelectionRange(caret.start, caret.end);
+    return;
+  }
+  if (!caret.range) return;
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(caret.range);
+}
+
 export interface SelectionSnapshot {
   text: string;
   rect: { left: number; right: number; top: number; bottom: number };
