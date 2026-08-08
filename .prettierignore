@@ -1,0 +1,5 @@
+legacy/
+dist/
+storybook-static/
+node_modules/
+*.md

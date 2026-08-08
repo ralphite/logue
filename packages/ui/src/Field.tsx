@@ -1,0 +1,76 @@
+import type {
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
+import { cn } from "./cn";
+
+const control =
+  "min-w-0 rounded-md border border-line-strong bg-surface text-xs text-ink outline-0 transition-colors hover:border-line-strong focus:border-accent-line focus:shadow-[0_0_0_2px_var(--color-accent-soft)] disabled:bg-panel disabled:text-muted";
+
+/**
+ * A control fills its row unless the caller gave it a width. Deciding this here
+ * rather than always emitting `w-full` means an explicit `w-40` actually wins:
+ * two competing width utilities would otherwise be settled by stylesheet order.
+ */
+function width(className?: string) {
+  return /(^|\s)(w-|max-w-)/.test(className ?? "") ? "" : "w-full";
+}
+
+export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={cn(control, "h-control px-2", width(className), className)} {...props} />;
+}
+
+export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      className={cn(control, "min-h-16 resize-y px-2 py-1.5 leading-[1.5]", width(className), className)}
+      {...props}
+    />
+  );
+}
+
+/**
+ * Every choice in the product is this element. A native select is the one
+ * control that behaves correctly on every page we inject into — look-alikes
+ * built from inputs and datalists are why the old picker felt broken.
+ */
+export function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      className={cn(
+        control,
+        "h-control cursor-pointer appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 12 12%22 fill=%22none%22 stroke=%22%2370726c%22 stroke-width=%221.4%22 stroke-linecap=%22round%22><path d=%22M3 4.75 6 7.75 9 4.75%22/></svg>')] bg-[length:12px] bg-[position:right_6px_center] bg-no-repeat pr-6 pl-2",
+        width(className),
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </select>
+  );
+}
+
+/** Label left, control right — a group of these reads as a table. */
+export function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-2">
+      <span className="text-xs text-muted">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+export function Checkbox({
+  label,
+  className,
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & { label: string }) {
+  return (
+    <label className={cn("flex items-center gap-2 text-xs text-ink-soft", className)}>
+      <input type="checkbox" className="m-0 size-3.5 accent-accent" {...props} />
+      {label}
+    </label>
+  );
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": ["legacy/**", "**/dist/**", "**/storybook-static/**"],
+  "plugins": ["typescript", "react", "unicorn", "oxc"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "rules": {
+    "no-console": ["error", { "allow": ["error", "warn"] }],
+    "eqeqeq": ["error", "smart"],
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-explicit-any": "error",
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+
+    // The build uses the automatic JSX runtime; importing React is dead weight.
+    "react/react-in-jsx-scope": "off",
+    // An effect that cleans up conditionally is the normal React shape.
+    "typescript/consistent-return": "off"
+  }
+}

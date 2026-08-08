@@ -1,27 +1,16 @@
 node_modules/
 dist/
 storybook-static/
-.DS_Store
-.logue-data/
-.logue-backups/
 coverage/
+.DS_Store
 *.log
 .env
 .env.*
 !.env.example
-.codex-audit/
+
+# Local data and captures never belong in the repo.
+.logue-data/
+.logue-backups/
+.artifacts/
 artifacts/
 release/
-server/server
-
-# Local QA captures can contain browser/account state or recorded speech.
-docs/qa/**/*.png
-docs/qa/**/*.jpg
-docs/qa/**/*.jpeg
-docs/qa/**/*.webp
-docs/qa/**/*.wav
-docs/qa/**/*.aiff
-docs/qa/**/*.webm
-docs/qa/**/*.mp3
-docs/qa/**/*.m4a
-.artifacts/

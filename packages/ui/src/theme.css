@@ -1,0 +1,84 @@
+/* The single source of design tokens. Every surface — web, side panel, and the
+   controls injected into other people's pages — resolves to these values. */
+@theme {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", Inter, ui-sans-serif,
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  --color-canvas: #ffffff;
+  --color-nav: #fbfbfa;
+  --color-panel: #fcfcfb;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f6f6f4;
+  --color-hover: #f1f1ef;
+  --color-active: #ececea;
+
+  --color-ink: #20211f;
+  --color-ink-soft: #4e504b;
+  --color-muted: #70726c;
+  --color-faint: #73756f;
+
+  --color-line: #e7e7e3;
+  --color-line-strong: #d9dad5;
+
+  --color-accent: #535fdb;
+  --color-accent-hover: #4651c7;
+  --color-accent-soft: #f0f1fd;
+  --color-accent-line: #cfd2f6;
+
+  --color-danger: #a33d36;
+  --color-danger-soft: #fdf3f2;
+  --color-warning: #9a6814;
+  --color-success: #347847;
+
+  --radius-sm: 5px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* Control heights. Nothing in the product is taller than a panel row. */
+  --spacing-control: 28px;
+  --spacing-bar: 32px;
+  --spacing-row: 36px;
+
+  /* Reading axes, exposed as max-w-* utilities. */
+  --container-reading: 820px;
+  --container-list: 940px;
+  --container-settings: 1180px;
+
+  /* Injected surfaces sit above every host-page stacking context. */
+  --z-index-surface: 2147483646;
+  --z-index-popover: 2147483647;
+  --z-index-hint: 2147483645;
+}
+
+@keyframes logue-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes logue-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@layer components {
+  /* A floating surface is defined by its shadow, never a border. */
+  .logue-float {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow:
+      0 0 0 1px rgb(15 15 15 / 6%),
+      0 3px 6px rgb(15 15 15 / 8%),
+      0 9px 24px rgb(15 15 15 / 12%);
+  }
+
+  .logue-scroll {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+}
