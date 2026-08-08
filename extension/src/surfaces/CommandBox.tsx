@@ -33,7 +33,12 @@ export function CommandBox({
   const usable = (context?.skills ?? []).filter(
     (skill) => skill.enabled && ["insert", "document", "qa"].includes(skill.output),
   );
-  const preferred = usable.find((skill) => skill.built_in_key === "ask") ?? usable[0];
+  // Settings first: someone who has said which Skill answers their questions
+  // should not be handed the built-in instead.
+  const preferred =
+    usable.find((skill) => skill.id === context?.defaults?.qa) ??
+    usable.find((skill) => skill.built_in_key === "ask") ??
+    usable[0];
 
   const [instruction, setInstruction] = useState("");
   const [project, setProject] = useState(context?.voice_profile.project_name ?? "");

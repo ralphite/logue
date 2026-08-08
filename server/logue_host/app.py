@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .build import installed_extension_build
-from .domain import backup, capture, documents, generation, materials, projects, skills, topics
+from .domain import backup, capture, defaults, documents, generation, materials, projects, skills, topics
 from .errors import BadRequest, NotFound
 from .http import Request, Response, Router
 from .ids import new_id, now
@@ -425,6 +425,7 @@ class App:
                 "skills": [
                     s for s in store.skills.list(sort_key="name", reverse=False) if s.get("enabled")
                 ],
+                "defaults": defaults.chosen(store),
             }
 
         # -- settings and model ---------------------------------------------

@@ -1,7 +1,7 @@
 import { Check, Download } from "lucide-react";
 import { useState } from "react";
 import { Button, ErrorNote, Field, Input, Select, Spinner } from "@logue/ui";
-import { api } from "../api";
+import { api, type Skill } from "../api";
 import { Page } from "./AppShell";
 import { useAction, useHost } from "./useHost";
 
@@ -13,10 +13,36 @@ function bytes(value: number): string {
   return `${Math.round(value / 1e3)} KB`;
 }
 
+/**
+ * The Skill each surface reaches for first.
+ *
+ * `accepts` is what makes this usable rather than a wall of every Skill five
+ * times over: a Skill that writes a document is not an answer to a question,
+ * and offering it here only invites a choice that will disappoint.
+ */
+const SLOTS: { key: string; label: string; accepts: (skill: Skill) => boolean }[] = [
+  { key: "default_transcription_skill", label: "Transcribing", accepts: (s) => s.task === "transcribe" },
+  { key: "default_qa_skill", label: "Answering", accepts: (s) => s.output === "qa" || s.output === "insert" },
+  { key: "default_document_skill", label: "Drafting", accepts: (s) => s.output === "document" },
+  {
+    key: "default_extension_skill",
+    label: "Selection",
+    accepts: (s) => s.contexts.includes("selection") && s.output !== "document",
+  },
+  { key: "default_organization_skill", label: "Organising", accepts: (s) => s.task === "organize" },
+];
+
+/** Settings are stored loosely; anything that is not an id reads as no choice. */
+function chosen(settings: Record<string, unknown> | undefined, key: string): string {
+  const value = settings?.[key];
+  return typeof value === "string" ? value : "";
+}
+
 export function SettingsRoute() {
   const status = useHost(() => api.status(), []);
   const model = useHost(() => api.model(), []);
   const settings = useHost(() => api.settings(), []);
+  const skills = useHost(() => api.skills(), []);
   const backup = useHost(() => api.backupPreview(), []);
 
   const [apiKey, setApiKey] = useState("");
@@ -108,6 +134,32 @@ export function SettingsRoute() {
               ))}
             </Select>
           </Field>
+        </Section>
+
+        <Section title="Default Skills">
+          <p className="text-meta text-muted">
+            What each surface reaches for, so you are not asked every time.
+          </p>
+          {SLOTS.map((slot) => (
+            <Field key={slot.key} label={slot.label}>
+              <Select
+                value={chosen(settings.data?.settings, slot.key)}
+                aria-label={slot.label}
+                onChange={(event) =>
+                  void action
+                    .run(() => api.updateSettings({ [slot.key]: event.target.value }))
+                    .then(() => settings.refresh())
+                }
+              >
+                <option value="">Ask me each time</option>
+                {(skills.data?.skills ?? []).filter(slot.accepts).map((skill) => (
+                  <option key={skill.id} value={skill.id}>
+                    {skill.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ))}
         </Section>
 
         <Section title="Data">

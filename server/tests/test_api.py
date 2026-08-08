@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from logue_host.app import App
 from logue_host.build import installed_extension_build
+from logue_host.domain import capture
 from logue_host.errors import BadRequest, Conflict, NotFound
 from logue_host.http import Request, serve
 from logue_host.providers import Provider
@@ -253,6 +254,34 @@ class HostTest(Workspace, unittest.TestCase):
     def test_ids_cannot_escape_the_workspace(self) -> None:
         with self.assertRaises(NotFound):
             self.call("GET", "/v1/materials/..%2f..%2fsettings")
+
+
+class DefaultSkillTest(Workspace, unittest.TestCase):
+    """Choosing a Skill once must mean the surfaces stop asking."""
+
+    def a_skill(self, **over) -> dict:
+        payload = {"name": "Mine", "instructions": "Say it my way.", "task": "transcribe", "output": "insert"}
+        return self.call("POST", "/v1/skills", {**payload, **over})["skill"]
+
+    def test_a_slot_naming_a_live_skill_is_reported(self) -> None:
+        skill = self.a_skill()
+        self.call("PATCH", "/v1/settings", {"default_transcription_skill": skill["id"]})
+        self.assertEqual(self.call("GET", "/v1/context")["defaults"]["transcription"], skill["id"])
+
+    def test_a_slot_naming_a_skill_that_is_gone_reports_nothing(self) -> None:
+        """A stale id is not worth an error; the surface just falls back."""
+        self.call("PATCH", "/v1/settings", {"default_qa_skill": "sk_deleted_long_ago"})
+        self.assertNotIn("qa", self.call("GET", "/v1/context")["defaults"])
+
+    def test_the_chosen_skill_shapes_the_transcription_prompt(self) -> None:
+        skill = self.a_skill(instructions="Keep every filler word.")
+        self.call("PATCH", "/v1/settings", {"default_transcription_skill": skill["id"]})
+        prompt = capture.transcription_instructions(self.app.store, "")
+        self.assertIn("Keep every filler word.", prompt)
+
+    def test_without_a_choice_the_prompt_still_works(self) -> None:
+        prompt = capture.transcription_instructions(self.app.store, "")
+        self.assertIn("Transcribe this recording verbatim", prompt)
 
 
 class ConcurrentEditTest(Workspace, unittest.TestCase):

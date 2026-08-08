@@ -18,6 +18,8 @@ export interface Context {
   projects: { id: string; name: string }[];
   vocabularies: { id: string; name: string }[];
   skills: Skill[];
+  /** The Skill each surface reaches for first, chosen once in Settings. */
+  defaults?: { qa?: string; document?: string; extension?: string; transcription?: string };
 }
 
 export interface Material {

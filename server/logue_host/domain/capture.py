@@ -13,7 +13,7 @@ from ..errors import BadRequest
 from ..ids import new_id, now
 from ..providers import Provider
 from ..store import Record, Store
-from . import materials, projects
+from . import defaults, materials, projects
 
 
 def transcription_instructions(store: Store, project: str, overrides: dict[str, Any] | None = None) -> str:
@@ -41,7 +41,12 @@ def transcription_instructions(store: Store, project: str, overrides: dict[str, 
         if record:
             terms.extend(str(term) for term in record.get("terms") or [])
 
-    parts = ["Transcribe this recording verbatim. Return only the transcript, with no commentary."]
+    # The transcription Skill is where someone writes down how they want to be
+    # heard — filler words, punctuation, what to leave in. Ignoring it and
+    # sending a fixed sentence made that Skill decorative.
+    skill = defaults.skill_for(store, "transcription")
+    opening = str((skill or {}).get("instructions") or "").strip()
+    parts = [opening or "Transcribe this recording verbatim. Return only the transcript, with no commentary."]
     if language and language.lower() not in ("auto-detect", "auto"):
         parts.append(f"The speaker is using {language}.")
     if terms:

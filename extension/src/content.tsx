@@ -340,9 +340,12 @@ function Surfaces() {
     ? aboveSelection(selection.rect, viewport(), writing ? 320 : SELECTION.width, writing ? 140 : SELECTION.height)
     : undefined;
 
-  const selectionSkills = (context?.skills ?? []).filter(
-    (skill) => skill.enabled && skill.contexts.includes("selection"),
-  );
+  // The toolbar shows the first two without opening a menu, so the Skill chosen
+  // in Settings has to be one of them — otherwise choosing it changed nothing.
+  const preferred = context?.defaults?.extension;
+  const selectionSkills = (context?.skills ?? [])
+    .filter((skill) => skill.enabled && skill.contexts.includes("selection"))
+    .toSorted((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
 
   const showing = visibleSurface({
     candidate: Boolean(candidate),
