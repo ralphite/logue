@@ -335,3 +335,21 @@ export function ProvenanceRow({
     </Tag>
   );
 }
+
+/** A numbered Source behind a generated answer. Pressed means its panel is open. */
+export function CitationChip({ className, children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "inline-flex min-h-7 items-center gap-[5px] rounded-full border border-accent-line bg-accent-soft px-[9px] py-1 text-xs text-[#424ebc]",
+        "hover:bg-[#e4e6fc] aria-pressed:border-accent aria-pressed:bg-[#dfe1fb]",
+        "[&>span:first-child]:font-[650]",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}

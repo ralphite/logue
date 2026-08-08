@@ -68,7 +68,7 @@ import { RunInspector } from "./LibraryRoute";
 import { DocumentContent } from "./DocumentContent";
 import { readNavigationState, updateNavigationState } from "./navigationState";
 import { ContentSummary, contentSummary } from "./contentPresentation";
-import { ContextSummary, HeadingCopy, Lead, PageAxis, PageScroll, PanelSectionHeading, PickerGroup, ProvenanceRow, ReviewList, ReviewRow, SettingRow, SettingsSection } from "./layout";
+import { CitationChip, ContextSummary, HeadingCopy, Lead, PageAxis, PageScroll, PanelSectionHeading, PickerGroup, ProvenanceRow, ReviewList, ReviewRow, SettingRow, SettingsSection } from "./layout";
 import { Chip, InspectorHeader, InspectorScroll, SourceBundle, SourceToggle } from "./Inspector";
 
 type ProjectView = "workspace" | "context" | "history" | "settings";
@@ -1203,9 +1203,8 @@ export function ProjectRoute({
           ) : null}
           <div className="mt-3 flex flex-wrap gap-1.5">
             {runSources.map((source, index) => (
-              <button
+              <CitationChip
                 key={source.id}
-                className="inline-flex min-h-7 items-center gap-[5px] rounded-full border border-accent-line bg-accent-soft px-[9px] py-1 text-xs text-[#424ebc]"
                 aria-pressed={openSourceId === source.id}
                 onClick={() =>
                   setOpenSourceId(
@@ -1217,7 +1216,7 @@ export function ProjectRoute({
                 {source.source?.title ||
                   source.source?.domain ||
                   (source.actor === "user" ? "Your source" : "AI source")}
-              </button>
+              </CitationChip>
             ))}
           </div>
           <InlineActions className="justify-end">

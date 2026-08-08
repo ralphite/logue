@@ -55,7 +55,7 @@ import {
 } from "@logue/ui";
 
 import type { LogueSkill } from "../lib/skillApi";
-import { Banner, Button, Card, CheckboxField, Dialog, FieldGrid, IconButton, InlineActions, Input, Meta, OriginLabel, Pill, Select, Textarea } from "../ui";
+import { Banner, Button, Card, CheckboxField, Dialog, Field, FieldGrid, IconButton, InlineActions, Input, Meta, OriginLabel, Pill, Select, Textarea } from "../ui";
 import {
   deleteExtensionPendingCapture,
   exportExtensionPendingCapture,
@@ -109,11 +109,18 @@ function providerCapabilityStatus(
   configured: boolean,
   ready: boolean,
   error?: { code: string; message: string } | null,
-) {
-  if (!configured) return { label: "Connection required", detail: "Connect a provider to use this capability." };
-  if (ready) return { label: "Ready", detail: "The saved connection was verified." };
-  if (!error || error.code === "unverified") return { label: "Check connection", detail: error?.message || "Verify the saved connection before using this capability." };
-  return { label: "Needs attention", detail: error.message };
+): { label: string; detail: string; tone: "ready" | "attention" } {
+  if (!configured) return { label: "Connection required", detail: "Connect a provider to use this capability.", tone: "attention" };
+  if (ready) return { label: "Ready", detail: "The saved connection was verified.", tone: "ready" };
+  if (!error || error.code === "unverified") return { label: "Check connection", detail: error?.message || "Verify the saved connection before using this capability.", tone: "attention" };
+  return { label: "Needs attention", detail: error.message, tone: "attention" };
+}
+
+/** A capability that needs attention must not read like one that is fine. */
+function CapabilityStatus({ label, tone }: { label: string; tone: "ready" | "attention" }) {
+  return (
+    <span className={`text-[13px] ${tone === "ready" ? "text-[#4c7052]" : "text-warning"}`}>{label}</span>
+  );
 }
 
 const shortcutLabels: Record<ExtensionShortcut["command"], string> = {
@@ -1152,12 +1159,12 @@ export function SettingsRoute({
                   const generation = providerCapabilityStatus(configured, Boolean(status?.generation_ready), status?.provider_errors.generation);
                   const voice = providerCapabilityStatus(configured, Boolean(status?.voice_ready), status?.provider_errors.voice);
                   return <>
-                    <SettingRow title="Generation" detail={generation.detail}><span className="text-[13px] text-[#4c7052]">{generation.label}</span></SettingRow>
-                    <SettingRow title="Transcription" detail={voice.detail}><span className="text-[13px] text-[#4c7052]">{voice.label}</span></SettingRow>
+                    <SettingRow title="Generation" detail={generation.detail}><CapabilityStatus {...generation} /></SettingRow>
+                    <SettingRow title="Transcription" detail={voice.detail}><CapabilityStatus {...voice} /></SettingRow>
                   </>;
                 })()}
                 <FieldGrid>
-                  <label>
+                  <Field>
                     Provider
                     <Select
                       value={connection.provider}
@@ -1188,8 +1195,8 @@ export function SettingsRoute({
                         OpenAI-compatible provider
                       </option>
                     </Select>
-                  </label>
-                  <label>
+                  </Field>
+                  <Field>
                     API key
                     <Input
                       type="password"
@@ -1202,8 +1209,8 @@ export function SettingsRoute({
                           : "Stored only on this Host"
                       }
                     />
-                  </label>
-                  <label className="col-span-full">
+                  </Field>
+                  <Field span>
                     Endpoint
                     <Input
                       value={connection.base_url}
@@ -1215,8 +1222,8 @@ export function SettingsRoute({
                         })
                       }
                     />
-                  </label>
-                  <label>
+                  </Field>
+                  <Field>
                     Generation model
                     <Input
                       value={connection.model}
@@ -1228,8 +1235,8 @@ export function SettingsRoute({
                         })
                       }
                     />
-                  </label>
-                  <label>
+                  </Field>
+                  <Field>
                     Transcription model
                     <Input
                       value={connection.transcription_model}
@@ -1241,7 +1248,7 @@ export function SettingsRoute({
                         })
                       }
                     />
-                  </label>
+                  </Field>
                 </FieldGrid>
                 <InlineActions>
                   <Button
@@ -1265,7 +1272,7 @@ export function SettingsRoute({
                 <SettingsSection>
                   <h2>Default voice profile</h2>
                   <FieldGrid>
-                    <label>
+                    <Field>
                       Transcription Skill
                       <Select
                         value={
@@ -1296,8 +1303,8 @@ export function SettingsRoute({
                             </option>
                           ))}
                       </Select>
-                    </label>
-                    <label>
+                    </Field>
+                    <Field>
                       Primary language
                       <Input
                         value={draft.voice_profile.primary_language}
@@ -1312,8 +1319,8 @@ export function SettingsRoute({
                         }
                         onBlur={() => void persist()}
                       />
-                    </label>
-                    <label className="col-span-full">
+                    </Field>
+                    <Field span>
                       Mixed languages
                       <Input
                         value={draft.voice_profile.mixed_languages.join(", ")}
@@ -1331,8 +1338,8 @@ export function SettingsRoute({
                         }
                         onBlur={() => void persist()}
                       />
-                    </label>
-                    <label className="col-span-full">
+                    </Field>
+                    <Field span>
                       Known phrases
                       <Textarea
                         value={draft.voice_profile.phrases.join("\n")}
@@ -1351,8 +1358,8 @@ export function SettingsRoute({
                         onBlur={() => void persist()}
                         placeholder="One phrase per line"
                       />
-                    </label>
-                    <label className="col-span-full">
+                    </Field>
+                    <Field span>
                       Avoid mistaken terms
                       <Textarea
                         value={draft.voice_profile.avoid_terms.join("\n")}
@@ -1371,8 +1378,8 @@ export function SettingsRoute({
                         onBlur={() => void persist()}
                         placeholder="One form to avoid per line"
                       />
-                    </label>
-                    <label className="col-span-full">
+                    </Field>
+                    <Field span>
                       Formatting preference
                       <Textarea
                         value={draft.voice_profile.formatting_preference}
@@ -1388,8 +1395,8 @@ export function SettingsRoute({
                         onBlur={() => void persist()}
                         placeholder="For example: concise paragraphs with Markdown bullets"
                       />
-                    </label>
-                    <label className="col-span-full">
+                    </Field>
+                    <Field span>
                       Personal context
                       <Textarea
                         value={draft.personal_context}
@@ -1401,7 +1408,7 @@ export function SettingsRoute({
                         }
                         onBlur={() => void persist()}
                       />
-                    </label>
+                    </Field>
                   </FieldGrid>
                 </SettingsSection>
                 <SettingsSection>
@@ -1799,7 +1806,7 @@ export function SettingsRoute({
                           ? `${deletePreview.summary.sources} Sources · ${deletePreview.summary.projects} Projects · ${deletePreview.summary.documents} Documents · ${deletePreview.summary.runs} Runs · ${deletePreview.summary.recordings} recordings · ${deletePreview.summary.skills} My Skills`
                           : "Preparing dependencies…"}
                       </p>
-                      <label>
+                      <Field>
                         Type DELETE to continue
                         <Input
                           value={deleteConfirm}
@@ -1807,7 +1814,7 @@ export function SettingsRoute({
                             setDeleteConfirm(event.target.value)
                           }
                         />
-                      </label>
+                      </Field>
                       <InlineActions>
                         <Button
                           onClick={() => {
@@ -1912,7 +1919,7 @@ export function SettingsRoute({
                 {exportOpen ? (
                   <Card>
                     <FieldGrid>
-                      <label>
+                      <Field>
                         Scope
                         <Select
                           value={exportScope}
@@ -1928,9 +1935,9 @@ export function SettingsRoute({
                           <option value="library">Library</option>
                           <option value="project">Project</option>
                         </Select>
-                      </label>
+                      </Field>
                       {exportScope === "project" ? (
-                        <label>
+                        <Field>
                           Project
                           <Select
                             value={exportProjectId}
@@ -1942,7 +1949,7 @@ export function SettingsRoute({
                               </option>
                             ))}
                           </Select>
-                        </label>
+                        </Field>
                       ) : null}
                       <CheckboxField>
                         <input
