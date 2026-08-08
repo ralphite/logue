@@ -64,7 +64,7 @@ import {
   updateNavigationState,
 } from "./navigationState";
 import { contentSummary } from "./contentPresentation";
-import { axisClass, cardClass, dangerCardClass, documentMenuClass, eyebrowClass, headingCopyClass, inlineActionsClass, inputClass, inspectorHeaderClass, inspectorScrollClass, leadClass, metaClass, panelHeadingClass, scrollClass, sourceBundleClass, sourceListClass, sourceToggleClass, textareaClass, warningBarClass } from "./layout";
+import { axisClass, cardClass, contextSummaryClass, dangerCardClass, documentMenuClass, eyebrowClass, headingCopyClass, inlineActionsClass, inputClass, inspectorHeaderClass, inspectorScrollClass, leadClass, metaClass, panelHeadingClass, scrollClass, sourceBundleClass, sourceListClass, sourceToggleClass, textareaClass, toolbarSelectClass, warningBarClass } from "./layout";
 
 type DisplaySource = Material | SkillRunSourceSnapshot;
 
@@ -1216,10 +1216,10 @@ export function DocumentsRoute({
                   markEdited();
                 }}
               />
-              <div className="flex items-center gap-2">
+              <div className="mb-5.5 grid min-w-0 grid-cols-[minmax(0,auto)_minmax(0,1fr)] items-center gap-2.5 @max-[720px]:grid-cols-[minmax(0,1fr)] @max-[720px]:items-start">
                 <div className="flex min-w-0 items-center gap-1.5">
                   <select
-                  className={inputClass}
+                  className={toolbarSelectClass}
                   aria-label="Project"
                   value={preview?.project ?? project}
                   disabled={Boolean(preview)}
@@ -1237,7 +1237,7 @@ export function DocumentsRoute({
                   </select>
                   <div className="inline-flex min-w-0 items-center gap-[5px]">
                     <select
-                      className={inputClass}
+                      className={toolbarSelectClass}
                       aria-label="Document action"
                       value={actionSkillId}
                       disabled={Boolean(preview) || actionBusy}
@@ -1533,7 +1533,7 @@ export function DocumentsRoute({
                   {error}
                 </div>
               ) : null}
-              <div >
+              <div className={contextSummaryClass}>
                 <span>
                   <Clock3 size={14} />
                   {

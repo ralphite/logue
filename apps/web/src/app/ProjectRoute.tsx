@@ -70,7 +70,7 @@ import { DocumentContent } from "./DocumentContent";
 import { readNavigationState, updateNavigationState } from "./navigationState";
 import { ContentSummary, contentSummary } from "./contentPresentation";
 import { RowActions } from "./RowActions";
-import { axisClass, cardClass, checkboxRowClass, chipButtonClass, dialogBackdropClass, dialogClass, eyebrowClass, fieldLabelClass, formGridClass, headingCopyClass, inlineActionsClass, inputClass, inspectorHeaderClass, inspectorScrollClass, leadClass, metaClass, panelHeadingClass, pillClass, reviewListClass, reviewRowClass, scrollClass, segmentedTabClass, settingRowClass, settingsSectionClass, skillPickerGroupClass, sourceBundleActiveClass, sourceBundleClass, sourceToggleClass, tabClass, textareaClass, warningBarClass } from "./layout";
+import { axisClass, cardClass, checkboxRowClass, chipButtonClass, contextSummaryClass, dialogBackdropClass, dialogClass, eyebrowClass, fieldLabelClass, formGridClass, headingCopyClass, inlineActionsClass, inputClass, inspectorHeaderClass, inspectorScrollClass, leadClass, metaClass, panelHeadingClass, pillClass, reviewListClass, reviewRowClass, scrollClass, segmentedTabClass, settingRowClass, settingsSectionClass, skillPickerGroupClass, sourceBundleActiveClass, sourceBundleClass, sourceToggleClass, tabClass, textareaClass, warningBarClass } from "./layout";
 
 type ProjectView = "workspace" | "context" | "history" | "settings";
 type RequestMode = "ask" | "compare" | "draft";
@@ -1495,7 +1495,7 @@ export function ProjectRoute({
                           )
                         }
                       />
-                      <div >
+                      <div className={contextSummaryClass}>
                         <span>
                           Revision {document.revision} ·{" "}
                           {

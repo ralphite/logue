@@ -100,6 +100,9 @@ export const inputClass = `h-9 w-full min-w-0 rounded-md border border-line-stro
 export const textareaClass = `min-h-[150px] w-full resize-y rounded-md border border-line-strong bg-surface px-3.5 py-3 leading-[1.6] text-ink outline-0 ${focusRing}`;
 export const selectClass = inputClass;
 
+/** Toolbar selects size to their content instead of filling the row. */
+export const toolbarSelectClass = `${inputClass} w-auto max-w-37.5 min-w-31`;
+
 export const fieldLabelClass = "grid gap-[7px] text-[13px] text-ink-soft";
 export const checkboxRowClass = "grid min-h-9 grid-cols-[auto_minmax(0,1fr)] items-center gap-[7px] self-end text-[13px] text-ink-soft";
 export const formGridClass = "my-4.5 grid grid-cols-2 gap-3.5 max-[640px]:grid-cols-1";
@@ -114,6 +117,8 @@ export const eyebrowClass = "mb-2.5 text-[13px] text-muted";
 export const leadClass = "mt-2.5 max-w-160 text-[15px] text-muted";
 
 export const headingCopyClass = "min-w-0 [&>h1]:text-[32px] [&>h1]:leading-[1.16] [&>h1]:font-[690] [&>h1]:tracking-[-0.04em] [&>h1]:text-ink [&>p]:mt-2.5 [&>p]:max-w-160 [&>p]:text-[15px] [&>p]:text-muted";
+
+export const contextSummaryClass = "mt-9 flex items-center justify-between gap-4 border-t border-line pt-4.5 text-[13px] text-muted [&>span]:inline-flex [&>span]:items-center [&>span]:gap-1.5";
 
 export const settingsSectionClass = "[&>h2]:mt-[42px] [&>h2]:mb-1.5 [&>h2]:text-base [&>h2]:font-[660] [&:first-of-type>h2]:mt-[34px]";
 export const panelHeadingClass = "mb-2.5 flex items-center justify-between gap-3 [&_h2]:text-[13px] [&_h2]:font-[650] [&_p]:mt-1 [&_p]:text-xs [&_p]:text-muted";

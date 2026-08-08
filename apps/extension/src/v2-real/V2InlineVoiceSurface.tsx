@@ -143,7 +143,7 @@ export function V2InlineVoiceSurface({
     </> : <>
       <button type="button" className={`${iconButton} bg-accent-soft text-accent hover:bg-[#e4e6fc] hover:text-accent-hover`} aria-label="Start voice input" title={phase === "error" ? "Try voice input again" : `Voice write · ${profileLabel}`} onPointerDown={(event) => event.preventDefault()} onClick={onStart}><Mic size={16} /></button>
       {onStartCommand ? <button type="button" className={`${iconButton} text-muted hover:bg-surface-muted hover:text-ink`} aria-label="Start voice command" title="Voice command" onPointerDown={(event) => event.preventDefault()} onClick={onStartCommand}><Sparkles size={15} /></button> : null}
-      <button type="button" className={`${profileButton} h-8`} aria-expanded={profilePickerOpen} aria-label={`Voice profile: ${profileLabel}`} onPointerDown={(event) => event.preventDefault()} onClick={() => onProfilePickerOpenChange(!profilePickerOpen)}><span>{profileLabel}</span><ChevronDown size={11} /></button>
+      <button type="button" className={`${profileButton} h-8 flex-1`} aria-expanded={profilePickerOpen} aria-label={`Voice profile: ${profileLabel}`} onPointerDown={(event) => event.preventDefault()} onClick={() => onProfilePickerOpenChange(!profilePickerOpen)}><span>{profileLabel}</span><ChevronDown size={11} /></button>
     </>}
     {profilePickerOpen && !captureActive ? <div className={`${profilePopover} right-0`}><VoiceProfilePicker context={profileContext} overrides={profileOverrides} onChange={onProfileOverridesChange} onClose={() => onProfilePickerOpenChange(false)} /></div> : null}
     {error ? <div

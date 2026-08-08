@@ -16,7 +16,7 @@ export const actionButton =
 export const primaryAction = "bg-accent text-white hover:bg-accent-hover hover:text-white";
 
 export const profileButton =
-  "inline-flex min-w-0 flex-1 items-center justify-between gap-[5px] overflow-hidden rounded-[7px] px-[7px] text-xs whitespace-nowrap text-muted hover:bg-surface-muted hover:text-ink aria-expanded:bg-surface-muted aria-expanded:text-ink [&_span]:overflow-hidden [&_span]:text-ellipsis";
+  "inline-flex min-w-0 items-center justify-between gap-[5px] overflow-hidden rounded-[7px] px-[7px] text-xs whitespace-nowrap text-muted hover:bg-surface-muted hover:text-ink aria-expanded:bg-surface-muted aria-expanded:text-ink [&_span]:overflow-hidden [&_span]:text-ellipsis";
 
 export const profilePopover =
   "absolute bottom-[calc(100%+8px)] z-popover w-[284px] rounded-xl border border-line bg-surface p-3 shadow-[0_18px_48px_rgb(20_21_18/18%)]";

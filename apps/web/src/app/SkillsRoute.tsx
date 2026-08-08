@@ -714,7 +714,7 @@ export function SkillsRoute({
                   className="shrink-0 self-start border-line max-[900px]:w-full max-[900px]:border-t max-[900px]:pt-6 min-[900px]:sticky min-[900px]:top-6 min-[900px]:border-l min-[900px]:pl-6"
                   style={{ width: skillEditorWidth }}
                 >
-                  <div className="mb-4.5 flex items-start justify-between gap-3 [&_strong]:block [&_strong]:text-[15px] [&_span]:mt-[3px] [&_span]:block [&_span]:text-[11px] [&_span]:text-muted">
+                  <div className="mb-4.5 flex items-start justify-between gap-3 [&>div>strong]:block [&>div>strong]:text-[15px] [&>div>span]:mt-[3px] [&>div>span]:block [&>div>span]:text-[11px] [&>div>span]:text-muted">
                     <div>
                       <OriginLabel
                         origin={selected.system ? "ai" : "you"}
