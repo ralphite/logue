@@ -1,4 +1,4 @@
-import { ProductStatus, useFocusBoundary, type Material, type MaterialOrganization } from "@logue/ui";
+import { ProductStatus, type Material, type MaterialOrganization } from "@logue/ui";
 import {
   Archive,
   ArchiveRestore,
@@ -208,11 +208,6 @@ function ProjectDialog({
   const [overview, setOverview] = useState(project?.overview ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const dialogRef = useFocusBoundary<HTMLElement>({
-    open,
-    onClose,
-    trap: true,
-  });
   useEffect(() => {
     if (open) {
       setName(project?.name ?? "");
@@ -409,11 +404,6 @@ export function ProjectRoute({
   const [deletePreview, setDeletePreview] = useState<DeletionPreview>();
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleteError, setDeleteError] = useState("");
-  const deleteDialogRef = useFocusBoundary<HTMLElement>({
-    open: Boolean(deletePreview),
-    onClose: () => setDeletePreview(undefined),
-    trap: true,
-  });
   const project =
     projects.find((item) => item.name === projectName) ?? projects[0];
   const projectMaterials = useMemo(

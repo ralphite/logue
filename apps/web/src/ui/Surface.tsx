@@ -1,5 +1,5 @@
 import { cn } from "@logue/ui";
-import type { HTMLAttributes, ReactNode } from "react";
+import type { HTMLAttributes } from "react";
 
 /**
  * Containers and status surfaces. These carry the border, radius and spacing

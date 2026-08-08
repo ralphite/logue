@@ -7,7 +7,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   backupWorkspace,
   createPairingCode,
@@ -49,7 +49,6 @@ import {
   type WorkspaceSettings,
 } from "../lib/api";
 import {
-  useFocusBoundary,
   type ExtensionPendingCapture,
   type ExtensionShortcut,
 } from "@logue/ui";
@@ -452,11 +451,6 @@ export function SettingsRoute({
   const [openRunId, setOpenRunId] = useState<string>();
   const [clients, setClients] = useState<LogueClient[]>([]);
   const [pairing, setPairing] = useState<PairingCode>();
-  const restoreDialogRef = useFocusBoundary<HTMLElement>({
-    open: Boolean(restoreTarget),
-    onClose: () => setRestoreTarget(undefined),
-    trap: true,
-  });
   useEffect(() => {
     if (settings) setDraft(settings);
   }, [settings]);

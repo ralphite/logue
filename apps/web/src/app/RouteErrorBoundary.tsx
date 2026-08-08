@@ -15,23 +15,23 @@ export class RouteErrorBoundary extends Component<
   },
   { error?: Error }
 > {
-  state: { error?: Error } = {};
+  override state: { error?: Error } = {};
 
   static getDerivedStateFromError(error: Error) {
     return { error };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo) {
+  override componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("Logue route failed", error, info.componentStack);
   }
 
-  componentDidUpdate(previous: Readonly<{ resetKey: string }>) {
+  override componentDidUpdate(previous: Readonly<{ resetKey: string }>) {
     if (previous.resetKey !== this.props.resetKey && this.state.error) {
       this.setState({ error: undefined });
     }
   }
 
-  render() {
+  override render() {
     if (!this.state.error) return this.props.children;
     return (
       <AppShell route={this.props.route} onRouteChange={this.props.onRoute}>

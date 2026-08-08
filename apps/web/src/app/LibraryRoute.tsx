@@ -273,26 +273,6 @@ function SourceInspector({
     id,
     source: materials.find((item) => item.id === id),
   }));
-  const updateBundle = async (
-    changes: Parameters<typeof updateMaterial>[1],
-  ) => {
-    setBusy(true);
-    setError("");
-    try {
-      await Promise.all(
-        group.items.map((item) => updateMaterial(item.id, changes)),
-      );
-      await onRefresh();
-    } catch (cause) {
-      setError(
-        cause instanceof Error
-          ? cause.message
-          : "Could not update this Source.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
   const updateMembership = async (
     mode: "add" | "remove" | "exclude" | "undo",
   ) => {

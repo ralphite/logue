@@ -14,14 +14,8 @@ import {
 import type { ExtensionSkill, PageMaterial } from "./sidePanelModels";
 import type {
   CaptureContext,
-  ExtensionProjectSkillBindings,
   ProjectAssociation,
-  ProjectVoiceProfile,
-  ResolvedVoiceProfile,
-  TopicVocabulary,
-  VoiceProfile,
   VoiceProfileOverrides,
-  VoiceProfileVocabulary,
 } from "./voiceProfileModels";
 import type {
   PendingVoicePlan,

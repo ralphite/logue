@@ -1,7 +1,7 @@
 import { SelectionActionCandidate, SelectionSkillMenu, captureStableEditableSelection, normalizeSelectionSkillReplacement, replaceSelectionWithUndoIfUnchanged, saveSelectionSkillHistory, selectionSkillDismissalStillApplies, selectionSkillEligibility, type EditableSelectionSnapshot, type ExtensionInputTarget, type ExtensionTargetBridgeRequest, type ExtensionTargetBridgeResponse, type SelectionSkillApplyTransaction, type SelectionSkillReplacementTransaction, type SourceInfo } from "@logue/ui";
 import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ExtensionApiError, adoptExtensionSkillRun, adoptVoiceMaterial, cancelMaterialSave, completePendingVoice, createExtensionSkillRun, getCaptureContext, getExtensionDocuments, getExtensionSettings, getExtensionSkills, getPageMaterials, getPendingVoiceQueueStatus, getServerURL, isExtensionDocumentTombstone, markPendingVoiceTranscribed, queuePendingVoice, retranscribeMaterial, retryExtensionSkillRun, saveExtensionSkillRunAsDocument, saveMaterial, saveSelection, transcribeAudio, updateMaterial, updateSourceAnchor, type AppliedContext, type CaptureContext, type ExtensionDocument, type ExtensionDocumentAdoption, type ExtensionSkill, type ExtensionSkillRun, type PendingVoicePlan, type VoiceProfileOverrides } from "./api";
+import { ExtensionApiError, adoptExtensionSkillRun, adoptVoiceMaterial, cancelMaterialSave, completePendingVoice, createExtensionSkillRun, getCaptureContext, getExtensionDocuments, getExtensionSettings, getExtensionSkills, getPageMaterials, getPendingVoiceQueueStatus, getServerURL, isExtensionDocumentTombstone, markPendingVoiceTranscribed, queuePendingVoice, retranscribeMaterial, retryExtensionSkillRun, saveExtensionSkillRunAsDocument, saveMaterial, saveSelection, transcribeAudio, updateSourceAnchor, type AppliedContext, type CaptureContext, type ExtensionDocument, type ExtensionDocumentAdoption, type ExtensionSkill, type ExtensionSkillRun, type PendingVoicePlan, type VoiceProfileOverrides } from "./api";
 import { activeEditableElement, getEditableText, googleDocsEditableTarget, googleDocsEditorFrame, googleDocsEditorSurface, insertIntoElementWithUndo, isEditableElement, isEditableTargetAvailable, isGoogleDocsDocumentTarget, isGoogleDocsEditorFocused, type LocalInsertTransaction } from "./dom";
 import { hasNativeSelectionSkillOwner, isLogueExtensionDisabledDocument, logueServerCandidate } from "./eligibility";
 import {
@@ -65,16 +65,6 @@ interface InlineRecorderEvent extends Omit<RecordingBridgeEvent, "type"> {
   type: "logue:inline-recorder-event";
 }
 
-function isInlineRecorderEvent(value: unknown): value is InlineRecorderEvent {
-  return Boolean(
-    value && typeof value === "object" &&
-    ["started", "stopped", "cancelled", "error"].includes(String((value as { event?: unknown }).event)) &&
-    typeof (value as { sessionId?: unknown }).sessionId === "string" &&
-    ((value as { audioBase64?: unknown }).audioBase64 === undefined || typeof (value as { audioBase64?: unknown }).audioBase64 === "string") &&
-    ((value as { mimeType?: unknown }).mimeType === undefined || typeof (value as { mimeType?: unknown }).mimeType === "string") &&
-    ((value as { error?: unknown }).error === undefined || typeof (value as { error?: unknown }).error === "string"),
-  );
-}
 
 interface RecordingDisposeMessage {
   type: "logue:recording-dispose";
@@ -1291,9 +1281,9 @@ function ExtensionLauncher() {
         const project = response?.ok && Array.isArray(response.value) ? response.value[0] ?? "" : "";
         setCommandProject(project);
         if (autoRecord) startCommandVoiceRef.current(project, selectionAvailable ? "selection" : "page", false);
-        return getCaptureContext(pageSource().url ?? "", project, voiceProfileOverrides).then((context) => ({ context, project }));
+        return getCaptureContext(pageSource().url ?? "", project, voiceProfileOverrides);
       })
-      .then(({ context, project }) => {
+      .then((context) => {
         if (commandEpochRef.current !== launchEpoch) return;
         setVoiceProfileContext(context);
       })

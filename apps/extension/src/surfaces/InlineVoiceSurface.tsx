@@ -1,8 +1,8 @@
-import { Check, ChevronDown, GripVertical, LoaderCircle, Mic, Sparkles, X } from "lucide-react";
+import { ChevronDown, GripVertical, LoaderCircle, Mic, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import type { CaptureContext, VoiceProfileOverrides } from "../voiceProfileModels";
 import { VoiceProfilePicker } from "../VoiceProfilePicker";
-import { actionButton, errorAction, errorBubble, iconButton, primaryAction, profileButton, profilePopover, recordingChip, recordingDot, spinner } from "./surfaceStyles";
+import { actionButton, disclosureButton, errorAction, errorBubble, floatingBar, iconButton, primaryAction, profilePopover, recordingDot, spinner } from "./surfaceStyles";
 
 export type InlineVoicePhase = "idle" | "starting" | "recording" | "processing" | "error";
 
@@ -115,39 +115,38 @@ export function InlineVoiceSurface({
     onMove({ left: box.left + delta.left, top: box.top + delta.top });
   }, [moved, onMove, onResetPosition]);
 
-  const width = phase === "recording" ? "w-[308px]" : phase === "starting" || phase === "processing" ? "w-[236px]" : "w-[242px]";
   return <div
     ref={surfaceRef}
-    className={`fixed z-surface flex min-h-11 items-center gap-[5px] rounded-xl border border-[rgb(32_33_31/13%)] bg-[rgb(255_255_255/97%)] p-[5px] text-ink backdrop-blur-[14px] ${width} ${dragging ? "shadow-[0_16px_38px_rgb(25_27_23/22%)]" : "shadow-[0_10px_30px_rgb(25_27_23/14%)]"}`}
+    className={`${floatingBar} group ${dragging ? "shadow-[0_0_0_1px_rgb(15_15_15/8%),0_9px_24px_rgb(15_15_15/22%)]" : ""}`}
     style={style}
     role="group"
     aria-label="Logue voice input"
   >
     {onMove ? <button
       type="button"
-      className={`inline-flex h-8.5 w-4 min-w-4 items-center justify-center rounded-sm text-line-strong hover:bg-surface-muted hover:text-muted [touch-action:none] ${dragging ? "cursor-grabbing text-muted" : "cursor-grab"}`}
+      className={`inline-flex h-7 w-3.5 min-w-3.5 items-center justify-center rounded-sm text-transparent group-hover:text-line-strong hover:!text-muted hover:bg-surface-muted focus-visible:text-muted [touch-action:none] ${dragging ? "cursor-grabbing !text-muted" : "cursor-grab"}`}
       aria-label={moved ? "Move Logue voice input · Escape resets it beside the cursor" : "Move Logue voice input"}
       title={moved ? "Drag to move · double-click to snap back to the cursor" : "Drag to move"}
       onPointerDown={dragStart}
       onKeyDown={nudge}
       onDoubleClick={() => onResetPosition?.()}
-    ><GripVertical size={14} /></button> : null}
+    ><GripVertical size={13} /></button> : null}
     {phase === "recording" ? <>
-      <span className={recordingChip} role="status"><span className={recordingDot} />Recording</span>
-      <button type="button" className={`${actionButton} ${primaryAction}`} aria-label="Stop voice input" aria-keyshortcuts="Enter" title="Accept (Enter)" onPointerDown={(event) => event.preventDefault()} onClick={onStopAndInsert}><Check size={15} />Accept <kbd>↵</kbd></button>
-      <button type="button" className={actionButton} aria-label="Cancel voice input" aria-keyshortcuts="Escape" title="Cancel (Esc)" onPointerDown={(event) => event.preventDefault()} onClick={onCancel}><X size={14} />Cancel</button>
+      <span className={recordingDot} role="status" aria-label="Recording" />
+      <button type="button" className={`${actionButton} ${primaryAction}`} aria-label="Stop voice input" aria-keyshortcuts="Enter" title="Accept (Enter)" onPointerDown={(event) => event.preventDefault()} onClick={onStopAndInsert}>Accept <kbd>↵</kbd></button>
+      <button type="button" className={iconButton} aria-label="Cancel voice input" aria-keyshortcuts="Escape" title="Cancel (Esc)" onPointerDown={(event) => event.preventDefault()} onClick={onCancel}><X size={14} /></button>
     </> : captureActive ? <>
-      <LoaderCircle size={15} className={spinner} />
-      <span className="min-w-0 flex-1 text-xs text-muted" role="status">{phase === "starting" ? "Starting microphone…" : "Transcribing…"}</span>
-      <button type="button" className={actionButton} onPointerDown={(event) => event.preventDefault()} onClick={onCancel}>Cancel</button>
+      <LoaderCircle size={14} className={`${spinner} mx-1 text-muted`} />
+      <span className="min-w-0 flex-1 pr-1 text-xs text-muted" role="status">{phase === "starting" ? "Starting mic…" : "Transcribing…"}</span>
+      <button type="button" className={iconButton} aria-label="Cancel voice input" onPointerDown={(event) => event.preventDefault()} onClick={onCancel}><X size={14} /></button>
     </> : <>
-      <button type="button" className={`${iconButton} bg-accent-soft text-accent hover:bg-[#e4e6fc] hover:text-accent-hover`} aria-label="Start voice input" title={phase === "error" ? "Try voice input again" : `Voice write · ${profileLabel}`} onPointerDown={(event) => event.preventDefault()} onClick={onStart}><Mic size={16} /></button>
-      {onStartCommand ? <button type="button" className={`${iconButton} text-muted hover:bg-surface-muted hover:text-ink`} aria-label="Start voice command" title="Voice command" onPointerDown={(event) => event.preventDefault()} onClick={onStartCommand}><Sparkles size={15} /></button> : null}
-      <button type="button" className={`${profileButton} h-8 flex-1`} aria-expanded={profilePickerOpen} aria-label={`Voice profile: ${profileLabel}`} onPointerDown={(event) => event.preventDefault()} onClick={() => onProfilePickerOpenChange(!profilePickerOpen)}><span>{profileLabel}</span><ChevronDown size={11} /></button>
+      <button type="button" className={`${iconButton} text-accent hover:bg-accent-soft hover:text-accent-hover`} aria-label="Start voice input" title={phase === "error" ? "Try voice input again" : `Voice write · ${profileLabel}`} onPointerDown={(event) => event.preventDefault()} onClick={onStart}><Mic size={15} /></button>
+      {onStartCommand ? <button type="button" className={iconButton} aria-label="Start voice command" title="Voice command" onPointerDown={(event) => event.preventDefault()} onClick={onStartCommand}><Sparkles size={14} /></button> : null}
+      <button type="button" className={disclosureButton} aria-expanded={profilePickerOpen} aria-label={`Voice profile: ${profileLabel}`} title={`Voice profile · ${profileLabel}`} onPointerDown={(event) => event.preventDefault()} onClick={() => onProfilePickerOpenChange(!profilePickerOpen)}><ChevronDown size={12} /></button>
     </>}
     {profilePickerOpen && !captureActive ? <div className={`${profilePopover} right-0`}><VoiceProfilePicker context={profileContext} overrides={profileOverrides} onChange={onProfileOverridesChange} onClose={() => onProfilePickerOpenChange(false)} /></div> : null}
     {error ? <div
-      className={`${errorBubble} ${errorPlacement.vertical === "below" ? "top-[calc(100%+8px)]" : "bottom-[calc(100%+8px)]"} ${errorPlacement.horizontal === "left" ? "left-0" : "right-0"}`}
+      className={`${errorBubble} ${errorPlacement.vertical === "below" ? "top-[calc(100%+6px)]" : "bottom-[calc(100%+6px)]"} ${errorPlacement.horizontal === "left" ? "left-0" : "right-0"}`}
       role="alert"
     ><span>{error}</span>{pendingCopyText && onCopy ? <button type="button" className={errorAction} onClick={onCopy}>Copy saved text</button> : null}</div> : null}
   </div>;

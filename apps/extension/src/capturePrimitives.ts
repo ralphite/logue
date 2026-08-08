@@ -1,4 +1,4 @@
-import type { CaptureIntent, CaptureOrganization, CaptureSource, CommandResult, LocalError, PageCaptureContext, PanelCaptureState, PendingInsert } from "./sidePanelModels";
+import type { CaptureOrganization, CaptureSource, CommandResult, LocalError, PanelCaptureState, PendingInsert } from "./sidePanelModels";
 
 export type { CaptureIntent, CaptureOrganization, CaptureSource, CommandResult, LocalError, PageCaptureContext, PanelCaptureState, PendingInsert } from "./sidePanelModels";
 

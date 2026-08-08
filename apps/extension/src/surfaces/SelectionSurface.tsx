@@ -1,9 +1,9 @@
-import { Bookmark, Check, ChevronDown, LoaderCircle, MessageSquarePlus, Mic, Sparkles, X } from "lucide-react";
+import { Bookmark, ChevronDown, CornerDownLeft, LoaderCircle, MessageSquarePlus, Mic, MoreHorizontal, Sparkles, X } from "lucide-react";
 import { OverlayMenu, ProductStatus } from "@logue/ui";
 import { useState, type CSSProperties, type SyntheticEvent } from "react";
 import type { CaptureContext, VoiceProfileOverrides } from "../voiceProfileModels";
 import { VoiceProfilePicker } from "../VoiceProfilePicker";
-import { actionButton, closeButton, errorBubble, iconButton, menuSurface, primaryAction, profileButton, profilePopover, recordingChip, recordingDot, spinner } from "./surfaceStyles";
+import { actionButton, closeButton, cornerClose, disclosureButton, errorBubble, iconButton, menuSurface, primaryAction, profilePopover, recordingDot, spinner } from "./surfaceStyles";
 
 export type SelectionCommentPhase = "ready" | "starting" | "recording" | "committing" | "error";
 
@@ -12,6 +12,11 @@ interface SelectionSkillOption {
   name: string;
 }
 
+/**
+ * The toolbar over a text selection: capture it, annotate it, or run a Skill
+ * on it. Icons with tooltips, one divider, overflow behind "…" — the shape of
+ * an editor's selection toolbar, because that is what it is.
+ */
 export function SelectionSurface({
   phase,
   style,
@@ -70,12 +75,8 @@ export function SelectionSurface({
     try { await onUseSkill(id); } catch (cause) { setSkillError(cause instanceof Error ? cause.message : "Could not apply this Skill."); } finally { setRunningSkillId(undefined); }
   }
 
-  const width = textOpen ? "w-[min(360px,calc(100vw-16px))] items-stretch !p-0"
-    : phase === "recording" ? "w-[286px]"
-      : phase === "starting" || phase === "committing" ? "w-56"
-        : "w-auto";
   return <div
-    className={`fixed z-surface flex min-h-11 max-w-[calc(100vw-16px)] items-center gap-[5px] rounded-xl border border-[rgb(32_33_31/13%)] bg-[rgb(255_255_255/97%)] p-[5px] text-ink shadow-[0_10px_30px_rgb(25_27_23/14%)] backdrop-blur-[14px] ${width}`}
+    className={`fixed z-surface flex items-center gap-0.5 rounded-[10px] bg-white p-0.5 text-ink shadow-[0_0_0_1px_rgb(15_15_15/6%),0_3px_6px_rgb(15_15_15/8%),0_9px_24px_rgb(15_15_15/12%)] ${textOpen ? "w-[min(320px,calc(100vw-16px))] items-stretch" : "h-8 max-w-[calc(100vw-16px)]"}`}
     style={style}
     role="group"
     aria-label="Actions for selected text"
@@ -88,28 +89,34 @@ export function SelectionSurface({
           : undefined
       }
     />
-    {textOpen ? <div className="w-full p-3">
-      <div className="flex items-center justify-between gap-3 text-xs text-muted"><span>Comment on selected text</span><button type="button" className={closeButton} aria-label="Cancel text comment" onClick={onCancel}><X size={15} /></button></div>
+    {textOpen ? <div className="relative w-full p-1.5">
+      <button type="button" className={`${closeButton} ${cornerClose}`} aria-label="Cancel text comment" onClick={onCancel}><X size={14} /></button>
       <textarea autoFocus value={textValue} onChange={(event) => onTextChange(event.target.value)} onKeyDown={(event) => {
         event.stopPropagation();
         if (event.key === "Escape") { event.preventDefault(); onCancel(); }
         if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); onTextSave(); }
-      }} className="w-full min-h-[82px] resize-y border-0 bg-transparent px-px py-2 text-sm leading-[1.55] text-ink outline-0" placeholder="Add your thought" aria-label="Text comment" />
-      <div className="flex justify-end gap-1.5 border-t border-line pt-2"><button type="button" className={actionButton} onClick={onCancel}>Cancel</button><button type="button" className={`${actionButton} ${primaryAction}`} disabled={!textValue.trim() || textSaving} onClick={onTextSave}>{textSaving ? <LoaderCircle className={spinner} size={14} /> : null}Add comment</button></div>
+      }} className="block min-h-16 w-full resize-y border-0 bg-transparent py-1 pr-7 pl-1 text-[13px] leading-[1.5] text-ink outline-0" placeholder="Comment on this selection…" aria-label="Text comment" />
+      <div className="flex justify-end pt-0.5">
+        <button type="button" className={`${actionButton} ${primaryAction}`} disabled={!textValue.trim() || textSaving} onClick={onTextSave} aria-keyshortcuts="Meta+Enter" title="Add comment (⌘↵)">{textSaving ? <LoaderCircle className={spinner} size={13} /> : <CornerDownLeft size={13} />}Add</button>
+      </div>
     </div> : phase === "recording" ? <>
-      <span className={recordingChip} role="status"><span className={recordingDot} />Recording</span>
-      <button type="button" className={`${actionButton} ${primaryAction}`} aria-keyshortcuts="Enter" title="Accept (Enter)" onClick={onAccept}><Check size={15} />Accept <kbd>↵</kbd></button>
-      <button type="button" className={actionButton} aria-keyshortcuts="Escape" title="Cancel (Esc)" onClick={onCancel}>Cancel <kbd>Esc</kbd></button>
-    </> : busy ? <><LoaderCircle className={spinner} size={15} /><span className="min-w-0 flex-1 text-xs text-muted" role="status">{phase === "starting" ? "Starting microphone…" : "Saving comment…"}</span>{phase === "starting" ? <button type="button" className={actionButton} onClick={onCancel}>Cancel</button> : null}</> : <>
-      <button type="button" className={`${iconButton} bg-accent-soft text-accent hover:bg-[#e4e6fc] hover:text-accent-hover`} aria-label={phase === "error" ? "Retry voice comment" : "Add voice comment"} title={phase === "error" ? "Retry voice comment" : `Voice comment · ${profileLabel}`} onClick={onStart}><Mic size={16} /></button>
-      <button type="button" className={`${profileButton} h-8 w-29 shrink-0`} aria-expanded={profilePickerOpen} aria-label={`Voice profile: ${profileLabel}`} onClick={() => onProfilePickerOpenChange(!profilePickerOpen)}><span>{profileLabel}</span><ChevronDown size={11} /></button>
-      <button type="button" className={`${iconButton} hover:bg-surface-muted hover:text-ink`} aria-label="Write comment" title="Write comment" onClick={onTextOpen}><MessageSquarePlus size={16} /></button>
-      <button type="button" className={`${iconButton} hover:bg-surface-muted hover:text-ink`} aria-label="Save selection" title="Save selection" onClick={onSaveSelection}><Bookmark size={16} /></button>
-      {directSkills.length ? <span className="h-5.5 w-px bg-line" aria-hidden="true" /> : null}
-      {directSkills.map((skill) => <button key={skill.id} type="button" className={actionButton} disabled={Boolean(runningSkillId)} onClick={() => void runSkill(skill.id)} title={skill.name}>{runningSkillId === skill.id ? <LoaderCircle size={13} className={spinner} /> : <Sparkles size={13} />}<span className="max-w-[94px] truncate">{skill.name}</span></button>)}
-      {moreSkills.length ? <OverlayMenu open={moreOpen} onOpenChange={setMoreOpen} placement="bottom-end" ariaLabel="More Selection Skills" menuClassName={menuSurface} trigger={(props) => <button {...props} type="button" className={actionButton}><Sparkles size={13} />More…</button>}>{moreSkills.map((skill) => <button key={skill.id} type="button" role="menuitem" disabled={Boolean(runningSkillId)} onClick={() => void runSkill(skill.id)}>{runningSkillId === skill.id ? <LoaderCircle size={14} className={spinner} /> : <Sparkles size={14} />}{skill.name}</button>)}</OverlayMenu> : null}
+      <span className={recordingDot} role="status" aria-label="Recording" />
+      <button type="button" className={`${actionButton} ${primaryAction}`} aria-keyshortcuts="Enter" title="Accept (Enter)" onClick={onAccept}>Accept <kbd>↵</kbd></button>
+      <button type="button" className={iconButton} aria-label="Cancel voice comment" aria-keyshortcuts="Escape" title="Cancel (Esc)" onClick={onCancel}><X size={14} /></button>
+    </> : busy ? <>
+      <LoaderCircle className={`${spinner} mx-1 text-muted`} size={14} />
+      <span className="min-w-0 flex-1 pr-1 text-xs text-muted" role="status">{phase === "starting" ? "Starting mic…" : "Saving…"}</span>
+      {phase === "starting" ? <button type="button" className={iconButton} aria-label="Cancel" onClick={onCancel}><X size={14} /></button> : null}
+    </> : <>
+      <button type="button" className={`${iconButton} text-accent hover:bg-accent-soft hover:text-accent-hover`} aria-label={phase === "error" ? "Retry voice comment" : "Add voice comment"} title={phase === "error" ? "Retry voice comment" : `Voice comment · ${profileLabel}`} onClick={onStart}><Mic size={15} /></button>
+      <button type="button" className={disclosureButton} aria-expanded={profilePickerOpen} aria-label={`Voice profile: ${profileLabel}`} title={`Voice profile · ${profileLabel}`} onClick={() => onProfilePickerOpenChange(!profilePickerOpen)}><ChevronDown size={12} /></button>
+      <button type="button" className={iconButton} aria-label="Write comment" title="Write comment" onClick={onTextOpen}><MessageSquarePlus size={15} /></button>
+      <button type="button" className={iconButton} aria-label="Save selection" title="Save selection" onClick={onSaveSelection}><Bookmark size={15} /></button>
+      {directSkills.length ? <span className="mx-0.5 h-4.5 w-px bg-line" aria-hidden="true" /> : null}
+      {directSkills.map((skill) => <button key={skill.id} type="button" className={actionButton} disabled={Boolean(runningSkillId)} onClick={() => void runSkill(skill.id)} title={skill.name}>{runningSkillId === skill.id ? <LoaderCircle size={12} className={spinner} /> : <Sparkles size={12} />}<span className="max-w-20 truncate">{skill.name}</span></button>)}
+      {moreSkills.length ? <OverlayMenu open={moreOpen} onOpenChange={setMoreOpen} placement="bottom-end" ariaLabel="More Selection Skills" menuClassName={menuSurface} trigger={(props) => <button {...props} type="button" className={iconButton} title="More Skills"><MoreHorizontal size={15} /></button>}>{moreSkills.map((skill) => <button key={skill.id} type="button" role="menuitem" disabled={Boolean(runningSkillId)} onClick={() => void runSkill(skill.id)}>{runningSkillId === skill.id ? <LoaderCircle size={13} className={spinner} /> : <Sparkles size={13} />}{skill.name}</button>)}</OverlayMenu> : null}
     </>}
     {profilePickerOpen && !busy && !textOpen && phase !== "recording" ? <div className={`${profilePopover} left-0`}><VoiceProfilePicker context={profileContext} overrides={profileOverrides} onChange={onProfileOverridesChange} onClose={() => onProfilePickerOpenChange(false)} /></div> : null}
-    {error || skillError ? <div className={`${errorBubble} right-0 bottom-[calc(100%+8px)]`} role="alert">{error || skillError}</div> : null}
+    {error || skillError ? <div className={`${errorBubble} right-0 bottom-[calc(100%+6px)]`} role="alert">{error || skillError}</div> : null}
   </div>;
 }

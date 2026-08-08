@@ -24,7 +24,7 @@ function voiceTransactionMessage(step: "transcription" | "save", cause: unknown)
 export class VoiceInputTransactionError extends Error {
   step: "transcription" | "save";
   transcription?: VoiceTranscription;
-  cause: unknown;
+  override cause: unknown;
 
   constructor(step: "transcription" | "save", cause: unknown, transcription?: VoiceTranscription) {
     super(voiceTransactionMessage(step, cause));
