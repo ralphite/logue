@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import sampleAudioUrl from "../../../../fixtures/audio/logue-e2e.wav?url";
-import { RecordingAudioPlayer } from "../ui/RecordingAudioPlayer";
+import { RecordingAudioPlayer } from "./RecordingAudioPlayer";
 
 const meta = {
   title: "Components/Media/Recording Audio Player",

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { SelectionSkillMenu } from "@logue/ui";
+import { SelectionSkillMenu } from "./index";
 
 const skills = [
   { id: "improve", name: "Improve writing" },

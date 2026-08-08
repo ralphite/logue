@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { LandingPage } from "../landing/LandingPage";
+import { LandingPage } from "./LandingPage";
 
 const meta = {
   title: "Landing/logue.ai",

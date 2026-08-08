@@ -1,7 +1,7 @@
 import { Info, MoreHorizontal } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { IconButton } from "../ui/Button";
-import { Tooltip, TooltipProvider } from "../ui/Tooltip";
+import { IconButton } from "./Button";
+import { Tooltip, TooltipProvider } from "./Tooltip";
 
 function TooltipPreview({ side = "right", shortcut, disabled = false }: { side?: "top" | "right" | "bottom" | "left"; shortcut?: string; disabled?: boolean }) {
   return (

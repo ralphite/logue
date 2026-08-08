@@ -1,6 +1,6 @@
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { IconButton } from "../ui/Button";
+import { IconButton } from "./Button";
 
 const meta = {
   title: "Components/Actions/Icon Button",

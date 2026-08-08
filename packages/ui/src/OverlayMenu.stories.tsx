@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MoreHorizontal } from "lucide-react";
 import { useState } from "react";
-import { OverlayMenu } from "@logue/ui";
+import { OverlayMenu } from "./index";
 
 function Demo({ placement = "bottom-end", edge = false }: { placement?: "bottom-start" | "bottom-end"; edge?: boolean }) {
   const [open, setOpen] = useState(true);
