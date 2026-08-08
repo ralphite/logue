@@ -1,4 +1,4 @@
-import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
+import { StrictMode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { host, type Context, type Material } from "./api";
 import { caretRect } from "./caret";
@@ -8,6 +8,7 @@ import { isFromBackground } from "./messages";
 import { aboveSelection, besideCaret, BAR } from "./position";
 import { NO_OVERRIDES, type VoiceOverrides } from "./overrides";
 import { useVoice } from "./useVoice";
+import { visibleSurface } from "./visible";
 import { Candidate } from "./surfaces/Candidate";
 import { CommandBox } from "./surfaces/CommandBox";
 import { SelectionBar, type SelectionPhase } from "./surfaces/SelectionBar";
@@ -155,7 +156,10 @@ function Surfaces() {
   // -- track the page selection ------------------------------------------
   useEffect(() => {
     const update = () => {
-      if (writing || selectionPhase === "recording") return;
+      // Hold the toolbar through anything it started. Saving collapses the
+      // selection on some pages, and dropping the bar there loses both the
+      // spinner and the confirmation that the quote was kept.
+      if (writing || selectionPhase !== "idle") return;
       const found = pageSelection();
       setSelection(found);
       if (!found) {
@@ -316,7 +320,10 @@ function Surfaces() {
   };
 
   // -- placement ---------------------------------------------------------
-  const barSize = voice.phase === "idle" || voice.phase === "error" ? BAR.idle : BAR.busy;
+  // "error" is deliberately not busy: it stays until the next attempt, so
+  // treating it as busy would hold every other surface off the page for good.
+  const voiceBusy = voice.phase !== "idle" && voice.phase !== "error";
+  const barSize = voiceBusy ? BAR.busy : BAR.idle;
   const barAt = moved
     ? moved
     : caret
@@ -337,9 +344,26 @@ function Surfaces() {
     (skill) => skill.enabled && skill.contexts.includes("selection"),
   );
 
+  const showing = visibleSurface({
+    candidate: Boolean(candidate),
+    command: commandOpen,
+    selection: Boolean(selection && selectionAt),
+    voice: Boolean(barAt),
+    voiceBusy,
+  });
+
+  // The page cannot read a content script's variables, so the decision goes on
+  // the host element — it is what a test reads to prove only one is on screen.
+  // Written on commit rather than after paint: an attribute that disagrees with
+  // what is on screen, even for a frame, is worse than no attribute at all.
+  useLayoutEffect(() => {
+    const element = document.getElementById("logue-host");
+    if (element) element.dataset.logueSurface = showing;
+  }, [showing]);
+
   return (
     <>
-      {barAt && !candidate && !commandOpen && (
+      {showing === "voice" && barAt && (
         <VoiceBar
           phase={voice.phase}
           style={{ left: barAt.left, top: barAt.top }}
@@ -357,7 +381,7 @@ function Surfaces() {
         />
       )}
 
-      {candidate && candidateAt && (
+      {showing === "candidate" && candidate && (
         <Candidate
           text={candidate.text}
           style={{ left: candidateAt.left, top: candidateAt.top }}
@@ -378,7 +402,7 @@ function Surfaces() {
         />
       )}
 
-      {commandOpen && (
+      {showing === "command" && (
         <CommandBox
           style={{ left: commandAt.left, top: commandAt.top }}
           context={context}
@@ -400,7 +424,7 @@ function Surfaces() {
         />
       )}
 
-      {selection && selectionAt && !commandOpen && (
+      {showing === "selection" && selection && selectionAt && (
         <SelectionBar
           phase={selectionPhase}
           style={{ left: selectionAt.left, top: selectionAt.top }}
@@ -420,11 +444,12 @@ function Surfaces() {
             setNote("");
             setSelectionPhase("idle");
           }}
-          onSkill={(skillId) =>
-            void runCommand({ instruction: selection.text, skillId, project, scope: "selection" }).then(() =>
-              setCommandOpen(true),
-            )
-          }
+          onSkill={(skillId) => {
+            // Open first, then run. Running first left the person looking at an
+            // unchanged toolbar for the whole model call.
+            setCommandOpen(true);
+            void runCommand({ instruction: selection.text, skillId, project, scope: "selection" });
+          }}
         />
       )}
     </>

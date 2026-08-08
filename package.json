@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "dev": "concurrently -k -n host,web -c cyan,blue \"npm run dev:host\" \"npm run dev:web\"",
-    "dev:host": "cd server && LOGUE_DATA_DIR=${LOGUE_DATA_DIR:-../.logue-data} python3.13 -m logue_host --address 0.0.0.0:8787",
+    "dev:host": "cd server && LOGUE_DATA_DIR=${LOGUE_DATA_DIR:-../.logue-data} python3.13 -m logue_host --address 127.0.0.1:8787",
     "dev:web": "npm run dev -w @logue/web",
     "build": "npm run build -w @logue/web && npm run build -w @logue/extension && python3.13 -m compileall -q server",
     "storybook": "npm run storybook -w @logue/ui",
