@@ -1,4 +1,4 @@
-import { ArrowLeft, Download, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import { Download, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button, Empty, ErrorNote, IconButton, Menu, MenuItem, OriginMark, Spinner, originOf } from "@logue/ui";
 import { api, ApiError, type Material } from "../api";
@@ -152,17 +152,14 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
 
   return (
     <Page
-      title=""
+      title="Documents"
+      onBack={onBack}
+      here={doc?.title ?? ""}
       axis="reading"
       actions={
-        <>
-          <Button variant="ghost" onClick={onBack}>
-            <ArrowLeft size={13} /> Documents
-          </Button>
-          <Button onClick={() => window.open(api.documentMarkdownUrl(id), "_blank")}>
-            <Download size={13} /> Export
-          </Button>
-        </>
+        <Button onClick={() => window.open(api.documentMarkdownUrl(id), "_blank")}>
+          <Download size={13} /> Export
+        </Button>
       }
     >
       {loaded.error && <ErrorNote>{loaded.error}</ErrorNote>}

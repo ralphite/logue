@@ -1,4 +1,4 @@
-import { ArrowLeft, Plus, Sparkles } from "lucide-react";
+import { Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Button, Dialog, DialogActions, Empty, ErrorNote, Field, Input, OriginMark, Spinner, Textarea, originOf } from "@logue/ui";
 import { api } from "../api";
@@ -118,12 +118,9 @@ function ProjectDetail({
 
   return (
     <Page
-      title={project?.name ?? "Project"}
-      actions={
-        <Button variant="ghost" onClick={onBack}>
-          <ArrowLeft size={13} /> Projects
-        </Button>
-      }
+      title="Projects"
+      onBack={onBack}
+      here={project?.name ?? ""}
     >
       {detail.error && <ErrorNote className="mb-2">{detail.error}</ErrorNote>}
       {!project ? (

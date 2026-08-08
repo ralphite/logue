@@ -42,11 +42,7 @@ export function App() {
     <AppShell
       route={route}
       onRoute={go}
-      status={
-        status.error ? (
-          <p className="px-2 py-1 text-[11px] leading-[1.4] text-warning">Logue is not running on this Mac.</p>
-        ) : null
-      }
+      offline={Boolean(status.error)}
     >
       {route === "stream" && <StreamRoute />}
       {route === "projects" && <ProjectsRoute onOpenDocument={openDocument} />}
