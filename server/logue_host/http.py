@@ -1,0 +1,156 @@
+"""HTTP transport: a router, a request/response pair, and nothing else.
+
+Handlers never see `BaseHTTPRequestHandler`. They receive a `Request` and
+return JSON-able data or a `Response`, which keeps them unit-testable without
+a socket.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass, field
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any, Callable
+from urllib.parse import parse_qs, urlparse
+
+from .errors import BadRequest, HostError
+
+MAX_BODY = 64 * 1024 * 1024
+
+
+@dataclass
+class Request:
+    method: str
+    path: str
+    query: dict[str, str]
+    params: dict[str, str]
+    headers: dict[str, str]
+    body: bytes
+
+    def json(self) -> dict[str, Any]:
+        if not self.body:
+            return {}
+        try:
+            payload = json.loads(self.body)
+        except json.JSONDecodeError:
+            raise BadRequest("Request body is not valid JSON") from None
+        if not isinstance(payload, dict):
+            raise BadRequest("Request body must be a JSON object")
+        return payload
+
+    def require(self, key: str) -> str:
+        value = str(self.json().get(key, "")).strip()
+        if not value:
+            raise BadRequest(f"{key} is required")
+        return value
+
+
+@dataclass
+class Response:
+    body: Any = None
+    status: int = 200
+    media_type: str = "application/json"
+    raw: bytes | None = None
+    headers: dict[str, str] = field(default_factory=dict)
+
+
+Handler = Callable[[Request], Any]
+
+
+class Router:
+    """Path templates with `{name}` segments, matched in registration order."""
+
+    def __init__(self) -> None:
+        self._routes: list[tuple[str, re.Pattern[str], Handler]] = []
+
+    def add(self, method: str, template: str, handler: Handler) -> None:
+        pattern = re.escape(template)
+        pattern = re.sub(r"\\\{(\w+)\\\}", r"(?P<\1>[^/]+)", pattern)
+        self._routes.append((method, re.compile(f"^{pattern}$"), handler))
+
+    def route(self, method: str, template: str) -> Callable[[Handler], Handler]:
+        def register(handler: Handler) -> Handler:
+            self.add(method, template, handler)
+            return handler
+
+        return register
+
+    def match(self, method: str, path: str) -> tuple[Handler, dict[str, str]] | None:
+        for route_method, pattern, handler in self._routes:
+            if route_method != method:
+                continue
+            found = pattern.match(path)
+            if found:
+                return handler, found.groupdict()
+        return None
+
+    def allows(self, path: str) -> bool:
+        return any(pattern.match(path) for _, pattern, _ in self._routes)
+
+
+def serve(router: Router, host: str, port: int) -> ThreadingHTTPServer:
+    class RequestHandler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+        server_version = "Logue"
+
+        def log_message(self, *_: Any) -> None:
+            """Silence per-request logging; the Host is a background service."""
+
+        def _send(self, response: Response) -> None:
+            payload = response.raw if response.raw is not None else b""
+            if response.raw is None and response.body is not None:
+                payload = json.dumps(response.body, ensure_ascii=False).encode("utf-8")
+            self.send_response(response.status)
+            self.send_header("Content-Type", response.media_type)
+            self.send_header("Content-Length", str(len(payload)))
+            # The Web App and the Extension are separate origins from the Host.
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Logue-Client")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+            for key, value in response.headers.items():
+                self.send_header(key, value)
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(payload)
+
+        def _dispatch(self) -> None:
+            url = urlparse(self.path)
+            match = router.match(self.command, url.path)
+            if match is None:
+                status = 405 if router.allows(url.path) else 404
+                self._send(Response({"error": "not found" if status == 404 else "method not allowed"}, status))
+                return
+
+            handler, params = match
+            length = int(self.headers.get("Content-Length") or 0)
+            if length > MAX_BODY:
+                self._send(Response({"error": "request too large"}, 413))
+                return
+            request = Request(
+                method=self.command,
+                path=url.path,
+                query={key: values[0] for key, values in parse_qs(url.query).items()},
+                params=params,
+                headers={key.lower(): value for key, value in self.headers.items()},
+                body=self.rfile.read(length) if length else b"",
+            )
+            try:
+                result = handler(request)
+            except HostError as error:
+                self._send(Response({"error": error.message}, error.status))
+                return
+            except Exception as error:  # noqa: BLE001 - last line of defence
+                self._send(Response({"error": f"{type(error).__name__}: {error}"}, 500))
+                return
+            self._send(result if isinstance(result, Response) else Response(result))
+
+        do_GET = _dispatch
+        do_POST = _dispatch
+        do_PATCH = _dispatch
+        do_DELETE = _dispatch
+
+        def do_OPTIONS(self) -> None:
+            self._send(Response(status=204))
+
+    return ThreadingHTTPServer((host, port), RequestHandler)
