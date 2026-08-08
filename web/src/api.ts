@@ -96,6 +96,10 @@ export interface Run {
   status: "running" | "complete" | "failed";
   original_output?: string;
   adopted_output?: string;
+  /** What the person did with it: kept, inserted, copied, or made a Document. */
+  adoption?: "keep" | "insert" | "copy" | "document";
+  adoption_undone?: boolean;
+  adoption_target?: string;
   error?: string;
   activity_source_id?: string;
   created_at: string;
@@ -213,7 +217,9 @@ export const api = {
   run: (id: string) => request<{ run: Run; sources: Material[]; missing: string[] }>(`/v1/runs/${id}`),
   createRun: (body: { skill_id: string; instruction: string; project?: string; source_ids?: string[] }) =>
     send<{ run: Run; sources: Material[] }>("POST", "/v1/runs", body),
-  adoptRun: (id: string, text: string) => send<{ run: Run }>("POST", `/v1/runs/${id}/adopt`, { text }),
+  adoptRun: (id: string, text: string, action: Run["adoption"] = "keep", target = "") =>
+    send<{ run: Run }>("POST", `/v1/runs/${id}/adopt`, { text, action, target }),
+  undoRun: (id: string) => send<{ run: Run }>("POST", `/v1/runs/${id}/undo`, {}),
   runToDocument: (id: string, title?: string) =>
     send<{ document: Document }>("POST", `/v1/runs/${id}/document`, { title }),
 

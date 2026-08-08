@@ -89,10 +89,13 @@ function Surfaces() {
   const [anchor, setAnchor] = useState<{ left: number; top: number; bottom: number }>();
   const [inserted, setInserted] = useState<{ undo: () => void }>();
   const [commandOpen, setCommandOpen] = useState(false);
-  const [command, setCommand] = useState<{ busy: boolean; answer?: string; sources: Material[]; error?: string }>({
-    busy: false,
-    sources: [],
-  });
+  const [command, setCommand] = useState<{
+    busy: boolean;
+    answer?: string;
+    sources: Material[];
+    error?: string;
+    runId?: string;
+  }>({ busy: false, sources: [] });
   const [selection, setSelection] = useState<SelectionSnapshot>();
   const [selectionPhase, setSelectionPhase] = useState<SelectionPhase>("idle");
   const [selectionError, setSelectionError] = useState<string>();
@@ -267,7 +270,12 @@ function Surfaces() {
         setCommand({ busy: false, sources: [], error: result.run.error ?? "The model did not answer." });
         return;
       }
-      setCommand({ busy: false, answer: result.run.original_output ?? "", sources: result.sources });
+      setCommand({
+        busy: false,
+        answer: result.run.original_output ?? "",
+        sources: result.sources,
+        runId: result.run.id,
+      });
     } catch (cause) {
       setCommand({ busy: false, sources: [], error: cause instanceof Error ? cause.message : "Could not run that." });
     }
@@ -424,6 +432,9 @@ function Surfaces() {
           onRun={(input) => void runCommand(input)}
           onInsert={(text) => {
             if (target.current) insertAtCaret(target.current, text);
+            // Which Skills actually get used was unanswerable from the
+            // extension, where most of them are run.
+            if (command.runId) void host.adopt(command.runId, text, "insert");
             setCommandOpen(false);
             setCommand({ busy: false, sources: [] });
           }}

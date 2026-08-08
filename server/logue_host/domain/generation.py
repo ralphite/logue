@@ -115,12 +115,42 @@ def run_skill(
     return store.runs.put(run)
 
 
-def adopt(store: Store, run_id: str, text: str) -> Record:
-    """Record what the user actually used, which may differ from the output."""
+#: How a generated answer was actually used. The words this workspace already uses.
+ADOPTIONS = {"keep", "insert", "copy", "document"}
+
+
+def adopt(store: Store, run_id: str, text: str, *, action: str = "keep", target: str = "") -> Record:
+    """Record what the person actually used, and what they did with it.
+
+    "Used" and "read and closed" are different verdicts on a Skill, and only
+    one of them means it earned its place. Storing the text alone could not
+    tell them apart — nor could it tell a kept answer from one that was pasted
+    into a document and then taken straight back out.
+    """
     run = store.runs.get(run_id)
     if run.get("status") != "complete":
         raise BadRequest("Only a complete Run can be adopted.")
+    if action not in ADOPTIONS:
+        raise BadRequest(f"action must be one of {', '.join(sorted(ADOPTIONS))}")
     run["adopted_output"] = text
+    run["adoption"] = action
+    run["adoption_undone"] = False
+    if target:
+        run["adoption_target"] = target
+    run["updated_at"] = now()
+    return store.runs.put(run)
+
+
+def undo_adoption(store: Store, run_id: str) -> Record:
+    """Take it back, without pretending it never happened.
+
+    The adopted text stays: that this answer was used and then withdrawn says
+    more about the Skill than a Run with no record at all.
+    """
+    run = store.runs.get(run_id)
+    if not run.get("adoption") and not run.get("adopted_output"):
+        raise BadRequest("This Run was never adopted.")
+    run["adoption_undone"] = True
     run["updated_at"] = now()
     return store.runs.put(run)
 

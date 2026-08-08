@@ -397,6 +397,40 @@ class OrganizeTest(Workspace, unittest.TestCase):
         self.assertEqual(self.app.store.materials.get(source["id"])["organization"]["status"], "needs_review")
 
 
+class AdoptionTest(Workspace, unittest.TestCase):
+    """Whether a Skill's answers actually get used, and whether they stick."""
+
+    def a_run(self) -> dict:
+        self.call("POST", "/v1/materials", {"kind": "text", "content": "Async interviews finished faster."})
+        skill = next(s for s in self.call("GET", "/v1/skills")["skills"] if s.get("built_in_key") == "ask")
+        return self.call("POST", "/v1/runs", {"skill_id": skill["id"], "instruction": "Why?"})["run"]
+
+    def test_what_was_done_with_it_is_recorded_not_just_the_text(self) -> None:
+        run = self.a_run()
+        taken = self.call("POST", f"/v1/runs/{run['id']}/adopt", {"text": "Because.", "action": "insert"})["run"]
+        self.assertEqual(taken["adoption"], "insert")
+        self.assertFalse(taken["adoption_undone"])
+
+    def test_undoing_keeps_the_fact_that_it_was_used(self) -> None:
+        """A Skill whose answers get taken back is worse than one nobody runs."""
+        run = self.a_run()
+        self.call("POST", f"/v1/runs/{run['id']}/adopt", {"text": "Because.", "action": "insert"})
+        undone = self.call("POST", f"/v1/runs/{run['id']}/undo", {})["run"]
+        self.assertTrue(undone["adoption_undone"])
+        self.assertEqual(undone["adopted_output"], "Because.")
+        self.assertEqual(undone["adoption"], "insert")
+
+    def test_an_invented_action_is_refused(self) -> None:
+        run = self.a_run()
+        with self.assertRaises(BadRequest):
+            self.call("POST", f"/v1/runs/{run['id']}/adopt", {"text": "x", "action": "telepathy"})
+
+    def test_undoing_something_never_adopted_is_refused(self) -> None:
+        run = self.a_run()
+        with self.assertRaises(BadRequest):
+            self.call("POST", f"/v1/runs/{run['id']}/undo", {})
+
+
 class HeardContextTest(Workspace, unittest.TestCase):
     """Why a transcript came out the way it did, answerable days later."""
 

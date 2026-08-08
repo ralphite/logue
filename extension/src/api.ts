@@ -110,6 +110,10 @@ export const host = {
       body,
     ),
 
+  /** What the person did with an answer. Silence here reads as "never used". */
+  adopt: (runId: string, text: string, action: "insert" | "copy") =>
+    post<{ run: unknown }>(`/v1/runs/${runId}/adopt`, { text, action }),
+
   pageMaterials: (url: string) =>
     call<{ materials: Material[] }>(`/v1/materials?${new URLSearchParams({ q: url })}`),
 };

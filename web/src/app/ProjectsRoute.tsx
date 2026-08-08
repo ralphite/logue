@@ -1,8 +1,8 @@
 import { Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { Button, Dialog, DialogActions, Empty, ErrorNote, Field, Input, OriginMark, Spinner, Textarea, originOf } from "@logue/ui";
-import { api } from "../api";
-import { Page, Row, Rows } from "./AppShell";
+import { api, type Run } from "../api";
+import { Page, Row, RowActions, Rows } from "./AppShell";
 import { timeAgo, useAction, useHost } from "./useHost";
 import { GenerateBox } from "./GenerateBox";
 
@@ -85,6 +85,28 @@ function ProjectList({ onOpen }: { onOpen: (id: string) => void }) {
         </DialogActions>
       </Dialog>
     </Page>
+  );
+}
+
+/**
+ * What became of an answer.
+ *
+ * "Used" and "read and closed" are different verdicts on a Skill, and a Skill
+ * whose answers are always taken back is worse than one nobody runs.
+ */
+function Used({ run }: { run: Run }) {
+  if (!run.adoption && !run.adopted_output) return null;
+  const verbs: Record<NonNullable<Run["adoption"]>, string> = {
+    keep: "kept",
+    insert: "inserted",
+    copy: "copied",
+    document: "made a Document",
+  };
+  const verb = verbs[run.adoption ?? "keep"];
+  return run.adoption_undone ? (
+    <span className="text-faint">{verb}, then undone</span>
+  ) : (
+    <span className="text-success">{verb}</span>
   );
 }
 
@@ -183,8 +205,20 @@ function ProjectDetail({
                         <span>{run.sources.length} Sources</span>
                         <span>{timeAgo(run.created_at)}</span>
                         {run.status === "failed" && <span className="text-danger">failed</span>}
+                        <Used run={run} />
                       </span>
                     </span>
+                    {run.adoption && !run.adoption_undone && (
+                      <RowActions>
+                        <Button
+                          variant="ghost"
+                          disabled={action.busy}
+                          onClick={() => void action.run(() => api.undoRun(run.id)).then(() => runs.refresh())}
+                        >
+                          Undo
+                        </Button>
+                      </RowActions>
+                    )}
                   </Row>
                 ))}
               </Rows>

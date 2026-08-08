@@ -119,6 +119,7 @@ export function GenerateBox({
                 onClick={() =>
                   void action.run(async () => {
                     const { document } = await api.runToDocument(result.run.id);
+                    await api.adoptRun(result.run.id, result.run.original_output ?? "", "document", document.id);
                     onOpenDocument(document.id);
                   })
                 }

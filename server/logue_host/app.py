@@ -340,7 +340,20 @@ class App:
 
         @route("POST", "/v1/runs/{id}/adopt")
         def adopt_run(request: Request) -> dict[str, Any]:
-            return {"run": generation.adopt(store, request.params["id"], str(request.json().get("text") or ""))}
+            body = request.json()
+            return {
+                "run": generation.adopt(
+                    store,
+                    request.params["id"],
+                    str(body.get("text") or ""),
+                    action=str(body.get("action") or "keep"),
+                    target=str(body.get("target") or ""),
+                )
+            }
+
+        @route("POST", "/v1/runs/{id}/undo")
+        def undo_run(request: Request) -> dict[str, Any]:
+            return {"run": generation.undo_adoption(store, request.params["id"])}
 
         @route("POST", "/v1/runs/{id}/document")
         def run_to_document(request: Request) -> dict[str, Any]:
