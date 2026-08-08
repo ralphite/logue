@@ -78,7 +78,7 @@ describe("remote Logue server connection", () => {
     expect(chrome.sendMessage).toHaveBeenCalledWith({
       type: "logue:api",
       action: "test-server",
-      payload: { serverURL: "https://new-logue.example.com" },
+      payload: { serverURL: "https://new-logue.example.com", pairingCode: "" },
     });
     expect(chrome.set).toHaveBeenCalledWith({ [serverURLStorageKey]: "https://new-logue.example.com" });
     expect(chrome.remove).toHaveBeenCalledWith({ origins: ["https://old-logue.example.com/*"] });

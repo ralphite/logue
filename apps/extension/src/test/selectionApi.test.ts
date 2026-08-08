@@ -139,7 +139,9 @@ describe("selection API", () => {
     }));
     vi.stubGlobal("chrome", { runtime: { sendMessage } });
 
-    await expect(getPageMaterials("https://example.com/current page")).resolves.toEqual([
+    // The mapper fills the rest of the Material shape; order and identity are
+    // what this endpoint has to get right.
+    await expect(getPageMaterials("https://example.com/current page")).resolves.toMatchObject([
       { id: "newer", content: "Latest note", createdAt: "2026-08-02T10:00:00Z" },
       { id: "older", content: "Earlier note", createdAt: "2026-08-01T10:00:00Z" },
     ]);

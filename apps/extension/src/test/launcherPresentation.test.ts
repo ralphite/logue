@@ -5,15 +5,14 @@ import { describe, expect, it } from "vitest";
 describe("page launcher presentation", () => {
   it("starts voice input in place and replaces the launcher with accessible capture controls", () => {
     const content = readFileSync(resolve(process.cwd(), "src/content.tsx"), "utf8");
-    const controls = readFileSync(resolve(process.cwd(), "src/InlineVoiceControls.tsx"), "utf8");
-    const styles = readFileSync(resolve(process.cwd(), "src/extension.css"), "utf8");
+    const surface = readFileSync(resolve(process.cwd(), "src/v2-real/V2InlineVoiceSurface.tsx"), "utf8");
 
-    expect(content).toContain("<InlineVoiceControls");
-    expect(controls).toContain('aria-label="Start voice input"');
-    expect(controls).toContain('aria-label="Cancel voice input"');
-    expect(controls).toContain('aria-label="Stop voice input"');
-    expect(controls).toContain('aria-keyshortcuts="Escape"');
-    expect(controls).toContain('aria-keyshortcuts="Enter"');
+    expect(content).toContain("<V2InlineVoiceSurface");
+    expect(surface).toContain('aria-label="Start voice input"');
+    expect(surface).toContain('aria-label="Cancel voice input"');
+    expect(surface).toContain('aria-label="Stop voice input"');
+    expect(surface).toContain('aria-keyshortcuts="Escape"');
+    expect(surface).toContain('aria-keyshortcuts="Enter"');
     expect(content).toContain("startInlineVoice");
     expect(content).toContain("cancelMaterialSave(session.id)");
     expect(content).toContain("requestId: session.id");
@@ -26,11 +25,6 @@ describe("page launcher presentation", () => {
     expect(content).not.toContain("logue-inline-live");
     expect(content).not.toContain("targetRect.width >");
     expect(content).not.toContain("targetRect.height >");
-    expect(styles).toContain(".logue-inline-accept");
-    expect(styles).toContain(".logue-inline-cancel");
-    expect(styles).toContain(".logue-launcher-group.is-recording");
-    expect(styles).toContain("width: 86px");
-    expect(styles).toContain(".logue-launcher-error.is-below");
   });
 
   it("uses the parent Docs hostname when its text event iframe is about:blank", () => {

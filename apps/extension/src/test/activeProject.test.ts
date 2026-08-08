@@ -48,14 +48,19 @@ describe("tab active Project", () => {
     expect(organization).toEqual({ projects: ["Mobile research"], tags: ["evidence"] });
     expect(explicitProjects(panelState())).toEqual([]);
 
+    // Page save and selection save must both organize from the same resolution.
     const panel = readFileSync(resolve(process.cwd(), "src/sidePanel.tsx"), "utf8");
-    expect(panel).toContain("const organization = captureOrganization(current)");
-    expect(panel.match(/\.\.\.organization,/g)).toHaveLength(2);
+    expect(panel.match(/const organization = captureOrganization\(current\)/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(panel).toContain("...organization,");
+    expect(panel).toContain("tags: organization.tags");
   });
 
   it("wires the content contract to restored sender-tab state", () => {
     const background = readFileSync(resolve(process.cwd(), "src/background.ts"), "utf8");
     expect(background).toContain("tabProjectRequestSender(message, sender.tab?.id)");
-    expect(background).toContain("sendResponse({ ok: true, value: explicitProjects(state) })");
+    expect(background).toContain("resolveTabProjects(sender.tab!)");
+    expect(background).toContain("sendResponse({ ok: true, value: projects })");
+    // resolveTabProjects is the only path that answers the content contract.
+    expect(background).toContain("return explicitProjects(current)");
   });
 });

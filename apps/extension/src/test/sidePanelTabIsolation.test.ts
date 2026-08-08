@@ -31,7 +31,8 @@ describe("tab-scoped native Side Panel wiring", () => {
       background.indexOf("chrome.commands.onCommand.addListener"),
       background.indexOf("nativeSidePanel.onOpened"),
     );
-    expect(commandHandler).toContain("if (tab)");
+    // The shortcut acts on the tab Chrome hands the listener, never a query.
+    expect(commandHandler).toContain("command === sidePanelCommand && tab");
     expect(commandHandler).toContain("toggleTabPanel(tab)");
     expect(commandHandler).not.toContain("chrome.tabs.query");
   });
@@ -74,7 +75,8 @@ describe("tab-scoped native Side Panel wiring", () => {
       background.indexOf("async function restorePanelState"),
     );
     expect(stage.indexOf("chrome.storage.session.get(storageKey)")).toBeLessThan(stage.indexOf("panelStates.set"));
-    expect(stage).toContain("const restoredFromSession = preserveTabProjects(");
+    expect(stage).toContain("const restoredFromSession =");
+    expect(stage).toContain("preserveTabProjects(matchingSession, sessionState)");
     expect(stage).toContain("preserveMatchingPanelDraft(current, sessionState)");
     expect(stage).toContain("await persistPanelState(restored)");
 

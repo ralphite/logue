@@ -36,7 +36,7 @@ describe("side panel initial focus", () => {
 
   it("hands keyboard control to the quiet panel surface without focusing an editor", () => {
     const panel = readFileSync(resolve(process.cwd(), "src/sidePanel.tsx"), "utf8");
-    const view = readFileSync(resolve(process.cwd(), "src/sidePanelView.tsx"), "utf8");
+    const surface = readFileSync(resolve(process.cwd(), "src/v2-real/V2SidePanelSurface.tsx"), "utf8");
 
     expect(panel).toContain("const panelMainRef = useRef<HTMLElement>(null)");
     expect(panel).toContain("if (!previous) focusPanelOnHydrationRef.current = true");
@@ -44,9 +44,10 @@ describe("side panel initial focus", () => {
     expect(panel).toContain('document.addEventListener("visibilitychange", focusWhenShown)');
     expect(panel).toContain("panelFocusControllerRef.current?.request()");
     expect(panel).toContain("panelFocusControllerRef.current?.visibilityChanged()");
-    expect(view).toContain(
-      '<main ref={panelRef} className="panel" tabIndex={-1} data-logue-extension="off">',
-    );
+    // The panel surface must stay focusable and opt out of the page Extension.
+    expect(surface).toContain("ref={panelRef}");
+    expect(surface).toContain("tabIndex={-1}");
+    expect(surface).toContain('data-logue-extension="off"');
   });
 
   it("does not steal focus on an unrelated visibility change", () => {
