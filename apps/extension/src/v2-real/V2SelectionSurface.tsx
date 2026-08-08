@@ -3,6 +3,7 @@ import { OverlayMenu, ProductStatus } from "@logue/ui";
 import { useState, type CSSProperties, type SyntheticEvent } from "react";
 import type { CaptureContext, VoiceProfileOverrides } from "../voiceProfileModels";
 import { VoiceProfilePicker } from "../VoiceProfilePicker";
+import { actionButton, closeButton, errorBubble, iconButton, menuSurface, primaryAction, profileButton, profilePopover, recordingChip, recordingDot, spinner } from "./surfaceStyles";
 
 export type SelectionCommentPhase = "ready" | "starting" | "recording" | "committing" | "error";
 
@@ -69,8 +70,12 @@ export function V2SelectionSurface({
     try { await onUseSkill(id); } catch (cause) { setSkillError(cause instanceof Error ? cause.message : "Could not apply this Skill."); } finally { setRunningSkillId(undefined); }
   }
 
+  const width = textOpen ? "w-[min(360px,calc(100vw-16px))] items-stretch !p-0"
+    : phase === "recording" ? "w-[286px]"
+      : phase === "starting" || phase === "committing" ? "w-56"
+        : "w-auto";
   return <div
-    className={`v2-selection-toolbar is-${textOpen ? "text" : phase}`}
+    className={`fixed z-surface flex min-h-11 max-w-[calc(100vw-16px)] items-center gap-[5px] rounded-xl border border-[rgb(32_33_31/13%)] bg-[rgb(255_255_255/97%)] p-[5px] text-ink shadow-[0_10px_30px_rgb(25_27_23/14%)] backdrop-blur-[14px] ${width}`}
     style={style}
     role="group"
     aria-label="Actions for selected text"
@@ -83,28 +88,28 @@ export function V2SelectionSurface({
           : undefined
       }
     />
-    {textOpen ? <div className="v2-selection-text-comment">
-      <div className="v2-selection-text-heading"><span>Comment on selected text</span><button type="button" aria-label="Cancel text comment" onClick={onCancel}><X size={15} /></button></div>
+    {textOpen ? <div className="w-full p-3">
+      <div className="flex items-center justify-between gap-3 text-xs text-muted"><span>Comment on selected text</span><button type="button" className={closeButton} aria-label="Cancel text comment" onClick={onCancel}><X size={15} /></button></div>
       <textarea autoFocus value={textValue} onChange={(event) => onTextChange(event.target.value)} onKeyDown={(event) => {
         event.stopPropagation();
         if (event.key === "Escape") { event.preventDefault(); onCancel(); }
         if ((event.metaKey || event.ctrlKey) && event.key === "Enter") { event.preventDefault(); onTextSave(); }
-      }} placeholder="Add your thought" aria-label="Text comment" />
-      <div className="v2-selection-text-actions"><button type="button" onClick={onCancel}>Cancel</button><button type="button" className="is-primary" disabled={!textValue.trim() || textSaving} onClick={onTextSave}>{textSaving ? <LoaderCircle className="v2-inline-spinner" size={14} /> : null}Add comment</button></div>
+      }} className="w-full min-h-[82px] resize-y border-0 bg-transparent px-px py-2 text-sm leading-[1.55] text-ink outline-0" placeholder="Add your thought" aria-label="Text comment" />
+      <div className="flex justify-end gap-1.5 border-t border-line pt-2"><button type="button" className={actionButton} onClick={onCancel}>Cancel</button><button type="button" className={`${actionButton} ${primaryAction}`} disabled={!textValue.trim() || textSaving} onClick={onTextSave}>{textSaving ? <LoaderCircle className={spinner} size={14} /> : null}Add comment</button></div>
     </div> : phase === "recording" ? <>
-      <span className="v2-selection-recording" role="status"><span />Recording</span>
-      <button type="button" className="v2-selection-action is-primary" aria-keyshortcuts="Enter" title="Accept (Enter)" onClick={onAccept}><Check size={15} />Accept <kbd>↵</kbd></button>
-      <button type="button" className="v2-selection-action" aria-keyshortcuts="Escape" title="Cancel (Esc)" onClick={onCancel}>Cancel <kbd>Esc</kbd></button>
-    </> : busy ? <><LoaderCircle className="v2-inline-spinner" size={15} /><span className="v2-selection-busy" role="status">{phase === "starting" ? "Starting microphone…" : textSaving ? "Saving comment…" : "Saving comment…"}</span>{phase === "starting" ? <button type="button" className="v2-selection-action" onClick={onCancel}>Cancel</button> : null}</> : <>
-      <button type="button" className="v2-selection-icon is-primary" aria-label={phase === "error" ? "Retry voice comment" : "Add voice comment"} title={phase === "error" ? "Retry voice comment" : `Voice comment · ${profileLabel}`} onClick={onStart}><Mic size={16} /></button>
-      <button type="button" className="v2-selection-profile" aria-expanded={profilePickerOpen} aria-label={`Voice profile: ${profileLabel}`} onClick={() => onProfilePickerOpenChange(!profilePickerOpen)}><span>{profileLabel}</span><ChevronDown size={11} /></button>
-      <button type="button" className="v2-selection-icon" aria-label="Write comment" title="Write comment" onClick={onTextOpen}><MessageSquarePlus size={16} /></button>
-      <button type="button" className="v2-selection-icon" aria-label="Save selection" title="Save selection" onClick={onSaveSelection}><Bookmark size={16} /></button>
-      {directSkills.length ? <span className="v2-selection-divider" aria-hidden="true" /> : null}
-      {directSkills.map((skill) => <button key={skill.id} type="button" className="v2-selection-action" disabled={Boolean(runningSkillId)} onClick={() => void runSkill(skill.id)} title={skill.name}>{runningSkillId === skill.id ? <LoaderCircle size={13} className="v2-inline-spinner" /> : <Sparkles size={13} />}<span>{skill.name}</span></button>)}
-      {moreSkills.length ? <OverlayMenu open={moreOpen} onOpenChange={setMoreOpen} placement="bottom-end" ariaLabel="More Selection Skills" menuClassName="v2-selection-skill-menu" trigger={(props) => <button {...props} type="button" className="v2-selection-action"><Sparkles size={13} />More…</button>}>{moreSkills.map((skill) => <button key={skill.id} type="button" role="menuitem" disabled={Boolean(runningSkillId)} onClick={() => void runSkill(skill.id)}>{runningSkillId === skill.id ? <LoaderCircle size={14} className="v2-inline-spinner" /> : <Sparkles size={14} />}{skill.name}</button>)}</OverlayMenu> : null}
+      <span className={recordingChip} role="status"><span className={recordingDot} />Recording</span>
+      <button type="button" className={`${actionButton} ${primaryAction}`} aria-keyshortcuts="Enter" title="Accept (Enter)" onClick={onAccept}><Check size={15} />Accept <kbd>↵</kbd></button>
+      <button type="button" className={actionButton} aria-keyshortcuts="Escape" title="Cancel (Esc)" onClick={onCancel}>Cancel <kbd>Esc</kbd></button>
+    </> : busy ? <><LoaderCircle className={spinner} size={15} /><span className="min-w-0 flex-1 text-xs text-muted" role="status">{phase === "starting" ? "Starting microphone…" : "Saving comment…"}</span>{phase === "starting" ? <button type="button" className={actionButton} onClick={onCancel}>Cancel</button> : null}</> : <>
+      <button type="button" className={`${iconButton} bg-accent-soft text-accent hover:bg-[#e4e6fc] hover:text-accent-hover`} aria-label={phase === "error" ? "Retry voice comment" : "Add voice comment"} title={phase === "error" ? "Retry voice comment" : `Voice comment · ${profileLabel}`} onClick={onStart}><Mic size={16} /></button>
+      <button type="button" className={`${profileButton} h-8 max-w-[116px] flex-[0_1_116px]`} aria-expanded={profilePickerOpen} aria-label={`Voice profile: ${profileLabel}`} onClick={() => onProfilePickerOpenChange(!profilePickerOpen)}><span>{profileLabel}</span><ChevronDown size={11} /></button>
+      <button type="button" className={`${iconButton} hover:bg-surface-muted hover:text-ink`} aria-label="Write comment" title="Write comment" onClick={onTextOpen}><MessageSquarePlus size={16} /></button>
+      <button type="button" className={`${iconButton} hover:bg-surface-muted hover:text-ink`} aria-label="Save selection" title="Save selection" onClick={onSaveSelection}><Bookmark size={16} /></button>
+      {directSkills.length ? <span className="h-5.5 w-px bg-line" aria-hidden="true" /> : null}
+      {directSkills.map((skill) => <button key={skill.id} type="button" className={actionButton} disabled={Boolean(runningSkillId)} onClick={() => void runSkill(skill.id)} title={skill.name}>{runningSkillId === skill.id ? <LoaderCircle size={13} className={spinner} /> : <Sparkles size={13} />}<span className="max-w-[94px] truncate">{skill.name}</span></button>)}
+      {moreSkills.length ? <OverlayMenu open={moreOpen} onOpenChange={setMoreOpen} placement="bottom-end" ariaLabel="More Selection Skills" menuClassName={menuSurface} trigger={(props) => <button {...props} type="button" className={actionButton}><Sparkles size={13} />More…</button>}>{moreSkills.map((skill) => <button key={skill.id} type="button" role="menuitem" disabled={Boolean(runningSkillId)} onClick={() => void runSkill(skill.id)}>{runningSkillId === skill.id ? <LoaderCircle size={14} className={spinner} /> : <Sparkles size={14} />}{skill.name}</button>)}</OverlayMenu> : null}
     </>}
-    {profilePickerOpen && !busy && !textOpen && phase !== "recording" ? <div className="v2-selection-profile-popover"><VoiceProfilePicker context={profileContext} overrides={profileOverrides} onChange={onProfileOverridesChange} onClose={() => onProfilePickerOpenChange(false)} /></div> : null}
-    {error || skillError ? <div className="v2-selection-error" role="alert">{error || skillError}</div> : null}
+    {profilePickerOpen && !busy && !textOpen && phase !== "recording" ? <div className={`${profilePopover} left-0`}><VoiceProfilePicker context={profileContext} overrides={profileOverrides} onChange={onProfileOverridesChange} onClose={() => onProfilePickerOpenChange(false)} /></div> : null}
+    {error || skillError ? <div className={`${errorBubble} right-0 bottom-[calc(100%+8px)]`} role="alert">{error || skillError}</div> : null}
   </div>;
 }

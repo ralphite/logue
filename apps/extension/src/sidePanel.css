@@ -1,0 +1,44 @@
+@import "tailwindcss";
+@import "./theme.css";
+@source "../../../packages/ui/src";
+
+@layer base {
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-width: 320px;
+    min-height: 100%;
+    margin: 0;
+  }
+
+  body {
+    overflow: hidden;
+    background: var(--color-panel);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-synthesis: none;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+}
+
+@layer components {
+  /* Long page titles and pasted text must wrap rather than widen the panel. */
+  .break-anywhere {
+    overflow-wrap: anywhere;
+  }
+}

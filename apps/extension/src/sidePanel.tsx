@@ -79,7 +79,7 @@ import {
 import { V2SidePanelSurface } from "./v2-real/V2SidePanelSurface";
 import type { VoiceCandidateRetranscribeInput, VoiceCandidateState } from "./v2-real/V2VoiceCandidateSurface";
 import type { PageMaterialChanges } from "./sidePanelModels";
-import "./v2-real/v2SidePanel.css";
+import "./sidePanel.css";
 
 type Phase = CapturePhase;
 

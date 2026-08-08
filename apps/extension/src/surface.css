@@ -1,0 +1,40 @@
+@import "tailwindcss";
+@import "./theme.css";
+@source "../../../packages/ui/src";
+
+/*
+ * Injected into the host page inside a shadow root, so this reset and the
+ * Tailwind preflight it carries cannot reach the page around it.
+ */
+@layer base {
+  :host {
+    all: initial;
+    --logue-overlay-layer: 2147483644;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: default;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

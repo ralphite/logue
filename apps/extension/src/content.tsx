@@ -13,7 +13,8 @@ import {
   type GoogleDocsLauncherCommand,
   type GoogleDocsLauncherState,
 } from "./googleDocsLauncherBridge";
-import { clampLauncherPosition, defaultLauncherPosition, inlineVoiceControlMetrics, launcherErrorPlacement } from "./launcherPosition";
+import { caretAnchorRect, type CaretRect } from "./caretAnchor";
+import { caretLauncherPosition, clampLauncherPosition, defaultLauncherPosition, inlineVoiceControlMetrics, launcherErrorPlacement, type LauncherPosition } from "./launcherPosition";
 import type { CaptureSource, PageCaptureContext } from "./capturePrimitives";
 import {
   audioBlobFromEvent,
@@ -34,7 +35,7 @@ import { V2InlineVoiceSurface, type InlineVoicePhase } from "./v2-real/V2InlineV
 import { V2CommandLauncherSurface, type CommandLauncherPhase } from "./v2-real/V2CommandLauncherSurface";
 import { V2VoiceCandidateSurface, type VoiceCandidateRetranscribeInput, type VoiceCandidateState } from "./v2-real/V2VoiceCandidateSurface";
 import { V2SelectionSurface, type SelectionCommentPhase } from "./v2-real/V2SelectionSurface";
-import styles from "./v2-real/v2ExtensionSurface.css?inline";
+import styles from "./surface.css?inline";
 
 interface ContentRequestMessage {
   type: "logue:insert-text" | "logue:undo-insert" | "logue:get-page-context" | "logue:probe-content-runtime" | "logue:locate-page-anchor" | "logue:get-current-selection-anchor" | "logue:discover-input-target" | "logue:insert-external-document" | "logue:undo-external-document" | "logue:start-inline-voice" | "logue:start-voice-command" | "logue:resume-voice-command";
@@ -383,6 +384,10 @@ function findPageAnchor(source?: SourceInfo) {
 
 function ExtensionLauncher() {
   const [targetRect, setTargetRect] = useState<DOMRect>();
+  const [caretRect, setCaretRect] = useState<CaretRect>();
+  // A dragged control stays where the user put it until they move to another
+  // editor, or snap it back to the cursor themselves.
+  const [movedPosition, setMovedPosition] = useState<LauncherPosition>();
   const [keyboardActive, setKeyboardActive] = useState(false);
   const [voicePhase, setVoicePhase] = useState<InlineVoicePhase>("idle");
   const [voiceError, setVoiceError] = useState("");
@@ -565,6 +570,7 @@ function ExtensionLauncher() {
         targetRef.current = null;
         targetPageHrefRef.current = "";
         setTargetRect(undefined);
+        setCaretRect(undefined);
       }
       return;
     }
@@ -600,6 +606,8 @@ function ExtensionLauncher() {
     targetRef.current = null;
     targetPageHrefRef.current = "";
     setTargetRect(undefined);
+    setCaretRect(undefined);
+    setMovedPosition(undefined);
     selectionSnapshotRef.current = undefined;
     setSelectionSnapshot(undefined);
     setKeyboardActive(false);
@@ -612,6 +620,7 @@ function ExtensionLauncher() {
       return;
     }
     setTargetRect(target.getBoundingClientRect());
+    setCaretRect(caretAnchorRect(target));
   }, [clearTarget]);
 
   const refreshSelectionSkillTarget = useCallback(() => {
@@ -1762,6 +1771,9 @@ function ExtensionLauncher() {
     targetRef.current = docsTarget;
     targetPageHrefRef.current = window.location.href;
     setTargetRect(docsTarget.getBoundingClientRect());
+    // Docs keeps its caret in a hidden event frame; the proxy control carries
+    // its own anchor from the editor frame instead.
+    setCaretRect(undefined);
     const isCommandAction = command.action.startsWith("command-");
     if (isCommandAction && command.action !== "command-close" && !command.action.startsWith("command-candidate-")) setCommandOpen(true);
     if (isCommandAction && command.project !== undefined) setCommandProject(command.project);
@@ -1908,6 +1920,8 @@ function ExtensionLauncher() {
         clearTarget();
         return;
       }
+      // A control the user dragged belongs to the editor they dragged it for.
+      if (targetRef.current !== target) setMovedPosition(undefined);
       targetRef.current = target;
       targetPageHrefRef.current = window.location.href;
       rememberExternalTarget(target);
@@ -1964,7 +1978,7 @@ function ExtensionLauncher() {
         return;
       }
       rememberExternalTarget(target);
-      setTargetRect(target.getBoundingClientRect());
+      refreshTarget();
       schedulePageContextChanged();
     };
     let href = window.location.href;
@@ -1996,7 +2010,13 @@ function ExtensionLauncher() {
     };
     document.addEventListener("selectionchange", scheduleSelectionSkillRefresh);
     document.addEventListener("selectionchange", schedulePageSelectionRefresh);
-    document.addEventListener("input", schedulePageContextChanged, true);
+    // Pasting, an IME commit, or an editor writing text itself never raises a
+    // key event. Re-anchor on input so the control keeps up with the caret.
+    const onEditableInput = (event: Event) => {
+      if (targetRef.current && event.target === targetRef.current) refreshTarget();
+      schedulePageContextChanged();
+    };
+    document.addEventListener("input", onEditableInput, true);
     document.addEventListener("select", onSelectionInteraction, true);
     document.addEventListener("pointerdown", onPointerDownOutsideSelection, true);
     document.addEventListener("pointerup", onSelectionInteraction, true);
@@ -2021,7 +2041,7 @@ function ExtensionLauncher() {
       document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("selectionchange", scheduleSelectionSkillRefresh);
       document.removeEventListener("selectionchange", schedulePageSelectionRefresh);
-      document.removeEventListener("input", schedulePageContextChanged, true);
+      document.removeEventListener("input", onEditableInput, true);
       document.removeEventListener("select", onSelectionInteraction, true);
       document.removeEventListener("pointerdown", onPointerDownOutsideSelection, true);
       document.removeEventListener("pointerup", onSelectionInteraction, true);
@@ -2100,6 +2120,7 @@ function ExtensionLauncher() {
       targetPageHrefRef.current = window.location.href;
       rememberExternalTarget(docsTarget);
       setTargetRect(docsTarget.getBoundingClientRect());
+      setCaretRect(undefined);
     }
   }, [rememberExternalTarget, targetRect]);
 
@@ -2572,19 +2593,26 @@ function ExtensionLauncher() {
   const skillSelectionAnchor = selectionSnapshot?.anchor ?? (pageSelectionSnapshot ? { left: Math.max(8, pageSelectionSnapshot.anchor.left - 92), top: pageSelectionSnapshot.anchor.bottom + 8 } : undefined);
   const hasSelectionSkillMenu = Boolean(selectionSnapshot && skillSelectionAnchor && eligibleSelectionSkills.length && !voiceFlowActive);
   const controlMetrics = inlineVoiceControlMetrics[voicePhase];
-  const defaultPosition = targetRect ? defaultLauncherPosition(targetRect, viewport, controlMetrics.width, controlMetrics.height) : undefined;
-  const position = defaultPosition ? clampLauncherPosition(defaultPosition, viewport, controlMetrics.width, controlMetrics.height) : undefined;
-  const candidatePosition = targetRect ? defaultLauncherPosition(targetRect, viewport, 380, 252) : undefined;
+  // The control follows the caret, so it stays beside the words being written
+  // instead of parking in the corner of a large editor. A drag overrides it.
+  const anchoredPosition = (width: number, height: number) => {
+    if (movedPosition) return clampLauncherPosition(movedPosition, viewport, width, height);
+    if (caretRect) return caretLauncherPosition(caretRect, viewport, width, height);
+    return targetRect ? clampLauncherPosition(defaultLauncherPosition(targetRect, viewport, width, height), viewport, width, height) : undefined;
+  };
+  const position = anchoredPosition(controlMetrics.width, controlMetrics.height);
+  const candidatePosition = anchoredPosition(380, 252);
   const commandAnchor = targetRect ?? pageSelectionSnapshot?.anchor;
-  const commandPosition = commandAnchor
-    ? clampLauncherPosition(defaultLauncherPosition(commandAnchor, viewport, 420, 244), viewport, 420, 244)
-    : { left: Math.max(8, (viewport.width - 420) / 2), top: Math.max(8, Math.min(96, viewport.height / 5)) };
+  const commandPosition = (caretRect || targetRect ? anchoredPosition(420, 244) : undefined)
+    ?? (commandAnchor
+      ? clampLauncherPosition(defaultLauncherPosition(commandAnchor, viewport, 420, 244), viewport, 420, 244)
+      : { left: Math.max(8, (viewport.width - 420) / 2), top: Math.max(8, Math.min(96, viewport.height / 5)) });
   const googleDocsMetrics = googleDocsProxy ? inlineVoiceControlMetrics[googleDocsProxy.phase] : undefined;
   const googleDocsPosition = googleDocsProxy && googleDocsMetrics
     // The Docs text-event iframe is hidden outside the viewport. Keep the
     // control inside the visible editor surface instead of the toolbar.
     ? clampLauncherPosition(
-      {
+      movedPosition ?? {
         left: googleDocsProxy.anchor.right - googleDocsMetrics.width - 16,
         top: googleDocsProxy.anchor.top + 16,
       },
@@ -3122,6 +3150,9 @@ function ExtensionLauncher() {
         profilePickerOpen={voiceProfilePickerOpen}
         onProfileOverridesChange={setVoiceProfileOverrides}
         onProfilePickerOpenChange={setVoiceProfilePickerOpen}
+        onMove={setMovedPosition}
+        onResetPosition={() => setMovedPosition(undefined)}
+        moved={Boolean(movedPosition)}
       />}
       {visible && voiceCandidate && candidatePosition && !isGoogleDocsDocumentTarget(targetRef.current) && <V2VoiceCandidateSurface
         candidate={voiceCandidate}
@@ -3187,6 +3218,9 @@ function ExtensionLauncher() {
         profilePickerOpen={voiceProfilePickerOpen}
         onProfileOverridesChange={setVoiceProfileOverrides}
         onProfilePickerOpenChange={setVoiceProfilePickerOpen}
+        onMove={setMovedPosition}
+        onResetPosition={() => setMovedPosition(undefined)}
+        moved={Boolean(movedPosition)}
       />}
       {googleDocsProxy?.commandCandidate && googleDocsCandidatePosition && <SelectionActionCandidate
         skillName={googleDocsProxy.commandCandidate.skillName}

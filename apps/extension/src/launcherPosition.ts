@@ -13,16 +13,24 @@ interface LauncherAnchor {
   right: number;
 }
 
+export interface LauncherCaret {
+  bottom: number;
+  left: number;
+  top: number;
+}
+
 const LAUNCHER_INSET = 8;
-const DEFAULT_CONTROL_WIDTH = 220;
+const DEFAULT_CONTROL_WIDTH = 242;
 const DEFAULT_CONTROL_HEIGHT = 44;
+/** Keeps the control off the caret's own line without drifting away from it. */
+const CARET_GAP = 10;
 
 export const inlineVoiceControlMetrics = {
-  idle: { width: 220, height: 44 },
-  error: { width: 220, height: 44 },
-  starting: { width: 214, height: 44 },
-  processing: { width: 214, height: 44 },
-  recording: { width: 286, height: 44 },
+  idle: { width: 242, height: 44 },
+  error: { width: 242, height: 44 },
+  starting: { width: 236, height: 44 },
+  processing: { width: 236, height: 44 },
+  recording: { width: 308, height: 44 },
 } as const;
 
 const ERROR_ESTIMATED_HEIGHT = 84;
@@ -62,4 +70,22 @@ export function defaultLauncherPosition(
     controlWidth,
     controlHeight,
   );
+}
+
+/**
+ * The control belongs where the user is writing, not at the far corner of a
+ * large editor. Sit just under the caret, and flip above it when the caret is
+ * near the bottom of the viewport.
+ */
+export function caretLauncherPosition(
+  caret: LauncherCaret,
+  viewport: LauncherViewport,
+  controlWidth = DEFAULT_CONTROL_WIDTH,
+  controlHeight = DEFAULT_CONTROL_HEIGHT,
+): LauncherPosition {
+  const below = caret.bottom + CARET_GAP;
+  const top = below + controlHeight + LAUNCHER_INSET <= viewport.height
+    ? below
+    : caret.top - CARET_GAP - controlHeight;
+  return clampLauncherPosition({ left: caret.left + CARET_GAP, top }, viewport, controlWidth, controlHeight);
 }

@@ -51,7 +51,7 @@ import type {
   VoiceCandidateRetranscribeInput,
   VoiceCandidateState,
 } from "./V2VoiceCandidateSurface";
-import "../../../web/src/v2-mock/styles/surfaces.css";
+import { associationList, associations, button, buttonIcon, buttonPrimary, card, choiceList, citationChip, commentCard, commentSource, contextCard, correction, draftCard, field, headingActions, inlineActions, inserted, menu, meta, organize, originLabel, panelComposer, panelFooter, panelFrame, panelHeader, panelScroll, panelSection, panelSectionHeading, panelTitleButton, profileButton, profilePopover, quietPill, recordingStatus, settingsSection, skillPicker, skillPickerGroup, skillPickerLabel, sources, spin, warningBar } from "./panelStyles";
 
 function sourceTitle(state: PanelCaptureState) {
   if (state.source.title.trim()) return state.source.title;
@@ -150,7 +150,7 @@ function V2Button({
     <button
       {...props}
       type={props.type ?? "button"}
-      className={`v2x-button${primary ? " is-primary" : ""}${icon ? " is-icon" : ""}${props.className ? ` ${props.className}` : ""}`}
+      className={`${button}${primary ? ` ${buttonPrimary}` : ""}${icon ? ` ${buttonIcon}` : ""}${props.className ? ` ${props.className}` : ""}`}
     >
       {children}
     </button>
@@ -167,7 +167,7 @@ function V2Origin({
   const OriginIcon =
     origin === "web" ? Globe2 : origin === "you" ? UserRound : Bot;
   return (
-    <span className="v2-origin-label">
+    <span className={originLabel}>
       <OriginIcon aria-hidden="true" size={13} />
       {origin === "web" ? "Web" : origin === "you" ? "You" : "AI"}
       <span aria-hidden="true">·</span>
@@ -221,8 +221,8 @@ function V2VoiceCandidate({
     (scope === "project" && !selectedProject) ||
     (scope === "topic" && !selectedTopic);
   return (
-    <section className="v2-draft-card" aria-label="Voice input candidate">
-      <div className="v2-panel-section-heading">
+    <section className={draftCard} aria-label="Voice input candidate">
+      <div className={panelSectionHeading}>
         <V2Origin
           origin="you"
           detail={`Voice · revision ${candidate.revision}`}
@@ -232,7 +232,7 @@ function V2VoiceCandidate({
         </V2Button>
       </div>
       {candidate.inserted || candidate.copied ? (
-        <div className="v2x-inserted">
+        <div className={inserted}>
           <Check size={16} />
           {candidate.copied ? "Copied" : "Inserted"}
         </div>
@@ -246,12 +246,12 @@ function V2VoiceCandidate({
         />
       )}
       {candidate.error ? (
-        <div className="v2-warning-bar" role="alert">
+        <div className={warningBar} role="alert">
           {candidate.error}
         </div>
       ) : null}
       {!candidate.inserted && !candidate.copied && optionsOpen ? (
-        <div className="v2x-candidate-options">
+        <div className="mt-3 border-t border-line pt-1">
           <VoiceProfilePicker
             context={context}
             overrides={overrides}
@@ -259,7 +259,7 @@ function V2VoiceCandidate({
             onClose={() => setOptionsOpen(false)}
             embedded
           />
-          <div className="v2x-correction">
+          <div className={correction}>
             <input
               value={spoken}
               onChange={(event) => setSpoken(event.target.value)}
@@ -274,7 +274,7 @@ function V2VoiceCandidate({
               aria-label="Preferred spelling"
             />
           </div>
-          <div className="v2-inline-actions">
+          <div className={inlineActions}>
             <select
               value={scope}
               onChange={(event) =>
@@ -308,7 +308,7 @@ function V2VoiceCandidate({
               }
             >
               {candidate.busy ? (
-                <LoaderCircle size={14} className="v2x-spin" />
+                <LoaderCircle size={14} className={spin} />
               ) : (
                 <RotateCcw size={14} />
               )}
@@ -317,7 +317,7 @@ function V2VoiceCandidate({
           </div>
         </div>
       ) : null}
-      <div className="v2-inline-actions v2x-candidate-actions">
+      <div className={`${inlineActions} mt-3`}>
         {!candidate.inserted && !candidate.copied ? (
           <V2Button
             onClick={() => setOptionsOpen((value) => !value)}
@@ -332,7 +332,7 @@ function V2VoiceCandidate({
             Delete comment
           </V2Button>
         ) : null}
-        <span className="v2x-spacer" />
+        <span className="flex-1" />
         {candidate.purpose !== "comment" &&
         !candidate.inserted &&
         !candidate.copied &&
@@ -603,10 +603,10 @@ export function V2SidePanelSurface({
   const [projectCreateError, setProjectCreateError] = useState("");
   if (!state)
     return (
-      <div className="logue-v2 v2-side-panel-frame">
-        <div className="v2-recovery-card v2x-empty">
+      <div className={panelFrame}>
+        <div className={`${card} m-6 [&>p]:mt-0`}>
           <p>Open Logue from a page to begin.</p>
-          <a className="v2x-button" href={logueHostURL(hostURL, "projects")} target="_blank" rel="noreferrer">
+          <a className={button} href={logueHostURL(hostURL, "projects")} target="_blank" rel="noreferrer">
             Open Logue
             <ExternalLink size={14} />
           </a>
@@ -627,7 +627,7 @@ export function V2SidePanelSurface({
   return (
     <main
       ref={panelRef}
-      className="logue-v2 v2-side-panel-frame"
+      className={panelFrame}
       tabIndex={-1}
       data-logue-extension="off"
     >
@@ -650,11 +650,11 @@ export function V2SidePanelSurface({
                         : undefined
         }
       />
-      <aside className="v2-side-panel" aria-label="Logue side panel">
-        <header className="v2-panel-header">
+      <aside  aria-label="Logue side panel">
+        <header className={panelHeader}>
           <button
             type="button"
-            className="v2-panel-title v2x-title-button"
+            className={panelTitleButton}
             onClick={() => setOrganizeOpen((value) => !value)}
             aria-expanded={organizeOpen}
           >
@@ -665,7 +665,7 @@ export function V2SidePanelSurface({
             </span>
           </button>
           <a
-            className="v2x-button is-icon"
+            className={`${button} ${buttonIcon}`}
             href={logueHostURL(hostURL, "projects")}
             target="_blank"
             rel="noreferrer"
@@ -679,7 +679,7 @@ export function V2SidePanelSurface({
             onOpenChange={setMoreOpen}
             placement="bottom-end"
             ariaLabel="More options"
-            menuClassName="v2x-menu"
+            menuClassName={menu}
             trigger={(props) => (
               <V2Button {...props} icon aria-label="More options">
                 <Ellipsis size={17} />
@@ -699,8 +699,8 @@ export function V2SidePanelSurface({
           </OverlayMenu>
         </header>
         {organizeOpen && !presentation.captureActive ? (
-          <section className="v2x-organize" aria-label="Organize capture">
-            <div className="v2-panel-section-heading">
+          <section className={organize} aria-label="Organize capture">
+            <div className={panelSectionHeading}>
               <h2>Project</h2>
               <V2Button
                 icon
@@ -710,9 +710,9 @@ export function V2SidePanelSurface({
                 <X size={14} />
               </V2Button>
             </div>
-            <div className="v2x-choice-list">
+            <div className={choiceList}>
               <button
-                className={!state.projects?.length ? "is-active" : ""}
+                className={!state.projects?.length ? "bg-surface-muted text-ink" : ""}
                 onClick={() => onProjectsChange([])}
               >
                 No project
@@ -731,8 +731,8 @@ export function V2SidePanelSurface({
             </div>
             {!activeProject ? (
               projectCreateOpen ? (
-                <div className="v2-settings-section">
-                  <label className="v2x-field">
+                <div className={settingsSection}>
+                  <label className={field}>
                     Name
                     <input
                       value={projectName}
@@ -740,19 +740,19 @@ export function V2SidePanelSurface({
                       autoFocus
                     />
                   </label>
-                  <label className="v2x-field">
-                    Goal <span className="v2-library-meta">Optional</span>
+                  <label className={field}>
+                    Goal <span className={meta}>Optional</span>
                     <textarea
                       value={projectGoal}
                       onChange={(event) => setProjectGoal(event.target.value)}
                     />
                   </label>
                   {projectCreateError ? (
-                    <div className="v2-warning-bar" role="alert">
+                    <div className={warningBar} role="alert">
                       {projectCreateError}
                     </div>
                   ) : null}
-                  <div className="v2-inline-actions">
+                  <div className={inlineActions}>
                     <V2Button
                       disabled={projectCreating}
                       onClick={() => {
@@ -800,11 +800,11 @@ export function V2SidePanelSurface({
               )
             ) : null}
             {activeProject ? (
-              <div className="v2x-associations">
-                <div className="v2-library-meta">
+              <div className={associations}>
+                <div className={meta}>
                   Use {activeProject} automatically
                 </div>
-                <div className="v2-inline-actions">
+                <div className={inlineActions}>
                   <V2Button
                     disabled={projectAssociations.some(
                       (item) =>
@@ -829,7 +829,7 @@ export function V2SidePanelSurface({
               </div>
             ) : null}
             {projectAssociations.length ? (
-              <div className="v2x-association-list" aria-label="Project rules">
+              <div className={associationList} aria-label="Project rules">
                 {projectAssociations.map((association) => (
                   <div key={association.id}>
                     <span>
@@ -850,7 +850,7 @@ export function V2SidePanelSurface({
                 ))}
               </div>
             ) : null}
-            <label className="v2x-field">
+            <label className={field}>
               Tags
               <input
                 value={(state.tags ?? []).join(", ")}
@@ -868,12 +868,12 @@ export function V2SidePanelSurface({
           </section>
         ) : null}
         {pendingVoiceQueueFull ? (
-          <div className="v2-warning-bar" role="alert">
+          <div className={warningBar} role="alert">
             Saved recording storage is full. Export or delete one before
             recording again.
           </div>
         ) : pendingVoices.length ? (
-          <div className="v2-offline-bar" role="status">
+          <div className={warningBar} role="status">
             <strong>
               {pendingVoices.length} recording
               {pendingVoices.length === 1 ? "" : "s"} saved on this Mac.
@@ -881,30 +881,30 @@ export function V2SidePanelSurface({
             Retry when the Host is available.
           </div>
         ) : error?.kind === "service" ? (
-          <div className="v2-offline-bar" role="alert">
+          <div className={warningBar} role="alert">
             Host unavailable · new recordings stay on this Mac.
           </div>
         ) : null}
         {providerNotice && error?.kind !== "service" ? (
-          <div className="v2-warning-bar" role="status">
+          <div className={warningBar} role="status">
             <span>{providerNotice}</span>
             <V2Button onClick={onOpenModelSettings}>Model settings…</V2Button>
           </div>
         ) : null}
         {error?.kind === "target" ? (
-          <div className="v2-warning-bar" role="alert">{error.message}</div>
+          <div className={warningBar} role="alert">{error.message}</div>
         ) : error && error.kind !== "service" ? (
-          <div className="v2-warning-bar" role="alert">
+          <div className={warningBar} role="alert">
             <span>{error.message}</span>
-            {error.kind === "transcription" ? <div className="v2-inline-actions"><V2Button onClick={onRetryTranscription}>Retry</V2Button><V2Button onClick={onOpenModelSettings}>Model settings…</V2Button></div> : null}
-            {error.kind === "model" ? <div className="v2-inline-actions"><V2Button onClick={onRetryModel} disabled={generating}>{generating ? "Retrying…" : "Retry"}</V2Button><V2Button onClick={onOpenModelSettings}>Model settings…</V2Button></div> : null}
-            {error.kind === "save" && error.action === "retry" && generatedDocumentUndoAvailable ? <div className="v2-inline-actions"><V2Button onClick={onUndoGeneratedDocument} disabled={savingGeneratedDocument}>{savingGeneratedDocument ? "Retrying…" : "Retry"}</V2Button></div> : null}
+            {error.kind === "transcription" ? <div className={inlineActions}><V2Button onClick={onRetryTranscription}>Retry</V2Button><V2Button onClick={onOpenModelSettings}>Model settings…</V2Button></div> : null}
+            {error.kind === "model" ? <div className={inlineActions}><V2Button onClick={onRetryModel} disabled={generating}>{generating ? "Retrying…" : "Retry"}</V2Button><V2Button onClick={onOpenModelSettings}>Model settings…</V2Button></div> : null}
+            {error.kind === "save" && error.action === "retry" && generatedDocumentUndoAvailable ? <div className={inlineActions}><V2Button onClick={onUndoGeneratedDocument} disabled={savingGeneratedDocument}>{savingGeneratedDocument ? "Retrying…" : "Retry"}</V2Button></div> : null}
           </div>
         ) : null}
-        <div className="v2-panel-scroll">
+        <div className={panelScroll}>
           {serverSettingsOpen ? (
-            <section className="v2-settings-section">
-              <div className="v2-panel-section-heading">
+            <section className={settingsSection}>
+              <div className={panelSectionHeading}>
                 <h2>Host</h2>
                 <V2Button
                   icon
@@ -914,7 +914,7 @@ export function V2SidePanelSurface({
                   <X size={14} />
                 </V2Button>
               </div>
-              <label className="v2x-field">
+              <label className={field}>
                 Host address
                 <input
                   type="url"
@@ -926,7 +926,7 @@ export function V2SidePanelSurface({
                   autoFocus
                 />
               </label>
-              <label className="v2x-field">
+              <label className={field}>
                 Pairing code
                 <input
                   inputMode="numeric"
@@ -941,9 +941,9 @@ export function V2SidePanelSurface({
                 />
               </label>
               {serverSettingsError ? (
-                <p className="v2-warning-bar">{serverSettingsError}</p>
+                <p className={warningBar}>{serverSettingsError}</p>
               ) : null}
-              <div className="v2-inline-actions">
+              <div className={inlineActions}>
                 <V2Button onClick={onCloseServerSettings}>Cancel</V2Button>
                 {serverCandidateURL ? (
                   <V2Button
@@ -965,19 +965,19 @@ export function V2SidePanelSurface({
           ) : (
             <>
               {pendingVoices.length ? (
-                <section className="v2-panel-section">
-                  <div className="v2-panel-section-heading">
+                <section className={panelSection}>
+                  <div className={panelSectionHeading}>
                     <h2>Saved recordings</h2>
-                    <span className="v2-quiet-pill">Local</span>
+                    <span className={quietPill}>Local</span>
                   </div>
                   {pendingVoices.map((item) => (
-                    <article className="v2-comment-card" key={item.id}>
+                    <article className={commentCard} key={item.id}>
                       <V2Origin
                         origin="you"
                         detail={item.error ? "Needs retry" : "Waiting for Host"}
                       />
                       <p>{item.pageTitle || "Voice recording"}</p>
-                      <div className="v2-inline-actions">
+                      <div className={inlineActions}>
                         <V2Button
                           disabled={Boolean(retryingPendingVoiceId)}
                           onClick={() => onRetryPendingVoice(item.id)}
@@ -998,7 +998,7 @@ export function V2SidePanelSurface({
                 </section>
               ) : null}
               {voiceCandidate ? (
-                <section className="v2-panel-section">
+                <section className={panelSection}>
                   <V2VoiceCandidate
                     candidate={voiceCandidate}
                     context={voiceProfileContext}
@@ -1015,14 +1015,14 @@ export function V2SidePanelSurface({
                   />
                 </section>
               ) : generatedText ? (
-                <section className="v2-panel-section">
-                  <div className="v2-panel-section-heading">
+                <section className={panelSection}>
+                  <div className={panelSectionHeading}>
                     <h2>{generated ? "Draft reply" : "Page action"}</h2>
-                    <span className="v2-quiet-pill">
+                    <span className={quietPill}>
                       {commandSources.length} sources
                     </span>
                   </div>
-                  <div className="v2-draft-card">
+                  <div className={draftCard}>
                     <textarea
                       value={generatedText}
                       readOnly={generatedUndoAvailable || generatedAdoptionPending}
@@ -1033,11 +1033,11 @@ export function V2SidePanelSurface({
                         generated ? "Draft reply" : "Page action result"
                       }
                     />
-                    <div className="v2-citation-list">
+                    <div className="mt-3 flex flex-wrap gap-1.5">
                       {commandSources.map((source, index) => (
                         <button
                           key={source.id}
-                          className="v2-citation-chip"
+                          className={citationChip}
                           aria-pressed={openSourceId === source.id}
                           onClick={() =>
                             setOpenSourceId((current) =>
@@ -1050,7 +1050,7 @@ export function V2SidePanelSurface({
                         </button>
                       ))}
                     </div>
-                    <div className="v2-inline-actions v2x-candidate-actions">
+                    <div className={`${inlineActions} mt-3`}>
                       <V2Button disabled={generatedAdoptionPending} onClick={onCopyGenerated}>
                         <Copy size={14} />
                         Copy
@@ -1064,7 +1064,7 @@ export function V2SidePanelSurface({
                           <RotateCcw size={14} />
                           {savingGeneratedDocument ? "Undoing…" : generatedDocumentUndoAction === "document" ? "Undo Save as document" : "Undo Document update"}
                         </V2Button>
-                      ) : <div className="v2-action-menu-wrap">
+                      ) : <div className="relative w-fit">
                         <V2Button
                           disabled={savingGeneratedDocument || generatedAdoptionPending}
                           aria-expanded={documentTargetOpen}
@@ -1074,18 +1074,18 @@ export function V2SidePanelSurface({
                           {savingGeneratedDocument ? "Saving…" : "Document…"}
                         </V2Button>
                         {documentTargetOpen ? (
-                          <div className="v2-skill-picker" role="menu" aria-label="Choose Document target">
-                            <div className="v2-skill-picker-scroll">
-                              <div className="v2-skill-picker-group">
-                                <div className="v2-skill-picker-label">Create</div>
+                          <div className={skillPicker} role="menu" aria-label="Choose Document target">
+                            <div className="max-h-90 overflow-auto p-1.5">
+                              <div className={skillPickerGroup}>
+                                <div className={skillPickerLabel}>Create</div>
                                 <button type="button" role="menuitem" disabled={savingGeneratedDocument} onClick={() => { setDocumentTargetOpen(false); onSaveGeneratedDocument?.(); }}>
                                   <span>New Document</span>
                                   <small>Start a Document with this sourced result</small>
                                 </button>
                               </div>
                               {projectDocuments.length ? (
-                                <div className="v2-skill-picker-group">
-                                  <div className="v2-skill-picker-label">Update existing</div>
+                                <div className={skillPickerGroup}>
+                                  <div className={skillPickerLabel}>Update existing</div>
                                   {projectDocuments.map((document) => (
                                     <button key={document.id} type="button" role="menuitem" disabled={savingGeneratedDocument} onClick={() => { setDocumentTargetOpen(false); onSaveGeneratedDocument?.(document); }}>
                                       <span>{document.title}</span>
@@ -1127,8 +1127,8 @@ export function V2SidePanelSurface({
                     </div>
                   </div>
                   {openedSource ? (
-                    <article className="v2-context-card">
-                      <div className="v2-panel-section-heading">
+                    <article className={contextCard}>
+                      <div className={panelSectionHeading}>
                         <V2Origin
                           origin={
                             openedSource.actor === "user"
@@ -1139,7 +1139,7 @@ export function V2SidePanelSurface({
                           }
                           detail="Source used"
                         />
-                        <span className="v2x-heading-actions">
+                        <span className={headingActions}>
                           <a href={logueHostURL(hostURL, "library", openedSource.id)} target="_blank" rel="noreferrer" aria-label="Open saved Source in Logue" title="Open in Logue">
                             <ExternalLink size={14} />
                           </a>
@@ -1166,8 +1166,8 @@ export function V2SidePanelSurface({
                 </section>
               ) : (
                 <>
-                  <section className="v2-panel-section">
-                    <div className="v2-panel-section-heading">
+                  <section className={panelSection}>
+                    <div className={panelSectionHeading}>
                       <h2>On this page</h2>
                       {state.source.url ? (
                         <a
@@ -1180,7 +1180,7 @@ export function V2SidePanelSurface({
                         </a>
                       ) : null}
                     </div>
-                    <article className="v2-context-card">
+                    <article className={contextCard}>
                       <V2Origin
                         origin="web"
                         detail={
@@ -1188,11 +1188,11 @@ export function V2SidePanelSurface({
                         }
                       />
                       <p>{state.selectionText || title}</p>
-                      <div className="v2-library-meta">
+                      <div className={meta}>
                         Snapshot retained when saved
                       </div>
                     </article>
-                    <div className="v2x-page-actions">
+                    <div className="mt-2.5 flex flex-wrap gap-[7px]">
                       <V2Button
                         disabled={
                           generating || !(state.selectionText || state.pageText)
@@ -1220,10 +1220,10 @@ export function V2SidePanelSurface({
                         ))}
                     </div>
                   </section>
-                  <section className="v2-panel-section">
-                    <div className="v2-panel-section-heading">
+                  <section className={panelSection}>
+                    <div className={panelSectionHeading}>
                       <h2>Comments</h2>
-                      <span className="v2-quiet-pill">
+                      <span className={quietPill}>
                         {pageMaterialGroups.length}
                       </span>
                     </div>
@@ -1313,8 +1313,8 @@ export function V2SidePanelSurface({
                 void updateGroup(changes).catch(() => undefined);
               };
                       return (
-                        <article className="v2-comment-card" key={group.key}>
-                          <div className="v2-panel-section-heading">
+                        <article className={commentCard} key={group.key}>
+                          <div className={panelSectionHeading}>
                             <V2Origin
                               origin="you"
                               detail={
@@ -1327,7 +1327,7 @@ export function V2SidePanelSurface({
                                     : classification
                               }
                             />
-                            <span className="v2x-heading-actions">
+                            <span className={headingActions}>
                               <a href={logueHostURL(hostURL, "library", material.id)} target="_blank" rel="noreferrer" aria-label="Open saved item in Logue" title="Open in Logue">
                                 <ExternalLink size={14} />
                               </a>
@@ -1346,8 +1346,8 @@ export function V2SidePanelSurface({
                             </span>
                           </div>
                           {editing ? (
-                            <div className="v2-settings-section">
-                              <label className="v2x-field">
+                            <div className={settingsSection}>
+                              <label className={field}>
                                 Comment
                                 <textarea
                                   value={commentDraft}
@@ -1356,7 +1356,7 @@ export function V2SidePanelSurface({
                                   }
                                 />
                               </label>
-                              <fieldset className="v2x-choice-list">
+                              <fieldset className={choiceList}>
                                 <legend>Projects</legend>
                                 {projects.map((project) => (
                                   <label key={project.name}>
@@ -1379,7 +1379,7 @@ export function V2SidePanelSurface({
                                   </label>
                                 ))}
                               </fieldset>
-                              <label className="v2x-field">
+                              <label className={field}>
                                 Tags
                                 <input
                                   value={commentTags}
@@ -1389,10 +1389,10 @@ export function V2SidePanelSurface({
                                   placeholder="research, decision"
                                 />
                               </label>
-                              <div className="v2-recovery-card">
+                              <div className={card}>
                                 <p>{classificationReason}</p>
                               </div>
-                              <div className="v2-inline-actions">
+                              <div className={inlineActions}>
                                 <V2Button
                                   disabled={commentSaving}
                                   onClick={() => setEditingCommentId(undefined)}
@@ -1462,11 +1462,11 @@ export function V2SidePanelSurface({
                             </p>
                           )}
                           {group.source ? (
-                            <small className="v2x-comment-source">
+                            <small className={commentSource}>
                               On “{group.source.content}”
                             </small>
                           ) : null}
-                          <div className="v2-library-meta">
+                          <div className={meta}>
                             {[
                               transcriptionPending
                                 ? "Saved · Retry transcription"
@@ -1488,7 +1488,7 @@ export function V2SidePanelSurface({
                           anchorMaterial &&
                           (anchorStatus === "anchored" ||
                             anchorStatus === "reanchored") ? (
-                            <div className="v2-inline-actions">
+                            <div className={inlineActions}>
                               <V2Button
                                 onClick={() =>
                                   onLocatePageAnchor(anchorMaterial)
@@ -1502,7 +1502,7 @@ export function V2SidePanelSurface({
                           anchorMaterial &&
                           (anchorStatus === "page_changed" ||
                             anchorStatus === "snapshot_only") ? (
-                            <div className="v2-inline-actions">
+                            <div className={inlineActions}>
                               <V2Button
                                 primary={anchorStatus === "page_changed"}
                                 onClick={() =>
@@ -1524,7 +1524,7 @@ export function V2SidePanelSurface({
                           ) : null}
                           {!editing &&
                             (unlinked ? (
-                              <div className="v2-inline-actions">
+                              <div className={inlineActions}>
                                 {!transcriptionPending ? (
                                   <V2Button
                                     primary
@@ -1544,7 +1544,7 @@ export function V2SidePanelSurface({
                                 </V2Button>
                               </div>
                             ) : activeProject ? (
-                              <div className="v2-inline-actions">
+                              <div className={inlineActions}>
                                 {excluded ? (
                                   <V2Button
                                     onClick={() =>
@@ -1643,7 +1643,7 @@ export function V2SidePanelSurface({
                       );
                     })}
                     {pageMaterialGroups.length === 0 ? (
-                      <div className="v2-recovery-card">
+                      <div className={card}>
                         <p>No comments on this page yet.</p>
                       </div>
                     ) : null}
@@ -1651,8 +1651,8 @@ export function V2SidePanelSurface({
                 </>
               )}
               {generated && !generatedText && !voiceCandidate ? (
-                <section className="v2-panel-section">
-                  <div className="v2-panel-section-heading">
+                <section className={panelSection}>
+                  <div className={panelSectionHeading}>
                     <h2>Draft with sources</h2>
                     <V2Button
                       icon
@@ -1662,7 +1662,7 @@ export function V2SidePanelSurface({
                       <ArrowLeft size={16} />
                     </V2Button>
                   </div>
-                  <label className="v2x-field">
+                  <label className={field}>
                     Skill
                     <select
                       value={skillId}
@@ -1676,7 +1676,7 @@ export function V2SidePanelSurface({
                     </select>
                   </label>
                   {activeProject ? (
-                    <div className="v2x-sources">
+                    <div className={sources}>
                       <button
                         type="button"
                         onClick={() => setSourcesOpen((value) => !value)}
@@ -1734,7 +1734,7 @@ export function V2SidePanelSurface({
                         : null}
                     </div>
                   ) : (
-                    <div className="v2-recovery-card">
+                    <div className={card}>
                       <p>
                         Choose a Project to draft from saved Sources, or
                         continue with this page.
@@ -1744,13 +1744,13 @@ export function V2SidePanelSurface({
                 </section>
               ) : null}
               {pendingInsert ? (
-                <section className="v2-panel-section">
-                  <div className="v2-recovery-card" role="status">
+                <section className={panelSection}>
+                  <div className={card} role="status">
                     <p>
                       The original input is unavailable. Your text is saved in
                       Logue.
                     </p>
-                    <div className="v2-inline-actions">
+                    <div className={inlineActions}>
                       <V2Button onClick={onCopyPendingInsert}>Copy</V2Button>
                       {state.targetAvailable &&
                       state.source.url === pendingInsert.sourceURL ? (
@@ -1773,14 +1773,14 @@ export function V2SidePanelSurface({
         !voiceCandidate &&
         !generatedText &&
         error?.kind !== "service" ? (
-          <footer className="v2-panel-footer">
+          <footer className={panelFooter}>
             {phase === "recording" ? (
-              <div className="v2-panel-composer">
-                <span className="v2-recording-status">
+              <div className={panelComposer}>
+                <span className={recordingStatus}>
                   <span />
                   Recording {elapsed}s
                 </span>
-                <span className="v2x-spacer" />
+                <span className="flex-1" />
                 <V2Button
                   primary
                   onClick={onStopRecording}
@@ -1797,15 +1797,15 @@ export function V2SidePanelSurface({
                 </V2Button>
               </div>
             ) : presentation.captureActive ? (
-              <div className="v2-panel-composer">
-                <LoaderCircle size={16} className="v2x-spin" />
+              <div className={panelComposer}>
+                <LoaderCircle size={16} className={spin} />
                 <span>{presentation.status || "Preparing voice…"}</span>
-                <span className="v2x-spacer" />
+                <span className="flex-1" />
                 <V2Button onClick={onCancelRecording}>Cancel</V2Button>
               </div>
             ) : (
               <>
-                <div className="v2-panel-composer">
+                <div className={panelComposer}>
                   <textarea
                     value={draft}
                     onChange={(event) => onDraftChange(event.target.value)}
@@ -1839,7 +1839,7 @@ export function V2SidePanelSurface({
                       onClick={onGenerate}
                     >
                       {generating ? (
-                        <LoaderCircle size={16} className="v2x-spin" />
+                        <LoaderCircle size={16} className={spin} />
                       ) : (
                         <Send size={16} />
                       )}
@@ -1856,9 +1856,9 @@ export function V2SidePanelSurface({
                     </V2Button>
                   )}
                 </div>
-                <div className="v2-inline-actions v2x-footer-actions">
+                <div className={`${inlineActions} mt-2`}>
                   <button
-                    className="v2x-profile"
+                    className={profileButton}
                     aria-expanded={voiceProfilePickerOpen}
                     onClick={() =>
                       onVoiceProfilePickerOpenChange(!voiceProfilePickerOpen)
@@ -1868,7 +1868,7 @@ export function V2SidePanelSurface({
                       "Default voice"}
                     <ChevronDown size={11} />
                   </button>
-                  <span className="v2x-spacer" />
+                  <span className="flex-1" />
                   {!generated ? (
                     <V2Button onClick={onRequestGeneration}>
                       <Sparkles size={14} />
@@ -1877,7 +1877,7 @@ export function V2SidePanelSurface({
                   ) : null}
                 </div>
                 {voiceProfilePickerOpen ? (
-                  <div className="v2x-profile-popover">
+                  <div className={profilePopover}>
                     <VoiceProfilePicker
                       context={voiceProfileContext}
                       overrides={voiceProfileOverrides}
@@ -1892,8 +1892,8 @@ export function V2SidePanelSurface({
           </footer>
         ) : null}
         {error?.kind === "service" && !serverSettingsOpen ? (
-          <footer className="v2-panel-footer">
-            <div className="v2-inline-actions">
+          <footer className={panelFooter}>
+            <div className={inlineActions}>
               <V2Button onClick={onRetryServer} disabled={serverConnecting}>
                 {serverConnecting ? "Retrying…" : "Retry Host"}
               </V2Button>
