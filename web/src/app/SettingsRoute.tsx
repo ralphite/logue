@@ -1,7 +1,7 @@
 import { Check, Download, X } from "lucide-react";
 import { useState } from "react";
-import { Button, ErrorNote, Field, IconButton, Input, Select, Spinner } from "@logue/ui";
-import { api, type Skill } from "../api";
+import { Button, Dialog, DialogActions, ErrorNote, Field, IconButton, Input, Select, Spinner } from "@logue/ui";
+import { api, type BackupFile, type Skill } from "../api";
 import { Page } from "./AppShell";
 import { useAction, useHost } from "./useHost";
 
@@ -45,6 +45,9 @@ export function SettingsRoute() {
   const skills = useHost(() => api.skills(), []);
   const corrections = useHost(() => api.corrections(), []);
   const backup = useHost(() => api.backupPreview(), []);
+  const backups = useHost(() => api.backups(), []);
+  const [restoring, setRestoring] = useState<BackupFile>();
+  const [restored, setRestored] = useState<Record<string, number>>();
 
   const [apiKey, setApiKey] = useState("");
   const [modelName, setModelName] = useState("");
@@ -205,12 +208,72 @@ export function SettingsRoute() {
                 : ""
             }
           />
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-1">
+            <Button
+              disabled={action.busy}
+              onClick={() => void action.run(() => api.createBackup()).then(() => backups.refresh())}
+            >
+              {action.busy ? <Spinner size={13} /> : null} Back up now
+            </Button>
             <Button onClick={() => window.open(api.backupExportUrl(), "_blank")}>
               <Download size={13} /> Export everything
             </Button>
           </div>
         </Section>
+
+        <Section title="Backups">
+          <p className="text-meta text-muted">
+            Restoring replaces everything here with what the backup holds. What is here now is backed up first.
+          </p>
+          {(backups.data?.backups ?? []).length === 0 ? (
+            <p className="text-meta text-faint">None yet.</p>
+          ) : (
+            <div className="grid gap-1">
+              {(backups.data?.backups ?? []).slice(0, 8).map((file) => (
+                <div key={file.id} className="flex items-center gap-2 text-xs">
+                  <span className="min-w-0 flex-1 truncate text-ink-soft">{file.id}</span>
+                  <span className="shrink-0 text-faint">{bytes(file.bytes)}</span>
+                  <Button variant="ghost" disabled={action.busy} onClick={() => setRestoring(file)}>
+                    Restore
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+
+        <Dialog open={Boolean(restoring)} onClose={() => setRestoring(undefined)} title="Restore this backup">
+          <p className="text-[13px] leading-normal text-ink">{restoring?.id}</p>
+          <p className="text-xs text-muted">
+            Everything in this workspace is replaced by what that backup holds — Sources, Projects, Documents,
+            Skills, recordings. A backup of what is here now is taken first, so this is reversible.
+          </p>
+          {restored && (
+            <p className="text-xs text-success">
+              Restored {Object.entries(restored).map(([what, count]) => `${count} ${what}`).join(" · ")}.
+            </p>
+          )}
+          {action.error && <ErrorNote>{action.error}</ErrorNote>}
+          <DialogActions>
+            <Button onClick={() => setRestoring(undefined)}>Cancel</Button>
+            <Button
+              data-primary
+              variant="danger"
+              disabled={action.busy}
+              onClick={() =>
+                restoring &&
+                void action.run(async () => {
+                  const result = await api.restoreBackup({ backup_id: restoring.id });
+                  setRestored(result.restored);
+                  void backups.refresh();
+                  void status.refresh();
+                })
+              }
+            >
+              {action.busy ? <Spinner size={13} /> : null} Replace everything
+            </Button>
+          </DialogActions>
+        </Dialog>
       </div>
     </Page>
   );

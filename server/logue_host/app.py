@@ -624,7 +624,7 @@ class App:
         def backup_restore(request: Request) -> dict[str, Any]:
             body = request.json()
             if body.get("backup_id"):
-                data = backup.read_backup(store, str(body["backup_id"])).read_bytes()
+                data = backup.read_backup(store, str(body["backup_id"]))
             elif body.get("bundle"):
                 data = base64.b64decode(str(body["bundle"]))
             else:

@@ -146,8 +146,26 @@ def restore(store: Store, data: bytes) -> dict[str, Any]:
     return {"restored": verified, "safety_backup": safety["id"]}
 
 
-def read_backup(store: Store, backup_id: str) -> Path:
-    path = store.backups / f"{backup_id}.zip"
-    if not path.exists():
+def read_backup(store: Store, backup_id: str) -> bytes:
+    """A backup as a bundle, whichever shape it was written in.
+
+    Earlier versions wrote a directory rather than a zip, and one of those is
+    somebody's only copy. Listing it and then refusing to restore it would be
+    the worst of both.
+    """
+    archive = store.backups / f"{backup_id}.zip"
+    if archive.exists():
+        return archive.read_bytes()
+
+    folder = store.backups / backup_id
+    if not folder.is_dir():
         raise BadRequest("That backup no longer exists.")
-    return path
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as bundle:
+        for path in sorted(folder.rglob("*")):
+            if path.is_file():
+                bundle.write(path, path.relative_to(folder).as_posix())
+    data = buffer.getvalue()
+    if "manifest.json" not in set(zipfile.ZipFile(io.BytesIO(data)).namelist()):
+        raise BadRequest("That backup is missing its manifest.")
+    return data

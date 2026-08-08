@@ -132,6 +132,12 @@ export interface Topic {
   reason?: string;
 }
 
+export interface BackupFile {
+  id: string;
+  bytes: number;
+  created_at: string;
+}
+
 export interface ModelStatus {
   configured: boolean;
   model: string;
@@ -289,6 +295,10 @@ export const api = {
   saveModel: (body: { api_key?: string; model?: string }) => send<ModelStatus>("PATCH", "/v1/model", body),
 
   backupPreview: () => request<{ counts: Record<string, number>; audio: number; bytes: number }>("/v1/backup/preview"),
+  backups: () => request<{ backups: BackupFile[] }>("/v1/backups"),
+  createBackup: () => send<{ backup: BackupFile }>("POST", "/v1/backups", {}),
+  restoreBackup: (body: { backup_id?: string; bundle?: string }) =>
+    send<{ restored: Record<string, number>; safety_backup: string }>("POST", "/v1/backups/restore", body),
   backupExportUrl: () => `${HOST}/v1/backup/export`,
   audioUrl: (captureId: string) => `${HOST}/v1/captures/${captureId}/audio`,
 };

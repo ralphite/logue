@@ -67,6 +67,10 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   Document. Printing the domain as dead text makes people go and find it by
   hand. Clicking the link must not also open the row.
 - **⌘K finds anything**; ⌘\ collapses the rail.
+- **A section's list lives in the rail, under that section** — the way
+  chatgpt.com and Codex do it. Clicking Stream, Projects, Documents or Skills
+  opens its list below the nav item; the main area shows only the one thing
+  selected, not the list again.
 
 ## In the browser
 
