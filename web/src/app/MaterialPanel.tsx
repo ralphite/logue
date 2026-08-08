@@ -71,6 +71,49 @@ export function MaterialPanel({
             <Lineage title="Came from" items={lineage.data?.parents ?? []} />
             <Lineage title="Led to" items={lineage.data?.children ?? []} />
 
+            {material.organization?.status === "needs_review" && (
+              <div className="grid gap-1.5 rounded-lg border border-accent-line bg-accent-soft px-2.5 py-2">
+                <span className="text-[11px] text-accent-ink">Logue suggests</span>
+                <span className="flex flex-wrap items-center gap-1 text-[11px]">
+                  {(material.organization.suggested_projects ?? []).map((name) => (
+                    <span key={name} className="rounded-sm bg-panel px-1 text-ink-soft">
+                      {name}
+                    </span>
+                  ))}
+                  {(material.organization.suggested_tags ?? []).map((name) => (
+                    <Tag key={name} name={name} className="bg-panel" />
+                  ))}
+                </span>
+                {material.organization.reason && (
+                  <span className="text-[11px] leading-normal text-muted">{material.organization.reason}</span>
+                )}
+                <span className="flex justify-end gap-1">
+                  <Button
+                    variant="primary"
+                    disabled={action.busy}
+                    onClick={() =>
+                      void action
+                        .run(() => api.resolveOrganization(material.id, { accept: true }))
+                        .then((ok) => ok && (lineage.refresh(), onChanged()))
+                    }
+                  >
+                    File it
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    disabled={action.busy}
+                    onClick={() =>
+                      void action
+                        .run(() => api.resolveOrganization(material.id, { accept: false }))
+                        .then((ok) => ok && (lineage.refresh(), onChanged()))
+                    }
+                  >
+                    Skip
+                  </Button>
+                </span>
+              </div>
+            )}
+
             <Tags
               material={material}
               busy={action.busy}

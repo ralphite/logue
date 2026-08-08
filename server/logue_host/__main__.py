@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from .app import App
+from .domain import organize
 from .http import serve
 
 
@@ -24,6 +25,12 @@ def main(argv: list[str] | None = None) -> int:
     host, _, port = args.address.rpartition(":")
     app = App(Path(args.data_dir).expanduser().resolve())
     server = serve(app.router, host or "127.0.0.1", int(port))
+
+    # Anything a previous run was part-way through. Without this a Host
+    # restarted mid-classification leaves Sources waiting for good.
+    resumed = organize.catch_up(app.store, app.provider())
+    if resumed:
+        print(f"Resuming {resumed} Sources that were still being filed.", flush=True)
 
     print(f"Logue Host on http://{host or '127.0.0.1'}:{port}  data: {app.store.root}", flush=True)
     try:

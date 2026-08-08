@@ -1,6 +1,19 @@
-import { EyeOff, MoreHorizontal, Search, Trash2 } from "lucide-react";
+import { EyeOff, Inbox, MoreHorizontal, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Empty, ErrorNote, IconButton, Input, Menu, MenuItem, OriginMark, Spinner, Tag, originOf } from "@logue/ui";
+import {
+  Button,
+  Empty,
+  ErrorNote,
+  IconButton,
+  Input,
+  Menu,
+  MenuItem,
+  OriginMark,
+  Spinner,
+  Tag,
+  cn,
+  originOf,
+} from "@logue/ui";
 import { api, type Material, type Project } from "../api";
 import { Page, Row, RowActions, Rows } from "./AppShell";
 import { timeAgo, useAction, useHost } from "./useHost";
@@ -8,6 +21,78 @@ import { MaterialPanel } from "./MaterialPanel";
 
 /** Past this the row's own text stops being what you read first. */
 const TAGS_ON_A_ROW = 3;
+
+/**
+ * What Logue thinks this Source is, and the two ways to answer.
+ *
+ * The reason is shown, not hidden behind a hover: a suggestion you cannot
+ * question is one you either rubber-stamp or ignore, and both of those make
+ * the queue worthless.
+ */
+function Suggestion({
+  material,
+  onDecide,
+  busy,
+}: {
+  material: Material;
+  onDecide: (material: Material, accept: boolean) => void;
+  busy: boolean;
+}) {
+  const found = material.organization;
+  if (!found) return null;
+  const projects = found.suggested_projects ?? [];
+  const tags = found.suggested_tags ?? [];
+  const nothing = projects.length === 0 && tags.length === 0 && !found.duplicate_of;
+
+  return (
+    // The two answers keep a column of their own, so a long reason never
+    // pushes them onto a line of their own and the queue stays one rhythm.
+    <span className="mt-1.5 flex items-start gap-3 text-[11px]">
+      {found.status === "pending" ? (
+        <span className="flex items-center gap-1.5 text-muted">
+          <Spinner size={11} /> Looking at this…
+        </span>
+      ) : (
+        <>
+          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+            {projects.map((name) => (
+              <span key={name} className="rounded-sm bg-accent-soft px-1 text-accent-ink">
+                {name}
+              </span>
+            ))}
+            {tags.map((name) => (
+              <Tag key={name} name={name} />
+            ))}
+            {found.duplicate_of && <span className="text-warning">Looks like one you already kept</span>}
+            {found.reason && <span className="min-w-0 text-muted">{found.reason}</span>}
+          </span>
+          <span className="flex shrink-0 items-center gap-1">
+            <Button
+              variant="primary"
+              disabled={busy}
+              onClick={(event) => {
+                event.stopPropagation();
+                onDecide(material, true);
+              }}
+            >
+              {nothing ? "Nothing to file" : "File it"}
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={busy}
+              onClick={(event) => {
+                event.stopPropagation();
+                onDecide(material, false);
+              }}
+            >
+              Skip
+            </Button>
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
 
 function title(material: Material): string {
   const text = (material.content || "").trim().replace(/\s+/g, " ");
@@ -22,13 +107,17 @@ function where(material: Material): string {
 export function StreamRoute() {
   const [query, setQuery] = useState("");
   const [tag, setTag] = useState<string>();
+  const [reviewing, setReviewing] = useState(false);
   const [openId, setOpenId] = useState<string>();
   const materials = useHost(() => api.materials(), []);
+  const review = useHost(() => api.review(), []);
   const projects = useHost(() => api.projects(), []);
   const action = useAction();
 
+  const waiting = review.data?.materials;
+
   const visible = useMemo(() => {
-    const list = materials.data?.materials ?? [];
+    const list = (reviewing ? waiting : materials.data?.materials) ?? [];
     const needle = query.trim().toLowerCase();
     return list.filter((m) => {
       if (tag && !(m.tags ?? []).includes(tag)) return false;
@@ -37,9 +126,15 @@ export function StreamRoute() {
         .toLowerCase()
         .includes(needle);
     });
-  }, [materials.data, query, tag]);
+  }, [materials.data, waiting, reviewing, query, tag]);
 
-  const refresh = () => void materials.refresh();
+  const refresh = () => {
+    void materials.refresh();
+    void review.refresh();
+  };
+
+  const decide = (material: Material, accept: boolean) =>
+    void action.run(() => api.resolveOrganization(material.id, { accept })).then(refresh);
 
   return (
     <Page
@@ -64,6 +159,24 @@ export function StreamRoute() {
         <p className="mb-2 flex items-center gap-1.5 text-[11px] text-muted">
           Only <Tag name={tag} onRemove={() => setTag(undefined)} />
         </p>
+      )}
+
+      {((waiting?.length ?? 0) > 0 || reviewing) && (
+        <div className="mb-2 flex items-center gap-2 text-[11px]">
+          <button
+            type="button"
+            aria-pressed={reviewing}
+            onClick={() => setReviewing(!reviewing)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-1.5 py-1",
+              reviewing ? "bg-active font-[560] text-ink" : "text-muted hover:bg-hover hover:text-ink",
+            )}
+          >
+            <Inbox size={12} />
+            {waiting?.length ? `${waiting.length} to file` : "Nothing left to file"}
+          </button>
+          {reviewing && <span className="text-faint">Logue suggested these. Nothing is filed until you say so.</span>}
+        </div>
       )}
 
       {materials.loading ? (
@@ -103,6 +216,7 @@ export function StreamRoute() {
                   )}
                   {material.excluded && <span className="text-warning">excluded</span>}
                 </span>
+                {reviewing && <Suggestion material={material} onDecide={decide} busy={action.busy} />}
               </span>
               <RowActions>
                 <Menu

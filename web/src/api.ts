@@ -18,7 +18,16 @@ export interface Material {
   orphaned?: boolean;
   actor?: string;
   purpose?: string;
-  organization?: { duplicate_of?: string; status?: string; reason?: string };
+  /** What automatic filing proposed, and what became of it. */
+  organization?: {
+    status?: string;
+    confidence?: number;
+    reason?: string;
+    suggested_projects?: string[];
+    suggested_tags?: string[];
+    duplicate_of?: string;
+    decided?: "accepted" | "dismissed";
+  };
   created_at: string;
   updated_at?: string;
 }
@@ -146,6 +155,12 @@ export const api = {
   updateMaterial: (id: string, changes: Partial<Material>) =>
     send<{ material: Material }>("PATCH", `/v1/materials/${id}`, changes),
   deleteMaterial: (id: string) => send<{ ok: true }>("DELETE", `/v1/materials/${id}`),
+
+  /** Sources with a suggestion nobody has looked at, most confident first. */
+  review: () => request<{ materials: Material[] }>("/v1/review"),
+  organizeMaterial: (id: string) => send<{ material: Material }>("POST", `/v1/materials/${id}/organize`, {}),
+  resolveOrganization: (id: string, body: { accept: boolean; projects?: string[]; tags?: string[] }) =>
+    send<{ material: Material }>("POST", `/v1/materials/${id}/organization`, body),
   setMembership: (materialId: string, project: string, member: boolean) =>
     send<{ material: Material }>("POST", "/v1/project-membership", { material_id: materialId, project, member }),
 

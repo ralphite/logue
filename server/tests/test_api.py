@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from logue_host.app import App
 from logue_host.build import installed_extension_build
-from logue_host.domain import capture
+from logue_host.domain import capture, organize
 from logue_host.errors import BadRequest, Conflict, NotFound
 from logue_host.http import Request, serve
 from logue_host.providers import Provider
@@ -48,7 +48,7 @@ class Workspace:
 
     def setUp(self) -> None:
         self.dir = tempfile.TemporaryDirectory()
-        self.app = App(Path(self.dir.name))
+        self.app = App(Path(self.dir.name), file_new_materials=False)
         ready = FakeProvider(api_key="test-key")
         ready.record_health("generation", True)
         ready.record_health("voice", True)
@@ -282,6 +282,119 @@ class DefaultSkillTest(Workspace, unittest.TestCase):
     def test_without_a_choice_the_prompt_still_works(self) -> None:
         prompt = capture.transcription_instructions(self.app.store, "")
         self.assertIn("Transcribe this recording verbatim", prompt)
+
+
+class OrganizeTest(Workspace, unittest.TestCase):
+    """Automatic filing proposes; it never decides."""
+
+    def a_source(self, content: str = "Async interviews finished faster.", **over) -> dict:
+        return self.call("POST", "/v1/materials", {"kind": "text", "content": content, **over})["material"]
+
+    def answering(self, text: str) -> Provider:
+        provider = FakeProvider(api_key="test-key")
+        provider.record_health("generation", True)
+        provider.generate = lambda system, prompt: text  # type: ignore[method-assign]
+        self.app.provider = lambda: provider  # type: ignore[method-assign]
+        return provider
+
+    def test_a_suggestion_waits_for_a_person(self) -> None:
+        """However sure the model is, nothing joins a Project on its own."""
+        self.call("POST", "/v1/projects", {"name": "Research", "overview": "Interviews"})
+        source = self.a_source()
+        provider = self.answering('{"projects":["Research"],"tags":["async"],"confidence":0.99,"reason":"Interviews."}')
+
+        filed = organize.classify(self.app.store, provider, source["id"])
+        self.assertEqual(filed["organization"]["status"], "needs_review")
+        self.assertEqual(filed["organization"]["suggested_projects"], ["Research"])
+        self.assertEqual(filed["projects"], [], "a suggestion must not file anything by itself")
+
+    def test_accepting_applies_it_and_records_that_it_was_accepted(self) -> None:
+        self.call("POST", "/v1/projects", {"name": "Research", "overview": "Interviews"})
+        source = self.a_source()
+        provider = self.answering('{"projects":["Research"],"tags":["async"],"confidence":0.9,"reason":"Interviews."}')
+        organize.classify(self.app.store, provider, source["id"])
+
+        taken = self.call("POST", f"/v1/materials/{source['id']}/organization", {"accept": True})["material"]
+        self.assertEqual(taken["projects"], ["Research"])
+        self.assertEqual(taken["tags"], ["async"])
+        self.assertEqual(taken["organization"]["decided"], "accepted")
+        self.assertEqual([m["id"] for m in organize.queue(self.app.store)], [])
+
+    def test_dismissing_leaves_the_source_untouched(self) -> None:
+        self.call("POST", "/v1/projects", {"name": "Research", "overview": "Interviews"})
+        source = self.a_source()
+        provider = self.answering('{"projects":["Research"],"tags":["async"],"confidence":0.9,"reason":"Interviews."}')
+        organize.classify(self.app.store, provider, source["id"])
+
+        left = self.call("POST", f"/v1/materials/{source['id']}/organization", {"accept": False})["material"]
+        self.assertEqual(left["projects"], [])
+        self.assertEqual(left["tags"], [])
+        self.assertEqual(left["organization"]["decided"], "dismissed")
+
+    def test_a_project_the_model_invented_is_dropped(self) -> None:
+        source = self.a_source()
+        provider = self.answering('{"projects":["Nonexistent"],"tags":[],"confidence":1,"reason":"x"}')
+        filed = organize.classify(self.app.store, provider, source["id"])
+        self.assertEqual(filed["organization"]["suggested_projects"], [])
+
+    def test_a_model_that_rambles_asks_for_a_person_rather_than_looking_settled(self) -> None:
+        source = self.a_source()
+        provider = self.answering("Sure! Here is my thinking, at length, with no JSON at all.")
+        filed = organize.classify(self.app.store, provider, source["id"])
+        self.assertEqual(filed["organization"]["status"], "needs_review")
+        self.assertIn("Could not be filed", filed["organization"]["reason"])
+
+    def test_json_inside_a_code_fence_is_still_read(self) -> None:
+        self.call("POST", "/v1/projects", {"name": "Research", "overview": "Interviews"})
+        source = self.a_source()
+        provider = self.answering('```json\n{"projects":["Research"],"tags":[],"confidence":0.8,"reason":"x"}\n```')
+        filed = organize.classify(self.app.store, provider, source["id"])
+        self.assertEqual(filed["organization"]["suggested_projects"], ["Research"])
+
+    def test_the_same_quote_twice_is_noticed_without_a_model(self) -> None:
+        first = self.a_source("The exact same sentence.")
+        second = self.a_source("the   exact same    sentence.  ")
+        self.assertEqual(organize.duplicate_of(self.app.store, self.app.store.materials.get(second["id"])), first["id"])
+
+    def test_filing_does_not_undo_an_edit_made_while_the_model_was_thinking(self) -> None:
+        """The model takes seconds; a Source can be filed by hand inside them."""
+        self.call("POST", "/v1/projects", {"name": "Research", "overview": "Interviews"})
+        source = self.a_source()
+        stale = self.app.store.materials.get(source["id"])  # what a slow classify started from
+        self.call("PATCH", f"/v1/materials/{source['id']}", {"excluded": True})
+
+        provider = self.answering('{"projects":[],"tags":["async"],"confidence":0.5,"reason":"x"}')
+        organize.classify(self.app.store, provider, str(stale["id"]))
+
+        self.assertTrue(self.app.store.materials.get(source["id"])["excluded"], "the edit survived filing")
+
+    def test_the_queue_leads_with_the_most_confident(self) -> None:
+        self.call("POST", "/v1/projects", {"name": "Research", "overview": "Interviews"})
+        unsure = self.a_source("One.")
+        sure = self.a_source("Two.")
+        organize.classify(
+            self.app.store,
+            self.answering('{"projects":["Research"],"tags":[],"confidence":0.2,"reason":"x"}'),
+            unsure["id"],
+        )
+        organize.classify(
+            self.app.store,
+            self.answering('{"projects":["Research"],"tags":[],"confidence":0.9,"reason":"x"}'),
+            sure["id"],
+        )
+        self.assertEqual([m["id"] for m in organize.queue(self.app.store)], [sure["id"], unsure["id"]])
+
+    def test_a_source_left_pending_is_picked_up_again(self) -> None:
+        self.call("POST", "/v1/projects", {"name": "Research", "overview": "Interviews"})
+        source = self.a_source()
+        organize.mark_pending(self.app.store, self.app.store.materials.get(source["id"]))
+        provider = self.answering('{"projects":["Research"],"tags":[],"confidence":0.9,"reason":"x"}')
+
+        self.assertEqual(organize.catch_up(self.app.store, provider), 1)
+        for thread in threading.enumerate():
+            if thread.name.startswith("organize-"):
+                thread.join(timeout=5)
+        self.assertEqual(self.app.store.materials.get(source["id"])["organization"]["status"], "needs_review")
 
 
 class ConcurrentEditTest(Workspace, unittest.TestCase):

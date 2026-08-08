@@ -11,17 +11,20 @@ from pathlib import Path
 from typing import Any
 
 from .build import installed_extension_build
-from .domain import backup, capture, defaults, documents, generation, materials, projects, skills, topics
+from .domain import backup, capture, defaults, documents, generation, materials, organize, projects, skills, topics
 from .errors import BadRequest, NotFound
 from .http import Request, Response, Router
 from .ids import new_id, now
 from .providers import DEFAULT_MODEL, Provider
-from .store import Store
+from .store import Record, Store
 
 
 class App:
-    def __init__(self, data_dir: Path) -> None:
+    def __init__(self, data_dir: Path, *, file_new_materials: bool = True) -> None:
         self.store = Store(data_dir)
+        # Off in tests: a model call outliving a case would write into a
+        # workspace that has already been deleted.
+        self.file_new_materials = file_new_materials
         skills.ensure_built_ins(self.store)
         self.router = Router()
         self._register()
@@ -34,6 +37,22 @@ class App:
 
     def save_provider(self, provider: Provider) -> None:
         self.store.save_provider(provider.dump())
+
+    # -- filing -------------------------------------------------------------
+
+    def file_later(self, material: Record) -> Record:
+        """Hand a new Source to automatic organisation, without waiting for it.
+
+        Capture has to feel instant — the product is "say it and carry on" — so
+        the Source is marked as waiting and returned, and the model call happens
+        after it is already safe on disk.
+        """
+        provider = self.provider()
+        if not self.file_new_materials or not provider.ready_for("generation"):
+            return material
+        marked = organize.mark_pending(self.store, material)
+        organize.in_background(self.store, provider, str(marked["id"]))
+        return marked
 
     # -- registration -------------------------------------------------------
 
@@ -76,17 +95,39 @@ class App:
         @route("POST", "/v1/materials")
         def create_material(request: Request) -> dict[str, Any]:
             body = request.json()
+            material = materials.create(
+                store,
+                kind=str(body.get("kind") or "text"),
+                content=str(body.get("content") or ""),
+                source=body.get("source"),
+                projects=body.get("projects"),
+                parent_ids=body.get("parent_ids"),
+                capture_id=body.get("capture_id"),
+                context=body.get("context"),
+                actor=str(body.get("actor") or "user"),
+            )
+            return {"material": self.file_later(material)}
+
+        # -- automatic organisation -----------------------------------------
+
+        @route("GET", "/v1/review")
+        def review_queue(_: Request) -> dict[str, Any]:
+            return {"materials": organize.queue(store)}
+
+        @route("POST", "/v1/materials/{id}/organize")
+        def organize_material(request: Request) -> dict[str, Any]:
+            return {"material": organize.classify(store, self.provider(), request.params["id"])}
+
+        @route("POST", "/v1/materials/{id}/organization")
+        def resolve_organization(request: Request) -> dict[str, Any]:
+            body = request.json()
             return {
-                "material": materials.create(
+                "material": organize.resolve(
                     store,
-                    kind=str(body.get("kind") or "text"),
-                    content=str(body.get("content") or ""),
-                    source=body.get("source"),
+                    request.params["id"],
+                    accept=bool(body.get("accept")),
                     projects=body.get("projects"),
-                    parent_ids=body.get("parent_ids"),
-                    capture_id=body.get("capture_id"),
-                    context=body.get("context"),
-                    actor=str(body.get("actor") or "user"),
+                    tags=body.get("tags"),
                 )
             }
 
@@ -333,13 +374,15 @@ class App:
         def save_voice(request: Request) -> dict[str, Any]:
             body = request.json()
             return {
-                "material": capture.save_voice(
-                    store,
-                    capture_id=str(body.get("capture_id") or ""),
-                    text=str(body.get("text") or ""),
-                    source=body.get("source"),
-                    project=str(body.get("project") or ""),
-                    parent_ids=body.get("parent_ids"),
+                "material": self.file_later(
+                    capture.save_voice(
+                        store,
+                        capture_id=str(body.get("capture_id") or ""),
+                        text=str(body.get("text") or ""),
+                        source=body.get("source"),
+                        project=str(body.get("project") or ""),
+                        parent_ids=body.get("parent_ids"),
+                    )
                 )
             }
 
