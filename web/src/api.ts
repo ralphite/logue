@@ -162,8 +162,11 @@ export const api = {
   document: (id: string) => request<{ document: Document; sources: Material[] }>(`/v1/documents/${id}`),
   createDocument: (body: { title?: string; content?: string; source_ids?: string[] }) =>
     send<{ document: Document }>("POST", "/v1/documents", body),
-  updateDocument: (id: string, changes: Partial<Pick<Document, "title" | "content" | "source_ids">>) =>
-    send<{ document: Document }>("PATCH", `/v1/documents/${id}`, changes),
+  /** `expected_revision` is what the editor last saw; a mismatch comes back 409. */
+  updateDocument: (
+    id: string,
+    changes: Partial<Pick<Document, "title" | "content" | "source_ids">> & { expected_revision?: number },
+  ) => send<{ document: Document }>("PATCH", `/v1/documents/${id}`, changes),
   deleteDocument: (id: string) => send<{ ok: true }>("DELETE", `/v1/documents/${id}`),
   documentMarkdownUrl: (id: string) => `${HOST}/v1/documents/${id}/markdown`,
 

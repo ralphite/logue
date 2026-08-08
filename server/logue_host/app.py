@@ -202,7 +202,13 @@ class App:
 
         @route("PATCH", "/v1/documents/{id}")
         def patch_document(request: Request) -> dict[str, Any]:
-            return {"document": documents.update(store, request.params["id"], request.json())}
+            changes = dict(request.json())
+            # Not a field on the document — it is what the caller last saw.
+            expected = changes.pop("expected_revision", None)
+            document = documents.update(
+                store, request.params["id"], changes, expected_revision=None if expected is None else int(expected)
+            )
+            return {"document": document}
 
         @route("DELETE", "/v1/documents/{id}")
         def delete_document(request: Request) -> dict[str, Any]:

@@ -135,6 +135,10 @@ def serve(router: Router, host: str, port: int) -> ThreadingHTTPServer:
             self.send_response(response.status)
             self.send_header("Content-Type", response.media_type)
             self.send_header("Content-Length", str(len(payload)))
+            # Nothing here may be reused. Without this the browser applies its
+            # own heuristic to responses that carry no freshness information,
+            # and a tab opened after an edit shows the list from before it.
+            self.send_header("Cache-Control", "no-store")
             # The Web App and the Extension are separate origins from the Host,
             # so they need naming — but only they do. Reflecting the origin
             # rather than answering "*" is what keeps an unrelated page from

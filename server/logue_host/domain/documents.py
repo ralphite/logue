@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from ..errors import BadRequest
+from ..errors import BadRequest, Conflict
 from ..ids import new_id, now
 from ..store import Record, Store
 
@@ -29,12 +29,28 @@ def create(store: Store, *, title: str = "", content: str = "", source_ids: list
     )
 
 
-def update(store: Store, document_id: str, changes: dict[str, Any]) -> Record:
+def update(
+    store: Store, document_id: str, changes: dict[str, Any], *, expected_revision: int | None = None
+) -> Record:
+    """Apply an edit, refusing one written against a version that has moved on.
+
+    Two editors on the same document — two tabs, or a tab and a generation
+    writing into it — used to end in whoever saved last, silently. The revision
+    was counted and never checked. A caller that passes what it last saw gets
+    told instead.
+    """
     document = store.documents.get(document_id)
     allowed = {"title", "content", "source_ids"}
     unknown = set(changes) - allowed
     if unknown:
         raise BadRequest(f"cannot change {', '.join(sorted(unknown))}")
+
+    current = int(document.get("revision", 1))
+    if expected_revision is not None and expected_revision != current:
+        raise Conflict(
+            f"This document has moved on to revision {current}; your edit was written against "
+            f"revision {expected_revision}."
+        )
 
     changed = any(changes.get(key) != document.get(key) for key in changes)
     if changed and "content" in changes:

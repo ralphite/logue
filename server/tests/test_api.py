@@ -38,7 +38,13 @@ class FakeProvider(Provider):
         return "spoken words"
 
 
-class HostTest(unittest.TestCase):
+class Workspace:
+    """A throwaway Host, and a way to call a route without a socket.
+
+    Not a TestCase, so subclassing it to add a few focused cases does not
+    re-run every other case alongside them.
+    """
+
     def setUp(self) -> None:
         self.dir = tempfile.TemporaryDirectory()
         self.app = App(Path(self.dir.name))
@@ -62,6 +68,8 @@ class HostTest(unittest.TestCase):
         )
         return handler(request)
 
+
+class HostTest(Workspace, unittest.TestCase):
     # -- the shapes the UI reads --------------------------------------------
 
     def test_status_reports_model_readiness(self) -> None:
@@ -247,6 +255,38 @@ class HostTest(unittest.TestCase):
             self.call("GET", "/v1/materials/..%2f..%2fsettings")
 
 
+class ConcurrentEditTest(Workspace, unittest.TestCase):
+    """Two writers on one document must not end in whoever saved last."""
+
+    def test_an_edit_against_a_stale_revision_is_refused(self) -> None:
+        document = self.call("POST", "/v1/documents", {"title": "Plan", "content": "one"})["document"]
+        self.call("PATCH", f"/v1/documents/{document['id']}", {"content": "two", "expected_revision": 1})
+        with self.assertRaises(Conflict):
+            self.call("PATCH", f"/v1/documents/{document['id']}", {"content": "mine", "expected_revision": 1})
+
+    def test_the_refused_edit_did_not_land(self) -> None:
+        document = self.call("POST", "/v1/documents", {"title": "Plan", "content": "one"})["document"]
+        self.call("PATCH", f"/v1/documents/{document['id']}", {"content": "theirs", "expected_revision": 1})
+        with self.assertRaises(Conflict):
+            self.call("PATCH", f"/v1/documents/{document['id']}", {"content": "mine", "expected_revision": 1})
+        self.assertEqual(self.call("GET", f"/v1/documents/{document['id']}")["document"]["content"], "theirs")
+
+    def test_a_caller_that_kept_up_is_allowed(self) -> None:
+        document = self.call("POST", "/v1/documents", {"title": "Plan", "content": "one"})["document"]
+        second = self.call("PATCH", f"/v1/documents/{document['id']}", {"content": "two", "expected_revision": 1})
+        third = self.call(
+            "PATCH", f"/v1/documents/{document['id']}", {"content": "three", "expected_revision": second["document"]["revision"]}
+        )
+        self.assertEqual(third["document"]["content"], "three")
+
+    def test_omitting_the_revision_still_writes(self) -> None:
+        """Deliberate: "keep mine" after a conflict, and every non-editor caller."""
+        document = self.call("POST", "/v1/documents", {"title": "Plan", "content": "one"})["document"]
+        self.call("PATCH", f"/v1/documents/{document['id']}", {"content": "two"})
+        result = self.call("PATCH", f"/v1/documents/{document['id']}", {"content": "forced"})
+        self.assertEqual(result["document"]["content"], "forced")
+
+
 class ReachabilityTest(unittest.TestCase):
     """Who is allowed to talk to the Host at all.
 
@@ -293,6 +333,11 @@ class ReachabilityTest(unittest.TestCase):
         status, headers = self.ask("GET", "/v1/materials", {"Origin": origin})
         self.assertEqual(status, 200)
         self.assertEqual(headers.get("Access-Control-Allow-Origin"), origin)
+
+    def test_answers_are_never_cached(self) -> None:
+        """A tab opened after an edit was showing the list from before it."""
+        _, headers = self.ask("GET", "/v1/documents")
+        self.assertEqual(headers.get("Cache-Control"), "no-store")
 
     def test_no_origin_is_a_local_tool_and_is_answered_without_cors(self) -> None:
         status, headers = self.ask("GET", "/v1/status")

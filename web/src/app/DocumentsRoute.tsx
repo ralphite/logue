@@ -1,7 +1,7 @@
 import { ArrowLeft, Download, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button, Empty, ErrorNote, IconButton, Menu, MenuItem, OriginMark, Spinner, originOf } from "@logue/ui";
-import { api, type Material } from "../api";
+import { api, ApiError, type Material } from "../api";
 import { Page, Row, RowActions, Rows } from "./AppShell";
 import { timeAgo, useAction, useHost } from "./useHost";
 
@@ -103,6 +103,9 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
   const loaded = useHost(() => api.document(id), [id]);
   const [title, setTitle] = useState("");
   const [saved, setSaved] = useState<string>("");
+  /** What this editor last saw. Sent with every save so a second writer is caught. */
+  const [revision, setRevision] = useState(0);
+  const [conflict, setConflict] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const timer = useRef<number>(undefined);
   const action = useAction();
@@ -111,19 +114,41 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
   useEffect(() => {
     if (!doc) return;
     setTitle(doc.title);
+    setRevision(doc.revision);
+    setConflict(false);
     if (body.current) body.current.innerHTML = doc.content;
   }, [doc]);
+
+  const write = async (changes: { title?: string; content?: string }, force = false) => {
+    try {
+      const { document } = await api.updateDocument(id, {
+        ...changes,
+        ...(force ? {} : { expected_revision: revision }),
+      });
+      setRevision(document.revision);
+      setSaved(new Date().toISOString());
+      setConflict(false);
+    } catch (cause) {
+      // Someone else wrote while this editor had the document open. Stop
+      // autosaving rather than overwrite them, and keep what is on screen —
+      // it is the only copy of these edits.
+      if (cause instanceof ApiError && cause.status === 409) {
+        setConflict(true);
+        return;
+      }
+      throw cause;
+    }
+  };
 
   /** Autosave on a pause, not on every keystroke — history should read as edits. */
   const queueSave = (changes: { title?: string; content?: string }) => {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
-      void action.run(async () => {
-        await api.updateDocument(id, changes);
-        setSaved(new Date().toISOString());
-      });
+      void action.run(() => write(changes));
     }, AUTOSAVE_MS);
   };
+
+  const mine = () => ({ title, content: body.current?.innerHTML ?? "" });
 
   return (
     <Page
@@ -141,6 +166,31 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
       }
     >
       {loaded.error && <ErrorNote>{loaded.error}</ErrorNote>}
+      {conflict && (
+        <div
+          role="alert"
+          className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-muted px-2.5 py-2 text-xs text-ink"
+        >
+          <span>This document changed somewhere else. Your edits are still here, unsaved.</span>
+          <Button
+            onClick={() => {
+              window.clearTimeout(timer.current);
+              void action.run(() => write(mine(), true));
+            }}
+          >
+            Keep mine
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              window.clearTimeout(timer.current);
+              void loaded.refresh();
+            }}
+          >
+            Discard mine
+          </Button>
+        </div>
+      )}
       {!doc ? (
         <div className="flex items-center gap-2 text-xs text-muted">
           <Spinner /> Loading
