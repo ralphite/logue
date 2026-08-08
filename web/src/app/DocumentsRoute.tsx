@@ -1,6 +1,6 @@
 import { Download, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Button, Empty, ErrorNote, IconButton, Menu, MenuItem, OriginMark, Spinner, originOf } from "@logue/ui";
+import { Button, Empty, ErrorNote, IconButton, Menu, MenuItem, OriginMark, SourceLink, Spinner, originOf } from "@logue/ui";
 import { api, ApiError, type Material } from "../api";
 import { Page, Row, RowActions, Rows } from "./AppShell";
 import { timeAgo, useAction, useHost } from "./useHost";
@@ -238,7 +238,10 @@ function Sources({ sources }: { sources: Material[] }) {
         <div key={source.id} className="flex gap-2 rounded-md bg-surface-muted px-2 py-1.5">
           <span className="shrink-0 text-[11px] font-[650] text-accent">{index + 1}</span>
           <span className="min-w-0">
-            <OriginMark origin={originOf(source.kind)} detail={source.source?.domain || "This Mac"} />
+            <span className="flex items-center gap-2 text-[11px] text-muted">
+              <OriginMark origin={originOf(source.kind)} />
+              <SourceLink url={source.source?.url} label={source.source?.domain || "This Mac"} />
+            </span>
             <p className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-ink-soft">{source.content}</p>
           </span>
         </div>

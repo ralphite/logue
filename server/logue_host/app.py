@@ -263,6 +263,15 @@ class App:
             )
             return {"document": document}
 
+        @route("POST", "/v1/documents/{id}/append")
+        def append_to_document(request: Request) -> dict[str, Any]:
+            body = request.json()
+            return {
+                "document": documents.append(
+                    store, request.params["id"], str(body.get("text") or ""), body.get("source_ids")
+                )
+            }
+
         @route("DELETE", "/v1/documents/{id}")
         def delete_document(request: Request) -> dict[str, Any]:
             store.documents.get(request.params["id"])

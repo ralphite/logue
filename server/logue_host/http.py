@@ -169,14 +169,20 @@ def serve(router: Router, host: str, port: int) -> ThreadingHTTPServer:
             origin = self.headers.get("Origin", "")
             if origin and not is_local_origin(origin):
                 return "This Host only answers Logue."
-            # A cross-origin page can POST without a preflight, so blocking the
-            # read is not enough — it could still write. Demanding a header the
-            # browser must ask permission for turns every write into a
-            # preflight, and the preflight is what the origin check refuses.
-            if self.command not in SAFE_METHODS and CLIENT_HEADER.lower() not in {
+            # A *web page* can POST without a preflight, so blocking the read is
+            # not enough — it could still write. Demanding a header the browser
+            # must ask permission for turns those writes into preflights, and
+            # the preflight is what the origin check refuses.
+            #
+            # Only web pages, though. An extension cannot have its origin forged
+            # by a page, and a caller with no Origin at all is a local tool, not
+            # a browser. Asking them for the header bought nothing and locked
+            # out every client written before the rule existed.
+            page = origin.startswith("http://") or origin.startswith("https://")
+            if page and self.command not in SAFE_METHODS and CLIENT_HEADER.lower() not in {
                 key.lower() for key in self.headers
             }:
-                return f"Writes require the {CLIENT_HEADER} header."
+                return "This page is not allowed to change anything in Logue."
             return None
 
         def _dispatch(self) -> None:

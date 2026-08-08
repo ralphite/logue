@@ -10,6 +10,7 @@ import {
   MenuItem,
   OriginMark,
   Spinner,
+  SourceLink,
   Tag,
   cn,
   originOf,
@@ -274,7 +275,7 @@ export function StreamRoute({ openId, onOpen }: { openId?: string; onOpen: (id: 
                 <span className="block truncate text-[13px] text-ink">{title(material)}</span>
                 <span className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
                   <OriginMark origin={originOf(material.kind)} />
-                  <span className="truncate">{where(material)}</span>
+                  <SourceLink url={material.source?.url} label={where(material)} />
                   <span>{timeAgo(material.created_at)}</span>
                   {material.projects.map((name) => (
                     <span key={name} className="rounded-sm bg-surface-muted px-1 text-ink-soft">

@@ -81,7 +81,7 @@ export function AppShell({
       <nav
         aria-label="Sections"
         style={{ width: collapsed ? COLLAPSED_WIDTH : size }}
-        className="flex shrink-0 flex-col gap-0.5 bg-nav p-1.5"
+        className="group/rail flex shrink-0 flex-col gap-0.5 bg-nav p-1.5"
       >
         <div className={cn("mb-1 flex h-control items-center", collapsed ? "justify-center" : "gap-1 pl-1.5")}>
           {collapsed ? (
@@ -106,7 +106,9 @@ export function AppShell({
                 aria-label="Close sidebar"
                 title="Close sidebar · ⌘\"
                 onClick={() => setCollapsed(true)}
-                className="ml-auto inline-flex size-7 items-center justify-center rounded-md text-transparent hover:bg-hover hover:text-muted focus-visible:text-muted"
+                // Appears when the pointer is anywhere in the rail, not only
+                // on the button: nobody hovers a control they cannot see.
+                className="ml-auto inline-flex size-7 items-center justify-center rounded-md text-transparent group-hover/rail:text-muted hover:bg-hover hover:!text-ink focus-visible:text-muted"
               >
                 <PanelLeft size={15} />
               </button>

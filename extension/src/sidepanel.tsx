@@ -1,16 +1,19 @@
-import { Bookmark, CornerDownLeft, ExternalLink } from "lucide-react";
+import { Bookmark, CornerDownLeft, ExternalLink, Settings2 } from "lucide-react";
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Answer, Button, Empty, ErrorNote, OriginMark, Select, Spinner, originOf } from "@logue/ui";
+import { Answer, Button, Empty, ErrorNote, Input, OriginMark, Select, SourceLink, Spinner, Tag, originOf } from "@logue/ui";
 import { host, type Context, type Material } from "./api";
 import { readablePageText } from "./readable";
 
 const WEB_APP = "http://127.0.0.1:5173";
 
+/** What came off the page, as opposed to what you said about it. */
+const FROM_THE_PAGE = new Set(["page", "selection"]);
 
 /**
- * The panel is about *this page*: what you already saved from it, and a place
- * to ask using it. Everything else lives in the Web App, one click away.
+ * The panel is about *this page*: what came off it, what you said about it, and
+ * a place to ask using it. Everything past that is folded away — the panel is
+ * 360 pixels wide and the page beside it is the thing being read.
  */
 function Panel() {
   const [tab, setTab] = useState<{ id?: number; url: string; title: string }>();
@@ -22,15 +25,21 @@ function Panel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [openSource, setOpenSource] = useState<number>();
+  const [modelReady, setModelReady] = useState(true);
 
   const load = useCallback(async () => {
     const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
     const url = active?.url ?? "";
     setTab({ id: active?.id, url, title: active?.title ?? "" });
     try {
-      const [ctx, page] = await Promise.all([host.context(project), url ? host.pageMaterials(url) : { materials: [] }]);
+      const [ctx, page, status] = await Promise.all([
+        host.context(project),
+        url ? host.pageMaterials(url) : { materials: [] },
+        host.status(),
+      ]);
       setContext(ctx);
       setSaved(page.materials);
+      setModelReady(status.model.generation_ready && status.model.voice_ready);
       setError("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Logue is not running on this Mac.");
@@ -79,7 +88,11 @@ function Panel() {
   };
 
   const ask = async () => {
-    const skill = (context?.skills ?? []).find((item) => item.built_in_key === "ask") ?? context?.skills[0];
+    const usable = (context?.skills ?? []).filter((skill) => skill.enabled);
+    const skill =
+      usable.find((item) => item.id === context?.defaults?.qa) ??
+      usable.find((item) => item.built_in_key === "ask") ??
+      usable[0];
     if (!skill || !instruction.trim()) return;
     setBusy(true);
     setError("");
@@ -103,6 +116,9 @@ function Panel() {
     }
   };
 
+  const fromPage = saved.filter((item) => FROM_THE_PAGE.has(item.kind));
+  const said = saved.filter((item) => !FROM_THE_PAGE.has(item.kind));
+
   return (
     <div className="flex h-screen flex-col">
       <header className="flex h-row shrink-0 items-center gap-1 border-b border-line px-2">
@@ -120,6 +136,19 @@ function Panel() {
 
       <div className="logue-scroll flex-1 p-2">
         {error && <ErrorNote className="mb-2">{error}</ErrorNote>}
+
+        {!modelReady && !error && (
+          // The one thing that makes every other control in here do nothing.
+          <a
+            href={`${WEB_APP}/#/settings`}
+            target="_blank"
+            rel="noreferrer"
+            className="mb-2 flex items-center gap-1.5 rounded-md border border-line bg-surface-muted px-2 py-1.5 text-[11px] text-warning hover:text-ink"
+          >
+            <Settings2 size={12} />
+            The model is not connected. Open Settings.
+          </a>
+        )}
 
         <div className="grid gap-1.5">
           <div className="flex items-center gap-1">
@@ -172,26 +201,289 @@ function Panel() {
                 {answer.sources[openSource - 1]!.content}
               </p>
             )}
+            <IntoDocument answer={answer} onError={setError} />
           </div>
         )}
 
-        <section className="mt-4 grid gap-1">
-          <h2 className="text-xs text-muted">Saved from this page</h2>
-          {saved.length === 0 ? (
-            <Empty>Nothing yet.</Empty>
-          ) : (
-            <div className="divide-y divide-line border-y border-line">
-              {saved.map((item) => (
-                <div key={item.id} className="py-1.5">
-                  <OriginMark origin={originOf(item.kind)} />
-                  <p className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-ink-soft">{item.content}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+        <Kept title="On this page" items={fromPage} context={context} onChanged={load} empty="Nothing saved yet." />
+        <Kept title="What you added" items={said} context={context} onChanged={load} empty="No comments yet." />
+
+        {project && <AboutProject project={project} context={context} onError={setError} />}
       </div>
     </div>
+  );
+}
+
+/**
+ * Send the answer somewhere it will be found again.
+ *
+ * Appending rather than reading and rewriting: the panel cannot see the
+ * document, and overwriting whatever was typed in it meanwhile would be a
+ * poor trade for a convenience.
+ */
+function IntoDocument({
+  answer,
+  onError,
+}: {
+  answer: { text: string; sources: Material[] };
+  onError: (message: string) => void;
+}) {
+  const [documents, setDocuments] = useState<{ id: string; title: string }[]>([]);
+  const [into, setInto] = useState("");
+  const [added, setAdded] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void host.documents().then(
+      (found) => setDocuments(found.documents.slice(0, 20)),
+      () => setDocuments([]),
+    );
+  }, []);
+
+  if (documents.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-1 border-t border-line pt-2">
+      <Select className="min-w-0 flex-1" value={into} onChange={(e) => setInto(e.target.value)} aria-label="Add to a Document">
+        <option value="">Add to a Document…</option>
+        {documents.map((document) => (
+          <option key={document.id} value={document.id}>
+            {document.title || "Untitled"}
+          </option>
+        ))}
+      </Select>
+      <Button
+        disabled={!into || busy || added}
+        onClick={() => {
+          setBusy(true);
+          void host
+            .appendToDocument(into, answer.text, answer.sources.map((s) => s.id))
+            .then(
+              () => setAdded(true),
+              (cause: unknown) => onError(cause instanceof Error ? cause.message : "Could not add it."),
+            )
+            .finally(() => setBusy(false));
+        }}
+      >
+        {busy ? <Spinner size={12} /> : null} {added ? "Added" : "Add"}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * What is already kept from this page, and the two things worth doing to it
+ * without leaving: hear it again, and file it.
+ */
+function Kept({
+  title,
+  items,
+  context,
+  onChanged,
+  empty,
+}: {
+  title: string;
+  items: Material[];
+  context?: Context;
+  onChanged: () => Promise<void> | void;
+  empty: string;
+}) {
+  const [openId, setOpenId] = useState<string>();
+
+  return (
+    <section className="mt-4 grid gap-1">
+      <h2 className="flex items-center gap-1.5 text-xs text-muted">
+        {title}
+        {items.length > 0 && <span className="text-faint">{items.length}</span>}
+      </h2>
+      {items.length === 0 ? (
+        <Empty>{empty}</Empty>
+      ) : (
+        <div className="divide-y divide-line border-y border-line">
+          {items.map((item) => (
+            <div key={item.id} className="py-1.5">
+              <button
+                type="button"
+                className="block w-full text-left"
+                onClick={() => setOpenId(openId === item.id ? undefined : item.id)}
+              >
+                <span className="flex items-center gap-2 text-[11px] text-muted">
+                  <OriginMark origin={originOf(item.kind)} />
+                  <SourceLink url={item.source?.url} label={item.source?.domain || "This Mac"} />
+                </span>
+                <p className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-ink-soft">{item.content}</p>
+              </button>
+              {item.capture_id && (
+                // The recording, playable where it was made rather than only
+                // in the Web App — this is the page it was made on.
+                <audio controls preload="none" src={host.audioUrl(item.capture_id)} className="mt-1 h-7 w-full" />
+              )}
+              {openId === item.id && <Filing material={item} context={context} onChanged={onChanged} />}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Where a Source belongs and what it is about, decided while it is fresh. */
+function Filing({
+  material,
+  context,
+  onChanged,
+}: {
+  material: Material;
+  context?: Context;
+  onChanged: () => Promise<void> | void;
+}) {
+  const [adding, setAdding] = useState("");
+  const [busy, setBusy] = useState(false);
+  const tags = material.tags ?? [];
+
+  const run = (work: Promise<unknown>) => {
+    setBusy(true);
+    void work.then(() => onChanged()).finally(() => setBusy(false));
+  };
+
+  return (
+    <div className="mt-1.5 grid gap-1.5 rounded-md bg-surface-muted p-1.5">
+      <div className="flex flex-wrap gap-1">
+        {(context?.projects ?? []).map((project) => {
+          const member = material.projects.includes(project.name);
+          return (
+            <Button
+              key={project.id}
+              variant={member ? "primary" : "default"}
+              disabled={busy}
+              onClick={() => run(host.setMembership(material.id, project.name, !member))}
+            >
+              {project.name}
+            </Button>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap items-center gap-1 text-[11px]">
+        {tags.map((name) => (
+          <Tag
+            key={name}
+            name={name}
+            onRemove={() => run(host.tagMaterial(material.id, tags.filter((tag) => tag !== name)))}
+          />
+        ))}
+        <Input
+          value={adding}
+          disabled={busy}
+          placeholder="Add a tag"
+          aria-label="Add a tag"
+          className="h-6 w-24 px-1.5 text-[11px]"
+          onChange={(event) => setAdding(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            const name = adding.trim().replace(/^#/, "");
+            setAdding("");
+            if (name && !tags.includes(name)) run(host.tagMaterial(material.id, [...tags, name]));
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The Project's background and the words it uses, editable here.
+ *
+ * These are what make a transcript sound like this work rather than like
+ * anyone's, and the moment you notice they are wrong is the moment something
+ * came out wrong — which happens on a page, not in the Web App.
+ */
+function AboutProject({
+  project,
+  context,
+  onError,
+}: {
+  project: string;
+  context?: Context;
+  onError: (message: string) => void;
+}) {
+  const found = context?.projects.find((item) => item.name === project);
+  const [open, setOpen] = useState(false);
+  const [overview, setOverview] = useState("");
+  const [terms, setTerms] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open || !found) return;
+    void host.project(found.id).then(
+      ({ project: detail }) => {
+        setOverview(detail.overview ?? "");
+        setTerms((detail.transcription_profile?.vocabulary?.terms ?? []).join(", "));
+      },
+      () => undefined,
+    );
+  }, [open, found]);
+
+  if (!found) return null;
+
+  return (
+    <section className="mt-4 border-t border-line pt-2">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-1 text-left text-xs text-muted hover:text-ink"
+      >
+        {open ? "▾" : "▸"} About {project}
+      </button>
+      {open && (
+        <div className="mt-1.5 grid gap-1.5">
+          <textarea
+            value={overview}
+            onChange={(event) => {
+              setOverview(event.target.value);
+              setSaved(false);
+            }}
+            placeholder="What this Project is about"
+            aria-label="Project context"
+            className="min-h-16 w-full resize-y rounded-md border border-line-strong bg-surface px-2 py-1.5 text-xs leading-[1.5] text-ink outline-0 focus:border-accent-line"
+          />
+          <Input
+            value={terms}
+            onChange={(event) => {
+              setTerms(event.target.value);
+              setSaved(false);
+            }}
+            placeholder="Terms to spell exactly, comma separated"
+            aria-label="Project terms"
+            className="text-xs"
+          />
+          <div className="flex items-center justify-end gap-1">
+            {saved && <span className="text-[11px] text-success">Saved</span>}
+            <Button
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                const list = terms.split(",").map((term) => term.trim()).filter(Boolean);
+                void host
+                  .updateProject(found.id, {
+                    overview,
+                    // `customized` is what makes the Host prefer these over the
+                    // global profile when transcribing for this Project.
+                    transcription_profile: { mode: "customized", vocabulary: { terms: list } },
+                  })
+                  .then(
+                    () => setSaved(true),
+                    (cause: unknown) => onError(cause instanceof Error ? cause.message : "Could not save."),
+                  )
+                  .finally(() => setBusy(false));
+              }}
+            >
+              {busy ? <Spinner size={12} /> : null} Save
+            </Button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 

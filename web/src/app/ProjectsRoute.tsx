@@ -1,6 +1,6 @@
 import { Plus, Sparkles } from "lucide-react";
 import { useState } from "react";
-import { Button, Dialog, DialogActions, Empty, ErrorNote, Field, Input, OriginMark, Spinner, Textarea, originOf } from "@logue/ui";
+import { Button, Dialog, DialogActions, Empty, ErrorNote, Field, Input, OriginMark, SourceLink, Spinner, Textarea, originOf } from "@logue/ui";
 import { api, type Run } from "../api";
 import { Page, Row, RowActions, Rows } from "./AppShell";
 import { timeAgo, useAction, useHost } from "./useHost";
@@ -244,7 +244,7 @@ function ProjectDetail({
                       <span className="block truncate text-[13px] text-ink">{material.content}</span>
                       <span className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
                         <OriginMark origin={originOf(material.kind)} />
-                        <span className="truncate">{material.source?.domain || "This Mac"}</span>
+                        <SourceLink url={material.source?.url} label={material.source?.domain || "This Mac"} />
                         <span>{timeAgo(material.created_at)}</span>
                       </span>
                     </span>

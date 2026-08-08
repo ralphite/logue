@@ -638,12 +638,32 @@ class ReachabilityTest(unittest.TestCase):
 
     # -- writing ------------------------------------------------------------
 
-    def test_a_write_without_the_client_header_is_refused(self) -> None:
+    def test_a_page_writing_without_the_client_header_is_refused(self) -> None:
         """Blocking the read is not enough — a simple POST needs no preflight."""
         status, _ = self.ask(
-            "POST", "/v1/materials", {"Content-Type": "text/plain"}, b'{"kind":"text","content":"x"}'
+            "POST",
+            "/v1/materials",
+            {"Content-Type": "text/plain", "Origin": "http://localhost:5173"},
+            b'{"kind":"text","content":"x"}',
         )
         self.assertEqual(status, 403)
+
+    def test_an_extension_writing_without_the_header_is_allowed(self) -> None:
+        """A page cannot forge an extension origin, so the header buys nothing —
+        and demanding it locked out every build written before the rule."""
+        status, _ = self.ask(
+            "POST",
+            "/v1/materials",
+            {"Content-Type": "application/json", "Origin": "chrome-extension://abcdefghijklmnop"},
+            b'{"kind":"text","content":"x"}',
+        )
+        self.assertEqual(status, 200)
+
+    def test_a_local_tool_with_no_origin_can_still_write(self) -> None:
+        status, _ = self.ask(
+            "POST", "/v1/materials", {"Content-Type": "application/json"}, b'{"kind":"text","content":"x"}'
+        )
+        self.assertEqual(status, 200)
 
     def test_a_write_from_a_real_client_is_allowed(self) -> None:
         status, _ = self.ask(

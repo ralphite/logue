@@ -27,8 +27,19 @@ export interface Material {
   kind: string;
   content: string;
   projects: string[];
+  tags?: string[];
+  /** Present on a voice Source: the recording it was transcribed from. */
+  capture_id?: string;
   created_at: string;
   source?: { url?: string; title?: string; domain?: string };
+}
+
+export interface ProjectDetail {
+  id: string;
+  name: string;
+  overview?: string;
+  /** Terms live under `vocabulary`, which is what the Host reads when transcribing. */
+  transcription_profile?: { mode?: string; vocabulary?: { terms?: string[] } };
 }
 
 export class HostError extends Error {
@@ -113,6 +124,23 @@ export const host = {
   /** What the person did with an answer. Silence here reads as "never used". */
   adopt: (runId: string, text: string, action: "insert" | "copy") =>
     post<{ run: unknown }>(`/v1/runs/${runId}/adopt`, { text, action }),
+
+  /** Everything the Side Panel needs beyond capture and asking. */
+  status: () => call<{ model: { generation_ready: boolean; voice_ready: boolean; model: string } }>("/v1/status"),
+  documents: () => call<{ documents: { id: string; title: string; updated_at: string }[] }>("/v1/documents"),
+  appendToDocument: (id: string, text: string, sourceIds: string[]) =>
+    post<{ document: { id: string } }>(`/v1/documents/${id}/append`, { text, source_ids: sourceIds }),
+  project: (id: string) => call<{ project: ProjectDetail }>(`/v1/projects/${id}`),
+  updateProject: (
+    id: string,
+    changes: { overview?: string; transcription_profile?: { mode: string; vocabulary: { terms: string[] } } },
+  ) =>
+    call<{ project: ProjectDetail }>(`/v1/projects/${id}`, { method: "PATCH", body: JSON.stringify(changes) }),
+  tagMaterial: (id: string, tags: string[]) =>
+    call<{ material: Material }>(`/v1/materials/${id}`, { method: "PATCH", body: JSON.stringify({ tags }) }),
+  setMembership: (materialId: string, project: string, member: boolean) =>
+    post<{ material: Material }>("/v1/project-membership", { material_id: materialId, project, member }),
+  audioUrl: (captureId: string) => `${HOST}/v1/captures/${captureId}/audio`,
 
   pageMaterials: (url: string) =>
     call<{ materials: Material[] }>(`/v1/materials?${new URLSearchParams({ q: url })}`),

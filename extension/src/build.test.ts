@@ -26,7 +26,12 @@ describe("staying on the deployed build", () => {
     expect(check({ installed: "" })).toBe(false);
   });
 
-  it("does nothing when this build is unnamed", () => {
-    expect(check({ running: "", installed: "b" })).toBe(false);
+  /**
+   * The build that most needs replacing is the one from before builds were
+   * stamped — and it is the one that cannot ask. Treating it as up to date
+   * stranded it for good behind a Host that had moved on.
+   */
+  it("reloads a build from before builds were named", () => {
+    expect(check({ running: "", installed: "b" })).toBe(true);
   });
 });

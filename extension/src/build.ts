@@ -21,10 +21,12 @@ export interface BuildCheck {
 }
 
 export function shouldReload({ running, installed, reloadedFor }: BuildCheck): boolean {
-  // A blank on either side is not evidence of anything — a Host started outside
-  // the installed layout reports nothing, and reloading on that would restart
-  // the worker every few minutes for no reason.
-  if (!running || !installed) return false;
+  // A Host started outside the installed layout reports nothing, and reloading
+  // on that would restart the worker every few minutes for no reason.
+  if (!installed) return false;
+  // A worker with no build of its own is older than the stamp itself — which
+  // is exactly the build most in need of replacing, and the one that cannot
+  // ask to be. Treating "unknown" as "up to date" stranded it for good.
   if (running === installed) return false;
   // One attempt per installed build. If the reload does not close the gap —
   // a half-finished deploy, a folder this browser never loaded — the worker

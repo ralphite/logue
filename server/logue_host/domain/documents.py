@@ -72,6 +72,33 @@ def update(
     return store.documents.put(document)
 
 
+def append(store: Store, document_id: str, text: str, source_ids: list[str] | None = None) -> Record:
+    """Add to the end of a document, bringing the Sources with it.
+
+    A read-modify-write from a caller that cannot see the document — the Side
+    Panel, say — would overwrite whatever else was typed meanwhile. Appending
+    is the operation that is actually meant, so it is the one offered.
+    """
+    if not text.strip():
+        raise BadRequest("there is nothing to add")
+    document = store.documents.get(document_id)
+    body = str(document.get("content") or "")
+    document["content"] = f"{body}\n\n{text.strip()}" if body.strip() else text.strip()
+    document["source_ids"] = list(dict.fromkeys([*(document.get("source_ids") or []), *(source_ids or [])]))
+    store.doc_revisions.put(
+        {
+            "id": new_id("revision"),
+            "doc_id": document_id,
+            "revision": document.get("revision", 1),
+            "content": body,
+            "created_at": now(),
+        }
+    )
+    document["revision"] = int(document.get("revision", 1)) + 1
+    document["updated_at"] = now()
+    return store.documents.put(document)
+
+
 def sources_of(store: Store, document_id: str) -> list[Record]:
     document = store.documents.get(document_id)
     found = [store.materials.find(source_id) for source_id in document.get("source_ids") or []]

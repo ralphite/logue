@@ -1,6 +1,6 @@
 import { ExternalLink, X } from "lucide-react";
 import { Fragment, useState } from "react";
-import { Button, ErrorNote, IconButton, Input, OriginMark, Spinner, Tag, originOf } from "@logue/ui";
+import { Button, ErrorNote, IconButton, Input, OriginMark, SourceLink, Spinner, Tag, originOf } from "@logue/ui";
 import { api, type Material, type Project } from "../api";
 import { timeAgo, useAction, useHost } from "./useHost";
 
@@ -381,7 +381,10 @@ function Lineage({ title, items }: { title: string; items: Material[] }) {
       <span className="text-xs text-muted">{title}</span>
       {items.map((item) => (
         <div key={item.id} className="rounded-md bg-surface-muted px-2 py-1.5">
-          <OriginMark origin={originOf(item.kind)} />
+          <span className="flex items-center gap-2 text-[11px] text-muted">
+            <OriginMark origin={originOf(item.kind)} />
+            <SourceLink url={item.source?.url} label={item.source?.domain || "This Mac"} />
+          </span>
           <p className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-ink-soft">{item.content}</p>
         </div>
       ))}
