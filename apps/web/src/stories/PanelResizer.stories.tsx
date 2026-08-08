@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { PanelResizer } from "../components/PanelResizer";
+import { PanelResizer } from "../ui/PanelResizer";
 
 function PanelResizerPreview({ edge = "right", initialValue = 320 }: { edge?: "left" | "right"; initialValue?: number }) {
   const [value, setValue] = useState(initialValue);

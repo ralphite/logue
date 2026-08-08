@@ -1,6 +1,6 @@
 import { CirclePlus, Trash2 } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Button } from "../components/ui";
+import { Button } from "../ui/Button";
 
 const meta = {
   title: "Components/Actions/Button",

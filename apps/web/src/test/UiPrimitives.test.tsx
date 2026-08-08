@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { MoreHorizontal } from "lucide-react";
 import { describe, expect, it } from "vitest";
-import { Button, IconButton } from "../components/ui";
+import { Button, IconButton } from "../ui/Button";
 
 describe("shared action primitives", () => {
   it("keeps a loading action stable and exposes its state", () => {

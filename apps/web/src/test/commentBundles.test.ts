@@ -1,6 +1,6 @@
 import type { Material } from "@logue/ui";
 import { describe, expect, it } from "vitest";
-import { buildCommentBundles, groupLibraryMaterials } from "../commentBundles";
+import { buildCommentBundles, groupLibraryMaterials } from "../lib/commentBundles";
 
 function material(input: Partial<Material> & Pick<Material, "id" | "kind" | "content">): Material {
   return {

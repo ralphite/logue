@@ -4,7 +4,7 @@ import {
   formatAudioDuration,
   knownAudioDuration,
   RecordingAudioPlayer,
-} from "../components/RecordingAudioPlayer";
+} from "../ui/RecordingAudioPlayer";
 
 describe("RecordingAudioPlayer", () => {
   it("probes a WebM with unknown metadata and reveals native controls at the real duration", () => {

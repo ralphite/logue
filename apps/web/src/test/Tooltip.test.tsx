@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { Tooltip, TooltipProvider } from "../components/Tooltip";
+import { Tooltip, TooltipProvider } from "../ui/Tooltip";
 
 describe("Tooltip", () => {
   it("opens immediately for keyboard focus and closes with Escape", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSerialTaskQueue } from "../documentSaveQueue";
+import { createSerialTaskQueue } from "../lib/documentSaveQueue";
 
 describe("document save queue", () => {
   it("never lets a slower older save finish after a newer save", async () => {

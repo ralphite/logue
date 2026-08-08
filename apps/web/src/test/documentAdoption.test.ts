@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { LogueDocument } from "../api";
+import type { LogueDocument } from "../lib/api";
 import {
   documentAdoptionFromResult,
   documentUndoFailureState,
@@ -7,7 +7,7 @@ import {
   resolveDocumentUndoResult,
   SkillApiError,
   type LogueDocumentTombstone,
-} from "../skillApi";
+} from "../lib/skillApi";
 
 const document: LogueDocument = {
   id: "doc_active",

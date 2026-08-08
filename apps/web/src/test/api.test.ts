@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getSkills } from "../skillApi";
-import { fromApiMaterial, getStatus } from "../api";
-import { resolveLogueApiBase } from "../apiBase";
+import { getSkills } from "../lib/skillApi";
+import { fromApiMaterial, getStatus } from "../lib/api";
+import { resolveLogueApiBase } from "../lib/apiBase";
 
 afterEach(() => {
   vi.unstubAllGlobals();

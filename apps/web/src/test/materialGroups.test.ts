@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Material } from "@logue/ui";
-import { groupIdenticalMaterials } from "../materialGroups";
+import { groupIdenticalMaterials } from "../lib/materialGroups";
 
 function material(id: string, kind: Material["kind"], content: string, project?: string): Material {
   return {

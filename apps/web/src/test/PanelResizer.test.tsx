@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PanelResizer, usePersistentPanelSize } from "../components/PanelResizer";
+import { PanelResizer, usePersistentPanelSize } from "../ui/PanelResizer";
 
 function PersistentHarness() {
   const { size, setSize } = usePersistentPanelSize({
