@@ -88,12 +88,17 @@ def list_backups(store: Store) -> list[dict[str, Any]]:
         (
             {
                 "id": path.stem,
-                "bytes": path.stat().st_size,
+                "bytes": sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+                if path.is_dir()
+                else path.stat().st_size,
                 "created_at": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
                 .isoformat()
                 .replace("+00:00", "Z"),
             }
-            for path in store.backups.glob("*.zip")
+            # Earlier backups were written as directories; they are still the
+            # user's only copy, so list them rather than pretend they are gone.
+            for path in store.backups.iterdir()
+            if path.suffix == ".zip" or path.is_dir()
         ),
         key=lambda item: item["id"],
         reverse=True,

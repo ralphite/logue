@@ -13,38 +13,47 @@ from ..ids import new_id, now
 from ..store import Record, Store
 
 
-def _seed_of(material: Record) -> tuple[str, str] | None:
-    projects = material.get("projects") or []
-    if projects:
-        return f"project:{projects[0]}", str(projects[0])
+def _seeds_of(material: Record) -> list[tuple[str, str]]:
+    """Every grouping this Material belongs to: its tags, Project, and domain."""
+    seeds: list[tuple[str, str]] = []
+    for tag in material.get("tags") or []:
+        if str(tag).strip():
+            seeds.append((f"tag:{tag}", str(tag)))
+    for project in material.get("projects") or []:
+        seeds.append((f"project:{project}", str(project)))
     domain = (material.get("source") or {}).get("domain")
     if domain:
-        return f"domain:{domain}", str(domain)
-    return None
+        seeds.append((f"domain:{domain}", str(domain)))
+    return seeds
 
 
 def regroup(store: Store) -> list[Record]:
-    """Rebuild automatic Topics; manual ones are left untouched."""
-    manual = [topic for topic in store.topics.all() if not topic.get("automatic")]
+    """Refresh automatic Topics in place.
+
+    Updates a Topic rather than replacing it, and only removes one whose seed no
+    longer produces a group. Rebuilding from scratch would throw away every
+    Topic whose seed this function does not currently know how to recreate —
+    and a renamed or hidden Topic is the user's work, not ours to discard.
+    """
     buckets: dict[str, dict[str, Any]] = {}
     for material in store.materials.list():
-        seed = _seed_of(material)
-        if seed is None:
-            continue
-        key, label = seed
-        bucket = buckets.setdefault(key, {"name": label, "source_ids": []})
-        bucket["source_ids"].append(material["id"])
+        for key, label in _seeds_of(material):
+            bucket = buckets.setdefault(key, {"name": label, "source_ids": []})
+            bucket["source_ids"].append(material["id"])
 
-    for topic in store.topics.all():
-        if topic.get("automatic"):
-            store.topics.delete(topic["id"])
+    grouped = {key: bucket for key, bucket in buckets.items() if len(bucket["source_ids"]) >= 2}
+    existing = {str(topic.get("seed_key")): topic for topic in store.topics.all() if topic.get("automatic")}
 
-    created = []
-    for key, bucket in buckets.items():
-        if len(bucket["source_ids"]) < 2:
-            continue
+    result: list[Record] = []
+    for key, bucket in grouped.items():
         timestamp = now()
-        created.append(
+        topic = existing.get(key)
+        if topic:
+            topic["source_ids"] = bucket["source_ids"]
+            topic["updated_at"] = timestamp
+            result.append(store.topics.put(topic))
+            continue
+        result.append(
             store.topics.put(
                 {
                     "id": new_id("topic"),
@@ -59,7 +68,13 @@ def regroup(store: Store) -> list[Record]:
                 }
             )
         )
-    return created + manual
+
+    for key, topic in existing.items():
+        if key not in grouped:
+            store.topics.delete(topic["id"])
+
+    manual = [topic for topic in store.topics.all() if not topic.get("automatic")]
+    return result + manual
 
 
 def rename(store: Store, topic_id: str, name: str) -> Record:

@@ -101,6 +101,20 @@ class App:
             materials.delete(store, request.params["id"])
             return {"ok": True}
 
+        @route("GET", "/v1/materials/{id}/dependencies")
+        def material_dependencies(request: Request) -> dict[str, Any]:
+            """What breaks if this Source goes away."""
+            material_id = request.params["id"]
+            store.materials.get(material_id)
+            runs = [run for run in store.runs.list() if material_id in (run.get("sources") or [])]
+            documents = [doc for doc in store.documents.list() if material_id in (doc.get("source_ids") or [])]
+            children = [m for m in store.materials.all() if material_id in (m.get("parent_ids") or [])]
+            return {
+                "runs": [{"id": r["id"], "instruction": r.get("instruction"), "created_at": r.get("created_at")} for r in runs],
+                "documents": [{"id": d["id"], "title": d.get("title")} for d in documents],
+                "derived": [{"id": c["id"], "content": str(c.get("content") or "")[:120]} for c in children],
+            }
+
         @route("GET", "/v1/materials/{id}/lineage")
         def material_lineage(request: Request) -> dict[str, Any]:
             material = store.materials.get(request.params["id"])
@@ -194,6 +208,12 @@ class App:
             store.documents.delete(request.params["id"])
             return {"ok": True}
 
+        @route("GET", "/v1/documents/{id}/revisions")
+        def document_revisions(request: Request) -> dict[str, Any]:
+            document = store.documents.get(request.params["id"])
+            kept = [r for r in store.doc_revisions.list() if r.get("doc_id") == document["id"]]
+            return {"current": document, "revisions": kept}
+
         @route("GET", "/v1/documents/{id}/markdown")
         def export_document(request: Request) -> Response:
             text = documents.to_markdown(store, request.params["id"])
@@ -212,6 +232,12 @@ class App:
         @route("PATCH", "/v1/skills/{id}")
         def patch_skill(request: Request) -> dict[str, Any]:
             return {"skill": skills.update(store, request.params["id"], request.json())}
+
+        @route("GET", "/v1/skills/{id}/revisions")
+        def skill_revisions(request: Request) -> dict[str, Any]:
+            skill = store.skills.get(request.params["id"])
+            kept = [r for r in store.skill_revisions.list() if r.get("skill_id") == skill["id"]]
+            return {"current": skill, "revisions": kept}
 
         @route("GET", "/v1/skills/{id}/archive-impact")
         def skill_archive_impact(request: Request) -> dict[str, Any]:
@@ -321,6 +347,12 @@ class App:
                     overrides=body.get("overrides"),
                 )
             }
+
+        @route("GET", "/v1/materials/{id}/transcript-revisions")
+        def transcript_revisions(request: Request) -> dict[str, Any]:
+            material = store.materials.get(request.params["id"])
+            kept = [r for r in store.transcript_revisions.list() if r.get("material_id") == material["id"]]
+            return {"current": material, "revisions": kept}
 
         @route("GET", "/v1/captures/{id}/audio")
         def get_audio(request: Request) -> Response:

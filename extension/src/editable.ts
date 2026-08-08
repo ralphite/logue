@@ -7,7 +7,9 @@
 
 export type Editable = HTMLInputElement | HTMLTextAreaElement | HTMLElement;
 
-const TEXT_INPUT_TYPES = new Set(["text", "search", "url", "email", "tel", "password", ""]);
+// Deliberately excludes password: offering to record into a credential field
+// is not a feature, and an empty type attribute defaults to text.
+const TEXT_INPUT_TYPES = new Set(["text", "search", "url", "email", "tel", ""]);
 
 export function isEditable(node: unknown): node is Editable {
   if (node instanceof HTMLTextAreaElement) return !node.disabled && !node.readOnly;
