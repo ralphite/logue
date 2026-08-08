@@ -5,18 +5,19 @@
   "packageManager": "npm@10.9.2",
   "workspaces": [
     "packages/ui",
-    "web"
+    "web",
+    "extension"
   ],
   "scripts": {
     "dev": "concurrently -k -n host,web -c cyan,blue \"npm run dev:host\" \"npm run dev:web\"",
     "dev:host": "LOGUE_DATA_DIR=${LOGUE_DATA_DIR:-.logue-data} python3.13 -m logue_host --address 0.0.0.0:8787",
     "dev:web": "npm run dev -w @logue/web",
-    "build": "npm run build -w @logue/web && python3.13 -m compileall -q server",
+    "build": "npm run build -w @logue/web && npm run build -w @logue/extension && python3.13 -m compileall -q server",
     "storybook": "npm run storybook -w @logue/ui",
-    "typecheck": "tsc -p packages/ui --pretty false && tsc -p web --pretty false",
+    "typecheck": "tsc -p packages/ui --pretty false && tsc -p web --pretty false && tsc -p extension --pretty false",
     "lint": "oxlint --type-aware",
     "format": "prettier --write .",
-    "test": "npm run test -w @logue/web && npm run test:host",
+    "test": "npm run test -w @logue/web && npm run test -w @logue/extension && npm run test:host",
     "test:host": "cd server && python3.13 -m unittest discover -s tests -t . -p 'test_*.py'"
   },
   "devDependencies": {

@@ -1,0 +1,97 @@
+import { useCallback, useRef, useState } from "react";
+import { host, HostError, type Material } from "./api";
+import { send } from "./messages";
+import type { VoiceOverrides } from "./overrides";
+
+export type VoicePhase = "idle" | "starting" | "recording" | "working" | "error";
+
+function describe(cause: unknown): string {
+  if (cause instanceof HostError) return cause.message;
+  return cause instanceof Error ? cause.message : "Something went wrong.";
+}
+
+/**
+ * One recording, start to transcript.
+ *
+ * The audio is saved by the Host before transcription is attempted, so a model
+ * failure never costs someone the thing they said.
+ */
+export function useVoice() {
+  const [phase, setPhase] = useState<VoicePhase>("idle");
+  const [error, setError] = useState<string>();
+  const session = useRef(0);
+
+  const start = useCallback(async () => {
+    const id = (session.current += 1);
+    setError(undefined);
+    setPhase("starting");
+    const result = await send<{ ok: boolean; message?: string }>({
+      type: "logue:record-start",
+      sessionId: String(id),
+    });
+    if (session.current !== id) return;
+    if (!result?.ok) {
+      setPhase("error");
+      setError(result?.message ?? "Could not reach the microphone.");
+      return;
+    }
+    setPhase("recording");
+  }, []);
+
+  const cancel = useCallback(() => {
+    session.current += 1;
+    void send({ type: "logue:record-cancel", sessionId: String(session.current) });
+    setPhase("idle");
+    setError(undefined);
+  }, []);
+
+  /** Stops, transcribes, and saves. Returns the Material, or undefined on failure. */
+  const stop = useCallback(
+    async (options: {
+      project?: string;
+      overrides?: VoiceOverrides;
+      source?: unknown;
+      parentIds?: string[];
+    }): Promise<{ text: string; material: Material } | undefined> => {
+      const id = session.current;
+      setPhase("working");
+      const recorded = await send<{ ok: boolean; audio?: string; mediaType?: string; message?: string }>({
+        type: "logue:record-stop",
+        sessionId: String(id),
+      });
+      if (session.current !== id) return undefined;
+      if (!recorded?.ok || !recorded.audio) {
+        setPhase("error");
+        setError(recorded?.message ?? "Nothing was recorded.");
+        return undefined;
+      }
+
+      try {
+        const { capture_id, text } = await host.transcribe({
+          audio: recorded.audio,
+          media_type: recorded.mediaType ?? "audio/webm",
+          project: options.project,
+          overrides: options.overrides,
+        });
+        const { material } = await host.saveVoice({
+          capture_id,
+          text,
+          source: options.source,
+          project: options.project,
+          parent_ids: options.parentIds,
+        });
+        if (session.current !== id) return undefined;
+        setPhase("idle");
+        return { text, material };
+      } catch (cause) {
+        if (session.current !== id) return undefined;
+        setPhase("error");
+        setError(describe(cause));
+        return undefined;
+      }
+    },
+    [],
+  );
+
+  return { phase, error, start, stop, cancel, setError, setPhase };
+}

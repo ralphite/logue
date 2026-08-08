@@ -1,0 +1,19 @@
+@import "tailwindcss";
+@import "@logue/ui/theme.css";
+@source "./";
+@source "../../packages/ui/src";
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-panel);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+  }
+}

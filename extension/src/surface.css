@@ -1,0 +1,53 @@
+@import "tailwindcss";
+@import "@logue/ui/theme.css";
+@source "./";
+@source "../../packages/ui/src";
+
+@layer base {
+  /*
+   * The shadow root is a wall against the host page's CSS. `all: initial` resets
+   * inherited styles; `color-scheme: light` is what keeps native dropdowns from
+   * rendering dark inside a dark page.
+   */
+  :host {
+    all: initial;
+
+    /*
+     * The host must be the positioned element that carries the stacking order.
+     * `all: initial` leaves it static, which traps the whole shadow tree in the
+     * host's own stacking context — a z-index inside then means nothing to the
+     * page, and any positioned host content paints straight over the surfaces.
+     * Zero-sized so it never intercepts a click meant for the page; the
+     * surfaces inside are fixed to the viewport and take their own hits.
+     */
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 0;
+    height: 0;
+    z-index: 2147483647;
+
+    color-scheme: light;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  *,
+  ::before,
+  ::after {
+    box-sizing: border-box;
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
+
+  textarea,
+  input,
+  select {
+    font: inherit;
+  }
+}
