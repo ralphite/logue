@@ -26,6 +26,7 @@ import { DocumentsRoute } from "./DocumentsRoute";
 import { LibraryRoute } from "./LibraryRoute";
 import { SetupRoute } from "./SetupRoute";
 import { RouteErrorBoundary } from "./RouteErrorBoundary";
+import { Card, CardText, PageAxis, PageHeading, PageScroll } from "./layout";
 
 function routeFromLocation(): PrimaryRoute {
   const value = new URLSearchParams(window.location.search).get("view");
@@ -58,7 +59,21 @@ export function LogueApp() {
   useEffect(() => { const listener = () => setRoute(routeFromLocation()); window.addEventListener("popstate", listener); return () => window.removeEventListener("popstate", listener); }, []);
   const navigate = useCallback((next: PrimaryRoute) => { const url = new URL(window.location.href); url.searchParams.set("view", next); window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`); setRoute(next); }, []);
 
-  if (error) return <AppShell route={route} onRouteChange={navigate}><div className="v2-editor-scroll"><div className="v2-list-axis"><div className="v2-page-heading-copy"><h1>Logue Host</h1><p>Your interface is ready, but the local Host needs attention.</p></div><div className="v2-recovery-card"><p>{error}</p><Button variant="primary" onClick={() => void refresh()}>Retry</Button></div></div></div></AppShell>;
+  if (error) {
+    return (
+      <AppShell route={route} onRouteChange={navigate}>
+        <PageScroll>
+          <PageAxis>
+            <PageHeading title="Logue Host" lead="Your interface is ready, but the local Host needs attention." />
+            <Card>
+              <CardText>{error}</CardText>
+              <div className="mt-3"><Button variant="primary" onClick={() => void refresh()}>Retry</Button></div>
+            </Card>
+          </PageAxis>
+        </PageScroll>
+      </AppShell>
+    );
+  }
   const hasExplicitLocalRoute = new URLSearchParams(window.location.search).has("view");
   if (status && !status.overall_ready && !hasExplicitLocalRoute) {
     return <SetupRoute status={status} onReady={refresh} onBrowseLocal={() => navigate("library")} />;

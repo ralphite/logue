@@ -30,11 +30,12 @@ export function ContentSummary({
   const text = contentSummary(value, fallback);
   const canExpand = text.length > 220;
   return (
-    <div className="v2-content-summary">
-      <p className={expanded ? "is-expanded" : ""}>{text}</p>
+    <div>
+      <p className={expanded ? "" : "line-clamp-3"}>{text}</p>
       {canExpand ? (
         <button
           type="button"
+          className="mt-[5px] text-xs text-muted hover:text-ink hover:underline hover:underline-offset-[3px] focus-visible:text-ink focus-visible:underline focus-visible:underline-offset-[3px]"
           aria-expanded={expanded}
           onClick={() => setExpanded((current) => !current)}
         >

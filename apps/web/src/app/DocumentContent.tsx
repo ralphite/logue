@@ -127,12 +127,12 @@ export function DocumentContent({
     const interactiveHTML = onCitationClick
       ? html.replace(
           /<mark>\[Source (\d+)\]<\/mark>/g,
-          '<button type="button" class="v2-citation" data-source-number="$1" aria-label="Open Source $1">$1</button>',
+          '<button type="button" class="logue-citation" data-source-number="$1" aria-label="Open Source $1">$1</button>',
         )
       : html;
     return (
       <div
-        className="v2-document-content"
+        className="logue-rich-text"
         onClick={(event) => {
           const target = event.target as HTMLElement;
           const sourceNumber = Number(
@@ -153,7 +153,7 @@ export function DocumentContent({
         internalEditorRef.current = node;
         if (editorRef) editorRef.current = node;
       }}
-      className="v2-document-content is-editable"
+      className="logue-rich-text"
       contentEditable
       suppressContentEditableWarning
       role="textbox"

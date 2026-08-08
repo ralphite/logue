@@ -201,13 +201,14 @@ export function GlobalFindDialog({ open, onOpenChange }: { open: boolean; onOpen
 
   if (!open) return null;
   return (
-    <div className="v2-global-find-backdrop" role="presentation" onPointerDown={(event) => {
+    <div className="fixed inset-0 z-80 flex items-start justify-center bg-[rgb(26_27_24/18%)] px-6 pt-[12vh] pb-6 backdrop-blur-[2px]" role="presentation" onPointerDown={(event) => {
       if (event.currentTarget === event.target) onOpenChange(false);
     }}>
-      <section ref={dialogRef} className="v2-global-find-dialog" role="dialog" aria-modal="true" aria-labelledby="global-find-title" tabIndex={-1}>
-        <div className="v2-global-find-input">
+      <section ref={dialogRef} className="w-full max-w-[680px] overflow-hidden rounded-[14px] border border-[#d9d9d5] bg-white shadow-[0_24px_70px_rgb(24_26_22/22%)]" role="dialog" aria-modal="true" aria-labelledby="global-find-title" tabIndex={-1}>
+        <div className="flex h-[58px] items-center gap-[11px] border-b border-line pr-3.5 pl-4.5 text-muted">
           <Search size={19} aria-hidden="true" />
           <input
+            className="min-w-0 flex-1 border-0 bg-transparent text-[18px] text-ink outline-0"
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -232,17 +233,17 @@ export function GlobalFindDialog({ open, onOpenChange }: { open: boolean; onOpen
             aria-controls="global-find-results"
             aria-activedescendant={activeIndex >= 0 ? `global-find-result-${activeIndex}` : undefined}
           />
-          {catalogLoading || searching ? <span className="v2-global-find-loading">Searching…</span> : null}
-          <button type="button" aria-label="Close search" onClick={() => onOpenChange(false)}><X size={17} /></button>
+          {catalogLoading || searching ? <span className="text-xs text-faint">Searching…</span> : null}
+          <button type="button" className="inline-flex size-8 items-center justify-center rounded-sm text-muted hover:bg-surface-muted hover:text-ink" aria-label="Close search" onClick={() => onOpenChange(false)}><X size={17} /></button>
         </div>
         <h2 id="global-find-title" className="sr-only">Global search</h2>
-        <div id="global-find-results" className="v2-global-find-results" role="listbox" aria-label="Search results">
-          {error ? <div className="v2-global-find-message" role="alert">{error}</div> : null}
-          {error ? <button type="button" className="v2-global-find-retry" onClick={() => setSearchAttempt((value) => value + 1)}>Try again</button> : null}
-          {warning ? <div className="v2-global-find-warning" role="status">{warning}</div> : null}
-          {!query.trim() ? <div className="v2-global-find-message">Search Sources, Documents, and Projects.</div> : null}
-          {query.trim().length === 1 ? <div className="v2-global-find-message">Type one more character to search.</div> : null}
-          {query.trim().length >= 2 && !searching && !catalogLoading && !error && !results.length ? <div className="v2-global-find-message">No results</div> : null}
+        <div id="global-find-results" className="max-h-[min(58vh,560px)] overflow-y-auto p-[7px]" role="listbox" aria-label="Search results">
+          {error ? <div className="px-4.5 py-7 text-center text-muted" role="alert">{error}</div> : null}
+          {error ? <button type="button" className="mx-auto mt-[-18px] mb-4.5 block rounded-sm bg-surface-muted px-[11px] py-[7px] text-ink-soft" onClick={() => setSearchAttempt((value) => value + 1)}>Try again</button> : null}
+          {warning ? <div className="px-3 py-1.5 text-xs text-warning" role="status">{warning}</div> : null}
+          {!query.trim() ? <div className="px-4.5 py-7 text-center text-muted">Search Sources, Documents, and Projects.</div> : null}
+          {query.trim().length === 1 ? <div className="px-4.5 py-7 text-center text-muted">Type one more character to search.</div> : null}
+          {query.trim().length >= 2 && !searching && !catalogLoading && !error && !results.length ? <div className="px-4.5 py-7 text-center text-muted">No results</div> : null}
           {results.map((result, index) => {
             const Icon = result.kind === "source" ? Library : result.kind === "document" ? FileText : FolderKanban;
             return <button
@@ -252,18 +253,18 @@ export function GlobalFindDialog({ open, onOpenChange }: { open: boolean; onOpen
               tabIndex={-1}
               aria-selected={index === activeIndex}
               key={`${result.kind}:${result.id}`}
-              className={`v2-global-find-result${index === activeIndex ? " is-active" : ""}`}
+              className={`grid w-full grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-2 rounded-md p-2 text-left text-ink-soft outline-0 hover:bg-surface-muted focus-visible:bg-surface-muted ${index === activeIndex ? "bg-surface-muted" : ""}`}
               onMouseEnter={() => setActiveIndex(index)}
               onFocus={() => setActiveIndex(index)}
               onClick={() => openResult(result)}
             >
-              <span className="v2-global-find-icon"><Icon size={17} /></span>
-              <span><strong>{result.title}</strong><small>{result.detail}</small></span>
-              <em>{result.kind === "source" ? "Source" : result.kind === "document" ? "Document" : "Project"}</em>
+              <span className="inline-flex size-8 items-center justify-center rounded-[7px] bg-[#f0f0ed] text-[#686b65]"><Icon size={17} /></span>
+              <span className="min-w-0"><strong className="block truncate text-sm font-[620]">{result.title}</strong><small className="mt-0.5 block truncate text-xs text-muted">{result.detail}</small></span>
+              <em className="pr-1.5 text-xs not-italic text-muted">{result.kind === "source" ? "Source" : result.kind === "document" ? "Document" : "Project"}</em>
             </button>;
           })}
         </div>
-        <footer>{results.length ? <><span>↑↓ Navigate</span><span>↵ Open</span></> : null}<span>Esc Close</span></footer>
+        <footer className="flex gap-3.5 border-t border-line bg-[#fafaf9] px-3.5 py-2 text-[11px] text-faint">{results.length ? <><span>↑↓ Navigate</span><span>↵ Open</span></> : null}<span>Esc Close</span></footer>
       </section>
     </div>
   );

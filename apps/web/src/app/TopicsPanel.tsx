@@ -15,6 +15,7 @@ import {
 import { Button } from "../ui/Button";
 import { OriginLabel } from "../ui/OriginLabel";
 import { contentSummary } from "./contentPresentation";
+import { cardClass, headingCopyClass, inlineActionsClass, inputClass, panelHeadingClass, reviewListClass, reviewRowClass, settingsSectionClass, warningBarClass } from "./layout";
 
 function sourceTitle(source: Material | undefined) {
   return (
@@ -125,9 +126,9 @@ export function TopicsPanel({
   }
 
   return (
-    <div className="v2-topic-workbench">
-      <aside className="v2-topic-list">
-        <div className="v2-document-list-heading">
+    <div className="mt-4.5 grid grid-cols-1 gap-6 min-[820px]:grid-cols-[260px_minmax(0,1fr)]">
+      <aside className="border-line pr-3.5 min-[820px]:border-r [&>button]:grid [&>button]:w-full [&>button]:gap-[3px] [&>button]:rounded-md [&>button]:p-2.5 [&>button]:text-left [&>button]:text-ink [&>button:hover]:bg-surface-muted [&>button>strong]:text-[13px] [&>button>span]:truncate [&>button>span]:text-xs [&>button>span]:text-muted [&>button>small]:truncate [&>button>small]:text-xs [&>button>small]:text-muted">
+        <div className="flex items-center justify-between px-2.5 pt-2 pb-2.5 text-xs text-muted">
           <strong>Topics</strong>
           <span>{topics.filter((topic) => !topic.hidden).length}</span>
         </div>
@@ -135,7 +136,7 @@ export function TopicsPanel({
           <button
             type="button"
             key={topic.id}
-            className={`${topic.id === selected?.id ? "is-active" : ""}${topic.hidden ? " is-muted" : ""}`}
+            className={`${topic.id === selected?.id ? "bg-surface-muted" : ""}${topic.hidden ? " opacity-[0.58]" : ""}`}
             onClick={() => setSelectedId(topic.id)}
           >
             <strong>{topic.name}</strong>
@@ -144,7 +145,7 @@ export function TopicsPanel({
           </button>
         ))}
         {!topics.length ? (
-          <div className="v2-recovery-card">
+          <div className={cardClass}>
             <p>
               Topics appear when at least two saved Sources share a confirmed
               tag or site.
@@ -154,14 +155,14 @@ export function TopicsPanel({
       </aside>
 
       {selected ? (
-        <main className="v2-topic-editor">
-          <div className="v2-page-heading-copy">
+        <main className="min-w-0 [&_label]:flex [&_label]:min-w-0 [&_label]:gap-2.5 [&_label>input]:mt-1 [&_label>input]:accent-accent">
+          <div className={headingCopyClass}>
             <OriginLabel
               origin="ai"
               detail={selected.automatic ? "Discovered Topic" : "Your Topic"}
             />
             <input
-              className="v2-document-title-input"
+              className="mb-4.5 w-full border-0 bg-transparent text-[clamp(34px,3vw,42px)] leading-[1.12] font-[690] tracking-[-0.045em] text-ink outline-0"
               aria-label="Topic name"
               value={name}
               onChange={(event) => setName(event.target.value)}
@@ -172,7 +173,7 @@ export function TopicsPanel({
             </p>
           </div>
 
-          <div className="v2-inline-actions">
+          <div className={inlineActionsClass}>
             <Button
               disabled={busy || !name.trim()}
               onClick={() =>
@@ -210,17 +211,17 @@ export function TopicsPanel({
           </div>
 
           {(selected.project_suggestions ?? []).length ? (
-            <section className="v2-settings-section">
-              <div className="v2-panel-section-heading">
+            <section className={settingsSectionClass}>
+              <div className={panelHeadingClass}>
                 <div>
                   <h2>Related Projects</h2>
                   <p>Suggestions only. Sources move into Context when you add them.</p>
                 </div>
               </div>
-              <div className="v2-review-list">
+              <div className={reviewListClass}>
                 {selected.project_suggestions.map((suggestion) => (
                   <article
-                    className="v2-review-row"
+                    className={reviewRowClass}
                     key={suggestion.project_id}
                   >
                     <div>
@@ -250,24 +251,24 @@ export function TopicsPanel({
           ) : null}
 
           {(selected.vocabulary_suggestions ?? []).length ? (
-            <section className="v2-settings-section">
-              <div className="v2-panel-section-heading">
+            <section className={settingsSectionClass}>
+              <div className={panelHeadingClass}>
                 <div>
                   <h2>Vocabulary suggestions</h2>
                   <p>Choose exactly where each confirmed term should apply.</p>
                 </div>
               </div>
-              <div className="v2-review-list">
+              <div className={reviewListClass}>
                 {selected.vocabulary_suggestions.map((suggestion) => (
-                  <article className="v2-review-row" key={suggestion.term}>
+                  <article className={reviewRowClass} key={suggestion.term}>
                     <div>
                       <OriginLabel origin="ai" detail="Not remembered yet" />
                       <h3>{suggestion.term}</h3>
                       <p>{suggestion.reason}</p>
                     </div>
-                    <div className="v2-inline-actions">
+                    <div className={inlineActionsClass}>
                       <select
-                        className="v2-input"
+                        className={inputClass}
                         aria-label={`Where to remember ${suggestion.term}`}
                         value={vocabularyDestinations[suggestion.term] ?? "topic"}
                         onChange={(event) =>
@@ -305,21 +306,21 @@ export function TopicsPanel({
             </section>
           ) : null}
 
-          <section className="v2-settings-section">
-            <div className="v2-panel-section-heading">
+          <section className={settingsSectionClass}>
+            <div className={panelHeadingClass}>
               <div>
                 <h2>Source relationships</h2>
                 <p>Duplicate links are exact. Conflict and supplement labels are suggestions to review.</p>
               </div>
             </div>
-            <div className="v2-review-list">
+            <div className={reviewListClass}>
               {(selected.relationships ?? []).map((relationship) => {
                 const [leftId, rightId] = relationship.source_ids;
                 const left = materials.find((item) => item.id === leftId);
                 const right = materials.find((item) => item.id === rightId);
                 return (
                   <article
-                    className="v2-review-row"
+                    className={reviewRowClass}
                     key={`${relationship.type}:${relationship.source_ids.join(":")}`}
                   >
                     <div>
@@ -332,7 +333,7 @@ export function TopicsPanel({
                       </h3>
                       <p>{relationship.reason}</p>
                     </div>
-                    <div className="v2-inline-actions">
+                    <div className={inlineActionsClass}>
                       {left ? (
                         <Button size="sm" onClick={() => onOpenSource(left.id)}>
                           Open first
@@ -348,18 +349,18 @@ export function TopicsPanel({
                 );
               })}
               {!selected.relationships?.length ? (
-                <div className="v2-recovery-card">
+                <div className={cardClass}>
                   <p>Add another distinct Source to compare relationships.</p>
                 </div>
               ) : null}
             </div>
           </section>
 
-          <section className="v2-settings-section">
+          <section className={settingsSectionClass}>
             <h2>Related Sources</h2>
-            <div className="v2-review-list">
+            <div className={reviewListClass}>
               {sources.map((source) => (
-                <article className="v2-review-row" key={source.id}>
+                <article className={reviewRowClass} key={source.id}>
                   <label>
                     <input
                       type="checkbox"
@@ -385,11 +386,11 @@ export function TopicsPanel({
             </div>
           </section>
 
-          <section className="v2-settings-section">
+          <section className={settingsSectionClass}>
             <h2>Merge or split</h2>
-            <div className="v2-filter-row">
+            <div className="flex items-center gap-2">
               <select
-                className="v2-input"
+                className={inputClass}
                 value={mergeId}
                 onChange={(event) => setMergeId(event.target.value)}
               >
@@ -414,9 +415,9 @@ export function TopicsPanel({
                 Merge
               </Button>
             </div>
-            <div className="v2-filter-row">
+            <div className="flex items-center gap-2">
               <input
-                className="v2-input"
+                className={inputClass}
                 value={splitName}
                 onChange={(event) => setSplitName(event.target.value)}
                 placeholder="New Topic name"
@@ -441,7 +442,7 @@ export function TopicsPanel({
           </section>
 
           {error ? (
-            <div className="v2-warning-bar" role="alert">
+            <div className={warningBarClass} role="alert">
               {error}
             </div>
           ) : null}

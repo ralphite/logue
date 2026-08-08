@@ -64,6 +64,7 @@ import {
   updateNavigationState,
 } from "./navigationState";
 import { contentSummary } from "./contentPresentation";
+import { axisClass, cardClass, dangerCardClass, documentMenuClass, eyebrowClass, headingCopyClass, inlineActionsClass, inputClass, inspectorHeaderClass, inspectorScrollClass, leadClass, metaClass, panelHeadingClass, scrollClass, sourceBundleClass, sourceListClass, sourceToggleClass, textareaClass, warningBarClass } from "./layout";
 
 type DisplaySource = Material | SkillRunSourceSnapshot;
 
@@ -858,7 +859,7 @@ export function DocumentsRoute({
   const inspectorContent =
     inspector === "history" ? (
       <>
-        <header className="v2-inspector-header">
+        <header className={inspectorHeaderClass}>
           <div>
             <OriginLabel origin="you" detail="Document lineage" />
             <h2>Revision history</h2>
@@ -871,17 +872,17 @@ export function DocumentsRoute({
             <PanelRightClose size={17} />
           </IconButton>
         </header>
-        <div className="v2-inspector-scroll">
-          <p className="v2-settings-lead">
+        <div className={inspectorScrollClass}>
+          <p className={leadClass}>
             Restoring creates a new revision. Existing history never changes.
           </p>
-          <div className="v2-revision-list">
+          <div className="my-4.5 grid gap-1 [&>button]:flex [&>button]:items-center [&>button]:justify-between [&>button]:gap-3 [&>button]:rounded-md [&>button]:p-[9px] [&>button]:text-left [&>button]:text-muted [&>button:hover]:bg-surface-muted [&_strong]:block [&_strong]:text-[13px] [&_strong]:text-ink-soft [&_small]:mt-[3px] [&_small]:block [&_small]:text-[11px] [&_small]:text-faint">
             {revisions.map((revision) => (
               <button
                 type="button"
                 key={`${revision.document_id}-${revision.revision}`}
                 className={
-                  preview?.revision === revision.revision ? "is-active" : ""
+                  preview?.revision === revision.revision ? "bg-surface-muted" : ""
                 }
                 onClick={() =>
                   setPreview((current) => {
@@ -919,12 +920,12 @@ export function DocumentsRoute({
             ))}
           </div>
           {revisionNotice ? (
-            <div className="v2-library-meta" role="status">
+            <div className={metaClass} role="status">
               {revisionNotice}
             </div>
           ) : null}
           {preview ? (
-            <div className="v2-recovery-card">
+            <div className={cardClass}>
               <OriginLabel
                 origin="you"
                 detail={
@@ -956,7 +957,7 @@ export function DocumentsRoute({
                       setInspector("sources");
                     }}
                   />
-                  <div className="v2-inline-actions">
+                  <div className={inlineActionsClass}>
                     <Button
                       variant="primary"
                       disabled={saving}
@@ -974,7 +975,7 @@ export function DocumentsRoute({
                     </Button>
                   </div>
                   {revisionDeletePreview ? (
-                    <div className="v2-danger-card">
+                    <div className={dangerCardClass}>
                       <p>
                         {revisionDeletePreview.requires_lineage
                           ? `${revisionDeletePreview.summary.sources} pinned ${revisionDeletePreview.summary.sources === 1 ? "Source keeps" : "Sources keep"} its frozen content. This revision becomes a minimal lineage marker.`
@@ -987,14 +988,14 @@ export function DocumentsRoute({
                       <label>
                         Type DELETE to continue
                         <input
-                          className="v2-input"
+                          className={inputClass}
                           value={revisionDeleteConfirm}
                           onChange={(event) =>
                             setRevisionDeleteConfirm(event.target.value)
                           }
                         />
                       </label>
-                      <div className="v2-inline-actions">
+                      <div className={inlineActionsClass}>
                         <Button
                           onClick={() => {
                             setRevisionDeletePreview(undefined);
@@ -1023,7 +1024,7 @@ export function DocumentsRoute({
       </>
     ) : (
       <>
-        <header className="v2-inspector-header">
+        <header className={inspectorHeaderClass}>
           <div>
             <OriginLabel
               origin="web"
@@ -1044,11 +1045,11 @@ export function DocumentsRoute({
             <PanelRightClose size={17} />
           </IconButton>
         </header>
-        <div className="v2-inspector-scroll">
-          <div className="v2-source-list">
+        <div className={inspectorScrollClass}>
+          <div className={sourceListClass}>
             {(citationSource ? [citationSource] : sources).map(
               (source, index) => (
-                <article className="v2-source-bundle" key={source.id}>
+                <article className={sourceBundleClass} key={source.id}>
                   <OriginLabel
                     origin={sourceOrigin(source)}
                     detail={
@@ -1059,7 +1060,7 @@ export function DocumentsRoute({
                   <p>{contentSummary(source.content)}</p>
                   {source.source?.url ? (
                     <a
-                      className="v2-source-excerpt-toggle"
+                      className={sourceToggleClass}
                       href={source.source.url}
                       target="_blank"
                       rel="noreferrer"
@@ -1071,7 +1072,7 @@ export function DocumentsRoute({
               ),
             )}
             {!sources.length ? (
-              <div className="v2-recovery-card">
+              <div className={cardClass}>
                 <p>This Document has no frozen Sources yet.</p>
               </div>
             ) : null}
@@ -1106,7 +1107,7 @@ export function DocumentsRoute({
                 <History size={15} />
                 History
               </Button>
-              <details className="v2-document-more">
+              <details className={documentMenuClass}>
                 <summary aria-label="More Document actions" title="More Document actions">
                   <MoreHorizontal size={17} aria-hidden="true" />
                 </summary>
@@ -1155,11 +1156,11 @@ export function DocumentsRoute({
         }
       />
       <div
-        className="v2-document-layout"
+        className="grid min-h-0 min-w-0 flex-1"
         style={{ gridTemplateColumns: `${documentListWidth}px 1px minmax(0, 1fr)` }}
       >
-        <aside className="v2-document-list">
-          <div className="v2-document-list-heading">
+        <aside className="scroll-surface min-h-0 overflow-auto border-r border-line bg-panel px-2 pt-3 pb-7 [&>button]:block [&>button]:w-full [&>button]:rounded-md [&>button]:px-2.5 [&>button]:py-[9px] [&>button]:text-left [&>button:hover]:bg-surface-muted [&>button_strong]:block [&>button_strong]:truncate [&>button_strong]:text-[13px] [&>button_strong]:font-[610] [&>button_strong]:text-ink-soft [&>button_span]:mt-[3px] [&>button_span]:block [&>button_span]:truncate [&>button_span]:text-[11px] [&>button_span]:text-faint [&>button_small]:mt-[3px] [&>button_small]:block [&>button_small]:truncate [&>button_small]:text-[11px] [&>button_small]:text-faint">
+          <div className="flex items-center justify-between px-2.5 pt-2 pb-2.5 text-xs text-muted">
             <strong>Documents</strong>
             <span>{loading ? "…" : documents.length}</span>
           </div>
@@ -1167,7 +1168,7 @@ export function DocumentsRoute({
             <button
               type="button"
               key={item.id}
-              className={item.id === selected?.id ? "is-active" : ""}
+              className={item.id === selected?.id ? "bg-surface-muted" : ""}
               onClick={() => setSelectedId(item.id)}
             >
               <strong>{item.title}</strong>
@@ -1182,11 +1183,11 @@ export function DocumentsRoute({
           max={360}
           defaultValue={220}
           onChange={setDocumentListWidth}
-          className="v2-document-list-resizer"
+          className="z-5"
         />
         <div
           ref={editorScrollRef}
-          className="v2-editor-scroll"
+          className={scrollClass}
           onScroll={(event) => {
             if (selected?.id)
               saveDocumentPosition(selected.id, {
@@ -1195,8 +1196,8 @@ export function DocumentsRoute({
           }}
         >
           {selected ? (
-            <article className="v2-editor-axis">
-              <div className="v2-editor-eyebrow">
+            <article className={axisClass("reading")}>
+              <div className={eyebrowClass}>
                 {preview
                   ? `Revision ${preview.revision} · read only`
                   : saving
@@ -1206,7 +1207,7 @@ export function DocumentsRoute({
                       : `Revision ${selected.revision}`}
               </div>
               <input
-                className="v2-document-title-input"
+                className="mb-4.5 w-full border-0 bg-transparent text-[clamp(34px,3vw,42px)] leading-[1.12] font-[690] tracking-[-0.045em] text-ink outline-0"
                 aria-label="Document title"
                 value={preview?.title ?? title}
                 disabled={Boolean(preview)}
@@ -1215,10 +1216,10 @@ export function DocumentsRoute({
                   markEdited();
                 }}
               />
-              <div className="v2-document-toolbar">
-                <div className="v2-document-toolbar-primary">
+              <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-1.5">
                   <select
-                  className="v2-input"
+                  className={inputClass}
                   aria-label="Project"
                   value={preview?.project ?? project}
                   disabled={Boolean(preview)}
@@ -1234,9 +1235,9 @@ export function DocumentsRoute({
                     </option>
                   ))}
                   </select>
-                  <div className="v2-document-skill-action">
+                  <div className="inline-flex min-w-0 items-center gap-[5px]">
                     <select
-                      className="v2-input"
+                      className={inputClass}
                       aria-label="Document action"
                       value={actionSkillId}
                       disabled={Boolean(preview) || actionBusy}
@@ -1266,7 +1267,7 @@ export function DocumentsRoute({
                     </Button>
                   </div>
                 </div>
-                <div className="v2-document-toolbar-actions">
+                <div className="flex min-w-0 items-center justify-start gap-1.5 min-[900px]:min-w-max min-[900px]:justify-end">
                 {actionUndo?.documentId === selected.id && actionUndo.content === content && actionUndo.title === title && actionUndo.project === project ? (
                   <Button
                     size="sm"
@@ -1326,7 +1327,7 @@ export function DocumentsRoute({
                 ) : (
                   null
                 )}
-                  <details className="v2-document-more">
+                  <details className={documentMenuClass}>
                     <summary aria-label="More Document actions" title="More Document actions">
                       <MoreHorizontal size={17} aria-hidden="true" />
                     </summary>
@@ -1356,7 +1357,7 @@ export function DocumentsRoute({
                         <Send size={14} />
                         {selectedInputTarget ? "Change input" : "Send to input…"}
                       </button>
-                      <button className="is-danger" type="button" role="menuitem" onClick={() => void reviewDocumentDeletion()} disabled={Boolean(preview)}>
+                      <button className="!text-danger hover:!bg-[#f9ece9]" type="button" role="menuitem" onClick={() => void reviewDocumentDeletion()} disabled={Boolean(preview)}>
                         <Trash2 size={14} />
                         Delete Document
                       </button>
@@ -1366,10 +1367,10 @@ export function DocumentsRoute({
               </div>
               {targetPickerOpen ? (
                 <section
-                  className="v2-target-picker"
+                  className="mt-[-10px] mb-5.5 rounded-lg border border-line bg-surface p-3"
                   aria-label="Choose an input"
                 >
-                  <div className="v2-panel-section-heading">
+                  <div className={panelHeadingClass}>
                     <h2>Choose an input</h2>
                     <IconButton
                       label="Close input picker"
@@ -1380,11 +1381,11 @@ export function DocumentsRoute({
                     </IconButton>
                   </div>
                   {targetBusy ? (
-                    <div className="v2-library-meta">
+                    <div className={metaClass}>
                       Finding inputs in Chrome…
                     </div>
                   ) : inputTargets.length ? (
-                    <div className="v2-target-list">
+                    <div className="flex flex-col gap-0.5 [&>button]:grid [&>button]:min-h-[42px] [&>button]:w-full [&>button]:grid-cols-[minmax(0,1fr)_auto] [&>button]:items-center [&>button]:gap-x-3 [&>button]:gap-y-0.5 [&>button]:rounded-sm [&>button]:px-[9px] [&>button]:py-[7px] [&>button]:text-left [&>button]:text-ink [&>button:hover]:bg-surface-muted [&>button:focus-visible]:bg-surface-muted [&>button>span]:col-span-full [&_span]:truncate [&_span]:text-muted [&_small]:truncate [&_small]:text-muted">
                       {inputTargets.map((target) => (
                         <button
                           type="button"
@@ -1403,7 +1404,7 @@ export function DocumentsRoute({
                       ))}
                     </div>
                   ) : (
-                    <div className="v2-recovery-card">
+                    <div className={cardClass}>
                       <p>
                         Focus the input you want in Chrome, then choose again.
                       </p>
@@ -1415,14 +1416,14 @@ export function DocumentsRoute({
                 </section>
               ) : null}
               {targetUndo ? (
-                <div className="v2-library-meta v2-target-status">
+                <div className="mt-[-10px] mb-4.5 text-xs text-faint">
                   Sent to {targetUndo.target.label} in{" "}
                   {targetUndo.target.pageTitle}. Undo is available until the
                   input changes.
                 </div>
               ) : null}
               {targetError ? (
-                <div className="v2-warning-bar" role="alert">
+                <div className={warningBarClass} role="alert">
                   {targetError}
                 </div>
               ) : null}
@@ -1456,18 +1457,18 @@ export function DocumentsRoute({
                 />
               )}
               {actionRun ? (
-                <section className="v2-draft-card">
+                <section className="rounded-lg border border-line bg-surface p-3.5 [&_textarea]:min-h-[190px] [&_textarea]:w-full [&_textarea]:resize-y [&_textarea]:border-0 [&_textarea]:bg-transparent [&_textarea]:p-0 [&_textarea]:text-[15px] [&_textarea]:leading-[1.62] [&_textarea]:text-ink [&_textarea]:outline-0">
                   <OriginLabel
                     origin="ai"
                     detail={`${actionRun.skill_name} · Candidate`}
                   />
                   <textarea
-                    className="v2-textarea"
+                    className={textareaClass}
                     aria-label="Document action result"
                     value={actionText}
                     onChange={(event) => setActionText(event.target.value)}
                   />
-                  <div className="v2-inline-actions v2-actions-end">
+                  <div className={`${inlineActionsClass} justify-end`}>
                     {actionRun.status === "failed" ? (
                       <Button
                         variant="primary"
@@ -1528,11 +1529,11 @@ export function DocumentsRoute({
                 </section>
               ) : null}
               {error ? (
-                <div className="v2-warning-bar" role="alert">
+                <div className={warningBarClass} role="alert">
                   {error}
                 </div>
               ) : null}
-              <div className="v2-context-summary">
+              <div >
                 <span>
                   <Clock3 size={14} />
                   {
@@ -1546,7 +1547,7 @@ export function DocumentsRoute({
                   frozen Sources
                 </span>
                 <button
-                  className="v2-source-excerpt-toggle"
+                  className={sourceToggleClass}
                   onClick={() => {
                     setOpenCitationSourceId(undefined);
                     setInspector("sources");
@@ -1556,7 +1557,7 @@ export function DocumentsRoute({
                 </button>
               </div>
               {deleteOpen ? (
-                <div className="v2-danger-card">
+                <div className={dangerCardClass}>
                   <p>
                     Delete this Document and its revision history? Saved Sources
                     remain in the Library.
@@ -1569,12 +1570,12 @@ export function DocumentsRoute({
                   <label>
                     Type DELETE to continue
                     <input
-                      className="v2-input"
+                      className={inputClass}
                       value={deleteConfirm}
                       onChange={(event) => setDeleteConfirm(event.target.value)}
                     />
                   </label>
-                  <div className="v2-inline-actions">
+                  <div className={inlineActionsClass}>
                     <Button
                       onClick={() => {
                         setDeleteOpen(false);
@@ -1598,21 +1599,21 @@ export function DocumentsRoute({
               ) : null}
             </article>
           ) : loading ? (
-            <div className="v2-list-axis" aria-live="polite">
-              <div className="v2-page-heading-copy">
+            <div className={axisClass("list")} aria-live="polite">
+              <div className={headingCopyClass}>
                 <h1>Documents</h1>
               </div>
-              <div className="v2-recovery-card">
+              <div className={cardClass}>
                 <p>Loading Documents…</p>
               </div>
             </div>
           ) : (
-            <div className="v2-list-axis">
-              <div className="v2-page-heading-copy">
+            <div className={axisClass("list")}>
+              <div className={headingCopyClass}>
                 <h1>Documents</h1>
                 <p>Long-lived outputs with frozen source history.</p>
               </div>
-              <div className="v2-recovery-card">
+              <div className={cardClass}>
                 <p>
                   Create a Document or adopt a sourced Draft from a Project.
                 </p>

@@ -70,6 +70,7 @@ import { DocumentContent } from "./DocumentContent";
 import { readNavigationState, updateNavigationState } from "./navigationState";
 import { ContentSummary, contentSummary } from "./contentPresentation";
 import { RowActions } from "./RowActions";
+import { axisClass, cardClass, checkboxRowClass, chipButtonClass, dialogBackdropClass, dialogClass, eyebrowClass, fieldLabelClass, formGridClass, headingCopyClass, inlineActionsClass, inputClass, inspectorHeaderClass, inspectorScrollClass, leadClass, metaClass, panelHeadingClass, pillClass, reviewListClass, reviewRowClass, scrollClass, segmentedTabClass, settingRowClass, settingsSectionClass, skillPickerGroupClass, sourceBundleActiveClass, sourceBundleClass, sourceToggleClass, tabClass, textareaClass, warningBarClass } from "./layout";
 
 type ProjectView = "workspace" | "context" | "history" | "settings";
 type RequestMode = "ask" | "compare" | "draft";
@@ -155,15 +156,15 @@ function projectSkill(
 
 function EmptyProject({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="v2-editor-scroll">
-      <div className="v2-list-axis">
-        <div className="v2-page-heading-copy">
+    <div className={scrollClass}>
+      <div className={axisClass("list")}>
+        <div className={headingCopyClass}>
           <h1>Projects</h1>
           <p>
             Collect the Sources Logue may use for one continuing piece of work.
           </p>
         </div>
-        <div className="v2-recovery-card">
+        <div className={cardClass}>
           <p>
             Create a Project, then add saved Sources or capture new evidence
             from the Extension.
@@ -180,12 +181,12 @@ function EmptyProject({ onCreate }: { onCreate: () => void }) {
 
 function LoadingProjects() {
   return (
-    <div className="v2-editor-scroll" aria-live="polite">
-      <div className="v2-list-axis">
-        <div className="v2-page-heading-copy">
+    <div className={scrollClass} aria-live="polite">
+      <div className={axisClass("list")}>
+        <div className={headingCopyClass}>
           <h1>Projects</h1>
         </div>
-        <div className="v2-recovery-card">
+        <div className={cardClass}>
           <p>Loading Projects…</p>
         </div>
       </div>
@@ -223,7 +224,7 @@ function ProjectDialog({
   if (!open) return null;
   return (
     <div
-      className="v2-dialog-backdrop"
+      className={dialogBackdropClass}
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -231,7 +232,7 @@ function ProjectDialog({
     >
       <section
         ref={dialogRef}
-        className="v2-dialog"
+        className={dialogClass}
         role="dialog"
         aria-modal="true"
         aria-labelledby="project-dialog-title"
@@ -246,7 +247,7 @@ function ProjectDialog({
               : undefined
           }
         />
-        <div className="v2-panel-section-heading">
+        <div className={panelHeadingClass}>
           <div>
             <OriginLabel
               origin="you"
@@ -260,20 +261,20 @@ function ProjectDialog({
             <X size={16} />
           </IconButton>
         </div>
-        <label className="v2-field-label">
+        <label className={fieldLabelClass}>
           Name
           <input
-            className="v2-input"
+            className={inputClass}
             data-autofocus={!project ? "true" : undefined}
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Project name"
           />
         </label>
-        <label className="v2-field-label">
+        <label className={fieldLabelClass}>
           Goal and working context
           <textarea
-            className="v2-textarea"
+            className={textareaClass}
             data-autofocus={project ? "true" : undefined}
             value={overview}
             onChange={(event) => setOverview(event.target.value)}
@@ -281,11 +282,11 @@ function ProjectDialog({
           />
         </label>
         {error ? (
-          <div className="v2-warning-bar" role="alert">
+          <div className={warningBarClass} role="alert">
             {error}
           </div>
         ) : null}
-        <div className="v2-inline-actions v2-actions-end">
+        <div className={`${inlineActionsClass} justify-end`}>
           <Button onClick={onClose}>Cancel</Button>
           <Button
             variant="primary"
@@ -1180,7 +1181,7 @@ export function ProjectRoute({
   );
   const inspector = run ? (
     <>
-      <header className="v2-inspector-header">
+      <header className={inspectorHeaderClass}>
         <div>
           <OriginLabel
             origin="ai"
@@ -1205,23 +1206,23 @@ export function ProjectRoute({
           <PanelRightClose size={17} />
         </IconButton>
       </header>
-      <div className="v2-inspector-scroll">
-        <div className="v2-draft-card">
+      <div className={inspectorScrollClass}>
+        <div className="rounded-lg border border-line bg-surface p-3.5 [&_textarea]:min-h-[190px] [&_textarea]:w-full [&_textarea]:resize-y [&_textarea]:border-0 [&_textarea]:bg-transparent [&_textarea]:p-0 [&_textarea]:text-[15px] [&_textarea]:leading-[1.62] [&_textarea]:text-ink [&_textarea]:outline-0">
           <textarea
             aria-label="Generated result"
             value={candidate}
             onChange={(event) => setCandidate(event.target.value)}
           />
           {runError ? (
-            <div className="v2-warning-bar" role="alert">
+            <div className={warningBarClass} role="alert">
               {runError}
             </div>
           ) : null}
-          <div className="v2-citation-list">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {runSources.map((source, index) => (
               <button
                 key={source.id}
-                className="v2-citation-chip"
+                className="inline-flex min-h-7 items-center gap-[5px] rounded-full border border-accent-line bg-accent-soft px-[9px] py-1 text-xs text-[#424ebc]"
                 aria-pressed={openSourceId === source.id}
                 onClick={() =>
                   setOpenSourceId(
@@ -1236,7 +1237,7 @@ export function ProjectRoute({
               </button>
             ))}
           </div>
-          <div className="v2-inline-actions v2-actions-end">
+          <div className={`${inlineActionsClass} justify-end`}>
             {run.status === "failed" ? (
               <Button
                 size="sm"
@@ -1273,7 +1274,7 @@ export function ProjectRoute({
                         ? "Undo Save as document"
                         : "Undo Document update"}
                   </Button>
-                ) : <div className="v2-action-menu-wrap">
+                ) : <div className="relative w-fit max-[480px]:w-full">
                   <Button
                     size="sm"
                     variant="primary"
@@ -1284,18 +1285,18 @@ export function ProjectRoute({
                     Document…
                   </Button>
                   {documentTargetOpen ? (
-                    <div className="v2-skill-picker" role="menu" aria-label="Choose Document target">
-                      <div className="v2-skill-picker-scroll">
-                        <div className="v2-skill-picker-group">
-                          <div className="v2-skill-picker-label">Create</div>
+                    <div className="absolute top-[calc(100%+8px)] right-0 left-0 z-10 w-full max-w-90 overflow-hidden rounded-md border border-line-strong bg-surface shadow-[0_14px_36px_rgba(30,31,29,0.16)]" role="menu" aria-label="Choose Document target">
+                      <div className="max-h-90 overflow-auto p-1.5">
+                        <div className={skillPickerGroupClass}>
+                          <div className="px-2 pt-1.5 pb-1 text-[11px] font-[650] text-muted">Create</div>
                           <button type="button" role="menuitem" disabled={savingDocument} onClick={() => void saveCandidateDocument()}>
                             <span>New Document</span>
                             <small>Start a Document with this sourced result</small>
                           </button>
                         </div>
                         {projectDocuments.length ? (
-                          <div className="v2-skill-picker-group">
-                            <div className="v2-skill-picker-label">Update existing</div>
+                          <div className={skillPickerGroupClass}>
+                            <div className="px-2 pt-1.5 pb-1 text-[11px] font-[650] text-muted">Update existing</div>
                             {projectDocuments.map((item) => (
                               <button key={item.id} type="button" role="menuitem" disabled={savingDocument} onClick={() => void saveCandidateDocument(item)}>
                                 <span>{item.title}</span>
@@ -1312,14 +1313,14 @@ export function ProjectRoute({
             ) : null}
           </div>
           {run.adopted_output ? (
-            <div className="v2-local-ready">
+            <div className="text-[13px] text-[#4c7052]">
               <Check size={14} />
               Adopted version recorded
             </div>
           ) : null}
         </div>
         {openedSource ? (
-          <article className="v2-context-card">
+          <article className={cardClass}>
             <OriginLabel
               origin={
                 openedSource.actor === "user"
@@ -1338,7 +1339,7 @@ export function ProjectRoute({
             <p>{contentSummary(openedSource.content)}</p>
             {openedSource.source?.url ? (
               <a
-                className="v2-source-excerpt-toggle"
+                className={sourceToggleClass}
                 href={openedSource.source.url}
                 target="_blank"
                 rel="noreferrer"
@@ -1359,7 +1360,7 @@ export function ProjectRoute({
     />
   ) : citationSource ? (
     <>
-      <header className="v2-inspector-header">
+      <header className={inspectorHeaderClass}>
         <div>
           <OriginLabel
             origin={sourceOrigin(citationSource)}
@@ -1375,12 +1376,12 @@ export function ProjectRoute({
           <PanelRightClose size={17} />
         </IconButton>
       </header>
-      <div className="v2-inspector-scroll">
-        <article className="v2-source-bundle is-active">
+      <div className={inspectorScrollClass}>
+        <article className={`${sourceBundleClass} ${sourceBundleActiveClass}`}>
           <p>{contentSummary(citationSource.content)}</p>
           {citationSource.source?.url ? (
             <a
-              className="v2-source-excerpt-toggle"
+              className={sourceToggleClass}
               href={citationSource.source.url}
               target="_blank"
               rel="noreferrer"
@@ -1433,14 +1434,14 @@ export function ProjectRoute({
       ) : (
         <>
           <div
-            className="v2-project-subnav"
+            className="flex gap-0.5 border-b border-line px-6"
             role="tablist"
             aria-label="Project views"
           >
             <button
               role="tab"
               aria-selected={view === "workspace"}
-              className={view === "workspace" ? "is-active" : ""}
+              className={tabClass(view === "workspace")}
               onClick={() => setView("workspace")}
             >
               Workspace
@@ -1448,7 +1449,7 @@ export function ProjectRoute({
             <button
               role="tab"
               aria-selected={view === "context"}
-              className={view === "context" ? "is-active" : ""}
+              className={tabClass(view === "context")}
               onClick={() => setView("context")}
             >
               Context
@@ -1456,7 +1457,7 @@ export function ProjectRoute({
             <button
               role="tab"
               aria-selected={view === "history"}
-              className={view === "history" ? "is-active" : ""}
+              className={tabClass(view === "history")}
               onClick={() => setView("history")}
             >
               History
@@ -1464,7 +1465,7 @@ export function ProjectRoute({
             <button
               role="tab"
               aria-selected={view === "settings"}
-              className={view === "settings" ? "is-active" : ""}
+              className={tabClass(view === "settings")}
               onClick={() => setView("settings")}
             >
               Voice & Skills
@@ -1472,18 +1473,18 @@ export function ProjectRoute({
           </div>
           {view === "workspace" ? (
             <>
-              <div className="v2-editor-scroll">
-                <article className="v2-editor-axis">
-                  <div className="v2-editor-eyebrow">Project</div>
-                  <h1 className="v2-editor-title">
+              <div className={scrollClass}>
+                <article className={axisClass("reading")}>
+                  <div className={eyebrowClass}>Project</div>
+                  <h1 className="mb-7 max-w-180 text-[clamp(34px,3vw,42px)] leading-[1.12] font-[690] tracking-[-0.045em] text-ink">
                     {document?.title || project.name}
                   </h1>
-                  <p className="v2-project-goal">
+                  <p className="mb-8.5 border-l-2 border-line-strong pl-4 text-base leading-[1.65] text-ink-soft">
                     {project.overview ||
                       "Add a Project goal so classification and generation use the right intent."}
                   </p>
                   {document ? (
-                    <div className="v2-editor-body">
+                    <div className="max-w-180 text-[17px] leading-[1.78] text-[#292b28] [&_p]:mb-6">
                       <DocumentContent
                         value={document.content || "This document is empty."}
                         title={document.title}
@@ -1494,7 +1495,7 @@ export function ProjectRoute({
                           )
                         }
                       />
-                      <div className="v2-context-summary">
+                      <div >
                         <span>
                           Revision {document.revision} ·{" "}
                           {
@@ -1504,7 +1505,7 @@ export function ProjectRoute({
                           frozen Sources
                         </span>
                         <button
-                          className="v2-source-excerpt-toggle"
+                          className={sourceToggleClass}
                           onClick={() => openDocumentInEditor(document.id)}
                         >
                           Continue editing
@@ -1512,26 +1513,26 @@ export function ProjectRoute({
                       </div>
                     </div>
                   ) : (
-                    <div className="v2-editor-body">
-                      <p className="v2-document-placeholder">
+                    <div className="max-w-180 text-[17px] leading-[1.78] text-[#292b28] [&_p]:mb-6">
+                      <p className="text-faint">
                         Ask a sourced question or draft a document from this
                         Project Context.
                       </p>
                     </div>
                   )}
                   {projectDocuments.length || recentProjectRuns.length ? (
-                    <section className="v2-project-context-preview">
-                      <div className="v2-panel-section-heading">
+                    <section className="mt-11 border-t border-line pt-5">
+                      <div className={panelHeadingClass}>
                         <div>
                           <h2>Recent work</h2>
                           <p>Continue a Document or reopen a sourced result.</p>
                         </div>
                       </div>
-                      <div className="v2-review-list">
+                      <div className={reviewListClass}>
                         {projectDocuments.slice(0, 2).map((item) => (
                           <button
                             type="button"
-                            className="v2-project-source-row"
+                            className="grid grid-cols-[132px_minmax(0,1fr)] gap-3 border-b border-line py-3 text-[13px] text-ink-soft"
                             key={item.id}
                             onClick={() => openDocumentInEditor(item.id)}
                           >
@@ -1542,7 +1543,7 @@ export function ProjectRoute({
                         {recentProjectRuns.slice(0, 2).map((item) => (
                           <button
                             type="button"
-                            className="v2-project-source-row"
+                            className="grid grid-cols-[132px_minmax(0,1fr)] gap-3 border-b border-line py-3 text-[13px] text-ink-soft"
                             key={item.id}
                             onClick={() => setOpenHistoryRunId(item.id)}
                           >
@@ -1556,8 +1557,8 @@ export function ProjectRoute({
                       </div>
                     </section>
                   ) : null}
-                  <section className="v2-project-context-preview">
-                    <div className="v2-panel-section-heading">
+                  <section className="mt-11 border-t border-line pt-5">
+                    <div className={panelHeadingClass}>
                       <div>
                         <h2>Project Context</h2>
                         <p>
@@ -1574,7 +1575,7 @@ export function ProjectRoute({
                       const item =
                         group.bundle?.primaryComment ?? group.representative;
                       return (
-                        <div className="v2-project-source-row" key={group.key}>
+                        <div className="grid grid-cols-[132px_minmax(0,1fr)] gap-3 border-b border-line py-3 text-[13px] text-ink-soft" key={group.key}>
                           <OriginLabel
                             origin={group.bundle ? "you" : sourceOrigin(item)}
                             detail={
@@ -1597,13 +1598,13 @@ export function ProjectRoute({
                 </article>
               </div>
               {runError && !run ? (
-                <div className="v2-composer-error" role="alert">
+                <div className="mx-auto mb-1 w-full max-w-reading text-[13px] text-danger" role="alert">
                   {runError}
                 </div>
               ) : null}
-              <div className="v2-composer-wrap">
+              <div className="sticky bottom-0 z-3 bg-canvas px-3 pt-3.5 pb-5.5 min-[820px]:px-6">
                 {continuation ? (
-                  <div className="v2-continuation-context">
+                  <div className="mx-auto mb-1.5 flex w-full max-w-reading items-center justify-between gap-4 rounded-md border border-line bg-surface-muted py-2 pr-2.5 pl-3 [&_div]:block [&_div]:min-w-0 [&_strong]:block [&_strong]:text-xs [&_strong]:font-[620] [&_strong]:text-ink-soft [&_span]:mt-0.5 [&_span]:block [&_span]:truncate [&_span]:text-xs [&_span]:text-muted">
                     <div>
                       <strong>Continuing an existing Draft</strong>
                       <span>
@@ -1620,7 +1621,7 @@ export function ProjectRoute({
                     </Button>
                   </div>
                 ) : null}
-                <div className="v2-context-control">
+                <div className="relative mx-auto mb-1.5 w-full max-w-reading [&>button]:inline-flex [&>button]:h-[30px] [&>button]:items-center [&>button]:gap-1.5 [&>button]:rounded-md [&>button]:px-1.5 [&>button]:text-xs [&>button]:text-muted [&>button:hover]:bg-surface-muted [&>button:hover]:text-ink-soft">
                   <button
                     type="button"
                     onClick={() => {
@@ -1637,8 +1638,8 @@ export function ProjectRoute({
                     <ChevronDown size={12} />
                   </button>
                   {sourcePickerOpen ? (
-                    <section className="v2-context-picker">
-                      <div className="v2-panel-section-heading">
+                    <section className="absolute bottom-9 left-0 z-8 max-h-[min(60vh,520px)] w-full max-w-140 overflow-hidden rounded-[10px] border border-line-strong bg-surface p-3.5 shadow-[0_14px_42px_rgba(30,31,29,0.16)]">
+                      <div className={panelHeadingClass}>
                         <div>
                           <h2>Sources for this Run</h2>
                           <p>
@@ -1653,7 +1654,7 @@ export function ProjectRoute({
                           <X size={15} />
                         </IconButton>
                       </div>
-                      <div className="v2-context-picker-list">
+                      <div className="-mx-1 mt-2.5 max-h-[390px] overflow-auto">
                         {availableRunGroups.map((group) => {
                           const ids = group.items.map((item) => item.id);
                           const checked = ids.every((id) =>
@@ -1674,7 +1675,7 @@ export function ProjectRoute({
                             group.representative;
                           return (
                             <div
-                              className="v2-context-picker-row"
+                              className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2.5 border-t border-line px-1 py-2.5 [&_label]:grid [&_label]:grid-cols-[auto_minmax(0,1fr)] [&_label]:items-start [&_label]:gap-[9px] [&_label_strong]:block [&_label_strong]:min-w-0 [&_label_strong]:truncate [&_label_strong]:text-[13px] [&_label_strong]:text-ink-soft [&_label_small]:mt-[3px] [&_label_small]:line-clamp-2 [&_label_small]:text-xs [&_label_small]:leading-[1.45] [&_label_small]:text-muted"
                               key={group.key}
                             >
                               <label>
@@ -1711,7 +1712,7 @@ export function ProjectRoute({
                               </label>
                               <button
                                 type="button"
-                                className={pinned ? "is-active" : ""}
+                                className={`size-[30px] rounded-md ${pinned ? "bg-accent-soft text-accent" : "text-faint"}`}
                                 aria-label={
                                   pinned ? "Unpin source" : "Pin source"
                                 }
@@ -1737,7 +1738,7 @@ export function ProjectRoute({
                           );
                         })}
                         {topics.some((topic) => !topic.hidden) ? (
-                          <div className="v2-context-picker-topics">
+                          <div className="grid gap-2 border-t border-line px-1 pt-3 pb-1 [&>strong]:text-xs [&>strong]:text-ink-soft [&>span]:text-xs [&>span]:text-muted [&_label]:grid [&_label]:grid-cols-[auto_minmax(0,1fr)] [&_label]:items-start [&_label]:gap-[9px] [&_label_strong]:block [&_label_strong]:text-[13px] [&_label_strong]:text-ink-soft [&_label_small]:mt-0.5 [&_label_small]:block [&_label_small]:text-xs [&_label_small]:text-muted">
                             <strong>Topics</strong>
                             <span>
                               Add a Topic's Sources only for this Run.
@@ -1799,10 +1800,10 @@ export function ProjectRoute({
             </>
           ) : null}
           {view === "context" ? (
-            <div className="v2-editor-scroll">
-              <div className="v2-list-axis">
-                <div className="v2-page-heading">
-                  <div className="v2-page-heading-copy">
+            <div className={scrollClass}>
+              <div className={axisClass("list")}>
+                <div className="mb-10 flex items-start justify-between gap-6">
+                  <div className={headingCopyClass}>
                     <h1>Project Context</h1>
                     <p>
                       Review what Logue may use. Excluding never deletes the
@@ -1814,11 +1815,11 @@ export function ProjectRoute({
                   </Button>
                 </div>
                 {membershipError ? (
-                  <div className="v2-warning-bar" role="alert">
+                  <div className={warningBarClass} role="alert">
                     {membershipError}
                   </div>
                 ) : null}
-                <div className="v2-review-list">
+                <div className={reviewListClass}>
                   {contextGroups.map((group) => {
                     const included = group.items.some((item) =>
                       item.projects.includes(project.name),
@@ -1860,7 +1861,7 @@ export function ProjectRoute({
                             : "Saved only";
                     const busy = membershipBusy === group.key;
                     return (
-                      <article className="v2-review-row" key={group.key}>
+                      <article className={reviewRowClass} key={group.key}>
                         <div>
                           <OriginLabel
                             origin={group.bundle ? "you" : sourceOrigin(item)}
@@ -1872,7 +1873,7 @@ export function ProjectRoute({
                             )}
                           </h3>
                           <ContentSummary value={item.content} />
-                          <div className="v2-library-meta">
+                          <div className={metaClass}>
                             {excluded
                               ? "Your exclusion prevents automatic re-adding."
                               : duplicateLinked
@@ -1913,7 +1914,7 @@ export function ProjectRoute({
                               !candidate.archived_at,
                           ) ? (
                             <select
-                              className="v2-input"
+                              className={inputClass}
                               aria-label={`Change Project for ${materialTitle(group.bundle?.source ?? group.representative)}`}
                               value=""
                               disabled={busy}
@@ -1949,7 +1950,7 @@ export function ProjectRoute({
                     );
                   })}
                   {!contextGroups.length ? (
-                    <div className="v2-recovery-card">
+                    <div className={cardClass}>
                       <p>
                         No Sources are included, suggested, or excluded yet.
                         Browse the Library to add one.
@@ -1961,9 +1962,9 @@ export function ProjectRoute({
             </div>
           ) : null}
           {view === "history" ? (
-            <div className="v2-editor-scroll">
-              <div className="v2-list-axis">
-                <div className="v2-page-heading-copy">
+            <div className={scrollClass}>
+              <div className={axisClass("list")}>
+                <div className={headingCopyClass}>
                   <h1>Project History</h1>
                   <p>
                     Every Ask, Compare, Draft, Command, and Skill Run keeps the exact
@@ -1971,11 +1972,11 @@ export function ProjectRoute({
                   </p>
                 </div>
                 {historyActionError ? (
-                  <div className="v2-warning-bar" role="alert">
+                  <div className={warningBarClass} role="alert">
                     {historyActionError}
                   </div>
                 ) : null}
-                <div className="v2-review-list">
+                <div className={reviewListClass}>
                   {projectRuns.map((item) => {
                     const activity = materials.find(
                       (material) => material.id === item.activity_source_id,
@@ -1984,7 +1985,7 @@ export function ProjectRoute({
                       ?.map((revision) => adoptionActionLabel(revision.action))
                       .join(" → ");
                     return (
-                    <article className="v2-review-row" key={item.id}>
+                    <article className={reviewRowClass} key={item.id}>
                       <div>
                         <OriginLabel
                           origin="ai"
@@ -1999,7 +2000,7 @@ export function ProjectRoute({
                           }
                           fallback="No result yet."
                         />
-                        <div className="v2-library-meta">
+                        <div className={metaClass}>
                           {new Date(item.created_at).toLocaleDateString(
                             "en-US",
                             { month: "short", day: "numeric" },
@@ -2017,7 +2018,7 @@ export function ProjectRoute({
                           {item.pinned ? " · pinned" : ""}
                         </div>
                       </div>
-                      <div className="v2-inline-actions">
+                      <div className={inlineActionsClass}>
                         <Button
                           size="sm"
                           disabled={historyActionBusy === item.id}
@@ -2052,7 +2053,7 @@ export function ProjectRoute({
                     );
                   })}
                   {!projectRuns.length ? (
-                    <div className="v2-recovery-card">
+                    <div className={cardClass}>
                       <p>
                         No Project activity yet. Ask a question, create a Draft,
                         or use Voice Command.
@@ -2064,23 +2065,23 @@ export function ProjectRoute({
             </div>
           ) : null}
           {view === "settings" ? (
-            <div className="v2-editor-scroll">
-              <div className="v2-list-axis">
-                <div className="v2-page-heading-copy">
+            <div className={scrollClass}>
+              <div className={axisClass("list")}>
+                <div className={headingCopyClass}>
                   <h1>Project settings</h1>
                   <p>
                     Project-specific overrides stay local to {project.name}.
                   </p>
                 </div>
-                <section className="v2-settings-section">
+                <section className={settingsSectionClass}>
                   <h2>Transcription Profile</h2>
-                  <div className="v2-segmented">
+                  <div className="flex items-center gap-0.5 border-b border-line">
                     {(["inherited", "customized", "disabled"] as const).map(
                       (item) => (
                         <button
                           key={item}
                           className={
-                            profileDraft.mode === item ? "is-active" : ""
+                            segmentedTabClass(profileDraft.mode === item)
                           }
                           onClick={() =>
                             setProfileDraft({ ...profileDraft, mode: item })
@@ -2093,11 +2094,11 @@ export function ProjectRoute({
                   </div>
                   {profileDraft.mode === "customized" ? (
                     <>
-                      <div className="v2-form-grid">
+                      <div className={formGridClass}>
                         <label>
                           Primary language
                           <input
-                            className="v2-input"
+                            className={inputClass}
                             value={profileDraft.primary_language}
                             onChange={(event) =>
                               setProfileDraft({
@@ -2111,7 +2112,7 @@ export function ProjectRoute({
                         <label>
                           Mixed languages
                           <input
-                            className="v2-input"
+                            className={inputClass}
                             value={profileDraft.mixed_languages.join(", ")}
                             onChange={(event) =>
                               setProfileDraft({
@@ -2124,10 +2125,10 @@ export function ProjectRoute({
                             }
                           />
                         </label>
-                        <label className="v2-span-2">
+                        <label className="col-span-full">
                           Known phrases
                           <textarea
-                            className="v2-textarea"
+                            className={textareaClass}
                             value={profileDraft.phrases.join("\n")}
                             onChange={(event) =>
                               setProfileDraft({
@@ -2141,10 +2142,10 @@ export function ProjectRoute({
                             placeholder="One phrase per line"
                           />
                         </label>
-                        <label className="v2-span-2">
+                        <label className="col-span-full">
                           Avoid mistaken terms
                           <textarea
-                            className="v2-textarea"
+                            className={textareaClass}
                             value={profileDraft.avoid_terms.join("\n")}
                             onChange={(event) =>
                               setProfileDraft({
@@ -2158,10 +2159,10 @@ export function ProjectRoute({
                             placeholder="One form to avoid per line"
                           />
                         </label>
-                        <label className="v2-span-2">
+                        <label className="col-span-full">
                           Formatting preference
                           <textarea
-                            className="v2-textarea"
+                            className={textareaClass}
                             value={profileDraft.formatting_preference}
                             onChange={(event) =>
                               setProfileDraft({
@@ -2172,10 +2173,10 @@ export function ProjectRoute({
                             placeholder="For example: short paragraphs and Markdown bullets"
                           />
                         </label>
-                        <label className="v2-span-2">
+                        <label className="col-span-full">
                           Custom instructions
                           <textarea
-                            className="v2-textarea"
+                            className={textareaClass}
                             value={profileDraft.custom_instructions}
                             onChange={(event) =>
                               setProfileDraft({
@@ -2186,7 +2187,7 @@ export function ProjectRoute({
                           />
                         </label>
                       </div>
-                      <div className="v2-chip-groups">
+                      <div className="my-4 grid gap-3 [&>div>span]:mb-[7px] [&>div>span]:block [&>div>span]:text-xs [&>div>span]:text-muted [&>div>div]:flex [&>div>div]:flex-wrap [&>div>div]:gap-1.5">
                         {vocabularyCategories.map((category) =>
                           profileDraft.vocabulary[category.key].length ? (
                             <div key={category.key}>
@@ -2221,9 +2222,9 @@ export function ProjectRoute({
                           ) : null,
                         )}
                       </div>
-                      <div className="v2-filter-row">
+                      <div className="flex items-center gap-2">
                         <select
-                          className="v2-input"
+                          className={inputClass}
                           value={vocabularyCategory}
                           onChange={(event) =>
                             setVocabularyCategory(
@@ -2238,7 +2239,7 @@ export function ProjectRoute({
                           ))}
                         </select>
                         <input
-                          className="v2-input"
+                          className={inputClass}
                           value={vocabularyTerm}
                           onChange={(event) =>
                             setVocabularyTerm(event.target.value)
@@ -2247,9 +2248,9 @@ export function ProjectRoute({
                         />
                         <Button onClick={addVocabularyTerm}>Add</Button>
                       </div>
-                      <div className="v2-filter-row">
+                      <div className="flex items-center gap-2">
                         <input
-                          className="v2-input"
+                          className={inputClass}
                           value={spokenTerm}
                           onChange={(event) =>
                             setSpokenTerm(event.target.value)
@@ -2257,7 +2258,7 @@ export function ProjectRoute({
                           placeholder="What Logue may hear"
                         />
                         <input
-                          className="v2-input"
+                          className={inputClass}
                           value={preferredTerm}
                           onChange={(event) =>
                             setPreferredTerm(event.target.value)
@@ -2271,7 +2272,7 @@ export function ProjectRoute({
                       {profileDraft.vocabulary.preferred_spellings.map(
                         (entry) => (
                           <button
-                            className="v2-membership-pill"
+                            className={pillClass}
                             key={entry.spoken}
                             onClick={() =>
                               setProfileDraft({
@@ -2292,14 +2293,14 @@ export function ProjectRoute({
                       )}
                     </>
                   ) : (
-                    <p className="v2-settings-lead">
+                    <p className={leadClass}>
                       {profileDraft.mode === "disabled"
                         ? "Uses the Default voice profile without Project vocabulary or context."
                         : "Inherits Default voice settings and this Project context."}
                     </p>
                   )}
                 </section>
-                <section className="v2-settings-section">
+                <section className={settingsSectionClass}>
                   <h2>Skill overrides</h2>
                   {(
                     [
@@ -2341,7 +2342,7 @@ export function ProjectRoute({
                       ]
                     >
                   ).map(([key, label, accepts]) => (
-                    <div className="v2-setting-row" key={key}>
+                    <div className={settingRowClass} key={key}>
                       <div>
                         <strong>{label}</strong>
                         <p>
@@ -2351,7 +2352,7 @@ export function ProjectRoute({
                         </p>
                       </div>
                       <select
-                        className="v2-input"
+                        className={inputClass}
                         value={bindingsDraft[key] ?? ""}
                         onChange={(event) =>
                           setBindingsDraft({
@@ -2372,11 +2373,11 @@ export function ProjectRoute({
                     </div>
                   ))}
                 </section>
-                <section className="v2-settings-section">
-                  <div className="v2-panel-section-heading">
+                <section className={settingsSectionClass}>
+                  <div className={panelHeadingClass}>
                     <div>
                       <h2>Topics</h2>
-                      <p className="v2-settings-lead">
+                      <p className={leadClass}>
                         Related clusters help discovery. They never grant
                         Project Context.
                       </p>
@@ -2385,9 +2386,9 @@ export function ProjectRoute({
                       Browse all Topics
                     </Button>
                   </div>
-                  <div className="v2-review-list">
+                  <div className={reviewListClass}>
                     {relatedTopics.map((topic) => (
-                      <article className="v2-review-row" key={topic.id}>
+                      <article className={reviewRowClass} key={topic.id}>
                         <div>
                           <OriginLabel
                             origin={topic.automatic ? "ai" : "you"}
@@ -2399,7 +2400,7 @@ export function ProjectRoute({
                           />
                           <h3>{topic.name}</h3>
                           <p>{topic.reason}</p>
-                          <div className="v2-library-meta">
+                          <div className={metaClass}>
                             {
                               topic.source_ids.filter((id) =>
                                 projectMaterials.some(
@@ -2420,15 +2421,15 @@ export function ProjectRoute({
                       </article>
                     ))}
                     {!relatedTopics.length ? (
-                      <div className="v2-recovery-card">
+                      <div className={cardClass}>
                         <p>No Topics currently overlap this Project.</p>
                       </div>
                     ) : null}
                   </div>
                 </section>
-                <section className="v2-settings-section">
+                <section className={settingsSectionClass}>
                   <h2>Project boundary</h2>
-                  <div className="v2-setting-row">
+                  <div className={settingRowClass}>
                     <div>
                       <strong>
                         {project.archived_at ? "Archived" : "Active"}
@@ -2452,7 +2453,7 @@ export function ProjectRoute({
                         : "Archive Project"}
                     </Button>
                   </div>
-                  <div className="v2-setting-row">
+                  <div className={settingRowClass}>
                     <div>
                       <strong>Local export</strong>
                       <p>
@@ -2462,8 +2463,8 @@ export function ProjectRoute({
                       </p>
                       <p>Export files cannot be restored. Provider keys and paired Extensions stay on this Host.</p>
                     </div>
-                    <div className="v2-inline-actions">
-                      <label className="v2-checkbox-row">
+                    <div className={inlineActionsClass}>
+                      <label className={checkboxRowClass}>
                         <input
                           type="checkbox"
                           checked={exportAudio}
@@ -2473,7 +2474,7 @@ export function ProjectRoute({
                         />
                         Include original audio
                       </label>
-                      <label className="v2-checkbox-row">
+                      <label className={checkboxRowClass}>
                         <input
                           type="checkbox"
                           checked={exportActivity}
@@ -2482,7 +2483,7 @@ export function ProjectRoute({
                         Include activity history and unused AI drafts
                       </label>
                       <Button
-                        className="v2-download-button"
+                        className={chipButtonClass}
                         disabled={!exportPreview || exportBusy}
                         onClick={() => void createProjectExport()}
                       >
@@ -2492,11 +2493,11 @@ export function ProjectRoute({
                     </div>
                   </div>
                   {exportError ? (
-                    <div className="v2-warning-bar" role="alert">
+                    <div className={warningBarClass} role="alert">
                       {exportError}
                     </div>
                   ) : null}
-                  <div className="v2-setting-row">
+                  <div className={settingRowClass}>
                     <div>
                       <strong>Delete Project</strong>
                       <p>
@@ -2510,19 +2511,19 @@ export function ProjectRoute({
                     </Button>
                   </div>
                   {deleteError && !deletePreview ? (
-                    <div className="v2-warning-bar" role="alert">
+                    <div className={warningBarClass} role="alert">
                       {deleteError}
                     </div>
                   ) : null}
                 </section>
-                <section className="v2-settings-section">
+                <section className={settingsSectionClass}>
                   <h2>Classification memory</h2>
                   {classificationMemoryError ? (
-                    <div className="v2-warning-bar" role="alert">
+                    <div className={warningBarClass} role="alert">
                       {classificationMemoryError}
                     </div>
                   ) : null}
-                  <div className="v2-review-list">
+                  <div className={reviewListClass}>
                     {classificationMemories.map((memory) => {
                       const source = materials.find((material) =>
                         memory.source_ids.includes(material.id),
@@ -2540,7 +2541,7 @@ export function ProjectRoute({
                         .join(" · ");
                       const confirming = forgetMemoryId === memory.id;
                       return (
-                        <article className="v2-review-row" key={memory.id}>
+                        <article className={reviewRowClass} key={memory.id}>
                           <div>
                             <OriginLabel
                               origin="you"
@@ -2552,18 +2553,18 @@ export function ProjectRoute({
                                 : "Saved classification correction"}
                             </h3>
                             <p>{memory.content_excerpt}</p>
-                            <div className="v2-library-meta">
+                            <div className={metaClass}>
                               {outcomeSummary}
                             </div>
                             {confirming ? (
-                              <div className="v2-recovery-card">
+                              <div className={cardClass}>
                                 <p>
                                   Stops using this example for future
                                   suggestions. This Source stays Added, Saved
                                   only, or Excluded; its Projects and exclusions
                                   do not change.
                                 </p>
-                                <div className="v2-inline-actions">
+                                <div className={inlineActionsClass}>
                                   <Button
                                     size="sm"
                                     onClick={() => setForgetMemoryId(undefined)}
@@ -2600,7 +2601,7 @@ export function ProjectRoute({
                       );
                     })}
                     {!classificationMemories.length ? (
-                      <div className="v2-recovery-card">
+                      <div className={cardClass}>
                         <p>
                           No learning examples for this Project. Corrections
                           appear here after you change a classification.
@@ -2609,7 +2610,7 @@ export function ProjectRoute({
                     ) : null}
                   </div>
                 </section>
-                <div className="v2-inline-actions v2-actions-end">
+                <div className={`${inlineActionsClass} justify-end`}>
                   <Button
                     variant="primary"
                     disabled={settingsBusy}
@@ -2641,16 +2642,16 @@ export function ProjectRoute({
         project={project}
       />
       {project && deletePreview ? (
-        <div className="v2-dialog-backdrop" role="presentation">
+        <div className={dialogBackdropClass} role="presentation">
           <section
             ref={deleteDialogRef}
-            className="v2-dialog"
+            className={dialogClass}
             role="dialog"
             aria-modal="true"
             aria-labelledby="delete-project-title"
             tabIndex={-1}
           >
-            <div className="v2-panel-section-heading">
+            <div className={panelHeadingClass}>
               <div>
                 <OriginLabel origin="you" detail="Local Project boundary" />
                 <h2 id="delete-project-title">Delete {project.name}?</h2>
@@ -2669,20 +2670,20 @@ export function ProjectRoute({
               {deletePreview.summary.runs} historical Runs keep their provenance.
             </p>
             {deleteError ? (
-              <div className="v2-warning-bar" role="alert">
+              <div className={warningBarClass} role="alert">
                 {deleteError}
               </div>
             ) : null}
-            <label className="v2-field-label">
+            <label className={fieldLabelClass}>
               Type {project.name} to confirm
               <input
-                className="v2-input"
+                className={inputClass}
                 data-autofocus="true"
                 value={deleteConfirm}
                 onChange={(event) => setDeleteConfirm(event.target.value)}
               />
             </label>
-            <div className="v2-inline-actions v2-actions-end">
+            <div className={`${inlineActionsClass} justify-end`}>
               <Button onClick={() => setDeletePreview(undefined)}>
                 Cancel
               </Button>

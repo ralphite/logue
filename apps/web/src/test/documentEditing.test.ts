@@ -42,7 +42,7 @@ describe("document editing", () => {
 describe("document selection skills", () => {
   it("keeps a multiline skill result as visible editor line breaks", () => {
     const editor = document.createElement("div");
-    editor.className = "logue-view-editor";
+    editor.className = "logue-rich-text";
     editor.innerHTML = "<p>Before selected text after</p>";
     editor.setAttribute("contenteditable", "true");
     Object.defineProperty(editor, "isContentEditable", { value: true });

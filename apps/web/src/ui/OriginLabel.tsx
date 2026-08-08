@@ -11,7 +11,7 @@ const originLabels: Record<OriginLabelType, string> = {
 export function OriginLabel({ origin, detail }: { origin: OriginLabelType; detail?: string }) {
   const Icon = origin === "web" ? Globe2 : origin === "you" ? UserRound : Bot;
   return (
-    <span className="v2-origin-label">
+    <span className="inline-flex items-center gap-1.5 text-xs font-[570] text-muted">
       <Icon aria-hidden="true" size={14} strokeWidth={1.8} />
       <span>{originLabels[origin]}</span>
       {detail ? <span aria-hidden="true">·</span> : null}

@@ -36,13 +36,13 @@ export function RowActions({
   }, [open]);
 
   return (
-    <div className="v2-row-actions" ref={rootRef}>
+    <div className="flex items-center gap-1.5" ref={rootRef}>
       {primary}
       {menuItems.length ? (
-        <div className="v2-row-actions-menu-wrap">
+        <div className="relative">
           <button
             type="button"
-            className="v2-row-actions-trigger"
+            className="inline-flex size-[30px] items-center justify-center rounded-md border border-transparent text-muted hover:border-line hover:bg-surface-muted hover:text-ink focus-visible:border-line focus-visible:bg-surface-muted focus-visible:text-ink aria-expanded:border-line aria-expanded:bg-surface-muted aria-expanded:text-ink"
             aria-label={label}
             aria-expanded={open}
             onClick={() => setOpen((current) => !current)}
@@ -50,7 +50,7 @@ export function RowActions({
             <MoreHorizontal size={16} />
           </button>
           {open ? (
-            <div className="v2-row-actions-menu" role="group" aria-label={label}>
+            <div className="absolute top-[calc(100%+5px)] right-0 z-20 grid w-[210px] gap-[5px] rounded-lg border border-line bg-surface p-[7px] shadow-[0_10px_30px_rgba(30,31,29,0.12)] [&>*]:w-full" role="group" aria-label={label}>
               {menuItems}
             </div>
           ) : null}

@@ -29,9 +29,9 @@ export function ProjectComposer({
   };
 
   return (
-    <form className="v2-composer" onSubmit={submit}>
+    <form className="mx-auto flex w-full max-w-reading min-h-14 items-end gap-2.5 rounded-lg border border-line-strong bg-surface p-2 shadow-[0_4px_18px_rgba(30,31,29,0.06)]" onSubmit={submit}>
       <div
-        className="v2-composer-mode"
+        className="flex items-center gap-0.5 self-stretch py-1 pr-0.5 pl-1.5"
         role="radiogroup"
         aria-label="Project request type"
       >
@@ -41,7 +41,7 @@ export function ProjectComposer({
             type="button"
             role="radio"
             aria-checked={mode === requestMode}
-            className={mode === requestMode ? "is-active" : ""}
+            className={`h-6.5 rounded-[5px] px-2 text-xs/none font-semibold ${mode === requestMode ? "bg-surface-muted text-ink" : "text-muted"}`}
             onClick={() => onModeChange(requestMode)}
           >
             {requestMode[0].toUpperCase() + requestMode.slice(1)}
@@ -53,6 +53,7 @@ export function ProjectComposer({
       </label>
       <textarea
         id={composerId}
+        className="max-h-31 min-h-9.5 min-w-0 flex-1 resize-none border-0 bg-transparent px-1.5 py-2 text-ink outline-0 placeholder:text-faint"
         rows={1}
         value={value}
         onChange={(event) => onChange(event.target.value)}

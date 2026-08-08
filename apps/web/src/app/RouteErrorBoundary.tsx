@@ -4,6 +4,7 @@ import {
   AppShell,
   type PrimaryRoute,
 } from "./AppShell";
+import { PageAxis, PageHeading, PageScroll } from "./layout";
 
 export class RouteErrorBoundary extends Component<
   {
@@ -34,13 +35,13 @@ export class RouteErrorBoundary extends Component<
     if (!this.state.error) return this.props.children;
     return (
       <AppShell route={this.props.route} onRouteChange={this.props.onRoute}>
-        <div className="v2-editor-scroll">
-          <div className="v2-list-axis">
-            <div className="v2-page-heading-copy">
-              <h1>This view needs attention</h1>
-              <p>Your local content is unchanged. Retry this view or continue elsewhere.</p>
-            </div>
-            <div className="v2-inline-actions">
+        <PageScroll>
+          <PageAxis>
+            <PageHeading
+              title="This view needs attention"
+              lead="Your local content is unchanged. Retry this view or continue elsewhere."
+            />
+            <div className="flex items-center gap-2">
               <Button
                 variant="primary"
                 onClick={() => this.setState({ error: undefined })}
@@ -51,8 +52,8 @@ export class RouteErrorBoundary extends Component<
                 Back to Projects
               </Button>
             </div>
-          </div>
-        </div>
+          </PageAxis>
+        </PageScroll>
       </AppShell>
     );
   }
