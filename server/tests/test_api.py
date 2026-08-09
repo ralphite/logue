@@ -376,6 +376,16 @@ class TheAgentInTheConversation(Workspace, unittest.TestCase):
                 {"proposal": {"tool": "add_to_project", "project": "Nowhere", "source_ids": [source["id"]]}},
             )
 
+    def test_the_model_failing_mid_loop_is_reported_not_swallowed(self) -> None:
+        """The stand-in must be able to fail here, or nobody checks this state.
+
+        The agent branch answers every agent prompt, so the failure lever was
+        being read as a request for JSON and quietly succeeding — a state that
+        cannot be reached is a state that is never verified.
+        """
+        with self.assertRaises(Unavailable):
+            self.call("POST", "/v1/agent/message", {"message": "[mock:fail] what do my notes say?"})
+
     def test_an_empty_message_is_refused(self) -> None:
         with self.assertRaises(BadRequest):
             self.call("POST", "/v1/agent/message", {"message": "   "})

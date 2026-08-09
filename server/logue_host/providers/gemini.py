@@ -271,6 +271,13 @@ class MockProvider(Provider):
 
     def generate(self, system: str, prompt: str) -> str:
         time.sleep(1.0)
+        # Failure is checked before anything else, or it becomes unreachable
+        # on the one path that needs it most: the agent branch below answers
+        # every agent prompt, so a `[mock:fail]` inside one used to be read as
+        # a request for JSON and quietly succeed. A state the stand-in cannot
+        # reach is a state nobody checks.
+        if self._asked(prompt, "[mock:fail]"):
+            raise Unavailable("[mock] The stand-in failed on request.")
         # The agent speaks JSON, so the stand-in has to as well — otherwise the
         # one flow that cannot be walked without a key is the one with the most
         # moving parts. It still says out loud that it is a stand-in, and it
@@ -287,6 +294,12 @@ class MockProvider(Provider):
                         "reason": "You asked the stand-in to propose a change.",
                     }
                 )
+            if self._asked(prompt, "[mock:long]"):
+                # The oversized-answer state, reachable through the agent too.
+                # It was not, which is how "the four states, everywhere" turns
+                # into "the four states, on the old surfaces".
+                line = "A long mock paragraph, produced on request to see how far a layout bends [Source 1]. "
+                return json.dumps({"tool": "answer", "text": line * 120})
             if "You searched for" not in prompt and "already searched" not in prompt:
                 return json.dumps({"tool": "find_sources", "query": prompt.rsplit("Request: ", 1)[-1][:60]})
             return json.dumps(
@@ -296,8 +309,6 @@ class MockProvider(Provider):
                     "these words are not [Source 1].",
                 }
             )
-        if self._asked(prompt, "[mock:fail]"):
-            raise Unavailable("[mock] The stand-in failed on request.")
         if self._asked(prompt, "[mock:long]"):
             line = "A long mock paragraph, produced on request to see how far a layout bends [Source 1]. "
             return line * 120
