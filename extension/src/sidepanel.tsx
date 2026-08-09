@@ -1,7 +1,7 @@
 import { Bookmark, CornerDownLeft, ExternalLink, Settings2, Sparkles } from "lucide-react";
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Answer, Button, Empty, ErrorNote, Input, OriginMark, Select, SourceLink, Spinner, Tag, originOf } from "@logue/ui";
+import { Answer, Button, ErrorNote, Input, OriginMark, Select, SourceLink, Spinner, Tag, originOf } from "@logue/ui";
 import { host, HOST, type Context, type Material } from "./api";
 import { readablePageText } from "./readable";
 
@@ -374,15 +374,34 @@ function Kept({
 }) {
   const [openId, setOpenId] = useState<string>();
 
+  /*
+   * An empty section is one line, not a block.
+   *
+   * Two of them, each with a heading and a panel saying nothing is here, took
+   * most of a 360-pixel panel to report twice over that there was nothing to
+   * report — and pushed whatever did exist off the bottom. The count next to
+   * the heading already says it: 0.
+   *
+   * Not the same as an empty list in the rail, which has to offer a way to
+   * begin. Nothing is created from here; these two are a reading of this page,
+   * and when the page has nothing they should take up the room of a line.
+   */
+  if (items.length === 0) {
+    return (
+      <section className="mt-3 flex items-center gap-1.5 text-xs text-faint" title={empty}>
+        {title}
+        <span>0</span>
+      </section>
+    );
+  }
+
   return (
     <section className="mt-4 grid gap-1">
       <h2 className="flex items-center gap-1.5 text-xs text-muted">
         {title}
-        {items.length > 0 && <span className="text-faint">{items.length}</span>}
+        <span className="text-faint">{items.length}</span>
       </h2>
-      {items.length === 0 ? (
-        <Empty>{empty}</Empty>
-      ) : (
+      {(
         <div className="divide-y divide-line border-y border-line">
           {items.map((item) => (
             <div key={item.id} className="py-1.5">

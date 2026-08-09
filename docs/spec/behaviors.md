@@ -409,3 +409,9 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   autofocuses is in focus always — so a "borderless" input drew a permanent
   ring. Where a control sits inside something already framed, it takes the
   variant that has no frame.
+- **An empty section takes the room of a line.** Two of them in a 360-pixel
+  panel, each with a heading and a block saying nothing was there, reported
+  the same absence twice and pushed what did exist off the bottom. The count
+  beside the heading already says it: 0. This is not the rail's rule — a rail
+  list that is empty must offer a way to begin, because things are created
+  from there. Nothing is created from a reading of the current page.
