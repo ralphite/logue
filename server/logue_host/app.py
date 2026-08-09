@@ -7,6 +7,7 @@ you the whole API surface without scrolling past business rules.
 from __future__ import annotations
 
 import base64
+import re
 from pathlib import Path
 from typing import Any
 
@@ -118,6 +119,7 @@ class App:
                 projects=body.get("projects"),
                 parent_ids=body.get("parent_ids"),
                 capture_id=body.get("capture_id"),
+                capture_seconds=body.get("seconds"),
                 context=body.get("context"),
                 actor=str(body.get("actor") or "user"),
             )
@@ -440,6 +442,7 @@ class App:
                 store,
                 self.provider(),
                 audio=audio,
+                seconds=float(body.get("seconds") or 0),
                 media_type=str(body.get("media_type") or "audio/webm"),
                 project=str(body.get("project") or ""),
                 context=body.get("context"),
@@ -571,7 +574,37 @@ class App:
             if not path:
                 raise NotFound("That recording is no longer available.")
             media = {".webm": "audio/webm", ".mp4": "audio/mp4", ".wav": "audio/wav"}.get(path.suffix, "application/octet-stream")
-            return Response(raw=path.read_bytes(), media_type=media)
+            data = path.read_bytes()
+            size = len(data)
+            # Ranges, because ten minutes of audio is a file someone drags a
+            # scrubber through. Without them a player can only take the whole
+            # thing from the start, so seeking does nothing — and a browser
+            # has no other way to look for a length the file never carried.
+            asked = request.headers.get("range") or request.headers.get("Range") or ""
+            match = re.match(r"bytes=(\d*)-(\d*)$", asked.strip())
+            if match and size:
+                first, last = match.group(1), match.group(2)
+                start = int(first) if first else max(0, size - int(last or 0))
+                end = int(last) if first and last else size - 1
+                start, end = max(0, start), min(end, size - 1)
+                if start > end:
+                    return Response(
+                        raw=b"",
+                        status=416,
+                        media_type=media,
+                        headers={"Content-Range": f"bytes */{size}", "Accept-Ranges": "bytes"},
+                    )
+                return Response(
+                    raw=data[start : end + 1],
+                    status=206,
+                    media_type=media,
+                    headers={
+                        "Content-Range": f"bytes {start}-{end}/{size}",
+                        "Accept-Ranges": "bytes",
+                        "Content-Length": str(end - start + 1),
+                    },
+                )
+            return Response(raw=data, media_type=media, headers={"Accept-Ranges": "bytes"})
 
         # -- topics ---------------------------------------------------------
 

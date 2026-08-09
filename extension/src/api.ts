@@ -30,6 +30,8 @@ export interface Material {
   tags?: string[];
   /** Present on a voice Source: the recording it was transcribed from. */
   capture_id?: string;
+  /** How long that recording ran. Measured when it was made. */
+  capture_seconds?: number;
   created_at: string;
   source?: { url?: string; title?: string; domain?: string };
   /** What this was said about — the selection a comment hangs off. */
@@ -103,6 +105,8 @@ export const host = {
 
   transcribe: (body: {
     audio: string;
+    /** How long it ran. The file itself does not say. */
+    seconds?: number;
     media_type: string;
     project?: string;
     overrides?: unknown;

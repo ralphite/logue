@@ -8,6 +8,7 @@ export { Citation, OriginMark, originOf, readAnswer, type AnswerToken, type Orig
 export { Empty, ErrorBubble, ErrorNote, Loading, RecordingDot, Spinner } from "./Feedback";
 export { LogueLogo, LogueMark } from "./Logo";
 export { Resizer, clampSize, usePersistentSize } from "./Resizer";
+export { Recording } from "./Recording";
 export { SourceLink } from "./SourceLink";
 export { Tag } from "./Tag";
 export { cn } from "./cn";

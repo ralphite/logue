@@ -21,6 +21,8 @@ export interface Material {
   tags?: string[];
   parent_ids?: string[];
   capture_id?: string;
+  /** How long that recording ran, measured when it was made. */
+  capture_seconds?: number;
   excluded?: boolean;
   orphaned?: boolean;
   actor?: string;

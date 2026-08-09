@@ -122,6 +122,9 @@ export function useVoice() {
       setPending((n) => n + 1);
       try {
         const { capture_id, text, applied_context } = await host.transcribe({
+          // What the bar's clock said. Nothing downstream can work this out:
+          // MediaRecorder never writes a duration into the file.
+          seconds: ranFor,
           audio: recorded.audio,
           media_type: recorded.mediaType ?? "audio/webm",
           project: options.project,

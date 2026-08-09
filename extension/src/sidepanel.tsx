@@ -8,6 +8,7 @@ import {
   IconButton,
   Input,
   OriginMark,
+  Recording,
   Select,
   Spinner,
   Tag,
@@ -998,7 +999,7 @@ function Kept({
                   one, and the two things worth doing with any of them. */}
               <div className="mt-1 flex items-center gap-1">
                 {item.capture_id ? (
-                  <audio controls preload="none" src={host.audioUrl(item.capture_id)} className="h-7 min-w-0 flex-1" />
+                  <Recording src={host.audioUrl(item.capture_id)} seconds={item.capture_seconds} className="flex-1" />
                 ) : (
                   <span className="flex-1" />
                 )}

@@ -25,6 +25,7 @@ def create(
     projects: list[str] | None = None,
     parent_ids: list[str] | None = None,
     capture_id: str | None = None,
+    capture_seconds: float | None = None,
     transcript: str | None = None,
     context: str | None = None,
     actor: str = "user",
@@ -56,6 +57,11 @@ def create(
         record["context"] = context
     if capture_id:
         record["capture_id"] = capture_id
+        # Kept on the Source as well as beside the audio: a player asking how
+        # long a recording is should not have to open a second file, and the
+        # file itself has never known — MediaRecorder does not write it.
+        if capture_seconds:
+            record["capture_seconds"] = round(float(capture_seconds), 1)
     if extra:
         record.update(extra)
     return store.materials.put(record)

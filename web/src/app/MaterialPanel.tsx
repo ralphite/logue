@@ -6,6 +6,7 @@ import {
   IconButton,
   Input,
   OriginMark,
+  Recording,
   SourceLink,
   Spinner,
   Tag,
@@ -84,7 +85,7 @@ export function MaterialPanel({
               )}
 
               {material.capture_id && (
-                <audio controls src={api.audioUrl(material.capture_id)} className="h-8 w-full" />
+                <Recording src={api.audioUrl(material.capture_id)} seconds={material.capture_seconds} />
               )}
 
               {material.capture_id && (

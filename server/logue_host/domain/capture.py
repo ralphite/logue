@@ -135,6 +135,7 @@ def transcribe(
     context: dict[str, Any] | None = None,
     overrides: dict[str, Any] | None = None,
     nearby: str = "",
+    seconds: float = 0,
 ) -> dict[str, Any]:
     if not audio:
         raise BadRequest("audio is required")
@@ -142,7 +143,14 @@ def transcribe(
     capture_id = new_id("capture")
     store.save_audio(capture_id, audio, media_type)
     plan = transcription_plan(store, project, overrides, nearby)
-    store.save_capture_context(capture_id, plan["applied"])
+    # How long it ran, recorded rather than derived. A browser cannot read the
+    # length of what MediaRecorder writes — it streams the file and never goes
+    # back to fill the duration in — so every player showed 0:00. The recorder
+    # knew all along; nobody had written it down.
+    applied = dict(plan["applied"])
+    if seconds:
+        applied["seconds"] = round(float(seconds), 1)
+    store.save_capture_context(capture_id, applied)
     try:
         text = provider.transcribe(audio, media_type, str(plan["instructions"]))
     except HostError as failure:
@@ -154,6 +162,7 @@ def transcribe(
 
     return {
         "capture_id": capture_id,
+        "seconds": round(float(seconds), 1) if seconds else 0,
         "text": text,
         "context": context or {},
         "applied_context": plan["applied"],
@@ -180,11 +189,18 @@ def transcribe_kept(
     if not path:
         raise NotFound("That recording is no longer here.")
     audio = path.read_bytes()
+    # The duration was written down when the recording was made; a retry must
+    # not lose it just because it is asking the model a second time.
+    kept = store.capture_context(capture_id).get("seconds")
     plan = transcription_plan(store, project, overrides, nearby)
-    store.save_capture_context(capture_id, plan["applied"])
+    applied = dict(plan["applied"])
+    if kept:
+        applied["seconds"] = kept
+    store.save_capture_context(capture_id, applied)
     text = provider.transcribe(audio, _media_type_of(path), str(plan["instructions"]))
     return {
         "capture_id": capture_id,
+        "seconds": kept or 0,
         "text": text,
         "applied_context": plan["applied"],
         "created_at": now(),
@@ -221,6 +237,9 @@ def save_voice(
         projects=[project] if project else [],
         parent_ids=parent_ids,
         capture_id=capture_id,
+        # From the sidecar written when the recording was made — one place
+        # knows how long it ran, and everything else reads it from there.
+        capture_seconds=store.capture_context(capture_id).get("seconds"),
         # Frozen with the transcript, not looked up later: the profile and the
         # Skill it names will have changed by the time anyone asks.
         extra={"applied_context": applied_context} if applied_context else None,
