@@ -14,9 +14,8 @@
 |---|---|---|
 | **X11** | **网页上弹出"访问此设备上的其他应用和服务"** —— 高优先 | 你的原话是 "this must be fixed. high prio"。两个毫不相干的站点都弹了同一个框:www.noemamag.com,和 www.experimental-history.com。同一个提示出现在两个没有关系的网站上,基本排除"网站自己要的",指向每个页面上都有的那一个东西 —— 我们的内容脚本。要找到是哪一次调用触发了它,并且让它不再发生:装了 Logue 不该给任何人的页面多出一个权限请求。图:`shots/x11-noemamag-device-prompt.png`、`shots/x11-experimental-history-device-prompt.png` |
 | **X17** | **Google Docs 必须能用** —— 高优先 | 你的原话是 "high prio. we must make google docs work. create a new test google doc to confirm"。这是 behaviors 里写死的一条("Google Docs must work. It is not optional."),现在不成立。验证方式你也定了:**新建一个测试用 Google Doc**,在那上面确认 —— 不复用旧文档,免得旧页面上残留的老构建把结果说圆了。要在新文档里跑通的是:光标旁出现麦克风、录音、转写回到光标原处、选区工具条、Skill 直出 |
-| **X18** | **扩展的 Side Panel 必须能用** —— 高优先 | 你的原话是 "high prio. ext panel must work. check v1 for behavior"。行为以 v1 为准 —— v1 的树已删但在 git 历史里,先把它的 Side Panel 挖出来读一遍、列出它当时会做的每一件事,再逐条对现在这个。差在哪补哪,不是重新想一个。和 X16 一样是"回去看 v1",两件可以一起读。**症状已经具体了**:面板能打开,但里面是 Chrome 的错误页 —— "Your file couldn't be accessed / ERR_FILE_NOT_FOUND"。标题栏是对的(L Logue),说明 manifest 的 `side_panel` 生效了,只是它指的那个页面在装好的那份产物里不存在。先让面板能打开,再逐条对 v1 的行为。图:`shots/x18-sidepanel-file-not-found.png` |
+| **X18b** | Side Panel 逐条对齐 v1 的行为 | 你的原话是 "high prio. ext panel must work. check v1 for behavior"。**打不开那一半已经修好**(见下"已完成"):面板是被自更新的 reload 打死的,现在会自愈。剩下这一半是你要的正事 —— 把 v1 的 Side Panel 从 git 历史里挖出来读一遍、列出它当时会做的每一件事,再逐条对现在这个,差在哪补哪,不是重新想一个。和 X16 同源,两件一起读 v1 |
 | **X12** | 边栏不要分区标题,也不要折叠 | 你的原话是 "we don't need these. just show all and move to top"。现在有 "Pinned"、"Everything else" 两个标题和一个 "9 more" 的折叠。要的是:全部列出来,不截断;置顶的直接排在最上面,不用标题去说明它是置顶。图:`shots/x12-rail-headings-and-more.png` |
-| **X13** | `127.0.0.1:5173` 还需不需要 | 你的原话是 "http://127.0.0.1:5173/#/documents do we need this? check others as well"。规则是一台机器一个 Logue、Host 自己在 `8787` 托管应用。5173 是 dev server 的地址,不该是你日常打开的那一个。要把代码里所有还写着 5173(以及别的第二地址)的地方找出来,一并处理 |
 | **X14** | 一个 Find 管全部 | 你的原话是 "one find is good for all. product should be simple and easy to use. find should support all"。边栏顶上已经有 Find(⌘K),下面列表上方又有一个 Search 输入框 —— 两个控件做一件事。留一个 Find,并且它要能搜到所有东西:Stream、Projects、Documents、Skills,不只是当前这一段列表 |
 | **X15** | "Recent answers" 的每一行点不进去 | 你的原话是 "why no link?"。列表里每行写着 Skill 名、`28 Sources`、时间、采用状态,但整行和那些 Sources 都不是链接 —— 看得到,进不去。规则已经写着"凡是列出 Source 的地方,一键就能到它所在的 Stream"。图:`shots/x15-source-no-link.png` |
 | **X16** | 快捷键回来:对照 v1 补齐 | 你的原话是 "why the shortcuts are gone? check v1 shortcuts"。v1 的树已删但在 git 历史里 —— 把它 manifest 的 commands 和页面内快捷键都挖出来列一遍,该回来的回来(该不该回来按老规矩:值得的留,不值的说明为什么) |
@@ -74,6 +73,8 @@
 **扩展韧性(B14)** —— 标签页自愈、Host 不在时录音进队列并在它回来时自动送达、选区上的 Skill 前两个直出其余进 `⋯`。顺带修掉一个陷阱:录音器卡住之后界面上没有任何出路。
 
 **自更新死锁(X10)** —— 你 04:37 报的 "Already recording."。抛这句话的代码 B14 已删,但真 bug 在更深处:录音结束后 offscreen 文档没人关,而自更新见到它就让路 —— 录过一次音,浏览器就再也收不到新构建,修好卡住录音器的那个构建恰恰因此进不来。现在录完就关文档、检查时空闲文档先关再继续、真在录音仍然让路。隔离真机 8/8:录音中不打断、录完文档即关、下一次检查即换代、换代后录音干净。
+
+**面板被更新打死(X18 前半)+ 第二地址(X13)** —— 你截图里那个 "Your file couldn't be accessed"。文件一直都在;是 reload 把已打开的面板文档拆了,框还在、里面空了,而面板里本该自救的代码跟着文档一起没了。内容脚本从一开始就有自愈,面板漏了 —— 它今天才现形,正因为 X10 把 reload 修活了。现在 worker 从 reload 回来会重新指向面板,路径带一个计数(不是构建号:手动 Reload 和半截部署都不会改构建号,路径不变就什么都不会发生)。真机 3/3。同时:面板里的"在 Logue 里打开"原本指向 dev server 的 5173 端口,只有在有人开发时才活着 —— 改成 Host 自己的地址,全树再无第二地址。诚实的边界:Chrome 不允许没有真实点击就打开侧边栏,所以"框自己活过来"是从路径变化推出来的,没有亲眼看着它复活。
 
 **Host(S1)** —— 只绑回环、校验来源,拿不出 Logue 身份的页面不许写。
 
