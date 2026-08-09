@@ -89,7 +89,11 @@ function Thread({
       <span className="flex items-center gap-1">
         <Sparkles size={11} className="text-muted" />
         <span className="flex-1 text-xs text-muted">From this page</span>
-        <button type="button" onClick={onClear} className="rounded-md px-1 text-xs text-muted hover:text-ink">
+        <button
+          type="button"
+          onClick={onClear}
+          className="-my-1 rounded-md px-1 py-1 text-xs text-muted hover:text-ink"
+        >
           Clear
         </button>
       </span>
@@ -114,8 +118,8 @@ function Thread({
               : message.from === "you"
                 ? // What you said, set apart from what came back — a conversation
                   // where both sides look alike is a wall of text.
-                  "rounded-md border border-accent-line bg-accent-soft p-2 text-xs leading-[1.55] whitespace-pre-wrap text-ink"
-                : "rounded-md bg-surface-muted p-2 text-xs leading-[1.55] whitespace-pre-wrap text-ink"
+                  "rounded-md border border-accent-line bg-accent-soft p-2 text-[13px] leading-[1.55] whitespace-pre-wrap text-ink"
+                : "rounded-md bg-surface-muted p-2 text-[13px] leading-[1.55] whitespace-pre-wrap text-ink"
           }
         >
           {(message.sources ?? []).length > 0 ? (
@@ -656,7 +660,7 @@ function Kept({
 
   return (
     <section className="mt-4 grid gap-1">
-      <h2 className="flex items-center gap-1.5 text-xs text-muted">
+      <h2 className="flex items-center gap-1.5 text-xs font-[560] text-muted">
         {title}
         <span className="text-muted">{items.length}</span>
       </h2>
