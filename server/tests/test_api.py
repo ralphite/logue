@@ -340,9 +340,22 @@ class DefaultSkillTest(Workspace, unittest.TestCase):
         prompt = capture.transcription_instructions(self.app.store, "")
         self.assertIn("Keep every filler word.", prompt)
 
-    def test_without_a_choice_the_prompt_still_works(self) -> None:
+    def test_without_a_choice_the_shipped_one_is_used(self) -> None:
+        # Nobody should have to write "take the ums out" before dictation is
+        # worth using, so a slot with no choice falls back to the Skill that
+        # ships. A choice still wins — the case above.
         prompt = capture.transcription_instructions(self.app.store, "")
-        self.assertIn("Transcribe this recording verbatim", prompt)
+        self.assertIn("take out only what nobody meant to say", prompt)
+        self.assertIn("Only remove; never add", prompt, "the boundary travels with it")
+
+    def test_the_shipped_one_can_be_turned_off(self) -> None:
+        # Turning it off has to mean something: the fallback is a default, not
+        # a rule, and someone who wants their ums kept must be able to say so.
+        shipped = next(s for s in self.call("GET", "/v1/skills")["skills"] if s.get("built_in_key") == "transcription")
+        self.call("PATCH", f"/v1/skills/{shipped['id']}", {"enabled": False})
+        prompt = capture.transcription_instructions(self.app.store, "")
+        self.assertNotIn("take out only what nobody meant to say", prompt)
+        self.assertIn("verbatim", prompt)
 
 
 class OrganizeTest(Workspace, unittest.TestCase):
@@ -811,31 +824,35 @@ class ARecordingOutlivesItsTranscription(Workspace, unittest.TestCase):
 
 
 class MakingASkill(Workspace, unittest.TestCase):
-    """A Skill is named first and written afterwards."""
+    """A Skill is named first and written afterwards.
+
+    Named "Tidy up" rather than "Transcription": a Skill by that name now ships
+    with the product, and a test that borrows a real name tests the wrong one.
+    """
 
     def test_a_name_is_enough_to_create_one(self) -> None:
         # The form shows one field. Refusing for a second one nobody could see
         # meant no Skill could be created at all.
-        skill = self.call("POST", "/v1/skills", {"name": "Transcription"})["skill"]
-        self.assertEqual(skill["name"], "Transcription")
+        skill = self.call("POST", "/v1/skills", {"name": "Tidy up"})["skill"]
+        self.assertEqual(skill["name"], "Tidy up")
         self.assertEqual(skill["instructions"], "")
 
     def test_one_without_a_prompt_is_not_offered(self) -> None:
-        self.call("POST", "/v1/skills", {"name": "Transcription"})
+        self.call("POST", "/v1/skills", {"name": "Tidy up"})
         offered = {s["name"] for s in self.call("GET", "/v1/context")["skills"]}
-        self.assertNotIn("Transcription", offered, "an empty prompt would be sent to the model")
+        self.assertNotIn("Tidy up", offered, "an empty prompt would be sent to the model")
         self.assertIn("Answer questions", offered, "the ones that can run are still there")
 
     def test_one_without_a_prompt_refuses_to_run(self) -> None:
-        skill = self.call("POST", "/v1/skills", {"name": "Transcription"})["skill"]
+        skill = self.call("POST", "/v1/skills", {"name": "Tidy up"})["skill"]
         with self.assertRaises(BadRequest):
             self.call("POST", "/v1/runs", {"skill_id": skill["id"], "instruction": "go"})
 
     def test_writing_the_prompt_puts_it_back(self) -> None:
-        skill = self.call("POST", "/v1/skills", {"name": "Transcription"})["skill"]
+        skill = self.call("POST", "/v1/skills", {"name": "Tidy up"})["skill"]
         self.call("PATCH", f"/v1/skills/{skill['id']}", {"instructions": "Take out the filler words."})
         offered = {s["name"] for s in self.call("GET", "/v1/context")["skills"]}
-        self.assertIn("Transcription", offered)
+        self.assertIn("Tidy up", offered)
 
 
 class SkillHistory(Workspace, unittest.TestCase):

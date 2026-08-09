@@ -29,6 +29,34 @@ BUILT_INS: list[dict[str, Any]] = [
         "contexts": ["project", "page", "selection"],
     },
     {
+        "key": "transcription",
+        "name": "Transcription",
+        "purpose": "Take the ums out, and nothing else.",
+        "instructions": (
+            "Write out what was said, then take out only what nobody meant to say.\n"
+            "\n"
+            "Remove filler words and verbal tics. Remove repetitions and the half-sentences left "
+            "behind when the speaker corrected themselves mid-thought — keep the version they "
+            "settled on. Where a sentence can be shortened without changing it, shorten it, so it "
+            "reads the way it was meant to sound.\n"
+            "\n"
+            "Everything else stays as it was: the meaning, the tone, and the speaker's own words. "
+            "This is not a rewrite.\n"
+            "\n"
+            "Only remove; never add. Do not add anything that was not said. Do not swap a word for "
+            "a more formal one. Do not finish a thought the speaker left unfinished. If you are "
+            "unsure whether something was meant, leave it in.\n"
+            "\n"
+            "Return the transcript alone, with no commentary."
+        ),
+        "task": "transcribe",
+        "output": "insert",
+        "surfaces": ["web", "extension"],
+        # Not a context any picker offers: this one is reached through the
+        # transcription slot, not by someone choosing it beside a selection.
+        "contexts": ["transcription"],
+    },
+    {
         "key": "draft",
         "name": "Draft document",
         "purpose": "Write a document grounded in the Project's Sources.",

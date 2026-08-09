@@ -36,6 +36,21 @@ def chosen(store: Store) -> dict[str, str]:
     return picked
 
 
+#: A slot nobody has chosen for falls back to the built-in of the same name.
+BUILT_IN_FOR: dict[str, str] = {"transcription": "transcription"}
+
+
 def skill_for(store: Store, slot: str) -> Record | None:
+    """The Skill this surface reaches for, chosen or shipped.
+
+    A choice always wins. Where there is none, a slot may still have a Skill
+    that ships with the product — transcription does, because "take the ums
+    out" is what everyone wants and nobody should have to write it first.
+    """
     skill_id = chosen(store).get(slot)
-    return store.skills.find(skill_id) if skill_id else None
+    if skill_id:
+        return store.skills.find(skill_id)
+    key = BUILT_IN_FOR.get(slot)
+    if not key:
+        return None
+    return next((s for s in store.skills.all() if s.get("built_in_key") == key and s.get("enabled")), None)

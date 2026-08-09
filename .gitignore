@@ -12,6 +12,11 @@ coverage/
 # Bug screenshots live beside the task that cites them, but stay out of git.
 docs/spec/shots/
 .logue-data/
+# Every workspace copy, not just the live one. A rebuild left a backup beside
+# it as `.logue-data.before-rebuild-<n>/`, which this pattern did not match —
+# so 455 files of someone's recordings, and the API key sitting among them,
+# went into a public repository and the key was revoked as leaked.
+.logue-data*/
 .logue-backups/
 .artifacts/
 artifacts/
