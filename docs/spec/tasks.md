@@ -42,7 +42,8 @@ item that restarts; the v0.2.13 install, its releases, and its login item are
 gone.
 
 **Documents** — version history you can read and go back through (V5), a model
-writing what each version changed (V2).
+writing what each version changed (V2), a title that names itself until someone
+names it (V4).
 
 **The rail** — the list moved into it (U2), it learned what a rail is for (U3),
 it was trimmed back down and aligned (U5), and the half-built parts were

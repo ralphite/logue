@@ -297,6 +297,10 @@ class App:
             kept = [r for r in store.doc_revisions.list() if r.get("doc_id") == document["id"]]
             return {"current": document, "revisions": kept}
 
+        @route("POST", "/v1/documents/{id}/name")
+        def name_document(request: Request) -> dict[str, Any]:
+            return {"document": documents.suggest_title(store, self.provider(), request.params["id"])}
+
         @route("GET", "/v1/documents/{id}/versions")
         def document_versions(request: Request) -> dict[str, Any]:
             return {"versions": documents.versions(store, request.params["id"])}

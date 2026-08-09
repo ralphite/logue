@@ -769,6 +769,53 @@ class DocumentHistory(Workspace, unittest.TestCase):
             self.call("POST", f"/v1/documents/{document_id}/versions/99/restore")
 
 
+class NamingADocument(Workspace, unittest.TestCase):
+    """Who is allowed to name a document, and how many times."""
+
+    def test_a_new_one_is_nobody_s_yet(self) -> None:
+        document = self.call("POST", "/v1/documents", {})["document"]
+        self.assertEqual(document["title"], "Untitled")
+        self.assertEqual(document["title_state"], documents.AUTO)
+
+    def test_a_title_handed_in_is_already_someone_s(self) -> None:
+        # A generation naming its own output has decided; the body does not
+        # get to argue with it.
+        document = self.call("POST", "/v1/documents", {"title": "Pricing brief"})["document"]
+        self.assertEqual(document["title_state"], documents.EDITED)
+
+    def test_a_model_names_one_nobody_has_named(self) -> None:
+        document = self.call("POST", "/v1/documents", {"content": "<p>Async research finishes more often.</p>"})[
+            "document"
+        ]
+        named = self.call("POST", f"/v1/documents/{document['id']}/name")["document"]
+        self.assertEqual(named["title_state"], documents.GENERATED)
+        self.assertTrue(named["title"])
+
+    def test_a_model_gets_one_turn(self) -> None:
+        # A title someone has been reading must not change underneath them.
+        document = self.call("POST", "/v1/documents", {"content": "<p>Something to name.</p>"})["document"]
+        self.call("POST", f"/v1/documents/{document['id']}/name")
+        with self.assertRaises(BadRequest):
+            self.call("POST", f"/v1/documents/{document['id']}/name")
+
+    def test_a_name_someone_typed_is_refused_to_the_model(self) -> None:
+        document = self.call("POST", "/v1/documents", {"content": "<p>Body.</p>"})["document"]
+        self.call("PATCH", f"/v1/documents/{document['id']}", {"title": "Mine", "title_state": documents.EDITED})
+        with self.assertRaises(BadRequest):
+            self.call("POST", f"/v1/documents/{document['id']}/name")
+
+    def test_an_empty_document_has_nothing_to_name(self) -> None:
+        document = self.call("POST", "/v1/documents", {})["document"]
+        with self.assertRaises(BadRequest):
+            self.call("POST", f"/v1/documents/{document['id']}/name")
+
+    def test_a_document_written_before_this_existed_keeps_its_name(self) -> None:
+        # No `title_state` on disk: an "Untitled" one was never named by
+        # anybody, anything else has a name someone chose.
+        self.assertEqual(documents.named_by({"title": "Untitled"}), documents.AUTO)
+        self.assertEqual(documents.named_by({"title": "Pricing brief"}), documents.EDITED)
+
+
 class VersionSummaries(Workspace, unittest.TestCase):
     """The line saying what a version changed, and what stands in for it."""
 

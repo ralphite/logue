@@ -127,6 +127,10 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
 
 ## Documents
 
+- **A document names itself until someone names it.** The title follows the
+  first line while nobody has claimed it; when the body is left alone a model
+  writes a real one, once. After a person types a title, nothing changes it —
+  not the first line, not a model, not a second attempt at the same model.
 - **Every version of a document can be read back and gone back to.** Going
   back is written forward as a new version; the ones it skipped over survive.
 - **Each version says what it changed, in words.** A model writes the line

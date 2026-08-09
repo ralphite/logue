@@ -6,6 +6,18 @@ import { Nothing, Page } from "./AppShell";
 import { DocumentHistory } from "./DocumentHistory";
 import { timeAgo, useAction, useHost } from "./useHost";
 const AUTOSAVE_MS = 900;
+/** How far a title taken from the body follows it. */
+const TITLE_LIMIT = 50;
+
+/** The first line of the body, which is what a document is usually called. */
+function firstLine(html: string, limit = TITLE_LIMIT): string {
+  const text = (new DOMParser().parseFromString(html, "text/html").body.textContent ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+  if (!text) return "";
+  return text.length > limit ? text.slice(0, limit) : text;
+}
 
 export function DocumentsRoute({
   openId,
@@ -29,6 +41,17 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
   const [revision, setRevision] = useState(0);
   const [conflict, setConflict] = useState(false);
   const [looking, setLooking] = useState(false);
+  /**
+   * Who named this: the first line, a model, or the person.
+   *
+   * One value, so two can never be true at once — and the whole point is the
+   * last one. Once someone has typed a name, the body does not overwrite it
+   * and neither does a model.
+   */
+  const [named, setNamed] = useState<"auto" | "generated" | "edited">("auto");
+  // Read inside a promise that outlives the render it started in.
+  const namedRef = useRef(named);
+  namedRef.current = named;
   const body = useRef<HTMLDivElement>(null);
   const timer = useRef<number>(undefined);
   const action = useAction();
@@ -37,12 +60,16 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
   useEffect(() => {
     if (!doc) return;
     setTitle(doc.title);
+    setNamed(doc.title_state ?? (doc.title.trim() && doc.title !== "Untitled" ? "edited" : "auto"));
     setRevision(doc.revision);
     setConflict(false);
     if (body.current) body.current.innerHTML = doc.content;
   }, [doc]);
 
-  const write = async (changes: { title?: string; content?: string }, force = false) => {
+  const write = async (
+    changes: { title?: string; content?: string; title_state?: "auto" | "generated" | "edited" },
+    force = false,
+  ) => {
     try {
       const { document } = await api.updateDocument(id, {
         ...changes,
@@ -64,7 +91,7 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
   };
 
   /** Autosave on a pause, not on every keystroke — history should read as edits. */
-  const queueSave = (changes: { title?: string; content?: string }) => {
+  const queueSave = (changes: { title?: string; content?: string; title_state?: "auto" | "generated" | "edited" }) => {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       void action.run(() => write(changes));
@@ -72,6 +99,41 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
   };
 
   const mine = () => ({ title, content: body.current?.innerHTML ?? "" });
+
+  /**
+   * Every document starts "Untitled" and, left alone, stays that way — which
+   * makes a list of them useless. So the title follows the first line while
+   * nobody has claimed it.
+   */
+  const onBodyInput = () => {
+    const content = body.current?.innerHTML ?? "";
+    if (named !== "auto") {
+      queueSave({ content });
+      return;
+    }
+    const following = firstLine(content);
+    setTitle(following);
+    queueSave({ content, title: following, title_state: "auto" });
+  };
+
+  /**
+   * Once, when the body is finished with: ask a model for a real title.
+   *
+   * Only while the name is still the first line's. A person who has typed one
+   * never sees it change, and a model that has already had its turn does not
+   * get a second — which is the whole reason the three states exist.
+   */
+  const nameIt = () => {
+    if (named !== "auto" || !firstLine(body.current?.innerHTML ?? "")) return;
+    void action.run(async () => {
+      const { document } = await api.nameDocument(id);
+      // Someone may have started typing a name during the round trip. Theirs
+      // wins; the model's answer is dropped without a word.
+      setTitle((was) => (namedRef.current === "auto" ? document.title : was));
+      if (namedRef.current === "auto") setNamed("generated");
+      setRevision(document.revision);
+    });
+  };
 
   return (
     <Page
@@ -121,7 +183,9 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
             value={title}
             onChange={(event) => {
               setTitle(event.target.value);
-              queueSave({ title: event.target.value });
+              // Typing here is the claim. Nothing renames it after this.
+              setNamed("edited");
+              queueSave({ title: event.target.value, title_state: "edited" });
             }}
             placeholder="Untitled"
             aria-label="Document title"
@@ -134,7 +198,8 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
             role="textbox"
             aria-multiline="true"
             aria-label="Document body"
-            onInput={() => queueSave({ content: body.current?.innerHTML ?? "" })}
+            onInput={onBodyInput}
+            onBlur={nameIt}
             className="logue-prose min-h-72 outline-0"
           />
 
