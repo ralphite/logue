@@ -15,6 +15,9 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   Write it down, keep going, finish what is in hand. Interrupting the thread to
   chase each new ask leaves everything half-built. The exception is something
   actively broken for the person right now.
+- **The queue lives in the repository**, in [tasks.md](tasks.md). A list that
+  exists only in a session is one crash from being lost, and this one has been
+  lost before.
 - **Verify in a real browser, against the real Host and a real model.** Unit
   tests are necessary and never sufficient. No mocks standing in for a run.
 - **Never stop early, never wait to be unblocked.** If something is in the way,
