@@ -1,11 +1,14 @@
-import { FileText, FolderOpen, Layers, Search } from "lucide-react";
+import { FileText, FolderOpen, Layers, Search, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Input, Spinner, cn } from "@logue/ui";
 import { api } from "../api";
 import { useHost } from "./useHost";
 
 export type FindTarget =
-  { kind: "source"; id: string } | { kind: "document"; id: string } | { kind: "project"; id: string };
+  | { kind: "source"; id: string }
+  | { kind: "document"; id: string }
+  | { kind: "project"; id: string }
+  | { kind: "skill"; id: string };
 
 interface Hit {
   key: string;
@@ -47,6 +50,10 @@ export function FindDialog({
   const materials = useHost(() => (open ? api.materials() : Promise.resolve({ materials: [] })), [open]);
   const documents = useHost(() => (open ? api.documents() : Promise.resolve({ documents: [] })), [open]);
   const projects = useHost(() => (open ? api.projects() : Promise.resolve({ projects: [] })), [open]);
+  // Skills belong here too. "One Find, and it searches everything" was not
+  // true while the one section whose rows are prompts you wrote by hand — the
+  // ones hardest to find by scrolling — was the section it skipped.
+  const skills = useHost(() => (open ? api.skills() : Promise.resolve({ skills: [] })), [open]);
 
   const hits = useMemo<Hit[]>(() => {
     const needle = query.trim().toLowerCase();
@@ -75,6 +82,18 @@ export function FindDialog({
       });
       if (++docs >= PER_KIND) break;
     }
+    let found_skills = 0;
+    for (const skill of skills.data?.skills ?? []) {
+      if (!`${skill.name} ${skill.purpose ?? ""} ${skill.instructions ?? ""}`.toLowerCase().includes(needle)) continue;
+      found.push({
+        key: `k${skill.id}`,
+        target: { kind: "skill", id: skill.id },
+        title: skill.name,
+        detail: condense(skill.purpose || skill.instructions || "") || "Skill",
+        icon: Sparkles,
+      });
+      if (++found_skills >= PER_KIND) break;
+    }
     let sources = 0;
     for (const material of materials.data?.materials ?? []) {
       const haystack = `${material.content} ${material.source?.title ?? ""} ${(material.tags ?? []).join(" ")}`;
@@ -89,7 +108,7 @@ export function FindDialog({
       if (++sources >= PER_KIND) break;
     }
     return found;
-  }, [query, materials.data, documents.data, projects.data]);
+  }, [query, materials.data, documents.data, projects.data, skills.data]);
 
   useEffect(() => setAt(0), [query]);
   useEffect(() => {
@@ -102,7 +121,7 @@ export function FindDialog({
   }, [at]);
 
   if (!open) return null;
-  const loading = materials.loading || documents.loading || projects.loading;
+  const loading = materials.loading || documents.loading || projects.loading || skills.loading;
 
   return (
     <div

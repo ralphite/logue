@@ -1,6 +1,6 @@
-import { FileText, FolderOpen, Search, Sparkles } from "lucide-react";
+import { FileText, FolderOpen, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Input, Menu, MenuItem, OriginMark, Tag, cn, originOf } from "@logue/ui";
+import { Menu, MenuItem, OriginMark, Tag, cn, originOf } from "@logue/ui";
 import { api, type Document, type Material, type Project, type Skill, type Topic } from "../api";
 import { ConfirmDelete } from "./ConfirmDelete";
 import { PromptDialog } from "./PromptDialog";
@@ -68,7 +68,6 @@ export function StreamRail({
   onSelect: (id: string) => void;
   onVisibleOrder?: (ids: string[]) => void;
 }) {
-  const [query, setQuery] = useState("");
   const [tag, setTag] = useState<string>();
   const [reviewing, setReviewing] = useState(false);
   const [group, setGroup] = useState<Topic>();
@@ -90,17 +89,13 @@ export function StreamRail({
 
   const visible = useMemo(() => {
     const list = (reviewing ? waiting : materials.data?.materials) ?? [];
-    const needle = query.trim().toLowerCase();
     return list.filter((m: Material) => {
       if (inGroup && !inGroup.has(m.id)) return false;
       if (tag && !(m.tags ?? []).includes(tag)) return false;
-      if (!needle) return true;
-      return `${m.content} ${m.source?.title ?? ""} ${(m.tags ?? []).join(" ")}`
-        .toLowerCase()
-        .includes(needle);
+      return true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [materials.data, waiting, reviewing, query, tag, group]);
+  }, [materials.data, waiting, reviewing, tag, group]);
 
   const entries: RailEntry[] = pins.pinnedFirst(visible).map((material) => ({
     id: material.id,
@@ -166,20 +161,11 @@ export function StreamRail({
 
   return (
     <>
+      {/* No search box here. Find (⌘K) sits at the top of the rail and covers
+          every section; a second box that only filters whichever list happens
+          to be open is two controls doing one job, and the narrower of the two
+          is the one that looks like the answer. */}
       <RailHeader>
-        <span className="relative">
-          <Search
-            size={12}
-            className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-faint"
-          />
-          <Input
-            className="h-7 w-full pl-6 text-xs"
-            placeholder="Search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            aria-label="Search everything you have captured"
-          />
-        </span>
         <div className="flex items-center gap-1">
           {(waiting?.length ?? 0) > 0 && (
             <button
@@ -246,7 +232,7 @@ export function StreamRail({
         onSelect={onSelect}
         onVisibleOrder={onVisibleOrder}
         loading={materials.loading}
-        empty={query || tag || group ? "Nothing matches." : "Capture something to see it here."}
+        empty={tag || group ? "Nothing matches." : "Capture something to see it here."}
       />
 
       <DeleteFromRail doomed={doomed} onDone={() => setDoomed(undefined)} />

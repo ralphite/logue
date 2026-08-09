@@ -3,16 +3,6 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNo
 import { ContextMenu, MenuHeading, MenuItem, MenuSeparator, cn, type MenuPoint } from "@logue/ui";
 import { ICON_SLOT } from "./AppShell";
 
-/**
- * Past this a section stops being a navigator and becomes a scroll.
- *
- * Taken from watching the same rail elsewhere render every group it had — 127
- * of them, a rail twelve screens tall, with the account footer somewhere below
- * the fold. The first few are the ones touched recently; the rest are history,
- * one click away.
- */
-export const RAIL_LIMIT = 12;
-
 export interface RailAction {
   label: string;
   onRun: () => void;
@@ -224,41 +214,6 @@ function RailRow({
   );
 }
 
-/** The only two headings left in a rail: Pinned, and everything else. */
-function Heading({ children }: { children: ReactNode }) {
-  return (
-    <p className="px-2 pt-2 pb-1 text-[11px] font-[560] tracking-[0.01em] text-muted first:pt-0">
-      {children}
-    </p>
-  );
-}
-
-function More({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-md px-2 py-1 text-left text-[11px] text-faint hover:bg-hover hover:text-muted"
-    >
-      {label}
-    </button>
-  );
-}
-
-/**
- * Keep the chosen row visible even when a limit would have cut it.
- *
- * A list that hides what you are currently looking at reads as though nothing
- * is selected. An explicit fold is different — that is someone saying they do
- * not want to see this group — so folding still wins over it.
- */
-function withSelected(rows: RailEntry[], limit: number, selectedId?: string): RailEntry[] {
-  const shown = rows.slice(0, limit);
-  if (!selectedId || shown.some((row) => row.id === selectedId)) return shown;
-  const chosen = rows.find((row) => row.id === selectedId);
-  return chosen ? [...shown, chosen] : shown;
-}
-
 /**
  * A section's own list, in the rail underneath it.
  *
@@ -284,7 +239,6 @@ export function RailList({
   onVisibleOrder?: (ids: string[]) => void;
 }) {
   const coarse = useCoarsePointer();
-  const [allRows, setAllRows] = useState(false);
   const [menu, setMenu] = useState<{ entry: RailEntry; at: MenuPoint }>();
   const [hover, setHover] = useState<{ entry: RailEntry; rect: DOMRect }>();
 
@@ -316,13 +270,15 @@ export function RailList({
     return () => window.removeEventListener("scroll", drop, true);
   }, [hover]);
 
-  const pinned = entries.filter((entry) => entry.pinned);
-  const rest = entries.filter((entry) => !entry.pinned);
-  const rows = withSelected(rest, allRows ? rest.length : RAIL_LIMIT, selectedId);
+  // Pinned first, then the rest, and no heading over either: the order already
+  // says which is which, and "Pinned" / "Everything else" printed above a
+  // twelve-row list said it a second time in words. Nothing is folded away —
+  // the whole section is here, and a long one is read by scrolling.
+  const rows = [...entries.filter((entry) => entry.pinned), ...entries.filter((entry) => !entry.pinned)];
 
-  // Published so the keys that step through the rail move to what is actually
-  // on screen — stepping onto a row hidden behind a Show more looks broken.
-  const order = [...pinned, ...rows].map((row) => row.id);
+  // Published so the keys that step through the rail move through what is
+  // actually on screen.
+  const order = rows.map((row) => row.id);
   const orderKey = order.join(" ");
   useEffect(() => {
     onVisibleOrder?.(orderKey ? orderKey.split(" ") : []);
@@ -364,21 +320,7 @@ export function RailList({
 
   return (
     <div className="grid gap-px">
-      {pinned.length > 0 && (
-        <>
-          <Heading>Pinned</Heading>
-          {pinned.map(row)}
-          {rest.length > 0 && <Heading>Everything else</Heading>}
-        </>
-      )}
-
       {rows.map(row)}
-      {rest.length > RAIL_LIMIT && (
-        <More
-          label={allRows ? "Show fewer" : `${rest.length - RAIL_LIMIT} more`}
-          onClick={() => setAllRows(!allRows)}
-        />
-      )}
 
       {/* One card and one menu for the whole list, and never both: two panels
           racing for the same corner is how a right-click ends up reading a

@@ -157,6 +157,7 @@ export function App() {
   const goTo = (target: FindTarget) => {
     if (target.kind === "document") return openDocument(target.id);
     if (target.kind === "project") return openIn("projects", target.id);
+    if (target.kind === "skill") return openIn("skills", target.id);
     openSource(target.id);
   };
 
