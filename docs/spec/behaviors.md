@@ -21,6 +21,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   any work on it — a request that lives only in a reply is not queued.
 - **Verify in a real browser, against the real Host and a real model.** Unit
   tests are necessary and never sufficient. No mocks standing in for a run.
+- **Where a check needs an account, it runs in the person's own browser.** A
+  clean throwaway profile cannot open Notion or a Google Doc, and "it needed a
+  login" is not a reason to skip the check or to swap in a page that does not
+  need one. Use the signed-in browser, and inside it stay to what the check
+  needs: read, write into the QA Project, delete nothing, send nothing.
 - **Notion is part of every check, not a bonus round.** Anything touching the
   browser surfaces is tested in Notion as well — a plain `<textarea>` on a test
   page proves nothing about the editors people actually write in. Notion and
@@ -31,7 +36,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   belongs next to the task it explains, not in a temporary folder that empties
   itself — and not in the history either.
 - **Never stop early, never wait to be unblocked.** If something is in the way,
-  find another route; a computer is available.
+  find another route; a computer is available. When a task genuinely needs an
+  answer only the person can give, write the question into the queue and move
+  to the next task the same minute — there is always work that waits on nobody.
+  Arrange the work so blocking is rare: do the part that depends on no one
+  first, and save up questions to ask together rather than stopping at each.
 - **Start the next task the moment the last one is done.** Do not stop to
   report, do not wait to be told to carry on. Report when there is something
   worth reading, not between every item.
@@ -197,6 +206,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   costs someone what they said — and neither does the Host being off. A
   recording made while nothing is listening waits in the extension and goes in
   the moment the Host answers. The bar says it is kept, not that it failed.
+- **Transcription learns from what has already been said well.** The names and
+  special words someone uses again and again stop being misheard: past
+  transcripts that proved good — accepted, or corrected by hand — feed the
+  vocabulary the next transcription is given. Nothing is learned from a
+  recording nobody kept, and a learned word can be seen and taken back.
 - **Ten minutes of speech survives.** A long recording is a normal recording:
   no silent truncation, no crash, no quiet drop at some limit nobody mentioned.
 - **Past a minute, the surface says so.** A recording that has run over a

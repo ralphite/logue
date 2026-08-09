@@ -7,6 +7,7 @@ import { NewNamed } from "./NewNamed";
 import { ConfirmDelete } from "./ConfirmDelete";
 import { timeAgo, useAction, useHost } from "./useHost";
 import { GenerateBox } from "./GenerateBox";
+import { RunDialog } from "./RunDialog";
 
 export function ProjectsRoute({
   openId,
@@ -89,6 +90,7 @@ function ProjectDetail({
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState<{ id: string; name: string }>();
   const [overview, setOverview] = useState("");
+  const [reading, setReading] = useState<string>();
   const action = useAction();
   const project = detail.data?.project;
 
@@ -173,17 +175,27 @@ function ProjectDetail({
               <Rows>
                 {projectRuns.slice(0, 6).map((run) => (
                   <Row key={run.id}>
-                    <span className="min-w-0 flex-1">
+                    {/* The row opens the answer, and the Source count opens the
+                        Sources behind it. Both were printed as dead text: you
+                        could see that twenty-eight things were used and reach
+                        none of them. */}
+                    <button
+                      type="button"
+                      onClick={() => setReading(run.id)}
+                      className="min-w-0 flex-1 rounded-md text-left"
+                    >
                       <span className="block truncate text-[13px] text-ink">{run.instruction}</span>
                       <span className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
                         <Sparkles size={11} />
                         {run.skill_name}
-                        <span>{run.sources.length} Sources</span>
+                        <span className="underline decoration-line underline-offset-2">
+                          {run.sources.length} Sources
+                        </span>
                         <span>{timeAgo(run.created_at)}</span>
                         {run.status === "failed" && <span className="text-danger">failed</span>}
                         <Used run={run} />
                       </span>
-                    </span>
+                    </button>
                     {run.adoption && !run.adoption_undone && (
                       <RowActions>
                         <Button
@@ -201,6 +213,15 @@ function ProjectDetail({
                 ))}
               </Rows>
             </section>
+          )}
+
+          {reading && (
+            <RunDialog
+              id={reading}
+              open={Boolean(reading)}
+              onClose={() => setReading(undefined)}
+              onOpenSource={onOpenSource}
+            />
           )}
 
           <ConfirmDelete

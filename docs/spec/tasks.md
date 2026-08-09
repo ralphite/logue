@@ -21,6 +21,7 @@
 | **F2** | ⌘⇧L 开关扩展面板 | 你的原话是 "cmd+shift+l toggles the ext panel"。一个键管开也管关:面板没开就打开,开着就收起。一个已知的现成条件:装机 manifest 里 `toggle-side-panel` 这条命令已经存在,建议键正是 Command+Shift+L —— 所以要查的是它为什么没生效(是没接处理函数,还是被别的扩展占了同一个键),而不是从头加一个。和 X16(对照 v1 补齐快捷键)是同一件事的两面,一起做 |
 | **F3** | ⌘⇧K:开面板、开录音,说完进对话 —— **先出清单,不要实现** | 你的原话是 "cmd+shift+k opens the ext panel and starts voice recording, esc to cancel and enter to accept. msg send to chat. in chat we can use existing skills configured (such as translate, add to project etc). the chat should use a llm agent that we can control. check notion for features. do not impl. propose list of features after deep research."。已经定下来的行为:⌘⇧K 一下,面板打开并立刻开始录;**Esc 取消,Enter 采纳**;采纳后这段话作为一条消息进入对话;对话里能调用已经配置好的 Skill(翻译、加进某个 Project……);对话背后是一个**我们自己能控制的 LLM agent**,不是一次性的 prompt。**明确不要现在实现** —— 先深入研究(Notion 的对话与 AI 功能是指定参照),再提出一份功能清单等你拍板。研究这部分和 R12 是同一片地,一起做,一份清单交付 |
 | **F4** | 长录音:十分钟撑得住,一分钟起提醒,音频一次都不能丢 | 你的原话是 "must support long recording (10min). when over 1 min should show warning in ui. never lose audio. if fail to transcribe etc should still save audio and show try again ui"。四件事:①录满 **10 分钟**不断、不崩、不静默截断;②超过 **1 分钟**在界面上给出提醒(要定的是提醒说什么 —— 是"已录 1 分 20 秒"这样的实时长度,还是一句关于长录音的告知);③**音频永不丢失**,任何一步失败都不例外;④转写失败时,**录音照样存下来**,并且界面上给出"再试一次"的入口,而不是一句报错了事。既有的"先存录音再转写"和"Host 不在时排队"是地基,这条是把它延伸到长时长和失败之后 |
+| **F5** | 用历史里说过的话把转写越修越准 —— **先出方案,不要实现** | 你的原话是 "historical user inputs with high quality should be used to improve transcription. e.g. frequent special words/names should be correct. propose features and solution first"。目标很清楚:你反复说到的专有名词、人名,不该每次都被听错一遍。现成的地基有三块 —— Project 的词表(`transcription_profile.vocabulary.terms`,Host 转写时就在读)、光标附近的页面文字(已经当作临时词汇送进去)、以及你手动纠错留下的记录。缺的是把它们连起来的那一步:从历史里自动挑出该记住的词。**先提方案再动手**,方案里必须回答的:①什么算"高质量"输入(被采纳的?被你改过的?出现够多次的?);②词是自动进词表还是要你点头;③词表属于一个 Project 还是全局;④怎么不把口误也学进去,以及学错了怎么撤 |
 | **R12** | 竞品扫描,以及它翻出来的东西 | 你的原话点了方向:"anywhere voice input with customizable skills, notion's skills in docs, lineage of all content, content gen from sources, pkm"。做完研究把值得的功能补上,"polish the ux/product design/features to make it very good. keep pushing automatically in this way" |
 
 ## 等你拍板
@@ -37,7 +38,7 @@
 
 - **自己管队列、自己往下推。** 顺序你来定,不要等人喊继续。
 - **上一个做完立刻做下一个。** 有值得读的东西才汇报,不要每做一件报一次。
-- **不要停。** 有东西挡路就绕,不要停下来等。
+- **不要停,做没被卡住的那件。** 你的原话是 "work on things not blocked. avoid being blocked."。有东西挡路就绕。真需要你拍板的那件,把问题写清楚留在队列里,然后**立刻往下做别的** —— 队列里永远有不需要等任何人的事。也要主动少给自己制造卡点:先做不依赖别人的部分,把要问的问题攒着一次问完,而不是问一句停一次。
 - **新的要求进队列,不插到手上这件前面** —— 除非它现在就是坏的。
 - **每一条被要求的行为,在被提出的当下就写下来**,让重写不能悄悄把它弄丢。
 - **竞品的功能清单是菜单,不是命令。** 值得的留下,其余删掉。标准是极简、一眼就懂,不是"抄全"。
@@ -46,6 +47,7 @@
 - **持续打磨不是一次性任务。** 你的原话是 "polish the ux/product design/features to make it very good. keep pushing automatically in this way"。
 - **只在这个会话里干活。** 你的原话是 "only work in this session"。
 - **在真实浏览器里、用真实 Host 和真实模型验证。** 不拿 mock 顶替。
+- **要登录才能测的,就用你自己的浏览器测。** 你的原话是 "must use my browser with auth in qa when necessary (e.g. use app that needs login)"。Notion、Google Docs 这类必须登录的地方,不许用一个干净的测试浏览器绕过去,也不许拿"需要登录"当作跳过验证的理由。用带登录态的那个浏览器,并且只做验证要做的事:读、往 QA Project 里写,不删任何东西、不往外发任何东西。
 - **必须在 Notion 里测。** 你的原话是 "must test in notion"。凡是碰到浏览器界面的改动,Notion 和 Google Docs 都要过 —— 测试页上的一个普通输入框证明不了任何事,光标、选区、重绘在这两个编辑器里都不一样。
 - **验证写进 "Logue QA" Project,并且不删任何东西。**
 - **一台机器只有一套** —— 一份代码、一个 Host、一个扩展 —— 而且全部装好、跑着,随时能查,不需要开终端。
