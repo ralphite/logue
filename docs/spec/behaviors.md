@@ -71,6 +71,16 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   chatgpt.com and Codex do it. Clicking Stream, Projects, Documents or Skills
   opens its list below the nav item; the main area shows only the one thing
   selected, not the list again.
+- **A competitor's feature list is a menu, not an order.** Take what earns its
+  place and drop the rest. The bar is minimal and immediately obvious, not
+  complete. Two controls that do the same thing is one control too many.
+- **Icons in the rail sit on one vertical line, and that line does not move
+  when the rail collapses.** An icon that jumps sideways on collapse makes the
+  two states read as two different apps.
+- **New things are made from a `+` that appears on hover**, on the section that
+  will hold them — not from a permanent button taking a row of its own.
+- **The nav and the list it opened are separated by a line**, so the five
+  destinations do not read as the top of the list.
 
 ## In the browser
 

@@ -1,6 +1,18 @@
-import { ChevronRight, FileText, FolderOpen, Layers, PanelLeft, Search, Settings2, Sparkles } from "lucide-react";
+import {
+  ChevronRight,
+  FileText,
+  FolderOpen,
+  Keyboard,
+  Layers,
+  MoreHorizontal,
+  PanelLeft,
+  Search,
+  Settings2,
+  Sparkles,
+} from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { LogueLogo, LogueMark, Resizer, cn, usePersistentSize } from "@logue/ui";
+import { LogueLogo, LogueMark, Menu, MenuItem, Resizer, cn, usePersistentSize } from "@logue/ui";
+import { FIND_KEYS, RAIL_KEYS } from "./shortcuts";
 
 export const ROUTES = ["stream", "projects", "documents", "skills", "settings"] as const;
 export type Route = (typeof ROUTES)[number];
@@ -40,6 +52,7 @@ export function AppShell({
   children,
   offline = false,
   onFind,
+  onShortcuts,
   list,
 }: {
   route: Route;
@@ -48,6 +61,7 @@ export function AppShell({
   /** The Host is unreachable — nothing on any screen is current. */
   offline?: boolean;
   onFind?: () => void;
+  onShortcuts?: () => void;
   /** The open section's own list, shown under it in the rail. */
   list?: ReactNode;
 }) {
@@ -68,19 +82,37 @@ export function AppShell({
   }, [collapsed]);
 
   // ⌘\ — what every app with a sidebar uses, so nobody has to learn it.
+  // ⌘1…5 for the five destinations, which is the only reason the rail has to
+  // be open at all once you know where you are going.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "\\") {
+      if (!event.metaKey && !event.ctrlKey) return;
+      if (event.key === "\\") {
         event.preventDefault();
         setCollapsed((was) => !was);
+        return;
+      }
+      const nth = ROUTES[Number(event.key) - 1];
+      if (nth) {
+        event.preventDefault();
+        onRoute(nth);
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [onRoute]);
 
   return (
     <div className="flex h-screen">
+      {/* First thing a Tab reaches. The rail holds nearly every tab stop in
+          the app, so without this a keyboard user walks the whole list before
+          reaching the thing they opened. */}
+      <a
+        href="#logue-main"
+        className="sr-only rounded-md bg-surface px-3 py-2 text-[13px] text-ink shadow-lg focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-popover"
+      >
+        Skip to what is open
+      </a>
       <nav
         aria-label="Sections"
         style={{ width: collapsed ? COLLAPSED_WIDTH : size }}
@@ -91,7 +123,7 @@ export function AppShell({
             <button
               type="button"
               aria-label="Open sidebar"
-              title="Open sidebar · ⌘\"
+              title={`Open sidebar · ${RAIL_KEYS}`}
               onClick={() => setCollapsed(false)}
               className="group inline-flex size-7 items-center justify-center rounded-md hover:bg-hover"
             >
@@ -107,7 +139,7 @@ export function AppShell({
               <button
                 type="button"
                 aria-label="Close sidebar"
-                title="Close sidebar · ⌘\"
+                title={`Close sidebar · ${RAIL_KEYS}`}
                 onClick={() => setCollapsed(true)}
                 // Appears when the pointer is anywhere in the rail, not only
                 // on the button: nobody hovers a control they cannot see.
@@ -135,13 +167,13 @@ export function AppShell({
             {!collapsed && (
               <>
                 <span className="truncate">Find</span>
-                <kbd className="ml-auto font-sans text-[11px] text-faint">⌘K</kbd>
+                <kbd className="ml-auto font-sans text-[11px] text-faint">{FIND_KEYS}</kbd>
               </>
             )}
           </button>
         )}
 
-        {ROUTES.map((key) => {
+        {ROUTES.map((key, index) => {
           const { label, icon: Icon } = NAV[key];
           const active = route === key;
           return (
@@ -150,7 +182,7 @@ export function AppShell({
               type="button"
               aria-current={active ? "page" : undefined}
               aria-label={label}
-              title={collapsed ? label : undefined}
+              title={collapsed ? `${label} · ⌘${index + 1}` : undefined}
               onClick={() => onRoute(key)}
               className={cn(
                 "flex h-control items-center rounded-md text-left text-[13px]",
@@ -172,14 +204,44 @@ export function AppShell({
         */}
         {!collapsed && list && <div className="logue-scroll min-h-0 flex-1 pt-1 pb-2">{list}</div>}
 
+        {onShortcuts && !collapsed && (
+          // The rail's own housekeeping, closed. These are things you reach
+          // for once a month, and five destinations plus a list is already as
+          // much as a rail should show at rest.
+          <div className={cn("flex", list ? "" : "mt-auto")}>
+            <Menu
+              label="More"
+              align="start"
+              trigger={(props) => (
+                <button
+                  type="button"
+                  aria-label="More"
+                  {...props}
+                  className="inline-flex size-7 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-ink"
+                >
+                  <MoreHorizontal size={15} />
+                </button>
+              )}
+            >
+              <MenuItem onClick={() => onRoute("settings")}>
+                <Settings2 size={13} /> Settings
+              </MenuItem>
+              <MenuItem onClick={onShortcuts}>
+                <Keyboard size={13} /> Keyboard shortcuts
+                <kbd className="ml-auto pl-3 font-sans text-[11px] text-faint">?</kbd>
+              </MenuItem>
+            </Menu>
+          </div>
+        )}
+
         {offline && (
           // Kept in both states: a rail narrowed to icons is exactly when
           // someone would otherwise stare at stale data and wonder.
           <p
             title="Logue is not running on this Mac."
             className={cn(
-              "mt-auto flex items-center gap-1.5 text-[11px] leading-[1.4] text-warning",
-              collapsed ? "justify-center" : "px-2 py-1",
+              "flex items-center gap-1.5 text-[11px] leading-[1.4] text-warning",
+              collapsed ? "mt-auto justify-center" : "px-2 py-1",
             )}
           >
             <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-warning" />
@@ -202,7 +264,9 @@ export function AppShell({
         />
       )}
 
-      <main className="flex min-w-0 flex-1 flex-col">{children}</main>
+      <main id="logue-main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
+        {children}
+      </main>
     </div>
   );
 }
