@@ -99,9 +99,40 @@ async function healIfAsked(): Promise<void> {
     const stored = await chrome.storage.local.get(HEAL_NEXT);
     if (stored[HEAL_NEXT] !== true) return;
     await chrome.storage.local.remove(HEAL_NEXT);
-    await healOpenTabs();
+    await Promise.all([healOpenTabs(), healSidePanel()]);
   } catch {
     // Storage is unavailable, so there is no note to act on.
+  }
+}
+
+/**
+ * Put the side panel back after a reload.
+ *
+ * A reload destroys every extension page, and an open side panel is one — but
+ * its container is not. What is left is the Logue panel frame with Chrome's
+ * own "Your file couldn't be accessed" inside it, and nothing running in there
+ * to notice or recover: the code that would heal it died with the document.
+ * The content scripts have been healed since the update path existed; this
+ * surface was simply missed, and it only started showing because updates
+ * started happening.
+ *
+ * Re-pointing is the lever: Chrome navigates the panel when its path changes.
+ * The path carries a count rather than the build, because the two reloads that
+ * matter most — a half-finished deploy, and a Reload pressed by hand — leave
+ * the build exactly as it was, and a path that has not changed navigates
+ * nothing. This runs only on the way back from a reload, so counting up every
+ * time never disturbs a panel someone is reading.
+ */
+const HEALS = "logue:panel-heals";
+
+async function healSidePanel(): Promise<void> {
+  try {
+    const stored = await chrome.storage.local.get(HEALS);
+    const count = (typeof stored[HEALS] === "number" ? stored[HEALS] : 0) + 1;
+    await chrome.storage.local.set({ [HEALS]: count });
+    await chrome.sidePanel.setOptions({ path: `sidepanel.html?back=${count}`, enabled: true });
+  } catch {
+    // No panel API, or nothing open. Opening one later loads it fresh anyway.
   }
 }
 

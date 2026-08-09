@@ -2,10 +2,17 @@ import { Bookmark, CornerDownLeft, ExternalLink, Settings2 } from "lucide-react"
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Answer, Button, Empty, ErrorNote, Input, OriginMark, Select, SourceLink, Spinner, Tag, originOf } from "@logue/ui";
-import { host, type Context, type Material } from "./api";
+import { host, HOST, type Context, type Material } from "./api";
 import { readablePageText } from "./readable";
 
-const WEB_APP = "http://127.0.0.1:5173";
+/**
+ * Where Logue lives, which is the Host itself.
+ *
+ * This pointed at the dev server's port, so every "open in Logue" from the
+ * panel went to an address that is only up while someone is building. One
+ * machine, one Logue, one address — and it is the one already in `api.ts`.
+ */
+const WEB_APP = HOST;
 
 /** What came off the page, as opposed to what you said about it. */
 const FROM_THE_PAGE = new Set(["page", "selection"]);

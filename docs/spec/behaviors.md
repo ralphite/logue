@@ -21,6 +21,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   any work on it — a request that lives only in a reply is not queued.
 - **Verify in a real browser, against the real Host and a real model.** Unit
   tests are necessary and never sufficient. No mocks standing in for a run.
+- **Notion is part of every check, not a bonus round.** Anything touching the
+  browser surfaces is tested in Notion as well — a plain `<textarea>` on a test
+  page proves nothing about the editors people actually write in. Notion and
+  Google Docs are where a caret, a selection and a paint cycle behave unlike
+  anywhere else, and both must pass before something is called done.
 - **A screenshot that reports a bug is saved into the repository tree and
   ignored by git**, under `docs/spec/shots/`, and the task cites it by name. It
   belongs next to the task it explains, not in a temporary folder that empties
@@ -169,6 +174,12 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   reference for its behaviour: read it out of the history and match it item by
   item, rather than inventing a replacement. A rebuild may change how the panel
   is built; what it does for the person was already settled.
+- **Right-clicking a page offers the Skills that apply to a whole page** —
+  "translate to Chinese" and its like — listed by name in the browser's own
+  menu. Choosing one opens the Side Panel onto a conversation: first a message
+  naming the Skill that ran, then a message carrying what it produced. The
+  panel is where an answer about the page is read, and it reads as a thread,
+  not as a box that has been filled in.
 - **A recording is saved before it is transcribed.** A model failure never
   costs someone what they said — and neither does the Host being off. A
   recording made while nothing is listening waits in the extension and goes in
@@ -218,3 +229,17 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   they renamed, a tag they wrote, a transcript they corrected: all theirs.
 - **A second writer is refused, not silently overwritten.**
 - **The Host answers only Logue** — an extension, or a page on this machine.
+
+## Surviving an update
+
+- **An update leaves nothing of Logue's broken behind.** Reloading the
+  extension destroys every content script and every extension page it had
+  running, and each surface has to come back on its own: content scripts are
+  re-injected into open tabs, and the side panel is re-pointed so Chrome
+  navigates it again. A panel frame with Chrome's own "Your file couldn't be
+  accessed" inside it is the shape this failure takes.
+- **Nothing that a person is in the middle of is interrupted to update.** A
+  live recording holds the reload back. Being *idle* is not the same as being
+  in use, though: an idle offscreen document once blocked every update for the
+  rest of a session, so a surface only defers an update while it is actually
+  doing something.
