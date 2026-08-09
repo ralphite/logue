@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from .app import App
+from .build import installed_web
 from .domain import organize
 from .http import serve
 
@@ -24,7 +25,10 @@ def main(argv: list[str] | None = None) -> int:
 
     host, _, port = args.address.rpartition(":")
     app = App(Path(args.data_dir).expanduser().resolve())
-    server = serve(app.router, host or "127.0.0.1", int(port))
+    # The Host serves the app itself once one is installed. A product that
+    # needs a terminal window left open is a product you cannot check on.
+    web = installed_web()
+    server = serve(app.router, host or "127.0.0.1", int(port), web)
 
     # Anything a previous run was part-way through. Without this a Host
     # restarted mid-classification leaves Sources waiting for good.
@@ -32,7 +36,8 @@ def main(argv: list[str] | None = None) -> int:
     if resumed:
         print(f"Resuming {resumed} Sources that were still being filed.", flush=True)
 
-    print(f"Logue Host on http://{host or '127.0.0.1'}:{port}  data: {app.store.root}", flush=True)
+    where = "app + API" if web else "API only — run `npm run dev:web` for the app"
+    print(f"Logue Host on http://{host or '127.0.0.1'}:{port} ({where})  data: {app.store.root}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

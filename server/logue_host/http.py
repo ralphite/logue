@@ -11,12 +11,26 @@ import json
 import re
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .errors import BadRequest, HostError
 
 MAX_BODY = 64 * 1024 * 1024
+
+MEDIA_TYPES = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".woff2": "font/woff2",
+}
 
 LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
@@ -123,7 +137,28 @@ class Router:
         return any(pattern.match(path) for _, pattern, _ in self._routes)
 
 
-def serve(router: Router, host: str, port: int) -> ThreadingHTTPServer:
+def web_file(root: Path, path: str) -> tuple[bytes, str] | None:
+    """The built web app, resolved from a URL path.
+
+    Anything that is not a real file is answered with `index.html`, because the
+    app routes on the hash and a deep link has to survive a reload.
+
+    The containment check is not decoration: `..` in a URL path is how a local
+    server gets talked into reading someone's SSH key.
+    """
+    wanted = (root / path.lstrip("/")).resolve() if path.strip("/") else root / "index.html"
+    base = root.resolve()
+    inside = wanted == base or base in wanted.parents
+    if not inside or not wanted.is_file():
+        wanted = base / "index.html"
+        if not wanted.is_file():
+            return None
+    return wanted.read_bytes(), MEDIA_TYPES.get(wanted.suffix, "application/octet-stream")
+
+
+def serve(router: Router, host: str, port: int, web: Path | None = None) -> ThreadingHTTPServer:
+    """`web` is the built web app, served at `/` so the product needs no terminal."""
+
     class RequestHandler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
         server_version = "Logue"
@@ -193,6 +228,16 @@ def serve(router: Router, host: str, port: int) -> ThreadingHTTPServer:
             url = urlparse(self.path)
             match = router.match(self.command, url.path)
             if match is None:
+                # Anything that is not the API is the app, when one is
+                # installed. `/v1/…` is never handed to it: a typo in an API
+                # path answering with a page of HTML is how a client ends up
+                # reporting "unexpected token <" instead of "no such route".
+                if web and self.command in {"GET", "HEAD"} and not url.path.startswith("/v1/"):
+                    page = web_file(web, url.path)
+                    if page is not None:
+                        body, media = page
+                        self._send(Response(raw=body, media_type=media))
+                        return
                 status = 405 if router.allows(url.path) else 404
                 self._send(Response({"error": "not found" if status == 404 else "method not allowed"}, status))
                 return

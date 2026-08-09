@@ -19,14 +19,27 @@ from pathlib import Path
 DEFAULT_INSTALL_ROOT = "~/.local/share/logue"
 
 
+def install_root() -> Path:
+    return Path(os.environ.get("LOGUE_INSTALL_ROOT") or DEFAULT_INSTALL_ROOT).expanduser()
+
+
+def installed_web() -> Path | None:
+    """The built web app, when one has been installed beside the extension.
+
+    None for a Host run straight from a checkout, where `npm run dev:web` is
+    the right way to see the app and serving a stale `dist/` would be a trap.
+    """
+    web = install_root() / "web"
+    return web if (web / "index.html").is_file() else None
+
+
 def installed_extension_build() -> str:
     """The installed build, or "" when nothing is installed here.
 
     Empty is the honest answer for a Host run straight from a checkout: there is
     no deployed folder to be behind, so no browser should reload for it.
     """
-    root = os.environ.get("LOGUE_INSTALL_ROOT") or DEFAULT_INSTALL_ROOT
-    manifest = Path(root).expanduser() / "extension" / "manifest.json"
+    manifest = install_root() / "extension" / "manifest.json"
     try:
         loaded = json.loads(manifest.read_text("utf-8"))
     except (OSError, ValueError):

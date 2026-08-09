@@ -25,7 +25,7 @@ from logue_host.app import App
 from logue_host.build import installed_extension_build
 from logue_host.domain import capture, corrections, organize
 from logue_host.errors import BadRequest, Conflict, NotFound
-from logue_host.http import Request, serve
+from logue_host.http import Request, serve, web_file
 from logue_host.providers import Provider
 
 
@@ -715,6 +715,46 @@ class InstalledBuildTest(unittest.TestCase):
     def test_a_manifest_without_a_build_reports_nothing(self) -> None:
         self.write_manifest(json.dumps({"version": "1.0.0"}))
         self.assertEqual(installed_extension_build(), "")
+
+
+class ServingTheApp(unittest.TestCase):
+    """The Host hands out the built web app, and nothing else on the disk."""
+
+    def setUp(self) -> None:
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        self.web = Path(self.dir.name) / "web"
+        (self.web / "assets").mkdir(parents=True)
+        (self.web / "index.html").write_text("<!doctype html>app", encoding="utf-8")
+        (self.web / "assets" / "app.js").write_text("console.log(1)", encoding="utf-8")
+        Path(self.dir.name, "secret.txt").write_text("not yours", encoding="utf-8")
+
+    def test_serves_the_page(self) -> None:
+        found = web_file(self.web, "/")
+        assert found is not None
+        self.assertIn(b"app", found[0])
+        self.assertTrue(found[1].startswith("text/html"))
+
+    def test_serves_an_asset_with_its_own_type(self) -> None:
+        found = web_file(self.web, "/assets/app.js")
+        assert found is not None
+        self.assertEqual(found[0], b"console.log(1)")
+        self.assertTrue(found[1].startswith("text/javascript"))
+
+    def test_an_unknown_path_is_the_page(self) -> None:
+        # The app routes on the hash, so a deep link has to survive a reload.
+        found = web_file(self.web, "/documents/whatever")
+        assert found is not None
+        self.assertIn(b"app", found[0])
+
+    def test_refuses_to_climb_out_of_the_web_folder(self) -> None:
+        # `..` in a URL is how a local server is talked into reading an SSH key.
+        found = web_file(self.web, "/../secret.txt")
+        assert found is not None
+        self.assertNotIn(b"not yours", found[0])
+
+    def test_nothing_to_serve_when_the_app_is_not_installed(self) -> None:
+        self.assertIsNone(web_file(Path(self.dir.name) / "absent", "/"))
 
 
 if __name__ == "__main__":

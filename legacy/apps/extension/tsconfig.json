@@ -1,8 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
-    "types": ["chrome", "node", "vite/client", "vitest/globals"]
-  },
-  "include": ["src", "vite.*.config.ts", "*.html"]
-}

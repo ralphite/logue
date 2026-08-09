@@ -39,7 +39,26 @@ step "1/4  Build"
 say "web, extension, and host compiled"
 say "build ${LOGUE_BUILD}"
 
-step "2/4  Install the one extension"
+step "2/5  Retire anything older"
+# The machine should hold one Logue, not a sediment of them. Only ever the
+# install root's own leftovers — never the workspace, which lives elsewhere and
+# is the one thing here that cannot be rebuilt.
+retired=0
+for stale in "${install_root}/current" "${install_root}/releases" "${install_root}/run"; do
+  [[ -e "${stale}" || -L "${stale}" ]] || continue
+  rm -rf "${stale}"
+  retired=$((retired + 1))
+done
+old_agent="${HOME}/Library/LaunchAgents/com.ralphite.logue.plist"
+if [[ -f "${old_agent}" ]]; then
+  launchctl bootout "gui/$(id -u)/com.ralphite.logue" 2>/dev/null || true
+  rm -f "${old_agent}"
+  retired=$((retired + 1))
+  say "removed the previous login item (com.ralphite.logue)"
+fi
+say "$([[ ${retired} -gt 0 ]] && echo "retired ${retired} leftover(s)" || echo "nothing older to retire")"
+
+step "3/5  Install the one extension"
 mkdir -p "${extension_dir}"
 staging="${extension_dir}/.next.$$"
 rm -rf "${staging}"
@@ -66,34 +85,19 @@ version="$(python3.13 -c "import json;print(json.load(open('${extension_dir}/man
 say "extension ${version} at ${extension_dir}"
 say "exactly one copy — no releases/ directory to grow"
 
-step "3/4  Restart the Host on this build"
-# Only ever stop a Host serving this workspace; another one is not ours to kill.
-existing="$(pgrep -f "logue_host .*--address ${address}" || true)"
-if [[ -n "${existing}" ]]; then
-  kill ${existing} 2>/dev/null || true
-  for _ in $(seq 1 20); do pgrep -f "logue_host .*--address ${address}" >/dev/null || break; sleep 0.5; done
-fi
+step "4/5  Install the app the Host serves"
+# So the product is a URL, not a terminal window someone has to keep open.
+web_dir="${install_root}/web"
+web_staging="${install_root}/.web.next.$$"
+rm -rf "${web_staging}"
+mkdir -p "${web_staging}"
+cp -R "${repo}/web/dist/." "${web_staging}/"
+[[ -f "${web_staging}/index.html" ]] || fail "the web build is missing index.html"
+rm -rf "${web_dir}"
+mv "${web_staging}" "${web_dir}"
+say "app at ${web_dir}"
 
-cd "${repo}/server"
-LOGUE_DATA_DIR="${data_dir}" LOGUE_INSTALL_ROOT="${install_root}" \
-  nohup python3.13 -m logue_host --address "${address}" \
-  >"${install_root}/host.log" 2>&1 &
-cd "${repo}"
-
-# Wait for the Host that reports *this* build. Waiting for any answer is not
-# enough: a dying process can still serve one, and then the deploy reports
-# success while the old code is what answered.
-for _ in $(seq 1 40); do
-  [[ "$(curl -sf "http://127.0.0.1:${port}/v1/status" | python3.13 -c \
-      'import json,sys;print(json.load(sys.stdin).get("build",""))' 2>/dev/null)" == "${LOGUE_BUILD}" ]] && break
-  sleep 0.5
-done
-[[ "$(curl -sf "http://127.0.0.1:${port}/v1/status" | python3.13 -c \
-    'import json,sys;print(json.load(sys.stdin).get("build",""))' 2>/dev/null)" == "${LOGUE_BUILD}" ]] \
-  || fail "the Host did not come up on ${LOGUE_BUILD}; see ${install_root}/host.log"
-say "Host on http://${address} using ${data_dir}"
-
-step "4/4  Keep it running"
+step "5/5  Run it, and keep it running"
 plist="${HOME}/Library/LaunchAgents/com.logue.host.plist"
 if [[ "$(uname)" == "Darwin" ]]; then
   mkdir -p "$(dirname "${plist}")"
@@ -122,11 +126,40 @@ if [[ "$(uname)" == "Darwin" ]]; then
 </dict>
 </plist>
 PLIST
-  say "login item written to ${plist}"
-  say "enable with: launchctl bootstrap gui/\$UID ${plist}"
+
+  # Started through launchd rather than beside it. A `nohup` copy would answer
+  # on the same port, and then "is it running?" and "will it come back after a
+  # reboot?" would have two different answers.
+  launchctl bootout "gui/$(id -u)/com.logue.host" 2>/dev/null || true
+  for _ in $(seq 1 20); do pgrep -f "logue_host .*--address ${address}" >/dev/null || break; sleep 0.5; done
+  # Anything else still holding the port is a Host we did not start.
+  pkill -f "logue_host .*--address ${address}" 2>/dev/null || true
+  launchctl bootstrap "gui/$(id -u)" "${plist}" || fail "launchctl would not take ${plist}"
+  say "login item ${plist} — starts at login, restarts if it stops"
+else
+  cd "${repo}/server"
+  LOGUE_DATA_DIR="${data_dir}" LOGUE_INSTALL_ROOT="${install_root}" \
+    nohup python3.13 -m logue_host --address "${address}" >"${install_root}/host.log" 2>&1 &
+  cd "${repo}"
 fi
 
+# Wait for the Host that reports *this* build. Waiting for any answer is not
+# enough: a dying process can still serve one, and then the deploy reports
+# success while the old code is what answered.
+for _ in $(seq 1 60); do
+  [[ "$(curl -sf "http://127.0.0.1:${port}/v1/status" | python3.13 -c \
+      'import json,sys;print(json.load(sys.stdin).get("build",""))' 2>/dev/null)" == "${LOGUE_BUILD}" ]] && break
+  sleep 0.5
+done
+[[ "$(curl -sf "http://127.0.0.1:${port}/v1/status" | python3.13 -c \
+    'import json,sys;print(json.load(sys.stdin).get("build",""))' 2>/dev/null)" == "${LOGUE_BUILD}" ]] \
+  || fail "the Host did not come up on ${LOGUE_BUILD}; see ${install_root}/host.log"
+
+# And that it is serving the app, not only the API.
+curl -sf "http://127.0.0.1:${port}/" | grep -q "<div id=\"root\"" \
+  || fail "the Host answered but is not serving the app; see ${install_root}/host.log"
+
 printf '\n✓ Logue %s is live\n' "${version}"
-say "Web:        cd ${repo} && npm run dev:web"
+say "Open:       http://${address}"
 say "Extension:  reloads itself within 5 minutes — no visit to chrome://extensions"
 say "First time: Load unpacked → ${extension_dir}"

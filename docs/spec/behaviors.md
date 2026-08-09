@@ -36,6 +36,17 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
 
 ## The machine
 
+- **One version, everywhere.** One copy of the code in the repository, one
+  Host running, one extension installed. A deploy retires what came before it
+  rather than adding to it — no `releases/` to grow, no second login item, no
+  archived tree kept "just in case" (git already keeps it).
+- **Installed and running, so it can be checked at any moment.** The Host is a
+  login item that restarts if it stops, and it serves the app itself at
+  `http://127.0.0.1:8787`. Needing a terminal window left open means the
+  product is not actually installed.
+- **The Host listens on loopback only.** Never `0.0.0.0` — the workspace has no
+  password.
+
 - **One version of the extension on this machine.** No `releases/` directory
   that grows. Deploy swaps the contents of one folder in place.
 - **The Host is always running the build that is installed**, and restarts onto

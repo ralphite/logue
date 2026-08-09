@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "ignorePatterns": ["legacy/**", "**/dist/**", "**/storybook-static/**"],
+  "ignorePatterns": ["**/dist/**", "**/storybook-static/**"],
   "plugins": ["typescript", "react", "unicorn", "oxc"],
   "categories": {
     "correctness": "error",

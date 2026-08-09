@@ -1,6 +1,13 @@
 /** The Host's contract, typed once. Every call goes through `request`. */
 
-const HOST = import.meta.env.VITE_LOGUE_HOST ?? "http://127.0.0.1:8787";
+/**
+ * A build is only ever served by the Host, so it talks to where it came from —
+ * which also means opening it as `localhost` instead of `127.0.0.1` does not
+ * turn every call into a cross-origin one. In dev, vite serves the page and the
+ * Host is somewhere else.
+ */
+const HOST =
+  import.meta.env.VITE_LOGUE_HOST ?? (import.meta.env.DEV ? "http://127.0.0.1:8787" : window.location.origin);
 
 export interface Material {
   id: string;
