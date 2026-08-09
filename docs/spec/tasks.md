@@ -1,105 +1,66 @@
-# The queue
+# 任务队列
 
-Everything asked for, and where it stands. This file is the durable copy — the
-session's task list is a working mirror of it and dies with the session.
-Anything only in a session is one crash from being lost, and this list has been
-lost before.
+要做的事,和它们现在的状态。**这个文件是唯一的正本** —— 会话里的任务列表只是它的一份镜像,会话结束就没了。只存在于会话里的东西,一次崩溃就丢,而这份清单已经丢过一次。
 
-**Every new request goes in here the moment it is made**, before any work on
-it. A request that is only in a reply is not queued.
+**每一条新要求都在提出的当下写进这里**,写完再动手。只出现在回复里的要求不算入队。
 
-Two files, two jobs. This one is the order of work and what is still open.
-[behaviors.md](behaviors.md) is what must be true when a thing is done, written
-so it survives the next rewrite. A request usually lands in both.
+两个文件,两件事。这里管**顺序**和**还没做的**;[behaviors.md](behaviors.md) 管**做完之后必须成立什么**,写成能扛过下一次重写的样子。一条要求通常两边都要落。
 
-## Now, in this order
+## 现在,按这个顺序
 
-| | Task | Why it is here |
+| | 任务 | 为什么在这 |
 |---|---|---|
-| **X7** | An untouched new Document, Skill or Project must not be saved. Clicking `+` repeatedly must not leave a trail of empty items | Reported. Caused by U5: the `+` creates through the Host immediately. Nothing should be written until it is meant |
-| **U6** | Stream rail back to a flat list; a type icon on the left of each row; drop the blue dot, "47 to file", and the groups icon | Reported. Grouping by Project was a modelling error — a Source belongs to several Projects and `projects[0]` silently dropped the rest. The row icon follows Notion; `OriginMark` already exists and the main area uses it |
-| **V8** | Document deep links — the open document in the URL, bookmarkable, Back works | The hash carries the route but not the selection, so a document cannot be linked or reached with Back |
-| **B14** | Extension resilience: offline voice queue, all Skills on a selection | Tab self-healing is done; these two remain |
-| **B3** | Skill revision browsing | Skills already keep revisions and nothing reads them back — the same gap documents had before V5 |
-| **R12** | Competitor sweep and whatever it turns up | The rebuild it was waiting on is finished |
+| **X8** | 版面:Project 详情右侧一大片死区,每行文字被右边缘切断 | 你报的,带截图。四个 section 都要过一遍,不只是 Projects |
+| **X9** | Project 下的 Sources 每行要能点进 Stream 里那一条 | 你报的。现在只有域名是外链;这条 Source 在 Logue 里有主页,却点不进去。所有列 Sources 的地方都要查 |
+| **U6** | Stream 边栏改回平铺;每行左侧加类型图标;去掉蓝点、"47 to file"、分组图标 | 你报的。按 Project 分组是我的模型错误 —— 一条 Source 可以属于多个 Project,`projects[0]` 把其余的悄悄丢了。行图标参考 Notion,`OriginMark` 已经存在,主区在用 |
+| **V8** | 文档深链接 —— 打开的是哪一篇写进 URL,可收藏,后退能回去 | hash 只带路由不带选中项,所以文档没法链接、没法用后退回到 |
+| **B14** | 扩展韧性:离线语音队列、选区上给出全部 Skill | 标签页自愈已完成,剩这两项 |
+| **B3** | Skill 版本浏览 | Skill 一直在存版本,没有任何地方读回来 —— 和文档在 V5 之前一模一样的窟窿 |
+| **R12** | 竞品扫描,以及它翻出来的东西 | 它等的那次重建已经结束了 |
 
-## Waiting on a decision
+## 等你拍板
 
-| | Task | The question |
+| | 任务 | 要定的是什么 |
 |---|---|---|
-| **V7** | Selection rewrite inside a document, per-hunk accept/reject | Should a model edit a document in place, or only produce answers a person places? An in-place rewrite carries no `[Source n]`, which cuts against the one rule the product exists to enforce |
-| **V3** | Async dictation — keep typing while it transcribes | How long does transcription actually take? Under a second and the queue-and-remap machinery is cost for nothing. Measure first |
-| **V6** | Microphone in the CommandBox | Small, and only worth it if V3 lands |
+| **V7** | 文档内选区改写,逐段 accept/reject | **你想不想让模型直接改文档?** 现在是严格的"先产出、人再放置"。就地改写没有 `[Source n]`,这跟产品的立身之本冲突 |
+| **V3** | 异步听写 —— 转写时不锁住,可以接着打字 | **转写实际要等多久?** 一秒内返回的话,整套队列+重映射就是白搭。先量 |
+| **V6** | CommandBox 里加麦克风 | 很小,而且只有 V3 落地才有意义 |
 
-## Standing rules, as they were asked for
+## 长期规则(按你说的原话记)
 
-These are working agreements, not tasks. Each one is also in
-[behaviors.md](behaviors.md), which is where the detail lives.
+这些是工作约定,不是任务。每一条在 [behaviors.md](behaviors.md) 里都有对应的详细版本。
 
-- **Manage the queue and keep working through it.** Decide the order; do not
-  wait to be told to carry on.
-- **Start the next task the moment the last one is done.** Report when there is
-  something worth reading, not between every item.
-- **Never stop.** If something is in the way, find another route.
-- **A new ask goes into the queue, not in front of the current work** — unless
-  it is broken for the person right now.
-- **Write every requested behaviour down the moment it is asked for**, so a
-  rewrite cannot quietly drop it.
-- **A competitor's feature list is a menu, not an order.** Take what earns its
-  place and delete the rest. Minimal and immediately obvious, not complete.
-- **Verify in a real browser, with the real Host and a real model.** No mocks
-  standing in for a run.
-- **Verification writes into the "Logue QA" Project and deletes nothing.**
-- **One version everywhere** — one copy in the repository, one Host, one
-  extension — and all of it installed and running, so it can be checked at any
-  moment without a terminal.
-- **Answer in Chinese.**
+- **自己管队列、自己往下推。** 顺序你来定,不要等人喊继续。
+- **上一个做完立刻做下一个。** 有值得读的东西才汇报,不要每做一件报一次。
+- **不要停。** 有东西挡路就绕,不要停下来等。
+- **新的要求进队列,不插到手上这件前面** —— 除非它现在就是坏的。
+- **每一条被要求的行为,在被提出的当下就写下来**,让重写不能悄悄把它弄丢。
+- **竞品的功能清单是菜单,不是命令。** 值得的留下,其余删掉。标准是极简、一眼就懂,不是"抄全"。
+- **在真实浏览器里、用真实 Host 和真实模型验证。** 不拿 mock 顶替。
+- **验证写进 "Logue QA" Project,并且不删任何东西。**
+- **一台机器只有一套** —— 一份代码、一个 Host、一个扩展 —— 而且全部装好、跑着,随时能查,不需要开终端。
+- **用中文回复。**
 
-## Done
+## 已完成
 
-**The rebuild (R1–R11)** — archive, feature tiers and ten journeys, scaffold
-and four gates, then server, UI package, web, extension, install, the journeys
-run for real, three review loops, and finally deleting the archived tree.
+**重建(R1–R11)** —— 归档、功能分级与十条使用路径、脚手架与四道门禁,然后 server、UI 包、web、扩展、安装,十条路径真机跑通,三轮复核,最后删掉归档的旧树。
 
-**One machine, one Logue (M1)** — the Host serves the app itself at
-`http://127.0.0.1:8787` and is a login item that restarts if it stops; the
-v0.2.13 install, its ten releases and its login item are gone. Asked for as
-"there should be just one version in code and running service/extension …
-installed/running so that i can use/check anytime".
+**一台机器一个 Logue(M1)** —— Host 自己托管应用(`http://127.0.0.1:8787`),并且是会自动重启的登录项;v0.2.13 那套安装、它的十个 release 和它的登录项都清掉了。你的原话是 "there should be just one version in code and running service/extension … installed/running so that i can use/check anytime"。
 
-**Documents** — version history you can read and go back through (V5), a model
-writing what each version changed (V2), a title that names itself until someone
-names it (V4). Chosen from the vibedoc review (U4) and confirmed.
+**文档** —— 能读能回滚的版本历史(V5)、模型写出每个版本改了什么(V2)、标题在没人取名之前自己取名(V4)。这三项来自 vibedoc 复核(U4)并经你确认。
 
-**The rail** — the section's list moved into it, chatgpt.com style (U2); it
-learned what a rail is for, taken from agentrunner (U3); it was trimmed back
-down, aligned, and given a hover `+` (U5); and the half-built parts were
-finished — Skills' `+`, empty sections that are no longer dead ends, hover
-reading above selected, and a preview card the pointer can enter (U7).
+**不碰过就不落盘(X7)** —— 连点 `+` 五次不再留下五条空记录。你的原话是 "if a new doc/skill/proj is never touched it should not be saved"。
 
-**The shell (U1)** — product mark, a fixed bar per route, a rail that collapses
-and drags wider and remembers both. Asked for as "新的 UI 没有 header,也没有
-Product logo … 参考第一版".
+**左边栏** —— 分区的列表搬进去,仿 chatgpt.com(U2);学会一个边栏该会的事,取自 agentrunner(U3);再做减法、对齐、hover `+`(U5);把只做了一半的补齐 —— Skills 的 `+`、不再是死胡同的空态、hover 压过 selected、鼠标能移进去的预览卡(U7)。
 
-**Capture and the Side Panel (B1–B19)** — automatic grouping, transcript
-revisions and corrections, the Side Panel's five panes, lineage, deletion
-previews, backup and restore, ⌘K, automatic filing with a review queue, frozen
-transcription context, tags, adoption and undo, default Skill slots.
+**外壳(U1)** —— 产品标识、每个路由一条固定顶栏、可折叠可拖宽并且都记住的边栏。你的原话是 "新的 UI 没有 header,也没有 Product logo … 参考第一版"。
 
-**Bugs reported and fixed (X1–X6)** — two surfaces on screen at once (X1);
-extensions that needed a manual reload (X2); a second writer silently
-overwriting a document (X3); verification writing into the real workspace (X4);
-an error bubble that followed you to the next field (X5); a tab left running a
-build that had been replaced, which is what put an input bar under a selection
-toolbar (X6).
+**采集与 Side Panel(B1–B19)** —— 自动归组、转写修订与纠错、Side Panel 五个分区、血缘、删除影响预览、备份与恢复、⌘K、自动归类与复核队列、冻结的转写上下文、Tag、采用与撤销、默认 Skill 槽位。
 
-**The Host (S1)** — loopback only, origin-checked, and writes refused from a
-page that cannot prove it is Logue.
+**报过并修掉的 bug(X1–X7)** —— 同屏两个浮层(X1);扩展要手动 reload(X2);第二个写入者静默覆盖文档(X3);验证脚本写进真实工作区(X4);错误提示跟着你去下一个输入框(X5);标签页停在已被替换的构建 —— 这正是选区工具条下面还压着一个输入条的原因(X6);没碰过的新建项落盘(X7)。
 
-**vibedoc and agentrunner reviews (C1, U3, U4)** — read, listed, and pruned
-rather than copied wholesale.
+**Host(S1)** —— 只绑回环、校验来源,拿不出 Logue 身份的页面不许写。
 
-**Keeping going without being asked** — a cron job could not do it, because
-cron only fires while the session is idle and misses every tick that lands
-mid-task. A background command that exits, and a Monitor heartbeat, both wake
-the session regardless. Proven, not assumed.
+**vibedoc 与 agentrunner 复核(C1、U3、U4)** —— 读完、列清单、做减法,而不是照单全收。
+
+**不用催也能接着干** —— cron 做不到,因为它只在会话空闲的那一瞬间触发,落在任务中间的每一次都被跳过。会退出的后台命令和 Monitor 心跳都能把会话叫醒,与忙闲无关。这是跑出来验证的,不是假设的。
