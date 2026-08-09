@@ -1,6 +1,6 @@
 import { Check, ChevronDown, GripVertical, Mic, Sparkles, Undo2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
-import { Button, IconButton, RecordingDot, Spinner, cn } from "@logue/ui";
+import { IconButton, RecordingDot, Spinner, cn } from "@logue/ui";
 import { ProfilePicker } from "./ProfilePicker";
 import type { Context } from "../api";
 import type { VoiceOverrides } from "../overrides";
@@ -155,7 +155,7 @@ export function VoiceBar({
           onPointerDown={startDrag}
           onKeyDown={nudge}
           onDoubleClick={() => onResetPosition?.()}
-          className={`inline-flex h-control w-3.5 min-w-3.5 items-center justify-center rounded-sm text-transparent group-hover:text-line-strong hover:bg-surface-muted hover:!text-muted focus-visible:text-muted [touch-action:none] ${
+          className={`inline-flex h-control w-3.5 min-w-3.5 items-center justify-center rounded-sm text-line-strong hover:bg-surface-muted hover:!text-muted focus-visible:text-muted [touch-action:none] ${
             dragging ? "cursor-grabbing !text-muted" : "cursor-grab"
           }`}
         >
@@ -182,7 +182,24 @@ export function VoiceBar({
         </>
       ) : phase === "recording" ? (
         <>
-          <RecordingDot className="mx-1.5" />
+          {/*
+            The tick takes the microphone's own slot, so the pointer that just
+            pressed record is already on the control that ends it. It used to
+            sit at the far right behind the clock, which made every recording
+            end with a sideways journey across the bar.
+          */}
+          <IconButton
+            label="Transcribe and insert (Enter)"
+            variant="primary"
+            onPointerDown={keepFocus}
+            onClick={onStop}
+          >
+            <Check size={15} />
+          </IconButton>
+          <IconButton label="Cancel (Esc)" onPointerDown={keepFocus} onClick={onCancel}>
+            <X size={14} />
+          </IconButton>
+          <RecordingDot className="mx-1" />
           {/* The clock, because ten minutes of speech and ten seconds of it
               look identical on a bar that only shows a dot. Past a minute it
               also says what the end will be, so nobody discovers the ceiling
@@ -190,17 +207,11 @@ export function VoiceBar({
           <span
             role="timer"
             aria-label={`Recording, ${seconds} seconds`}
-            className={cn("mr-1 font-mono text-xs tabular-nums", long ? "text-warning" : "text-muted")}
+            className={cn("mr-1.5 font-mono text-xs tabular-nums", long ? "text-warning" : "text-muted")}
           >
             {clock(seconds)}
           </span>
-          {long && <span className="mr-1 text-xs text-muted">stops at 10:00</span>}
-          <Button variant="primary" onPointerDown={keepFocus} onClick={onStop} title="Accept (Enter)">
-            Accept <kbd>↵</kbd>
-          </Button>
-          <IconButton label="Cancel" onPointerDown={keepFocus} onClick={onCancel}>
-            <X size={14} />
-          </IconButton>
+          {long && <span className="mr-1.5 text-xs text-muted">stops at 10:00</span>}
         </>
       ) : phase === "starting" || phase === "working" ? (
         <>

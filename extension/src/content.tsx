@@ -406,11 +406,13 @@ function Surfaces() {
     if (!caret) forget();
   }, [caret, forget]);
   const barSize = voiceBusy ? BAR.busy : BAR.idle;
-  const barAt = moved
-    ? moved
-    : caret
-      ? besideCaret(caret, viewport(), barSize.width, barSize.height)
-      : undefined;
+  // A place you dragged it to says *where* the bar goes, never *whether* it is
+  // there: the bar belongs to a caret, and without one there is nothing for it
+  // to act on. Letting the dragged position stand on its own left it floating
+  // over pages with nothing focused, which is how it read as stuck.
+  const barAt = caret
+    ? (moved ?? besideCaret(caret, viewport(), barSize.width, barSize.height))
+    : undefined;
   const commandAt = caret
     ? besideCaret(caret, viewport(), COMMAND.width, COMMAND.height)
     : { left: 16, top: 16 };
