@@ -15,29 +15,17 @@
 
 | | 任务 | 为什么在这 |
 |---|---|---|
-| **X20** | 转写完不要再问一次"要插入吗" | 你的原话是 "we don't need this. this violates our rule. must be very easy to use. least friction possible."。截图里:说完话之后弹出一个框,把转写出来的文字放在里面,底下一个 `↵ Insert ⌘↵` 按钮等你再点一次。**说了就该落到光标那里**,不用第二次确认 —— 这多出来的一步违反的正是"极简、摩擦最小"。改错在原地改(转写修订本来就有),不是先审后放。**注意别和 F3 搞混**:F3 里的 Esc/Enter 是 ⌘⇧K 那条路 —— 面板里的对话,你在说给一个 agent 听,那里"采纳"才有意义;这里是页面上的听写,目标是**光标处的输入框**,中间不该有任何一道闸。图:`shots/x20-insert-confirm-step.png` |
-| **X21** | 插入后那条 "Inserted / Undo" 压在正文上,还挪不开 | 你的原话是 "why this cannot be moved? this blocks ui."。截图里那条 `✓ Inserted ↶ Undo ×` 正好盖在你刚插进去的那段字上 —— 挡着看不见,又拖不走。**任何 Logue 的浮层都不许压着人正在读或正在写的内容**。三条路可选(挑一条,别三条都做):①它自己躲开,总落在不遮挡的位置;②能拖走,并且记住你放的地方;③干脆不要这条独立浮条,把"已插入 / 撤销"并进已经在场的那条工具条里。**Undo 这个能力要留着**(采纳与撤销是写死的规则),要去掉的是它现在这个挡路的形态。和 X20 是同一段流程的前后两步,一起改最省事。图:`shots/x21-inserted-toast-blocks-text.png` |
-| **X22** | 新建 Skill 建不出来:要一个屏幕上不存在的字段 | 你的原话是 "this is broken"。截图里:新建 Skill 只问了一个"What is this Skill called?",填好 `Transcription` 按 Create,却报 `instructions is required` —— **界面上根本没有 instructions 这个输入框**。要一个人填一个他看不见的东西,这是彻头彻尾的死路,一个 Skill 都建不出来。两条修法二选一,按"摩擦最小"应该选后者:①把 instructions 这一栏摆到表单上;②**创建时只要名字**,instructions 建完之后在 Skill 页上填 —— 反正 Skill 页本来就能编辑 prompt。顺带查一遍别处还有没有同样的毛病:后端要求的字段,前端却没给入口。图:`shots/x22-skill-create-missing-field.png` |
-| **X23** | Side Panel 里空的分区照样摊开,占满整屏 | 你的原话是"这个违反了渐进式显示 UI 的规则"。截图里:"On this page → Nothing saved yet."、"What you added → No comments yet." —— 两个分区都是空的,却各自占着一大块,把"这里什么都没有"这件事说了两遍,还把真正有内容的东西挤到看不见的地方。空的分区不该摊开:要么整个收起来只留一行标题(数量是 0),要么干脆不显示。**注意别和另一条规则打架**:"空分区要给出一条出路"针对的是**边栏里能新建东西的地方**(那里空着人就没法开始);Side Panel 这两个分区是这一页的读数,没有"从这里新建"这回事,空了就该让位。图:`shots/x23-empty-sections-not-folded.png` |
-| **X24** | Find 的输入框自己带一圈边,和放大镜之间多一条线 | 你的原话是 "remove border of search input text (b/t search icon and ab)"。**根因已经查到**:共享的 `Input` 组件([Field.tsx:6](packages/ui/src/Field.tsx:6))在 `control` 里写了 `focus:border-accent-line` 和 `focus:shadow-[0_0_0_2px_…]`;[FindDialog.tsx:145](web/src/app/FindDialog.tsx:145) 用 `border-0 shadow-none` 去关它,但**关不掉 focus 变体** —— 而这个框是 `autoFocus` 的,等于永远处在 focus 态,那圈边和光晕就一直亮着。对话框外面已经有一层边框了,里面这层是重复的。修法别在调用处再堆 `focus:border-0` 这类 override,给 `Input` 一个"无边框"的变体更干净,别处遇到同样的问题也能用。图:`shots/x24-search-input-double-border.png` |
-| **X25** | 各个页面布局不统一,连宽度都三档 | 你的原话是 "we should use same layout if possible for pages (stream, project, doc etc). why they are different even for width?"。**量出来了**:[theme.css:58](packages/ui/src/theme.css:58) 定了三档宽度 —— reading `820px`、list `940px`、settings `1180px`;`Page` 组件默认走 `list`([AppShell.tsx:295](web/src/app/AppShell.tsx:295)),于是 **Documents 和 Skills 是 820,Stream 和 Projects 因为没写 axis 落到 940,Settings 是 1180**,而 Settings 里面还在 1180 之内又套了一层 `max-w-[560px]`([SettingsRoute.tsx:95](web/src/app/SettingsRoute.tsx:95))。所以宽度不一致既有设计上的三档,也有"没人显式选档"的默认值,两种原因混在一起。**要的是一套布局**:默认所有页面同宽同边距,只有真正读长文的地方才允许收窄,而且必须是显式声明的、说得出理由的例外 —— 不是靠"忘了传参数"决定的。顺手把 Settings 里那层多余的 560 收掉 |
-| **T1** | 全面走查,把这一类一眼可见的问题一次找完 | 你的原话是 "do full audit to find all obvious issues like last one"。"like last one" 指的是 X25 这类:不用深挖、打开页面或读一眼代码就能看出来的不一致和破绽。**走查范围**:每个路由(Stream / Projects / Documents / Skills / Settings)、Side Panel 的每个分区、扩展在页面上的每个浮层。**照着已经写下的规则逐条对**(behaviors.md 的"界面"一节就是清单):宽度与边距是否一致、空态是否占地方、浮层是否压住正文、每个列表行是否点得进去、表单是否要了看不见的字段、控件是否重复、长内容是否撑破页面。**产出是一份清单交给你**,按"值不值得修"排好,不是闷头全改 —— 这条规矩你早就定了:先列清单再动手。用真实的长文档走查,不许用自制测试页。<br><br>**范围随后被你扩大了**,原话是 "ui design must be consistent! everywhere! all levels! this is the basics. on top of this we must do audit to follow ui design best practices. ALL"。所以走查分两层,两层都要**查全**:①**一致性** —— 同一件事在每一处、每一层是不是长得一样、用起来一样(宽度边距、标题空态、行卡片列表、按钮输入框菜单、图标间距字号颜色文案);②**在一致之上,照 UI 设计的正经标准过一遍** —— 层级、对齐、对比度、点击区域、焦点与键盘顺序,以及加载/空/出错/内容过多这四种状态每一处有没有做。**不许抽样,不许"挑几个典型"** |
 | **X26** | 点一个区,直接给"新建"那一页 | 你先说的是 "we don't need http://127.0.0.1:5173/#/skills and others. just auto pick first one",随后改成 **"actually just show new ** page"** —— 以后一条为准。现在点 Skills(Documents、Projects 同理)落到的是一个只写着"从列表里挑一个"的页面,列表明明就在左边,白让人多点一次。**改成进去就是新建**:点 Skills 直接是新建 Skill 那一页,Documents 是新页,Projects 是新 Project。想看旧的,左边列表点一下就是 —— 这才是摩擦最小。四个细节别漏:①**不碰过不落盘**(X7 那条规则),这一页在你打第一个字之前不算存在,点五次不留五条空记录;②**URL 要说清现在是新建**,别停在光秃秃的 `#/skills`;③新建页要是**真的能用的编辑器**,不是一个"点这里新建"的按钮 —— 那等于又多一步;④**Stream 是例外**,它的东西是采进来的、没法"新建",那里维持原样。顺带把 X25 一起想:四个区应该共用同一个外壳,这条正好是那个外壳该管的事 |
 | **F7** | 地址里不要 `#` | 你的原话是 "do not use # in url"。要的是真路径:`/documents/doc_1a2b`,不是 `/#/documents/doc_1a2b`。**已经查过,这件事比看上去小:** ①**服务端那一半现成的** —— Host 早就做了 SPA 兜底([http.py:143](server/logue_host/http.py:143):不是真实文件的路径一律回 `index.html`),所以直接输一个路径、或者在那个路径上刷新,都能落到对的页面,不会 404;②**前端只有一个文件要改** —— 全树搜下来,hash 路由整个只活在 [App.tsx](web/src/app/App.tsx) 里(读 `location.hash`、`hashFor()` 拼串、监听 `hashchange`),换成 `history.pushState` + `popstate` 就行;③**扩展那边零改动** —— 扩展里没有任何一处拼 `#/` 的链接。别忘了:Back 仍然要退回你刚才在读的那一个,不是退回区(这条规则本来就有)。X26 里写的"别停在光秃秃的 `#/skills`",跟着这条一起变成不带 `#` 的写法 |
 | **X11** | **网页上弹出"访问此设备上的其他应用和服务"** —— 高优先,**两轮都没复现,需要你一句话** | 你的原话是 "this must be fixed. high prio"。**第一轮**:代码全树扫,`127.0.0.1:8787` 只出现一次(`api.ts` 的常量),页面侧调用全经 worker 中转;真机对照,同一页面装扩展与不装各跑一遍,用 CDP 数**归属于页面框架**的私有地址请求,两次都是 **0**。**第二轮**(补你没说但我该试的条件):在你截图那个站(noemamag.com)上,页面加载后、Side Panel 打开后、以及等了一段时间之后各数一次 —— 全程 **0**,`local-network-access` 始终是 `prompt`。**诚实的缺口**:选区那一步没成功(那个站的正文不在 `<p>` 里,我的选择器没选中),所以"选区工具条出现"这个条件**两轮都没真正到达**。**要你一句话**:弹框跳出来的那一刻你刚做了什么?(刚选中文字?刚按麦克风?刚开面板?还是页面一加载就弹?)有这一句我就能把最后那个条件补上。图:`shots/x11-noemamag-device-prompt.png`、`shots/x11-experimental-history-device-prompt.png` |
 | **X17b** | Google Docs 的选区工具条:canvas 上没有 DOM 选区,要不要专门做 | X17 验证时坐实的边界:Docs 把选区画在 canvas 上,页面里**不存在** DOM selection,我们的选区检测无从读起 —— 选中文字只出 Google 自己的评论按钮。语音入光标那半已经全通;选区那半(工具条 + 选区 Skill)在 Docs 上今天做不到,除非专门去读 kix 的选区覆盖层(脆、无公开 API)。**要你拍板**:接受这个边界并写进 behaviors,还是投入做 Docs 专用的选区读取 |
 | **X18b** | Side Panel 逐条对齐 v1 的行为 | 你的原话是 "high prio. ext panel must work. check v1 for behavior"。**打不开那一半已经修好**(见下"已完成"):面板是被自更新的 reload 打死的,现在会自愈。剩下这一半是你要的正事 —— 把 v1 的 Side Panel 从 git 历史里挖出来读一遍、列出它当时会做的每一件事,再逐条对现在这个,差在哪补哪,不是重新想一个。和 X16 同源,两件一起读 v1 |
-| **F3** | ⌘⇧K:开面板、开录音,说完进对话 —— **先出清单,不要实现** | 你的原话是 "cmd+shift+k opens the ext panel and starts voice recording, esc to cancel and enter to accept. msg send to chat. in chat we can use existing skills configured (such as translate, add to project etc). the chat should use a llm agent that we can control. check notion for features. do not impl. propose list of features after deep research."。已经定下来的行为:⌘⇧K 一下,面板打开并立刻开始录;**Esc 取消,Enter 采纳**;采纳后这段话作为一条消息进入对话;对话里能调用已经配置好的 Skill(翻译、加进某个 Project……);对话背后是一个**我们自己能控制的 LLM agent**,不是一次性的 prompt。**明确不要现在实现** —— 先深入研究(Notion 的对话与 AI 功能是指定参照),再提出一份功能清单等你拍板。研究这部分和 R12 是同一片地,一起做,一份清单交付 |
-| **F5** | 用历史里说过的话把转写越修越准 —— **先出方案,不要实现** | 你的原话是 "historical user inputs with high quality should be used to improve transcription. e.g. frequent special words/names should be correct. propose features and solution first"。目标很清楚:你反复说到的专有名词、人名,不该每次都被听错一遍。现成的地基有三块 —— Project 的词表(`transcription_profile.vocabulary.terms`,Host 转写时就在读)、光标附近的页面文字(已经当作临时词汇送进去)、以及你手动纠错留下的记录。缺的是把它们连起来的那一步:从历史里自动挑出该记住的词。**先提方案再动手**,方案里必须回答的:①什么算"高质量"输入(被采纳的?被你改过的?出现够多次的?);②词是自动进词表还是要你点头;③词表属于一个 Project 还是全局;④怎么不把口误也学进去,以及学错了怎么撤 |
+| **T1b** | 审计余下五条:#1 删 `--color-faint`、#2 统一 h2 字重、#4 正文只留两档字号、#5 h1 可及名、#6 Stream 的 h1 | T1 的产出([audit.md](audit.md))里排好的六条,#3(点击区域)已修;你说 "work on all remaining tasks",余下五条照单做 |
+| **F3** | ⌘⇧K:开面板、开录音,说完进对话 —— **清单已批,按清单实现** | 你的原话定的行为:⌘⇧K 一下,面板打开并立刻开始录;**Esc 取消,Enter 采纳**;采纳后这段话作为一条消息进入对话;对话里能调用已配置的 Skill;背后是**我们自己能控制的 LLM agent**。清单在 [proposals.md](proposals.md),你以 "v6/v7 sounds good. work on all remaining tasks" 按推荐答案放行:面板对话线程、Skill 经 contexts 进对话、agent 读不问写要问、产出带 Sources |
+| **F5** | 用历史里说过的话把转写越修越准 —— **方案已批,按方案实现** | 方案在 [proposals.md](proposals.md),你按推荐答案放行。第一档:你亲手做过的纠错(修订记录里 before≠after 的词)自动进词表 —— 那是你用手投过票的词;第二档:反复出现的专有名词进**候选列表**等你点头,不自动生效;红线:**永不**从未经人手的转写原文里学词(口误会自我强化)。学错了能撤:词表本来就可编辑 |
 | **F6** | 做一个叫 Transcription 的 Skill:把说出来的话清干净 | 你的原话是"把这些重复的不一致的嗯啊这些就是这些词都删掉。然后基本上就是整体保持一致吧,但是把一些可以简化的给简化,然后让它更通顺可读一点"。它要做四件事:①删掉语气词和口头禅("嗯""啊""就是""那个"这类);②删掉重复和自我纠正留下的碎句;③**整体保持一致** —— 意思、语气、你的用词都不动,这不是改写;④能简化的地方简化,让它读起来通顺。**边界要写死在 prompt 里:只删不加。** 不许补充你没说过的内容,不许换成更"书面"的说法,不许替你把话说完。建好之后设成转写的默认 Skill(`defaults.transcription` 这个槽位本来就在)。**依赖 X22** —— 现在新建 Skill 是坏的,建不出来。顺带一提,你提这个需求时说的那段话本身就是最好的测试样例 |
 | **S3** | 真 key 到位后:重验所有 mock 之下验过的流程 | 替身模型只能证明管道通,不能证明产出对。要重验的:F6 的真话样例、审计的加载/出错/超长三态在真实延迟下的表现、X17 的真实转写、以及任何在此期间打了 mock 标的验证 |
 | **R12** | 竞品扫描,以及它翻出来的东西 | 你的原话点了方向:"anywhere voice input with customizable skills, notion's skills in docs, lineage of all content, content gen from sources, pkm"。做完研究把值得的功能补上,"polish the ux/product design/features to make it very good. keep pushing automatically in this way" |
-
-## 等你拍板
-
-| | 任务 | 要定的是什么 |
-|---|---|---|
-| **V7** | 在文档里选一段,让模型改写,你逐段点"要"或"不要" | **要不要让模型直接动你的文档?** 现在的规矩是:模型只管写出来,放不放、放在哪儿由你说了算。如果让它就地改,改出来的句子上没有 `[Source n]`,就没人知道这句话是从哪来的 —— 而"每句话都能追回出处"正是这个产品的立身之本。**这件事只有你能定**,所以它在这里等着 |
 
 ## 长期规则(按你说的原话记)
 
@@ -71,6 +59,16 @@
 - **用中文回复。**
 
 ## 已完成
+
+**选区改写,逐段点头(V7)⚠️ mock 标** —— 你拍的板落成了这样:**模型可以碰文档,但只能经过你的手,一次一段。** 选一段、说要怎么改,提案回来时已经折成"决定" —— 没动的段落淡着,每个改动两边都摆出来,默认要、点一下变不要;Apply 落下去就是一次普通编辑,版本历史照记,提案本身存成一条 Run(选区和指令都在),日后"这句怎么来的"有处可查。Host 侧钉死:出提案不碰文档,内容和版本号原样。119 条 Host 测试,真机 8/8。我自己的检查又栽一次:接受和 Apply 挤在同一段同步脚本里,Apply 读到的还是没提交的旧状态 —— 真人两次点击之间永远隔着一次渲染,测试也得隔着。
+
+**页面上的听写不再多问(X20+X21)** —— 说完直接落光标,没有"要插入吗"那一步;"已插入/撤销"并进工具条,不再是一条压着正文的独立浮层。在真实 Google Docs 上得的证。
+
+**Skill 建得出来了(X22)** —— 创建只要名字;instructions 到 Skill 页上再填,页面会明说它还缺什么才能跑。之前是要一个屏幕上不存在的字段,一个 Skill 都建不出来。
+
+**空分区收成一行(X23)+ Find 的重复边框(X24)+ 一套宽度(X25)** —— Side Panel 里空的分区只剩一行标题;`Input` 有了 `bare` 变体,Find 里那圈永远亮着的 focus 边没了;三档页宽收成一套,Settings 里那层多余的 560 一起拆掉。
+
+**全面走查(T1)** —— 产出 [audit.md](audit.md):六条值得修的按值不值得排好,三种极端状态(加载/出错/超长)在替身模型下补齐 7/7。#3(16px 的点击区域)已修到 24px 地板;余下五条在队列(T1b)。
 
 **重建(R1–R11)** —— 归档、功能分级与十条使用路径、脚手架与四道门禁,然后 server、UI 包、web、扩展、安装,十条路径真机跑通,三轮复核,最后删掉归档的旧树。
 
