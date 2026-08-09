@@ -400,3 +400,12 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   anywhere on screen, so no Skill could be made at all. A Skill is named
   first and written on its own page; until it has a prompt it is not offered
   anywhere and will not run, and its page says so rather than looking finished.
+- **One column, every page.** Same width, same padding, everywhere. A narrower
+  column is allowed only where long prose is genuinely read, and only when it
+  is asked for and defensible — never because nobody passed a parameter. There
+  were four widths at once and not one of them had been chosen.
+- **A component's frame can be left off; it cannot be overridden away.** A
+  `focus:` variant beats `border-0` at the call site, and a box that
+  autofocuses is in focus always — so a "borderless" input drew a permanent
+  ring. Where a control sits inside something already framed, it takes the
+  variant that has no frame.

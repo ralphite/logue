@@ -292,7 +292,6 @@ export function Page({
   onBack,
   here,
   actions,
-  axis = "list",
   children,
 }: {
   title: string;
@@ -301,10 +300,8 @@ export function Page({
   /** What is open, when the title alone only names the section. */
   here?: string;
   actions?: ReactNode;
-  axis?: "reading" | "list" | "settings";
   children: ReactNode;
 }) {
-  const width = { reading: "max-w-reading", list: "max-w-list", settings: "max-w-settings" }[axis];
   return (
     <>
       {/*
@@ -314,7 +311,7 @@ export function Page({
         unrelated things.
       */}
       <header className="shrink-0 border-b border-line">
-        <div className={cn("mx-auto flex h-11 items-center gap-1 px-8", width)}>
+        <div className="mx-auto flex h-11 max-w-page items-center gap-1 px-8">
           <h1 className="flex min-w-0 items-center gap-1 text-[13px] font-[560] text-ink">
             {onBack ? (
               // The way back is the section's own name, which is where a back
@@ -340,7 +337,7 @@ export function Page({
         </div>
       </header>
       <div className="logue-scroll min-h-0 flex-1">
-        <div className={cn("mx-auto px-8 py-6", width)}>{children}</div>
+        <div className="mx-auto max-w-page px-8 py-6">{children}</div>
       </div>
     </>
   );

@@ -49,7 +49,7 @@ export function MaterialPanel({
       </header>
 
       <div className="logue-scroll min-h-0 flex-1">
-        <div className="mx-auto grid max-w-reading gap-3 px-8 py-6">
+        <div className="mx-auto grid max-w-page gap-3 px-8 py-6">
           {lineage.error && <ErrorNote>{lineage.error}</ErrorNote>}
           {action.error && <ErrorNote className="mb-2">{action.error}</ErrorNote>}
           {!material ? (

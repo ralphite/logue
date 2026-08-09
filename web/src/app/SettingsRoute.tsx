@@ -91,8 +91,8 @@ export function SettingsRoute() {
   const voiceProfile = (settings.data?.settings.voice_profile ?? {}) as { primary_language?: string };
 
   return (
-    <Page title="Settings" axis="settings">
-      <div className="grid max-w-[560px] gap-6">
+    <Page title="Settings">
+      <div className="grid gap-6">
         <Section title="Model">
           <Capability
             label="Generating"

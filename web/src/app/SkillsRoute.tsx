@@ -76,7 +76,6 @@ export function SkillsRoute({
       title="Skills"
       onBack={() => onOpen(undefined)}
       here={skill.name}
-      axis="reading"
       actions={
         <>
           {!skill.system && (

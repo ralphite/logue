@@ -54,10 +54,18 @@
   --spacing-bar: 32px;
   --spacing-row: 36px;
 
-  /* Reading axes, exposed as max-w-* utilities. */
-  --container-reading: 820px;
-  --container-list: 940px;
-  --container-settings: 1180px;
+  /*
+   * One column, every page.
+   *
+   * There were three — 820 for reading, 940 for lists, 1180 for settings —
+   * and no page said which it wanted, so the width of a screen came down to
+   * whether anyone had remembered to pass a parameter. Documents and Skills
+   * were 820, Stream and Projects fell to 940 by default, Settings was 1180
+   * with a 560 column inside it. Same product, four widths, none of them
+   * chosen. A narrower column is still allowed where long prose is genuinely
+   * read — but it has to be asked for, and be defensible.
+   */
+  --container-page: 820px;
 
   /* Injected surfaces sit above every host-page stacking context. */
   --z-index-surface: 2147483646;

@@ -142,7 +142,8 @@ export function FindDialog({
             value={query}
             aria-label="Find anything"
             placeholder="Find a Source, a Document, a Project"
-            className="h-11 w-full border-0 bg-transparent px-0 text-[14px] shadow-none focus:outline-0"
+            bare
+            className="h-11 w-full bg-transparent px-0 text-[14px]"
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape") onClose();

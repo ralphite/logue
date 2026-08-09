@@ -3,7 +3,19 @@ import type { InputHTMLAttributes, ReactElement, SelectHTMLAttributes, TextareaH
 import { cn } from "./cn";
 
 const control =
-  "min-w-0 rounded-md border border-line-strong bg-surface text-xs text-ink outline-0 transition-colors hover:border-line-strong focus:border-accent-line focus:shadow-[0_0_0_2px_var(--color-accent-soft)] disabled:bg-panel disabled:text-muted";
+  "min-w-0 rounded-md bg-surface text-xs text-ink outline-0 transition-colors disabled:bg-panel disabled:text-muted";
+
+/**
+ * The frame, kept apart from the control so it can be left off.
+ *
+ * A caller cannot undo `focus:border-…` with `border-0`: the focus variant
+ * still wins whenever the control has focus, and a box that autofocuses has it
+ * always. Find's box lives inside a dialog that already has a border, so the
+ * ring was a second frame drawn permanently around the first — and no amount
+ * of overriding at the call site could remove it.
+ */
+const framed =
+  "border border-line-strong hover:border-line-strong focus:border-accent-line focus:shadow-[0_0_0_2px_var(--color-accent-soft)]";
 
 /**
  * A control fills its row unless the caller gave it a width. Deciding this here
@@ -14,14 +26,26 @@ function width(className?: string) {
   return /(^|\s)(w-|max-w-)/.test(className ?? "") ? "" : "w-full";
 }
 
-export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(control, "h-control px-2", width(className), className)} {...props} />;
+export function Input({
+  className,
+  bare = false,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement> & {
+  /** No frame of its own — for a box inside something already framed. */
+  bare?: boolean;
+}) {
+  return (
+    <input
+      className={cn(control, !bare && framed, "h-control px-2", width(className), className)}
+      {...props}
+    />
+  );
 }
 
 export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
-      className={cn(control, "min-h-16 resize-y px-2 py-1.5 leading-[1.5]", width(className), className)}
+      className={cn(control, framed, "min-h-16 resize-y px-2 py-1.5 leading-[1.5]", width(className), className)}
       {...props}
     />
   );

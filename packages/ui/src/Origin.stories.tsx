@@ -23,7 +23,7 @@ export const Marks: Story = {
 function CitedParagraph() {
   const [open, setOpen] = useState<number>();
   return (
-    <p className="max-w-reading text-[13px] leading-[1.6] text-ink">
+    <p className="max-w-page text-[13px] leading-[1.6] text-ink">
       Asynchronous research yields higher completion rates{" "}
       <Citation n={1} aria-pressed={open === 1} onClick={() => setOpen(open === 1 ? undefined : 1)} /> and
       richer detail than real-time prompting{" "}

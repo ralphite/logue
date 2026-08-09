@@ -205,7 +205,6 @@ function DocumentEditor({
       title="Documents"
       onBack={onBack}
       here={doc?.title ?? ""}
-      axis="reading"
       actions={
         draft ? undefined : (
           <Button onClick={() => window.open(api.documentMarkdownUrl(id), "_blank")}>
