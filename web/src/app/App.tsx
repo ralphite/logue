@@ -3,6 +3,7 @@ import { api } from "../api";
 import { AppShell, DRAFT, ROUTES, type Route } from "./AppShell";
 import { DocumentsRoute } from "./DocumentsRoute";
 import { FindDialog, type FindTarget } from "./FindDialog";
+import { somethingUnsaved, useNewerBuild } from "./freshness";
 import { PinsProvider } from "./pins";
 import { ProjectsRoute } from "./ProjectsRoute";
 import { DocumentsRail, ProjectsRail, SkillsRail, StreamRail } from "./Rails";
@@ -81,6 +82,19 @@ export function App() {
   const [finding, setFinding] = useState(false);
   const [helping, setHelping] = useState(false);
   const status = useHost(() => api.status(), []);
+  // The build the Host is serving, once it stops being the one this page
+  // loaded with. See freshness.ts: this page's chunks are deleted by the
+  // deploy that replaces them, so an open tab does not age — it breaks.
+  const newerBuild = useNewerBuild();
+  const [postponed, setPostponed] = useState(false);
+
+  useEffect(() => {
+    if (!newerBuild || postponed) return;
+    // Nothing of the person's is in the air: just go. Something is: say so
+    // and let them press it, because a reload that eats a paragraph is a
+    // worse bug than the one it fixes.
+    if (!somethingUnsaved()) window.location.reload();
+  }, [newerBuild, postponed]);
 
   // What the rail is showing, in the order it shows it. A ref rather than
   // state: it changes on every filter keystroke and nothing renders from it.
@@ -299,6 +313,28 @@ export function App() {
           <SkillsRoute openId={skillId} onOpen={(id) => openIn("skills", id)} onCreated={born("skills")} />
         )}
         {route === "settings" && <SettingsRoute />}
+        {newerBuild && (
+          <div
+            role="status"
+            className="fixed inset-x-0 bottom-0 z-popover flex items-center justify-center gap-2 border-t border-line bg-surface px-3 py-2 text-[13px] text-ink shadow-lg"
+          >
+            <span>A newer Logue is ready. This page is running the previous one.</span>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-md bg-accent px-2 py-1 text-xs font-[560] text-white hover:bg-accent-hover"
+            >
+              Reload
+            </button>
+            <button
+              type="button"
+              onClick={() => setPostponed(true)}
+              className="rounded-md px-2 py-1 text-xs text-muted hover:bg-hover hover:text-ink"
+            >
+              Not yet
+            </button>
+          </div>
+        )}
         <FindDialog open={finding} onClose={() => setFinding(false)} onGo={goTo} />
         <ShortcutsDialog open={helping} onClose={() => setHelping(false)} />
       </AppShell>

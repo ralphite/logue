@@ -542,3 +542,12 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   that: audio on disk nobody can reach reads exactly like audio that was lost.
   Each one says when it was made, how long it ran, and whether it is waiting
   or has failed — and how many times.
+- **An open tab notices it has been replaced, and never takes unsaved words
+  with it.** A build is named by its content hash, so deploying deletes the
+  chunks an open page still needs — it does not go stale, it breaks. The page
+  asks the Host which build it is serving; when the answer stops matching the
+  one it loaded with, it reloads itself. Unless something is unsaved: then it
+  says a newer Logue is ready and waits to be told, because an update that
+  costs someone a paragraph is worse than the bug it fixes. This is not hot
+  reloading and does not pretend to be — there is no dev server, by the rule
+  that says one machine, one address.

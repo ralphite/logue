@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button, ErrorNote, OriginMark, SourceLink, Spinner, originOf } from "@logue/ui";
 import { api, ApiError, type Document as DocumentRecord, type Material } from "../api";
 import { DRAFT, Nothing, Page } from "./AppShell";
+import { useHoldsUnsaved } from "./freshness";
 import { DOCUMENT, History } from "./History";
 import { RewriteDialog } from "./RewriteDialog";
 import { timeAgo, useAction, useHost } from "./useHost";
@@ -144,6 +145,16 @@ function DocumentEditor({
     }
   };
 
+  /**
+   * Words typed but not yet written to the Host.
+   *
+   * Held so nothing reloads the page over them — see freshness.ts. Between a
+   * keystroke and the autosave there is a second or two where the only copy
+   * of a sentence is in this tab.
+   */
+  const [waitingToSave, setWaitingToSave] = useState(false);
+  useHoldsUnsaved(waitingToSave || action.busy);
+
   /** Autosave on a pause, not on every keystroke — history should read as edits. */
   const queueSave = (changes: {
     title?: string;
@@ -151,8 +162,9 @@ function DocumentEditor({
     title_state?: "auto" | "generated" | "edited";
   }) => {
     window.clearTimeout(timer.current);
+    setWaitingToSave(true);
     timer.current = window.setTimeout(() => {
-      void action.run(() => write(changes));
+      void action.run(() => write(changes)).finally(() => setWaitingToSave(false));
     }, AUTOSAVE_MS);
   };
 

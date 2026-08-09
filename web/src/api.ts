@@ -202,6 +202,8 @@ export interface ModelStatus {
 
 export interface HostStatus {
   ok: boolean;
+  /** Which build the Host is serving. Empty when nothing is deployed. */
+  build?: string;
   data_dir: string;
   bytes: number;
   model: ModelStatus & { generation_ready: boolean; voice_ready: boolean };
