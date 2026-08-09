@@ -1,4 +1,4 @@
-import { Bookmark, CornerDownLeft, ExternalLink, Mic, Settings2, Sparkles, X } from "lucide-react";
+import { Bookmark, Check, Copy, CornerDownLeft, ExternalLink, Mic, Settings2, Sparkles, X } from "lucide-react";
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -7,10 +7,8 @@ import {
   ErrorNote,
   IconButton,
   Input,
-  LogueLogo,
   OriginMark,
   Select,
-  SourceLink,
   Spinner,
   Tag,
   cn,
@@ -183,6 +181,76 @@ function Thread({
   );
 }
 
+
+/** Time, in the words a person uses. */
+function timeAgo(when: string): string {
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(when).getTime()) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Date(when).toLocaleDateString();
+}
+
+/** Someone's own words go into HTML as text, never as markup. */
+function escape(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/**
+ * Copy something with what it was about.
+ *
+ * A comment on its own is half a thought: whoever you paste it to cannot see
+ * the sentence you were answering. So the passage goes first, as a quote, and
+ * your words underneath — with a way back to where it lives.
+ *
+ * Both flavours are written at once: rich text for Notion and Docs, plain for
+ * anywhere that would otherwise receive a paragraph of angle brackets.
+ */
+async function copyWithQuote(item: Material): Promise<void> {
+  let quoted = "";
+  const parent = item.parent_ids?.[0];
+  if (parent) {
+    try {
+      quoted = (await host.material(parent)).material.content;
+    } catch {
+      // The passage is gone or unreachable; the comment still copies, and
+      // saying less is better than refusing to copy at all.
+    }
+  }
+  if (!quoted && item.context && item.context !== item.content) quoted = item.context;
+
+  const where = item.source?.url ?? "";
+  const plain = [
+    quoted ? quoted.split("\n").map((line) => `> ${line}`).join("\n") : "",
+    item.content,
+    where ? `— ${where}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const html = [
+    quoted ? `<blockquote>${escape(quoted).replace(/\n/g, "<br>")}</blockquote>` : "",
+    `<p>${escape(item.content).replace(/\n/g, "<br>")}</p>`,
+    where ? `<p><a href="${escape(where)}">${escape(where)}</a></p>` : "",
+  ]
+    .filter(Boolean)
+    .join("");
+
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        "text/plain": new Blob([plain], { type: "text/plain" }),
+        "text/html": new Blob([html], { type: "text/html" }),
+      }),
+    ]);
+  } catch {
+    // Some contexts refuse the rich write; the words matter more than the
+    // formatting, so fall back rather than copy nothing.
+    await navigator.clipboard.writeText(plain);
+  }
+}
 
 /** A recording made while Logue was off, and what can be done about it. */
 interface Waiting {
@@ -673,19 +741,21 @@ function Panel() {
         the only control up here read as an action on the page's title.
       */}
       <header className="shrink-0 border-b border-line bg-surface">
-        <div className="flex items-center gap-2 px-2 pt-1.5">
-          <LogueLogo />
+        <div className="flex min-w-0 items-center gap-2 px-2 py-1.5">
+          {/*
+            The page, and one way out. Chrome's own panel title bar already
+            carries the product's icon and name — ours underneath made two,
+            and the rule has always been that the identity appears once.
+          */}
+          <span className="min-w-0 flex-1 truncate text-xs text-muted">{page?.title || "This page"}</span>
           <a
             href={WEB_APP}
             target="_blank"
             rel="noreferrer"
-            className="ml-auto inline-flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-xs text-muted hover:bg-surface-muted hover:text-ink"
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-xs text-muted hover:bg-surface-muted hover:text-ink"
           >
-            <ExternalLink size={12} /> Open app
+            <ExternalLink size={12} /> Open Logue web app
           </a>
-        </div>
-        <div className="flex min-w-0 items-center gap-1.5 px-2 pt-1 pb-1.5 text-xs text-muted">
-          <span className="truncate">{page?.title || "This page"}</span>
         </div>
       </header>
 
@@ -759,8 +829,17 @@ function Panel() {
               <Bookmark size={13} /> Save this page
             </Button>
           </div>
-          <Kept title="From this page" items={fromPage} context={context} onChanged={load} empty="Nothing saved yet." />
-          <Kept title="What you added" items={said} context={context} onChanged={load} empty="No comments yet." />
+          {/* One list, newest first. Splitting it into "from the page" and
+              "what you added" made two headings for one question — what is
+              here — and buried the newest thing under whichever half it fell
+              into. Each row still says which it is. */}
+          <Kept
+            title="Kept from this page"
+            items={[...fromPage, ...said].toSorted((a, b) => (a.created_at < b.created_at ? 1 : -1))}
+            context={context}
+            onChanged={load}
+            empty="Nothing kept from this page yet."
+          />
         </div>
       ) : (
         <div className="logue-scroll flex-1 p-2">
@@ -868,6 +947,8 @@ function Kept({
   empty: string;
 }) {
   const [openId, setOpenId] = useState<string>();
+  /** Which row was just copied, so the button can say so for a moment. */
+  const [copied, setCopied] = useState<string>();
 
   /*
    * An empty section is one line, not a block.
@@ -905,17 +986,40 @@ function Kept({
                 className="block w-full text-left"
                 onClick={() => setOpenId(openId === item.id ? undefined : item.id)}
               >
+                {/* No domain on the row. This whole list is about one page,
+                    and printing chatgpt.com fourteen times said the same
+                    thing fourteen times where nothing needed saying once. */}
                 <span className="flex items-center gap-2 text-xs text-muted">
-                  <OriginMark origin={originOf(item.kind)} />
-                  <SourceLink url={item.source?.url} label={item.source?.domain || "This Mac"} />
+                  <OriginMark origin={originOf(item.kind)} detail={timeAgo(item.created_at)} />
                 </span>
                 <p className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-ink-soft">{item.content}</p>
               </button>
-              {item.capture_id && (
-                // The recording, playable where it was made rather than only
-                // in the Web App — this is the page it was made on.
-                <audio controls preload="none" src={host.audioUrl(item.capture_id)} className="mt-1 h-7 w-full" />
-              )}
+              {/* The line the domain used to occupy: the recording if there is
+                  one, and the two things worth doing with any of them. */}
+              <div className="mt-1 flex items-center gap-1">
+                {item.capture_id ? (
+                  <audio controls preload="none" src={host.audioUrl(item.capture_id)} className="h-7 min-w-0 flex-1" />
+                ) : (
+                  <span className="flex-1" />
+                )}
+                {item.source?.url && (
+                  <IconButton
+                    label="Open where this came from"
+                    onClick={() => window.open(item.source?.url, "_blank", "noreferrer")}
+                  >
+                    <ExternalLink size={13} />
+                  </IconButton>
+                )}
+                <IconButton
+                  label={copied === item.id ? "Copied" : "Copy, with what it was about"}
+                  onClick={() => void copyWithQuote(item).then(() => {
+                    setCopied(item.id);
+                    window.setTimeout(() => setCopied(undefined), 1500);
+                  })}
+                >
+                  {copied === item.id ? <Check size={13} className="text-success" /> : <Copy size={13} />}
+                </IconButton>
+              </div>
               {openId === item.id && <Filing material={item} context={context} onChanged={onChanged} />}
             </div>
           ))}

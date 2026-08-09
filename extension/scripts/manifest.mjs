@@ -4,7 +4,7 @@
  * Generated rather than checked in so the version can never drift from
  * package.json, and so the built file names stay in one place.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
@@ -46,7 +46,30 @@ const manifest = {
    * on screen.
    */
   host_permissions: ["http://127.0.0.1:8787/*", "http://*/*", "https://*/*"],
-  action: { default_title: "Open Logue" },
+  /*
+   * The mark, so Chrome stops drawing a grey square with an "L" in it.
+   *
+   * There were no icons at all — not in the toolbar, not in the extensions
+   * list, and not in the side panel's own title bar, which is where the owner
+   * saw it. A product with an identity everywhere else had none in the one
+   * place the browser draws on its behalf. These are the same mark the app
+   * and the panel carry, rasterised from icons/logue.svg.
+   */
+  icons: {
+    16: "icons/logue-16.png",
+    32: "icons/logue-32.png",
+    48: "icons/logue-48.png",
+    128: "icons/logue-128.png",
+  },
+  action: {
+    default_title: "Open Logue",
+    default_icon: {
+      16: "icons/logue-16.png",
+      32: "icons/logue-32.png",
+      48: "icons/logue-48.png",
+      128: "icons/logue-128.png",
+    },
+  },
   side_panel: { default_path: "sidepanel.html" },
   background: { service_worker: "background.js", type: "module" },
   content_scripts: [
@@ -88,6 +111,14 @@ const manifest = {
     },
   },
 };
+
+// The icons travel with the manifest that names them: a declaration pointing
+// at a file the build forgot to copy is worse than no declaration, because
+// Chrome refuses to load the extension at all.
+mkdirSync(resolve(root, "dist/icons"), { recursive: true });
+for (const size of [16, 32, 48, 128]) {
+  copyFileSync(resolve(root, `icons/logue-${size}.png`), resolve(root, `dist/icons/logue-${size}.png`));
+}
 
 writeFileSync(resolve(root, "dist/manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 process.stdout.write(`manifest.json written for v${version} (build ${build})\n`);

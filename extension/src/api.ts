@@ -32,6 +32,10 @@ export interface Material {
   capture_id?: string;
   created_at: string;
   source?: { url?: string; title?: string; domain?: string };
+  /** What this was said about — the selection a comment hangs off. */
+  parent_ids?: string[];
+  /** The words around it on the page, kept when it was captured. */
+  context?: string;
 }
 
 export interface ProjectDetail {
@@ -179,6 +183,9 @@ export const host = {
   /** Carry out a proposal, because a person clicked. Never reachable by the agent. */
   agentAccept: (body: { proposal: unknown; page?: { url?: string; title?: string; text?: string; domain?: string } }) =>
     post<{ did: string }>("/v1/agent/accept", body),
+
+  /** One Source by id, for the thing a comment was about. */
+  material: (id: string) => call<{ material: Material }>(`/v1/materials/${id}`),
 
   pageMaterials: (url: string) =>
     call<{ materials: Material[] }>(`/v1/materials?${new URLSearchParams({ q: url })}`),
