@@ -338,6 +338,24 @@ function Surfaces() {
   // "error" is deliberately not busy: it stays until the next attempt, so
   // treating it as busy would hold every other surface off the page for good.
   const voiceBusy = voice.phase !== "idle" && voice.phase !== "error";
+
+  /**
+   * An error belongs to the moment it happened.
+   *
+   * It used to hang on the bar until the next recording, which meant a failure
+   * in one field followed you into the next one and sat there while you typed.
+   * Anything that changes what the bar is about clears it: leaving the field,
+   * moving the bar, choosing a different voice.
+   */
+  const forget = useCallback(() => {
+    voice.setError(undefined);
+    voice.setPhase((was) => (was === "error" ? "idle" : was));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!caret) forget();
+  }, [caret, forget]);
   const barSize = voiceBusy ? BAR.busy : BAR.idle;
   const barAt = moved
     ? moved
@@ -388,12 +406,18 @@ function Surfaces() {
           error={voice.error ?? hostError}
           context={context}
           overrides={overrides}
-          onOverrides={setOverrides}
+          onOverrides={(next) => {
+            forget();
+            setOverrides(next);
+          }}
           onStart={() => void voice.start()}
           onCommand={() => setCommandOpen(true)}
           onStop={() => void finishVoice()}
           onCancel={voice.cancel}
-          onMove={setMoved}
+          onMove={(at) => {
+            forget();
+            setMoved(at);
+          }}
           onResetPosition={() => setMoved(undefined)}
           moved={Boolean(moved)}
         />
