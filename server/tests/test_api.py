@@ -348,6 +348,29 @@ class DefaultSkillTest(Workspace, unittest.TestCase):
         self.assertIn("take out only what nobody meant to say", prompt)
         self.assertIn("Only remove; never add", prompt, "the boundary travels with it")
 
+    def test_the_shipped_one_says_all_four_things_and_forbids_the_rest(self) -> None:
+        """The four duties and the three prohibitions, as they were asked for.
+
+        Spelled out here because a prompt is the easiest thing in this codebase
+        to soften by accident: one reworded sentence and "take the ums out"
+        quietly becomes "improve this", which is the one thing it must never
+        be. The owner's words: delete the fillers, delete the repetitions and
+        the self-corrections, keep everything else as it is, shorten only what
+        can be shortened without changing it.
+        """
+        prompt = capture.transcription_instructions(self.app.store, "")
+        for duty in ("filler words", "repetitions", "corrected themselves", "shorten it"):
+            self.assertIn(duty, prompt, f"the prompt stopped asking for: {duty}")
+        for kept in ("the meaning, the tone, and the speaker's own words", "not a rewrite"):
+            self.assertIn(kept, prompt, f"the prompt stopped protecting: {kept}")
+        for forbidden in (
+            "Only remove; never add",
+            "Do not add anything that was not said",
+            "Do not swap a word for a more formal one",
+            "Do not finish a thought the speaker left unfinished",
+        ):
+            self.assertIn(forbidden, prompt, f"the prompt stopped forbidding: {forbidden}")
+
     def test_the_shipped_one_can_be_turned_off(self) -> None:
         # Turning it off has to mean something: the fallback is a default, not
         # a rule, and someone who wants their ums kept must be able to say so.
