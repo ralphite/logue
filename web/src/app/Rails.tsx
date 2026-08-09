@@ -1,6 +1,6 @@
-import { Inbox, Layers, Search } from "lucide-react";
+import { FileText, FolderOpen, Search, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
-import { IconButton, Input, Menu, MenuItem, Tag, cn } from "@logue/ui";
+import { Input, Menu, MenuItem, OriginMark, Tag, cn, originOf } from "@logue/ui";
 import { api, type Document, type Material, type Project, type Skill, type Topic } from "../api";
 import { ConfirmDelete } from "./ConfirmDelete";
 import { PromptDialog } from "./PromptDialog";
@@ -106,10 +106,11 @@ export function StreamRail({
     id: material.id,
     title: condense(material.content) || "Empty",
     pinned: pins.isPinned(material.id),
-    // Grouped by the Project it belongs to; the ones filed nowhere stay a flat
-    // list under the groups rather than getting a folder of their own.
-    group: material.projects[0],
-    waiting: material.organization?.status === "needs_review" && !material.organization.decided,
+    // A flat list. Grouping by Project was wrong twice over: a Source belongs
+    // to several Projects, and taking the first one silently hid it from the
+    // rest. What kind of thing it is goes on the left instead — which is also
+    // the one fact every row has exactly one of.
+    icon: <OriginMark origin={originOf(material.kind)} />,
     preview: () => (
       <>
         <p className="line-clamp-6 text-xs leading-[1.5] text-ink">
@@ -184,21 +185,29 @@ export function StreamRail({
             <button
               type="button"
               aria-pressed={reviewing}
+              title="Logue has worked out where these probably belong. Nobody has looked yet."
               onClick={() => setReviewing(!reviewing)}
               className={cn(
-                "inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px]",
+                "rounded-md px-1.5 py-1 text-[11px]",
                 reviewing ? "bg-active font-[560] text-ink" : "text-muted hover:bg-hover hover:text-ink",
               )}
             >
-              <Inbox size={11} /> {waiting?.length} to file
+              {waiting?.length} to look at
             </button>
           )}
           <Menu
             label="Groups"
+            align="start"
             trigger={(props) => (
-              <IconButton label="Groups" className="ml-auto" {...props}>
-                <Layers size={13} />
-              </IconButton>
+              // A word, not an icon. No icon says "groupings Logue noticed",
+              // and one that has to be discovered by hovering is not a control.
+              <button
+                type="button"
+                {...props}
+                className="ml-auto rounded-md px-1.5 py-1 text-[11px] text-muted hover:bg-hover hover:text-ink"
+              >
+                Groups
+              </button>
             )}
           >
             {(topics.data?.topics ?? [])
@@ -232,7 +241,6 @@ export function StreamRail({
       </RailHeader>
 
       <RailList
-        storageKey="stream"
         entries={entries}
         selectedId={selectedId}
         onSelect={onSelect}
@@ -268,6 +276,7 @@ export function ProjectsRail({
   const entries: RailEntry[] = pins.pinnedFirst(projects.data?.projects ?? []).map((project: Project) => ({
     id: project.id,
     title: project.name,
+    icon: <FolderOpen size={12} className="text-faint" />,
     pinned: pins.isPinned(project.id),
     mark: <span className="shrink-0 text-[11px] text-faint">{project.count}</span>,
     preview: () => (
@@ -325,7 +334,6 @@ export function ProjectsRail({
   return (
     <>
       <RailList
-        storageKey="projects"
         entries={shown}
         selectedId={selectedId}
         onSelect={onSelect}
@@ -368,6 +376,7 @@ export function DocumentsRail({
     .map((document: Document) => ({
       id: document.id,
       title: document.title || "Untitled",
+      icon: <FileText size={12} className="text-faint" />,
       pinned: pins.isPinned(document.id),
       preview: () => (
         <>
@@ -425,7 +434,6 @@ export function DocumentsRail({
   return (
     <>
       <RailList
-        storageKey="documents"
         entries={shown}
         selectedId={selectedId}
         onSelect={onSelect}
@@ -466,6 +474,7 @@ export function SkillsRail({
   const entries: RailEntry[] = pins.pinnedFirst(skills.data?.skills ?? []).map((skill: Skill) => ({
     id: skill.id,
     title: skill.name,
+    icon: <Sparkles size={12} className="text-faint" />,
     pinned: pins.isPinned(skill.id),
     mark: skill.enabled ? undefined : <span className="shrink-0 text-[11px] text-faint">off</span>,
     preview: () => (
@@ -535,7 +544,6 @@ export function SkillsRail({
   return (
     <>
       <RailList
-        storageKey="skills"
         entries={shown}
         selectedId={selectedId}
         onSelect={onSelect}

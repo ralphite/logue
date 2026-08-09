@@ -88,6 +88,14 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   Document. Printing the domain as dead text makes people go and find it by
   hand. Clicking the link must not also open the row.
 - **⌘K finds anything**; ⌘\ collapses the rail.
+- **The rail's list is flat.** A Source belongs to several Projects at once,
+  so a folder for one of them hid it from the rest. Pinned is the only heading.
+- **Every rail row carries its kind on the left**, in a fixed slot, so the
+  whole rail is one column of icons with words beside them — and the kind is
+  the one fact every row has exactly one of.
+- **No mark without a word.** A bare coloured dot, or an icon standing alone
+  for something like "groupings Logue noticed", tells nobody anything. Either
+  it says what it means or it goes.
 - **A section's list lives in the rail, under that section** — the way
   chatgpt.com and Codex do it. Clicking Stream, Projects, Documents or Skills
   opens its list below the nav item; the main area shows only the one thing

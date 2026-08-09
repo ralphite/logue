@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronRight, MoreHorizontal, Pin } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { MoreHorizontal, Pin } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ContextMenu, MenuHeading, MenuItem, MenuSeparator, cn, type MenuPoint } from "@logue/ui";
 
 /**
@@ -11,10 +11,6 @@ import { ContextMenu, MenuHeading, MenuItem, MenuSeparator, cn, type MenuPoint }
  * one click away.
  */
 export const RAIL_LIMIT = 12;
-/** Inside a group the same rule applies, tighter: a group is a glance. */
-export const GROUP_LIMIT = 6;
-/** And the number of groups, so the sections below one stay reachable. */
-export const GROUPS_LIMIT = 8;
 
 export interface RailAction {
   label: string;
@@ -28,16 +24,14 @@ export interface RailEntry {
   title: string;
   /** A quiet second fact, when there is one worth the width. */
   detail?: string;
-  /** Anything that must be seen without opening the row — a count, a dot. */
+  /** What kind of thing this is, on the row's left edge. */
+  icon?: ReactNode;
+  /** Anything that must be seen without opening the row — a count. */
   mark?: ReactNode;
-  /** Something here is waiting on a decision: the row goes bold with a dot. */
-  waiting?: boolean;
   /** Kept at the top, above everything else, in its own section. */
   pinned?: boolean;
   /** Not in the workspace yet — it exists only while it is being written. */
   draft?: boolean;
-  /** Which group heading this row sits under. Absent means a flat list. */
-  group?: string;
   /** What the hover card says. A function so a resting list builds none. */
   preview?: () => ReactNode;
   /** Everything the row can do, in one menu. */
@@ -55,42 +49,6 @@ function useCoarsePointer(): boolean {
     return () => query.removeEventListener("change", sync);
   }, []);
   return coarse;
-}
-
-/**
- * Which groups are folded, remembered.
- *
- * Held locally rather than in the workspace: this is how someone left their
- * window, not something about their work. It is read synchronously on the
- * first render — reading it a tick later painted every group open and then
- * snapped them shut on every cold load.
- */
-function useFolds(storageKey: string) {
-  const key = `logue.rail.folded.${storageKey}`;
-  const [folded, setFolded] = useState<Set<string>>(() => {
-    try {
-      const raw: unknown = JSON.parse(window.localStorage.getItem(key) ?? "[]");
-      return new Set(Array.isArray(raw) ? raw.filter((v): v is string => typeof v === "string") : []);
-    } catch {
-      return new Set();
-    }
-  });
-  const toggle = useCallback(
-    (group: string) => {
-      setFolded((was) => {
-        const next = new Set(was);
-        if (!next.delete(group)) next.add(group);
-        try {
-          window.localStorage.setItem(key, JSON.stringify([...next]));
-        } catch {
-          // The fold still works when storage is unavailable.
-        }
-        return next;
-      });
-    },
-    [key],
-  );
-  return { folded, toggle };
 }
 
 /**
@@ -170,6 +128,10 @@ function RailRow({
   return (
     <div
       ref={row}
+      // Which thing this row is, readable from outside React. A rail that can
+      // only be checked by matching its text cannot be checked at all once two
+      // captures begin with the same forty characters.
+      data-id={entry.id}
       // The whole row lights up, including the actions at its end. Colouring
       // only the button left a hovered row looking like two separate things.
       // `min-w-0` because a grid item will not shrink below its content by
@@ -203,9 +165,15 @@ function RailRow({
           "flex min-h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left text-xs outline-none",
           coarse && "min-h-11",
           active ? "font-[560] text-ink" : "text-ink-soft",
-          entry.waiting && !active && "font-[560] text-ink",
         )}
       >
+        {entry.icon && (
+          // A fixed slot, so every row's text starts on the same vertical line
+          // whether or not its kind has an icon.
+          <span aria-hidden className="inline-flex size-3.5 shrink-0 items-center justify-center">
+            {entry.icon}
+          </span>
+        )}
         <span className={cn("min-w-0 flex-1 truncate", entry.draft && "text-muted italic")}>
           {entry.title}
         </span>
@@ -221,13 +189,6 @@ function RailRow({
         )}
       >
         {entry.mark}
-        {entry.waiting && (
-          <span
-            aria-label="Waiting for you"
-            title="Waiting for you"
-            className="size-1.5 rounded-full bg-accent"
-          />
-        )}
         {entry.pinned && <Pin size={11} aria-label="Pinned" className="text-faint" />}
       </span>
 
@@ -262,35 +223,12 @@ function RailRow({
   );
 }
 
-/** The line above a group, and the control that folds it. */
-function GroupHeading({
-  name,
-  count,
-  folded,
-  onToggle,
-}: {
-  name: string;
-  count: number;
-  folded: boolean;
-  onToggle: () => void;
-}) {
+/** The only two headings left in a rail: Pinned, and everything else. */
+function Heading({ children }: { children: ReactNode }) {
   return (
-    <button
-      type="button"
-      aria-expanded={!folded}
-      onClick={onToggle}
-      // Larger than the rows under it. A group name set smaller than its own
-      // children reverses the hierarchy it is supposed to establish.
-      className="flex min-h-7 w-full items-center gap-1 rounded-md px-1.5 text-left text-[11px] font-[560] tracking-[0.01em] text-muted hover:bg-hover hover:text-ink"
-    >
-      {folded ? (
-        <ChevronRight size={11} aria-hidden className="shrink-0" />
-      ) : (
-        <ChevronDown size={11} aria-hidden className="shrink-0" />
-      )}
-      <span className="min-w-0 flex-1 truncate">{name}</span>
-      <span className="shrink-0 pr-0.5 text-faint">{count}</span>
-    </button>
+    <p className="px-2 pt-2 pb-1 text-[11px] font-[560] tracking-[0.01em] text-muted first:pt-0">
+      {children}
+    </p>
   );
 }
 
@@ -333,7 +271,6 @@ export function RailList({
   onSelect,
   empty,
   loading = false,
-  storageKey,
   onVisibleOrder,
 }: {
   entries: RailEntry[];
@@ -342,16 +279,11 @@ export function RailList({
   /** Shown when there is nothing — and, where one can be made, how to make it. */
   empty: ReactNode;
   loading?: boolean;
-  /** Names this list's folds in local storage. */
-  storageKey: string;
   /** The ids as they read down the rail, for the keys that step through them. */
   onVisibleOrder?: (ids: string[]) => void;
 }) {
   const coarse = useCoarsePointer();
-  const { folded, toggle } = useFolds(storageKey);
   const [allRows, setAllRows] = useState(false);
-  const [allGroups, setAllGroups] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<{ entry: RailEntry; at: MenuPoint }>();
   const [hover, setHover] = useState<{ entry: RailEntry; rect: DOMRect }>();
 
@@ -385,44 +317,11 @@ export function RailList({
 
   const pinned = entries.filter((entry) => entry.pinned);
   const rest = entries.filter((entry) => !entry.pinned);
-  // Rows with nowhere to belong stay a flat list under the groups: no heading,
-  // no fold arrow, no indent. Inventing a "No Project" folder for them would
-  // make the absence of a Project look like a Project.
-  const loose = rest.filter((entry) => !entry.group);
-
-  // Groups in the order their first row appears, so the caller's sort decides
-  // which group is most recent without the rail sorting a second time.
-  const groups = useMemo(() => {
-    const byName = new Map<string, RailEntry[]>();
-    for (const entry of rest) {
-      if (!entry.group) continue;
-      const list = byName.get(entry.group);
-      if (list) list.push(entry);
-      else byName.set(entry.group, [entry]);
-    }
-    return [...byName];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries]);
-
-  const holdsSelected = (rows: RailEntry[]) => rows.some((row) => row.id === selectedId);
-  const shownGroups = allGroups
-    ? groups
-    : (() => {
-        const head = groups.slice(0, GROUPS_LIMIT);
-        if (!selectedId || head.some(([, rows]) => holdsSelected(rows))) return head;
-        const owner = groups.find(([, rows]) => holdsSelected(rows));
-        return owner ? [...head, owner] : head;
-      })();
-
-  const looseRows = withSelected(loose, allRows ? loose.length : RAIL_LIMIT, selectedId);
-  const rowsOf = (name: string, rows: RailEntry[]) =>
-    folded.has(name) ? [] : withSelected(rows, expanded.has(name) ? rows.length : GROUP_LIMIT, selectedId);
+  const rows = withSelected(rest, allRows ? rest.length : RAIL_LIMIT, selectedId);
 
   // Published so the keys that step through the rail move to what is actually
   // on screen — stepping onto a row hidden behind a Show more looks broken.
-  const order = [...pinned, ...shownGroups.flatMap(([name, rows]) => rowsOf(name, rows)), ...looseRows].map(
-    (row) => row.id,
-  );
+  const order = [...pinned, ...rows].map((row) => row.id);
   const orderKey = order.join(" ");
   useEffect(() => {
     onVisibleOrder?.(orderKey ? orderKey.split(" ") : []);
@@ -466,45 +365,16 @@ export function RailList({
     <div className="grid gap-px">
       {pinned.length > 0 && (
         <>
-          <GroupHeading
-            name="Pinned"
-            count={pinned.length}
-            folded={folded.has(" pinned")}
-            onToggle={() => toggle(" pinned")}
-          />
-          {!folded.has(" pinned") && pinned.map(row)}
+          <Heading>Pinned</Heading>
+          {pinned.map(row)}
+          {rest.length > 0 && <Heading>Everything else</Heading>}
         </>
       )}
 
-      {shownGroups.map(([name, rows]) => {
-        const shown = rowsOf(name, rows);
-        const hidden = rows.length - shown.length;
-        return (
-          <div key={name} className="grid gap-px">
-            <GroupHeading
-              name={name}
-              count={rows.length}
-              folded={folded.has(name)}
-              onToggle={() => toggle(name)}
-            />
-            {shown.map(row)}
-            {!folded.has(name) && hidden > 0 && (
-              <More label={`${hidden} more`} onClick={() => setExpanded((was) => new Set(was).add(name))} />
-            )}
-          </div>
-        );
-      })}
-      {groups.length > GROUPS_LIMIT && (
+      {rows.map(row)}
+      {rest.length > RAIL_LIMIT && (
         <More
-          label={allGroups ? "Show fewer groups" : `${groups.length - GROUPS_LIMIT} more groups`}
-          onClick={() => setAllGroups(!allGroups)}
-        />
-      )}
-
-      {looseRows.map(row)}
-      {loose.length > RAIL_LIMIT && (
-        <More
-          label={allRows ? "Show fewer" : `${loose.length - RAIL_LIMIT} more`}
+          label={allRows ? "Show fewer" : `${rest.length - RAIL_LIMIT} more`}
           onClick={() => setAllRows(!allRows)}
         />
       )}
