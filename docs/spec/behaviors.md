@@ -174,11 +174,13 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
 - **Wherever a Source is listed, it is one click from where it lives** — the
   Stream. A citation you cannot follow is a dead end. This holds for a Run in a
   list too: the row opens the answer, and its Source count opens those Sources.
-  A row that prints "28 Sources" as dead text is the same dead end.
-- **Wherever a Source is listed, the page it came from is a link.** Every
-  screen, every list, including the Side Panel and the Sources under a
-  Document. Printing the domain as dead text makes people go and find it by
-  hand. Clicking the link must not also open the row.
+  A row that prints "28 Sources" as dead text is the same dead end. **The link
+  goes to the Stream, not out to the web page the material came from** — the
+  Stream entry is where the recording, the passage and everything derived from
+  them sit together, and the original page is reachable from there. (Changed
+  2026-08-09: an earlier rule required every listed Source to link out to its
+  originating page. He asked for that to go — "we don't need it. we should link
+  to stream".)
 - **⌘K finds anything**; ⌘\ collapses the rail; **⌘⇧L opens the Side Panel and
   closes it again** — one key for both directions, so the panel never needs the
   mouse to be put away.
