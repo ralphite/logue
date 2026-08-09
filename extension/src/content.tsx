@@ -4,7 +4,7 @@ import { host, type Context, type Material } from "./api";
 import { caretRect } from "./caret";
 import * as googleDocs from "./googleDocs";
 import { activeEditable, insertAtCaret, isOurs, nearbyText, pageSelection, pageSource, readCaret, restoreCaret, type CaretPosition, type Editable, type SelectionSnapshot } from "./editable";
-import { isFromBackground, send } from "./messages";
+import { isFromBackground, send, watchForOrphaning, whenOrphaned } from "./messages";
 import { aboveSelection, besideCaret, BAR } from "./position";
 import { NO_OVERRIDES, type VoiceOverrides } from "./overrides";
 import { useVoice } from "./useVoice";
@@ -523,7 +523,8 @@ function mount() {
     if (element.parentElement !== parent) parent.append(element);
   };
   place();
-  new MutationObserver(place).observe(document.documentElement, { childList: true });
+  const placing = new MutationObserver(place);
+  placing.observe(document.documentElement, { childList: true });
 
   // Which build is on this page — the first question to answer when a surface
   // behaves like code that was replaced days ago. Asking also wakes the worker,
@@ -541,12 +542,32 @@ function mount() {
     console.error("Logue could not start on this page:", cause);
   };
 
-  createRoot(root, { onUncaughtError: report, onCaughtError: report }).render(
+  const reactRoot = createRoot(root, { onUncaughtError: report, onCaughtError: report });
+  reactRoot.render(
     <StrictMode>
       <Surfaces />
     </StrictMode>,
   );
   element.dataset.logueReady = "1";
+
+  /**
+   * Leave when the extension that injected this script is gone.
+   *
+   * An update replaces the extension but does not stop the scripts already on
+   * open pages: they keep tracking the caret and keep drawing bars whose
+   * buttons can no longer reach anything. Worse, the page then holds whatever
+   * that build did wrong long after it was fixed — a bar that should have
+   * yielded to the selection toolbar keeps sitting there. There is nothing
+   * left to talk to, so the honest thing is to disappear and let the next
+   * page load bring the new build.
+   */
+  const stopWatching = watchForOrphaning();
+  whenOrphaned(() => {
+    stopWatching();
+    placing.disconnect();
+    reactRoot.unmount();
+    element.remove();
+  });
 }
 
 if (window.top === window) {

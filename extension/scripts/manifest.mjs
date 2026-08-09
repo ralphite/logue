@@ -34,8 +34,18 @@ const manifest = {
    * is the honest thing to do.
    */
   permissions: ["activeTab", "alarms", "audioCapture", "offscreen", "scripting", "sidePanel", "storage", "tabs"],
-  host_permissions: ["http://127.0.0.1:8787/*"],
-  optional_host_permissions: ["http://*/*", "https://*/*"],
+  /*
+   * Every http(s) page, declared rather than asked for later.
+   *
+   * The content scripts below already match every http(s) page — that is what
+   * the product is — so the optional form was not protecting anything. What it
+   * did do was break the one thing that needs it: `chrome.scripting` refuses
+   * without host permission, so after a background update the extension could
+   * not put its surfaces back on tabs that were already open. Those tabs kept
+   * running the replaced build, which is how a bug that had been fixed stayed
+   * on screen.
+   */
+  host_permissions: ["http://127.0.0.1:8787/*", "http://*/*", "https://*/*"],
   action: { default_title: "Open Logue" },
   side_panel: { default_path: "sidepanel.html" },
   background: { service_worker: "background.js", type: "module" },

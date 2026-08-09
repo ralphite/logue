@@ -86,7 +86,13 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
 
 - **The voice button appears next to the cursor** in an editable document, not
   parked in a corner. Verified on Notion.
-- **Exactly one Logue surface is on screen at a time.**
+- **Exactly one Logue surface is on screen at a time.** A selection means the
+  selection toolbar and nothing else — the input bar does not sit under it.
+- **A tab never keeps running a build that has been replaced.** After a
+  background update the surfaces are put back on every open page, and if that
+  cannot be done it is written down rather than passed off as done. A content
+  script that outlives its extension removes itself instead of drawing bars
+  whose buttons reach nothing.
 - **Google Docs must work.** It is not optional.
 - **A recording is saved before it is transcribed.** A model failure never
   costs someone what they said.

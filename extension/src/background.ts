@@ -41,10 +41,37 @@ async function toOffscreen<T>(type: string): Promise<T> {
   return reply as T;
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
-  void healOpenTabs();
+  // An update or a reload from chrome://extensions orphans open tabs just as
+  // thoroughly as our own does. A first install has no tabs to heal.
+  if (details.reason !== "install") void healOpenTabs();
 });
+
+const HEALING = "logue:healing";
+const HEAL_NEXT = "logue:heal-next";
+
+/**
+ * Heal on the way back from a reload, and only then.
+ *
+ * `onInstalled` was the obvious hook and the wrong one: it does not fire for
+ * `chrome.runtime.reload()`, which is the whole self-update path — so the
+ * healing existed only for the case that never needed it. The worker starts
+ * again on the way back from a reload, but it also starts a hundred times a
+ * day for ordinary messages, and re-injecting into every tab each time would
+ * be absurd. So the intent is written down before the reload and read once
+ * after it.
+ */
+async function healIfAsked(): Promise<void> {
+  try {
+    const stored = await chrome.storage.local.get(HEAL_NEXT);
+    if (stored[HEAL_NEXT] !== true) return;
+    await chrome.storage.local.remove(HEAL_NEXT);
+    await healOpenTabs();
+  } catch {
+    // Storage is unavailable, so there is no note to act on.
+  }
+}
 
 /**
  * Put the surfaces back on pages that were already open.
@@ -54,8 +81,15 @@ chrome.runtime.onInstalled.addListener(() => {
  * quietly does nothing until someone reloads the tab. Since the whole point of
  * updating in the background is that nobody has to do anything, the tabs have
  * to be healed too.
+ *
+ * It can still fail — a tab the extension has no permission for, a page that
+ * refuses injection — and silence about that was the worst kind of wrong: the
+ * healing looked like it worked while every open tab kept running the build
+ * that had just been replaced.
  */
 async function healOpenTabs(): Promise<void> {
+  const failures: string[] = [];
+  let healed = 0;
   try {
     const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
     await Promise.all(
@@ -67,15 +101,24 @@ async function healOpenTabs(): Promise<void> {
           const worker = chrome.runtime.getManifest().background;
           const from = worker && "service_worker" in worker ? worker.service_worker : "";
           await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: [siblingOf(from, "content.js")] });
-        } catch {
-          // A restricted page, or one the extension has no permission for.
-          // Neither is worth a word: it had no surfaces to lose.
+          healed += 1;
+        } catch (cause) {
+          failures.push(`${tab.url ?? tab.id}: ${cause instanceof Error ? cause.message : String(cause)}`);
         }
       }),
     );
-  } catch {
-    // Without the tabs permission there is nothing to heal and nothing to say.
+  } catch (cause) {
+    failures.push(`could not list tabs: ${cause instanceof Error ? cause.message : String(cause)}`);
   }
+  // Kept where it can be read without a debugger attached at the right moment
+  // — the worker is asleep by the time anyone thinks to look.
+  const note = { at: new Date().toISOString(), healed, failures };
+  try {
+    await chrome.storage.local.set({ [HEALING]: note });
+  } catch {
+    // Storage is the nice-to-have here; the console line below is the record.
+  }
+  if (failures.length > 0) console.warn("Logue could not put its surfaces back on every open tab:", note);
 }
 
 // -- the only route to the Host -------------------------------------------
@@ -138,8 +181,10 @@ async function keepUpToDate(): Promise<void> {
     const stored = await chrome.storage.local.get(RELOADED_FOR);
     const reloadedFor = typeof stored[RELOADED_FOR] === "string" ? stored[RELOADED_FOR] : "";
     if (!shouldReload({ running: runningBuild(), installed, reloadedFor })) return;
-    // Recorded before reloading: the worker is about to stop mid-statement.
-    await chrome.storage.local.set({ [RELOADED_FOR]: installed });
+    // Both recorded before reloading: the worker is about to stop
+    // mid-statement, and the tabs it leaves behind are still running the build
+    // being replaced.
+    await chrome.storage.local.set({ [RELOADED_FOR]: installed, [HEAL_NEXT]: true });
     chrome.runtime.reload();
   } catch {
     // The Host is off, or the browser withheld an API. Either way there is
@@ -237,3 +282,4 @@ chrome.commands.onCommand.addListener((command) => {
 // worker that dies during start-up answers no messages at all.
 void scheduleBuildCheck();
 void keepUpToDate();
+void healIfAsked();
