@@ -858,11 +858,15 @@ class TheMockModel(Workspace, unittest.TestCase):
         self.assertGreater(len(provider.generate("", "[mock:long]")), 5000)
 
     def test_a_lever_buried_in_sources_does_not_fire(self) -> None:
-        # A failed ask is kept as a Source, so its lever text rides along in
-        # the next prompt's material. Only the instruction at the tail counts.
+        # A failed ask is kept as a Source, and the newest Sources sit right
+        # against the instruction — a fixed-width tail still saw them. Only
+        # the text after the final "Request:" counts, which is the real
+        # prompt's own shape.
         provider = self.mock()
-        prompt = "Source 1: please [mock:fail] now\n" + ("filler. " * 100) + "\nQuestion: something ordinary"
+        prompt = "Source 1: please [mock:fail] now\n\nRequest: something ordinary"
         self.assertIn("mock answer", provider.generate("", prompt))
+        with self.assertRaises(Unavailable):
+            provider.generate("", "Source 1: fine\n\nRequest: do [mock:fail] now")
 
     def test_a_real_key_is_untouched_by_any_of_this(self) -> None:
         from logue_host.providers.gemini import MockProvider, Provider

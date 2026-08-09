@@ -232,14 +232,17 @@ class MockProvider(Provider):
 
     @staticmethod
     def _asked(prompt: str, lever: str) -> bool:
-        """A lever counts only in the instruction, which sits at the prompt's tail.
+        """A lever counts only in the instruction, never in the material.
 
         Matching the whole prompt let a lever leak: a failed ask is kept as a
         Source — the question is worth keeping — so the next run's prompt
-        carried the old "[mock:fail]" among its Sources and failed on command
-        nobody had just given.
+        carried the old "[mock:fail]" among its Sources and failed on a
+        command nobody had just given. A fixed-width tail leaked the same way,
+        because the newest Sources sit right against the instruction. The
+        prompt is our own format — Sources, then "Request: <instruction>" —
+        so cut exactly there.
         """
-        return lever in prompt[-400:]
+        return lever in prompt.rsplit("Request: ", 1)[-1]
 
     def generate(self, system: str, prompt: str) -> str:  # noqa: ARG002
         time.sleep(1.0)
