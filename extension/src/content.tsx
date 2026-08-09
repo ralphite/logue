@@ -238,6 +238,24 @@ function Surfaces() {
    * The words failed; the recording did not. Ask again on the audio the Host
    * kept, and land the transcript where the first attempt would have.
    */
+  /** The ask box's own dictation: recorded the same way, landing in the box. */
+  const [boxDictation, setBoxDictation] = useState<"idle" | "recording" | "settling">("idle");
+  const [dictated, setDictated] = useState<{ text: string; at: number }>();
+  const dictateIntoBox = async () => {
+    setBoxDictation("recording");
+    await voice.start();
+  };
+  const stopBoxDictation = async () => {
+    setBoxDictation("settling");
+    const result = await voice.stop({
+      project,
+      overrides,
+      source: pageSource(),
+    });
+    setBoxDictation("idle");
+    if (result) setDictated({ text: result.text, at: Date.now() });
+  };
+
   const retryVoice = async () => {
     const held = destination.current;
     const result = await voice.retry({
@@ -471,6 +489,10 @@ function Surfaces() {
           answer={command.answer}
           sources={command.sources}
           hasSelection={Boolean(selection)}
+          dictation={boxDictation}
+          dictated={dictated}
+          onDictate={() => void dictateIntoBox()}
+          onStopDictation={() => void stopBoxDictation()}
           onRun={(input) => void runCommand(input)}
           onInsert={(text) => {
             if (target.current) insertAtCaret(target.current, text);

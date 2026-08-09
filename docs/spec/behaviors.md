@@ -180,11 +180,15 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   Skills — one entry point, not a second Search box above whichever list is
   open. Two controls doing the same job is one too many, and a search that only
   covers the section you happen to be in is not a search.
-- **What is open is in the URL** — `#/documents/doc_1a2b`. It can be
+- **What is open is in the URL** — `/documents/doc_1a2b`. It can be
   bookmarked, sent to someone, reloaded onto, and Back returns to what you were
   reading rather than to the section you were in before it. A link to something
   that has since been deleted says so plainly; it does not draw an editor
   around nothing.
+- **No `#` in the address.** A real path, not a fragment: `/documents/doc_1a2b`,
+  never `/#/documents/doc_1a2b`. Which means the Host serves the app for every
+  one of these paths — typing one in, or reloading on it, lands on that page
+  rather than on a 404.
 - **The rail's list is flat, and it has no headings at all.** A Source belongs
   to several Projects at once, so a folder for one of them hid it from the
   rest. Pinned items simply sit at the top; "Pinned" and "Everything else" as

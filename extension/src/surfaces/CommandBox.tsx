@@ -1,6 +1,6 @@
-import { CornerDownLeft, X } from "lucide-react";
-import { useState, type CSSProperties } from "react";
-import { Answer, Button, ErrorNote, IconButton, Select, Spinner } from "@logue/ui";
+import { CornerDownLeft, Mic, X } from "lucide-react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { Answer, Button, ErrorNote, IconButton, RecordingDot, Select, Spinner } from "@logue/ui";
 import type { Context, Material } from "../api";
 
 /**
@@ -18,6 +18,10 @@ export function CommandBox({
   onRun,
   onInsert,
   onClose,
+  dictation,
+  dictated,
+  onDictate,
+  onStopDictation,
 }: {
   style?: CSSProperties;
   context?: Context;
@@ -29,6 +33,12 @@ export function CommandBox({
   onRun: (input: { instruction: string; skillId: string; project: string; scope: string }) => void;
   onInsert: (text: string) => void;
   onClose: () => void;
+  /** "idle" | "recording" | "settling" — the ask box's own dictation. */
+  dictation?: "idle" | "recording" | "settling";
+  /** A transcript that just arrived for this box, consumed exactly once. */
+  dictated?: { text: string; at: number };
+  onDictate?: () => void;
+  onStopDictation?: () => void;
 }) {
   const usable = (context?.skills ?? []).filter(
     (skill) => skill.enabled && ["insert", "document", "qa"].includes(skill.output),
@@ -41,6 +51,16 @@ export function CommandBox({
     usable[0];
 
   const [instruction, setInstruction] = useState("");
+
+  // Spoken words join whatever is already typed — dictation adds to the
+  // question, it does not own it. Keyed on arrival so the same transcript is
+  // never appended twice.
+  const dictatedAt = dictated?.at;
+  useEffect(() => {
+    if (!dictated?.text) return;
+    setInstruction((was) => (was.trim() ? `${was.trimEnd()} ${dictated.text}` : dictated.text));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dictatedAt]);
   const [project, setProject] = useState(context?.voice_profile.project_name ?? "");
   const [scope, setScope] = useState(hasSelection ? "selection" : "page");
   const [openSource, setOpenSource] = useState<number>();
@@ -61,6 +81,7 @@ export function CommandBox({
       </IconButton>
 
       {answer === undefined ? (
+        <>
         <textarea
           autoFocus
           value={instruction}
@@ -78,6 +99,27 @@ export function CommandBox({
           disabled={busy}
           className="block max-h-40 min-h-16 w-full resize-y border-0 bg-transparent py-2 pr-8 pl-2.5 text-[13px] leading-[1.5] text-ink outline-0"
         />
+        {/* Say the question instead of typing it. The words land here in the
+            box — the box is the destination — and thanks to the async split
+            the field is editable again while the transcript is still coming. */}
+        {onDictate && (
+          <span className="absolute right-1.5 bottom-11 z-10">
+            {dictation === "recording" ? (
+              <IconButton label="Stop dictating" onClick={onStopDictation}>
+                <RecordingDot />
+              </IconButton>
+            ) : dictation === "settling" ? (
+              <span role="status" aria-label="Transcribing" className="inline-flex size-6 items-center justify-center">
+                <Spinner size={12} />
+              </span>
+            ) : (
+              <IconButton label="Dictate the question" onClick={onDictate}>
+                <Mic size={14} />
+              </IconButton>
+            )}
+          </span>
+        )}
+        </>
       ) : (
         <div className="grid gap-2 p-2.5 pr-8">
           <p className="text-[13px] leading-[1.6] whitespace-pre-wrap text-ink">
