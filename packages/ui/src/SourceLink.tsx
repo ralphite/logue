@@ -30,7 +30,12 @@ export function SourceLink({
       rel="noreferrer"
       title={url}
       onClick={(event: MouseEvent) => event.stopPropagation()}
-      className={cn("inline-flex min-w-0 items-center gap-0.5 hover:text-accent hover:underline", className)}
+      className={cn(
+        // Grown to the 24px floor with padding, handed back with margin, so a
+        // 17px text line stays a 17px line while the finger gets a real target.
+        "-my-1 inline-flex min-h-6 min-w-0 items-center gap-0.5 py-1 hover:text-accent hover:underline",
+        className,
+      )}
     >
       <span className="truncate">{label}</span>
       <ExternalLink size={10} className="shrink-0 opacity-60" />

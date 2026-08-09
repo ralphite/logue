@@ -430,3 +430,7 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   key ("mock" in Settings), it names itself in status and in every answer,
   and nothing verified against it counts as verified until a real key repeats
   it.
+- **Text that is a control still gets a finger-sized target.** 24px is the
+  floor. Grown with padding and handed back with negative margin, so a
+  compact text line keeps its height while the target underneath it does not
+  lie about where it can be pressed.

@@ -277,7 +277,7 @@ function DocumentEditor({
               <button
                 type="button"
                 onClick={() => setLooking(true)}
-                className="rounded-md py-0.5 text-[11px] text-faint underline decoration-line underline-offset-2 hover:text-ink"
+                className="-my-1 inline-flex min-h-6 items-center rounded-md py-1 text-[11px] text-faint underline decoration-line underline-offset-2 hover:text-ink"
               >
                 Version {doc.revision}
               </button>

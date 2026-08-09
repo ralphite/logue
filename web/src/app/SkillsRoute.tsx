@@ -136,7 +136,7 @@ export function SkillsRoute({
           <button
             type="button"
             onClick={() => setLooking(true)}
-            className="rounded-md underline decoration-line underline-offset-2 hover:text-ink"
+            className="-my-1 inline-flex min-h-6 items-center rounded-md py-1 underline decoration-line underline-offset-2 hover:text-ink"
           >
             Revision {skill.revision}
           </button>
