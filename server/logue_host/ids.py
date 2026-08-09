@@ -21,6 +21,10 @@ PREFIXES = {
     "client": "cli",
     "backup": "bkp",
     "revision": "rev",
+    # A change the agent would like to make. It is not a record — nothing is
+    # stored until a person accepts — but it needs a name to be referred to
+    # by, and the same prefixing tells you what it is at a glance.
+    "proposal": "prop",
 }
 
 

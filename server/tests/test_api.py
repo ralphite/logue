@@ -317,6 +317,70 @@ class HostTest(Workspace, unittest.TestCase):
             self.call("GET", "/v1/materials/..%2f..%2fsettings")
 
 
+class TheAgentInTheConversation(Workspace, unittest.TestCase):
+    """It reads freely, it asks before it writes, and it shows its working.
+
+    The stand-in answers in the agent's own JSON, so the loop is walkable
+    without a key. What that proves is the machinery — the tools reached, the
+    gate on writes, the steps carried back. Whether the agent *chooses* well
+    is a question only a real model can answer, and it is S3's.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        # The stand-in, because it is the one provider that speaks the agent's
+        # JSON. FakeProvider answers prose, which the loop correctly treats as
+        # a final answer — a fine behaviour, and not the one under test here.
+        stand_in = Provider.load({"api_key": "mock"})
+        self.app.provider = lambda: stand_in  # type: ignore[method-assign]
+
+    def a_source(self, content: str) -> dict:
+        return self.call("POST", "/v1/materials", {"kind": "text", "content": content})["material"]
+
+    def test_it_looks_before_it_answers(self) -> None:
+        self.a_source("The kickoff is on Tuesday.")
+        turn = self.call("POST", "/v1/agent/message", {"message": "when is the kickoff?"})
+        self.assertEqual([s["did"] for s in turn["steps"]], ["find_sources"])
+        self.assertTrue(turn["sources"], "an answer with no Sources is a chat message")
+        self.assertIn("[Source 1]", turn["answer"])
+
+    def test_every_step_comes_back_in_words(self) -> None:
+        """An agent that did three things and reported one is worse than none."""
+        self.a_source("The kickoff is on Tuesday.")
+        turn = self.call("POST", "/v1/agent/message", {"message": "when is the kickoff?"})
+        self.assertTrue(all(step.get("detail") for step in turn["steps"]), turn["steps"])
+
+    def test_a_write_is_only_ever_proposed(self) -> None:
+        before = len(self.call("GET", "/v1/documents")["documents"])
+        turn = self.call("POST", "/v1/agent/message", {"message": "[mock:propose] write this up"})
+        self.assertEqual(turn["proposal"]["tool"], "draft_document")
+        self.assertEqual(len(self.call("GET", "/v1/documents")["documents"]), before, "nothing was written")
+        self.assertTrue(turn["steps"][-1]["proposed"])
+
+    def test_a_proposal_happens_when_a_person_accepts_it(self) -> None:
+        turn = self.call("POST", "/v1/agent/message", {"message": "[mock:propose] write this up"})
+        self.call("POST", "/v1/agent/accept", {"proposal": turn["proposal"]})
+        titles = [d["title"] for d in self.call("GET", "/v1/documents")["documents"]]
+        self.assertIn("A mock draft", titles)
+
+    def test_it_cannot_be_talked_into_a_tool_that_does_not_exist(self) -> None:
+        with self.assertRaises(BadRequest):
+            self.call("POST", "/v1/agent/accept", {"proposal": {"tool": "delete_everything"}})
+
+    def test_filing_into_a_project_that_is_not_there_is_refused(self) -> None:
+        source = self.a_source("Something worth filing.")
+        with self.assertRaises(BadRequest):
+            self.call(
+                "POST",
+                "/v1/agent/accept",
+                {"proposal": {"tool": "add_to_project", "project": "Nowhere", "source_ids": [source["id"]]}},
+            )
+
+    def test_an_empty_message_is_refused(self) -> None:
+        with self.assertRaises(BadRequest):
+            self.call("POST", "/v1/agent/message", {"message": "   "})
+
+
 class LearningHowAWordIsSpelled(Workspace, unittest.TestCase):
     """What is learned, what is only suggested, and what is never learned.
 

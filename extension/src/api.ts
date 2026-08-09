@@ -162,6 +162,24 @@ export const host = {
     post<{ material: Material }>("/v1/project-membership", { material_id: materialId, project, member }),
   audioUrl: (captureId: string) => `${HOST}/v1/captures/${captureId}/audio`,
 
+  /** One turn of the panel's agent: what it did, what it said, what it wants. */
+  agentMessage: (body: {
+    message: string;
+    page?: { url?: string; title?: string; text?: string; domain?: string };
+    project?: string;
+    history?: { from: string; text: string }[];
+  }) =>
+    post<{
+      answer: string;
+      steps: { did: string; detail: string; proposed?: boolean; run_id?: string }[];
+      sources: Material[];
+      proposal: { id: string; tool: string; reason?: string; title?: string } | null;
+    }>("/v1/agent/message", body),
+
+  /** Carry out a proposal, because a person clicked. Never reachable by the agent. */
+  agentAccept: (body: { proposal: unknown; page?: { url?: string; title?: string; text?: string; domain?: string } }) =>
+    post<{ did: string }>("/v1/agent/accept", body),
+
   pageMaterials: (url: string) =>
     call<{ materials: Material[] }>(`/v1/materials?${new URLSearchParams({ q: url })}`),
 };

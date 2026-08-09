@@ -269,8 +269,33 @@ class MockProvider(Provider):
         """
         return lever in prompt.rsplit("Request: ", 1)[-1]
 
-    def generate(self, system: str, prompt: str) -> str:  # noqa: ARG002
+    def generate(self, system: str, prompt: str) -> str:
         time.sleep(1.0)
+        # The agent speaks JSON, so the stand-in has to as well — otherwise the
+        # one flow that cannot be walked without a key is the one with the most
+        # moving parts. It still says out loud that it is a stand-in, and it
+        # takes the honest path: look first, then answer from what it found.
+        # `[mock:propose]` reaches the proposal state, which a real model only
+        # reaches when it decides to change something.
+        if "Reply with one JSON object" in system:
+            if self._asked(prompt, "[mock:propose]"):
+                return json.dumps(
+                    {
+                        "tool": "draft_document",
+                        "title": "A mock draft",
+                        "body": "Written by the stand-in, on request [Source 1].",
+                        "reason": "You asked the stand-in to propose a change.",
+                    }
+                )
+            if "You searched for" not in prompt and "already searched" not in prompt:
+                return json.dumps({"tool": "find_sources", "query": prompt.rsplit("Request: ", 1)[-1][:60]})
+            return json.dumps(
+                {
+                    "tool": "answer",
+                    "text": "A mock answer standing in for the model: the Sources beneath are real, "
+                    "these words are not [Source 1].",
+                }
+            )
         if self._asked(prompt, "[mock:fail]"):
             raise Unavailable("[mock] The stand-in failed on request.")
         if self._asked(prompt, "[mock:long]"):

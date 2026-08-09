@@ -12,6 +12,7 @@ from typing import Any
 
 from .build import installed_extension_build
 from .domain import (
+    agent,
     backup,
     capture,
     corrections,
@@ -506,6 +507,33 @@ class App:
         @route("DELETE", "/v1/corrections/{spoken}")
         def forget_correction(request: Request) -> dict[str, Any]:
             return {"corrections": corrections.forget(store, request.params["spoken"])}
+
+        # -- the panel's conversation ----------------------------------------
+
+        @route("POST", "/v1/agent/message")
+        def agent_message(request: Request) -> dict[str, Any]:
+            body = request.json()
+            page = body.get("page") if isinstance(body.get("page"), dict) else {}
+            history = body.get("history") if isinstance(body.get("history"), list) else []
+            turn = agent.converse(
+                store,
+                self.provider(),
+                message=str(body.get("message") or ""),
+                page=page,
+                project=str(body.get("project") or ""),
+                history=[h for h in history if isinstance(h, dict)],
+            )
+            return turn
+
+        @route("POST", "/v1/agent/accept")
+        def agent_accept(request: Request) -> dict[str, Any]:
+            body = request.json()
+            proposal = body.get("proposal")
+            if not isinstance(proposal, dict):
+                raise BadRequest("a proposal is required")
+            page = body.get("page") if isinstance(body.get("page"), dict) else {}
+            # Only a person's click reaches this. The agent has no route to it.
+            return agent.accept(store, proposal, page=page)
 
         @route("GET", "/v1/vocabulary")
         def list_vocabulary(_: Request) -> dict[str, Any]:

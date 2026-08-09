@@ -475,3 +475,13 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   not be open when the key is pressed, so the intent is left where the panel
   finds it on arrival, and consumed on read: re-opening later never starts a
   recording nobody asked for.
+- **The agent reads freely and asks before it writes.** Finding Sources,
+  reading the page, running a configured Skill change nothing, so they happen.
+  Saving a Source, filing into a Project, drafting a document change the
+  workspace, so the agent may only *propose* them: the proposal waits in the
+  conversation with Do it / Leave it, and nothing is written until a person
+  clicks. **Every step it took is listed above its answer, in words** — an
+  agent that quietly did three things and reported one would be worse than no
+  agent. Answers carry live `[Source n]` citations like every other output.
+  Typing and speaking reach the same conversation; two ways to ask one
+  question, with answers that did not know about each other, was the bug.

@@ -22,7 +22,7 @@ from . import materials
 CITATION = re.compile(r"\[Source[^\]]*\]")
 
 
-def _numbered(sources: list[Record]) -> str:
+def numbered(sources: list[Record]) -> str:
     lines = []
     for index, source in enumerate(sources, start=1):
         origin = (source.get("source") or {}).get("title") or (source.get("source") or {}).get("url") or "This Mac"
@@ -81,7 +81,7 @@ def run_skill(
         ]
         if part
     )
-    prompt = "\n\n".join(part for part in [_numbered(sources), f"Request: {instruction}"] if part)
+    prompt = "\n\n".join(part for part in [numbered(sources), f"Request: {instruction}"] if part)
 
     run: Record = {
         "id": new_id("run"),

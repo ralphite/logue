@@ -23,6 +23,12 @@ interface ThreadMessage {
   from: "logue" | "skill" | "you";
   text: string;
   at: string;
+  /** What the agent did to get here, in the order it did it. */
+  steps?: { did: string; detail: string; proposed?: boolean }[];
+  /** A change it would like to make, waiting for a person. */
+  proposal?: { id: string; tool: string; reason?: string; title?: string } | null;
+  /** Sources behind this answer, so a claim can be followed back. */
+  sources?: Material[];
 }
 
 const THREAD = "logue:thread";
@@ -35,14 +41,42 @@ function isMessage(value: unknown): value is ThreadMessage {
   return "text" in value && typeof value.text === "string" && "from" in value;
 }
 
+/** What each tool call is called, in words rather than in function names. */
+const DID: Record<string, string> = {
+  find_sources: "Looked through your Sources",
+  run_skill: "Ran a Skill",
+  save_page: "Would save this page",
+  add_to_project: "Would file this into a Project",
+  draft_document: "Would draft a document",
+};
+
 /**
- * A Skill run from the page's own menu, shown as it happened.
+ * The conversation: what you said, what the agent did, and what it answered.
  *
- * Two messages and not a transcript of one: what was run, and what came back.
- * The panel is otherwise a set of sections about this page, and a run has a
- * before and an after — that is a conversation, however short.
+ * Everything the agent touched is listed above the answer it produced, and a
+ * change it would like to make sits underneath waiting for a person. An agent
+ * that worked invisibly would be the wrong shape for a product whose claim is
+ * that every sentence can be traced.
  */
-function Thread({ messages, onClear }: { messages: ThreadMessage[]; onClear: () => void }) {
+function Thread({
+  messages,
+  onClear,
+  onAccept,
+  onDiscard,
+  onError,
+  busy,
+}: {
+  messages: ThreadMessage[];
+  onClear: () => void;
+  onAccept: (message: ThreadMessage) => void;
+  onDiscard: (message: ThreadMessage) => void;
+  onError: (message: string) => void;
+  busy: boolean;
+}) {
+  // Which citation is open, by message and number: two answers in one thread
+  // each have a [Source 1], and opening one must not open the other's.
+  const [openCite, setOpenCite] = useState<string>();
+
   if (messages.length === 0) return null;
   return (
     <section className="mb-3 grid gap-1.5 rounded-lg border border-line bg-surface p-2">
@@ -54,8 +88,20 @@ function Thread({ messages, onClear }: { messages: ThreadMessage[]; onClear: () 
         </button>
       </span>
       {messages.map((message) => (
+        <div key={`${message.from}:${message.at}`} className="grid gap-1">
+        {(message.steps ?? []).length > 0 && (
+          // Everything it touched, before the answer that came of it. An agent
+          // that quietly did three things and reported one is worse than none.
+          <ul className="grid gap-0.5">
+            {(message.steps ?? []).map((step) => (
+              <li key={`${step.did}:${step.detail}`} className="flex items-baseline gap-1 text-xs text-muted">
+                <span className="text-ink-soft">{DID[step.did] ?? step.did}</span>
+                <span className="truncate">{step.detail}</span>
+              </li>
+            ))}
+          </ul>
+        )}
         <p
-          key={`${message.from}:${message.at}`}
           className={
             message.from === "logue"
               ? "text-xs text-muted"
@@ -66,8 +112,48 @@ function Thread({ messages, onClear }: { messages: ThreadMessage[]; onClear: () 
                 : "rounded-md bg-surface-muted p-2 text-xs leading-[1.55] whitespace-pre-wrap text-ink"
           }
         >
-          {message.text}
+          {(message.sources ?? []).length > 0 ? (
+            // Live citations, the same as everywhere else: an answer whose
+            // [Source n] cannot be opened is a claim with nothing behind it.
+            <Answer
+              text={message.text}
+              sources={message.sources ?? []}
+              open={openCite?.startsWith(`${message.at}:`) ? Number(openCite.split(":").pop()) : undefined}
+              onCite={(n) => setOpenCite(n === undefined ? undefined : `${message.at}:${n}`)}
+            />
+          ) : (
+            message.text
+          )}
         </p>
+        {openCite?.startsWith(`${message.at}:`) &&
+          (message.sources ?? [])[Number(openCite.split(":").pop()) - 1] && (
+            <p className="line-clamp-6 rounded-md bg-surface-muted p-2 text-xs leading-[1.45] text-ink-soft">
+              {(message.sources ?? [])[Number(openCite.split(":").pop()) - 1]!.content}
+            </p>
+          )}
+        {(message.sources ?? []).length > 0 && (
+          <div className="grid gap-1.5 rounded-md border border-line p-2">
+            <OriginMark origin="ai" detail={`${(message.sources ?? []).length} Sources`} />
+            <IntoDocument answer={{ text: message.text, sources: message.sources ?? [] }} onError={onError} />
+          </div>
+        )}
+        {message.proposal && (
+          // Nothing has happened yet. A change is a proposal until someone
+          // says yes — the line between this and every other assistant.
+          <div className="flex items-center gap-1 rounded-md border border-accent-line bg-accent-soft px-2 py-1.5">
+            <span className="flex-1 text-xs text-ink">
+              {DID[message.proposal.tool] ?? message.proposal.tool}
+              {message.proposal.title ? ` — “${message.proposal.title}”` : ""}
+            </span>
+            <Button variant="primary" disabled={busy} onClick={() => onAccept(message)}>
+              Do it
+            </Button>
+            <IconButton label="Leave it" disabled={busy} onClick={() => onDiscard(message)}>
+              <X size={13} />
+            </IconButton>
+          </div>
+        )}
+        </div>
       ))}
     </section>
   );
@@ -85,10 +171,8 @@ function Panel() {
   const [saved, setSaved] = useState<Material[]>([]);
   const [project, setProject] = useState("");
   const [instruction, setInstruction] = useState("");
-  const [answer, setAnswer] = useState<{ text: string; sources: Material[] }>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [openSource, setOpenSource] = useState<number>();
   const [modelReady, setModelReady] = useState(true);
   const voice = useVoice();
 
@@ -202,33 +286,20 @@ function Panel() {
     }
   };
 
+  /**
+   * Typing and speaking reach the same conversation.
+   *
+   * They used to be two things: the box ran one Skill and printed an answer
+   * below itself, while a spoken message went into the thread. Two ways to
+   * ask one question, and the answers did not know about each other.
+   */
   const ask = async () => {
-    const usable = (context?.skills ?? []).filter((skill) => skill.enabled);
-    const skill =
-      usable.find((item) => item.id === context?.defaults?.qa) ??
-      usable.find((item) => item.built_in_key === "ask") ??
-      usable[0];
-    if (!skill || !instruction.trim()) return;
-    setBusy(true);
-    setError("");
-    try {
-      const result = await host.run({
-        skill_id: skill.id,
-        instruction: instruction.trim(),
-        project,
-        source_ids: project ? undefined : saved.map((item) => item.id),
-      });
-      if (result.run.status !== "complete") {
-        setError(result.run.error ?? "The model did not answer.");
-        return;
-      }
-      setAnswer({ text: result.run.original_output ?? "", sources: result.sources });
-      setInstruction("");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not run that.");
-    } finally {
-      setBusy(false);
-    }
+    const words = instruction.trim();
+    if (!words) return;
+    const mine: ThreadMessage = { from: "you", text: words, at: new Date().toISOString() };
+    say(mine);
+    setInstruction("");
+    await converse(words, [...thread, mine]);
   };
 
   /**
@@ -236,10 +307,62 @@ function Panel() {
    * so nobody learns a second set. Accepting turns the words into a message
    * from you; cancelling leaves nothing behind.
    */
+  /**
+   * Send a message to the agent and show everything that came of it.
+   *
+   * The page travels with the message because "this page" is what the panel
+   * is about; the agent reads it rather than guessing from a URL.
+   */
+  const converse = useCallback(
+    async (text: string, history: ThreadMessage[]) => {
+      setBusy(true);
+      setError("");
+      try {
+        let body = "";
+        if (tab?.id !== undefined) {
+          try {
+            const [result] = await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: readablePageText,
+            });
+            body = typeof result?.result === "string" ? result.result : "";
+          } catch {
+            // A restricted page cannot be read; the agent works without it.
+          }
+        }
+        const turn = await host.agentMessage({
+          message: text,
+          project,
+          page: tab?.url ? { url: tab.url, title: tab.title, text: body } : undefined,
+          history: history.map((m) => ({ from: m.from, text: m.text })),
+        });
+        say({
+          from: "skill",
+          text: turn.answer,
+          at: new Date().toISOString(),
+          steps: turn.steps,
+          proposal: turn.proposal,
+          sources: turn.sources,
+        });
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Could not reach Logue.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [project, say, tab?.id, tab?.title, tab?.url],
+  );
+
   const accept = useCallback(async () => {
     const settled = await voice.stop({ project, source: { kind: "panel", url: tab?.url } });
-    if (settled?.text.trim()) say({ from: "you", text: settled.text.trim(), at: new Date().toISOString() });
-  }, [voice, project, tab?.url, say]);
+    const words = settled?.text.trim();
+    if (!words) return;
+    const mine: ThreadMessage = { from: "you", text: words, at: new Date().toISOString() };
+    say(mine);
+    // Said, then answered: a message that only sat there would make the
+    // shortcut a dictation key rather than a way to ask for something.
+    await converse(words, [...thread, mine]);
+  }, [voice, project, tab?.url, say, converse, thread]);
 
   useEffect(() => {
     if (voice.phase !== "recording") return;
@@ -256,6 +379,40 @@ function Panel() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [voice, accept]);
+
+  /** A person said yes. This is the only path a change can arrive by. */
+  const carryOut = useCallback(
+    async (message: ThreadMessage) => {
+      if (!message.proposal) return;
+      setBusy(true);
+      try {
+        await host.agentAccept({
+          proposal: message.proposal,
+          page: tab?.url ? { url: tab.url, title: tab.title, domain: new URL(tab.url).hostname } : undefined,
+        });
+        setThread((was) => {
+          const next = was.map((m) => (m.at === message.at ? { ...m, proposal: null } : m));
+          void chrome.storage.local.set({ [THREAD]: next });
+          return next;
+        });
+        say({ from: "logue", text: "Done — it is in your workspace.", at: new Date().toISOString() });
+        await load();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Could not do that.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [tab?.url, tab?.title, say, load],
+  );
+
+  const leaveIt = useCallback((message: ThreadMessage) => {
+    setThread((was) => {
+      const next = was.map((m) => (m.at === message.at ? { ...m, proposal: null } : m));
+      void chrome.storage.local.set({ [THREAD]: next });
+      return next;
+    });
+  }, []);
 
   const fromPage = saved.filter((item) => FROM_THE_PAGE.has(item.kind));
   const said = saved.filter((item) => !FROM_THE_PAGE.has(item.kind));
@@ -280,6 +437,10 @@ function Panel() {
 
         <Thread
           messages={thread}
+          busy={busy}
+          onError={setError}
+          onAccept={(message) => void carryOut(message)}
+          onDiscard={leaveIt}
           onClear={() => {
             setThread([]);
             void chrome.storage.local.remove(THREAD);
@@ -374,21 +535,6 @@ function Panel() {
             </Button>
           </div>
         </div>
-
-        {answer && (
-          <div className="mt-3 grid gap-2 rounded-lg border border-line bg-surface p-2.5">
-            <OriginMark origin="ai" detail={`${answer.sources.length} Sources`} />
-            <p className="text-[13px] leading-[1.6] whitespace-pre-wrap text-ink">
-              <Answer text={answer.text} open={openSource} onCite={setOpenSource} sources={answer.sources} />
-            </p>
-            {openSource !== undefined && answer.sources[openSource - 1] && (
-              <p className="line-clamp-6 rounded-md bg-surface-muted p-2 text-xs leading-[1.45] text-ink-soft">
-                {answer.sources[openSource - 1]!.content}
-              </p>
-            )}
-            <IntoDocument answer={answer} onError={setError} />
-          </div>
-        )}
 
         <Kept title="On this page" items={fromPage} context={context} onChanged={load} empty="Nothing saved yet." />
         <Kept title="What you added" items={said} context={context} onChanged={load} empty="No comments yet." />
