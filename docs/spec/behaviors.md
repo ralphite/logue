@@ -43,6 +43,14 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   ignored by git**, under `docs/spec/shots/`, and the task cites it by name. It
   belongs next to the task it explains, not in a temporary folder that empties
   itself — and not in the history either.
+- **Never ask what can be measured.** A question is only worth the person's
+  time when the answer lives in their head — what they want, which trade-off
+  they prefer, what counts as good enough. Anything findable by running it,
+  reading the code, or timing it is not a question: go and find it. Bring the
+  number, say what it means for the decision, and give a recommendation. Where
+  something genuinely cannot be measured yet, say what it is expected to be and
+  why, so there is something to be wrong about. (Written after "how long does
+  transcription actually take?" was put to the person instead of a stopwatch.)
 - **Never stop early, never wait to be unblocked.** If something is in the way,
   find another route; a computer is available. When a task genuinely needs an
   answer only the person can give, write the question into the queue and move
@@ -63,6 +71,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   nouns stay as they are.
 - **Verification writes into the "Logue QA" Project, tagged `qa`, and deletes
   nothing.** A check that borrows a real record puts it back exactly.
+- **Commit when a piece is done and checked; push whenever pushing is
+  possible.** Work that sits uncommitted cannot be stepped back through when
+  something turns out wrong, and one enormous commit is the same problem in
+  disguise. If pushing fails — no remote, no network, rejected — say so rather
+  than leaving it sitting locally without a word.
 
 ## The machine
 
@@ -99,6 +112,18 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
 
 ## The interface
 
+- **Consistency is the floor, not a finishing touch.** The same thing looks and
+  behaves the same way everywhere, at every level: page widths and margins;
+  section headings and empty states; rows, cards and lists; buttons, inputs and
+  menus; icons, spacing, type sizes, colours, wording. Two screens that solve
+  the same problem differently means one of them is wrong — the fix is to pick
+  one and use it in both, not to leave both. This is checked at every level,
+  and nothing built on top of it counts while it is broken.
+- **On top of consistency, the interface is held to what good UI design
+  actually requires** — hierarchy, alignment, contrast, hit targets, focus and
+  keyboard order, states for loading, empty, error and too-much-content,
+  wording that says what happens. Audited deliberately and in full, not spotted
+  by accident.
 - **Follows Notion.** Very simple, very minimal, small spacing everywhere.
 - **Progressive disclosure.** Anything secondary is folded away by default.
 - **An empty section takes up no room.** A heading over "Nothing saved yet."
@@ -114,6 +139,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   screen is the person's own material.
 - **Every route has a fixed bar** naming where you are, carrying its actions.
   Actions must not scroll away.
+- **Every page is laid out the same way** — same width, same margins, same
+  rhythm. Moving between Stream, Projects, Documents and Settings should not
+  feel like moving between products. A narrower measure for long-form reading
+  is the one allowed exception, and it is chosen deliberately and said out
+  loud; a page that differs because nobody passed the argument is a bug.
 - **The rail collapses to icons and can be dragged wider, and remembers both**
   across a reload.
 - **A control that appears on hover appears when the pointer is anywhere in the

@@ -18,6 +18,8 @@
 | **X22** | 新建 Skill 建不出来:要一个屏幕上不存在的字段 | 你的原话是 "this is broken"。截图里:新建 Skill 只问了一个"What is this Skill called?",填好 `Transcription` 按 Create,却报 `instructions is required` —— **界面上根本没有 instructions 这个输入框**。要一个人填一个他看不见的东西,这是彻头彻尾的死路,一个 Skill 都建不出来。两条修法二选一,按"摩擦最小"应该选后者:①把 instructions 这一栏摆到表单上;②**创建时只要名字**,instructions 建完之后在 Skill 页上填 —— 反正 Skill 页本来就能编辑 prompt。顺带查一遍别处还有没有同样的毛病:后端要求的字段,前端却没给入口。图:`shots/x22-skill-create-missing-field.png` |
 | **X23** | Side Panel 里空的分区照样摊开,占满整屏 | 你的原话是"这个违反了渐进式显示 UI 的规则"。截图里:"On this page → Nothing saved yet."、"What you added → No comments yet." —— 两个分区都是空的,却各自占着一大块,把"这里什么都没有"这件事说了两遍,还把真正有内容的东西挤到看不见的地方。空的分区不该摊开:要么整个收起来只留一行标题(数量是 0),要么干脆不显示。**注意别和另一条规则打架**:"空分区要给出一条出路"针对的是**边栏里能新建东西的地方**(那里空着人就没法开始);Side Panel 这两个分区是这一页的读数,没有"从这里新建"这回事,空了就该让位。图:`shots/x23-empty-sections-not-folded.png` |
 | **X24** | Find 的输入框自己带一圈边,和放大镜之间多一条线 | 你的原话是 "remove border of search input text (b/t search icon and ab)"。**根因已经查到**:共享的 `Input` 组件([Field.tsx:6](packages/ui/src/Field.tsx:6))在 `control` 里写了 `focus:border-accent-line` 和 `focus:shadow-[0_0_0_2px_…]`;[FindDialog.tsx:145](web/src/app/FindDialog.tsx:145) 用 `border-0 shadow-none` 去关它,但**关不掉 focus 变体** —— 而这个框是 `autoFocus` 的,等于永远处在 focus 态,那圈边和光晕就一直亮着。对话框外面已经有一层边框了,里面这层是重复的。修法别在调用处再堆 `focus:border-0` 这类 override,给 `Input` 一个"无边框"的变体更干净,别处遇到同样的问题也能用。图:`shots/x24-search-input-double-border.png` |
+| **X25** | 各个页面布局不统一,连宽度都三档 | 你的原话是 "we should use same layout if possible for pages (stream, project, doc etc). why they are different even for width?"。**量出来了**:[theme.css:58](packages/ui/src/theme.css:58) 定了三档宽度 —— reading `820px`、list `940px`、settings `1180px`;`Page` 组件默认走 `list`([AppShell.tsx:295](web/src/app/AppShell.tsx:295)),于是 **Documents 和 Skills 是 820,Stream 和 Projects 因为没写 axis 落到 940,Settings 是 1180**,而 Settings 里面还在 1180 之内又套了一层 `max-w-[560px]`([SettingsRoute.tsx:95](web/src/app/SettingsRoute.tsx:95))。所以宽度不一致既有设计上的三档,也有"没人显式选档"的默认值,两种原因混在一起。**要的是一套布局**:默认所有页面同宽同边距,只有真正读长文的地方才允许收窄,而且必须是显式声明的、说得出理由的例外 —— 不是靠"忘了传参数"决定的。顺手把 Settings 里那层多余的 560 收掉 |
+| **T1** | 全面走查,把这一类一眼可见的问题一次找完 | 你的原话是 "do full audit to find all obvious issues like last one"。"like last one" 指的是 X25 这类:不用深挖、打开页面或读一眼代码就能看出来的不一致和破绽。**走查范围**:每个路由(Stream / Projects / Documents / Skills / Settings)、Side Panel 的每个分区、扩展在页面上的每个浮层。**照着已经写下的规则逐条对**(behaviors.md 的"界面"一节就是清单):宽度与边距是否一致、空态是否占地方、浮层是否压住正文、每个列表行是否点得进去、表单是否要了看不见的字段、控件是否重复、长内容是否撑破页面。**产出是一份清单交给你**,按"值不值得修"排好,不是闷头全改 —— 这条规矩你早就定了:先列清单再动手。用真实的长文档走查,不许用自制测试页。<br><br>**范围随后被你扩大了**,原话是 "ui design must be consistent! everywhere! all levels! this is the basics. on top of this we must do audit to follow ui design best practices. ALL"。所以走查分两层,两层都要**查全**:①**一致性** —— 同一件事在每一处、每一层是不是长得一样、用起来一样(宽度边距、标题空态、行卡片列表、按钮输入框菜单、图标间距字号颜色文案);②**在一致之上,照 UI 设计的正经标准过一遍** —— 层级、对齐、对比度、点击区域、焦点与键盘顺序,以及加载/空/出错/内容过多这四种状态每一处有没有做。**不许抽样,不许"挑几个典型"** |
 | **X11** | **网页上弹出"访问此设备上的其他应用和服务"** —— 高优先,**卡住,需要你一句话** | 你的原话是 "this must be fixed. high prio"。**查到目前为止:复现不出来,而且证据指向不是我们。** 做过的:①代码全树扫,`127.0.0.1:8787` 只出现一次(`api.ts` 的常量),页面侧所有调用都经 worker 中转,唯一直连的是 Side Panel 里的音频 `<audio src>` —— 那是扩展自己的页面,弹框会写 "Logue wants to" 而不是站点名;②真机对照,同一页面(www.experimental-history.com)装扩展跑一遍、不装再跑一遍,用 CDP 数**归属于页面框架**的私有地址请求:两次都是 **0 条**,`local-network-access` 权限状态两次都是 `prompt`(从没被请求过)。内容脚本如果发过这种请求,一定会记在页面这一侧 —— 它没有。**需要你补一句**:弹框跳出来的那一刻,你刚做了什么?(刚打开面板?刚选中文字?刚按了麦克风?还是页面一加载就弹?)有这一句我就能把条件补上重跑。图:`shots/x11-noemamag-device-prompt.png`、`shots/x11-experimental-history-device-prompt.png` |
 | **X17** | **Google Docs 必须能用** —— 高优先 | 你的原话是 "high prio. we must make google docs work. create a new test google doc to confirm"。这是 behaviors 里写死的一条("Google Docs must work. It is not optional."),现在不成立。验证方式你也定了:**新建一个测试用 Google Doc**,在那上面确认 —— 不复用旧文档,免得旧页面上残留的老构建把结果说圆了。要在新文档里跑通的是:光标旁出现麦克风、录音、转写回到光标原处、选区工具条、Skill 直出 |
 | **X18b** | Side Panel 逐条对齐 v1 的行为 | 你的原话是 "high prio. ext panel must work. check v1 for behavior"。**打不开那一半已经修好**(见下"已完成"):面板是被自更新的 reload 打死的,现在会自愈。剩下这一半是你要的正事 —— 把 v1 的 Side Panel 从 git 历史里挖出来读一遍、列出它当时会做的每一件事,再逐条对现在这个,差在哪补哪,不是重新想一个。和 X16 同源,两件一起读 v1 |
@@ -25,15 +27,15 @@
 | **F3** | ⌘⇧K:开面板、开录音,说完进对话 —— **先出清单,不要实现** | 你的原话是 "cmd+shift+k opens the ext panel and starts voice recording, esc to cancel and enter to accept. msg send to chat. in chat we can use existing skills configured (such as translate, add to project etc). the chat should use a llm agent that we can control. check notion for features. do not impl. propose list of features after deep research."。已经定下来的行为:⌘⇧K 一下,面板打开并立刻开始录;**Esc 取消,Enter 采纳**;采纳后这段话作为一条消息进入对话;对话里能调用已经配置好的 Skill(翻译、加进某个 Project……);对话背后是一个**我们自己能控制的 LLM agent**,不是一次性的 prompt。**明确不要现在实现** —— 先深入研究(Notion 的对话与 AI 功能是指定参照),再提出一份功能清单等你拍板。研究这部分和 R12 是同一片地,一起做,一份清单交付 |
 | **F5** | 用历史里说过的话把转写越修越准 —— **先出方案,不要实现** | 你的原话是 "historical user inputs with high quality should be used to improve transcription. e.g. frequent special words/names should be correct. propose features and solution first"。目标很清楚:你反复说到的专有名词、人名,不该每次都被听错一遍。现成的地基有三块 —— Project 的词表(`transcription_profile.vocabulary.terms`,Host 转写时就在读)、光标附近的页面文字(已经当作临时词汇送进去)、以及你手动纠错留下的记录。缺的是把它们连起来的那一步:从历史里自动挑出该记住的词。**先提方案再动手**,方案里必须回答的:①什么算"高质量"输入(被采纳的?被你改过的?出现够多次的?);②词是自动进词表还是要你点头;③词表属于一个 Project 还是全局;④怎么不把口误也学进去,以及学错了怎么撤 |
 | **F6** | 做一个叫 Transcription 的 Skill:把说出来的话清干净 | 你的原话是"把这些重复的不一致的嗯啊这些就是这些词都删掉。然后基本上就是整体保持一致吧,但是把一些可以简化的给简化,然后让它更通顺可读一点"。它要做四件事:①删掉语气词和口头禅("嗯""啊""就是""那个"这类);②删掉重复和自我纠正留下的碎句;③**整体保持一致** —— 意思、语气、你的用词都不动,这不是改写;④能简化的地方简化,让它读起来通顺。**边界要写死在 prompt 里:只删不加。** 不许补充你没说过的内容,不许换成更"书面"的说法,不许替你把话说完。建好之后设成转写的默认 Skill(`defaults.transcription` 这个槽位本来就在)。**依赖 X22** —— 现在新建 Skill 是坏的,建不出来。顺带一提,你提这个需求时说的那段话本身就是最好的测试样例 |
+| **V3** | 异步听写 —— 转写的时候不锁住,可以接着打字 | **原来这条挂在"等你拍板",问的是"转写到底要等多久"。那不该问你,该我去量 —— 现在量完了:** 拿真的 Host、真的模型跑 fixtures 里的三段音频,5.1 秒的话等 **3.3 秒**,8.2 秒的等 **4.0 秒**,16 秒的等 **8.4~13.3 秒**。粗算是音频长度的**一半到八成**,而且会抖 —— 同一段 8 秒的音频,有一次等了 **25.7 秒**。<br><br>**结论:"一秒内返回"根本不成立,这件事必须做。** 而且它和 **F4** 撞在一起:你要能录十分钟,按这个速度就是**锁住界面五到八分钟**,没人受得了。所以 V3 不再是待定项,它是 F4 的前提 |
 | **R12** | 竞品扫描,以及它翻出来的东西 | 你的原话点了方向:"anywhere voice input with customizable skills, notion's skills in docs, lineage of all content, content gen from sources, pkm"。做完研究把值得的功能补上,"polish the ux/product design/features to make it very good. keep pushing automatically in this way" |
 
 ## 等你拍板
 
 | | 任务 | 要定的是什么 |
 |---|---|---|
-| **V7** | 文档内选区改写,逐段 accept/reject | **你想不想让模型直接改文档?** 现在是严格的"先产出、人再放置"。就地改写没有 `[Source n]`,这跟产品的立身之本冲突 |
-| **V3** | 异步听写 —— 转写时不锁住,可以接着打字 | **转写实际要等多久?** 一秒内返回的话,整套队列+重映射就是白搭。先量 |
-| **V6** | CommandBox 里加麦克风 | 很小,而且只有 V3 落地才有意义 |
+| **V7** | 在文档里选一段,让模型改写,你逐段点"要"或"不要" | **要不要让模型直接动你的文档?** 现在的规矩是:模型只管写出来,放不放、放在哪儿由你说了算。如果让它就地改,改出来的句子上没有 `[Source n]`,就没人知道这句话是从哪来的 —— 而"每句话都能追回出处"正是这个产品的立身之本。**这件事只有你能定**,所以它在这里等着 |
+| **V6** | CommandBox 里加麦克风 | 很小,等 V3 落地之后跟着做就行 |
 
 ## 长期规则(按你说的原话记)
 
@@ -41,7 +43,9 @@
 
 - **自己管队列、自己往下推。** 顺序你来定,不要等人喊继续。
 - **上一个做完立刻做下一个。** 有值得读的东西才汇报,不要每做一件报一次。
+- **能量出来的,不要拿来问。** 你的原话是 "this is low quality qustion. avoid in future. why cant you measure? what do you think it could be?"。只有答案长在你脑子里的事才值得问你 —— 你想要什么、你偏向哪个取舍、什么程度算够好。**跑一下、读一下代码、掐个表就能知道的,不是问题,是我该去做的事。** 把数字带来,说清它对决定意味着什么,并给出建议。实在还量不到的,就说出预计是多少、依据是什么 —— 至少要有个能被证伪的判断,而不是把空白丢回给你。
 - **不要停,做没被卡住的那件。** 你的原话是 "work on things not blocked. avoid being blocked."。有东西挡路就绕。真需要你拍板的那件,把问题写清楚留在队列里,然后**立刻往下做别的** —— 队列里永远有不需要等任何人的事。也要主动少给自己制造卡点:先做不依赖别人的部分,把要问的问题攒着一次问完,而不是问一句停一次。
+- **界面必须一致 —— 每一处、每一层。这是地基,不是收尾。** 你的原话是 "ui design must be consistent! everywhere! all levels! this is the basics."。同一件事在哪儿都得长得一样、用起来一样:页面宽度和边距、分区标题和空态、行/卡片/列表、按钮/输入框/菜单、图标、间距、字号、颜色、文案。两个屏幕用两种方式解决同一个问题,说明其中一个是错的 —— 挑一个用到两处,不是两个都留着。**在这之上,还要照 UI 设计的正经标准做审计**:层级、对齐、对比度、点击区域、焦点与键盘顺序,以及加载/空/出错/内容过多这四种状态,还有文案有没有说清会发生什么。这些要**成系统地查一遍**,不是碰巧看见才修。
 - **新的要求进队列,不插到手上这件前面** —— 除非它现在就是坏的。
 - **每一条被要求的行为,在被提出的当下就写下来**,让重写不能悄悄把它弄丢。
 - **竞品的功能清单是菜单,不是命令。** 值得的留下,其余删掉。标准是极简、一眼就懂,不是"抄全"。
@@ -56,6 +60,7 @@
 - **必须在 Notion 里测。** 你的原话是 "must test in notion"。凡是碰到浏览器界面的改动,Notion 和 Google Docs 都要过 —— 测试页上的一个普通输入框证明不了任何事,光标、选区、重绘在这两个编辑器里都不一样。
 - **验证写进 "Logue QA" Project,并且不删任何东西。**
 - **你的浏览器上必须是最新的扩展,并且要定期更新。** 你的原话是 "my browser must have latest extension. update it regularly."。不只是部署后那一分钟 —— 要定期检查并推上去,让"我现在看到的是哪个构建"永远只有一个答案:当前那个。**拷进安装目录 ≠ 浏览器里正在跑** —— 一个开了一整天的标签页照样可能还在跑上周的脚本(X19 就是这么来的)。
+- **该提交就提交,能推就推。** 你的原话是 "must commit when necessary. must push when possible."。一件事做完、验过,就落一个 commit,别攒着 —— 攒成一大坨,出问题时没法一步步往回退。有远端就推上去;推不上去(没配远端、没网、被拒)就说一声,别默不作声地留在本地。
 - **一台机器只有一套** —— 一份代码、一个 Host、一个扩展 —— 而且全部装好、跑着,随时能查,不需要开终端。
 - **用中文回复。**
 
