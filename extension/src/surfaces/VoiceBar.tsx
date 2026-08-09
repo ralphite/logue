@@ -1,6 +1,7 @@
-import { Check, ChevronDown, GripVertical, Mic, Sparkles, Undo2, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import { Check, ChevronDown, Mic, Sparkles, Undo2, X } from "lucide-react";
+import { useState, type CSSProperties } from "react";
 import { IconButton, RecordingDot, Spinner, cn } from "@logue/ui";
+import { FloatingBar, type Draggable } from "./FloatingBar";
 import { ProfilePicker } from "./ProfilePicker";
 import type { Context } from "../api";
 import type { VoiceOverrides } from "../overrides";
@@ -10,8 +11,6 @@ export type Phase = "idle" | "starting" | "recording" | "working" | "error";
 /** The bar must never take focus from the editor it is sitting beside. */
 const keepFocus = (event: React.SyntheticEvent) => event.preventDefault();
 
-const NUDGE = 12;
-const NUDGE_FAR = 48;
 
 /**
  * The bar that follows the caret. At rest it is a microphone, a sparkle, and a
@@ -35,7 +34,6 @@ export function VoiceBar({
   onRetry,
   inserted = false,
   onUndo,
-  onDismissInserted,
   onStart,
   onCommand,
   onStop,
@@ -45,7 +43,7 @@ export function VoiceBar({
   moved,
   overrides,
   onOverrides,
-}: {
+}: Draggable & {
   phase: Phase;
   style?: CSSProperties;
   error?: string;
@@ -62,124 +60,36 @@ export function VoiceBar({
   /** Words just landed in the editor, and can still be taken back. */
   inserted?: boolean;
   onUndo?: () => void;
-  onDismissInserted?: () => void;
   onStart: () => void;
   onCommand: () => void;
   onStop: () => void;
   onCancel: () => void;
-  onMove?: (point: { left: number; top: number }) => void;
-  onResetPosition?: () => void;
-  moved?: boolean;
+
   overrides: VoiceOverrides;
   onOverrides: (value: VoiceOverrides) => void;
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const root = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ pointerId: number; dx: number; dy: number }>(undefined);
-
-  const startDrag = useCallback(
-    (event: PointerEvent<HTMLButtonElement>) => {
-      if (!onMove || event.button !== 0) return;
-      // Never let the grip steal focus: the bar is only visible while the
-      // page's own editor holds it.
-      event.preventDefault();
-      event.stopPropagation();
-      const box = root.current?.getBoundingClientRect();
-      if (!box) return;
-      drag.current = { pointerId: event.pointerId, dx: event.clientX - box.left, dy: event.clientY - box.top };
-      setDragging(true);
-    },
-    [onMove],
-  );
-
-  useEffect(() => {
-    if (!onMove || !dragging) return;
-    const move = (event: globalThis.PointerEvent) => {
-      const current = drag.current;
-      if (!current || current.pointerId !== event.pointerId) return;
-      event.preventDefault();
-      onMove({ left: event.clientX - current.dx, top: event.clientY - current.dy });
-    };
-    const up = () => {
-      drag.current = undefined;
-      setDragging(false);
-    };
-    window.addEventListener("pointermove", move, true);
-    window.addEventListener("pointerup", up, true);
-    window.addEventListener("pointercancel", up, true);
-    return () => {
-      window.removeEventListener("pointermove", move, true);
-      window.removeEventListener("pointerup", up, true);
-      window.removeEventListener("pointercancel", up, true);
-    };
-  }, [dragging, onMove]);
-
-  const nudge = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (!onMove) return;
-    if (event.key === "Escape" && moved) {
-      event.preventDefault();
-      onResetPosition?.();
-      return;
-    }
-    const step = event.shiftKey ? NUDGE_FAR : NUDGE;
-    const delta =
-      event.key === "ArrowLeft"
-        ? { left: -step, top: 0 }
-        : event.key === "ArrowRight"
-          ? { left: step, top: 0 }
-          : event.key === "ArrowUp"
-            ? { left: 0, top: -step }
-            : event.key === "ArrowDown"
-              ? { left: 0, top: step }
-              : undefined;
-    const box = root.current?.getBoundingClientRect();
-    if (!delta || !box) return;
-    event.preventDefault();
-    onMove({ left: box.left + delta.left, top: box.top + delta.top });
-  };
 
   return (
-    <div
-      ref={root}
+    <FloatingBar
+      label="Logue voice"
       style={style}
-      role="group"
-      aria-label="Logue voice"
-      className="logue-float group fixed z-surface flex h-bar items-center gap-0.5 p-0.5"
+      onMove={onMove}
+      onResetPosition={onResetPosition}
+      moved={moved}
     >
-      {onMove && (
-        <button
-          type="button"
-          aria-label={moved ? "Move — Escape puts it back beside the cursor" : "Move"}
-          title={moved ? "Drag to move · double-click to snap back" : "Drag to move"}
-          onPointerDown={startDrag}
-          onKeyDown={nudge}
-          onDoubleClick={() => onResetPosition?.()}
-          className={`inline-flex h-control w-3.5 min-w-3.5 items-center justify-center rounded-sm text-line-strong hover:bg-surface-muted hover:!text-muted focus-visible:text-muted [touch-action:none] ${
-            dragging ? "cursor-grabbing !text-muted" : "cursor-grab"
-          }`}
-        >
-          <GripVertical size={13} />
-        </button>
-      )}
 
       {/* Said and placed. This lives on the bar rather than in a strip of its
           own: that strip sat over the very words it was reporting, could not
           be moved, and was a second floating thing where one was enough. */}
       {inserted && phase === "idle" ? (
-        <>
-          {/* No words. The check is the receipt, the arrow is undo, and both
-              say so on hover — transient chrome earns an icon, not a caption.
-              (Different rule from "no mark without a word": that bans status
-              dots nobody can decode; these are actions everyone knows.) */}
-          <Check size={14} className="mx-1.5 text-success" aria-label="Inserted" />
-          <IconButton label="Undo" onPointerDown={keepFocus} onClick={onUndo}>
-            <Undo2 size={14} />
-          </IconButton>
-          <IconButton label="Dismiss" onPointerDown={keepFocus} onClick={onDismissInserted}>
-            <X size={14} />
-          </IconButton>
-        </>
+        // Undo, and nothing else. The tick reported something already on
+        // screen — the words are in the field, which is the receipt — and the
+        // cross existed only to close a bar that existed only to show the
+        // tick. Two controls each proving the other was needed.
+        <IconButton label="Undo" onPointerDown={keepFocus} onClick={onUndo}>
+          <Undo2 size={14} />
+        </IconButton>
       ) : phase === "recording" ? (
         <>
           {/*
@@ -282,6 +192,6 @@ export function VoiceBar({
           )}
         </div>
       )}
-    </div>
+    </FloatingBar>
   );
 }

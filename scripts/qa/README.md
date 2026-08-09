@@ -10,6 +10,27 @@ the session that wrote them. That made S3 ("re-verify everything checked under
 the stand-in, once there is a real key") a rewrite rather than a rerun. Hence
 this directory.
 
+## Speech, for the voice checks
+
+Chrome's fake microphone plays silence, and a real model correctly hears
+nothing in it — so every voice check needs a file with words in it:
+
+```bash
+say -o scripts/qa/spoken.wav --data-format=LEI16@48000 \
+  "This sentence was spoken aloud by the test, so the model has something real to hear."
+python3 -c "import wave;src=wave.open('scripts/qa/spoken.wav');p,f=src.getparams(),src.readframes(src.getnframes());out=wave.open('scripts/qa/spoken-loop.wav','wb');out.setparams(p);[out.writeframes(f) for _ in range(67)];out.close()"
+LOGUE_TEST_AUDIO="$PWD/scripts/qa/spoken-loop.wav" ./scripts/qa/browser.sh 9899 http://127.0.0.1:8787
+```
+
+The loop matters: Chrome plays the file **once** and then feeds silence, so a
+recording started a minute in hears nothing and the check fails looking
+exactly like a broken feature. The looped file is not committed — it is 28MB
+of the same sentence; the command above rebuilds it.
+
+And give a recording something to record: accepting the moment the tick
+appears captures about seven tenths of a second, which transcribes to
+nothing. Four seconds is a sentence.
+
 ## Running one
 
 ```bash

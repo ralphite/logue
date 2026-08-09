@@ -1,6 +1,7 @@
 import { Bookmark, Check, MessageSquarePlus, Mic, MoreHorizontal, Sparkles, X } from "lucide-react";
 import { useState, type CSSProperties, type SyntheticEvent } from "react";
 import { Button, IconButton, Menu, MenuItem, RecordingDot, Spinner } from "@logue/ui";
+import { FloatingBar, type Draggable } from "./FloatingBar";
 import type { Skill } from "../api";
 
 /** Pressing the toolbar must not collapse the selection it acts on. */
@@ -28,7 +29,10 @@ export function SelectionBar({
   onAccept,
   onCancel,
   onSkill,
-}: {
+  onMove,
+  onResetPosition,
+  moved,
+}: Draggable & {
   phase: SelectionPhase;
   style?: CSSProperties;
   error?: string;
@@ -81,12 +85,15 @@ export function SelectionBar({
   }
 
   return (
-    <div
+    // The same shell the caret bar uses: same frame, same handle, same drag.
+    // This one had no handle at all, which is how the two came apart.
+    <FloatingBar
+      label="Selection actions"
       style={style}
-      role="group"
-      aria-label="Selection actions"
       onPointerDown={keepSelection}
-      className="logue-float fixed z-surface flex h-bar max-w-[calc(100vw-16px)] items-center gap-0.5 p-0.5"
+      onMove={onMove}
+      onResetPosition={onResetPosition}
+      moved={moved}
     >
       {phase === "recording" ? (
         <>
@@ -178,7 +185,7 @@ export function SelectionBar({
           {error}
         </div>
       )}
-    </div>
+    </FloatingBar>
   );
 }
 

@@ -68,6 +68,12 @@ async function keepSelection(snapshot: SelectionSnapshot, into: string) {
   return material;
 }
 
+/** The element every Logue surface lives inside, by name. */
+const HOST_ID = "logue-host";
+
+/** How long the offer to undo stays when nothing else ends it. */
+const INSERTED_MS = 5000;
+
 function Surfaces() {
   const [context, setContext] = useState<Context>();
   const [overrides, setOverrides] = useState<VoiceOverrides>(NO_OVERRIDES);
@@ -78,6 +84,15 @@ function Surfaces() {
   const destination = useRef<{ editor: Editable; caret: CaretPosition | undefined } | null>(null);
   const [caret, setCaret] = useState<{ left: number; top: number; bottom: number }>();
   const [moved, setMoved] = useState<{ left: number; top: number }>();
+  /**
+   * Where the selection bar was dragged to, if it was.
+   *
+   * Its own, not shared with the caret bar's: the two are about different
+   * things and a person who moves one has said nothing about the other. It is
+   * dropped when the selection goes, because a place beside a selection that
+   * no longer exists means nothing.
+   */
+  const [selectionMoved, setSelectionMoved] = useState<{ left: number; top: number }>();
 
   // -- what each surface is doing ----------------------------------------
   const voice = useVoice();
@@ -85,6 +100,41 @@ function Surfaces() {
   // moment recording stops, and a transcript that vanishes with the caret is a
   // transcript the person cannot use.
   const [inserted, setInserted] = useState<{ undo: () => void }>();
+
+  /**
+   * The undo leaves on its own.
+   *
+   * Three ways out, any one of them: five seconds pass, you click anywhere
+   * that is not the undo itself, or you start typing. Nothing about it is
+   * worth keeping on screen once you have moved on — the words are in the
+   * field, and the offer to take them back is only interesting for as long as
+   * you are still looking at them.
+   */
+  useEffect(() => {
+    if (!inserted) return;
+    const leave = () => setInserted(undefined);
+    const timer = window.setTimeout(leave, INSERTED_MS);
+    const onPointerDown = (event: globalThis.PointerEvent) => {
+      // The undo is inside a shadow root, so the click that hits it arrives
+      // here retargeted at the host element. A press on our own bar is not
+      // "somewhere else".
+      const path = event.composedPath();
+      if (path.some((node) => node instanceof HTMLElement && node.id === HOST_ID)) return;
+      leave();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      // Typing means a character, not a modifier or a tab away.
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.key.length === 1 || event.key === "Backspace" || event.key === "Enter") leave();
+    };
+    window.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [inserted]);
   const [commandOpen, setCommandOpen] = useState(false);
   const [command, setCommand] = useState<{
     busy: boolean;
@@ -405,6 +455,10 @@ function Surfaces() {
   useEffect(() => {
     if (!caret) forget();
   }, [caret, forget]);
+
+  useEffect(() => {
+    if (!selection) setSelectionMoved(undefined);
+  }, [selection]);
   const barSize = voiceBusy ? BAR.busy : BAR.idle;
   // A place you dragged it to says *where* the bar goes, never *whether* it is
   // there: the bar belongs to a caret, and without one there is nothing for it
@@ -417,7 +471,8 @@ function Surfaces() {
     ? besideCaret(caret, viewport(), COMMAND.width, COMMAND.height)
     : { left: 16, top: 16 };
   const selectionAt = selection
-    ? aboveSelection(selection.rect, viewport(), writing ? 320 : SELECTION.width, writing ? 140 : SELECTION.height)
+    ? (selectionMoved ??
+      aboveSelection(selection.rect, viewport(), writing ? 320 : SELECTION.width, writing ? 140 : SELECTION.height))
     : undefined;
 
   // The toolbar shows the first two without opening a menu, so the Skill chosen
@@ -459,9 +514,6 @@ function Surfaces() {
           inserted={Boolean(inserted)}
           onUndo={() => {
             inserted?.undo();
-            setInserted(undefined);
-          }}
-          onDismissInserted={() => {
             setInserted(undefined);
           }}
           overrides={overrides}
@@ -519,6 +571,9 @@ function Surfaces() {
 
       {showing === "selection" && selection && selectionAt && (
         <SelectionBar
+          onMove={setSelectionMoved}
+          onResetPosition={() => setSelectionMoved(undefined)}
+          moved={Boolean(selectionMoved)}
           phase={selectionPhase}
           style={{ left: selectionAt.left, top: selectionAt.top }}
           error={selectionError}
