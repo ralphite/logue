@@ -539,7 +539,47 @@ function Surfaces() {
  * document_start there is no <body> yet — so start on the root element and move
  * in the moment one appears.
  */
+/**
+ * Where a running instance says it is here, so the next one can take over.
+ *
+ * Content scripts from one extension share an isolated world, so this global
+ * is the handshake between the copy already on the page and the copy an update
+ * has just injected. A fixed name on purpose: the new script has to find it
+ * without being told.
+ */
+declare global {
+  /** Set by whichever copy of this script is currently on the page. */
+  // oxlint-disable-next-line no-var
+  var logueLive: { stop: () => void } | undefined;
+}
+
+/**
+ * The one thing a previous instance has to offer: a way out.
+ *
+ * Checked at runtime as well as declared, because the copy that set it may be
+ * older than this file — what it left behind is a promise about the past, not
+ * a guarantee about its shape.
+ */
+function running(): (() => void) | undefined {
+  const stop = globalThis.logueLive?.stop;
+  return typeof stop === "function" ? stop : undefined;
+}
+
 function mount() {
+  /*
+   * The copy already here leaves before this one arrives.
+   *
+   * Today Chrome tears down an extension's content-script contexts when the
+   * extension reloads, so the old copy is usually gone before this one lands —
+   * measured on a real page, sampling every 0.4s across an update: never two.
+   * This does not depend on that. Removing the element alone would: every
+   * instance watches the DOM and re-appends its own the moment it goes
+   * missing, so a copy that outlived its context by even a moment would put
+   * itself straight back, and two hosts with one id would fight over one
+   * recording.
+   */
+  running()?.();
+
   document.getElementById("logue-host")?.remove();
   const element = document.createElement("div");
   element.id = "logue-host";
@@ -593,12 +633,17 @@ function mount() {
    * page load bring the new build.
    */
   const stopWatching = watchForOrphaning();
-  whenOrphaned(() => {
-    stopWatching();
+  const stop = () => {
+    // The observer goes first. Removing the element while it is still watching
+    // is what put the element straight back.
     placing.disconnect();
+    stopWatching();
     reactRoot.unmount();
     element.remove();
-  });
+    if (running() === stop) globalThis.logueLive = undefined;
+  };
+  whenOrphaned(stop);
+  globalThis.logueLive = { stop };
 }
 
 if (window.top === window) {
