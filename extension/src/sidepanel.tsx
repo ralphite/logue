@@ -1,9 +1,10 @@
-import { Bookmark, CornerDownLeft, ExternalLink, Settings2, Sparkles } from "lucide-react";
+import { Bookmark, CornerDownLeft, ExternalLink, Mic, Settings2, Sparkles, X } from "lucide-react";
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Answer, Button, ErrorNote, Input, OriginMark, Select, SourceLink, Spinner, Tag, originOf } from "@logue/ui";
+import { Answer, Button, ErrorNote, IconButton, Input, OriginMark, Select, SourceLink, Spinner, Tag, originOf } from "@logue/ui";
 import { host, HOST, type Context, type Material } from "./api";
 import { readablePageText } from "./readable";
+import { useVoice } from "./useVoice";
 
 /**
  * Where Logue lives, which is the Host itself.
@@ -19,12 +20,14 @@ const FROM_THE_PAGE = new Set(["page", "selection"]);
 
 /** What the last Skill run said, in the order it said it. */
 interface ThreadMessage {
-  from: "logue" | "skill";
+  from: "logue" | "skill" | "you";
   text: string;
   at: string;
 }
 
 const THREAD = "logue:thread";
+/** Written by ⌘⇧K before the panel opens; read here on arrival. */
+const LISTEN = "logue:listen-at";
 
 /** Storage is shared ground; anything in there that is not a message is not one. */
 function isMessage(value: unknown): value is ThreadMessage {
@@ -56,7 +59,11 @@ function Thread({ messages, onClear }: { messages: ThreadMessage[]; onClear: () 
           className={
             message.from === "logue"
               ? "text-xs text-muted"
-              : "rounded-md bg-surface-muted p-2 text-xs leading-[1.55] whitespace-pre-wrap text-ink"
+              : message.from === "you"
+                ? // What you said, set apart from what came back — a conversation
+                  // where both sides look alike is a wall of text.
+                  "rounded-md border border-accent-line bg-accent-soft p-2 text-xs leading-[1.55] whitespace-pre-wrap text-ink"
+                : "rounded-md bg-surface-muted p-2 text-xs leading-[1.55] whitespace-pre-wrap text-ink"
           }
         >
           {message.text}
@@ -83,6 +90,16 @@ function Panel() {
   const [error, setError] = useState("");
   const [openSource, setOpenSource] = useState<number>();
   const [modelReady, setModelReady] = useState(true);
+  const voice = useVoice();
+
+  /** Add to the conversation, in the panel and in storage, as one act. */
+  const say = useCallback((message: ThreadMessage) => {
+    setThread((was) => {
+      const next = [...was, message];
+      void chrome.storage.local.set({ [THREAD]: next });
+      return next;
+    });
+  }, []);
 
   const load = useCallback(async () => {
     const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -121,6 +138,28 @@ function Panel() {
     chrome.runtime.onMessage.addListener(onMessage);
     return () => chrome.runtime.onMessage.removeListener(onMessage);
   }, []);
+
+  // ⌘⇧K: the panel opens and starts listening in the same act. The flag is
+  // consumed on read so re-opening the panel later does not start a recording
+  // nobody asked for.
+  const listen = voice.start;
+  useEffect(() => {
+    const begin = () => {
+      void chrome.storage.local.get(LISTEN).then((stored) => {
+        if (!stored[LISTEN]) return;
+        void chrome.storage.local.remove(LISTEN);
+        void listen();
+      });
+    };
+    begin();
+    const onMessage = (message: unknown) => {
+      if (message && typeof message === "object" && "type" in message && message.type === "logue:listen") {
+        begin();
+      }
+    };
+    chrome.runtime.onMessage.addListener(onMessage);
+    return () => chrome.runtime.onMessage.removeListener(onMessage);
+  }, [listen]);
 
   useEffect(() => {
     void load();
@@ -192,6 +231,32 @@ function Panel() {
     }
   };
 
+  /**
+   * Enter accepts, Esc cancels — the same two keys as the bar on the page,
+   * so nobody learns a second set. Accepting turns the words into a message
+   * from you; cancelling leaves nothing behind.
+   */
+  const accept = useCallback(async () => {
+    const settled = await voice.stop({ project, source: { kind: "panel", url: tab?.url } });
+    if (settled?.text.trim()) say({ from: "you", text: settled.text.trim(), at: new Date().toISOString() });
+  }, [voice, project, tab?.url, say]);
+
+  useEffect(() => {
+    if (voice.phase !== "recording") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        voice.cancel();
+      }
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        void accept();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [voice, accept]);
+
   const fromPage = saved.filter((item) => FROM_THE_PAGE.has(item.kind));
   const said = saved.filter((item) => !FROM_THE_PAGE.has(item.kind));
 
@@ -234,6 +299,35 @@ function Panel() {
           </a>
         )}
 
+        {(voice.phase === "recording" || voice.phase === "starting" || voice.pending > 0 || voice.error) && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-line bg-surface px-2 py-1.5">
+            {voice.phase === "recording" ? (
+              <>
+                <span className="size-2 shrink-0 rounded-full bg-danger" aria-hidden />
+                <span className="flex-1 text-xs text-ink">Listening — {voice.seconds}s</span>
+                <Button variant="primary" onClick={() => void accept()}>
+                  Accept <kbd>↵</kbd>
+                </Button>
+                <IconButton label="Cancel (Esc)" onClick={() => voice.cancel()}>
+                  <X size={13} />
+                </IconButton>
+              </>
+            ) : voice.error ? (
+              <>
+                <span className="flex-1 text-xs text-warning">{voice.error}</span>
+                <Button onClick={() => void voice.start()}>Try again</Button>
+              </>
+            ) : (
+              <>
+                <Spinner size={13} />
+                <span className="flex-1 text-xs text-muted">
+                  {voice.phase === "starting" ? "Reaching the microphone…" : `Transcribing ${voice.pending}`}
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="grid gap-1.5">
           <div className="flex items-center gap-1">
             <Select
@@ -249,6 +343,13 @@ function Panel() {
                 </option>
               ))}
             </Select>
+            <IconButton
+              label="Talk to Logue · ⌘⇧K"
+              disabled={voice.phase === "recording" || voice.phase === "starting"}
+              onClick={() => void voice.start()}
+            >
+              <Mic size={14} />
+            </IconButton>
             <Button onClick={() => void capture()} disabled={busy}>
               <Bookmark size={13} /> Save page
             </Button>

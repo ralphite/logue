@@ -468,3 +468,10 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   make the mistake permanent. Every learned word shows why it is there and can
   be taken back. Two layers in the prompt: the global list, then a Project's
   own vocabulary, which wins.
+- **⌘⇧K opens Logue and starts listening, as one act.** Not open-then-reach-
+  for-a-microphone. Esc cancels and leaves nothing behind; Enter accepts and
+  the words become your own message in the panel's conversation — the same two
+  keys as the bar on the page, so nobody learns a second set. The panel may
+  not be open when the key is pressed, so the intent is left where the panel
+  finds it on arrival, and consumed on read: re-opening later never starts a
+  recording nobody asked for.

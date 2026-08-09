@@ -60,6 +60,9 @@ async function closeOffscreen(): Promise<void> {
   }
 }
 
+/** Set when ⌘⇧K asks for a conversation, read by the panel as it mounts. */
+const LISTEN = "logue:listen-at";
+
 /**
  * One key, both directions.
  *
@@ -625,6 +628,19 @@ chrome.commands.onCommand.addListener((command) => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (command === "toggle-side-panel") {
       if (tab?.windowId !== undefined) await toggleSidePanel(tab.windowId);
+      return;
+    }
+    if (command === "start-conversation") {
+      // The flag is written before the panel opens, because a side panel is
+      // requested rather than called: it mounts on its own time and reads
+      // this on arrival. A panel already open is told directly as well.
+      await chrome.storage.local.set({ [LISTEN]: Date.now() });
+      if (tab?.windowId !== undefined) await chrome.sidePanel.open({ windowId: tab.windowId });
+      try {
+        await chrome.runtime.sendMessage({ type: "logue:listen" });
+      } catch {
+        // Nothing open to hear it; the flag covers that case.
+      }
       return;
     }
     if (tab?.id === undefined) return;

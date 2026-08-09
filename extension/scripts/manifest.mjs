@@ -73,6 +73,15 @@ const manifest = {
       suggested_key: { default: "Ctrl+Shift+U", mac: "Command+Shift+U" },
       description: "Ask Logue about this page",
     },
+    /*
+     * One key, one intent: open Logue and start listening. Two steps (open,
+     * then reach for a microphone) is what this replaces, so it must never
+     * become two again — the panel starts recording as it mounts.
+     */
+    "start-conversation": {
+      suggested_key: { default: "Ctrl+Shift+K", mac: "Command+Shift+K" },
+      description: "Open Logue and start talking",
+    },
     "toggle-side-panel": {
       suggested_key: { default: "Ctrl+Shift+L", mac: "Command+Shift+L" },
       description: "Open Logue",
