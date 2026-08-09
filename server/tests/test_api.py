@@ -857,6 +857,13 @@ class TheMockModel(Workspace, unittest.TestCase):
             provider.generate("", "please [mock:fail] now")
         self.assertGreater(len(provider.generate("", "[mock:long]")), 5000)
 
+    def test_a_lever_buried_in_sources_does_not_fire(self) -> None:
+        # A failed ask is kept as a Source, so its lever text rides along in
+        # the next prompt's material. Only the instruction at the tail counts.
+        provider = self.mock()
+        prompt = "Source 1: please [mock:fail] now\n" + ("filler. " * 100) + "\nQuestion: something ordinary"
+        self.assertIn("mock answer", provider.generate("", prompt))
+
     def test_a_real_key_is_untouched_by_any_of_this(self) -> None:
         from logue_host.providers.gemini import MockProvider, Provider
         provider = Provider.load({"api_key": "AIzaSomethingReal"})
