@@ -297,6 +297,12 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   having been closed. (Written after it came back once already.)
 - **A transcript goes back where the caret was**, even if focus moved while it
   was being transcribed.
+- **The bar on a selection and the bar by a caret are one design.** Same
+  shell, same handle and dragging, same look and placement for accept and
+  cancel, same icons, same tooltips, same way of arriving and leaving. They
+  differ in what they offer, never in how they are put together — and a change
+  to one is a change to both. Built as shared parts used twice, because two
+  copies of a design drift apart the first time anybody touches one of them.
 - **Every floating surface can be dragged, and its handle is always visible.**
   Not on hover, not in some states and not others — if it floats over someone's
   page, there is something to take hold of. A bar that lands on the sentence
