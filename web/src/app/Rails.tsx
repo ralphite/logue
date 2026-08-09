@@ -112,9 +112,9 @@ export function StreamRail({
           {condense(material.content, 400) || "Empty"}
         </p>
         {material.source?.title && <Fact name="From">{material.source.title}</Fact>}
-        {material.projects.length > 0 && (
+        {(material.projects?.length ?? 0) > 0 && (
           <Fact name="In">
-            {material.projects.map((name) => (known.has(name) ? name : `${name} (gone)`)).join(", ")}
+            {(material.projects ?? []).map((name) => (known.has(name) ? name : `${name} (gone)`)).join(", ")}
           </Fact>
         )}
         {(material.tags?.length ?? 0) > 0 && <Fact name="Tags">{material.tags?.join(", ")}</Fact>}
@@ -370,7 +370,7 @@ export function DocumentsRail({
           <p className="line-clamp-5 text-xs leading-[1.5] text-ink-soft">
             {condense(document.content, 300) || "Nothing written yet."}
           </p>
-          <Fact name="Built on">{document.source_ids.length} Sources</Fact>
+          <Fact name="Built on">{document.source_ids?.length ?? 0} Sources</Fact>
           <Fact name="Edited">{timeAgo(document.updated_at)}</Fact>
         </>
       ),
@@ -469,7 +469,7 @@ export function SkillsRail({
         {skill.purpose && (
           <p className="line-clamp-4 text-xs leading-[1.5] text-ink-soft">{skill.purpose}</p>
         )}
-        <Fact name="Appears in">{skill.surfaces.join(", ") || "nowhere yet"}</Fact>
+        <Fact name="Appears in">{skill.surfaces?.join(", ") || "nowhere yet"}</Fact>
         <Fact name="Version">{skill.revision}</Fact>
         {!skill.enabled && <Fact name="State">Turned off</Fact>}
       </>

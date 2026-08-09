@@ -1,5 +1,5 @@
 import { MoreHorizontal, Pin } from "lucide-react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ContextMenu, MenuHeading, MenuItem, MenuSeparator, cn, type MenuPoint } from "@logue/ui";
 import { ICON_SLOT } from "./AppShell";
 
@@ -27,6 +27,39 @@ export interface RailEntry {
   preview?: () => ReactNode;
   /** Everything the row can do, in one menu. */
   actions?: RailAction[];
+}
+
+/**
+ * A preview card can be wrong, but it may not take the page with it.
+ *
+ * One record was written without a field its card read, and hovering that row
+ * turned the whole app white: a card that merely describes a row had the
+ * power to destroy everything around it. React unmounts the entire tree on an
+ * uncaught render error, so the only way to keep that power away from a
+ * preview is a boundary of its own.
+ */
+class PreviewSafely extends Component<{ children: ReactNode }, { failed: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { failed: false };
+  }
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  override componentDidCatch(error: unknown): void {
+    // Said once, where a developer looks. Swallowing it silently would trade
+    // a crash for a mystery.
+    console.error("A rail preview could not be drawn:", error);
+  }
+
+  override render(): ReactNode {
+    if (this.state.failed) {
+      return <p className="text-xs text-muted">This one cannot be previewed. Open it to see it.</p>;
+    }
+    return this.props.children;
+  }
 }
 
 /** Touch has no hover, so the actions have to be somewhere you can tap. */
@@ -327,7 +360,7 @@ export function RailList({
           preview instead. */}
       {hover && !menu && hover.entry.preview && (
         <PreviewCard anchor={hover.rect} onEnter={holdCard} onLeave={releaseCard}>
-          {hover.entry.preview()}
+          <PreviewSafely>{hover.entry.preview()}</PreviewSafely>
         </PreviewCard>
       )}
       <ContextMenu at={menu?.at} onClose={() => setMenu(undefined)} label="Row actions">
