@@ -1,8 +1,13 @@
 import { ChevronLeft, RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Dialog, DialogActions, ErrorNote, Spinner, cn } from "@logue/ui";
 import { api, type DocumentVersion } from "../api";
 import { timeAgo, useAction, useHost } from "./useHost";
+
+/** How long to wait between asking whether the missing lines have arrived. */
+const SUMMARY_WAIT_MS = 1500;
+/** And how many times, before leaving the counted line to stand on its own. */
+const SUMMARY_TRIES = 10;
 
 /** "+3 −1", or nothing at all when a version changed no lines. */
 function Change({ added, removed }: { added: number; removed: number }) {
@@ -16,13 +21,7 @@ function Change({ added, removed }: { added: number; removed: number }) {
   );
 }
 
-function Version({
-  version,
-  onOpen,
-}: {
-  version: DocumentVersion;
-  onOpen: () => void;
-}) {
+function Version({ version, onOpen }: { version: DocumentVersion; onOpen: () => void }) {
   return (
     <button
       type="button"
@@ -33,7 +32,13 @@ function Version({
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13px] text-ink">
           {version.summary ??
-            (version.summary_state === "pending" ? "Working out what changed…" : version.current ? "Now" : "Edited")}
+            (version.summary_state === "pending" ? (
+              <span className="text-muted">Working out what changed…</span>
+            ) : version.current ? (
+              "Now"
+            ) : (
+              "Edited"
+            ))}
         </span>
         {version.created_at && <span className="text-[11px] text-faint">{timeAgo(version.created_at)}</span>}
       </span>
@@ -103,8 +108,30 @@ export function DocumentHistory({
   onRestored: () => void;
 }) {
   const [looking, setLooking] = useState<DocumentVersion>();
-  const versions = useHost(() => (open ? api.documentVersions(id) : Promise.resolve({ versions: [] })), [id, open]);
+  const versions = useHost(
+    () => (open ? api.documentVersions(id) : Promise.resolve({ versions: [] })),
+    [id, open],
+  );
   const action = useAction();
+
+  // A model is writing the lines that are still missing. Ask again until they
+  // arrive, then stop — and give up rather than poll forever, because a model
+  // that never answers should leave a list you can still read.
+  const waiting = (versions.data?.versions ?? []).some((one) => one.summary_state === "pending");
+  const [tries, setTries] = useState(0);
+  useEffect(() => {
+    if (!open) {
+      setTries(0);
+      return;
+    }
+    if (!waiting || tries >= SUMMARY_TRIES) return;
+    const timer = window.setTimeout(() => {
+      setTries((n) => n + 1);
+      void versions.refresh();
+    }, SUMMARY_WAIT_MS);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, waiting, tries]);
 
   const close = () => {
     setLooking(undefined);
@@ -147,7 +174,7 @@ export function DocumentHistory({
             )}
           </DialogActions>
         </>
-      ) : versions.loading ? (
+      ) : versions.loading && !versions.data ? (
         <p className="flex items-center gap-2 py-4 text-xs text-muted">
           <Spinner size={12} /> Reading
         </p>
@@ -158,7 +185,9 @@ export function DocumentHistory({
               <Version key={version.revision} version={version} onOpen={() => setLooking(version)} />
             ))}
           </div>
-          <p className="text-[11px] text-faint">Going back keeps everything — it is written as a new version.</p>
+          <p className="text-[11px] text-faint">
+            Going back keeps everything — it is written as a new version.
+          </p>
           <DialogActions>
             <Button onClick={close}>Close</Button>
           </DialogActions>

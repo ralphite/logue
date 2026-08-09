@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from logue_host.app import App
 from logue_host.build import installed_extension_build
-from logue_host.domain import capture, corrections, organize
+from logue_host.domain import capture, corrections, documents, organize, summaries
 from logue_host.errors import BadRequest, Conflict, NotFound
 from logue_host.http import Request, serve, web_file
 from logue_host.providers import Provider
@@ -767,6 +767,59 @@ class DocumentHistory(Workspace, unittest.TestCase):
             self.call("GET", f"/v1/documents/{document_id}/versions/99/diff")
         with self.assertRaises(NotFound):
             self.call("POST", f"/v1/documents/{document_id}/versions/99/restore")
+
+
+class VersionSummaries(Workspace, unittest.TestCase):
+    """The line saying what a version changed, and what stands in for it."""
+
+    def edited(self) -> str:
+        doc = self.call("POST", "/v1/documents", {"content": "<p>one</p>"})["document"]
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "<p>one</p><p>two</p>"})
+        return doc["id"]
+
+    def test_a_new_version_is_marked_as_still_being_described(self) -> None:
+        document_id = self.edited()
+        rows = [r for r in self.app.store.doc_revisions.list() if r.get("doc_id") == document_id]
+        self.assertEqual([r.get("summary_state") for r in rows], [summaries.PENDING])
+
+    def test_without_a_model_the_counted_line_stands_in(self) -> None:
+        # Not an error and not a blank: a history row saying nothing at all
+        # reads as a broken row.
+        document_id = self.edited()
+        revision_id = documents.newest_unwritten(self.app.store, document_id)
+        assert revision_id
+        written = summaries.describe(self.app.store, None, revision_id)
+        self.assertEqual(written, "1 added")
+        row = self.app.store.doc_revisions.find(revision_id)
+        assert row
+        self.assertEqual(row["summary_state"], summaries.READY)
+
+    def test_a_model_that_fails_still_leaves_a_readable_line(self) -> None:
+        class Broken(FakeProvider):
+            def generate(self, system: str, prompt: str) -> str:  # noqa: ARG002
+                raise RuntimeError("no")
+
+        document_id = self.edited()
+        revision_id = documents.newest_unwritten(self.app.store, document_id)
+        assert revision_id
+        self.assertEqual(summaries.describe(self.app.store, Broken(api_key="k"), revision_id), "1 added")
+
+    def test_the_line_is_kept_to_one_short_line(self) -> None:
+        class Chatty(FakeProvider):
+            def generate(self, system: str, prompt: str) -> str:  # noqa: ARG002
+                return '"Rewrote the whole thing at considerable length, going well past any sane limit"\nand more'
+
+        document_id = self.edited()
+        revision_id = documents.newest_unwritten(self.app.store, document_id)
+        assert revision_id
+        written = summaries.describe(self.app.store, Chatty(api_key="k"), revision_id)
+        self.assertLessEqual(len(written), summaries.LIMIT)
+        self.assertNotIn("\n", written)
+        self.assertFalse(written.startswith('"'))
+
+    def test_a_run_that_was_interrupted_is_picked_up_again(self) -> None:
+        self.edited()
+        self.assertEqual(summaries.catch_up(self.app.store, None), 1)
 
 
 class ServingTheApp(unittest.TestCase):

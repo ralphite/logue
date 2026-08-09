@@ -62,6 +62,9 @@ def update(
                 "revision": document.get("revision", 1),
                 "content": document.get("content"),
                 "created_at": now(),
+                # The line saying what this changed is written afterwards, by
+                # a model, so the save itself stays instant.
+                "summary_state": "pending",
             }
         )
         document["revision"] = document.get("revision", 1) + 1
@@ -93,6 +96,7 @@ def append(store: Store, document_id: str, text: str, source_ids: list[str] | No
             "revision": document.get("revision", 1),
             "content": body,
             "created_at": now(),
+            "summary_state": "pending",
         }
     )
     document["revision"] = int(document.get("revision", 1)) + 1
@@ -205,6 +209,12 @@ def diff(store: Store, document_id: str, revision: int) -> list[Record]:
             lines.append({"kind": "added", "text": text, "old": None, "new": new})
         # "? " lines are ndiff's own hint markers, not content.
     return lines
+
+
+def newest_unwritten(store: Store, document_id: str) -> str | None:
+    """The most recent version still waiting for its line, if there is one."""
+    waiting = [r for r in _kept(store, document_id) if r.get("summary_state") == "pending"]
+    return str(waiting[-1]["id"]) if waiting else None
 
 
 def restore(store: Store, document_id: str, revision: int) -> Record:

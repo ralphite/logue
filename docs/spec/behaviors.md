@@ -122,6 +122,15 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   was being transcribed.
 - **The microphone is never offered in a password field.**
 
+## Documents
+
+- **Every version of a document can be read back and gone back to.** Going
+  back is written forward as a new version; the ones it skipped over survive.
+- **Each version says what it changed, in words.** A model writes the line
+  after the save, never in front of it — autosave is a pause someone can feel.
+  Where no model can answer, the counted line stands in; a history row that
+  says nothing at all reads as a broken row.
+
 ## Provenance — the part that cannot bend
 
 - **Web evidence, what you said, and what a model produced never look alike.**

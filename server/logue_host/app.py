@@ -22,6 +22,7 @@ from .domain import (
     organize,
     projects,
     skills,
+    summaries,
     topics,
 )
 from .errors import BadRequest, NotFound
@@ -253,6 +254,17 @@ class App:
                 "sources": documents.sources_of(store, request.params["id"]),
             }
 
+        def _describe_new_version(document_id: str) -> None:
+            """Ask a model what the version just written changed.
+
+            After the save has already been answered, never before it: the
+            editor autosaves on a pause and a model call in that path would be
+            a pause someone can feel.
+            """
+            waiting = documents.newest_unwritten(store, document_id)
+            if waiting:
+                summaries.in_background(store, self.provider(), waiting)
+
         @route("PATCH", "/v1/documents/{id}")
         def patch_document(request: Request) -> dict[str, Any]:
             changes = dict(request.json())
@@ -261,16 +273,17 @@ class App:
             document = documents.update(
                 store, request.params["id"], changes, expected_revision=None if expected is None else int(expected)
             )
+            _describe_new_version(request.params["id"])
             return {"document": document}
 
         @route("POST", "/v1/documents/{id}/append")
         def append_to_document(request: Request) -> dict[str, Any]:
             body = request.json()
-            return {
-                "document": documents.append(
-                    store, request.params["id"], str(body.get("text") or ""), body.get("source_ids")
-                )
-            }
+            document = documents.append(
+                store, request.params["id"], str(body.get("text") or ""), body.get("source_ids")
+            )
+            _describe_new_version(request.params["id"])
+            return {"document": document}
 
         @route("DELETE", "/v1/documents/{id}")
         def delete_document(request: Request) -> dict[str, Any]:

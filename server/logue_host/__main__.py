@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .app import App
 from .build import installed_web
-from .domain import organize
+from .domain import organize, summaries
 from .http import serve
 
 
@@ -35,6 +35,12 @@ def main(argv: list[str] | None = None) -> int:
     resumed = organize.catch_up(app.store, app.provider())
     if resumed:
         print(f"Resuming {resumed} Sources that were still being filed.", flush=True)
+
+    # Same reason: a version stuck on "working out what changed" is worse than
+    # the counted line it would have fallen back to.
+    described = summaries.catch_up(app.store, app.provider())
+    if described:
+        print(f"Describing {described} document versions that were left unwritten.", flush=True)
 
     where = "app + API" if web else "API only — run `npm run dev:web` for the app"
     print(f"Logue Host on http://{host or '127.0.0.1'}:{port} ({where})  data: {app.store.root}", flush=True)
