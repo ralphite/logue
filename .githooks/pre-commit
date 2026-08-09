@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# Installed by `npm run hooks`; the test gate runs that too, so a clone that
+# never ran it is still covered by the first `npm test`.
+exec "$(git rev-parse --show-toplevel)/scripts/check-secrets.sh"
