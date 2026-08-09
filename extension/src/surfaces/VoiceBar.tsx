@@ -1,4 +1,4 @@
-import { ChevronDown, GripVertical, Mic, Sparkles, X } from "lucide-react";
+import { Check, ChevronDown, GripVertical, Mic, Sparkles, Undo2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { Button, IconButton, RecordingDot, Spinner, cn } from "@logue/ui";
 import { ProfilePicker } from "./ProfilePicker";
@@ -32,6 +32,9 @@ export function VoiceBar({
   long = false,
   keptCapture,
   onRetry,
+  inserted = false,
+  onUndo,
+  onDismissInserted,
   onStart,
   onCommand,
   onStop,
@@ -53,6 +56,10 @@ export function VoiceBar({
   /** A recording the Host kept when the words failed. */
   keptCapture?: string;
   onRetry?: () => void;
+  /** Words just landed in the editor, and can still be taken back. */
+  inserted?: boolean;
+  onUndo?: () => void;
+  onDismissInserted?: () => void;
   onStart: () => void;
   onCommand: () => void;
   onStop: () => void;
@@ -153,7 +160,21 @@ export function VoiceBar({
         </button>
       )}
 
-      {phase === "recording" ? (
+      {/* Said and placed. This lives on the bar rather than in a strip of its
+          own: that strip sat over the very words it was reporting, could not
+          be moved, and was a second floating thing where one was enough. */}
+      {inserted && phase === "idle" ? (
+        <>
+          <Check size={14} className="mx-1.5 text-success" />
+          <span className="pr-1 text-xs text-muted">Inserted</span>
+          <Button onPointerDown={keepFocus} onClick={onUndo} title="Undo">
+            <Undo2 size={13} /> Undo
+          </Button>
+          <IconButton label="Dismiss" onPointerDown={keepFocus} onClick={onDismissInserted}>
+            <X size={14} />
+          </IconButton>
+        </>
+      ) : phase === "recording" ? (
         <>
           <RecordingDot className="mx-1.5" />
           {/* The clock, because ten minutes of speech and ten seconds of it

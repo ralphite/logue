@@ -10,13 +10,11 @@ import { aboveSelection, besideCaret, BAR } from "./position";
 import { NO_OVERRIDES, type VoiceOverrides } from "./overrides";
 import { useVoice } from "./useVoice";
 import { visibleSurface } from "./visible";
-import { Candidate } from "./surfaces/Candidate";
 import { CommandBox } from "./surfaces/CommandBox";
 import { SelectionBar, type SelectionPhase } from "./surfaces/SelectionBar";
 import { VoiceBar } from "./surfaces/VoiceBar";
 import styles from "./surface.css?inline";
 
-const CANDIDATE = { width: 340, height: 160 };
 const COMMAND = { width: 360, height: 190 };
 const SELECTION = { width: 220, height: 32 };
 
@@ -83,11 +81,9 @@ function Surfaces() {
 
   // -- what each surface is doing ----------------------------------------
   const voice = useVoice();
-  const [candidate, setCandidate] = useState<{ text: string; material: Material }>();
   // Where the candidate belongs, frozen when it arrives. Focus often moves the
   // moment recording stops, and a transcript that vanishes with the caret is a
   // transcript the person cannot use.
-  const [anchor, setAnchor] = useState<{ left: number; top: number; bottom: number }>();
   const [inserted, setInserted] = useState<{ undo: () => void }>();
   const [commandOpen, setCommandOpen] = useState(false);
   const [command, setCommand] = useState<{
@@ -220,7 +216,6 @@ function Surfaces() {
   }, [voice.phase]);
 
   const finishVoice = async () => {
-    const at = caret;
     destination.current = target.current ? { editor: target.current, caret: readCaret(target.current) } : null;
     const result = await voice.stop({
       project,
@@ -231,8 +226,7 @@ function Surfaces() {
       nearby: nearbyText(target.current),
     });
     if (result) {
-      setAnchor(at);
-      setCandidate(result);
+      place(result.text);
     }
   };
 
@@ -241,7 +235,6 @@ function Surfaces() {
    * kept, and land the transcript where the first attempt would have.
    */
   const retryVoice = async () => {
-    const at = caret;
     const result = await voice.retry({
       project,
       overrides,
@@ -249,26 +242,33 @@ function Surfaces() {
       nearby: nearbyText(target.current),
     });
     if (result) {
-      setAnchor(at);
-      setCandidate(result);
+      place(result.text);
     }
   };
 
-  const insert = () => {
-    if (!candidate) return;
+  /**
+   * Spoken words go where the caret is. No step in between.
+   *
+   * They used to arrive in a panel with the text in a box and an Insert button
+   * under it — a second decision about something the person had already
+   * decided by speaking. Getting it wrong is fixed the way any typing is
+   * fixed: in the editor it landed in, which is where they are already
+   * looking. Undo is still offered, on the bar that is already there.
+   */
+  const place = (text: string) => {
     if (googleDocs.isGoogleDocs()) {
       // Docs owns its undo stack; ours would fight it, so offer none.
-      if (googleDocs.insert(candidate.text)) setInserted({ undo: () => undefined });
+      if (googleDocs.insert(text)) setInserted({ undo: () => undefined });
       return;
     }
     const held = destination.current;
     const editor = held?.editor ?? target.current;
     if (!editor) return;
-    // Focus moved to our own panel while the transcript was reviewed. Focusing
-    // an element puts the caret at its start, so put the caret back too —
-    // otherwise the transcript lands at the top of what the person was writing.
+    // Focus may have moved while the model was answering. Focusing an element
+    // puts the caret at its start, so put the caret back too — otherwise the
+    // transcript lands at the top of what the person was writing.
     restoreCaret(editor, held?.caret);
-    const done = insertAtCaret(editor, candidate.text);
+    const done = insertAtCaret(editor, text);
     if (done) setInserted(done);
   };
 
@@ -389,10 +389,6 @@ function Surfaces() {
     : caret
       ? besideCaret(caret, viewport(), barSize.width, barSize.height)
       : undefined;
-  const candidateSpot = anchor ?? caret;
-  const candidateAt = candidateSpot
-    ? besideCaret(candidateSpot, viewport(), CANDIDATE.width, CANDIDATE.height)
-    : { left: 16, top: 16 };
   const commandAt = caret
     ? besideCaret(caret, viewport(), COMMAND.width, COMMAND.height)
     : { left: 16, top: 16 };
@@ -408,7 +404,6 @@ function Surfaces() {
     .toSorted((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
 
   const showing = visibleSurface({
-    candidate: Boolean(candidate),
     command: commandOpen,
     selection: Boolean(selection && selectionAt),
     voice: Boolean(barAt),
@@ -436,6 +431,14 @@ function Surfaces() {
           long={voice.long}
           keptCapture={voice.keptCapture}
           onRetry={() => void retryVoice()}
+          inserted={Boolean(inserted)}
+          onUndo={() => {
+            inserted?.undo();
+            setInserted(undefined);
+          }}
+          onDismissInserted={() => {
+            setInserted(undefined);
+          }}
           overrides={overrides}
           onOverrides={(next) => {
             forget();
@@ -451,27 +454,6 @@ function Surfaces() {
           }}
           onResetPosition={() => setMoved(undefined)}
           moved={Boolean(moved)}
-        />
-      )}
-
-      {showing === "candidate" && candidate && (
-        <Candidate
-          text={candidate.text}
-          style={{ left: candidateAt.left, top: candidateAt.top }}
-          inserted={Boolean(inserted)}
-          onChange={(text) => setCandidate({ ...candidate, text })}
-          onInsert={insert}
-          onUndo={() => {
-            inserted?.undo();
-            setInserted(undefined);
-            setCandidate(undefined);
-            setAnchor(undefined);
-          }}
-          onDismiss={() => {
-            setInserted(undefined);
-            setCandidate(undefined);
-            setAnchor(undefined);
-          }}
         />
       )}
 

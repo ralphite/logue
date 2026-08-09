@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { visibleSurface, type Showing } from "./visible";
 
-const nothing: Showing = { candidate: false, command: false, selection: false, voice: false, voiceBusy: false };
+const nothing: Showing = { command: false, selection: false, voice: false, voiceBusy: false };
 const showing = (over: Partial<Showing>): Showing => ({ ...nothing, ...over });
 
 describe("only one surface at a time", () => {
@@ -11,7 +11,7 @@ describe("only one surface at a time", () => {
   });
 
   it("never returns two surfaces for any combination of states", () => {
-    const flags = ["candidate", "command", "selection", "voice", "voiceBusy"] as const;
+    const flags = ["command", "selection", "voice", "voiceBusy"] as const;
     for (let bits = 0; bits < 1 << flags.length; bits += 1) {
       const state = showing(Object.fromEntries(flags.map((flag, i) => [flag, Boolean(bits & (1 << i))])));
       expect(typeof visibleSurface(state)).toBe("string");
@@ -20,9 +20,8 @@ describe("only one surface at a time", () => {
 });
 
 describe("what wins", () => {
-  it("keeps an unreviewed transcript above everything", () => {
-    expect(visibleSurface(showing({ candidate: true, command: true, selection: true, voice: true }))).toBe("candidate");
-  });
+  // A transcript used to top this list, waiting in a panel to be accepted.
+  // Spoken words go straight to the caret now, so there is no such surface.
 
   it("keeps the command box above the bars", () => {
     expect(visibleSurface(showing({ command: true, selection: true, voice: true, voiceBusy: true }))).toBe("command");
