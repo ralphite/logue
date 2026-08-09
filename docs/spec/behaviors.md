@@ -342,6 +342,12 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
 
 - **Web evidence, what you said, and what a model produced never look alike.**
 - **Anything generated points back at what it came from.**
+- **The unchangeable things come first on the screen.** The recording itself
+  and the passage taken from the page are the source of truth; they sit at the
+  top, and they are visibly two separate things, because one is what the person
+  said and the other is what the page gave. A transcript is derived from the
+  first, so it reads below them. An order that leads with the derived text
+  states the opposite of how this product works.
 - **A Run freezes its Sources and the exact Skill revision it used**, so it
   stays explainable after the prompt changes.
 - **A quote keeps the passage around it**, so a citation can be read in context
