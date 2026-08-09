@@ -51,6 +51,7 @@
 - **现有功能默认保留。** 你的原话是 "default to keep all unless very unnecessary"。
 - **持续打磨不是一次性任务。** 你的原话是 "polish the ux/product design/features to make it very good. keep pushing automatically in this way"。
 - **只在这个会话里干活。** 你的原话是 "only work in this session"。
+- **每次加完任务,看一眼干活那个会话还在不在。** 你的原话是"你加上 task 的时候,同时看一下另外一个 session 状态……如果它还在 running 就没关系;如果它已经停下来了,你可以告诉它我们这边有新 task"。干活的那个会话叫 **"long session 1"**。跑 `/peer` 就行 —— 查状态、停了就把新任务逐条告诉它、并让它先 `git pull` 再读 tasks.md。**没人读的队列只是一份文档。**(查状态只能用 `list_sessions` 这个 MCP 工具:CCD 的会话不在 `~/.claude/projects/` 的 jsonl 里,`~/.claude/sessions/` 也只记当前活着的进程 —— 两处都不认识它,所以做不成 shell 脚本。)
 - **该提交就提交,能推就推。** 你的原话是 "must commit when necessary. must push when possible"。一件事做完、验过,就落成一个提交并推上去 —— 只在本地的东西,一次机器故障就没了。
 - **提交前必须逐个文件看 diff,不认识的文件绝不进提交。** 你的原话是 "alway check the diff when commit. never files you do not know about. check each file/diff before commit"。455 个文件的泄露正是"没看就 add -A"的代价;机器上的闸(check-secrets)是兜底,读 diff 是本分,两个都要,谁也不替谁。
 - **暂时没有模型 key:用替身模型顶着,活不能停。** 你的原话是 "i dont have a key now. you must mock and continue the work"。这是你对"不许 mock"规则的**明确豁免**,只豁免模型这一层:Settings 里 key 填 `mock` 即启用,status 里 model 明写 mock,每条产出自报身份。**mock 之下验过的每一件都要打标,真 key 一到全部重验**(见队列 S3)。
