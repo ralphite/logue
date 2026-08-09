@@ -216,7 +216,11 @@ function Surfaces() {
   }, [voice.phase]);
 
   const finishVoice = async () => {
-    destination.current = target.current ? { editor: target.current, caret: readCaret(target.current) } : null;
+    // Frozen per recording, not shared: with settlements running in the
+    // background, a second recording would otherwise overwrite the first
+    // one's landing place before its words arrived.
+    const held = target.current ? { editor: target.current, caret: readCaret(target.current) } : null;
+    destination.current = held;
     const result = await voice.stop({
       project,
       overrides,
@@ -226,7 +230,7 @@ function Surfaces() {
       nearby: nearbyText(target.current),
     });
     if (result) {
-      place(result.text);
+      place(result.text, held);
     }
   };
 
@@ -235,6 +239,7 @@ function Surfaces() {
    * kept, and land the transcript where the first attempt would have.
    */
   const retryVoice = async () => {
+    const held = destination.current;
     const result = await voice.retry({
       project,
       overrides,
@@ -242,7 +247,7 @@ function Surfaces() {
       nearby: nearbyText(target.current),
     });
     if (result) {
-      place(result.text);
+      place(result.text, held);
     }
   };
 
@@ -255,13 +260,12 @@ function Surfaces() {
    * fixed: in the editor it landed in, which is where they are already
    * looking. Undo is still offered, on the bar that is already there.
    */
-  const place = (text: string) => {
+  const place = (text: string, held: { editor: HTMLElement; caret: CaretPosition | undefined } | null) => {
     if (googleDocs.isGoogleDocs()) {
       // Docs owns its undo stack; ours would fight it, so offer none.
       if (googleDocs.insert(text)) setInserted({ undo: () => undefined });
       return;
     }
-    const held = destination.current;
     const editor = held?.editor ?? target.current;
     if (!editor) return;
     // Focus may have moved while the model was answering. Focusing an element
@@ -429,6 +433,7 @@ function Surfaces() {
           context={context}
           seconds={voice.seconds}
           long={voice.long}
+          pending={voice.pending}
           keptCapture={voice.keptCapture}
           onRetry={() => void retryVoice()}
           inserted={Boolean(inserted)}

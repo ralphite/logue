@@ -31,6 +31,15 @@ export function useVoice() {
    * something to try. Without it the audio is on disk and unreachable.
    */
   const [kept, setKept] = useState<string>();
+  /**
+   * Recordings handed off and not yet settled.
+   *
+   * The microphone is free the moment the audio is captured; what remains —
+   * transcribe, save, land at the frozen caret — takes seconds for a note and
+   * minutes for a ten-minute recording, and holding the bar hostage for it
+   * meant one thought at a time. This is the count the bar shows instead.
+   */
+  const [pending, setPending] = useState(0);
   const session = useRef(0);
   const startedAt = useRef(0);
 
@@ -71,7 +80,15 @@ export function useVoice() {
     setError(undefined);
   }, []);
 
-  /** Stops, transcribes, and saves. Returns the Material, or undefined on failure. */
+  /**
+   * Stops, then settles in the background. Returns the Material, or undefined.
+   *
+   * The await falls in two halves on purpose. Capturing the audio is quick
+   * and exclusive — the microphone is one. Settling it (transcribe, save) is
+   * slow and is not: the bar goes back to idle the moment the audio is in
+   * hand, a new recording may start at once, and each settlement lands at the
+   * caret its own recording froze, however many are in flight.
+   */
   const stop = useCallback(
     async (options: {
       project?: string;
@@ -94,6 +111,11 @@ export function useVoice() {
         return undefined;
       }
 
+      // The microphone is free from here; everything below is one job among
+      // possibly several. The session guard stops mattering for them — a
+      // cancel cancels the *recording*, never a settlement already in flight.
+      setPhase("idle");
+      setPending((n) => n + 1);
       try {
         const { capture_id, text, applied_context } = await host.transcribe({
           audio: recorded.audio,
@@ -119,11 +141,8 @@ export function useVoice() {
           parent_ids: options.parentIds,
           applied_context,
         });
-        if (session.current !== id) return undefined;
-        setPhase("idle");
         return { text, material };
       } catch (cause) {
-        if (session.current !== id) return undefined;
         // The Host is not answering, so nothing has the audio but this page —
         // and this page is about to forget it. Keep it, and say it is kept.
         // A model that refused is different: the Host already has the audio.
@@ -157,6 +176,8 @@ export function useVoice() {
             : describe(cause),
         );
         return undefined;
+      } finally {
+        setPending((n) => n - 1);
       }
     },
     [],
@@ -224,6 +245,8 @@ export function useVoice() {
     maxSeconds: MAX_MS / 1000,
     /** A recording the Host kept when the words failed, waiting for another try. */
     keptCapture: kept,
+    /** Recordings captured and not yet settled — transcribing or saving. */
+    pending,
     start,
     stop,
     cancel,

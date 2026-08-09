@@ -30,6 +30,7 @@ export function VoiceBar({
   context,
   seconds = 0,
   long = false,
+  pending = 0,
   keptCapture,
   onRetry,
   inserted = false,
@@ -53,6 +54,8 @@ export function VoiceBar({
   seconds?: number;
   /** Past a minute. A long recording must not run silently. */
   long?: boolean;
+  /** Recordings captured and still settling — the microphone is already free. */
+  pending?: number;
   /** A recording the Host kept when the words failed. */
   keptCapture?: string;
   onRetry?: () => void;
@@ -165,11 +168,14 @@ export function VoiceBar({
           be moved, and was a second floating thing where one was enough. */}
       {inserted && phase === "idle" ? (
         <>
-          <Check size={14} className="mx-1.5 text-success" />
-          <span className="pr-1 text-xs text-muted">Inserted</span>
-          <Button onPointerDown={keepFocus} onClick={onUndo} title="Undo">
-            <Undo2 size={13} /> Undo
-          </Button>
+          {/* No words. The check is the receipt, the arrow is undo, and both
+              say so on hover — transient chrome earns an icon, not a caption.
+              (Different rule from "no mark without a word": that bans status
+              dots nobody can decode; these are actions everyone knows.) */}
+          <Check size={14} className="mx-1.5 text-success" aria-label="Inserted" />
+          <IconButton label="Undo" onPointerDown={keepFocus} onClick={onUndo}>
+            <Undo2 size={14} />
+          </IconButton>
           <IconButton label="Dismiss" onPointerDown={keepFocus} onClick={onDismissInserted}>
             <X size={14} />
           </IconButton>
@@ -219,6 +225,16 @@ export function VoiceBar({
           <IconButton label="Ask Logue" onPointerDown={keepFocus} onClick={onCommand}>
             <Sparkles size={14} />
           </IconButton>
+          {pending > 0 && (
+            <span
+              role="status"
+              title={`${pending} recording${pending === 1 ? "" : "s"} still transcribing — you can keep going`}
+              className="mr-0.5 inline-flex items-center gap-1 text-[11px] text-muted"
+            >
+              <Spinner size={11} />
+              {pending}
+            </span>
+          )}
           <IconButton
             label="Voice options"
             aria-expanded={pickerOpen}
