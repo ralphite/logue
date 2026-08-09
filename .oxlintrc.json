@@ -1,6 +1,9 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "ignorePatterns": ["**/dist/**", "**/storybook-static/**"],
+  // The real-browser checks in scripts/qa are sequential drivers: printing is
+  // their output, and awaiting inside a loop is what "do this, then look" is.
+  // Linting them by the application's rules only teaches people to silence it.
+  "ignorePatterns": ["**/dist/**", "**/storybook-static/**", "scripts/qa/**"],
   "plugins": ["typescript", "react", "unicorn", "oxc"],
   "categories": {
     "correctness": "error",

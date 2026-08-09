@@ -41,7 +41,7 @@ beforeEach(() => {
     class {
       constructor() {
         made = new FakeRecorder();
-        return made as unknown as MediaRecorder;
+        return made;
       }
       static isTypeSupported() {
         return true;
@@ -89,7 +89,8 @@ describe("what busy means", () => {
     await start();
     vi.advanceTimersByTime(MAX_MS);
     vi.advanceTimersByTime(ABANDONED_MS - 1000);
-    expect(holding()).toBe(true, "a minute short of the grace period, the words are still there");
+    // A minute short of the grace period, the words are still there.
+    expect(holding()).toBe(true);
   });
 
   it("is false before anything has started", () => {
