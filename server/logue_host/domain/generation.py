@@ -58,6 +58,10 @@ def run_skill(
     activity_source_id: str = "",
 ) -> Record:
     skill = store.skills.get(skill_id)
+    if not str(skill.get("instructions") or "").strip():
+        # Named but not written yet. Sending an empty prompt would produce
+        # something, and that something would look like an answer.
+        raise BadRequest(f"{skill.get('name') or 'That Skill'} has no prompt yet. Write one on its page.")
     if source_ids is None:
         sources = materials.context_for(store, project) if project else []
     else:

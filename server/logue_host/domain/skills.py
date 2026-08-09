@@ -85,13 +85,28 @@ def ensure_built_ins(store: Store) -> None:
         )
 
 
+def usable(skill: Record) -> bool:
+    """Whether this Skill can actually be run.
+
+    A Skill is named first and written afterwards, so one can exist for a
+    while with nothing to say. Offering it anyway would send an empty prompt
+    to a model and hand back whatever came of that.
+    """
+    return bool(skill.get("enabled")) and bool(str(skill.get("instructions") or "").strip())
+
+
 def create(store: Store, payload: dict[str, Any]) -> Record:
+    """A Skill starts as a name. The prompt is written on its own page.
+
+    Demanding the prompt here was a dead end: the form asks for a name, the
+    only field it shows, and the refusal named `instructions` — something the
+    person had no way to give and could not see. Nobody could create a Skill
+    at all.
+    """
     name = str(payload.get("name") or "").strip()
     instructions = str(payload.get("instructions") or "").strip()
     if not name:
         raise BadRequest("name is required")
-    if not instructions:
-        raise BadRequest("instructions is required")
     timestamp = now()
     return store.skills.put(
         {

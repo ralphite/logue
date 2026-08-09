@@ -810,6 +810,34 @@ class ARecordingOutlivesItsTranscription(Workspace, unittest.TestCase):
             self.call("POST", "/v1/captures/capture_nothing/transcribe", {})
 
 
+class MakingASkill(Workspace, unittest.TestCase):
+    """A Skill is named first and written afterwards."""
+
+    def test_a_name_is_enough_to_create_one(self) -> None:
+        # The form shows one field. Refusing for a second one nobody could see
+        # meant no Skill could be created at all.
+        skill = self.call("POST", "/v1/skills", {"name": "Transcription"})["skill"]
+        self.assertEqual(skill["name"], "Transcription")
+        self.assertEqual(skill["instructions"], "")
+
+    def test_one_without_a_prompt_is_not_offered(self) -> None:
+        self.call("POST", "/v1/skills", {"name": "Transcription"})
+        offered = {s["name"] for s in self.call("GET", "/v1/context")["skills"]}
+        self.assertNotIn("Transcription", offered, "an empty prompt would be sent to the model")
+        self.assertIn("Answer questions", offered, "the ones that can run are still there")
+
+    def test_one_without_a_prompt_refuses_to_run(self) -> None:
+        skill = self.call("POST", "/v1/skills", {"name": "Transcription"})["skill"]
+        with self.assertRaises(BadRequest):
+            self.call("POST", "/v1/runs", {"skill_id": skill["id"], "instruction": "go"})
+
+    def test_writing_the_prompt_puts_it_back(self) -> None:
+        skill = self.call("POST", "/v1/skills", {"name": "Transcription"})["skill"]
+        self.call("PATCH", f"/v1/skills/{skill['id']}", {"instructions": "Take out the filler words."})
+        offered = {s["name"] for s in self.call("GET", "/v1/context")["skills"]}
+        self.assertIn("Transcription", offered)
+
+
 class SkillHistory(Workspace, unittest.TestCase):
     """A prompt's past. Every edit was already written down; now it reads back."""
 

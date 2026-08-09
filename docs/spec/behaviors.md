@@ -395,3 +395,8 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
 - **Work that is done and verified is committed, and pushed when it can be.**
   Something that exists only on this machine is one failure away from never
   having happened.
+- **A form never refuses for a field it does not show.** A Skill was created
+  from a name and the refusal named `instructions` — something with no input
+  anywhere on screen, so no Skill could be made at all. A Skill is named
+  first and written on its own page; until it has a prompt it is not offered
+  anywhere and will not run, and its page says so rather than looking finished.

@@ -120,7 +120,16 @@ export function SkillsRoute({
           onChange={(event) => setDraft({ ...editing, id: skill.id, instructions: event.target.value })}
           placeholder="Tell the model exactly what to produce."
           aria-label="Instructions"
+          autoFocus={!skill.instructions}
         />
+        {/* A Skill is named first and written here. Until it has a prompt it
+            is not offered anywhere, and saying so is the difference between
+            "not finished" and "quietly does nothing". */}
+        {!skill.instructions?.trim() && (
+          <p className="text-meta text-warning">
+            This Skill has no prompt yet, so it is not offered anywhere. Write one and save.
+          </p>
+        )}
         {/* The revision number was printed here and led nowhere, while every
             past prompt sat in storage unread. Making the number the way in
             costs the page no new control. */}

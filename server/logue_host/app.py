@@ -568,8 +568,11 @@ class App:
                 "vocabularies": [
                     {"id": v.get("id"), "name": v.get("name")} for v in store.vocabularies.all()
                 ],
+                # Only the ones that can actually run. A Skill is named first
+                # and written afterwards, and one with nothing to say would
+                # otherwise sit in every picker, sending an empty prompt.
                 "skills": [
-                    s for s in store.skills.list(sort_key="name", reverse=False) if s.get("enabled")
+                    s for s in store.skills.list(sort_key="name", reverse=False) if skills.usable(s)
                 ],
                 "defaults": defaults.chosen(store),
             }
