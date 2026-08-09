@@ -30,7 +30,7 @@ from ..errors import BadRequest
 from ..ids import new_id, now
 from ..providers import Provider
 from ..store import Record, Store
-from . import generation, materials, projects
+from . import documents, generation, materials, projects
 
 #: Reads run; writes are proposed. Nothing outside this list can be reached.
 READS = {"find_sources", "run_skill", "answer"}
@@ -281,15 +281,15 @@ def accept(store: Store, proposal: dict[str, Any], *, page: dict[str, Any] | Non
         return {"did": "add_to_project", "materials": touched}
 
     if tool == "draft_document":
-        document = {
-            "id": new_id("document"),
-            "title": str(proposal.get("title") or "Untitled"),
-            "content": str(proposal.get("body") or ""),
-            "revision": 1,
-            "created_at": now(),
-            "updated_at": now(),
-        }
-        store.documents.put(document)
+        # Through documents.create, not by hand. A record built here missed
+        # `source_ids` and `title_state`, and the rail's preview card read
+        # `source_ids.length` — so hovering that row took the whole page down.
+        # Two writers of one kind of record is how a field goes missing.
+        document = documents.create(
+            store,
+            title=str(proposal.get("title") or ""),
+            content=str(proposal.get("body") or ""),
+        )
         return {"did": "draft_document", "document": document}
 
     raise BadRequest("that is not something Logue can do")
