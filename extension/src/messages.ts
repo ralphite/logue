@@ -9,6 +9,8 @@ export type ToBackground =
   | { type: "logue:build" }
   | { type: "logue:host"; path: string; method?: string; body?: string }
   | { type: "logue:open-panel" }
+  /** Try the queued recordings now, rather than waiting for the next check. */
+  | { type: "logue:pending-send" }
   | { type: "logue:record-start"; sessionId: string }
   | { type: "logue:record-stop"; sessionId: string }
   | { type: "logue:record-cancel"; sessionId: string };

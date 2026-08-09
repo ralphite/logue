@@ -99,6 +99,10 @@ export function useVoice() {
       nearby?: string;
     }): Promise<{ text: string; material: Material } | undefined> => {
       const id = session.current;
+      // Read the clock before the phase change resets it: this is the only
+      // record of how long the recording ran, and a queued one has to be able
+      // to say so later.
+      const ranFor = seconds;
       setPhase("working");
       const recorded = await send<{ ok: boolean; audio?: string; mediaType?: string; message?: string }>({
         type: "logue:record-stop",
@@ -150,6 +154,10 @@ export function useVoice() {
           const queued = await keep({
             audio: recorded.audio,
             mediaType: recorded.mediaType ?? "audio/webm",
+            // How long it ran, taken from the clock the bar was showing:
+            // a queued recording has to describe itself later, and audio
+            // bytes do not say how long they are.
+            seconds: ranFor,
             project: options.project,
             overrides: options.overrides,
             source: options.source,
@@ -180,7 +188,7 @@ export function useVoice() {
         setPending((n) => n - 1);
       }
     },
-    [],
+    [seconds],
   );
 
   /** Try the model again on the recording the Host still has. */

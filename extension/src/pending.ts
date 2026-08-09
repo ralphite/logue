@@ -44,6 +44,12 @@ export interface PendingVoice {
   id: string;
   audio: string;
   mediaType: string;
+  /** How long it ran. Stored because a queued recording has to describe
+      itself to the person waiting for it, and audio bytes do not say. */
+  seconds?: number;
+  /** Failed attempts. A recording that failed twice is a different thing
+      from one that has not been tried, and the panel says which. */
+  tries?: number;
   project?: string;
   overrides?: unknown;
   source?: unknown;
@@ -84,6 +90,17 @@ export async function keep(recording: Omit<PendingVoice, "id" | "at">): Promise<
     // Out of quota. The caller says so rather than pretending it was kept.
     return false;
   }
+}
+
+/** Record another failed attempt, so the panel can say "tried twice". */
+export async function noteTry(id: string): Promise<void> {
+  const waiting = await all();
+  const next = waiting.map((one) => {
+    if (one.id !== id) return one;
+    one.tries = (one.tries ?? 0) + 1;
+    return one;
+  });
+  await chrome.storage.local.set({ [KEY]: next });
 }
 
 export async function forget(id: string): Promise<void> {

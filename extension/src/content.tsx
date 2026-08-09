@@ -470,7 +470,13 @@ function Surfaces() {
             setOverrides(next);
           }}
           onStart={() => void voice.start()}
-          onCommand={() => setCommandOpen(true)}
+          onCommand={() => {
+            // Asking about a page happens in the panel now, not in a second
+            // box on top of the page. The click is the person's gesture, which
+            // is what Chrome requires to open a side panel — so it is sent
+            // straight through rather than deferred.
+            void chrome.runtime.sendMessage({ type: "logue:open-panel" }).catch(() => undefined);
+          }}
           onStop={() => void finishVoice()}
           onCancel={voice.cancel}
           onMove={(at) => {

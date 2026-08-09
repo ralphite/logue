@@ -1,7 +1,21 @@
 import { Bookmark, CornerDownLeft, ExternalLink, Mic, Settings2, Sparkles, X } from "lucide-react";
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { Answer, Button, ErrorNote, IconButton, Input, OriginMark, Select, SourceLink, Spinner, Tag, originOf } from "@logue/ui";
+import {
+  Answer,
+  Button,
+  ErrorNote,
+  IconButton,
+  Input,
+  LogueLogo,
+  OriginMark,
+  Select,
+  SourceLink,
+  Spinner,
+  Tag,
+  cn,
+  originOf,
+} from "@logue/ui";
 import { host, HOST, type Context, type Material } from "./api";
 import { readablePageText } from "./readable";
 import { useVoice } from "./useVoice";
@@ -169,13 +183,128 @@ function Thread({
   );
 }
 
+
+/** A recording made while Logue was off, and what can be done about it. */
+interface Waiting {
+  id: string;
+  at: string;
+  seconds?: number;
+  tries?: number;
+  audio: string;
+  mediaType: string;
+  page?: string;
+}
+
+const PENDING_KEY = "logue:pending-voice";
+
+function isWaiting(value: unknown): value is Waiting {
+  if (typeof value !== "object" || value === null) return false;
+  return "id" in value && typeof value.id === "string" && "audio" in value;
+}
+
+function clock(seconds?: number): string {
+  if (!seconds) return "";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
+}
+
+/**
+ * The recordings waiting for Logue, where a person can see them.
+ *
+ * They were already being kept and already being sent — but only the queue
+ * knew that. Audio sitting on disk that nobody can reach, retry or export
+ * reads exactly like audio that was lost.
+ */
+/** Hand the audio back as a file — the words are the person's, not ours. */
+function download(one: Waiting): void {
+  const bytes = Uint8Array.from(atob(one.audio), (c) => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: one.mediaType }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `logue-${one.at.replace(/[:.]/g, "-")}.webm`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function WaitingRecordings({ items, onChanged }: { items: Waiting[]; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (items.length === 0) return null;
+
+  const failing = items.filter((one) => (one.tries ?? 0) > 0).length;
+
+  return (
+    <section className="grid gap-1.5 rounded-lg border border-line bg-surface-muted p-2">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 text-left text-xs text-ink-soft"
+      >
+        <span className={cn("size-1.5 shrink-0 rounded-full", failing > 0 ? "bg-danger" : "bg-warning")} />
+        <span className="flex-1">
+          {items.length} recording{items.length === 1 ? "" : "s"} waiting
+          {failing > 0 ? ` · ${failing} failed` : ""}
+        </span>
+        <span className="text-accent-ink">{open ? "Hide" : "Show"}</span>
+      </button>
+
+      {open && (
+        <div className="grid gap-1.5">
+          {items.map((one) => (
+            <div key={one.id} className="grid gap-1 rounded-md border border-line bg-surface p-2">
+              <div className="flex items-center gap-2 text-xs text-muted">
+                <span>{new Date(one.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                {one.seconds ? <span>· {clock(one.seconds)}</span> : null}
+                {one.page ? <span className="truncate">· {one.page}</span> : null}
+              </div>
+              <p className={cn("text-xs", (one.tries ?? 0) > 0 ? "text-danger" : "text-muted")}>
+                {(one.tries ?? 0) > 0
+                  ? `Failed ${one.tries} time${one.tries === 1 ? "" : "s"} — the audio is kept`
+                  : "Goes in when Logue is back — nothing to do"}
+              </p>
+              <div className="flex gap-1">
+                <Button
+                  disabled={busy}
+                  onClick={() => {
+                    setBusy(true);
+                    void chrome.runtime
+                      .sendMessage({ type: "logue:pending-send" })
+                      .catch(() => undefined)
+                      .then(() => setTimeout(() => { setBusy(false); onChanged(); }, 1200));
+                  }}
+                >
+                  Try now
+                </Button>
+                <Button onClick={() => download(one)}>Export audio</Button>
+                <Button
+                  onClick={() => {
+                    void chrome.storage.local.get(PENDING_KEY).then((stored) => {
+                      const found: unknown = stored[PENDING_KEY];
+                      const rest = (Array.isArray(found) ? found.filter(isWaiting) : []).filter((x) => x.id !== one.id);
+                      void chrome.storage.local.set({ [PENDING_KEY]: rest }).then(onChanged);
+                    });
+                  }}
+                >
+                  Delete
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /**
  * The panel is about *this page*: what came off it, what you said about it, and
  * a place to ask using it. Everything past that is folded away — the panel is
  * 360 pixels wide and the page beside it is the thing being read.
  */
 function Panel() {
-  const [tab, setTab] = useState<{ id?: number; url: string; title: string }>();
+  const [page, setPage] = useState<{ id?: number; url: string; title: string }>();
   const [thread, setThread] = useState<ThreadMessage[]>([]);
   const [context, setContext] = useState<Context>();
   const [saved, setSaved] = useState<Material[]>([]);
@@ -184,6 +313,9 @@ function Panel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [modelReady, setModelReady] = useState(true);
+  /** Which part of the panel is showing. Talk is the one people come for. */
+  const [tab, setTab] = useState<"talk" | "page" | "project">("talk");
+  const [waiting, setWaiting] = useState<Waiting[]>([]);
   const voice = useVoice();
 
   /** Add to the conversation, in the panel and in storage, as one act. */
@@ -198,15 +330,15 @@ function Panel() {
   const load = useCallback(async () => {
     const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
     const url = active?.url ?? "";
-    setTab({ id: active?.id, url, title: active?.title ?? "" });
+    setPage({ id: active?.id, url, title: active?.title ?? "" });
     try {
-      const [ctx, page, status] = await Promise.all([
+      const [ctx, onPage, status] = await Promise.all([
         host.context(project),
         url ? host.pageMaterials(url) : { materials: [] },
         host.status(),
       ]);
       setContext(ctx);
-      setSaved(page.materials);
+      setSaved(onPage.materials);
       setModelReady(status.model.generation_ready && status.model.voice_ready);
       setError("");
     } catch (cause) {
@@ -255,6 +387,22 @@ function Panel() {
     return () => chrome.runtime.onMessage.removeListener(onMessage);
   }, [listen]);
 
+  const readWaiting = useCallback(() => {
+    void chrome.storage.local.get(PENDING_KEY).then((stored) => {
+      const found: unknown = stored[PENDING_KEY];
+      setWaiting(Array.isArray(found) ? found.filter(isWaiting) : []);
+    });
+  }, []);
+
+  useEffect(() => {
+    readWaiting();
+    const onStorage = (changes: Record<string, unknown>) => {
+      if (PENDING_KEY in changes) readWaiting();
+    };
+    chrome.storage.local.onChanged.addListener(onStorage);
+    return () => chrome.storage.local.onChanged.removeListener(onStorage);
+  }, [readWaiting]);
+
   useEffect(() => {
     void load();
     const onActivated = () => void load();
@@ -267,7 +415,7 @@ function Panel() {
   }, [load]);
 
   const capture = async () => {
-    if (!tab?.url || tab.id === undefined) return;
+    if (!page?.url || page.id === undefined) return;
     setBusy(true);
     try {
       // Keep the page's text, not just its address. A Source that is only a URL
@@ -275,7 +423,7 @@ function Panel() {
       let body = "";
       try {
         const [result] = await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
+          target: { tabId: page.id },
           func: readablePageText,
         });
         body = typeof result?.result === "string" ? result.result : "";
@@ -284,8 +432,8 @@ function Panel() {
       }
       await host.saveMaterial({
         kind: "page",
-        content: body || tab.title || tab.url,
-        source: { url: tab.url, title: tab.title, domain: new URL(tab.url).hostname },
+        content: body || page.title || page.url,
+        source: { url: page.url, title: page.title, domain: new URL(page.url).hostname },
         projects: project ? [project] : [],
       });
       await load();
@@ -329,10 +477,10 @@ function Panel() {
       setError("");
       try {
         let body = "";
-        if (tab?.id !== undefined) {
+        if (page?.id !== undefined) {
           try {
             const [result] = await chrome.scripting.executeScript({
-              target: { tabId: tab.id },
+              target: { tabId: page.id },
               func: readablePageText,
             });
             body = typeof result?.result === "string" ? result.result : "";
@@ -343,7 +491,7 @@ function Panel() {
         const turn = await host.agentMessage({
           message: text,
           project,
-          page: tab?.url ? { url: tab.url, title: tab.title, text: body } : undefined,
+          page: page?.url ? { url: page.url, title: page.title, text: body } : undefined,
           history: history.map((m) => ({ from: m.from, text: m.text })),
         });
         say({
@@ -360,11 +508,11 @@ function Panel() {
         setBusy(false);
       }
     },
-    [project, say, tab?.id, tab?.title, tab?.url],
+    [project, say, page?.id, page?.title, page?.url],
   );
 
   const accept = useCallback(async () => {
-    const settled = await voice.stop({ project, source: { kind: "panel", url: tab?.url } });
+    const settled = await voice.stop({ project, source: { kind: "panel", url: page?.url } });
     const words = settled?.text.trim();
     if (!words) return;
     const mine: ThreadMessage = { from: "you", text: words, at: new Date().toISOString() };
@@ -372,7 +520,7 @@ function Panel() {
     // Said, then answered: a message that only sat there would make the
     // shortcut a dictation key rather than a way to ask for something.
     await converse(words, [...thread, mine]);
-  }, [voice, project, tab?.url, say, converse, thread]);
+  }, [voice, project, page?.url, say, converse, thread]);
 
   useEffect(() => {
     if (voice.phase !== "recording") return;
@@ -404,7 +552,7 @@ function Panel() {
       try {
         await host.agentAccept({
           proposal: message.proposal,
-          page: tab?.url ? { url: tab.url, title: tab.title, domain: new URL(tab.url).hostname } : undefined,
+          page: page?.url ? { url: page.url, title: page.title, domain: new URL(page.url).hostname } : undefined,
         });
         setThread((was) => {
           const next = was.map((m) => (m.at === message.at ? { ...m, proposal: null } : m));
@@ -419,7 +567,7 @@ function Panel() {
         setBusy(false);
       }
     },
-    [tab?.url, tab?.title, say, load],
+    [page?.url, page?.title, say, load],
   );
 
   const leaveIt = useCallback((message: ThreadMessage) => {
@@ -433,82 +581,193 @@ function Panel() {
   const fromPage = saved.filter((item) => FROM_THE_PAGE.has(item.kind));
   const said = saved.filter((item) => !FROM_THE_PAGE.has(item.kind));
 
+  const composer = (
+    // Pinned to the bottom, the way a conversation is written everywhere else:
+    // what was said stays above, and the place to say the next thing does not
+    // move. The old shape put the box in the middle with the answer printed
+    // under it, which reads as a form that has been filled in.
+    <div className="shrink-0 border-t border-line bg-surface p-2">
+      {(voice.phase === "recording" || voice.phase === "starting" || voice.pending > 0 || voice.error) && (
+        <div className="mb-1.5 flex items-center gap-2 rounded-md border border-line bg-surface-muted px-2 py-1.5">
+          {voice.phase === "recording" ? (
+            <>
+              <span className="size-2 shrink-0 rounded-full bg-danger" aria-hidden />
+              <span className="flex-1 text-xs text-ink">Listening — {voice.seconds}s</span>
+              <Button variant="primary" onClick={() => void accept()}>
+                Accept <kbd>↵</kbd>
+              </Button>
+              <IconButton label="Cancel (Esc)" onClick={() => voice.cancel()}>
+                <X size={13} />
+              </IconButton>
+            </>
+          ) : voice.error ? (
+            <>
+              <span className="flex-1 text-xs text-warning">{voice.error}</span>
+              <Button onClick={() => void voice.start()}>Try again</Button>
+            </>
+          ) : (
+            <>
+              <Spinner size={13} />
+              <span className="flex-1 text-xs text-muted">
+                {voice.phase === "starting" ? "Reaching the microphone…" : `Transcribing ${voice.pending}`}
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="grid gap-1.5 rounded-lg border border-line-strong bg-surface p-1.5">
+        <textarea
+          value={instruction}
+          onChange={(event) => setInstruction(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault();
+              void ask();
+            }
+          }}
+          placeholder="Ask about this page, or just say it…"
+          aria-label="What to ask"
+          className="min-h-12 w-full resize-none bg-transparent px-1 py-0.5 text-[13px] leading-[1.5] text-ink outline-0"
+        />
+        <div className="flex items-center gap-1">
+          {/* What this turn is about, said before it is sent rather than
+              guessed at afterwards. */}
+          <span className="rounded-full border border-line px-1.5 text-xs text-muted">This page</span>
+          <Select
+            className="h-6 max-w-28 flex-1 text-xs"
+            value={project}
+            onChange={(event) => setProject(event.target.value)}
+            aria-label="Project"
+          >
+            <option value="">No Project</option>
+            {context?.projects.map((item) => (
+              <option key={item.id} value={item.name}>
+                {item.name}
+              </option>
+            ))}
+          </Select>
+          <span className="ml-auto flex items-center gap-1">
+            <IconButton
+              label="Talk to Logue · ⌘⇧K"
+              disabled={voice.phase === "recording" || voice.phase === "starting"}
+              onClick={() => void voice.start()}
+            >
+              <Mic size={14} />
+            </IconButton>
+            <Button variant="primary" disabled={busy || !instruction.trim()} onClick={() => void ask()}>
+              {busy ? <Spinner size={13} /> : <CornerDownLeft size={13} />} Ask
+            </Button>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex h-screen flex-col">
-      <header className="flex h-row shrink-0 items-center gap-1 border-b border-line px-2">
-        <span className="min-w-0 flex-1 truncate text-xs text-muted">{tab?.title || "This page"}</span>
-        <a
-          href={WEB_APP}
-          target="_blank"
-          rel="noreferrer"
-          title="Open Logue"
-          className="inline-flex size-control items-center justify-center rounded-md text-muted hover:bg-surface-muted hover:text-ink"
-        >
-          <ExternalLink size={14} />
-        </a>
-      </header>
-
-      <div className="logue-scroll flex-1 p-2">
-        {error && <ErrorNote className="mb-2">{error}</ErrorNote>}
-
-        <Thread
-          messages={thread}
-          busy={busy}
-          onError={setError}
-          onAccept={(message) => void carryOut(message)}
-          onDiscard={leaveIt}
-          onClear={() => {
-            setThread([]);
-            void chrome.storage.local.remove(THREAD);
-          }}
-        />
-
-        {!modelReady && !error && (
-          // The one thing that makes every other control in here do nothing.
+      {/*
+        Two rows, two subjects. The first belongs to Logue — the same mark and
+        wordmark the app carries, and a way into it that says so in words. The
+        second belongs to the page you are on. They used to share one row, so
+        the only control up here read as an action on the page's title.
+      */}
+      <header className="shrink-0 border-b border-line bg-surface">
+        <div className="flex items-center gap-2 px-2 pt-1.5">
+          <LogueLogo />
           <a
-            href={`${WEB_APP}/settings`}
+            href={WEB_APP}
             target="_blank"
             rel="noreferrer"
-            className="mb-2 flex items-center gap-1.5 rounded-md border border-line bg-surface-muted px-2 py-1.5 text-xs text-warning hover:text-ink"
+            className="ml-auto inline-flex items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-xs text-muted hover:bg-surface-muted hover:text-ink"
           >
-            <Settings2 size={12} />
-            The model is not connected. Open Settings.
+            <ExternalLink size={12} /> Open app
           </a>
-        )}
+        </div>
+        <div className="flex min-w-0 items-center gap-1.5 px-2 pt-1 pb-1.5 text-xs text-muted">
+          <span className="truncate">{page?.title || "This page"}</span>
+        </div>
+      </header>
 
-        {(voice.phase === "recording" || voice.phase === "starting" || voice.pending > 0 || voice.error) && (
-          <div className="mb-2 flex items-center gap-2 rounded-lg border border-line bg-surface px-2 py-1.5">
-            {voice.phase === "recording" ? (
-              <>
-                <span className="size-2 shrink-0 rounded-full bg-danger" aria-hidden />
-                <span className="flex-1 text-xs text-ink">Listening — {voice.seconds}s</span>
-                <Button variant="primary" onClick={() => void accept()}>
-                  Accept <kbd>↵</kbd>
-                </Button>
-                <IconButton label="Cancel (Esc)" onClick={() => voice.cancel()}>
-                  <X size={13} />
-                </IconButton>
-              </>
-            ) : voice.error ? (
-              <>
-                <span className="flex-1 text-xs text-warning">{voice.error}</span>
-                <Button onClick={() => void voice.start()}>Try again</Button>
-              </>
-            ) : (
-              <>
-                <Spinner size={13} />
-                <span className="flex-1 text-xs text-muted">
-                  {voice.phase === "starting" ? "Reaching the microphone…" : `Transcribing ${voice.pending}`}
-                </span>
-              </>
+      <div role="tablist" aria-label="Panel sections" className="flex shrink-0 gap-0.5 border-b border-line bg-surface px-1.5">
+        {([
+          ["talk", "Talk", undefined],
+          ["page", "This page", fromPage.length + said.length],
+          ["project", "Project", undefined],
+        ] as const).map(([key, label, count]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={cn(
+              "-mb-px flex items-center gap-1.5 border-b-2 px-2 py-1.5 text-xs",
+              tab === key ? "border-accent font-[560] text-ink" : "border-transparent text-muted hover:text-ink",
+            )}
+          >
+            {label}
+            {count ? (
+              <span className="rounded-full bg-surface-muted px-1.5 text-[11px] text-muted">{count}</span>
+            ) : null}
+          </button>
+        ))}
+      </div>
+
+      {tab === "talk" ? (
+        <>
+          <div className="logue-scroll flex flex-1 flex-col justify-end gap-2 p-2">
+            {error && <ErrorNote>{error}</ErrorNote>}
+            <WaitingRecordings items={waiting} onChanged={readWaiting} />
+            {!modelReady && !error && (
+              // The one thing that makes every other control in here do nothing.
+              <a
+                href={`${WEB_APP}/settings`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 rounded-md border border-line bg-surface-muted px-2 py-1.5 text-xs text-warning hover:text-ink"
+              >
+                <Settings2 size={12} />
+                The model is not connected. Open Settings.
+              </a>
+            )}
+            <Thread
+              messages={thread}
+              busy={busy}
+              onError={setError}
+              onAccept={(message) => void carryOut(message)}
+              onDiscard={leaveIt}
+              onClear={() => {
+                setThread([]);
+                void chrome.storage.local.remove(THREAD);
+              }}
+            />
+            {thread.length === 0 && (
+              <p className="px-1 text-xs text-muted">
+                Ask about this page, or press ⌘⇧K anywhere and just say it.
+              </p>
             )}
           </div>
-        )}
-
-        <div className="grid gap-1.5">
-          <div className="flex items-center gap-1">
+          {composer}
+        </>
+      ) : tab === "page" ? (
+        <div className="logue-scroll flex-1 p-2">
+          {error && <ErrorNote className="mb-2">{error}</ErrorNote>}
+          <WaitingRecordings items={waiting} onChanged={readWaiting} />
+          <div className="mt-2 mb-2 flex">
+            <Button onClick={() => void capture()} disabled={busy}>
+              <Bookmark size={13} /> Save this page
+            </Button>
+          </div>
+          <Kept title="From this page" items={fromPage} context={context} onChanged={load} empty="Nothing saved yet." />
+          <Kept title="What you added" items={said} context={context} onChanged={load} empty="No comments yet." />
+        </div>
+      ) : (
+        <div className="logue-scroll flex-1 p-2">
+          {error && <ErrorNote className="mb-2">{error}</ErrorNote>}
+          <div className="mb-2">
             <Select
-              className="flex-1"
+              className="w-full"
               value={project}
               onChange={(event) => setProject(event.target.value)}
               aria-label="Project"
@@ -520,43 +779,16 @@ function Panel() {
                 </option>
               ))}
             </Select>
-            <IconButton
-              label="Talk to Logue · ⌘⇧K"
-              disabled={voice.phase === "recording" || voice.phase === "starting"}
-              onClick={() => void voice.start()}
-            >
-              <Mic size={14} />
-            </IconButton>
-            <Button onClick={() => void capture()} disabled={busy}>
-              <Bookmark size={13} /> Save page
-            </Button>
           </div>
-
-          <textarea
-            value={instruction}
-            onChange={(event) => setInstruction(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault();
-                void ask();
-              }
-            }}
-            placeholder={project ? `Ask about ${project}…` : "Ask about this page…"}
-            aria-label="What to ask"
-            className="min-h-16 w-full resize-y rounded-md border border-line-strong bg-surface px-2 py-1.5 text-[13px] leading-[1.5] text-ink outline-0 focus:border-accent-line"
-          />
-          <div className="flex justify-end">
-            <Button variant="primary" disabled={busy || !instruction.trim()} onClick={() => void ask()}>
-              {busy ? <Spinner size={13} /> : <CornerDownLeft size={13} />} Ask
-            </Button>
-          </div>
+          {project ? (
+            <AboutProject project={project} context={context} onError={setError} />
+          ) : (
+            <p className="px-1 text-xs text-muted">
+              Choose a Project and what Logue knows about it — its background and its words — is editable here.
+            </p>
+          )}
         </div>
-
-        <Kept title="On this page" items={fromPage} context={context} onChanged={load} empty="Nothing saved yet." />
-        <Kept title="What you added" items={said} context={context} onChanged={load} empty="No comments yet." />
-
-        {project && <AboutProject project={project} context={context} onError={setError} />}
-      </div>
+      )}
     </div>
   );
 }

@@ -505,3 +505,24 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   what you say is an *instruction to Logue*, which becomes a message in the
   conversation. Anything that proposes moving words from one path to the other
   has confused them.
+- **The panel says who it belongs to before it says anything else.** Its first
+  row is Logue's own — the same mark and wordmark the app carries, and a way
+  into the app that says "Open app" in words. The second row is the page you
+  are on. They shared a row once, and the only control up there read as an
+  action on the page's title, so a person who had asked for that link twice
+  concluded it was gone. A permanent way into somewhere else is not the kind
+  of icon that may go without words.
+- **Asking happens in the panel; the page keeps only what must be on the page.**
+  A question about the page is a conversation, and conversations live in one
+  place. The page's ✦ opens the panel rather than raising a second box over the
+  reading; what stays on the page is dictation into the caret and a handle to
+  move it. Two voice paths, two destinations, and now two different surfaces.
+- **A conversation is written the way conversations are written**: what was
+  said stays above, and the place to say the next thing is pinned to the
+  bottom and does not move. The box used to sit in the middle with the answer
+  printed underneath, which reads as a form that has been filled in.
+- **A recording waiting for Logue can be seen, retried, exported or dropped.**
+  The queue already kept them and already sent them, but only the queue knew
+  that: audio on disk nobody can reach reads exactly like audio that was lost.
+  Each one says when it was made, how long it ran, and whether it is waiting
+  or has failed — and how many times.

@@ -6,7 +6,7 @@
 import { HOST } from "./api";
 import { shouldReload } from "./build";
 import { tagOf, type HostReply } from "./messages";
-import { all as pendingVoice, forget } from "./pending";
+import { all as pendingVoice, forget, noteTry } from "./pending";
 import { siblingOf } from "./paths";
 
 /**
@@ -458,7 +458,13 @@ async function sendPending(): Promise<number> {
           nearby: one.nearby,
         }),
       });
-      if (!heard.ok || heard.status !== 200) break;
+      if (!heard.ok || heard.status !== 200) {
+        // Count the attempt before giving up on this pass: a recording that
+        // keeps failing should be able to say so rather than sitting in the
+        // queue looking like it has simply not had its turn.
+        await noteTry(one.id);
+        break;
+      }
       const said: unknown = JSON.parse(heard.text);
       if (typeof said !== "object" || said === null || !("capture_id" in said) || !("text" in said)) break;
       const capture_id = String(said.capture_id);
@@ -581,6 +587,14 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
       );
       return true;
 
+    case "logue:pending-send":
+      // "Try now" in the panel. The periodic check would get there eventually;
+      // a person watching a recording wait should not have to.
+      void sendPending().then((sent) => {
+        if (sent > 0) void chrome.runtime.sendMessage({ type: "logue:thread-changed" }).catch(() => undefined);
+      });
+      respond({ ok: true });
+      return true;
     case "logue:record-stop":
       toOffscreen<{ ok: boolean; audio?: string; mediaType?: string; message?: string }>("logue:offscreen-stop").then(
         (result) => {
