@@ -287,3 +287,7 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
 - **A shortcut that opens something closes it again.** Pressing it over an
   open panel must not do nothing; that reads as a broken key rather than as a
   panel already where you asked for it.
+- **A selection can be kept from the right-click menu.** Not every page can
+  carry a floating bar, and the context menu is where people reach out of
+  habit. It is rebuilt on every worker start, because a reload clears an
+  extension's menus and `onInstalled` does not fire for one.

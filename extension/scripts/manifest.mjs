@@ -33,7 +33,7 @@ const manifest = {
    * with nowhere to go and grant it. The product is a microphone; declaring it
    * is the honest thing to do.
    */
-  permissions: ["activeTab", "alarms", "audioCapture", "offscreen", "scripting", "sidePanel", "storage", "tabs"],
+  permissions: ["activeTab", "alarms", "audioCapture", "contextMenus", "offscreen", "scripting", "sidePanel", "storage", "tabs"],
   /*
    * Every http(s) page, declared rather than asked for later.
    *

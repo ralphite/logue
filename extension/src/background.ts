@@ -94,10 +94,62 @@ async function offscreenBusy(): Promise<boolean> {
 
 chrome.runtime.onInstalled.addListener((details) => {
   void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  void buildMenus();
   // An update or a reload from chrome://extensions orphans open tabs just as
   // thoroughly as our own does. A first install has no tabs to heal.
   if (details.reason !== "install") void healOpenTabs();
 });
+
+const SAVE_SELECTION = "logue-save-selection";
+
+/**
+ * Right-click on a selection and keep it.
+ *
+ * The first version had this and the rebuild dropped it, which took away the
+ * one way to capture from a page without going through a floating bar — the
+ * way that works on a page where the bar cannot be placed, and the way people
+ * reach for out of habit on every other extension they have.
+ *
+ * Rebuilt from scratch each time rather than added to: `create` throws on a
+ * duplicate id, and a worker starts many times a day.
+ */
+async function buildMenus(): Promise<void> {
+  try {
+    await chrome.contextMenus.removeAll();
+    chrome.contextMenus.create({
+      id: SAVE_SELECTION,
+      title: "Save to Logue",
+      contexts: ["selection"],
+    });
+  } catch {
+    // No menus API, or a race with another start-up doing the same thing.
+  }
+}
+
+chrome.contextMenus?.onClicked.addListener((info, tab) => {
+  if (info.menuItemId !== SAVE_SELECTION) return;
+  const text = (info.selectionText ?? "").trim();
+  if (!text) return;
+  void relayToHost({
+    path: "/v1/materials",
+    method: "POST",
+    body: JSON.stringify({
+      kind: "selection",
+      content: text,
+      // The page it came from, which is what makes it a Source rather than a
+      // loose paragraph — the same shape the selection bar sends.
+      source: { url: info.pageUrl ?? tab?.url ?? "", title: tab?.title ?? "", domain: domainOf(info.pageUrl ?? "") },
+    }),
+  });
+});
+
+function domainOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
+}
 
 const HEALING = "logue:healing";
 const HEAL_NEXT = "logue:heal-next";
@@ -445,3 +497,7 @@ void scheduleBuildCheck();
 void keepUpToDate();
 void healIfAsked();
 void sendPending();
+// On every start, not only on install: a reload clears the extension's menus
+// and `onInstalled` does not fire for `chrome.runtime.reload()` — the same
+// trap that once left orphaned tabs and a dead side panel behind an update.
+void buildMenus();
