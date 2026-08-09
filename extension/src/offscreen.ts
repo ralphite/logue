@@ -1,7 +1,7 @@
 /** Runs in the offscreen document; owns the microphone for the whole extension. */
 
 import { tagOf } from "./messages";
-import { cancel, start, stop } from "./recorder";
+import { cancel, recording, start, stop } from "./recorder";
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, respond) => {
   const tag = tagOf(message);
@@ -26,6 +26,13 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, respond) => {
   if (tag === "logue:offscreen-cancel") {
     cancel();
     respond({ ok: true });
+    return false;
+  }
+
+  // Whether words are in flight right now. The worker asks before closing
+  // this document or reloading the extension — either would end a recording.
+  if (tag === "logue:offscreen-busy") {
+    respond({ ok: true, busy: recording() });
     return false;
   }
 

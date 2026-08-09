@@ -21,6 +21,10 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   any work on it — a request that lives only in a reply is not queued.
 - **Verify in a real browser, against the real Host and a real model.** Unit
   tests are necessary and never sufficient. No mocks standing in for a run.
+- **A screenshot that reports a bug is saved into the repository tree and
+  ignored by git**, under `docs/spec/shots/`, and the task cites it by name. It
+  belongs next to the task it explains, not in a temporary folder that empties
+  itself — and not in the history either.
 - **Never stop early, never wait to be unblocked.** If something is in the way,
   find another route; a computer is available.
 - **Start the next task the moment the last one is done.** Do not stop to
@@ -50,6 +54,12 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   product is not actually installed.
 - **The Host listens on loopback only.** Never `0.0.0.0` — the workspace has no
   password.
+- **There is one address for the app**, the one the Host serves. A dev server's
+  port is for building, never the address anything hands to the person or opens
+  on its own.
+- **Installing Logue adds no permission prompt to anybody's page.** A browser
+  asking to "access other apps and services on this device" on an ordinary
+  article is not something the extension may cause.
 
 - **One version of the extension on this machine.** No `releases/` directory
   that grows. Deploy swaps the contents of one folder in place.
@@ -82,19 +92,30 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   below its content is the usual cause, and the rule is set once in the theme
   rather than remembered at each new grid.
 - **Wherever a Source is listed, it is one click from where it lives** — the
-  Stream. A citation you cannot follow is a dead end.
+  Stream. A citation you cannot follow is a dead end. This holds for a Run in a
+  list too: the row opens the answer, and its Source count opens those Sources.
+  A row that prints "28 Sources" as dead text is the same dead end.
 - **Wherever a Source is listed, the page it came from is a link.** Every
   screen, every list, including the Side Panel and the Sources under a
   Document. Printing the domain as dead text makes people go and find it by
   hand. Clicking the link must not also open the row.
 - **⌘K finds anything**; ⌘\ collapses the rail.
+- **One Find, and it searches everything.** Stream, Projects, Documents,
+  Skills — one entry point, not a second Search box above whichever list is
+  open. Two controls doing the same job is one too many, and a search that only
+  covers the section you happen to be in is not a search.
 - **What is open is in the URL** — `#/documents/doc_1a2b`. It can be
   bookmarked, sent to someone, reloaded onto, and Back returns to what you were
   reading rather than to the section you were in before it. A link to something
   that has since been deleted says so plainly; it does not draw an editor
   around nothing.
-- **The rail's list is flat.** A Source belongs to several Projects at once,
-  so a folder for one of them hid it from the rest. Pinned is the only heading.
+- **The rail's list is flat, and it has no headings at all.** A Source belongs
+  to several Projects at once, so a folder for one of them hid it from the
+  rest. Pinned items simply sit at the top; "Pinned" and "Everything else" as
+  printed labels say what the order already says. (Asked for after the two
+  headings appeared above a twelve-row list.)
+- **The rail's list is never truncated.** No "9 more" to expand — everything
+  the section holds is listed, and the scrollbar is how a long list is read.
 - **Every rail row carries its kind on the left**, in a fixed slot, so the
   whole rail is one column of icons with words beside them — and the kind is
   the one fact every row has exactly one of.
@@ -141,7 +162,13 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   cannot be done it is written down rather than passed off as done. A content
   script that outlives its extension removes itself instead of drawing bars
   whose buttons reach nothing.
-- **Google Docs must work.** It is not optional.
+- **Google Docs must work.** It is not optional. It is confirmed on a Google
+  Doc created for that check, never on one already open — a page carrying a
+  content script from an older build reports on that build, not this one.
+- **The Side Panel must work, and v1 is what it must do.** v1's panel is the
+  reference for its behaviour: read it out of the history and match it item by
+  item, rather than inventing a replacement. A rebuild may change how the panel
+  is built; what it does for the person was already settled.
 - **A recording is saved before it is transcribed.** A model failure never
   costs someone what they said — and neither does the Host being off. A
   recording made while nothing is listening waits in the extension and goes in

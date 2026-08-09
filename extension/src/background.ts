@@ -42,6 +42,37 @@ async function toOffscreen<T>(type: string): Promise<T> {
   return reply as T;
 }
 
+/**
+ * The offscreen document does not outlive the recording it was opened for.
+ *
+ * It used to: nothing closed it, so `hasDocument` stayed true from the first
+ * recording until the browser quit. That read as harmless — an idle page —
+ * but the self-update check treats an open document as a live microphone and
+ * stands down. One recording, and this browser silently stopped taking new
+ * builds; the fix for a stuck recorder could not reach the person stuck on
+ * it, because the stuck recorder was what kept the fix out.
+ */
+async function closeOffscreen(): Promise<void> {
+  try {
+    if (await chrome.offscreen.hasDocument?.()) await chrome.offscreen.closeDocument();
+  } catch {
+    // Already closing, or never open. The next build check asks again.
+  }
+}
+
+/** True while words are in flight — the one moment a reload must wait for. */
+async function offscreenBusy(): Promise<boolean> {
+  if (!(await chrome.offscreen.hasDocument?.())) return false;
+  try {
+    const reply: unknown = await chrome.runtime.sendMessage({ type: "logue:offscreen-busy" });
+    return Boolean(reply && typeof reply === "object" && "busy" in reply && reply.busy);
+  } catch {
+    // A document that cannot answer is not recording; it is a leftover from a
+    // build that predates the question. Do not let it stall updates forever.
+    return false;
+  }
+}
+
 chrome.runtime.onInstalled.addListener((details) => {
   void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
   // An update or a reload from chrome://extensions orphans open tabs just as
@@ -234,8 +265,13 @@ async function installedBuild(): Promise<string> {
  */
 async function keepUpToDate(): Promise<void> {
   try {
-    // A reload tears down the offscreen document, so never reload while one is
-    // open: that is a live microphone, and words already spoken.
+    // A reload tears down the offscreen document, so never reload while a
+    // recording is in progress: that is a live microphone, and words already
+    // spoken. But an *idle* document must not stand in the way — it once did,
+    // and a single recording froze self-update for the rest of the session.
+    // Close it and carry on; if it will not close, wait for the next check.
+    if (await offscreenBusy()) return;
+    await closeOffscreen();
     if (await chrome.offscreen.hasDocument?.()) return;
     const installed = await installedBuild();
     const stored = await chrome.storage.local.get(RELOADED_FOR);
@@ -286,14 +322,21 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
 
     case "logue:record-stop":
       toOffscreen<{ ok: boolean; audio?: string; mediaType?: string; message?: string }>("logue:offscreen-stop").then(
-        (result) => respond(result),
+        (result) => {
+          respond(result);
+          // The audio is in hand; the document has nothing left to hold.
+          void closeOffscreen();
+        },
         (error: unknown) => respond({ ok: false, message: String(error) }),
       );
       return true;
 
     case "logue:record-cancel":
       toOffscreen<{ ok: boolean }>("logue:offscreen-cancel").then(
-        () => respond({ ok: true }),
+        () => {
+          respond({ ok: true });
+          void closeOffscreen();
+        },
         () => respond({ ok: true }),
       );
       return true;

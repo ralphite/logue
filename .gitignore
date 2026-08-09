@@ -9,6 +9,8 @@ coverage/
 !.env.example
 
 # Local data and captures never belong in the repo.
+# Bug screenshots live beside the task that cites them, but stay out of git.
+docs/spec/shots/
 .logue-data/
 .logue-backups/
 .artifacts/

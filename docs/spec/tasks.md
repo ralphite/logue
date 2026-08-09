@@ -6,11 +6,21 @@
 
 两个文件,两件事。这里管**顺序**和**还没做的**;[behaviors.md](behaviors.md) 管**做完之后必须成立什么**,写成能扛过下一次重写的样子。一条要求通常两边都要落。
 
+报 bug 的截图存进 `docs/spec/shots/`,被 git 忽略,由任务按文件名引用。图跟着任务走,不进仓库。
+
 ## 现在,按这个顺序
 
 | | 任务 | 为什么在这 |
 |---|---|---|
-| **X10** | "Already recording." 不该出现 | 你 08-09 04:37 截图报的。抛这句话的代码已在 B14 里删掉,装机构建 04:30:53 已换新;你撞见的是换代前的旧 worker。剩下要证:旧构建里卡住的录音器,自更新 reload 会不会带走 |
+| **X10** | "Already recording." 不该出现 + 自更新死锁 | 你 08-09 04:37 截图报的。查出真 bug:录音结束后 offscreen 文档没人关,而自更新见到它就让路 —— **录过一次音,这个浏览器就再也收不到新构建**,修好卡住录音器的 B14 恰恰因此进不来。修法:录完就关文档;检查时空闲文档先关再继续;真在录音仍然让路 |
+| **X17** | **Google Docs 必须能用** —— 高优先 | 你的原话是 "high prio. we must make google docs work. create a new test google doc to confirm"。这是 behaviors 里写死的一条("Google Docs must work. It is not optional."),现在不成立。验证方式你也定了:**新建一个测试用 Google Doc**,在那上面确认 —— 不复用旧文档,免得旧页面上残留的老构建把结果说圆了。要在新文档里跑通的是:光标旁出现麦克风、录音、转写回到光标原处、选区工具条、Skill 直出。唯一排在 X10 后面的原因是 X10 不修好新构建根本进不了浏览器,验证做不成 |
+| **X18** | **扩展的 Side Panel 必须能用** —— 高优先 | 你的原话是 "high prio. ext panel must work. check v1 for behavior"。行为以 v1 为准 —— v1 的树已删但在 git 历史里,先把它的 Side Panel 挖出来读一遍、列出它当时会做的每一件事,再逐条对现在这个。差在哪补哪,不是重新想一个。和 X16 一样是"回去看 v1",两件可以一起读 |
+| **X11** | 网页上弹出"访问此设备上的其他应用和服务" | 你在 www.noemamag.com 上撞见的系统级权限弹窗,问的是"是不是扩展引起的"。要查清是谁触发的 —— 是 Logue 的内容脚本,还是那个网站自己。如果是我们,任何页面都不该因为装了 Logue 而多出一个权限请求。图:`shots/x11-noemamag-device-prompt.png` |
+| **X12** | 边栏不要分区标题,也不要折叠 | 你的原话是 "we don't need these. just show all and move to top"。现在有 "Pinned"、"Everything else" 两个标题和一个 "9 more" 的折叠。要的是:全部列出来,不截断;置顶的直接排在最上面,不用标题去说明它是置顶。图:`shots/x12-rail-headings-and-more.png` |
+| **X13** | `127.0.0.1:5173` 还需不需要 | 你的原话是 "http://127.0.0.1:5173/#/documents do we need this? check others as well"。规则是一台机器一个 Logue、Host 自己在 `8787` 托管应用。5173 是 dev server 的地址,不该是你日常打开的那一个。要把代码里所有还写着 5173(以及别的第二地址)的地方找出来,一并处理 |
+| **X14** | 一个 Find 管全部 | 你的原话是 "one find is good for all. product should be simple and easy to use. find should support all"。边栏顶上已经有 Find(⌘K),下面列表上方又有一个 Search 输入框 —— 两个控件做一件事。留一个 Find,并且它要能搜到所有东西:Stream、Projects、Documents、Skills,不只是当前这一段列表 |
+| **X15** | "Recent answers" 的每一行点不进去 | 你的原话是 "why no link?"。列表里每行写着 Skill 名、`28 Sources`、时间、采用状态,但整行和那些 Sources 都不是链接 —— 看得到,进不去。规则已经写着"凡是列出 Source 的地方,一键就能到它所在的 Stream"。图:`shots/x15-source-no-link.png` |
+| **X16** | 快捷键回来:对照 v1 补齐 | 你的原话是 "why the shortcuts are gone? check v1 shortcuts"。v1 的树已删但在 git 历史里 —— 把它 manifest 的 commands 和页面内快捷键都挖出来列一遍,该回来的回来(该不该回来按老规矩:值得的留,不值的说明为什么) |
 | **R12** | 竞品扫描,以及它翻出来的东西 | 你的原话点了方向:"anywhere voice input with customizable skills, notion's skills in docs, lineage of all content, content gen from sources, pkm"。做完研究把值得的功能补上,"polish the ux/product design/features to make it very good. keep pushing automatically in this way" |
 
 ## 等你拍板

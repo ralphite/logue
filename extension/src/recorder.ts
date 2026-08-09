@@ -64,3 +64,8 @@ export function cancel(): void {
   chunks = [];
   release();
 }
+
+/** Whether a recording is in progress — someone's words are in flight. */
+export function recording(): boolean {
+  return recorder !== undefined;
+}
