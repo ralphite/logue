@@ -62,8 +62,15 @@ const manifest = {
       suggested_key: { default: "Ctrl+Shift+Space", mac: "Command+Shift+Space" },
       description: "Start voice input in the current field",
     },
+    /*
+     * Not Command+Shift+M, which is what this asked for and never got: Chrome
+     * keeps that one for its own profile menu on macOS, and it refuses an
+     * extension's claim silently — the command exists, `getAll()` reports it
+     * bound to nothing, and the key simply does nothing forever. A declared
+     * shortcut is not a working one; this is checked in a real browser.
+     */
     "start-command": {
-      suggested_key: { default: "Ctrl+Shift+M", mac: "Command+Shift+M" },
+      suggested_key: { default: "Ctrl+Shift+U", mac: "Command+Shift+U" },
       description: "Ask Logue about this page",
     },
     "toggle-side-panel": {

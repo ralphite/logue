@@ -70,7 +70,7 @@ Nothing else was removed.
 | Inline voice bar | caret-anchored mic in any editable field; record → candidate → insert/undo | Core |
 | Selection toolbar | save selection · voice/text comment · run skill on selection | Core |
 | Candidate panel | edit transcript, insert (⌘↵), one-line settled state, correction fold | Core |
-| Command launcher | ask/draft at the caret (⌘⇧M) | Secondary (kept; Ask also lives in panel) |
+| Command launcher | ask/draft at the caret (⌘⇧U) | Secondary (kept; Ask also lives in panel) |
 | Side Panel | capture page, assign project, Ask with sources, recent work | Core |
 | **Google Docs proxy** | voice write into Docs' canvas editor via background proxy | **Core — must work** |
 | Voice profile picker | 3 rows: profile / language / vocabulary | Secondary (behind ▾) |

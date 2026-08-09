@@ -278,3 +278,12 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   in use, though: an idle offscreen document once blocked every update for the
   rest of a session, so a surface only defers an update while it is actually
   doing something.
+- **A shortcut is bound, not merely declared.** Chrome keeps some keys for
+  itself and refuses an extension's claim in silence: the command exists,
+  `chrome.commands.getAll()` reports it bound to nothing, and the key does
+  nothing forever. (⌘⇧M was ours on paper for months and never once worked —
+  it is Chrome's own profile menu on macOS.) Every shortcut is checked against
+  what Chrome actually bound, in a real browser.
+- **A shortcut that opens something closes it again.** Pressing it over an
+  open panel must not do nothing; that reads as a broken key rather than as a
+  panel already where you asked for it.

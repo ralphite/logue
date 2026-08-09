@@ -60,6 +60,25 @@ async function closeOffscreen(): Promise<void> {
   }
 }
 
+/**
+ * One key, both directions.
+ *
+ * The handler only ever opened, so pressing the shortcut over an open panel
+ * did nothing at all — which reads as a broken shortcut, not as a panel that
+ * is already where you asked for it. Chrome has no `close()`; disabling the
+ * panel is what shuts it, and it is re-enabled immediately so the next press
+ * can open it again.
+ */
+async function toggleSidePanel(windowId: number): Promise<void> {
+  const open = (await chrome.runtime.getContexts?.({ contextTypes: ["SIDE_PANEL"] }))?.length ?? 0;
+  if (open === 0) {
+    await chrome.sidePanel.open({ windowId });
+    return;
+  }
+  await chrome.sidePanel.setOptions({ enabled: false });
+  await chrome.sidePanel.setOptions({ enabled: true });
+}
+
 /** True while words are in flight — the one moment a reload must wait for. */
 async function offscreenBusy(): Promise<boolean> {
   if (!(await chrome.offscreen.hasDocument?.())) return false;
@@ -407,7 +426,7 @@ chrome.commands.onCommand.addListener((command) => {
   void (async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (command === "toggle-side-panel") {
-      if (tab?.windowId !== undefined) await chrome.sidePanel.open({ windowId: tab.windowId });
+      if (tab?.windowId !== undefined) await toggleSidePanel(tab.windowId);
       return;
     }
     if (tab?.id === undefined) return;
