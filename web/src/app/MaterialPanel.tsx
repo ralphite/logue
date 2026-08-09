@@ -1,6 +1,16 @@
 import { ExternalLink, FileText, Sparkles, X } from "lucide-react";
 import { Fragment, useState } from "react";
-import { Button, ErrorNote, IconButton, Input, OriginMark, SourceLink, Spinner, Tag, originOf } from "@logue/ui";
+import {
+  Button,
+  ErrorNote,
+  IconButton,
+  Input,
+  OriginMark,
+  SourceLink,
+  Spinner,
+  Tag,
+  originOf,
+} from "@logue/ui";
 import { api, type Material, type Project } from "../api";
 import { timeAgo, useAction, useHost } from "./useHost";
 
@@ -30,7 +40,9 @@ export function MaterialPanel({
     // what the main area is for.
     <section className="flex min-h-0 flex-1 flex-col">
       <header className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-line px-4">
-        <span className="truncate text-[13px] font-[560] text-ink">{material ? material.kind : "Source"}</span>
+        <span className="truncate text-[13px] font-[560] text-ink">
+          {material ? material.kind : "Source"}
+        </span>
         <IconButton label="Close" onClick={onClose}>
           <X size={14} />
         </IconButton>
@@ -38,135 +50,137 @@ export function MaterialPanel({
 
       <div className="logue-scroll min-h-0 flex-1">
         <div className="mx-auto grid max-w-reading gap-3 px-8 py-6">
-        {lineage.error && <ErrorNote>{lineage.error}</ErrorNote>}
-        {action.error && <ErrorNote className="mb-2">{action.error}</ErrorNote>}
-        {!material ? (
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <Spinner /> Loading
-          </div>
-        ) : (
-          <>
-            <div className="grid gap-1.5">
-              <OriginMark origin={originOf(material.kind)} detail={timeAgo(material.created_at)} />
-              <p className="text-[13px] leading-normal whitespace-pre-wrap text-ink">{material.content}</p>
-              {material.context && material.context !== material.content && (
-                <details className="text-meta text-muted">
-                  <summary className="cursor-pointer select-none">In context</summary>
-                  <p className="mt-1 leading-normal text-ink-soft">{material.context}</p>
-                </details>
-              )}
+          {lineage.error && <ErrorNote>{lineage.error}</ErrorNote>}
+          {action.error && <ErrorNote className="mb-2">{action.error}</ErrorNote>}
+          {!material ? (
+            <div className="flex items-center gap-2 text-xs text-muted">
+              <Spinner /> Loading
             </div>
-
-            {material.source?.url && (
-              <a
-                href={material.source.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
-              >
-                <ExternalLink size={12} />
-                <span className="truncate">{material.source.title || material.source.url}</span>
-              </a>
-            )}
-
-            {material.capture_id && (
-              <audio controls src={api.audioUrl(material.capture_id)} className="h-8 w-full" />
-            )}
-
-            {material.capture_id && (
-              <Transcript
-                material={material}
-                busy={action.busy}
-                onChanged={() => {
-                  void lineage.refresh();
-                  onChanged();
-                }}
-                run={action.run}
-              />
-            )}
-
-            <HowItWasHeard applied={material.applied_context} />
-
-            <Lineage title="Came from" items={lineage.data?.parents ?? []} />
-            <UsedIn materialId={material.id} onOpenDocument={onOpenDocument} />
-
-            {material.organization?.status === "needs_review" && (
-              <div className="grid gap-1.5 rounded-lg border border-accent-line bg-accent-soft px-2.5 py-2">
-                <span className="text-[11px] text-accent-ink">Logue suggests</span>
-                <span className="flex flex-wrap items-center gap-1 text-[11px]">
-                  {(material.organization.suggested_projects ?? []).map((name) => (
-                    <span key={name} className="rounded-sm bg-panel px-1 text-ink-soft">
-                      {name}
-                    </span>
-                  ))}
-                  {(material.organization.suggested_tags ?? []).map((name) => (
-                    <Tag key={name} name={name} className="bg-panel" />
-                  ))}
-                </span>
-                {material.organization.reason && (
-                  <span className="text-[11px] leading-normal text-muted">{material.organization.reason}</span>
+          ) : (
+            <>
+              <div className="grid gap-1.5">
+                <OriginMark origin={originOf(material.kind)} detail={timeAgo(material.created_at)} />
+                <p className="text-[13px] leading-normal whitespace-pre-wrap text-ink">{material.content}</p>
+                {material.context && material.context !== material.content && (
+                  <details className="text-meta text-muted">
+                    <summary className="cursor-pointer select-none">In context</summary>
+                    <p className="mt-1 leading-normal text-ink-soft">{material.context}</p>
+                  </details>
                 )}
-                <span className="flex justify-end gap-1">
-                  <Button
-                    variant="primary"
-                    disabled={action.busy}
-                    onClick={() =>
-                      void action
-                        .run(() => api.resolveOrganization(material.id, { accept: true }))
-                        .then((ok) => ok && (lineage.refresh(), onChanged()))
-                    }
-                  >
-                    File it
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    disabled={action.busy}
-                    onClick={() =>
-                      void action
-                        .run(() => api.resolveOrganization(material.id, { accept: false }))
-                        .then((ok) => ok && (lineage.refresh(), onChanged()))
-                    }
-                  >
-                    Skip
-                  </Button>
-                </span>
               </div>
-            )}
 
-            <Tags
-              material={material}
-              busy={action.busy}
-              onSave={(tags) =>
-                void action
-                  .run(() => api.updateMaterial(material.id, { tags }))
-                  .then((ok) => ok && (lineage.refresh(), onChanged()))
-              }
-            />
+              {material.source?.url && (
+                <a
+                  href={material.source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+                >
+                  <ExternalLink size={12} />
+                  <span className="truncate">{material.source.title || material.source.url}</span>
+                </a>
+              )}
 
-            <div className="grid gap-1.5 border-t border-line pt-3">
-              <span className="text-xs text-muted">Projects</span>
-              <div className="flex flex-wrap gap-1">
-                {projects.map((project) => {
-                  const member = material.projects.includes(project.name);
-                  return (
+              {material.capture_id && (
+                <audio controls src={api.audioUrl(material.capture_id)} className="h-8 w-full" />
+              )}
+
+              {material.capture_id && (
+                <Transcript
+                  material={material}
+                  busy={action.busy}
+                  onChanged={() => {
+                    void lineage.refresh();
+                    onChanged();
+                  }}
+                  run={action.run}
+                />
+              )}
+
+              <HowItWasHeard applied={material.applied_context} />
+
+              <Lineage title="Came from" items={lineage.data?.parents ?? []} />
+              <UsedIn materialId={material.id} onOpenDocument={onOpenDocument} />
+
+              {material.organization?.status === "needs_review" && (
+                <div className="grid gap-1.5 rounded-lg border border-accent-line bg-accent-soft px-2.5 py-2">
+                  <span className="text-[11px] text-accent-ink">Logue suggests</span>
+                  <span className="flex flex-wrap items-center gap-1 text-[11px]">
+                    {(material.organization.suggested_projects ?? []).map((name) => (
+                      <span key={name} className="rounded-sm bg-panel px-1 text-ink-soft">
+                        {name}
+                      </span>
+                    ))}
+                    {(material.organization.suggested_tags ?? []).map((name) => (
+                      <Tag key={name} name={name} className="bg-panel" />
+                    ))}
+                  </span>
+                  {material.organization.reason && (
+                    <span className="text-[11px] leading-normal text-muted">
+                      {material.organization.reason}
+                    </span>
+                  )}
+                  <span className="flex justify-end gap-1">
                     <Button
-                      key={project.id}
-                      variant={member ? "primary" : "default"}
+                      variant="primary"
                       disabled={action.busy}
                       onClick={() =>
                         void action
-                          .run(() => api.setMembership(material.id, project.name, !member))
+                          .run(() => api.resolveOrganization(material.id, { accept: true }))
                           .then((ok) => ok && (lineage.refresh(), onChanged()))
                       }
                     >
-                      {project.name}
+                      File it
                     </Button>
-                  );
-                })}
+                    <Button
+                      variant="ghost"
+                      disabled={action.busy}
+                      onClick={() =>
+                        void action
+                          .run(() => api.resolveOrganization(material.id, { accept: false }))
+                          .then((ok) => ok && (lineage.refresh(), onChanged()))
+                      }
+                    >
+                      Skip
+                    </Button>
+                  </span>
+                </div>
+              )}
+
+              <Tags
+                material={material}
+                busy={action.busy}
+                onSave={(tags) =>
+                  void action
+                    .run(() => api.updateMaterial(material.id, { tags }))
+                    .then((ok) => ok && (lineage.refresh(), onChanged()))
+                }
+              />
+
+              <div className="grid gap-1.5 border-t border-line pt-3">
+                <span className="text-xs text-muted">Projects</span>
+                <div className="flex flex-wrap gap-1">
+                  {projects.map((project) => {
+                    const member = material.projects.includes(project.name);
+                    return (
+                      <Button
+                        key={project.id}
+                        variant={member ? "primary" : "default"}
+                        disabled={action.busy}
+                        onClick={() =>
+                          void action
+                            .run(() => api.setMembership(material.id, project.name, !member))
+                            .then((ok) => ok && (lineage.refresh(), onChanged()))
+                        }
+                      >
+                        {project.name}
+                      </Button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          )}
         </div>
       </div>
     </section>
@@ -257,7 +271,10 @@ function Transcript({
             {revisions
               .toSorted((a, b) => b.created_at.localeCompare(a.created_at))
               .map((revision) => (
-                <div key={revision.id} className="flex items-start gap-2 rounded-md bg-surface-muted px-2 py-1.5">
+                <div
+                  key={revision.id}
+                  className="flex items-start gap-2 rounded-md bg-surface-muted px-2 py-1.5"
+                >
                   <span className="min-w-0 flex-1 leading-normal text-ink-soft">
                     {revision.transcript ?? revision.text}
                   </span>
@@ -304,7 +321,10 @@ function HowItWasHeard({ applied }: { applied?: Material["applied_context"] }) {
       ["Skill", applied.skill ? `${applied.skill.name} · revision ${applied.skill.revision}` : ""],
       ["Terms", (applied.terms ?? applied.glossary ?? []).join(", ")],
       ["Vocabulary", applied.vocabulary],
-      ["From the page", applied.page_context_characters ? `${applied.page_context_characters} characters` : ""],
+      [
+        "From the page",
+        applied.page_context_characters ? `${applied.page_context_characters} characters` : "",
+      ],
     ] as [string, string | undefined][]
   ).filter((line): line is [string, string] => Boolean(line[1]));
   if (lines.length === 0 && !applied.instructions) return null;

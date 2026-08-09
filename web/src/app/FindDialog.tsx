@@ -5,9 +5,7 @@ import { api } from "../api";
 import { useHost } from "./useHost";
 
 export type FindTarget =
-  | { kind: "source"; id: string }
-  | { kind: "document"; id: string }
-  | { kind: "project"; id: string };
+  { kind: "source"; id: string } | { kind: "document"; id: string } | { kind: "project"; id: string };
 
 interface Hit {
   key: string;
@@ -31,7 +29,15 @@ function condense(text: string, limit = 90): string {
  * one at a time — the thing you half-remember is a sentence, and you do not
  * remember whether you said it, saved it, or wrote it down.
  */
-export function FindDialog({ open, onClose, onGo }: { open: boolean; onClose: () => void; onGo: (target: FindTarget) => void }) {
+export function FindDialog({
+  open,
+  onClose,
+  onGo,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onGo: (target: FindTarget) => void;
+}) {
   const [query, setQuery] = useState("");
   const [at, setAt] = useState(0);
   const list = useRef<HTMLDivElement>(null);

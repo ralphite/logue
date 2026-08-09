@@ -1,8 +1,8 @@
 import { Download } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button, ErrorNote, OriginMark, SourceLink, Spinner, originOf } from "@logue/ui";
-import { api, ApiError, type Material } from "../api";
-import { Nothing, Page } from "./AppShell";
+import { api, ApiError, type Document as DocumentRecord, type Material } from "../api";
+import { DRAFT, Nothing, Page } from "./AppShell";
 import { DocumentHistory } from "./DocumentHistory";
 import { timeAgo, useAction, useHost } from "./useHost";
 const AUTOSAVE_MS = 900;
@@ -22,19 +22,55 @@ function firstLine(html: string, limit = TITLE_LIMIT): string {
 export function DocumentsRoute({
   openId,
   onOpen,
+  onCreated,
 }: {
   openId: string | undefined;
   onOpen: (id: string | undefined) => void;
+  /** A draft became real. */
+  onCreated: (id: string) => void;
 }) {
   return openId ? (
-    <DocumentEditor id={openId} onBack={() => onOpen(undefined)} />
+    <DocumentEditor
+      // Remounts when the draft becomes real, which is what makes the editor
+      // pick up the id without having to thread it back through itself.
+      key={openId}
+      id={openId}
+      onBack={() => onOpen(undefined)}
+      onCreated={onCreated}
+    />
   ) : (
     <Nothing section="Documents" hint="Pick one from the list, or start a new page." />
   );
 }
 
-function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
-  const loaded = useHost(() => api.document(id), [id]);
+/** A document that does not exist yet, so the editor has something to show. */
+const BLANK: { document: DocumentRecord; sources: Material[] } = {
+  document: {
+    id: "",
+    title: "",
+    title_state: "auto",
+    content: "",
+    source_ids: [],
+    revision: 0,
+    created_at: "",
+    updated_at: "",
+  },
+  sources: [],
+};
+
+function DocumentEditor({
+  id,
+  onBack,
+  onCreated,
+}: {
+  id: string;
+  onBack: () => void;
+  onCreated: (id: string) => void;
+}) {
+  // Nothing is in the workspace yet. It goes in at the first keystroke, so
+  // pressing `+` and walking away leaves no trace.
+  const draft = id === DRAFT;
+  const loaded = useHost(() => (draft ? Promise.resolve(BLANK) : api.document(id)), [id]);
   const [title, setTitle] = useState("");
   const [saved, setSaved] = useState<string>("");
   /** What this editor last saw. Sent with every save so a second writer is caught. */
@@ -71,6 +107,15 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
     force = false,
   ) => {
     try {
+      // The first save is what brings it into being.
+      if (draft) {
+        const { document: born } = await api.createDocument({
+          title: changes.title ?? title,
+          content: changes.content ?? body.current?.innerHTML ?? "",
+        });
+        onCreated(born.id);
+        return;
+      }
       const { document } = await api.updateDocument(id, {
         ...changes,
         ...(force ? {} : { expected_revision: revision }),
@@ -91,7 +136,11 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
   };
 
   /** Autosave on a pause, not on every keystroke — history should read as edits. */
-  const queueSave = (changes: { title?: string; content?: string; title_state?: "auto" | "generated" | "edited" }) => {
+  const queueSave = (changes: {
+    title?: string;
+    content?: string;
+    title_state?: "auto" | "generated" | "edited";
+  }) => {
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       void action.run(() => write(changes));
@@ -124,7 +173,9 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
    * get a second — which is the whole reason the three states exist.
    */
   const nameIt = () => {
-    if (named !== "auto" || !firstLine(body.current?.innerHTML ?? "")) return;
+    // Nothing to name while it is still a draft; the first keystroke has
+    // already created it by then anyway.
+    if (draft || named !== "auto" || !firstLine(body.current?.innerHTML ?? "")) return;
     void action.run(async () => {
       const { document } = await api.nameDocument(id);
       // Someone may have started typing a name during the round trip. Theirs
@@ -142,9 +193,11 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
       here={doc?.title ?? ""}
       axis="reading"
       actions={
-        <Button onClick={() => window.open(api.documentMarkdownUrl(id), "_blank")}>
-          <Download size={13} /> Export
-        </Button>
+        draft ? undefined : (
+          <Button onClick={() => window.open(api.documentMarkdownUrl(id), "_blank")}>
+            <Download size={13} /> Export
+          </Button>
+        )
       }
     >
       {loaded.error && <ErrorNote>{loaded.error}</ErrorNote>}
@@ -204,25 +257,30 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
           />
 
           <footer className="mt-6 flex items-center gap-2 border-t border-line pt-2 text-[11px] text-faint">
+            {draft && <span>Not saved yet — it will be, as soon as you write something.</span>}
             {/* The revision number was already printed here and meant nothing
                 to anyone. Making it the way in costs the rail no new control. */}
-            <button
-              type="button"
-              onClick={() => setLooking(true)}
-              className="rounded-md py-0.5 text-[11px] text-faint underline decoration-line underline-offset-2 hover:text-ink"
-            >
-              Version {doc.revision}
-            </button>
+            {!draft && (
+              <button
+                type="button"
+                onClick={() => setLooking(true)}
+                className="rounded-md py-0.5 text-[11px] text-faint underline decoration-line underline-offset-2 hover:text-ink"
+              >
+                Version {doc.revision}
+              </button>
+            )}
             {saved && <span>Saved {timeAgo(saved)}</span>}
             {action.busy && <Spinner size={11} />}
           </footer>
 
-          <DocumentHistory
-            id={id}
-            open={looking}
-            onClose={() => setLooking(false)}
-            onRestored={() => void loaded.refresh()}
-          />
+          {!draft && (
+            <DocumentHistory
+              id={id}
+              open={looking}
+              onClose={() => setLooking(false)}
+              onRestored={() => void loaded.refresh()}
+            />
+          )}
 
           <Sources sources={loaded.data?.sources ?? []} />
         </>

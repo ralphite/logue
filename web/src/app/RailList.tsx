@@ -34,6 +34,8 @@ export interface RailEntry {
   waiting?: boolean;
   /** Kept at the top, above everything else, in its own section. */
   pinned?: boolean;
+  /** Not in the workspace yet — it exists only while it is being written. */
+  draft?: boolean;
   /** Which group heading this row sits under. Absent means a flat list. */
   group?: string;
   /** What the hover card says. A function so a resting list builds none. */
@@ -204,7 +206,9 @@ function RailRow({
           entry.waiting && !active && "font-[560] text-ink",
         )}
       >
-        <span className="min-w-0 flex-1 truncate">{entry.title}</span>
+        <span className={cn("min-w-0 flex-1 truncate", entry.draft && "text-muted italic")}>
+          {entry.title}
+        </span>
         {entry.detail && <span className="shrink-0 text-[11px] text-faint">{entry.detail}</span>}
       </button>
 

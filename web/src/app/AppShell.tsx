@@ -1,9 +1,27 @@
-import { ChevronRight, FileText, FolderOpen, Layers, PanelLeft, Plus, Search, Settings2, Sparkles } from "lucide-react";
+import {
+  ChevronRight,
+  FileText,
+  FolderOpen,
+  Layers,
+  PanelLeft,
+  Plus,
+  Search,
+  Settings2,
+  Sparkles,
+} from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { LogueLogo, LogueMark, Resizer, cn, usePersistentSize } from "@logue/ui";
 import { FIND_KEYS, RAIL_KEYS } from "./shortcuts";
 
 export const ROUTES = ["stream", "projects", "documents", "skills", "settings"] as const;
+
+/**
+ * What is open when `+` has been pressed and nothing has been typed yet.
+ *
+ * Pressing `+` used to write an empty row into the workspace immediately, so
+ * pressing it five times left five of them. Nothing goes in until it is meant.
+ */
+export const DRAFT = "draft";
 export type Route = (typeof ROUTES)[number];
 
 const NAV: Record<Route, { label: string; icon: typeof Layers }> = {

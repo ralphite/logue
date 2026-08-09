@@ -2,7 +2,8 @@ import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button, ErrorNote, Field, Input, Select, Spinner, Textarea } from "@logue/ui";
 import { api, type Skill } from "../api";
-import { Nothing, Page } from "./AppShell";
+import { DRAFT, Nothing, Page } from "./AppShell";
+import { NewNamed } from "./NewNamed";
 import { ConfirmDelete } from "./ConfirmDelete";
 import { useAction, useHost } from "./useHost";
 
@@ -15,9 +16,12 @@ import { useAction, useHost } from "./useHost";
 export function SkillsRoute({
   openId,
   onOpen,
+  onCreated,
 }: {
   openId?: string;
   onOpen: (id: string | undefined) => void;
+  /** A draft became real. */
+  onCreated: (id: string) => void;
 }) {
   const skills = useHost(() => api.skills(), []);
   const [draft, setDraft] = useState<Partial<Skill>>();
@@ -27,6 +31,21 @@ export function SkillsRoute({
   const skill = (skills.data?.skills ?? []).find((item) => item.id === openId);
   const editing = draft?.id === openId ? draft : skill;
 
+  if (openId === DRAFT) {
+    return (
+      <NewNamed
+        section="Skills"
+        label="Skill"
+        placeholder="Draft a reply"
+        onCancel={() => onOpen(undefined)}
+        onCreate={async (name) => {
+          const { skill: born } = await api.createSkill({ name });
+          onCreated(born.id);
+          return born.id;
+        }}
+      />
+    );
+  }
   if (!openId || !skill || !editing) {
     return <Nothing section="Skills" hint="Pick a Skill from the list to read or change its prompt." />;
   }
@@ -121,12 +140,14 @@ export function SkillsRoute({
         onCancel={() => setDeleting(undefined)}
         onConfirm={() =>
           deleting &&
-          void action.run(() => api.deleteSkill(deleting.id)).then((ok) => {
-            if (!ok) return;
-            setDeleting(undefined);
-            onOpen(undefined);
-            void skills.refresh();
-          })
+          void action
+            .run(() => api.deleteSkill(deleting.id))
+            .then((ok) => {
+              if (!ok) return;
+              setDeleting(undefined);
+              onOpen(undefined);
+              void skills.refresh();
+            })
         }
       />
     </Page>

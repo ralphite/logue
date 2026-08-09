@@ -48,7 +48,12 @@ export function PromptDialog({
       </label>
       <DialogActions>
         <Button onClick={onCancel}>Cancel</Button>
-        <Button data-primary variant="primary" disabled={!value.trim()} onClick={() => onConfirm(value.trim())}>
+        <Button
+          data-primary
+          variant="primary"
+          disabled={!value.trim()}
+          onClick={() => onConfirm(value.trim())}
+        >
           {confirm}
         </Button>
       </DialogActions>

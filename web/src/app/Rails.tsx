@@ -5,6 +5,7 @@ import { api, type Document, type Material, type Project, type Skill, type Topic
 import { ConfirmDelete } from "./ConfirmDelete";
 import { PromptDialog } from "./PromptDialog";
 import { usePins } from "./pins";
+import { DRAFT } from "./AppShell";
 import { MakeFirst, RailList, type RailAction, type RailEntry } from "./RailList";
 import { useAction, useHost, timeAgo } from "./useHost";
 
@@ -316,11 +317,16 @@ export function ProjectsRail({
     ],
   }));
 
+  // The draft belongs in the list too: pressing `+` should put something
+  // there, even though nothing has been written yet.
+  const shown: RailEntry[] =
+    selectedId === DRAFT ? [{ id: DRAFT, title: "New Project", draft: true }, ...entries] : entries;
+
   return (
     <>
       <RailList
         storageKey="projects"
-        entries={entries}
+        entries={shown}
         selectedId={selectedId}
         onSelect={onSelect}
         onVisibleOrder={onVisibleOrder}
@@ -411,11 +417,16 @@ export function DocumentsRail({
       ],
     }));
 
+  // The draft belongs in the list too: pressing `+` should put something
+  // there, even though nothing has been written yet.
+  const shown: RailEntry[] =
+    selectedId === DRAFT ? [{ id: DRAFT, title: "New Document", draft: true }, ...entries] : entries;
+
   return (
     <>
       <RailList
         storageKey="documents"
-        entries={entries}
+        entries={shown}
         selectedId={selectedId}
         onSelect={onSelect}
         onVisibleOrder={onVisibleOrder}
@@ -516,11 +527,16 @@ export function SkillsRail({
     ],
   }));
 
+  // The draft belongs in the list too: pressing `+` should put something
+  // there, even though nothing has been written yet.
+  const shown: RailEntry[] =
+    selectedId === DRAFT ? [{ id: DRAFT, title: "New Skill", draft: true }, ...entries] : entries;
+
   return (
     <>
       <RailList
         storageKey="skills"
-        entries={entries}
+        entries={shown}
         selectedId={selectedId}
         onSelect={onSelect}
         onVisibleOrder={onVisibleOrder}

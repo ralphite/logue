@@ -2,7 +2,8 @@ import { Sparkles, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button, Empty, ErrorNote, OriginMark, SourceLink, Spinner, Textarea, originOf } from "@logue/ui";
 import { api, type Run } from "../api";
-import { Nothing, Page, Row, RowActions, Rows } from "./AppShell";
+import { DRAFT, Nothing, Page, Row, RowActions, Rows } from "./AppShell";
+import { NewNamed } from "./NewNamed";
 import { ConfirmDelete } from "./ConfirmDelete";
 import { timeAgo, useAction, useHost } from "./useHost";
 import { GenerateBox } from "./GenerateBox";
@@ -11,11 +12,29 @@ export function ProjectsRoute({
   openId,
   onOpen,
   onOpenDocument,
+  onCreated,
 }: {
   openId?: string;
   onOpen: (id: string | undefined) => void;
   onOpenDocument: (id: string) => void;
+  /** A draft became real. */
+  onCreated: (id: string) => void;
 }) {
+  if (openId === DRAFT) {
+    return (
+      <NewNamed
+        section="Projects"
+        label="Project"
+        placeholder="Mobile research"
+        onCancel={() => onOpen(undefined)}
+        onCreate={async (name) => {
+          const { project } = await api.createProject(name, "");
+          onCreated(project.id);
+          return project.id;
+        }}
+      />
+    );
+  }
   return openId ? (
     <ProjectDetail id={openId} onBack={() => onOpen(undefined)} onOpenDocument={onOpenDocument} />
   ) : (
@@ -156,7 +175,9 @@ function ProjectDetail({
                         <Button
                           variant="ghost"
                           disabled={action.busy}
-                          onClick={() => void action.run(() => api.undoRun(run.id)).then(() => runs.refresh())}
+                          onClick={() =>
+                            void action.run(() => api.undoRun(run.id)).then(() => runs.refresh())
+                          }
                         >
                           Undo
                         </Button>
@@ -185,11 +206,13 @@ function ProjectDetail({
             onCancel={() => setDeleting(undefined)}
             onConfirm={() =>
               deleting &&
-              void action.run(() => api.deleteProject(deleting.id)).then((ok) => {
-                if (!ok) return;
-                setDeleting(undefined);
-                onBack();
-              })
+              void action
+                .run(() => api.deleteProject(deleting.id))
+                .then((ok) => {
+                  if (!ok) return;
+                  setDeleting(undefined);
+                  onBack();
+                })
             }
           />
 
@@ -205,7 +228,10 @@ function ProjectDetail({
                       <span className="block truncate text-[13px] text-ink">{material.content}</span>
                       <span className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
                         <OriginMark origin={originOf(material.kind)} />
-                        <SourceLink url={material.source?.url} label={material.source?.domain || "This Mac"} />
+                        <SourceLink
+                          url={material.source?.url}
+                          label={material.source?.domain || "This Mac"}
+                        />
                         <span>{timeAgo(material.created_at)}</span>
                       </span>
                     </span>
@@ -219,4 +245,3 @@ function ProjectDetail({
     </Page>
   );
 }
-

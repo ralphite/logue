@@ -1,6 +1,16 @@
 import { Check, Download, X } from "lucide-react";
 import { useState } from "react";
-import { Button, Dialog, DialogActions, ErrorNote, Field, IconButton, Input, Select, Spinner } from "@logue/ui";
+import {
+  Button,
+  Dialog,
+  DialogActions,
+  ErrorNote,
+  Field,
+  IconButton,
+  Input,
+  Select,
+  Spinner,
+} from "@logue/ui";
 import { api, type BackupFile, type Skill } from "../api";
 import { Page } from "./AppShell";
 import { ShortcutsList } from "./ShortcutsDialog";
@@ -68,7 +78,9 @@ export function SettingsRoute() {
   };
 
   const save = async () => {
-    const ok = await action.run(() => api.saveModel({ api_key: apiKey || undefined, model: modelName || undefined }));
+    const ok = await action.run(() =>
+      api.saveModel({ api_key: apiKey || undefined, model: modelName || undefined }),
+    );
     if (ok) {
       setApiKey("");
       void model.refresh();
@@ -82,7 +94,11 @@ export function SettingsRoute() {
     <Page title="Settings" axis="settings">
       <div className="grid max-w-[560px] gap-6">
         <Section title="Model">
-          <Capability label="Generating" state={model.data?.generation} error={model.data?.generation_error} />
+          <Capability
+            label="Generating"
+            state={model.data?.generation}
+            error={model.data?.generation_error}
+          />
           <Capability label="Transcribing" state={model.data?.voice} error={model.data?.voice_error} />
 
           <Field label="API key">
@@ -90,7 +106,9 @@ export function SettingsRoute() {
               type="password"
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
-              placeholder={model.data?.configured ? "Saved — enter a new key to replace" : "Paste your Gemini key"}
+              placeholder={
+                model.data?.configured ? "Saved — enter a new key to replace" : "Paste your Gemini key"
+              }
             />
           </Field>
           <Field label="Model">
@@ -161,7 +179,9 @@ export function SettingsRoute() {
                     className="ml-auto"
                     disabled={action.busy}
                     onClick={() =>
-                      void action.run(() => api.forgetCorrection(fix.spoken)).then(() => corrections.refresh())
+                      void action
+                        .run(() => api.forgetCorrection(fix.spoken))
+                        .then(() => corrections.refresh())
                     }
                   >
                     <X size={13} />
@@ -224,7 +244,8 @@ export function SettingsRoute() {
 
         <Section title="Backups">
           <p className="text-meta text-muted">
-            Restoring replaces everything here with what the backup holds. What is here now is backed up first.
+            Restoring replaces everything here with what the backup holds. What is here now is backed up
+            first.
           </p>
           {(backups.data?.backups ?? []).length === 0 ? (
             <p className="text-meta text-faint">None yet.</p>
@@ -251,7 +272,11 @@ export function SettingsRoute() {
           </p>
           {restored && (
             <p className="text-xs text-success">
-              Restored {Object.entries(restored).map(([what, count]) => `${count} ${what}`).join(" · ")}.
+              Restored{" "}
+              {Object.entries(restored)
+                .map(([what, count]) => `${count} ${what}`)
+                .join(" · ")}
+              .
             </p>
           )}
           {action.error && <ErrorNote>{action.error}</ErrorNote>}
@@ -301,7 +326,10 @@ function Capability({ label, state, error }: { label: string; state?: string; er
   return (
     <div className="flex items-center justify-between gap-2 text-xs">
       <span className="text-ink-soft">{label}</span>
-      <span className={ready ? "flex items-center gap-1 text-success" : "text-warning"} title={error || undefined}>
+      <span
+        className={ready ? "flex items-center gap-1 text-success" : "text-warning"}
+        title={error || undefined}
+      >
         {ready ? <Check size={12} /> : null}
         {ready ? "Ready" : state === "unknown" ? "Not tested" : "Needs attention"}
       </span>

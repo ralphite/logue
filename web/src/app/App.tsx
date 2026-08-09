@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { AppShell, ROUTES, type Route } from "./AppShell";
+import { AppShell, DRAFT, ROUTES, type Route } from "./AppShell";
 import { DocumentsRoute } from "./DocumentsRoute";
 import { FindDialog, type FindTarget } from "./FindDialog";
 import { PinsProvider } from "./pins";
@@ -132,25 +132,26 @@ export function App() {
   // list that has to show it.
   const [made, setMade] = useState(0);
 
-  const newProject = async () => {
-    const { project } = await api.createProject("New Project", "");
-    setProjectId(project.id);
-    setMade((n) => n + 1);
+  // Pressing `+` opens an empty one; the Host hears about it at the first
+  // keystroke. Pressing it again while a draft is open lands on that draft
+  // rather than starting a second.
+  const newProject = () => {
+    setProjectId(DRAFT);
     go("projects");
   };
-
-  const newDocument = async () => {
-    const { document } = await api.createDocument({});
-    setDocumentId(document.id);
-    setMade((n) => n + 1);
+  const newDocument = () => {
+    setDocumentId(DRAFT);
     go("documents");
   };
-
-  const newSkill = async () => {
-    const { skill } = await api.createSkill({ name: "New Skill" });
-    setSkillId(skill.id);
-    setMade((n) => n + 1);
+  const newSkill = () => {
+    setSkillId(DRAFT);
     go("skills");
+  };
+
+  /** A draft became real: point at it, and let the list go and find it. */
+  const born = (set: (id: string) => void) => (id: string) => {
+    set(id);
+    setMade((n) => n + 1);
   };
 
   // The rail carries the open section's list; the main area carries the one
@@ -164,7 +165,7 @@ export function App() {
         onSelect={setProjectId}
         onVisibleOrder={onVisibleOrder}
         made={made}
-        onNew={() => void newProject()}
+        onNew={newProject}
       />
     ) : route === "documents" ? (
       <DocumentsRail
@@ -172,7 +173,7 @@ export function App() {
         onSelect={setDocumentId}
         onVisibleOrder={onVisibleOrder}
         made={made}
-        onNew={() => void newDocument()}
+        onNew={newDocument}
       />
     ) : route === "skills" ? (
       <SkillsRail
@@ -180,7 +181,7 @@ export function App() {
         onSelect={setSkillId}
         onVisibleOrder={onVisibleOrder}
         made={made}
-        onNew={() => void newSkill()}
+        onNew={newSkill}
       />
     ) : undefined;
 
@@ -192,9 +193,9 @@ export function App() {
         offline={Boolean(status.error)}
         onFind={() => setFinding(true)}
         onNew={{
-          projects: () => void newProject(),
-          documents: () => void newDocument(),
-          skills: () => void newSkill(),
+          projects: newProject,
+          documents: newDocument,
+          skills: newSkill,
         }}
         list={list}
       >
@@ -202,10 +203,19 @@ export function App() {
           <StreamRoute openId={sourceId} onOpen={setSourceId} onOpenDocument={openDocument} />
         )}
         {route === "projects" && (
-          <ProjectsRoute openId={projectId} onOpen={setProjectId} onOpenDocument={openDocument} />
+          <ProjectsRoute
+            openId={projectId}
+            onOpen={setProjectId}
+            onOpenDocument={openDocument}
+            onCreated={born(setProjectId)}
+          />
         )}
-        {route === "documents" && <DocumentsRoute openId={documentId} onOpen={setDocumentId} />}
-        {route === "skills" && <SkillsRoute openId={skillId} onOpen={setSkillId} />}
+        {route === "documents" && (
+          <DocumentsRoute openId={documentId} onOpen={setDocumentId} onCreated={born(setDocumentId)} />
+        )}
+        {route === "skills" && (
+          <SkillsRoute openId={skillId} onOpen={setSkillId} onCreated={born(setSkillId)} />
+        )}
         {route === "settings" && <SettingsRoute />}
         <FindDialog open={finding} onClose={() => setFinding(false)} onGo={goTo} />
         <ShortcutsDialog open={helping} onClose={() => setHelping(false)} />

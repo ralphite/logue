@@ -22,7 +22,8 @@ export function StreamRoute({
   const projects = useHost(() => api.projects(), []);
   const [changed, setChanged] = useState(0);
 
-  if (!openId) return <Nothing section="Stream" hint="Pick something from the list to see where it came from." />;
+  if (!openId)
+    return <Nothing section="Stream" hint="Pick something from the list to see where it came from." />;
 
   return (
     <MaterialPanel

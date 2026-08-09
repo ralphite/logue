@@ -39,7 +39,10 @@ export function GenerateBox({
   const [openSource, setOpenSource] = useState<number>();
   const action = useAction();
 
-  const skill = usable.find((item) => item.id === skillId) ?? usable.find((item) => item.built_in_key === "ask") ?? usable[0];
+  const skill =
+    usable.find((item) => item.id === skillId) ??
+    usable.find((item) => item.built_in_key === "ask") ??
+    usable[0];
   const cited = openSource === undefined ? undefined : result?.sources[openSource - 1];
 
   const submit = async () => {
@@ -92,7 +95,11 @@ export function GenerateBox({
           ))}
         </Select>
         <span className="flex-1" />
-        <Button variant="primary" disabled={!instruction.trim() || action.busy || !skill} onClick={() => void submit()}>
+        <Button
+          variant="primary"
+          disabled={!instruction.trim() || action.busy || !skill}
+          onClick={() => void submit()}
+        >
           {action.busy ? <Spinner size={13} /> : <CornerDownLeft size={13} />} Run
         </Button>
       </div>
@@ -103,7 +110,12 @@ export function GenerateBox({
         <div className="mt-1 grid gap-2 rounded-lg border border-line bg-surface p-3">
           <OriginMark origin="ai" detail={`${result.run.skill_name} · ${result.sources.length} Sources`} />
           <p className="text-[13px] leading-[1.6] whitespace-pre-wrap text-ink">
-            <Answer text={result.run.original_output ?? ""} onCite={setOpenSource} open={openSource} sources={result.sources} />
+            <Answer
+              text={result.run.original_output ?? ""}
+              onCite={setOpenSource}
+              open={openSource}
+              sources={result.sources}
+            />
           </p>
 
           {cited && (
@@ -119,7 +131,12 @@ export function GenerateBox({
                 onClick={() =>
                   void action.run(async () => {
                     const { document } = await api.runToDocument(result.run.id);
-                    await api.adoptRun(result.run.id, result.run.original_output ?? "", "document", document.id);
+                    await api.adoptRun(
+                      result.run.id,
+                      result.run.original_output ?? "",
+                      "document",
+                      document.id,
+                    );
                     onOpenDocument(document.id);
                   })
                 }
@@ -129,7 +146,9 @@ export function GenerateBox({
             )}
             <Button
               variant="primary"
-              onClick={() => void action.run(() => api.adoptRun(result.run.id, result.run.original_output ?? ""))}
+              onClick={() =>
+                void action.run(() => api.adoptRun(result.run.id, result.run.original_output ?? ""))
+              }
             >
               Keep
             </Button>
