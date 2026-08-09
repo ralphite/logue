@@ -121,7 +121,12 @@ export function CommandBox({
         )}
         </>
       ) : (
-        <div className="grid gap-2 p-2.5 pr-8">
+        // A long answer used to make this box taller than the window, which
+        // put its own end out of reach — the overlay is fixed, so there is
+        // nothing to scroll it back into view. It scrolls inside itself now,
+        // the same way every long list in the app does. Same rule as X8: a
+        // long thing gets a scrollbar, never more room than the screen has.
+        <div className="logue-scroll grid max-h-[60vh] gap-2 p-2.5 pr-8">
           <p className="text-[13px] leading-[1.6] whitespace-pre-wrap text-ink">
             <Answer text={answer} open={openSource} onCite={setOpenSource} sources={sources} />
           </p>

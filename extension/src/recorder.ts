@@ -10,6 +10,7 @@ let recorder: MediaRecorder | undefined;
 let chunks: Blob[] = [];
 let stream: MediaStream | undefined;
 let ceiling: ReturnType<typeof setTimeout> | undefined;
+let abandon: ReturnType<typeof setTimeout> | undefined;
 let startedAt = 0;
 
 /**
@@ -22,6 +23,9 @@ let startedAt = 0;
  * it is the one outcome that loses nothing.
  */
 export const MAX_MS = 10 * 60 * 1000;
+
+/** How long the ceiling's kept audio waits for somebody to come for it. */
+export const ABANDONED_MS = 3 * 60 * 1000;
 
 /** The one whose end is worth warning about: past a minute this is a long one. */
 export const LONG_MS = 60 * 1000;
@@ -70,12 +74,21 @@ export async function start(): Promise<void> {
     // and the person still has to be able to accept them.
     if (active.state !== "inactive") active.stop();
     stream?.getTracks().forEach((track) => track.stop());
+    // …but not forever. A page that went away — closed, navigated, its
+    // content script gone — is never coming back for them, and until it does
+    // this document stays open and self-update keeps standing aside for a
+    // recording nobody is making. That is X10 again, through the door the
+    // ceiling opened. A live page collects at the ceiling too (useVoice has
+    // the same clock), so this grace period only ever ends abandoned ones.
+    abandon = setTimeout(release, ABANDONED_MS);
   }, MAX_MS);
 }
 
 function release() {
   clearTimeout(ceiling);
+  clearTimeout(abandon);
   ceiling = undefined;
+  abandon = undefined;
   startedAt = 0;
   stream?.getTracks().forEach((track) => track.stop());
   stream = undefined;
@@ -130,5 +143,16 @@ export function cancel(): void {
 
 /** Whether a recording is in progress — someone's words are in flight. */
 export function recording(): boolean {
-  return recorder !== undefined;
+  // The microphone being live, not an object still existing. Everything that
+  // asks this is really asking "would interrupting cost someone their words
+  // right now?" — and after the ceiling has stopped the microphone, it would
+  // not. Answering yes there is how a capped recording froze self-update for
+  // good: `release()` runs only on stop or cancel, and an abandoned recording
+  // gets neither.
+  return recorder?.state === "recording";
+}
+
+/** Kept audio nobody has collected, waiting to be handed over. */
+export function holding(): boolean {
+  return recorder !== undefined && recorder.state !== "recording";
 }

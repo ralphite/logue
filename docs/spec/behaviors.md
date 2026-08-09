@@ -490,3 +490,12 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   contenteditable has focus, no IME composition is in progress, the key is not
   a repeat, and no modifier is held. Without this, Esc in the ask box cancels
   a recording and Enter accepts it instead of making a new line.
+- **"Busy" means a microphone is live, not that an object still exists.** Two
+  questions, kept apart: a reload waits only for a live microphone, because
+  that is what would cost someone words; closing the offscreen document waits
+  for audio nobody has collected. After the ten-minute ceiling stops the
+  microphone the first is false and the second is true — and the second cannot
+  last: uncollected audio is released after a few minutes, because a page that
+  has gone is never coming back for it. Conflating the two froze self-update
+  permanently on any browser where a recording hit its ceiling with the page
+  already gone.

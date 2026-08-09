@@ -83,15 +83,19 @@ async function toggleSidePanel(windowId: number): Promise<void> {
 }
 
 /** True while words are in flight — the one moment a reload must wait for. */
-async function offscreenBusy(): Promise<boolean> {
-  if (!(await chrome.offscreen.hasDocument?.())) return false;
+async function offscreenState(): Promise<{ busy: boolean; holding: boolean }> {
+  if (!(await chrome.offscreen.hasDocument?.())) return { busy: false, holding: false };
   try {
     const reply: unknown = await chrome.runtime.sendMessage({ type: "logue:offscreen-busy" });
-    return Boolean(reply && typeof reply === "object" && "busy" in reply && reply.busy);
+    if (!reply || typeof reply !== "object") return { busy: false, holding: false };
+    return {
+      busy: "busy" in reply && Boolean(reply.busy),
+      holding: "holding" in reply && Boolean(reply.holding),
+    };
   } catch {
     // A document that cannot answer is not recording; it is a leftover from a
     // build that predates the question. Do not let it stall updates forever.
-    return false;
+    return { busy: false, holding: false };
   }
 }
 
@@ -521,7 +525,13 @@ async function keepUpToDate(): Promise<void> {
     // spoken. But an *idle* document must not stand in the way — it once did,
     // and a single recording froze self-update for the rest of the session.
     // Close it and carry on; if it will not close, wait for the next check.
-    if (await offscreenBusy()) return;
+    const offscreen = await offscreenState();
+    // A live microphone: never interrupt it. Audio nobody has collected yet:
+    // do not throw it away either — but that state releases itself after a
+    // few minutes, so waiting here costs one or two checks, not the session.
+    // Before the recorder let go, a recording that hit its ceiling on a page
+    // that then went away pinned this open for good: X10, by a new door.
+    if (offscreen.busy || offscreen.holding) return;
     await closeOffscreen();
     if (await chrome.offscreen.hasDocument?.()) return;
     const installed = await installedBuild();
