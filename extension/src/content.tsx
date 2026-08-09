@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { host, type Context, type Material } from "./api";
 import { caretRect } from "./caret";
 import * as googleDocs from "./googleDocs";
+import { readablePageText } from "./readable";
 import { activeEditable, insertAtCaret, isOurs, nearbyText, pageSelection, pageSource, readCaret, restoreCaret, type CaretPosition, type Editable, type SelectionSnapshot } from "./editable";
 import { isFromBackground, send, watchForOrphaning, whenOrphaned } from "./messages";
 import { aboveSelection, besideCaret, BAR } from "./position";
@@ -181,10 +182,18 @@ function Surfaces() {
 
   // -- keyboard shortcuts from the background ----------------------------
   useEffect(() => {
-    const listener = (message: unknown) => {
-      if (!isFromBackground(message)) return;
+    const listener = (message: unknown, _sender: unknown, respond: (reply: unknown) => void) => {
+      if (!isFromBackground(message)) return undefined;
       if (message.type === "logue:start-voice" && target.current) void voice.start();
       if (message.type === "logue:start-command") setCommandOpen(true);
+      if (message.type === "logue:read-page") {
+        // The worker cannot read a page; only something on it can. This is
+        // the same text the Side Panel already saves, so a Skill run from the
+        // menu stands on exactly what a capture would have.
+        respond({ text: readablePageText(), title: document.title, url: location.href });
+        return true;
+      }
+      return undefined;
     };
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);

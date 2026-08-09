@@ -1,4 +1,4 @@
-import { Bookmark, CornerDownLeft, ExternalLink, Settings2 } from "lucide-react";
+import { Bookmark, CornerDownLeft, ExternalLink, Settings2, Sparkles } from "lucide-react";
 import { StrictMode, useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Answer, Button, Empty, ErrorNote, Input, OriginMark, Select, SourceLink, Spinner, Tag, originOf } from "@logue/ui";
@@ -17,6 +17,55 @@ const WEB_APP = HOST;
 /** What came off the page, as opposed to what you said about it. */
 const FROM_THE_PAGE = new Set(["page", "selection"]);
 
+/** What the last Skill run said, in the order it said it. */
+interface ThreadMessage {
+  from: "logue" | "skill";
+  text: string;
+  at: string;
+}
+
+const THREAD = "logue:thread";
+
+/** Storage is shared ground; anything in there that is not a message is not one. */
+function isMessage(value: unknown): value is ThreadMessage {
+  if (!value || typeof value !== "object") return false;
+  return "text" in value && typeof value.text === "string" && "from" in value;
+}
+
+/**
+ * A Skill run from the page's own menu, shown as it happened.
+ *
+ * Two messages and not a transcript of one: what was run, and what came back.
+ * The panel is otherwise a set of sections about this page, and a run has a
+ * before and an after — that is a conversation, however short.
+ */
+function Thread({ messages, onClear }: { messages: ThreadMessage[]; onClear: () => void }) {
+  if (messages.length === 0) return null;
+  return (
+    <section className="mb-3 grid gap-1.5 rounded-lg border border-line bg-surface p-2">
+      <span className="flex items-center gap-1">
+        <Sparkles size={11} className="text-faint" />
+        <span className="flex-1 text-[11px] text-faint">From this page</span>
+        <button type="button" onClick={onClear} className="rounded-md px-1 text-[11px] text-faint hover:text-ink">
+          Clear
+        </button>
+      </span>
+      {messages.map((message) => (
+        <p
+          key={`${message.from}:${message.at}`}
+          className={
+            message.from === "logue"
+              ? "text-[11px] text-muted"
+              : "rounded-md bg-surface-muted p-2 text-xs leading-[1.55] whitespace-pre-wrap text-ink"
+          }
+        >
+          {message.text}
+        </p>
+      ))}
+    </section>
+  );
+}
+
 /**
  * The panel is about *this page*: what came off it, what you said about it, and
  * a place to ask using it. Everything past that is folded away — the panel is
@@ -24,6 +73,7 @@ const FROM_THE_PAGE = new Set(["page", "selection"]);
  */
 function Panel() {
   const [tab, setTab] = useState<{ id?: number; url: string; title: string }>();
+  const [thread, setThread] = useState<ThreadMessage[]>([]);
   const [context, setContext] = useState<Context>();
   const [saved, setSaved] = useState<Material[]>([]);
   const [project, setProject] = useState("");
@@ -52,6 +102,25 @@ function Panel() {
       setError(cause instanceof Error ? cause.message : "Logue is not running on this Mac.");
     }
   }, [project]);
+
+  // The thread is written to storage before the panel opens — a side panel is
+  // requested, not called — so it is read on arrival and again on notice.
+  useEffect(() => {
+    const read = () => {
+      void chrome.storage.local.get(THREAD).then((stored) => {
+        const found: unknown = stored[THREAD];
+        setThread(Array.isArray(found) ? found.filter(isMessage) : []);
+      });
+    };
+    read();
+    const onMessage = (message: unknown) => {
+      if (message && typeof message === "object" && "type" in message && message.type === "logue:thread-changed") {
+        read();
+      }
+    };
+    chrome.runtime.onMessage.addListener(onMessage);
+    return () => chrome.runtime.onMessage.removeListener(onMessage);
+  }, []);
 
   useEffect(() => {
     void load();
@@ -143,6 +212,14 @@ function Panel() {
 
       <div className="logue-scroll flex-1 p-2">
         {error && <ErrorNote className="mb-2">{error}</ErrorNote>}
+
+        <Thread
+          messages={thread}
+          onClear={() => {
+            setThread([]);
+            void chrome.storage.local.remove(THREAD);
+          }}
+        />
 
         {!modelReady && !error && (
           // The one thing that makes every other control in here do nothing.

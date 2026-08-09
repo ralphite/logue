@@ -113,6 +113,49 @@ const SAVE_SELECTION = "logue-save-selection";
  * Rebuilt from scratch each time rather than added to: `create` throws on a
  * duplicate id, and a worker starts many times a day.
  */
+const SKILL_MENU = "logue-skill:";
+
+/**
+ * One string, two levels down a reply whose shape the Host owns.
+ *
+ * Read through a Map rather than by index: an index into an object typed
+ * `unknown` needs an assertion, and an assertion here is a claim about a
+ * payload that arrived over the wire — exactly the place not to make one.
+ */
+function pickString(body: unknown, outer: string, inner: string): string {
+  const nested = fieldOf(body, outer);
+  const value = fieldOf(nested, inner);
+  return typeof value === "string" ? value : "";
+}
+
+function fieldOf(value: unknown, name: string): unknown {
+  if (!value || typeof value !== "object") return undefined;
+  return new Map(Object.entries(value)).get(name);
+}
+
+/** The Skills that are about a whole page, which is what a right-click offers. */
+interface PageSkill {
+  id: string;
+  name: string;
+  contexts?: string[];
+  enabled?: boolean;
+}
+
+async function pageSkills(): Promise<PageSkill[]> {
+  const reply = await relayToHost({ path: "/v1/skills" });
+  if (!reply.ok || reply.status !== 200) return [];
+  try {
+    const body: unknown = JSON.parse(reply.text);
+    const all = body && typeof body === "object" && "skills" in body ? body.skills : [];
+    if (!Array.isArray(all)) return [];
+    return all
+      .filter((one): one is PageSkill => Boolean(one) && typeof one === "object" && "id" in one && "name" in one)
+      .filter((one) => one.enabled !== false && (one.contexts ?? []).includes("page"));
+  } catch {
+    return [];
+  }
+}
+
 async function buildMenus(): Promise<void> {
   try {
     await chrome.contextMenus.removeAll();
@@ -121,12 +164,115 @@ async function buildMenus(): Promise<void> {
       title: "Save to Logue",
       contexts: ["selection"],
     });
+    // The Skills that apply to a page, on the menu you get by right-clicking
+    // one. Which Skills those are is the Skill's own `contexts` — no second
+    // list to keep in step with the first.
+    for (const skill of await pageSkills()) {
+      chrome.contextMenus.create({
+        id: `${SKILL_MENU}${skill.id}`,
+        title: `${skill.name} — this page`,
+        contexts: ["page"],
+      });
+    }
   } catch {
     // No menus API, or a race with another start-up doing the same thing.
   }
 }
 
+/**
+ * The last thing a Skill did, waiting for the panel to show it.
+ *
+ * Written before the panel opens rather than passed to it: opening a side
+ * panel is a request, not a call, and the panel decides for itself when it is
+ * ready to read.
+ */
+const THREAD = "logue:thread";
+
+export interface ThreadMessage {
+  from: "logue" | "skill";
+  text: string;
+  at: string;
+}
+
+async function runSkillOnPage(skillId: string, skillName: string, tab: chrome.tabs.Tab): Promise<void> {
+  const say = async (messages: ThreadMessage[]) => {
+    await chrome.storage.local.set({ [THREAD]: messages });
+    // The panel may already be open on an older thread.
+    chrome.runtime.sendMessage({ type: "logue:thread-changed" }).catch(() => undefined);
+  };
+  const at = new Date().toISOString();
+  await say([{ from: "logue", text: `Running ${skillName} on this page…`, at }]);
+
+  try {
+    if (tab.id === undefined) throw new Error("There is no page here to read.");
+    const page: unknown = await chrome.tabs
+      .sendMessage(tab.id, { type: "logue:read-page" })
+      .catch(() => undefined);
+    const text =
+      page && typeof page === "object" && "text" in page && typeof page.text === "string" ? page.text.trim() : "";
+    if (!text) throw new Error("Nothing readable was found on this page.");
+
+    // Saved as a Source first, so the answer stands on something that exists
+    // and can be followed afterwards — the same rule as everywhere else.
+    const kept = await relayToHost({
+      path: "/v1/materials",
+      method: "POST",
+      body: JSON.stringify({
+        kind: "page",
+        content: text,
+        source: { url: tab.url ?? "", title: tab.title ?? "", domain: domainOf(tab.url ?? "") },
+      }),
+    });
+    if (!kept.ok || kept.status >= 400) throw new Error("Logue could not keep this page.");
+    const sourceId = pickString(JSON.parse(kept.text), "material", "id");
+
+    const ran = await relayToHost({
+      path: "/v1/runs",
+      method: "POST",
+      body: JSON.stringify({
+        skill_id: skillId,
+        instruction: `${skillName} — ${tab.title || tab.url || "this page"}`,
+        source_ids: sourceId ? [sourceId] : [],
+      }),
+    });
+    if (!ran.ok || ran.status >= 400) throw new Error("The model did not answer.");
+    const answered: unknown = JSON.parse(ran.text);
+    const output = pickString(answered, "run", "original_output").trim();
+    const failed = pickString(answered, "run", "error");
+    await say([
+      { from: "logue", text: `${skillName}, on ${tab.title || tab.url || "this page"}`, at },
+      {
+        from: "skill",
+        text: output || failed || "The model answered with nothing.",
+        at: new Date().toISOString(),
+      },
+    ]);
+  } catch (cause) {
+    await say([
+      { from: "logue", text: `${skillName}, on ${tab.title || tab.url || "this page"}`, at },
+      {
+        from: "skill",
+        text: cause instanceof Error ? cause.message : "Something went wrong.",
+        at: new Date().toISOString(),
+      },
+    ]);
+  }
+}
+
 chrome.contextMenus?.onClicked.addListener((info, tab) => {
+  const id = String(info.menuItemId);
+  if (id.startsWith(SKILL_MENU) && tab) {
+    // A menu click is a real gesture, which is the only way a side panel may
+    // be opened. Opened first, so the work happens where it can be watched
+    // rather than finishing into a panel nobody has seen yet.
+    if (tab.windowId !== undefined) void chrome.sidePanel.open({ windowId: tab.windowId });
+    const skillId = id.slice(SKILL_MENU.length);
+    void (async () => {
+      const found = (await pageSkills()).find((one) => one.id === skillId);
+      await runSkillOnPage(skillId, found?.name ?? "That Skill", tab);
+    })();
+    return;
+  }
   if (info.menuItemId !== SAVE_SELECTION) return;
   const text = (info.selectionText ?? "").trim();
   if (!text) return;

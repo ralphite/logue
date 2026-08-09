@@ -23,7 +23,13 @@ export type ToBackground =
  */
 export type HostReply = { ok: true; status: number; text: string } | { ok: false; message: string };
 
-export type FromBackground = { type: "logue:start-voice" } | { type: "logue:start-command" };
+export type FromBackground =
+  | { type: "logue:start-voice" }
+  | { type: "logue:start-command" }
+  /** What is on this page, asked for by the worker on the person's behalf. */
+  | { type: "logue:read-page" }
+  /** A Skill just ran on this page; the panel has something new to show. */
+  | { type: "logue:thread-changed" };
 
 /** The one place a message is narrowed; everything else receives a typed value. */
 export function tagOf(value: unknown): string | undefined {
@@ -32,7 +38,15 @@ export function tagOf(value: unknown): string | undefined {
   return typeof tag === "string" && tag.startsWith("logue:") ? tag : undefined;
 }
 
-const FROM_BACKGROUND = new Set(["logue:start-voice", "logue:start-command"]);
+// Every tag the union above carries. The type and this set are two halves of
+// one fact, and a tag added to only one of them type-checks perfectly while
+// being dropped at runtime — which is how "read the page" answered nothing.
+const FROM_BACKGROUND = new Set<string>([
+  "logue:start-voice",
+  "logue:start-command",
+  "logue:read-page",
+  "logue:thread-changed",
+]);
 
 export function isFromBackground(value: unknown): value is FromBackground {
   const tag = tagOf(value);

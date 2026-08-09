@@ -387,3 +387,8 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   ten-minute recordings are more than this storage holds; a count alone means
   the quota does the refusing, from somewhere else, about something the person
   cannot see.
+- **A page's own Skills are on its right-click menu**, and which Skills those
+  are is the Skill's `contexts` — never a second list kept in step by hand.
+  Choosing one opens the panel and shows what ran and what came back, in that
+  order. The page is kept as a Source first, so the answer stands on something
+  that can be followed afterwards.
