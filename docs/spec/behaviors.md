@@ -454,3 +454,9 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   list" made a person click twice for nothing. Stream and Settings are the
   honest exceptions: their content arrives or is configured, it cannot be
   "made new".
+- **Two text tiers, everywhere: body 13px, supporting 12px.** There is no
+  third size — the 11px tier (`--text-meta` and every `text-[11px]`) was one
+  decision spread across two spellings, and pages drifted a size apart. The
+  document editor's own typography is the exception; interface text is not.
+  Likewise one grey: `faint` was 3 RGB points from `muted` — a distinction
+  that existed in code and nowhere on screen — so `muted` is the only one.

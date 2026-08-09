@@ -44,9 +44,9 @@ function Thread({ messages, onClear }: { messages: ThreadMessage[]; onClear: () 
   return (
     <section className="mb-3 grid gap-1.5 rounded-lg border border-line bg-surface p-2">
       <span className="flex items-center gap-1">
-        <Sparkles size={11} className="text-faint" />
-        <span className="flex-1 text-[11px] text-faint">From this page</span>
-        <button type="button" onClick={onClear} className="rounded-md px-1 text-[11px] text-faint hover:text-ink">
+        <Sparkles size={11} className="text-muted" />
+        <span className="flex-1 text-xs text-muted">From this page</span>
+        <button type="button" onClick={onClear} className="rounded-md px-1 text-xs text-muted hover:text-ink">
           Clear
         </button>
       </span>
@@ -55,7 +55,7 @@ function Thread({ messages, onClear }: { messages: ThreadMessage[]; onClear: () 
           key={`${message.from}:${message.at}`}
           className={
             message.from === "logue"
-              ? "text-[11px] text-muted"
+              ? "text-xs text-muted"
               : "rounded-md bg-surface-muted p-2 text-xs leading-[1.55] whitespace-pre-wrap text-ink"
           }
         >
@@ -204,7 +204,7 @@ function Panel() {
           target="_blank"
           rel="noreferrer"
           title="Open Logue"
-          className="inline-flex size-control items-center justify-center rounded-md text-faint hover:bg-surface-muted hover:text-ink"
+          className="inline-flex size-control items-center justify-center rounded-md text-muted hover:bg-surface-muted hover:text-ink"
         >
           <ExternalLink size={14} />
         </a>
@@ -227,7 +227,7 @@ function Panel() {
             href={`${WEB_APP}/settings`}
             target="_blank"
             rel="noreferrer"
-            className="mb-2 flex items-center gap-1.5 rounded-md border border-line bg-surface-muted px-2 py-1.5 text-[11px] text-warning hover:text-ink"
+            className="mb-2 flex items-center gap-1.5 rounded-md border border-line bg-surface-muted px-2 py-1.5 text-xs text-warning hover:text-ink"
           >
             <Settings2 size={12} />
             The model is not connected. Open Settings.
@@ -388,7 +388,7 @@ function Kept({
    */
   if (items.length === 0) {
     return (
-      <section className="mt-3 flex items-center gap-1.5 text-xs text-faint" title={empty}>
+      <section className="mt-3 flex items-center gap-1.5 text-xs text-muted" title={empty}>
         {title}
         <span>0</span>
       </section>
@@ -399,7 +399,7 @@ function Kept({
     <section className="mt-4 grid gap-1">
       <h2 className="flex items-center gap-1.5 text-xs text-muted">
         {title}
-        <span className="text-faint">{items.length}</span>
+        <span className="text-muted">{items.length}</span>
       </h2>
       {(
         <div className="divide-y divide-line border-y border-line">
@@ -410,7 +410,7 @@ function Kept({
                 className="block w-full text-left"
                 onClick={() => setOpenId(openId === item.id ? undefined : item.id)}
               >
-                <span className="flex items-center gap-2 text-[11px] text-muted">
+                <span className="flex items-center gap-2 text-xs text-muted">
                   <OriginMark origin={originOf(item.kind)} />
                   <SourceLink url={item.source?.url} label={item.source?.domain || "This Mac"} />
                 </span>
@@ -466,7 +466,7 @@ function Filing({
           );
         })}
       </div>
-      <div className="flex flex-wrap items-center gap-1 text-[11px]">
+      <div className="flex flex-wrap items-center gap-1 text-xs">
         {tags.map((name) => (
           <Tag
             key={name}
@@ -479,7 +479,7 @@ function Filing({
           disabled={busy}
           placeholder="Add a tag"
           aria-label="Add a tag"
-          className="h-6 w-24 px-1.5 text-[11px]"
+          className="h-6 w-24 px-1.5 text-xs"
           onChange={(event) => setAdding(event.target.value)}
           onKeyDown={(event) => {
             if (event.key !== "Enter") return;
@@ -561,7 +561,7 @@ function AboutProject({
             className="text-xs"
           />
           <div className="flex items-center justify-end gap-1">
-            {saved && <span className="text-[11px] text-success">Saved</span>}
+            {saved && <span className="text-xs text-success">Saved</span>}
             <Button
               disabled={busy}
               onClick={() => {

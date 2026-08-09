@@ -40,9 +40,11 @@ export function MaterialPanel({
     // what the main area is for.
     <section className="flex min-h-0 flex-1 flex-col">
       <header className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-line px-4">
-        <span className="truncate text-[13px] font-[560] text-ink">
+        {/* The one route whose main area had no h1 — a heading is a landmark
+            for keyboard and screen-reader travel, same as the other four. */}
+        <h1 className="truncate text-[13px] font-[560] text-ink">
           {material ? material.kind : "Source"}
-        </span>
+        </h1>
         <IconButton label="Close" onClick={onClose}>
           <X size={14} />
         </IconButton>
@@ -62,7 +64,7 @@ export function MaterialPanel({
                 <OriginMark origin={originOf(material.kind)} detail={timeAgo(material.created_at)} />
                 <p className="text-[13px] leading-normal whitespace-pre-wrap text-ink">{material.content}</p>
                 {material.context && material.context !== material.content && (
-                  <details className="text-meta text-muted">
+                  <details className="text-xs text-muted">
                     <summary className="cursor-pointer select-none">In context</summary>
                     <p className="mt-1 leading-normal text-ink-soft">{material.context}</p>
                   </details>
@@ -104,8 +106,8 @@ export function MaterialPanel({
 
               {material.organization?.status === "needs_review" && (
                 <div className="grid gap-1.5 rounded-lg border border-accent-line bg-accent-soft px-2.5 py-2">
-                  <span className="text-[11px] text-accent-ink">Logue suggests</span>
-                  <span className="flex flex-wrap items-center gap-1 text-[11px]">
+                  <span className="text-xs text-accent-ink">Logue suggests</span>
+                  <span className="flex flex-wrap items-center gap-1 text-xs">
                     {(material.organization.suggested_projects ?? []).map((name) => (
                       <span key={name} className="rounded-sm bg-panel px-1 text-ink-soft">
                         {name}
@@ -116,7 +118,7 @@ export function MaterialPanel({
                     ))}
                   </span>
                   {material.organization.reason && (
-                    <span className="text-[11px] leading-normal text-muted">
+                    <span className="text-xs leading-normal text-muted">
                       {material.organization.reason}
                     </span>
                   )}
@@ -225,7 +227,7 @@ function Transcript({
     <div className="grid gap-1.5 border-t border-line pt-3">
       <span className="flex items-center gap-2 text-xs text-muted">
         Transcript
-        {revisions.length > 0 && <span className="text-faint">{revisions.length} earlier</span>}
+        {revisions.length > 0 && <span className="text-muted">{revisions.length} earlier</span>}
         <span className="ml-auto flex gap-1">
           <Button variant="ghost" disabled={busy} onClick={() => setFixing(!fixing)}>
             Fix a word
@@ -237,21 +239,21 @@ function Transcript({
       </span>
 
       {fixing && (
-        <div className="flex flex-wrap items-center gap-1 text-[11px]">
+        <div className="flex flex-wrap items-center gap-1 text-xs">
           <Input
             autoFocus
             value={spoken}
             placeholder="It wrote…"
             aria-label="What it wrote"
-            className="h-6 w-28 px-1.5 text-[11px]"
+            className="h-6 w-28 px-1.5 text-xs"
             onChange={(event) => setSpoken(event.target.value)}
           />
-          <span className="text-faint">→</span>
+          <span className="text-muted">→</span>
           <Input
             value={preferred}
             placeholder="…should be"
             aria-label="What it should be"
-            className="h-6 w-28 px-1.5 text-[11px]"
+            className="h-6 w-28 px-1.5 text-xs"
             onChange={(event) => setPreferred(event.target.value)}
           />
           <Button
@@ -265,7 +267,7 @@ function Transcript({
       )}
 
       {revisions.length > 0 && (
-        <details className="text-meta text-muted">
+        <details className="text-xs text-muted">
           <summary className="cursor-pointer select-none">What it said before</summary>
           <div className="mt-1 grid gap-1">
             {revisions
@@ -329,12 +331,12 @@ function HowItWasHeard({ applied }: { applied?: Material["applied_context"] }) {
   ).filter((line): line is [string, string] => Boolean(line[1]));
   if (lines.length === 0 && !applied.instructions) return null;
   return (
-    <details className="border-t border-line pt-3 text-meta text-muted">
+    <details className="border-t border-line pt-3 text-xs text-muted">
       <summary className="cursor-pointer select-none">How this was heard</summary>
       <dl className="mt-1.5 grid grid-cols-[84px_minmax(0,1fr)] gap-x-2 gap-y-1">
         {lines.map(([label, value]) => (
           <Fragment key={label}>
-            <dt className="text-faint">{label}</dt>
+            <dt className="text-muted">{label}</dt>
             <dd className="break-words text-ink-soft">{value}</dd>
           </Fragment>
         ))}
@@ -375,7 +377,7 @@ function Tags({
   return (
     <div className="grid gap-1.5 border-t border-line pt-3">
       <span className="text-xs text-muted">Tags</span>
-      <div className="flex flex-wrap items-center gap-1 text-[11px]">
+      <div className="flex flex-wrap items-center gap-1 text-xs">
         {tags.map((name) => (
           <Tag key={name} name={name} onRemove={() => onSave(tags.filter((t) => t !== name))} />
         ))}
@@ -393,7 +395,7 @@ function Tags({
           }}
           placeholder={tags.length ? "Add" : "Add a tag"}
           aria-label="Add a tag"
-          className="h-6 w-24 px-1.5 text-[11px]"
+          className="h-6 w-24 px-1.5 text-xs"
         />
       </div>
     </div>
@@ -424,7 +426,7 @@ function UsedIn({
   return (
     <div className="grid gap-1 border-t border-line pt-3">
       <span className="text-xs text-muted">
-        Used in {total === 0 ? <span className="text-faint">nothing yet</span> : total}
+        Used in {total === 0 ? <span className="text-muted">nothing yet</span> : total}
       </span>
 
       {documents.map((document) => (
@@ -464,7 +466,7 @@ function Lineage({ title, items }: { title: string; items: Material[] }) {
       <span className="text-xs text-muted">{title}</span>
       {items.map((item) => (
         <div key={item.id} className="rounded-md bg-surface-muted px-2 py-1.5">
-          <span className="flex items-center gap-2 text-[11px] text-muted">
+          <span className="flex items-center gap-2 text-xs text-muted">
             <OriginMark origin={originOf(item.kind)} />
             <SourceLink url={item.source?.url} label={item.source?.domain || "This Mac"} />
           </span>

@@ -167,7 +167,7 @@ export function CommandBox({
           </>
         ) : (
           <>
-            <span className="pl-1.5 text-[11px] text-faint">{sources.length} Sources</span>
+            <span className="pl-1.5 text-xs text-muted">{sources.length} Sources</span>
             <span className="flex-1" />
             <Button variant="primary" onClick={() => onInsert(answer)}>
               Insert

@@ -188,7 +188,7 @@ export function AppShell({
             {!collapsed && (
               <>
                 <span className="truncate">Find</span>
-                <kbd className="ml-auto font-sans text-[11px] text-faint">{FIND_KEYS}</kbd>
+                <kbd className="ml-auto font-sans text-xs text-muted">{FIND_KEYS}</kbd>
               </>
             )}
           </button>
@@ -250,7 +250,7 @@ export function AppShell({
           <p
             title="Logue is not running on this Mac."
             className={cn(
-              "flex items-center gap-1.5 text-[11px] leading-[1.4] text-warning",
+              "flex items-center gap-1.5 text-xs leading-[1.4] text-warning",
               collapsed ? "mt-auto justify-center" : "px-2 py-1",
             )}
           >
@@ -314,7 +314,13 @@ export function Page({
       */}
       <header className="shrink-0 border-b border-line">
         <div className="mx-auto flex h-11 max-w-page items-center gap-1 px-8">
-          <h1 className="flex min-w-0 items-center gap-1 text-[13px] font-[560] text-ink">
+          {/*
+            The h1 is whatever the page is about: the open thing when one is
+            open, the section otherwise. It used to wrap the whole crumb, so a
+            screen reader heard "ProjectsAgent Harness" as one word — and had a
+            button inside a heading, which is two jobs in one element.
+          */}
+          <div className="flex min-w-0 items-center gap-1 text-[13px] font-[560] text-ink">
             {onBack ? (
               // The way back is the section's own name, which is where a back
               // button would have taken you anyway.
@@ -325,16 +331,18 @@ export function Page({
               >
                 {title}
               </button>
-            ) : (
+            ) : here !== undefined ? (
               <span className="truncate">{title}</span>
+            ) : (
+              <h1 className="truncate">{title}</h1>
             )}
             {here !== undefined && (
               <>
-                <ChevronRight size={13} aria-hidden className="shrink-0 text-faint" />
-                <span className="truncate">{here || "Untitled"}</span>
+                <ChevronRight size={13} aria-hidden className="shrink-0 text-muted" />
+                <h1 className="truncate">{here || "Untitled"}</h1>
               </>
             )}
-          </h1>
+          </div>
           {actions && <span className="ml-auto flex shrink-0 items-center gap-1">{actions}</span>}
         </div>
       </header>

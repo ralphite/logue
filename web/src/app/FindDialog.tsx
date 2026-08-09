@@ -136,7 +136,7 @@ export function FindDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-line px-3">
-          <Search size={14} className="shrink-0 text-faint" />
+          <Search size={14} className="shrink-0 text-muted" />
           <Input
             autoFocus
             value={query}
@@ -170,7 +170,7 @@ export function FindDialog({
             <p className="px-3 py-6 text-center text-xs text-muted">Nothing matches that.</p>
           )}
           {!query && (
-            <p className="px-3 py-6 text-center text-xs text-faint">
+            <p className="px-3 py-6 text-center text-xs text-muted">
               Everything you have captured, written, or organised.
             </p>
           )}
@@ -194,7 +194,7 @@ export function FindDialog({
                 <Icon size={14} className="shrink-0 text-muted" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13px] text-ink">{hit.title}</span>
-                  <span className="block truncate text-[11px] text-muted">{hit.detail}</span>
+                  <span className="block truncate text-xs text-muted">{hit.detail}</span>
                 </span>
               </button>
             );

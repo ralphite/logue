@@ -22,8 +22,8 @@ function RailHeader({ children }: { children: React.ReactNode }) {
 /** A line in a hover card: what it is, then what it says. */
 function Fact({ name, children }: { name: string; children: React.ReactNode }) {
   return (
-    <p className="flex gap-2 text-[11px] leading-[1.5]">
-      <span className="shrink-0 text-faint">{name}</span>
+    <p className="flex gap-2 text-xs leading-[1.5]">
+      <span className="shrink-0 text-muted">{name}</span>
       <span className="min-w-0 flex-1 text-ink-soft">{children}</span>
     </p>
   );
@@ -174,7 +174,7 @@ export function StreamRail({
               title="Logue has worked out where these probably belong. Nobody has looked yet."
               onClick={() => setReviewing(!reviewing)}
               className={cn(
-                "rounded-md px-1.5 py-1 text-[11px]",
+                "rounded-md px-1.5 py-1 text-xs",
                 reviewing ? "bg-active font-[560] text-ink" : "text-muted hover:bg-hover hover:text-ink",
               )}
             >
@@ -190,7 +190,7 @@ export function StreamRail({
               <button
                 type="button"
                 {...props}
-                className="ml-auto rounded-md px-1.5 py-1 text-[11px] text-muted hover:bg-hover hover:text-ink"
+                className="ml-auto rounded-md px-1.5 py-1 text-xs text-muted hover:bg-hover hover:text-ink"
               >
                 Groups
               </button>
@@ -201,7 +201,7 @@ export function StreamRail({
               .map((topic) => (
                 <MenuItem key={topic.id} onClick={() => setGroup(topic)}>
                   <span className="truncate">{topic.name}</span>
-                  <span className="ml-auto pl-3 text-faint">{topic.source_ids.length}</span>
+                  <span className="ml-auto pl-3 text-muted">{topic.source_ids.length}</span>
                 </MenuItem>
               ))}
             <MenuItem onClick={() => void action.run(() => api.regroupTopics()).then(() => topics.refresh())}>
@@ -210,7 +210,7 @@ export function StreamRail({
           </Menu>
         </div>
         {(tag || group) && (
-          <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted">
+          <div className="flex flex-wrap items-center gap-1 text-xs text-muted">
             {tag && <Tag name={tag} onRemove={() => setTag(undefined)} />}
             {group && (
               <button
@@ -262,14 +262,14 @@ export function ProjectsRail({
   const entries: RailEntry[] = pins.pinnedFirst(projects.data?.projects ?? []).map((project: Project) => ({
     id: project.id,
     title: project.name,
-    icon: <FolderOpen size={12} className="text-faint" />,
+    icon: <FolderOpen size={12} className="text-muted" />,
     pinned: pins.isPinned(project.id),
-    mark: <span className="shrink-0 text-[11px] text-faint">{project.count}</span>,
+    mark: <span className="shrink-0 text-xs text-muted">{project.count}</span>,
     preview: () => (
       <>
         <p className="text-xs font-[560] text-ink">{project.name}</p>
         {project.overview && (
-          <p className="line-clamp-4 text-[11px] leading-[1.5] text-ink-soft">{project.overview}</p>
+          <p className="line-clamp-4 text-xs leading-[1.5] text-ink-soft">{project.overview}</p>
         )}
         <Fact name="Holds">{project.count ?? 0} Sources</Fact>
         {project.updated_at && <Fact name="Touched">{timeAgo(project.updated_at)}</Fact>}
@@ -362,12 +362,12 @@ export function DocumentsRail({
     .map((document: Document) => ({
       id: document.id,
       title: document.title || "Untitled",
-      icon: <FileText size={12} className="text-faint" />,
+      icon: <FileText size={12} className="text-muted" />,
       pinned: pins.isPinned(document.id),
       preview: () => (
         <>
           <p className="text-xs font-[560] text-ink">{document.title || "Untitled"}</p>
-          <p className="line-clamp-5 text-[11px] leading-[1.5] text-ink-soft">
+          <p className="line-clamp-5 text-xs leading-[1.5] text-ink-soft">
             {condense(document.content, 300) || "Nothing written yet."}
           </p>
           <Fact name="Built on">{document.source_ids.length} Sources</Fact>
@@ -460,14 +460,14 @@ export function SkillsRail({
   const entries: RailEntry[] = pins.pinnedFirst(skills.data?.skills ?? []).map((skill: Skill) => ({
     id: skill.id,
     title: skill.name,
-    icon: <Sparkles size={12} className="text-faint" />,
+    icon: <Sparkles size={12} className="text-muted" />,
     pinned: pins.isPinned(skill.id),
-    mark: skill.enabled ? undefined : <span className="shrink-0 text-[11px] text-faint">off</span>,
+    mark: skill.enabled ? undefined : <span className="shrink-0 text-xs text-muted">off</span>,
     preview: () => (
       <>
         <p className="text-xs font-[560] text-ink">{skill.name}</p>
         {skill.purpose && (
-          <p className="line-clamp-4 text-[11px] leading-[1.5] text-ink-soft">{skill.purpose}</p>
+          <p className="line-clamp-4 text-xs leading-[1.5] text-ink-soft">{skill.purpose}</p>
         )}
         <Fact name="Appears in">{skill.surfaces.join(", ") || "nowhere yet"}</Fact>
         <Fact name="Version">{skill.revision}</Fact>

@@ -109,7 +109,7 @@ export function SkillsRoute({
           </Select>
         </Field>
         <Field label="Used where">
-          <span className="flex flex-wrap gap-1 text-[11px] text-muted">
+          <span className="flex flex-wrap gap-1 text-xs text-muted">
             {skill.contexts.length === 0 ? "Anywhere" : skill.contexts.join(" · ")}
           </span>
         </Field>
@@ -125,14 +125,14 @@ export function SkillsRoute({
             is not offered anywhere, and saying so is the difference between
             "not finished" and "quietly does nothing". */}
         {!skill.instructions?.trim() && (
-          <p className="text-meta text-warning">
+          <p className="text-xs text-warning">
             This Skill has no prompt yet, so it is not offered anywhere. Write one and save.
           </p>
         )}
         {/* The revision number was printed here and led nowhere, while every
             past prompt sat in storage unread. Making the number the way in
             costs the page no new control. */}
-        <p className="text-meta text-faint">
+        <p className="text-xs text-muted">
           <button
             type="button"
             onClick={() => setLooking(true)}

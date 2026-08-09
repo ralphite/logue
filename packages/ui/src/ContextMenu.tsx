@@ -170,7 +170,7 @@ export function ContextMenu({
  * be deleted.
  */
 export function MenuHeading({ children }: { children: ReactNode }) {
-  return <p className="truncate px-2 pt-1 pb-1.5 text-[11px] text-faint">{children}</p>;
+  return <p className="truncate px-2 pt-1 pb-1.5 text-xs text-muted">{children}</p>;
 }
 
 /** A hairline between two kinds of action — the destructive one below it. */

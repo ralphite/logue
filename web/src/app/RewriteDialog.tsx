@@ -87,7 +87,7 @@ export function RewriteDialog({
           <div className="logue-scroll max-h-80 rounded-md border border-line">
             {hunks.map((hunk, index) =>
               hunk.kind === "same" ? (
-                <p key={hunk.id} className="px-2 py-1 text-xs leading-[1.5] whitespace-pre-wrap text-faint">
+                <p key={hunk.id} className="px-2 py-1 text-xs leading-[1.5] whitespace-pre-wrap text-muted">
                   {hunk.lines.join("\n")}
                 </p>
               ) : (
@@ -119,7 +119,7 @@ export function RewriteDialog({
               ),
             )}
           </div>
-          <p className="text-[11px] text-faint">
+          <p className="text-xs text-muted">
             {changes === 0
               ? "The rewrite changes nothing a reader would see."
               : "Click a change to take it or keep the original. Applying is an ordinary edit — the history keeps every version."}

@@ -19,7 +19,6 @@
   --color-ink: #20211f;
   --color-ink-soft: #4e504b;
   --color-muted: #70726c;
-  --color-faint: #73756f;
 
   --color-line: #e7e7e3;
   --color-line-strong: #d9dad5;
@@ -40,10 +39,6 @@
   --color-success: #347847;
   /* The pair to danger-soft, for the two halves of a diff. */
   --color-success-soft: #f1f8f2;
-
-  /* The third and smallest type size: counts, timestamps, provenance detail. */
-  --text-meta: 11px;
-  --text-meta--line-height: 1.45;
 
   --radius-sm: 5px;
   --radius-md: 6px;

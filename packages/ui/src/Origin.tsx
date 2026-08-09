@@ -78,7 +78,7 @@ export function OriginMark({
   const Icon = mark.icon;
   return (
     <span
-      className={cn("inline-flex items-center gap-1 text-[11px]", mark.className, className)}
+      className={cn("inline-flex items-center gap-1 text-xs", mark.className, className)}
       title={detail ? `${mark.label} · ${detail}` : mark.label}
     >
       <Icon size={11} />
@@ -106,7 +106,7 @@ export function Citation({
       aria-label={`Source ${n}`}
       title={quote ? `Source ${n} — ${quote.slice(0, 300)}` : `Source ${n}`}
       className={cn(
-        "inline-flex h-5 items-center rounded-full border border-accent-line bg-accent-soft px-1.5 text-meta font-[650] text-accent-ink align-baseline",
+        "inline-flex h-5 items-center rounded-full border border-accent-line bg-accent-soft px-1.5 text-xs font-[650] text-accent-ink align-baseline",
         "hover:bg-accent-hover-soft aria-pressed:border-accent aria-pressed:bg-accent-pressed",
         className,
       )}

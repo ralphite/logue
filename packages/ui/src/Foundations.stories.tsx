@@ -11,8 +11,7 @@ type Story = StoryObj<typeof meta>;
 const swatches = [
   ["ink", "#20211f", "reading text"],
   ["ink-soft", "#4e504b", "buttons, secondary text"],
-  ["muted", "#70726c", "labels, meta"],
-  ["faint", "#73756f", "chevrons, hints"],
+  ["muted", "#70726c", "labels, timestamps, hints"],
   ["line", "#e7e7e3", "dividers"],
   ["line-strong", "#d9dad5", "control borders"],
   ["surface-muted", "#f6f6f4", "hover fill"],
@@ -33,7 +32,7 @@ export const Color: Story = {
             style={{ background: hex, boxShadow: "inset 0 0 0 1px rgb(15 15 15/8%)" }}
           />
           <code className="text-ink">{name}</code>
-          <code className="text-faint">{hex}</code>
+          <code className="text-muted">{hex}</code>
           <span className="text-muted">{use}</span>
         </div>
       ))}
@@ -51,7 +50,7 @@ export const Density: Story = {
       ].map(([name, value, use]) => (
         <div key={name} className="grid grid-cols-[80px_56px_1fr] items-center gap-2">
           <code>{name}</code>
-          <code className="text-faint">{value}</code>
+          <code className="text-muted">{value}</code>
           <div className="rounded-md bg-accent-soft" style={{ height: value }} title={use} />
         </div>
       ))}

@@ -178,11 +178,11 @@ export function SettingsRoute() {
         </Section>
 
         <Section title="Corrections">
-          <p className="text-meta text-muted">
+          <p className="text-xs text-muted">
             Words Logue has misheard before. Every recording is transcribed knowing these.
           </p>
           {(corrections.data?.corrections ?? []).length === 0 ? (
-            <p className="text-meta text-faint">
+            <p className="text-xs text-muted">
               None yet — fix a word on a recording and it will be remembered here.
             </p>
           ) : (
@@ -190,7 +190,7 @@ export function SettingsRoute() {
               {(corrections.data?.corrections ?? []).map((fix) => (
                 <div key={fix.spoken} className="flex items-center gap-2 text-xs">
                   <span className="truncate text-muted">{fix.spoken}</span>
-                  <span className="text-faint">→</span>
+                  <span className="text-muted">→</span>
                   <span className="truncate text-ink-soft">{fix.preferred}</span>
                   <IconButton
                     label={`Forget ${fix.spoken}`}
@@ -211,7 +211,7 @@ export function SettingsRoute() {
         </Section>
 
         <Section title="Default Skills">
-          <p className="text-meta text-muted">
+          <p className="text-xs text-muted">
             What each surface reaches for, so you are not asked every time.
           </p>
           {SLOTS.map((slot) => (
@@ -261,18 +261,18 @@ export function SettingsRoute() {
         </Section>
 
         <Section title="Backups">
-          <p className="text-meta text-muted">
+          <p className="text-xs text-muted">
             Restoring replaces everything here with what the backup holds. What is here now is backed up
             first.
           </p>
           {(backups.data?.backups ?? []).length === 0 ? (
-            <p className="text-meta text-faint">None yet.</p>
+            <p className="text-xs text-muted">None yet.</p>
           ) : (
             <div className="grid gap-1">
               {(backups.data?.backups ?? []).slice(0, 8).map((file) => (
                 <div key={file.id} className="flex items-center gap-2 text-xs">
                   <span className="min-w-0 flex-1 truncate text-ink-soft">{file.id}</span>
-                  <span className="shrink-0 text-faint">{bytes(file.bytes)}</span>
+                  <span className="shrink-0 text-muted">{bytes(file.bytes)}</span>
                   <Button variant="ghost" disabled={action.busy} onClick={() => setRestoring(file)}>
                     Restore
                   </Button>

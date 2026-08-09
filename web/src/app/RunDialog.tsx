@@ -80,7 +80,7 @@ export function RunDialog({
                   }}
                   className="flex w-full min-w-0 items-baseline gap-2 rounded-md px-2 py-1 text-left hover:bg-hover"
                 >
-                  <span className="w-6 shrink-0 font-mono text-[11px] text-faint">{index + 1}</span>
+                  <span className="w-6 shrink-0 font-mono text-xs text-muted">{index + 1}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs text-ink">{source.content || "Empty"}</span>
                     {source.source?.url && (

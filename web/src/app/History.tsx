@@ -42,7 +42,7 @@ const SUMMARY_TRIES = 10;
 function Change({ added, removed }: { added: number; removed: number }) {
   if (added === 0 && removed === 0) return null;
   return (
-    <span className="shrink-0 font-mono text-[11px]">
+    <span className="shrink-0 font-mono text-xs">
       {added > 0 && <span className="text-success">+{added}</span>}
       {added > 0 && removed > 0 && " "}
       {removed > 0 && <span className="text-danger">−{removed}</span>}
@@ -69,10 +69,10 @@ function Entry({ version, onOpen }: { version: Version; onOpen: () => void }) {
               "Edited"
             ))}
         </span>
-        {version.created_at && <span className="text-[11px] text-faint">{timeAgo(version.created_at)}</span>}
+        {version.created_at && <span className="text-xs text-muted">{timeAgo(version.created_at)}</span>}
       </span>
       <Change added={version.added} removed={version.removed} />
-      {version.current && <span className="shrink-0 text-[11px] text-faint">current</span>}
+      {version.current && <span className="shrink-0 text-xs text-muted">current</span>}
     </button>
   );
 }
@@ -103,7 +103,7 @@ function Diff({ kind, id, revision }: { kind: Kind; id: string; revision: number
             "flex gap-2 px-2 py-0.5 text-xs leading-[1.5]",
             line.kind === "added" && "bg-success-soft text-ink",
             line.kind === "removed" && "bg-danger-soft text-muted line-through",
-            line.kind === "same" && "text-faint",
+            line.kind === "same" && "text-muted",
           )}
         >
           <span aria-hidden className="w-3 shrink-0 select-none text-center font-mono">
@@ -217,7 +217,7 @@ export function History({
               <Entry key={version.revision} version={version} onOpen={() => setLooking(version)} />
             ))}
           </div>
-          <p className="text-[11px] text-faint">{kind.note}</p>
+          <p className="text-xs text-muted">{kind.note}</p>
           <DialogActions>
             <Button onClick={close}>Close</Button>
           </DialogActions>

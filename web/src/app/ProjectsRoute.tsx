@@ -67,7 +67,7 @@ function Used({ run }: { run: Run }) {
   };
   const verb = verbs[run.adoption ?? "keep"];
   return run.adoption_undone ? (
-    <span className="text-faint">{verb}, then undone</span>
+    <span className="text-muted">{verb}, then undone</span>
   ) : (
     <span className="text-success">{verb}</span>
   );
@@ -154,7 +154,7 @@ function ProjectDetail({
                 }}
                 className="w-full rounded-md px-1.5 py-1 text-left text-[13px] leading-[1.55] text-ink-soft hover:bg-hover"
               >
-                {project.overview || <span className="text-faint">Add context for this Project…</span>}
+                {project.overview || <span className="text-muted">Add context for this Project…</span>}
               </button>
             )}
           </section>
@@ -171,7 +171,7 @@ function ProjectDetail({
 
           {projectRuns.length > 0 && (
             <section className="grid gap-1.5">
-              <h2 className="text-xs text-muted">Recent answers</h2>
+              <h2 className="text-xs font-[560] text-muted">Recent answers</h2>
               <Rows>
                 {projectRuns.slice(0, 6).map((run) => (
                   <Row key={run.id}>
@@ -185,7 +185,7 @@ function ProjectDetail({
                       className="min-w-0 flex-1 rounded-md text-left"
                     >
                       <span className="block truncate text-[13px] text-ink">{run.instruction}</span>
-                      <span className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
+                      <span className="mt-0.5 flex items-center gap-2 text-xs text-muted">
                         <Sparkles size={11} />
                         {run.skill_name}
                         <span className="underline decoration-line underline-offset-2">
@@ -252,7 +252,7 @@ function ProjectDetail({
           />
 
           <section className="grid gap-1.5">
-            <h2 className="text-xs text-muted">{detail.data?.materials.length} Sources</h2>
+            <h2 className="text-xs font-[560] text-muted">{detail.data?.materials.length} Sources</h2>
             {detail.data?.materials.length === 0 ? (
               <Empty>Add Sources from the Stream, or capture with the Extension.</Empty>
             ) : (
@@ -263,7 +263,7 @@ function ProjectDetail({
                   <Row key={material.id} onClick={() => onOpenSource(material.id)}>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] text-ink">{material.content}</span>
-                      <span className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
+                      <span className="mt-0.5 flex items-center gap-2 text-xs text-muted">
                         <OriginMark origin={originOf(material.kind)} />
                         <SourceLink
                           url={material.source?.url}

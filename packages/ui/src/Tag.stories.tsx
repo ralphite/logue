@@ -13,7 +13,7 @@ type Story = StoryObj<typeof meta>;
  */
 export const BesideAProject: Story = {
   render: () => (
-    <div className="flex items-center gap-1.5 text-[11px] text-muted">
+    <div className="flex items-center gap-1.5 text-xs text-muted">
       <span className="rounded-sm bg-surface-muted px-1 text-ink-soft">Research</span>
       <Tag name="async" />
       <Tag name="interviews" />
@@ -24,7 +24,7 @@ export const BesideAProject: Story = {
 /** Long enough to break a row, so it truncates rather than pushing things out. */
 export const TooLong: Story = {
   render: () => (
-    <div className="flex w-52 items-center gap-1 text-[11px]">
+    <div className="flex w-52 items-center gap-1 text-xs">
       <Tag name="a-very-long-tag-somebody-actually-typed" />
     </div>
   ),
@@ -33,11 +33,11 @@ export const TooLong: Story = {
 function Editable() {
   const [tags, setTags] = useState(["async", "interviews", "q3"]);
   return (
-    <div className="flex flex-wrap items-center gap-1 text-[11px]">
+    <div className="flex flex-wrap items-center gap-1 text-xs">
       {tags.map((name) => (
         <Tag key={name} name={name} onRemove={() => setTags(tags.filter((t) => t !== name))} />
       ))}
-      {tags.length === 0 && <span className="text-faint">No tags</span>}
+      {tags.length === 0 && <span className="text-muted">No tags</span>}
     </div>
   );
 }
@@ -48,7 +48,7 @@ export const Removable: Story = { render: () => <Editable /> };
 /** Clickable, as it appears in the Stream — pressing one narrows the list. */
 export const Filtering: Story = {
   render: () => (
-    <div className="flex items-center gap-1 text-[11px]">
+    <div className="flex items-center gap-1 text-xs">
       <Tag name="async" onClick={() => undefined} />
       <Tag name="interviews" onClick={() => undefined} />
     </div>

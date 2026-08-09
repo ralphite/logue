@@ -285,7 +285,7 @@ function DocumentEditor({
             className="logue-prose min-h-72 outline-0"
           />
 
-          <footer className="mt-6 flex items-center gap-2 border-t border-line pt-2 text-[11px] text-faint">
+          <footer className="mt-6 flex items-center gap-2 border-t border-line pt-2 text-xs text-muted">
             {draft && <span>Not saved yet — it will be, as soon as you write something.</span>}
             {/* The revision number was already printed here and meant nothing
                 to anyone. Making it the way in costs the rail no new control. */}
@@ -293,7 +293,7 @@ function DocumentEditor({
               <button
                 type="button"
                 onClick={() => setLooking(true)}
-                className="-my-1 inline-flex min-h-6 items-center rounded-md py-1 text-[11px] text-faint underline decoration-line underline-offset-2 hover:text-ink"
+                className="-my-1 inline-flex min-h-6 items-center rounded-md py-1 text-xs text-muted underline decoration-line underline-offset-2 hover:text-ink"
               >
                 Version {doc.revision}
               </button>
@@ -365,9 +365,9 @@ function Sources({ sources, onOpen }: { sources: Material[]; onOpen: (id: string
           }}
           className="flex cursor-pointer gap-2 rounded-md bg-surface-muted px-2 py-1.5 hover:bg-hover"
         >
-          <span className="shrink-0 text-[11px] font-[650] text-accent">{index + 1}</span>
+          <span className="shrink-0 text-xs font-[650] text-accent">{index + 1}</span>
           <span className="min-w-0">
-            <span className="flex items-center gap-2 text-[11px] text-muted">
+            <span className="flex items-center gap-2 text-xs text-muted">
               <OriginMark origin={originOf(source.kind)} />
               <SourceLink url={source.source?.url} label={source.source?.domain || "This Mac"} />
             </span>

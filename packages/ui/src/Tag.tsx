@@ -25,7 +25,7 @@ export function Tag({
 }) {
   const label = (
     <>
-      <span aria-hidden className="text-faint">
+      <span aria-hidden className="text-muted">
         #
       </span>
       {name}
@@ -54,7 +54,7 @@ export function Tag({
         <button
           type="button"
           aria-label={`Remove #${name}`}
-          className="shrink-0 rounded-xs p-px text-faint hover:text-ink"
+          className="shrink-0 rounded-xs p-px text-muted hover:text-ink"
           onClick={onRemove}
         >
           <X size={11} />

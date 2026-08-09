@@ -194,7 +194,7 @@ export function VoiceBar({
           >
             {clock(seconds)}
           </span>
-          {long && <span className="mr-1 text-[11px] text-muted">stops at 10:00</span>}
+          {long && <span className="mr-1 text-xs text-muted">stops at 10:00</span>}
           <Button variant="primary" onPointerDown={keepFocus} onClick={onStop} title="Accept (Enter)">
             Accept <kbd>↵</kbd>
           </Button>
@@ -229,7 +229,7 @@ export function VoiceBar({
             <span
               role="status"
               title={`${pending} recording${pending === 1 ? "" : "s"} still transcribing — you can keep going`}
-              className="mr-0.5 inline-flex items-center gap-1 text-[11px] text-muted"
+              className="mr-0.5 inline-flex items-center gap-1 text-xs text-muted"
             >
               <Spinner size={11} />
               {pending}
@@ -238,7 +238,7 @@ export function VoiceBar({
           <IconButton
             label="Voice options"
             aria-expanded={pickerOpen}
-            className="w-4.5 min-w-4.5 text-faint"
+            className="w-4.5 min-w-4.5 text-muted"
             onPointerDown={keepFocus}
             onClick={() => setPickerOpen((open) => !open)}
           >

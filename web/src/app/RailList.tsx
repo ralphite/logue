@@ -168,7 +168,7 @@ function RailRow({
         <span className={cn("min-w-0 flex-1 truncate", entry.draft && "text-muted italic")}>
           {entry.title}
         </span>
-        {entry.detail && <span className="shrink-0 text-[11px] text-faint">{entry.detail}</span>}
+        {entry.detail && <span className="shrink-0 text-xs text-muted">{entry.detail}</span>}
       </button>
 
       <span
@@ -180,7 +180,7 @@ function RailRow({
         )}
       >
         {entry.mark}
-        {entry.pinned && <Pin size={11} aria-label="Pinned" className="text-faint" />}
+        {entry.pinned && <Pin size={11} aria-label="Pinned" className="text-muted" />}
       </span>
 
       {/* One control, holding everything the row can do. A pin button beside
@@ -303,7 +303,7 @@ export function RailList({
   // An empty section whose only way forward is a `+` that appears on hover is
   // a dead end. The emptiness itself carries the way out of it.
   if (entries.length === 0) {
-    return <div className="grid justify-items-start gap-1 px-2 py-1 text-[11px] text-faint">{empty}</div>;
+    return <div className="grid justify-items-start gap-1 px-2 py-1 text-xs text-muted">{empty}</div>;
   }
 
   const row = (entry: RailEntry) => (
@@ -356,7 +356,7 @@ export function MakeFirst({ label, onRun }: { label: string; onRun: () => void }
     <button
       type="button"
       onClick={onRun}
-      className="rounded-md px-1 py-0.5 text-[11px] text-accent underline decoration-line underline-offset-2 hover:bg-hover"
+      className="rounded-md px-1 py-0.5 text-xs text-accent underline decoration-line underline-offset-2 hover:bg-hover"
     >
       {label}
     </button>

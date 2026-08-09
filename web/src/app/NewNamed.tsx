@@ -59,7 +59,7 @@ export function NewNamed({
             Cancel
           </Button>
         </span>
-        <span className="pt-1 text-[11px] text-faint">
+        <span className="pt-1 text-xs text-muted">
           Nothing is saved until you create it — leaving now leaves no trace.
         </span>
       </label>
