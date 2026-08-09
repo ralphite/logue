@@ -63,7 +63,14 @@ export function App() {
     [route],
   );
 
-  const here = route === "stream" ? sourceId : route === "projects" ? projectId : route === "documents" ? documentId : skillId;
+  const here =
+    route === "stream"
+      ? sourceId
+      : route === "projects"
+        ? projectId
+        : route === "documents"
+          ? documentId
+          : skillId;
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -74,7 +81,11 @@ export function App() {
       }
       // ⌥⌘↑/↓ steps through the rail. Plain arrows belong to the list you are
       // reading; ⌘↑/↓ belongs to the text you are editing.
-      if (event.altKey && (event.metaKey || event.ctrlKey) && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
+      if (
+        event.altKey &&
+        (event.metaKey || event.ctrlKey) &&
+        (event.key === "ArrowUp" || event.key === "ArrowDown")
+      ) {
         const ids = order.current;
         if (ids.length === 0) return;
         event.preventDefault();
@@ -135,17 +146,42 @@ export function App() {
     go("documents");
   };
 
+  const newSkill = async () => {
+    const { skill } = await api.createSkill({ name: "New Skill" });
+    setSkillId(skill.id);
+    setMade((n) => n + 1);
+    go("skills");
+  };
+
   // The rail carries the open section's list; the main area carries the one
   // thing chosen from it.
   const list =
     route === "stream" ? (
       <StreamRail selectedId={sourceId} onSelect={setSourceId} onVisibleOrder={onVisibleOrder} />
     ) : route === "projects" ? (
-      <ProjectsRail selectedId={projectId} onSelect={setProjectId} onVisibleOrder={onVisibleOrder} made={made} />
+      <ProjectsRail
+        selectedId={projectId}
+        onSelect={setProjectId}
+        onVisibleOrder={onVisibleOrder}
+        made={made}
+        onNew={() => void newProject()}
+      />
     ) : route === "documents" ? (
-      <DocumentsRail selectedId={documentId} onSelect={setDocumentId} onVisibleOrder={onVisibleOrder} made={made} />
+      <DocumentsRail
+        selectedId={documentId}
+        onSelect={setDocumentId}
+        onVisibleOrder={onVisibleOrder}
+        made={made}
+        onNew={() => void newDocument()}
+      />
     ) : route === "skills" ? (
-      <SkillsRail selectedId={skillId} onSelect={setSkillId} onVisibleOrder={onVisibleOrder} />
+      <SkillsRail
+        selectedId={skillId}
+        onSelect={setSkillId}
+        onVisibleOrder={onVisibleOrder}
+        made={made}
+        onNew={() => void newSkill()}
+      />
     ) : undefined;
 
   return (
@@ -155,10 +191,16 @@ export function App() {
         onRoute={go}
         offline={Boolean(status.error)}
         onFind={() => setFinding(true)}
-        onNew={{ projects: () => void newProject(), documents: () => void newDocument() }}
+        onNew={{
+          projects: () => void newProject(),
+          documents: () => void newDocument(),
+          skills: () => void newSkill(),
+        }}
         list={list}
       >
-        {route === "stream" && <StreamRoute openId={sourceId} onOpen={setSourceId} onOpenDocument={openDocument} />}
+        {route === "stream" && (
+          <StreamRoute openId={sourceId} onOpen={setSourceId} onOpenDocument={openDocument} />
+        )}
         {route === "projects" && (
           <ProjectsRoute openId={projectId} onOpen={setProjectId} onOpenDocument={openDocument} />
         )}

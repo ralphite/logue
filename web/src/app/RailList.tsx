@@ -91,8 +91,25 @@ function useFolds(storageKey: string) {
   return { folded, toggle };
 }
 
-/** The card that appears beside a hovered row, placed next to that row. */
-function PreviewCard({ anchor, children }: { anchor: DOMRect; children: ReactNode }) {
+/**
+ * The card that appears beside a hovered row.
+ *
+ * The pointer can move into it — a preview you cannot reach is one you cannot
+ * read to the end, select a line from, or scroll. Getting there means crossing
+ * the gap between the row and the card, so the card keeps itself open while
+ * the pointer is inside it and the row's own leave is given a moment's grace.
+ */
+function PreviewCard({
+  anchor,
+  onEnter,
+  onLeave,
+  children,
+}: {
+  anchor: DOMRect;
+  onEnter: () => void;
+  onLeave: () => void;
+  children: ReactNode;
+}) {
   const card = useRef<HTMLDivElement>(null);
   const [top, setTop] = useState(anchor.top);
 
@@ -105,16 +122,24 @@ function PreviewCard({ anchor, children }: { anchor: DOMRect; children: ReactNod
     <div
       ref={card}
       role="tooltip"
-      aria-hidden
-      // Fixed and pointer-transparent: it hangs outside the rail's scroll box,
-      // and a card that took the pointer would flicker the row it describes.
-      style={{ position: "fixed", left: anchor.right + 8, top, maxWidth: 320 }}
-      className="logue-float pointer-events-none z-popover grid gap-1 p-2.5 text-xs"
+      // Fixed, because it hangs outside the rail's own scroll box.
+      style={{ position: "fixed", left: anchor.right + GAP, top, maxWidth: 320 }}
+      className="logue-float z-popover grid gap-1 p-2.5 text-xs"
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
     >
+      {/* The bridge across the gap. Without it the pointer leaves the row,
+          lands on nothing, and the card it was heading for closes. */}
+      <span aria-hidden style={{ position: "absolute", right: "100%", top: 0, bottom: 0, width: GAP }} />
       {children}
     </div>
   );
 }
+
+/** Between the rail and the card — small enough to cross without aiming. */
+const GAP = 8;
+/** How long the card waits for a pointer that has left the row it belongs to. */
+const LINGER_MS = 140;
 
 function RailRow({
   entry,
@@ -148,9 +173,11 @@ function RailRow({
       // `min-w-0` because a grid item will not shrink below its content by
       // default: without it a long first line makes every row wider than the
       // rail and the titles run off the edge instead of ending in an ellipsis.
+      // Hover reads above selected, including on the selected row itself: a
+      // row that stops answering the pointer once it is chosen looks disabled.
       className={cn(
         "group/row relative flex min-w-0 items-center rounded-md",
-        active ? "bg-active" : "hover:bg-hover focus-within:bg-hover",
+        active ? "bg-active hover:bg-active-strong" : "hover:bg-hover",
       )}
       onMouseEnter={() => onHover(entry, row.current?.getBoundingClientRect())}
       onMouseLeave={() => onHover(entry, undefined)}
@@ -186,7 +213,7 @@ function RailRow({
           "flex shrink-0 items-center gap-0.5 pr-1",
           // Hovering hides the resting marks to make room, rather than letting
           // the row grow and shift every title under the pointer.
-          !coarse && "group-hover/row:hidden group-focus-within/row:hidden",
+          !coarse && "group-hover/row:hidden",
         )}
       >
         {entry.mark}
@@ -213,11 +240,15 @@ function RailRow({
             onHover(entry, undefined);
             onMenu(entry, { x: rect.left, y: rect.bottom + 2, returnTo: event.currentTarget });
           }}
+          // Revealed by the pointer, or by tabbing onto it — but not by the row
+          // merely being the chosen one. Clicking a row leaves focus inside it,
+          // which kept this sitting on the selected row long after the pointer
+          // had gone somewhere else.
           className={cn(
             "shrink-0 items-center justify-center rounded-md text-muted hover:bg-surface-muted hover:text-ink",
             coarse
               ? "inline-flex size-11"
-              : "hidden size-6 group-hover/row:inline-flex group-focus-within/row:inline-flex",
+              : "hidden size-6 group-hover/row:inline-flex focus-visible:inline-flex",
           )}
         >
           <MoreHorizontal size={14} />
@@ -304,7 +335,8 @@ export function RailList({
   entries: RailEntry[];
   selectedId?: string;
   onSelect: (id: string) => void;
-  empty: string;
+  /** Shown when there is nothing — and, where one can be made, how to make it. */
+  empty: ReactNode;
   loading?: boolean;
   /** Names this list's folds in local storage. */
   storageKey: string;
@@ -319,9 +351,21 @@ export function RailList({
   const [menu, setMenu] = useState<{ entry: RailEntry; at: MenuPoint }>();
   const [hover, setHover] = useState<{ entry: RailEntry; rect: DOMRect }>();
 
+  // Leaving a row does not close the card immediately: the pointer has to
+  // cross the gap to reach it, and closing on the way there makes the card
+  // unreachable. Entering either the row or the card cancels the close.
+  const closing = useRef<number>(undefined);
   const onHover = useCallback((entry: RailEntry, rect?: DOMRect) => {
-    setHover((was) => (rect ? { entry, rect } : was?.entry.id === entry.id ? undefined : was));
+    window.clearTimeout(closing.current);
+    if (rect) {
+      setHover({ entry, rect });
+      return;
+    }
+    closing.current = window.setTimeout(() => setHover(undefined), LINGER_MS);
   }, []);
+  const holdCard = useCallback(() => window.clearTimeout(closing.current), []);
+  const releaseCard = useCallback(() => setHover(undefined), []);
+  useEffect(() => () => window.clearTimeout(closing.current), []);
 
   const onMenu = useCallback((entry: RailEntry, at: MenuPoint) => setMenu({ entry, at }), []);
 
@@ -368,20 +412,16 @@ export function RailList({
 
   const looseRows = withSelected(loose, allRows ? loose.length : RAIL_LIMIT, selectedId);
   const rowsOf = (name: string, rows: RailEntry[]) =>
-    folded.has(name)
-      ? []
-      : withSelected(rows, expanded.has(name) ? rows.length : GROUP_LIMIT, selectedId);
+    folded.has(name) ? [] : withSelected(rows, expanded.has(name) ? rows.length : GROUP_LIMIT, selectedId);
 
   // Published so the keys that step through the rail move to what is actually
   // on screen — stepping onto a row hidden behind a Show more looks broken.
-  const order = [
-    ...pinned,
-    ...shownGroups.flatMap(([name, rows]) => rowsOf(name, rows)),
-    ...looseRows,
-  ].map((row) => row.id);
-  const orderKey = order.join(" ");
+  const order = [...pinned, ...shownGroups.flatMap(([name, rows]) => rowsOf(name, rows)), ...looseRows].map(
+    (row) => row.id,
+  );
+  const orderKey = order.join(" ");
   useEffect(() => {
-    onVisibleOrder?.(orderKey ? orderKey.split(" ") : []);
+    onVisibleOrder?.(orderKey ? orderKey.split(" ") : []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderKey]);
 
@@ -389,15 +429,21 @@ export function RailList({
     return (
       <div role="status" aria-label="Loading" className="grid gap-1.5 px-2 py-2">
         {[70, 90, 55].map((width) => (
-          <span key={width} style={{ width: `${width}%` }} className="h-3 animate-pulse rounded-sm bg-surface-muted" />
+          <span
+            key={width}
+            style={{ width: `${width}%` }}
+            className="h-3 animate-pulse rounded-sm bg-surface-muted"
+          />
         ))}
       </div>
     );
   }
   // One empty state for the whole list. A per-section one would print the same
   // sentence three times on a rail with nothing in it.
+  // An empty section whose only way forward is a `+` that appears on hover is
+  // a dead end. The emptiness itself carries the way out of it.
   if (entries.length === 0) {
-    return <p className="px-2 py-1 text-[11px] text-faint">{empty}</p>;
+    return <div className="grid justify-items-start gap-1 px-2 py-1 text-[11px] text-faint">{empty}</div>;
   }
 
   const row = (entry: RailEntry) => (
@@ -419,10 +465,10 @@ export function RailList({
           <GroupHeading
             name="Pinned"
             count={pinned.length}
-            folded={folded.has(" pinned")}
-            onToggle={() => toggle(" pinned")}
+            folded={folded.has(" pinned")}
+            onToggle={() => toggle(" pinned")}
           />
-          {!folded.has(" pinned") && pinned.map(row)}
+          {!folded.has(" pinned") && pinned.map(row)}
         </>
       )}
 
@@ -463,7 +509,9 @@ export function RailList({
           racing for the same corner is how a right-click ends up reading a
           preview instead. */}
       {hover && !menu && hover.entry.preview && (
-        <PreviewCard anchor={hover.rect}>{hover.entry.preview()}</PreviewCard>
+        <PreviewCard anchor={hover.rect} onEnter={holdCard} onLeave={releaseCard}>
+          {hover.entry.preview()}
+        </PreviewCard>
       )}
       <ContextMenu at={menu?.at} onClose={() => setMenu(undefined)} label="Row actions">
         <MenuHeading>{menu?.entry.title}</MenuHeading>
@@ -477,5 +525,23 @@ export function RailList({
         ))}
       </ContextMenu>
     </div>
+  );
+}
+
+/**
+ * The way out of an empty section, inside the empty section.
+ *
+ * The `+` that makes things lives on the nav row and appears on hover, which
+ * is fine when there is a list to hover near and useless when there is not.
+ */
+export function MakeFirst({ label, onRun }: { label: string; onRun: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onRun}
+      className="rounded-md px-1 py-0.5 text-[11px] text-accent underline decoration-line underline-offset-2 hover:bg-hover"
+    >
+      {label}
+    </button>
   );
 }

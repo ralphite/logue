@@ -13,6 +13,8 @@
   --color-surface-muted: #f6f6f4;
   --color-hover: #f1f1ef;
   --color-active: #ececea;
+  /* One step past active, so hovering the chosen row still answers. */
+  --color-active-strong: #e4e4e1;
 
   --color-ink: #20211f;
   --color-ink-soft: #4e504b;

@@ -89,7 +89,18 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   when the rail collapses.** An icon that jumps sideways on collapse makes the
   two states read as two different apps.
 - **New things are made from a `+` that appears on hover**, on the section that
-  will hold them — not from a permanent button taking a row of its own.
+  will hold them — not from a permanent button taking a row of its own. Every
+  section that can make one has it; a section that cannot says why in its empty
+  state instead of leaving a gap where the control would be.
+- **An empty section carries the way out of it.** A hover-only `+` is useless
+  when there is no list to hover near.
+- **Hover reads above selected.** The chosen row still answers the pointer —
+  one that stops responding once chosen looks disabled. And choosing a row does
+  not leave its actions showing: clicking leaves focus inside the row, which
+  kept the `⋯` pinned open long after the pointer had gone.
+- **A hover card can be moved into.** A preview you cannot reach is one you
+  cannot read to the end, select from, or scroll. The gap between the row and
+  the card is bridged, and leaving the row waits a moment before closing.
 - **The nav and the list it opened are separated by a line**, so the five
   destinations do not read as the top of the list.
 

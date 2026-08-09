@@ -5,7 +5,7 @@ import { api, type Document, type Material, type Project, type Skill, type Topic
 import { ConfirmDelete } from "./ConfirmDelete";
 import { PromptDialog } from "./PromptDialog";
 import { usePins } from "./pins";
-import { RailList, type RailAction, type RailEntry } from "./RailList";
+import { MakeFirst, RailList, type RailAction, type RailEntry } from "./RailList";
 import { useAction, useHost, timeAgo } from "./useHost";
 
 function condense(text: string, limit = 60): string {
@@ -94,7 +94,9 @@ export function StreamRail({
       if (inGroup && !inGroup.has(m.id)) return false;
       if (tag && !(m.tags ?? []).includes(tag)) return false;
       if (!needle) return true;
-      return `${m.content} ${m.source?.title ?? ""} ${(m.tags ?? []).join(" ")}`.toLowerCase().includes(needle);
+      return `${m.content} ${m.source?.title ?? ""} ${(m.tags ?? []).join(" ")}`
+        .toLowerCase()
+        .includes(needle);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materials.data, waiting, reviewing, query, tag, group]);
@@ -109,7 +111,9 @@ export function StreamRail({
     waiting: material.organization?.status === "needs_review" && !material.organization.decided,
     preview: () => (
       <>
-        <p className="line-clamp-6 text-xs leading-[1.5] text-ink">{condense(material.content, 400) || "Empty"}</p>
+        <p className="line-clamp-6 text-xs leading-[1.5] text-ink">
+          {condense(material.content, 400) || "Empty"}
+        </p>
         {material.source?.title && <Fact name="From">{material.source.title}</Fact>}
         {material.projects.length > 0 && (
           <Fact name="In">
@@ -123,7 +127,12 @@ export function StreamRail({
     actions: [
       pinAction(pins.isPinned(material.id), () => pins.toggle(material.id)),
       ...(material.source?.url
-        ? [{ label: "Open where it came from", onRun: () => window.open(material.source?.url, "_blank", "noopener") }]
+        ? [
+            {
+              label: "Open where it came from",
+              onRun: () => window.open(material.source?.url, "_blank", "noopener"),
+            },
+          ]
         : []),
       { label: "Copy text", onRun: () => void navigator.clipboard.writeText(material.content) },
       {
@@ -138,8 +147,10 @@ export function StreamRail({
               const { runs, documents, derived } = await api.dependencies(material.id);
               return [
                 runs.length > 0 && `${runs.length} answer${runs.length === 1 ? "" : "s"} that cited it`,
-                documents.length > 0 && `${documents.length} document${documents.length === 1 ? "" : "s"} built on it`,
-                derived.length > 0 && `${derived.length} thing${derived.length === 1 ? "" : "s"} derived from it`,
+                documents.length > 0 &&
+                  `${documents.length} document${documents.length === 1 ? "" : "s"} built on it`,
+                derived.length > 0 &&
+                  `${derived.length} thing${derived.length === 1 ? "" : "s"} derived from it`,
               ].filter((line): line is string => Boolean(line));
             },
             remove: async () => {
@@ -155,7 +166,10 @@ export function StreamRail({
     <>
       <RailHeader>
         <span className="relative">
-          <Search size={12} className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-faint" />
+          <Search
+            size={12}
+            className="pointer-events-none absolute top-1/2 left-2 -translate-y-1/2 text-faint"
+          />
           <Input
             className="h-7 w-full pl-6 text-xs"
             placeholder="Search"
@@ -236,12 +250,14 @@ export function ProjectsRail({
   onSelect,
   onVisibleOrder,
   made = 0,
+  onNew,
 }: {
   selectedId?: string;
   onSelect: (id: string) => void;
   onVisibleOrder?: (ids: string[]) => void;
   /** Bumped by the rail's `+`, which lives on the nav row above this list. */
   made?: number;
+  onNew?: () => void;
 }) {
   const projects = useHost(() => api.projects(), [made]);
   const pins = usePins("project");
@@ -256,7 +272,9 @@ export function ProjectsRail({
     preview: () => (
       <>
         <p className="text-xs font-[560] text-ink">{project.name}</p>
-        {project.overview && <p className="line-clamp-4 text-[11px] leading-[1.5] text-ink-soft">{project.overview}</p>}
+        {project.overview && (
+          <p className="line-clamp-4 text-[11px] leading-[1.5] text-ink-soft">{project.overview}</p>
+        )}
         <Fact name="Holds">{project.count ?? 0} Sources</Fact>
         {project.updated_at && <Fact name="Touched">{timeAgo(project.updated_at)}</Fact>}
       </>
@@ -307,7 +325,12 @@ export function ProjectsRail({
         onSelect={onSelect}
         onVisibleOrder={onVisibleOrder}
         loading={projects.loading}
-        empty="No Projects yet."
+        empty={
+          <>
+            No Projects yet.
+            {onNew && <MakeFirst label="Start one" onRun={onNew} />}
+          </>
+        }
       />
       <DeleteFromRail doomed={doomed} onDone={() => setDoomed(undefined)} />
       <RenameFromRail renaming={renaming} onDone={() => setRenaming(undefined)} />
@@ -320,66 +343,73 @@ export function DocumentsRail({
   onSelect,
   onVisibleOrder,
   made = 0,
+  onNew,
 }: {
   selectedId?: string;
   onSelect: (id: string) => void;
   onVisibleOrder?: (ids: string[]) => void;
   /** Bumped by the rail's `+`, which lives on the nav row above this list. */
   made?: number;
+  onNew?: () => void;
 }) {
   const documents = useHost(() => api.documents(), [made]);
   const pins = usePins("document");
   const [doomed, setDoomed] = useState<Doomed>();
   const [renaming, setRenaming] = useState<Renaming>();
 
-  const entries: RailEntry[] = pins.pinnedFirst(documents.data?.documents ?? []).map((document: Document) => ({
-    id: document.id,
-    title: document.title || "Untitled",
-    pinned: pins.isPinned(document.id),
-    preview: () => (
-      <>
-        <p className="text-xs font-[560] text-ink">{document.title || "Untitled"}</p>
-        <p className="line-clamp-5 text-[11px] leading-[1.5] text-ink-soft">
-          {condense(document.content, 300) || "Nothing written yet."}
-        </p>
-        <Fact name="Built on">{document.source_ids.length} Sources</Fact>
-        <Fact name="Edited">{timeAgo(document.updated_at)}</Fact>
-      </>
-    ),
-    actions: [
-      pinAction(pins.isPinned(document.id), () => pins.toggle(document.id)),
-      {
-        label: "Rename…",
-        onRun: () =>
-          setRenaming({
-            id: document.id,
-            title: "Rename this Document",
-            name: document.title,
-            save: async (title) => {
-              await api.updateDocument(document.id, { title, expected_revision: document.revision });
-              await documents.refresh();
-            },
-          }),
-      },
-      { label: "Export as Markdown", onRun: () => window.open(api.documentMarkdownUrl(document.id), "_blank") },
-      {
-        label: "Delete",
-        tone: "danger" as const,
-        onRun: () =>
-          setDoomed({
-            id: document.id,
-            title: "Delete this Document",
-            what: document.title || "Untitled",
-            impact: async () => [],
-            kept: "The Sources it was built on stay.",
-            remove: async () => {
-              await api.deleteDocument(document.id);
-              await documents.refresh();
-            },
-          }),
-      },
-    ],
-  }));
+  const entries: RailEntry[] = pins
+    .pinnedFirst(documents.data?.documents ?? [])
+    .map((document: Document) => ({
+      id: document.id,
+      title: document.title || "Untitled",
+      pinned: pins.isPinned(document.id),
+      preview: () => (
+        <>
+          <p className="text-xs font-[560] text-ink">{document.title || "Untitled"}</p>
+          <p className="line-clamp-5 text-[11px] leading-[1.5] text-ink-soft">
+            {condense(document.content, 300) || "Nothing written yet."}
+          </p>
+          <Fact name="Built on">{document.source_ids.length} Sources</Fact>
+          <Fact name="Edited">{timeAgo(document.updated_at)}</Fact>
+        </>
+      ),
+      actions: [
+        pinAction(pins.isPinned(document.id), () => pins.toggle(document.id)),
+        {
+          label: "Rename…",
+          onRun: () =>
+            setRenaming({
+              id: document.id,
+              title: "Rename this Document",
+              name: document.title,
+              save: async (title) => {
+                await api.updateDocument(document.id, { title, expected_revision: document.revision });
+                await documents.refresh();
+              },
+            }),
+        },
+        {
+          label: "Export as Markdown",
+          onRun: () => window.open(api.documentMarkdownUrl(document.id), "_blank"),
+        },
+        {
+          label: "Delete",
+          tone: "danger" as const,
+          onRun: () =>
+            setDoomed({
+              id: document.id,
+              title: "Delete this Document",
+              what: document.title || "Untitled",
+              impact: async () => [],
+              kept: "The Sources it was built on stay.",
+              remove: async () => {
+                await api.deleteDocument(document.id);
+                await documents.refresh();
+              },
+            }),
+        },
+      ],
+    }));
 
   return (
     <>
@@ -390,7 +420,12 @@ export function DocumentsRail({
         onSelect={onSelect}
         onVisibleOrder={onVisibleOrder}
         loading={documents.loading}
-        empty="No Documents yet."
+        empty={
+          <>
+            No Documents yet.
+            {onNew && <MakeFirst label="Start one" onRun={onNew} />}
+          </>
+        }
       />
       <DeleteFromRail doomed={doomed} onDone={() => setDoomed(undefined)} />
       <RenameFromRail renaming={renaming} onDone={() => setRenaming(undefined)} />
@@ -402,12 +437,17 @@ export function SkillsRail({
   selectedId,
   onSelect,
   onVisibleOrder,
+  made = 0,
+  onNew,
 }: {
   selectedId?: string;
   onSelect: (id: string) => void;
   onVisibleOrder?: (ids: string[]) => void;
+  /** Bumped by the rail's `+`, which lives on the nav row above this list. */
+  made?: number;
+  onNew?: () => void;
 }) {
-  const skills = useHost(() => api.skills(), []);
+  const skills = useHost(() => api.skills(), [made]);
   const pins = usePins("skill");
   const [doomed, setDoomed] = useState<Doomed>();
   const [renaming, setRenaming] = useState<Renaming>();
@@ -420,7 +460,9 @@ export function SkillsRail({
     preview: () => (
       <>
         <p className="text-xs font-[560] text-ink">{skill.name}</p>
-        {skill.purpose && <p className="line-clamp-4 text-[11px] leading-[1.5] text-ink-soft">{skill.purpose}</p>}
+        {skill.purpose && (
+          <p className="line-clamp-4 text-[11px] leading-[1.5] text-ink-soft">{skill.purpose}</p>
+        )}
         <Fact name="Appears in">{skill.surfaces.join(", ") || "nowhere yet"}</Fact>
         <Fact name="Version">{skill.revision}</Fact>
         {!skill.enabled && <Fact name="State">Turned off</Fact>}
@@ -460,7 +502,8 @@ export function SkillsRail({
                     const { runs, projects } = await api.skillImpact(skill.id);
                     return [
                       runs > 0 && `${runs} answer${runs === 1 ? "" : "s"} it produced`,
-                      projects.length > 0 && `${projects.length} Project${projects.length === 1 ? "" : "s"} using it`,
+                      projects.length > 0 &&
+                        `${projects.length} Project${projects.length === 1 ? "" : "s"} using it`,
                     ].filter((line): line is string => Boolean(line));
                   },
                   remove: async () => {
@@ -482,7 +525,12 @@ export function SkillsRail({
         onSelect={onSelect}
         onVisibleOrder={onVisibleOrder}
         loading={skills.loading}
-        empty="No Skills yet."
+        empty={
+          <>
+            No Skills yet.
+            {onNew && <MakeFirst label="Write one" onRun={onNew} />}
+          </>
+        }
       />
       <DeleteFromRail doomed={doomed} onDone={() => setDoomed(undefined)} />
       <RenameFromRail renaming={renaming} onDone={() => setRenaming(undefined)} />
