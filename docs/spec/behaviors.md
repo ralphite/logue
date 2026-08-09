@@ -499,3 +499,9 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   has gone is never coming back for it. Conflating the two froze self-update
   permanently on any browser where a recording hit its ceiling with the page
   already gone.
+- **Two voice keys, two destinations, never mixed up.** ⌘⇧Space is dictation on
+  the page: what you say is *text*, and it lands at the caret with no gate in
+  between. ⌘⇧K is the command key: it opens the panel and starts listening, and
+  what you say is an *instruction to Logue*, which becomes a message in the
+  conversation. Anything that proposes moving words from one path to the other
+  has confused them.
