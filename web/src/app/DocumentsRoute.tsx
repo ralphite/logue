@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button, ErrorNote, OriginMark, SourceLink, Spinner, originOf } from "@logue/ui";
 import { api, ApiError, type Document as DocumentRecord, type Material } from "../api";
 import { DRAFT, Nothing, Page } from "./AppShell";
-import { DocumentHistory } from "./DocumentHistory";
+import { DOCUMENT, History } from "./History";
 import { timeAgo, useAction, useHost } from "./useHost";
 const AUTOSAVE_MS = 900;
 /** How far a title taken from the body follows it. */
@@ -288,7 +288,8 @@ function DocumentEditor({
           </footer>
 
           {!draft && (
-            <DocumentHistory
+            <History
+              kind={DOCUMENT}
               id={id}
               open={looking}
               onClose={() => setLooking(false)}

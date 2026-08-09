@@ -291,12 +291,6 @@ class App:
             store.documents.delete(request.params["id"])
             return {"ok": True}
 
-        @route("GET", "/v1/documents/{id}/revisions")
-        def document_revisions(request: Request) -> dict[str, Any]:
-            document = store.documents.get(request.params["id"])
-            kept = [r for r in store.doc_revisions.list() if r.get("doc_id") == document["id"]]
-            return {"current": document, "revisions": kept}
-
         @route("POST", "/v1/documents/{id}/name")
         def name_document(request: Request) -> dict[str, Any]:
             return {"document": documents.suggest_title(store, self.provider(), request.params["id"])}
@@ -332,11 +326,17 @@ class App:
         def patch_skill(request: Request) -> dict[str, Any]:
             return {"skill": skills.update(store, request.params["id"], request.json())}
 
-        @route("GET", "/v1/skills/{id}/revisions")
-        def skill_revisions(request: Request) -> dict[str, Any]:
-            skill = store.skills.get(request.params["id"])
-            kept = [r for r in store.skill_revisions.list() if r.get("skill_id") == skill["id"]]
-            return {"current": skill, "revisions": kept}
+        @route("GET", "/v1/skills/{id}/versions")
+        def skill_versions(request: Request) -> dict[str, Any]:
+            return {"versions": skills.versions(store, request.params["id"])}
+
+        @route("GET", "/v1/skills/{id}/versions/{revision}/diff")
+        def skill_diff(request: Request) -> dict[str, Any]:
+            return {"lines": skills.diff(store, request.params["id"], int(request.params["revision"]))}
+
+        @route("POST", "/v1/skills/{id}/versions/{revision}/restore")
+        def restore_skill(request: Request) -> dict[str, Any]:
+            return {"skill": skills.restore(store, request.params["id"], int(request.params["revision"]))}
 
         @route("GET", "/v1/skills/{id}/archive-impact")
         def skill_archive_impact(request: Request) -> dict[str, Any]:

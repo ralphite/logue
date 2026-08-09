@@ -164,6 +164,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   after the save, never in front of it — autosave is a pause someone can feel.
   Where no model can answer, the counted line stands in; a history row that
   says nothing at all reads as a broken row.
+- **A Skill's prompt has the same history, reached the same way.** The
+  revision number on the Skill page opens it; every past prompt can be read,
+  diffed and gone back to. Going back is a new revision, so the numbers Runs
+  recorded keep pointing at prompts that exist. No model writes summary lines
+  here — a person edits a prompt by hand and the diff is the story.
 
 ## Provenance — the part that cannot bend
 

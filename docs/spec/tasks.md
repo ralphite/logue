@@ -10,8 +10,8 @@
 
 | | 任务 | 为什么在这 |
 |---|---|---|
-| **B3** | Skill 版本浏览 | Skill 一直在存版本,没有任何地方读回来 —— 和文档在 V5 之前一模一样的窟窿 |
-| **R12** | 竞品扫描,以及它翻出来的东西 | 它等的那次重建已经结束了 |
+| **X10** | "Already recording." 不该出现 | 你 08-09 04:37 截图报的。抛这句话的代码已在 B14 里删掉,装机构建 04:30:53 已换新;你撞见的是换代前的旧 worker。剩下要证:旧构建里卡住的录音器,自更新 reload 会不会带走 |
+| **R12** | 竞品扫描,以及它翻出来的东西 | 你的原话点了方向:"anywhere voice input with customizable skills, notion's skills in docs, lineage of all content, content gen from sources, pkm"。做完研究把值得的功能补上,"polish the ux/product design/features to make it very good. keep pushing automatically in this way" |
 
 ## 等你拍板
 
@@ -31,6 +31,10 @@
 - **新的要求进队列,不插到手上这件前面** —— 除非它现在就是坏的。
 - **每一条被要求的行为,在被提出的当下就写下来**,让重写不能悄悄把它弄丢。
 - **竞品的功能清单是菜单,不是命令。** 值得的留下,其余删掉。标准是极简、一眼就懂,不是"抄全"。
+- **加回旧功能、采纳竞品功能,先列清单等你确认。** 你的原话是 "do not add back before i confirm"。
+- **现有功能默认保留。** 你的原话是 "default to keep all unless very unnecessary"。
+- **持续打磨不是一次性任务。** 你的原话是 "polish the ux/product design/features to make it very good. keep pushing automatically in this way"。
+- **只在这个会话里干活。** 你的原话是 "only work in this session"。
 - **在真实浏览器里、用真实 Host 和真实模型验证。** 不拿 mock 顶替。
 - **验证写进 "Logue QA" Project,并且不删任何东西。**
 - **一台机器只有一套** —— 一份代码、一个 Host、一个扩展 —— 而且全部装好、跑着,随时能查,不需要开终端。
@@ -43,6 +47,8 @@
 **一台机器一个 Logue(M1)** —— Host 自己托管应用(`http://127.0.0.1:8787`),并且是会自动重启的登录项;v0.2.13 那套安装、它的十个 release 和它的登录项都清掉了。你的原话是 "there should be just one version in code and running service/extension … installed/running so that i can use/check anytime"。
 
 **文档** —— 能读能回滚的版本历史(V5)、模型写出每个版本改了什么(V2)、标题在没人取名之前自己取名(V4)、打开的是哪一篇写进 URL(V8)。这三项来自 vibedoc 复核(U4)并经你确认。
+
+**Skill 版本浏览(B3)** —— Skill 页上的 Revision 数字现在能点进去:每个旧 prompt 能读、能看逐行 diff、能回滚。回滚写成新版本,Run 记下的版本号永远指向还存在的 prompt。历史对话框和文档共用一个组件,Host 侧的 diff 算术也收敛成一份。
 
 **不碰过就不落盘(X7)** —— 连点 `+` 五次不再留下五条空记录。你的原话是 "if a new doc/skill/proj is never touched it should not be saved"。
 

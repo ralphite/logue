@@ -769,6 +769,62 @@ class DocumentHistory(Workspace, unittest.TestCase):
             self.call("POST", f"/v1/documents/{document_id}/versions/99/restore")
 
 
+class SkillHistory(Workspace, unittest.TestCase):
+    """A prompt's past. Every edit was already written down; now it reads back."""
+
+    def three_versions(self) -> str:
+        skill = self.call("POST", "/v1/skills", {"name": "Summarize", "instructions": "Be brief."})["skill"]
+        self.call("PATCH", f"/v1/skills/{skill['id']}", {"instructions": "Be brief.\nCite sources."})
+        self.call("PATCH", f"/v1/skills/{skill['id']}", {"instructions": "Be brief.\nCite sources.\nNo lists."})
+        return skill["id"]
+
+    def test_the_current_prompt_is_in_the_history(self) -> None:
+        versions = self.call("GET", f"/v1/skills/{self.three_versions()}/versions")["versions"]
+        self.assertEqual([v["revision"] for v in versions], [3, 2, 1], "newest first")
+        self.assertTrue(versions[0]["current"], "the newest version is the Skill itself")
+
+    def test_a_prompt_nobody_has_edited_still_has_a_history(self) -> None:
+        # A list that is empty until the first edit reads as "nothing is kept".
+        skill = self.call("POST", "/v1/skills", {"name": "Untouched", "instructions": "As shipped."})["skill"]
+        versions = self.call("GET", f"/v1/skills/{skill['id']}/versions")["versions"]
+        self.assertEqual([v["revision"] for v in versions], [1])
+        self.assertTrue(versions[0]["current"])
+
+    def test_each_version_says_what_it_changed(self) -> None:
+        versions = self.call("GET", f"/v1/skills/{self.three_versions()}/versions")["versions"]
+        by_revision = {v["revision"]: v for v in versions}
+        self.assertEqual((by_revision[3]["added"], by_revision[3]["removed"]), (1, 0))
+        self.assertEqual((by_revision[1]["added"], by_revision[1]["removed"]), (1, 0), "the first is all new")
+
+    def test_the_diff_marks_both_sides(self) -> None:
+        skill_id = self.three_versions()
+        self.call("PATCH", f"/v1/skills/{skill_id}", {"instructions": "Be brief.\nCite sources.\nUse lists."})
+        lines = self.call("GET", f"/v1/skills/{skill_id}/versions/4/diff")["lines"]
+        self.assertEqual([line["text"] for line in lines if line["kind"] == "removed"], ["No lists."])
+        self.assertEqual([line["text"] for line in lines if line["kind"] == "added"], ["Use lists."])
+
+    def test_going_back_keeps_the_prompt_every_run_used(self) -> None:
+        # The reason revisions are stored at all: a Run records the revision it
+        # ran with, so no restore may make that number point at nothing.
+        skill_id = self.three_versions()
+        self.call("POST", f"/v1/skills/{skill_id}/versions/1/restore")
+
+        after = self.call("GET", "/v1/skills")["skills"]
+        restored = next(s for s in after if s["id"] == skill_id)
+        self.assertEqual(restored["revision"], 4, "going back is itself an edit")
+        self.assertEqual(restored["instructions"], "Be brief.")
+
+        revisions = [v["revision"] for v in self.call("GET", f"/v1/skills/{skill_id}/versions")["versions"]]
+        self.assertEqual(revisions, [4, 3, 2, 1], "nothing was thrown away to make room")
+
+    def test_asking_for_a_version_that_never_existed_says_so(self) -> None:
+        skill_id = self.three_versions()
+        with self.assertRaises(NotFound):
+            self.call("GET", f"/v1/skills/{skill_id}/versions/99/diff")
+        with self.assertRaises(NotFound):
+            self.call("POST", f"/v1/skills/{skill_id}/versions/99/restore")
+
+
 class NamingADocument(Workspace, unittest.TestCase):
     """Who is allowed to name a document, and how many times."""
 

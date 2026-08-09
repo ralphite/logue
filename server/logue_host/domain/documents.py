@@ -6,7 +6,6 @@ records edits rather than keystrokes.
 
 from __future__ import annotations
 
-import difflib
 import re
 from typing import Any
 
@@ -14,6 +13,7 @@ from ..errors import BadRequest, Conflict, NotFound, Unavailable
 from ..ids import new_id, now
 from ..providers import Provider
 from ..store import Record, Store
+from . import history
 
 
 # -- who named it -----------------------------------------------------------
@@ -213,17 +213,6 @@ def _lines(content: str) -> list[str]:
     return [line for line in as_text(content).splitlines() if line.strip()]
 
 
-def _counts(before: str, after: str) -> tuple[int, int]:
-    diff = difflib.ndiff(_lines(before), _lines(after))
-    added = removed = 0
-    for line in diff:
-        if line.startswith("+ "):
-            added += 1
-        elif line.startswith("- "):
-            removed += 1
-    return added, removed
-
-
 def versions(store: Store, document_id: str) -> list[Record]:
     """The document's history, newest first, each saying what it changed.
 
@@ -231,21 +220,29 @@ def versions(store: Store, document_id: str) -> list[Record]:
     read as "the old ones", with nothing saying where they end and now begins.
     """
     document = store.documents.get(document_id)
-    rows = _kept(store, document_id)
-    timeline = [
-        *[{"id": r["id"], "revision": int(r.get("revision") or 0), "content": str(r.get("content") or ""),
-           "created_at": r.get("created_at"), "summary": r.get("summary"),
-           "summary_state": r.get("summary_state")} for r in rows],
-        {"id": "", "revision": int(document.get("revision") or 1), "content": str(document.get("content") or ""),
-         "created_at": document.get("updated_at"), "current": True},
-    ]
-    out = []
-    for index, version in enumerate(timeline):
-        before = timeline[index - 1]["content"] if index else ""
-        added, removed = _counts(before, version["content"])
-        out.append({**{k: v for k, v in version.items() if k != "content"}, "added": added, "removed": removed})
-    out.reverse()
-    return out
+    return history.stack(
+        [
+            *[
+                {
+                    "id": r["id"],
+                    "revision": int(r.get("revision") or 0),
+                    "text": str(r.get("content") or ""),
+                    "created_at": r.get("created_at"),
+                    "summary": r.get("summary"),
+                    "summary_state": r.get("summary_state"),
+                }
+                for r in _kept(store, document_id)
+            ],
+            {
+                "id": "",
+                "revision": int(document.get("revision") or 1),
+                "text": str(document.get("content") or ""),
+                "created_at": document.get("updated_at"),
+                "current": True,
+            },
+        ],
+        _lines,
+    )
 
 
 def diff(store: Store, document_id: str, revision: int) -> list[Record]:
@@ -256,25 +253,10 @@ def diff(store: Store, document_id: str, revision: int) -> list[Record]:
     at = next((i for i, r in enumerate(timeline) if int(r.get("revision") or 0) == revision), None)
     if at is None:
         raise NotFound(f"This document has no version {revision}.")
-
-    before = _lines(str(timeline[at - 1].get("content") or "")) if at else []
-    after = _lines(str(timeline[at].get("content") or ""))
-
-    lines: list[Record] = []
-    old = new = 0
-    for chunk in difflib.ndiff(before, after):
-        mark, text = chunk[:2], chunk[2:]
-        if mark == "  ":
-            old, new = old + 1, new + 1
-            lines.append({"kind": "same", "text": text, "old": old, "new": new})
-        elif mark == "- ":
-            old += 1
-            lines.append({"kind": "removed", "text": text, "old": old, "new": None})
-        elif mark == "+ ":
-            new += 1
-            lines.append({"kind": "added", "text": text, "old": None, "new": new})
-        # "? " lines are ndiff's own hint markers, not content.
-    return lines
+    return history.compare(
+        _lines(str(timeline[at - 1].get("content") or "")) if at else [],
+        _lines(str(timeline[at].get("content") or "")),
+    )
 
 
 def newest_unwritten(store: Store, document_id: str) -> str | None:

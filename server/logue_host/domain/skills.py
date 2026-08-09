@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..errors import BadRequest
+from ..errors import BadRequest, NotFound
 from ..ids import new_id, now
 from ..store import Record, Store
+from . import history
 
 BUILT_INS: list[dict[str, Any]] = [
     {
@@ -134,6 +135,88 @@ def update(store: Store, skill_id: str, changes: dict[str, Any]) -> Record:
     skill.update(changes)
     skill["updated_at"] = now()
     return store.skills.put(skill)
+
+
+# -- history --------------------------------------------------------------
+#
+# Every prompt edit has been written down since Skills existed, because a Run
+# has to stay explainable after its prompt changes. Nothing read them back, so
+# the cost was paid and the safety was not: a prompt you had tuned for weeks
+# could be wrecked by one careless edit with no way to see what it used to say.
+
+
+def _kept(store: Store, skill_id: str) -> list[Record]:
+    """Every stored revision of one Skill, oldest first.
+
+    A row holds the prompt as it was *before* the edit that replaced it. The
+    newest prompt is not in here — it is the Skill itself.
+    """
+    rows = [r for r in store.skill_revisions.list() if r.get("skill_id") == skill_id]
+    return sorted(rows, key=lambda r: int(r.get("revision") or 0))
+
+
+def _lines(instructions: str) -> list[str]:
+    """A prompt's lines. Blank ones are spacing, not instructions."""
+    return [line for line in (instructions or "").splitlines() if line.strip()]
+
+
+def versions(store: Store, skill_id: str) -> list[Record]:
+    """The Skill's prompt history, newest first, each saying what it changed.
+
+    No model writes a line about a prompt edit the way it does for a document.
+    A person edits a prompt by hand and knows what they typed; the diff is right
+    there, and a sentence generated about two changed words is noise.
+    """
+    skill = store.skills.get(skill_id)
+    return history.stack(
+        [
+            *[
+                {
+                    "id": r["id"],
+                    "revision": int(r.get("revision") or 0),
+                    "text": str(r.get("instructions") or ""),
+                    "created_at": r.get("created_at"),
+                }
+                for r in _kept(store, skill_id)
+            ],
+            {
+                "id": "",
+                "revision": int(skill.get("revision") or 1),
+                "text": str(skill.get("instructions") or ""),
+                "created_at": skill.get("updated_at"),
+                "current": True,
+            },
+        ],
+        _lines,
+    )
+
+
+def diff(store: Store, skill_id: str, revision: int) -> list[Record]:
+    """What one prompt version changed, line by line, against the one before it."""
+    skill = store.skills.get(skill_id)
+    timeline = [
+        *_kept(store, skill_id),
+        {"revision": int(skill.get("revision") or 1), "instructions": skill.get("instructions")},
+    ]
+    at = next((i for i, r in enumerate(timeline) if int(r.get("revision") or 0) == revision), None)
+    if at is None:
+        raise NotFound(f"This Skill has no version {revision}.")
+    return history.compare(
+        _lines(str(timeline[at - 1].get("instructions") or "")) if at else [],
+        _lines(str(timeline[at].get("instructions") or "")),
+    )
+
+
+def restore(store: Store, skill_id: str, revision: int) -> Record:
+    """Bring an old prompt back as a new edit.
+
+    Written forward, like a document's: the versions in between stay, and Runs
+    that used them still point at a prompt that exists.
+    """
+    found = next((r for r in _kept(store, skill_id) if int(r.get("revision") or 0) == revision), None)
+    if found is None:
+        raise NotFound(f"This Skill has no version {revision} to go back to.")
+    return update(store, skill_id, {"instructions": str(found.get("instructions") or "")})
 
 
 def archive_impact(store: Store, skill_id: str) -> dict[str, Any]:

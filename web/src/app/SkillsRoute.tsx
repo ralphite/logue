@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button, ErrorNote, Field, Input, Select, Spinner, Textarea } from "@logue/ui";
 import { api, type Skill } from "../api";
 import { DRAFT, Nothing, Page } from "./AppShell";
+import { History, SKILL } from "./History";
 import { NewNamed } from "./NewNamed";
 import { ConfirmDelete } from "./ConfirmDelete";
 import { useAction, useHost } from "./useHost";
@@ -26,6 +27,7 @@ export function SkillsRoute({
   const skills = useHost(() => api.skills(), []);
   const [draft, setDraft] = useState<Partial<Skill>>();
   const [deleting, setDeleting] = useState<Skill>();
+  const [looking, setLooking] = useState(false);
   const action = useAction();
 
   const skill = (skills.data?.skills ?? []).find((item) => item.id === openId);
@@ -119,8 +121,33 @@ export function SkillsRoute({
           placeholder="Tell the model exactly what to produce."
           aria-label="Instructions"
         />
-        <p className="text-meta text-faint">Revision {skill.revision}. Runs keep the revision they used.</p>
+        {/* The revision number was printed here and led nowhere, while every
+            past prompt sat in storage unread. Making the number the way in
+            costs the page no new control. */}
+        <p className="text-meta text-faint">
+          <button
+            type="button"
+            onClick={() => setLooking(true)}
+            className="rounded-md underline decoration-line underline-offset-2 hover:text-ink"
+          >
+            Revision {skill.revision}
+          </button>
+          . Runs keep the revision they used.
+        </p>
       </div>
+
+      <History
+        kind={SKILL}
+        id={skill.id}
+        open={looking}
+        onClose={() => setLooking(false)}
+        onRestored={() => {
+          // The prompt on screen is now the old one; the editor is showing
+          // whatever was typed before the dialog opened.
+          setDraft(undefined);
+          void skills.refresh();
+        }}
+      />
 
       <ConfirmDelete
         open={Boolean(deleting)}

@@ -114,15 +114,16 @@ export interface Run {
   created_at: string;
 }
 
-export interface DocumentVersion {
-  /** Empty for the version that is the document as it stands. */
+/** One version of something that keeps a history — a document, or a Skill's prompt. */
+export interface Version {
+  /** Empty for the version that is the thing as it stands. */
   id: string;
   revision: number;
   created_at?: string;
   added: number;
   removed: number;
   current?: boolean;
-  /** What changed, in words. Written by a model, so it arrives late. */
+  /** What changed, in words. Written by a model, so it arrives late — documents only. */
   summary?: string;
   summary_state?: "pending" | "ready" | "failed";
 }
@@ -298,7 +299,7 @@ export const api = {
   documentMarkdownUrl: (id: string) => `${HOST}/v1/documents/${id}/markdown`,
 
   /** Every version of a document, newest first, each saying what it changed. */
-  documentVersions: (id: string) => request<{ versions: DocumentVersion[] }>(`/v1/documents/${id}/versions`),
+  documentVersions: (id: string) => request<{ versions: Version[] }>(`/v1/documents/${id}/versions`),
   documentDiff: (id: string, revision: number) =>
     request<{ lines: DiffLine[] }>(`/v1/documents/${id}/versions/${revision}/diff`),
   /** Written forward as a new edit, so the versions in between survive. */
@@ -310,6 +311,14 @@ export const api = {
   updateSkill: (id: string, changes: Partial<Skill>) => send<{ skill: Skill }>("PATCH", `/v1/skills/${id}`, changes),
   skillImpact: (id: string) => request<{ runs: number; projects: string[] }>(`/v1/skills/${id}/archive-impact`),
   deleteSkill: (id: string) => send<{ ok: true }>("DELETE", `/v1/skills/${id}`),
+
+  /** Every version of a Skill's prompt, newest first. Runs point at these numbers. */
+  skillVersions: (id: string) => request<{ versions: Version[] }>(`/v1/skills/${id}/versions`),
+  skillDiff: (id: string, revision: number) =>
+    request<{ lines: DiffLine[] }>(`/v1/skills/${id}/versions/${revision}/diff`),
+  /** Written forward as a new edit, so no Run is left pointing at a revision that went away. */
+  restoreSkill: (id: string, revision: number) =>
+    send<{ skill: Skill }>("POST", `/v1/skills/${id}/versions/${revision}/restore`, {}),
 
   runs: (project?: string) =>
     request<{ runs: Run[] }>(`/v1/runs${project ? `?project=${encodeURIComponent(project)}` : ""}`),

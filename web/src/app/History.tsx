@@ -1,8 +1,37 @@
 import { ChevronLeft, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button, Dialog, DialogActions, ErrorNote, Spinner, cn } from "@logue/ui";
-import { api, type DocumentVersion } from "../api";
+import { api, type DiffLine, type Version } from "../api";
 import { timeAgo, useAction, useHost } from "./useHost";
+
+/**
+ * What keeps a history, and what going back to it costs.
+ *
+ * Written out here rather than passed in from each page: these have to keep
+ * the same identity between renders, and an inline `() => api.…` would ask the
+ * Host again on every keystroke in the editor behind the dialog.
+ */
+export interface Kind {
+  versions: (id: string) => Promise<{ versions: Version[] }>;
+  diff: (id: string, revision: number) => Promise<{ lines: DiffLine[] }>;
+  restore: (id: string, revision: number) => Promise<unknown>;
+  /** One line under the list, in this thing's own terms. */
+  note: string;
+}
+
+export const DOCUMENT: Kind = {
+  versions: api.documentVersions,
+  diff: api.documentDiff,
+  restore: api.restoreDocument,
+  note: "Going back keeps everything — it is written as a new version.",
+};
+
+export const SKILL: Kind = {
+  versions: api.skillVersions,
+  diff: api.skillDiff,
+  restore: api.restoreSkill,
+  note: "Going back is a new revision. Runs keep pointing at the prompt they actually ran with.",
+};
 
 /** How long to wait between asking whether the missing lines have arrived. */
 const SUMMARY_WAIT_MS = 1500;
@@ -21,7 +50,7 @@ function Change({ added, removed }: { added: number; removed: number }) {
   );
 }
 
-function Version({ version, onOpen }: { version: DocumentVersion; onOpen: () => void }) {
+function Entry({ version, onOpen }: { version: Version; onOpen: () => void }) {
   return (
     <button
       type="button"
@@ -49,8 +78,8 @@ function Version({ version, onOpen }: { version: DocumentVersion; onOpen: () => 
 }
 
 /** One version's changes, against the version before it. */
-function Diff({ id, revision }: { id: string; revision: number }) {
-  const lines = useHost(() => api.documentDiff(id, revision), [id, revision]);
+function Diff({ kind, id, revision }: { kind: Kind; id: string; revision: number }) {
+  const lines = useHost(() => kind.diff(id, revision), [kind, id, revision]);
   if (lines.loading) {
     return (
       <p className="flex items-center gap-2 px-2 py-4 text-xs text-muted">
@@ -67,7 +96,7 @@ function Diff({ id, revision }: { id: string; revision: number }) {
     <div className="logue-scroll max-h-80 rounded-md border border-line">
       {found.map((line) => (
         // A diff line is identified by where it sits on each side: two
-        // identical lines in one document are still different lines.
+        // identical lines in one text are still different lines.
         <p
           key={`${line.kind}:${line.old}:${line.new}`}
           className={cn(
@@ -80,7 +109,7 @@ function Diff({ id, revision }: { id: string; revision: number }) {
           <span aria-hidden className="w-3 shrink-0 select-none text-center font-mono">
             {line.kind === "added" ? "+" : line.kind === "removed" ? "−" : ""}
           </span>
-          <span className="min-w-0 flex-1 whitespace-pre-wrap">{line.text || " "}</span>
+          <span className="min-w-0 flex-1 whitespace-pre-wrap">{line.text || " "}</span>
         </p>
       ))}
     </div>
@@ -88,35 +117,38 @@ function Diff({ id, revision }: { id: string; revision: number }) {
 }
 
 /**
- * Everything this document has been.
+ * Everything a document — or a Skill's prompt — has been.
  *
- * Every edit has been written down since the first one; until now there was no
- * screen that could read them back, which is the worst of both costs — the
+ * Both have written every edit down since they existed; until now neither had
+ * a screen that could read them back, which is the worst of both costs: the
  * storage without the safety. Going back is written forward as a new edit, so
  * the versions it skipped over are still there afterwards.
  */
-export function DocumentHistory({
+export function History({
+  kind,
   id,
   open,
   onClose,
   onRestored,
 }: {
+  kind: Kind;
   id: string;
   open: boolean;
   onClose: () => void;
-  /** The document changed under the editor; it has to re-read. */
+  /** It changed underneath the editor; the page has to re-read. */
   onRestored: () => void;
 }) {
-  const [looking, setLooking] = useState<DocumentVersion>();
+  const [looking, setLooking] = useState<Version>();
   const versions = useHost(
-    () => (open ? api.documentVersions(id) : Promise.resolve({ versions: [] })),
-    [id, open],
+    () => (open ? kind.versions(id) : Promise.resolve({ versions: [] })),
+    [kind, id, open],
   );
   const action = useAction();
 
-  // A model is writing the lines that are still missing. Ask again until they
-  // arrive, then stop — and give up rather than poll forever, because a model
-  // that never answers should leave a list you can still read.
+  // A model is writing the lines that are still missing — documents only, and
+  // only for a while. Ask again until they arrive, then stop; give up rather
+  // than poll forever, because a model that never answers should still leave a
+  // list you can read.
   const waiting = (versions.data?.versions ?? []).some((one) => one.summary_state === "pending");
   const [tries, setTries] = useState(0);
   useEffect(() => {
@@ -152,7 +184,7 @@ export function DocumentHistory({
           >
             <ChevronLeft size={13} /> All versions
           </button>
-          <Diff id={id} revision={looking.revision} />
+          <Diff kind={kind} id={id} revision={looking.revision} />
           <DialogActions>
             <Button onClick={close}>Close</Button>
             {!looking.current && (
@@ -163,7 +195,7 @@ export function DocumentHistory({
                 onClick={() =>
                   void action
                     .run(async () => {
-                      await api.restoreDocument(id, looking.revision);
+                      await kind.restore(id, looking.revision);
                       onRestored();
                     })
                     .then((ok) => ok && close())
@@ -182,12 +214,10 @@ export function DocumentHistory({
         <>
           <div className="logue-scroll -mx-1 max-h-80">
             {(versions.data?.versions ?? []).map((version) => (
-              <Version key={version.revision} version={version} onOpen={() => setLooking(version)} />
+              <Entry key={version.revision} version={version} onOpen={() => setLooking(version)} />
             ))}
           </div>
-          <p className="text-[11px] text-faint">
-            Going back keeps everything — it is written as a new version.
-          </p>
+          <p className="text-[11px] text-faint">{kind.note}</p>
           <DialogActions>
             <Button onClick={close}>Close</Button>
           </DialogActions>
