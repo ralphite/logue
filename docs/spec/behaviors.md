@@ -392,3 +392,6 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   Choosing one opens the panel and shows what ran and what came back, in that
   order. The page is kept as a Source first, so the answer stands on something
   that can be followed afterwards.
+- **Work that is done and verified is committed, and pushed when it can be.**
+  Something that exists only on this machine is one failure away from never
+  having happened.
