@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { all, forget, keep, LIMIT } from "./pending";
+import { all, BUDGET, forget, keep, LIMIT } from "./pending";
 
 /** Just enough of `chrome.storage.local` to hold one key. */
 function stubStorage(): { store: Record<string, unknown>; fail: () => void } {
@@ -51,6 +51,17 @@ describe("recordings the Host was not there to take", () => {
     // The caller says so out loud; it does not pretend the audio was kept.
     expect(await keep(recording("one too many"))).toBe(false);
     expect(await all()).toHaveLength(LIMIT);
+  });
+
+  it("stops at the byte budget, not only at the count", async () => {
+    // Ten one-minute notes fit; ten ten-minute ones are two and a half times
+    // what this storage holds. Counting recordings was the wrong unit, and the
+    // quota would have refused the write instead of us refusing it.
+    stubStorage();
+    const long = "a".repeat(Math.floor(BUDGET / 2) + 1);
+    expect(await keep(recording(long))).toBe(true);
+    expect(await keep(recording(long))).toBe(false);
+    expect(await all()).toHaveLength(1);
   });
 
   it("says no rather than yes when storage refuses", async () => {

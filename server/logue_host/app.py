@@ -434,6 +434,18 @@ class App:
                 nearby=str(body.get("nearby") or ""),
             )
 
+        @route("POST", "/v1/captures/{id}/transcribe")
+        def transcribe_kept(request: Request) -> dict[str, Any]:
+            body = request.json()
+            return capture.transcribe_kept(
+                store,
+                self.provider(),
+                capture_id=request.params["id"],
+                project=str(body.get("project") or ""),
+                overrides=body.get("overrides"),
+                nearby=str(body.get("nearby") or ""),
+            )
+
         @route("POST", "/v1/voice-materials")
         def save_voice(request: Request) -> dict[str, Any]:
             body = request.json()

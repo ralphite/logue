@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..errors import BadRequest
+from ..errors import BadRequest, HostError, NotFound
 from ..ids import new_id, now
 from ..providers import Provider
 from ..store import Record, Store
@@ -139,7 +139,14 @@ def transcribe(
     store.save_audio(capture_id, audio, media_type)
     plan = transcription_plan(store, project, overrides, nearby)
     store.save_capture_context(capture_id, plan["applied"])
-    text = provider.transcribe(audio, media_type, str(plan["instructions"]))
+    try:
+        text = provider.transcribe(audio, media_type, str(plan["instructions"]))
+    except HostError as failure:
+        # The audio is already on disk — it was written before the model was
+        # asked, on purpose. But the caller only ever saw the failure, so the
+        # recording sat there unreachable, which is the same as lost. The id
+        # goes out with the error, and `transcribe_kept` picks it up again.
+        raise type(failure)(failure.message, capture_id=capture_id, **failure.details) from failure
 
     return {
         "capture_id": capture_id,
@@ -148,6 +155,44 @@ def transcribe(
         "applied_context": plan["applied"],
         "created_at": now(),
     }
+
+
+def transcribe_kept(
+    store: Store,
+    provider: Provider,
+    *,
+    capture_id: str,
+    project: str = "",
+    overrides: dict[str, Any] | None = None,
+    nearby: str = "",
+) -> dict[str, Any]:
+    """Try again on a recording that is already here.
+
+    The audio outlives a failed model call, and this is how a person gets back
+    to it — otherwise "the recording was kept" is a claim with nothing behind
+    it. Nothing is written again: the same capture id, the same audio.
+    """
+    path = store.audio_path(capture_id)
+    if not path:
+        raise NotFound("That recording is no longer here.")
+    audio = path.read_bytes()
+    plan = transcription_plan(store, project, overrides, nearby)
+    store.save_capture_context(capture_id, plan["applied"])
+    text = provider.transcribe(audio, _media_type_of(path), str(plan["instructions"]))
+    return {
+        "capture_id": capture_id,
+        "text": text,
+        "applied_context": plan["applied"],
+        "created_at": now(),
+    }
+
+
+def _media_type_of(path: Any) -> str:
+    """From the file's own name, which is how the audio was filed."""
+    suffix = str(getattr(path, "suffix", "")).lstrip(".").lower()
+    return {"webm": "audio/webm", "mp4": "audio/mp4", "m4a": "audio/mp4", "ogg": "audio/ogg"}.get(
+        suffix, "audio/webm"
+    )
 
 
 def save_voice(

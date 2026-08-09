@@ -1,6 +1,6 @@
 import { ChevronDown, GripVertical, Mic, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
-import { Button, IconButton, RecordingDot, Spinner } from "@logue/ui";
+import { Button, IconButton, RecordingDot, Spinner, cn } from "@logue/ui";
 import { ProfilePicker } from "./ProfilePicker";
 import type { Context } from "../api";
 import type { VoiceOverrides } from "../overrides";
@@ -18,11 +18,20 @@ const NUDGE_FAR = 48;
  * chevron — three icons, nothing to read. Everything it can do beyond starting
  * a recording is behind that chevron.
  */
+/** Seconds as a clock, which is how anyone reads a duration. */
+function clock(seconds: number): string {
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
 export function VoiceBar({
   phase,
   style,
   error,
   context,
+  seconds = 0,
+  long = false,
+  keptCapture,
+  onRetry,
   onStart,
   onCommand,
   onStop,
@@ -37,6 +46,13 @@ export function VoiceBar({
   style?: CSSProperties;
   error?: string;
   context?: Context;
+  /** How long this recording has run. */
+  seconds?: number;
+  /** Past a minute. A long recording must not run silently. */
+  long?: boolean;
+  /** A recording the Host kept when the words failed. */
+  keptCapture?: string;
+  onRetry?: () => void;
   onStart: () => void;
   onCommand: () => void;
   onStop: () => void;
@@ -140,6 +156,18 @@ export function VoiceBar({
       {phase === "recording" ? (
         <>
           <RecordingDot className="mx-1.5" />
+          {/* The clock, because ten minutes of speech and ten seconds of it
+              look identical on a bar that only shows a dot. Past a minute it
+              also says what the end will be, so nobody discovers the ceiling
+              by hitting it. */}
+          <span
+            role="timer"
+            aria-label={`Recording, ${seconds} seconds`}
+            className={cn("mr-1 font-mono text-xs tabular-nums", long ? "text-warning" : "text-muted")}
+          >
+            {clock(seconds)}
+          </span>
+          {long && <span className="mr-1 text-[11px] text-muted">stops at 10:00</span>}
           <Button variant="primary" onPointerDown={keepFocus} onClick={onStop} title="Accept (Enter)">
             Accept <kbd>↵</kbd>
           </Button>
@@ -194,6 +222,16 @@ export function VoiceBar({
           className="absolute right-0 bottom-[calc(100%+6px)] w-max max-w-64 rounded-lg border border-[#efc9c4] bg-white px-2 py-1.5 text-xs leading-[1.4] text-[#9b3e35] shadow-[0_6px_18px_rgb(15_15_15/10%)]"
         >
           {error}
+          {keptCapture && onRetry && (
+            <button
+              type="button"
+              onPointerDown={keepFocus}
+              onClick={onRetry}
+              className="mt-1 block rounded-md font-[560] underline decoration-[#efc9c4] underline-offset-2 hover:text-[#7d3129]"
+            >
+              Try again on the kept recording
+            </button>
+          )}
         </div>
       )}
     </div>

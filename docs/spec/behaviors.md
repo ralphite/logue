@@ -26,6 +26,14 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   login" is not a reason to skip the check or to swap in a page that does not
   need one. Use the signed-in browser, and inside it stay to what the check
   needs: read, write into the QA Project, delete nothing, send nothing.
+- **Checks run on real content, never on a page written to be checked.** The
+  little "Draft / Existing text. / Article" page proves nothing: it is short,
+  tidy, and shaped exactly like the code expects. Use real articles, real
+  Notion pages, real Google Docs, real chat boxes.
+- **Prefer Logue's own app, on a long and complicated document.** Mixed
+  languages, headings, lists, `[Source n]` citations everywhere, a toolbar
+  sitting over the text — that is where wrapping, selection, caret placement
+  and overlap actually break. Three tidy lines will never surface them.
 - **Notion is part of every check, not a bonus round.** Anything touching the
   browser surfaces is tested in Notion as well — a plain `<textarea>` on a test
   page proves nothing about the editors people actually write in. Notion and
@@ -81,12 +89,24 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   it automatically.
 - **The browser catches up by itself.** Nobody visits `chrome://extensions`
   after a deploy.
+- **The browser is on the newest extension, and stays there.** Not only in the
+  minute after a deploy: it is checked and brought up to date regularly, so the
+  answer to "which build am I looking at?" is always "the current one". Copied
+  into the install folder is not the same as running in the browser — a tab
+  that has been open all day can still be on last week's script, and the person
+  finding that out from a bug is the failure this rule exists to prevent.
 - **Installers are based on the old ones** — they worked; do not reinvent them.
 
 ## The interface
 
 - **Follows Notion.** Very simple, very minimal, small spacing everywhere.
 - **Progressive disclosure.** Anything secondary is folded away by default.
+- **An empty section takes up no room.** A heading over "Nothing saved yet."
+  spends a screenful saying nothing; it folds to a single line, or it is not
+  drawn at all. This does not contradict "an empty section carries the way out
+  of it" — that one is about places where a person makes something and would
+  otherwise have nowhere to start. A read-out of what is on this page has no
+  such door, so when it is empty it gets out of the way.
 - **Never introduce a control unless it is needed.**
 - **No hand-written CSS** where a utility, token or existing component will do.
   Never a raw hex colour or a magic pixel when a token exists.
@@ -101,6 +121,10 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   control. (Asked for after the sidebar's collapse button only appeared when
   hovered directly.)
 - **Every text control is a real `<select>` / `<input>`** — no look-alikes.
+- **A form never demands a field it does not show.** If something is required,
+  it is on the screen being asked for; an error naming a field nobody was
+  offered is a dead end, not a validation message. Where the value can wait,
+  the form asks for less and the thing gets made.
 - **A long line wraps; it never widens the page.** No screen grows a
   horizontal scrollbar at any window width. A grid item that refuses to shrink
   below its content is the usual cause, and the rule is set once in the theme
@@ -206,6 +230,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   costs someone what they said — and neither does the Host being off. A
   recording made while nothing is listening waits in the extension and goes in
   the moment the Host answers. The bar says it is kept, not that it failed.
+- **A transcript is cleaned, never rewritten.** The fillers, the repetitions
+  and the false starts come out; what is left is the person's own wording, tone
+  and meaning, tightened only where tightening costs nothing. Nothing is added
+  — no sentence finished on their behalf, no plainer word swapped in for
+  theirs. Clean-up that changes what someone said is not clean-up.
 - **Transcription learns from what has already been said well.** The names and
   special words someone uses again and again stop being misheard: past
   transcripts that proved good — accepted, or corrected by hand — feed the
@@ -221,8 +250,24 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   retry, never an apology in place of what was said.
 - **The microphone never gets stuck.** A recorder left behind by a session
   nobody finished is released rather than refusing every recording after it.
+- **"Already recording." never reaches the screen, by any route.** Pressing the
+  microphone either records or says something the person can act on. A message
+  that only describes the extension's own confusion is not an answer, and the
+  rule is about the sentence being unreachable — not about one path to it
+  having been closed. (Written after it came back once already.)
 - **A transcript goes back where the caret was**, even if focus moved while it
   was being transcribed.
+- **No Logue surface ever covers what the person is reading or writing.** A
+  confirmation sitting on top of the sentence it just inserted hides the one
+  thing someone wants to look at. Either it keeps itself clear of the text, or
+  it can be dragged out of the way and stays where it was put — and a bar that
+  can do neither does not belong on the page.
+- **Dictation lands; it is not offered first.** Speaking into a field puts the
+  words in the field — no panel holding the transcript behind an Insert button,
+  no second confirmation of something already said. Corrections happen in
+  place, where the text now is. (The Enter in the ⌘⇧K flow is a different
+  thing: there the words are being handed to the panel's conversation, and
+  choosing to send them is the point.)
 - **The microphone is never offered in a password field.**
 
 ## Documents
@@ -291,3 +336,24 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   carry a floating bar, and the context menu is where people reach out of
   habit. It is rebuilt on every worker start, because a reload clears an
   extension's menus and `onInstalled` does not fire for one.
+
+## A recording is never the thing that is lost
+
+- **A long recording looks long.** The bar carries a clock from the first
+  second, and past a minute it also says where it will stop — nobody should
+  discover a ceiling by hitting it.
+- **Ten minutes is the ceiling, and reaching it keeps the audio.** The
+  microphone stops itself; the words already spoken stay, waiting to be
+  accepted. A recording nobody ends must not grow until something else breaks.
+- **Audio is written in slices while it is being spoken**, so a session that
+  ends unexpectedly still has everything up to the last second rather than
+  nothing at all.
+- **A failed transcription says where the recording is.** The audio is written
+  before the model is asked, and the id of it comes back with the failure —
+  without that the recording is saved and unreachable, which is the same as
+  lost. Both "the model refused" and "nothing was heard" offer another try on
+  the audio that is already there.
+- **What waits offline is bounded in bytes, not in recordings.** Ten
+  ten-minute recordings are more than this storage holds; a count alone means
+  the quota does the refusing, from somewhere else, about something the person
+  cannot see.

@@ -46,6 +46,14 @@ export class HostError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /**
+     * What the failure kept, if it kept anything.
+     *
+     * A transcription that fails has already written the audio to disk, and
+     * without the id that comes back here the recording is saved and
+     * unreachable — which is the same as lost, to the person who spoke it.
+     */
+    readonly captureId?: string,
   ) {
     super(message);
   }
@@ -73,9 +81,11 @@ async function call<T>(path: string, init?: { method?: string; body?: string }):
   if (!reply.ok) throw new HostError(reply.message, 0);
   const payload = parse(reply.text);
   if (reply.status >= 400) {
-    const message =
-      payload && typeof payload === "object" && "error" in payload ? String(payload.error) : `HTTP ${reply.status}`;
-    throw new HostError(message, reply.status);
+    const body = payload && typeof payload === "object" ? payload : {};
+    const message = "error" in body ? String(body.error) : `HTTP ${reply.status}`;
+    // The id of what the failure kept, when it kept something.
+    const kept = "capture_id" in body && typeof body.capture_id === "string" ? body.capture_id : undefined;
+    throw new HostError(message, reply.status, kept);
   }
   // The single trust boundary: the Host is ours and its route table is the contract.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion
@@ -95,6 +105,16 @@ export const host = {
     /** The text around the caret, so names are spelled the way the page spells them. */
     nearby?: string;
   }) => post<{ capture_id: string; text: string; applied_context?: unknown }>("/v1/transcribe", body),
+
+  /** Try again on a recording the Host already has — the way back from a failed model call. */
+  transcribeKept: (
+    captureId: string,
+    body: { project?: string; overrides?: unknown; nearby?: string },
+  ) =>
+    post<{ capture_id: string; text: string; applied_context?: unknown }>(
+      `/v1/captures/${captureId}/transcribe`,
+      body,
+    ),
 
   saveVoice: (body: {
     capture_id: string;

@@ -12,9 +12,13 @@ class HostError(Exception):
 
     status = 500
 
-    def __init__(self, message: str) -> None:
+    def __init__(self, message: str, **details: object) -> None:
         super().__init__(message)
         self.message = message
+        #: Anything the client needs in order to offer a way forward. A failed
+        #: transcription carries the id of the recording it kept, without which
+        #: the audio is saved and unreachable — which is the same as lost.
+        self.details = details
 
 
 class BadRequest(HostError):

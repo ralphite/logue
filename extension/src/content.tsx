@@ -227,6 +227,24 @@ function Surfaces() {
     }
   };
 
+  /**
+   * The words failed; the recording did not. Ask again on the audio the Host
+   * kept, and land the transcript where the first attempt would have.
+   */
+  const retryVoice = async () => {
+    const at = caret;
+    const result = await voice.retry({
+      project,
+      overrides,
+      source: pageSource(),
+      nearby: nearbyText(target.current),
+    });
+    if (result) {
+      setAnchor(at);
+      setCandidate(result);
+    }
+  };
+
   const insert = () => {
     if (!candidate) return;
     if (googleDocs.isGoogleDocs()) {
@@ -405,6 +423,10 @@ function Surfaces() {
           style={{ left: barAt.left, top: barAt.top }}
           error={voice.error ?? hostError}
           context={context}
+          seconds={voice.seconds}
+          long={voice.long}
+          keptCapture={voice.keptCapture}
+          onRetry={() => void retryVoice()}
           overrides={overrides}
           onOverrides={(next) => {
             forget();

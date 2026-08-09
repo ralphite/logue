@@ -9,6 +9,32 @@
 let recorder: MediaRecorder | undefined;
 let chunks: Blob[] = [];
 let stream: MediaStream | undefined;
+let ceiling: ReturnType<typeof setTimeout> | undefined;
+let startedAt = 0;
+
+/**
+ * Ten minutes, after which the microphone stops itself and keeps what it has.
+ *
+ * Not a limit on what anyone may say — it is the point past which carrying on
+ * costs more than it returns. Everything recorded lives in memory until the
+ * stop, and a recording nobody ends (a tab left open, a session forgotten)
+ * would otherwise grow until something else breaks. Stopping keeps the audio;
+ * it is the one outcome that loses nothing.
+ */
+export const MAX_MS = 10 * 60 * 1000;
+
+/** The one whose end is worth warning about: past a minute this is a long one. */
+export const LONG_MS = 60 * 1000;
+
+/** How long the current recording has been running, in milliseconds. */
+export function elapsed(): number {
+  return recorder && startedAt ? Date.now() - startedAt : 0;
+}
+
+/** True once the ceiling stopped it — the audio is waiting, the microphone is not. */
+export function capped(): boolean {
+  return chunks.length > 0 && recorder?.state === "inactive";
+}
 
 export function preferredMimeType(): string {
   for (const type of ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"]) {
@@ -31,10 +57,26 @@ export async function start(): Promise<void> {
   recorder.ondataavailable = (event) => {
     if (event.data.size > 0) chunks.push(event.data);
   };
-  recorder.start();
+  // A second at a time, so a recording that ends unexpectedly — the ceiling
+  // below, a tab closing, the page going away — still has everything up to
+  // that second. Without it a single chunk arrives at stop, and anything that
+  // prevents the stop takes the whole recording with it.
+  recorder.start(1000);
+  startedAt = Date.now();
+
+  const active = recorder;
+  ceiling = setTimeout(() => {
+    // Stop the microphone but keep the chunks: the words are already spoken,
+    // and the person still has to be able to accept them.
+    if (active.state !== "inactive") active.stop();
+    stream?.getTracks().forEach((track) => track.stop());
+  }, MAX_MS);
 }
 
 function release() {
+  clearTimeout(ceiling);
+  ceiling = undefined;
+  startedAt = 0;
   stream?.getTracks().forEach((track) => track.stop());
   stream = undefined;
   recorder = undefined;
@@ -46,17 +88,38 @@ export async function stop(): Promise<{ audio: string; mediaType: string }> {
   if (!active) throw new Error("Not recording.");
   const mediaType = active.mimeType.split(";")[0] || "audio/webm";
 
-  const blob = await new Promise<Blob>((resolve) => {
-    active.onstop = () => resolve(new Blob(chunks, { type: mediaType }));
-    active.stop();
-  });
+  const blob =
+    // Already stopped, because the ceiling ended it. Waiting for `onstop` here
+    // would wait forever — the event fired minutes ago — and ten minutes of
+    // speech would hang on Accept and never come back.
+    active.state === "inactive"
+      ? new Blob(chunks, { type: mediaType })
+      : await new Promise<Blob>((resolve) => {
+          active.onstop = () => resolve(new Blob(chunks, { type: mediaType }));
+          active.stop();
+        });
   release();
+  chunks = [];
 
-  const buffer = await blob.arrayBuffer();
-  let binary = "";
+  return { audio: base64Of(await blob.arrayBuffer()), mediaType };
+}
+
+/**
+ * Base64, a slice at a time.
+ *
+ * One character at a time is fine for a sentence and not for ten minutes:
+ * two and a half million appends to a growing string, on the thread the page
+ * is drawn on. `apply` over a slice hands the work to the engine, and the
+ * slice is small enough not to overflow the argument list.
+ */
+function base64Of(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
-  for (let index = 0; index < bytes.length; index += 1) binary += String.fromCharCode(bytes[index]!);
-  return { audio: btoa(binary), mediaType };
+  const SLICE = 0x8000;
+  let binary = "";
+  for (let at = 0; at < bytes.length; at += SLICE) {
+    binary += String.fromCharCode(...bytes.subarray(at, at + SLICE));
+  }
+  return btoa(binary);
 }
 
 export function cancel(): void {

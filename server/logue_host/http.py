@@ -258,7 +258,10 @@ def serve(router: Router, host: str, port: int, web: Path | None = None) -> Thre
             try:
                 result = handler(request)
             except HostError as error:
-                self._send(Response({"error": error.message}, error.status))
+                # Whatever the error carries goes out with it: a failure that
+                # kept something needs to say where the something is, or it is
+                # indistinguishable from a failure that lost it.
+                self._send(Response({"error": error.message, **error.details}, error.status))
                 return
             except Exception as error:  # noqa: BLE001 - last line of defence
                 self._send(Response({"error": f"{type(error).__name__}: {error}"}, 500))

@@ -1,8 +1,13 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { host, HostError, type Material } from "./api";
 import { send } from "./messages";
 import { keep, LIMIT } from "./pending";
 import type { VoiceOverrides } from "./overrides";
+
+/** Ten minutes, matching the ceiling the recorder itself enforces. */
+const MAX_MS = 10 * 60 * 1000;
+/** Past a minute this is a long recording, and the bar starts saying so. */
+const LONG_MS = 60 * 1000;
 
 export type VoicePhase = "idle" | "starting" | "recording" | "working" | "error";
 
@@ -20,7 +25,27 @@ function describe(cause: unknown): string {
 export function useVoice() {
   const [phase, setPhase] = useState<VoicePhase>("idle");
   const [error, setError] = useState<string>();
+  const [seconds, setSeconds] = useState(0);
+  /**
+   * The recording a failed transcription left behind, so Try again has
+   * something to try. Without it the audio is on disk and unreachable.
+   */
+  const [kept, setKept] = useState<string>();
   const session = useRef(0);
+  const startedAt = useRef(0);
+
+  // A clock while recording, because a long one has to look long. Every
+  // second, and only while it is running.
+  useEffect(() => {
+    if (phase !== "recording") {
+      setSeconds(0);
+      return;
+    }
+    startedAt.current = Date.now();
+    setSeconds(0);
+    const timer = setInterval(() => setSeconds(Math.floor((Date.now() - startedAt.current) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [phase]);
 
   const start = useCallback(async () => {
     const id = (session.current += 1);
@@ -78,10 +103,12 @@ export function useVoice() {
           nearby: options.nearby,
         });
         if (!text.trim()) {
-          // The Host kept the audio; only the words are missing. Say which,
-          // rather than letting an empty Source fail on the way in.
+          // The Host kept the audio; only the words are missing. Saying so was
+          // half the job — the recording sat there with nothing offering a
+          // second attempt, which reads as "kept, and no use to you".
+          setKept(capture_id);
           setPhase("error");
-          setError("Nothing was heard in that recording. The audio was kept.");
+          setError("Nothing was heard in that recording. The audio was kept — you can try again.");
           return undefined;
         }
         const { material } = await host.saveVoice({
@@ -101,7 +128,7 @@ export function useVoice() {
         // and this page is about to forget it. Keep it, and say it is kept.
         // A model that refused is different: the Host already has the audio.
         if (cause instanceof HostError && cause.status === 0) {
-          const kept = await keep({
+          const queued = await keep({
             audio: recorded.audio,
             mediaType: recorded.mediaType ?? "audio/webm",
             project: options.project,
@@ -112,19 +139,97 @@ export function useVoice() {
           });
           setPhase("error");
           setError(
-            kept
+            queued
               ? "Logue is not running. The recording is kept and will be saved when it starts."
               : `Logue is not running, and ${LIMIT} recordings are already waiting. Start Logue to save them.`,
           );
           return undefined;
         }
+        // A model that refused, or a Host that answered with a failure: the
+        // audio is already on disk there, and the id came back with the error.
+        // Remembering it is the whole difference between "try again" and
+        // "say it all over again".
+        if (cause instanceof HostError && cause.captureId) setKept(cause.captureId);
         setPhase("error");
-        setError(describe(cause));
+        setError(
+          cause instanceof HostError && cause.captureId
+            ? `${describe(cause)} The recording was kept — you can try again.`
+            : describe(cause),
+        );
         return undefined;
       }
     },
     [],
   );
 
-  return { phase, error, start, stop, cancel, setError, setPhase };
+  /** Try the model again on the recording the Host still has. */
+  const retry = useCallback(
+    async (options: {
+      project?: string;
+      overrides?: VoiceOverrides;
+      source?: unknown;
+      parentIds?: string[];
+      nearby?: string;
+    }): Promise<{ text: string; material: Material } | undefined> => {
+      const captureId = kept;
+      if (!captureId) return undefined;
+      const id = (session.current += 1);
+      setPhase("working");
+      setError(undefined);
+      try {
+        const { text, applied_context } = await host.transcribeKept(captureId, {
+          project: options.project,
+          overrides: options.overrides,
+          nearby: options.nearby,
+        });
+        if (session.current !== id) return undefined;
+        if (!text.trim()) {
+          setPhase("error");
+          setError("Nothing was heard in that recording. The audio is still kept.");
+          return undefined;
+        }
+        const { material } = await host.saveVoice({
+          capture_id: captureId,
+          text,
+          source: options.source,
+          project: options.project,
+          parent_ids: options.parentIds,
+          applied_context,
+        });
+        if (session.current !== id) return undefined;
+        setKept(undefined);
+        setPhase("idle");
+        return { text, material };
+      } catch (cause) {
+        if (session.current !== id) return undefined;
+        setPhase("error");
+        // The audio has not gone anywhere; it stays offered.
+        setError(`${describe(cause)} The recording is still kept.`);
+        return undefined;
+      }
+    },
+    [kept],
+  );
+
+  const forget = useCallback(() => setKept(undefined), []);
+
+  return {
+    phase,
+    error,
+    /** How long the current recording has run, in seconds. */
+    seconds,
+    /** Past a minute — the bar says so rather than letting it run silently. */
+    long: seconds * 1000 >= LONG_MS,
+    /** The ceiling, so the bar can say what happens at it. */
+    maxSeconds: MAX_MS / 1000,
+    /** A recording the Host kept when the words failed, waiting for another try. */
+    keptCapture: kept,
+    start,
+    stop,
+    cancel,
+    retry,
+    forget,
+    setError,
+    setPhase,
+  };
 }

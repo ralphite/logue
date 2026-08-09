@@ -23,6 +23,23 @@ const KEY = "logue:pending-voice";
  */
 export const LIMIT = 10;
 
+/**
+ * And six megabytes, because counting recordings was the wrong unit.
+ *
+ * Ten one-minute notes are about two and a half megabytes; ten ten-minute
+ * ones are twenty-five, and `chrome.storage.local` holds about ten. Under a
+ * count alone the tenth long recording is refused by the quota rather than by
+ * us — a rejected write, an error from somewhere else, and no way to tell the
+ * person which of their recordings did not survive. Six leaves room for
+ * everything else the extension keeps.
+ */
+export const BUDGET = 6 * 1024 * 1024;
+
+/** Roughly what these occupy, which for base64 is one byte per character. */
+function weight(entries: PendingVoice[]): number {
+  return entries.reduce((total, one) => total + one.audio.length, 0);
+}
+
 export interface PendingVoice {
   id: string;
   audio: string;
@@ -54,6 +71,7 @@ export async function all(): Promise<PendingVoice[]> {
 export async function keep(recording: Omit<PendingVoice, "id" | "at">): Promise<boolean> {
   const waiting = await all();
   if (waiting.length >= LIMIT) return false;
+  if (weight(waiting) + recording.audio.length > BUDGET) return false;
   const entry: PendingVoice = {
     ...recording,
     id: `pending_${Date.now()}_${waiting.length}`,

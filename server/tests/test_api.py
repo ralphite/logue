@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from logue_host.app import App
 from logue_host.build import installed_extension_build
 from logue_host.domain import capture, corrections, documents, organize, summaries
-from logue_host.errors import BadRequest, Conflict, NotFound
+from logue_host.errors import BadRequest, Conflict, NotFound, Unavailable
 from logue_host.http import Request, serve, web_file
 from logue_host.providers import Provider
 
@@ -767,6 +767,47 @@ class DocumentHistory(Workspace, unittest.TestCase):
             self.call("GET", f"/v1/documents/{document_id}/versions/99/diff")
         with self.assertRaises(NotFound):
             self.call("POST", f"/v1/documents/{document_id}/versions/99/restore")
+
+
+class ARecordingOutlivesItsTranscription(Workspace, unittest.TestCase):
+    """The audio is written before the model is asked, and stays reachable."""
+
+    def refuse_transcription(self) -> None:
+        broken = FakeProvider(api_key="test-key")
+        broken.record_health("generation", True)
+        broken.record_health("voice", True)
+        broken.transcribe = lambda *_args, **_kwargs: (_ for _ in ()).throw(  # type: ignore[method-assign]
+            Unavailable("The model would not answer.")
+        )
+        self.app.provider = lambda: broken  # type: ignore[method-assign]
+
+    def test_a_failed_transcription_says_where_the_recording_is(self) -> None:
+        # Without the id the audio is on disk and unreachable, which is the
+        # same as lost to the person who spoke it.
+        self.refuse_transcription()
+        with self.assertRaises(Unavailable) as caught:
+            self.call("POST", "/v1/transcribe", {"audio": base64.b64encode(b"real-audio").decode()})
+        self.assertTrue(caught.exception.details.get("capture_id"), caught.exception.details)
+
+    def test_and_the_recording_can_be_transcribed_again(self) -> None:
+        self.refuse_transcription()
+        with self.assertRaises(Unavailable) as caught:
+            self.call("POST", "/v1/transcribe", {"audio": base64.b64encode(b"real-audio").decode()})
+        capture_id = str(caught.exception.details["capture_id"])
+
+        # The model comes back; the same audio, no second recording.
+        working = FakeProvider(api_key="test-key")
+        working.record_health("generation", True)
+        working.record_health("voice", True)
+        self.app.provider = lambda: working  # type: ignore[method-assign]
+
+        again = self.call("POST", f"/v1/captures/{capture_id}/transcribe", {})
+        self.assertEqual(again["capture_id"], capture_id, "the same recording, not a new one")
+        self.assertEqual(again["text"], "spoken words")
+
+    def test_asking_again_about_a_recording_that_is_gone_says_so(self) -> None:
+        with self.assertRaises(NotFound):
+            self.call("POST", "/v1/captures/capture_nothing/transcribe", {})
 
 
 class SkillHistory(Workspace, unittest.TestCase):
