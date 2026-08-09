@@ -197,6 +197,14 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   costs someone what they said — and neither does the Host being off. A
   recording made while nothing is listening waits in the extension and goes in
   the moment the Host answers. The bar says it is kept, not that it failed.
+- **Ten minutes of speech survives.** A long recording is a normal recording:
+  no silent truncation, no crash, no quiet drop at some limit nobody mentioned.
+- **Past a minute, the surface says so.** A recording that has run over a
+  minute tells the person while it is still running, rather than letting them
+  find out afterwards.
+- **Audio is never lost, at any step.** If transcription fails, the recording
+  is still saved and the surface offers to try again — a failed transcript is a
+  retry, never an apology in place of what was said.
 - **The microphone never gets stuck.** A recorder left behind by a session
   nobody finished is released rather than refusing every recording after it.
 - **A transcript goes back where the caret was**, even if focus moved while it
