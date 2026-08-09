@@ -30,6 +30,7 @@
 | **F5** | 用历史里说过的话把转写越修越准 —— **先出方案,不要实现** | 你的原话是 "historical user inputs with high quality should be used to improve transcription. e.g. frequent special words/names should be correct. propose features and solution first"。目标很清楚:你反复说到的专有名词、人名,不该每次都被听错一遍。现成的地基有三块 —— Project 的词表(`transcription_profile.vocabulary.terms`,Host 转写时就在读)、光标附近的页面文字(已经当作临时词汇送进去)、以及你手动纠错留下的记录。缺的是把它们连起来的那一步:从历史里自动挑出该记住的词。**先提方案再动手**,方案里必须回答的:①什么算"高质量"输入(被采纳的?被你改过的?出现够多次的?);②词是自动进词表还是要你点头;③词表属于一个 Project 还是全局;④怎么不把口误也学进去,以及学错了怎么撤 |
 | **F6** | 做一个叫 Transcription 的 Skill:把说出来的话清干净 | 你的原话是"把这些重复的不一致的嗯啊这些就是这些词都删掉。然后基本上就是整体保持一致吧,但是把一些可以简化的给简化,然后让它更通顺可读一点"。它要做四件事:①删掉语气词和口头禅("嗯""啊""就是""那个"这类);②删掉重复和自我纠正留下的碎句;③**整体保持一致** —— 意思、语气、你的用词都不动,这不是改写;④能简化的地方简化,让它读起来通顺。**边界要写死在 prompt 里:只删不加。** 不许补充你没说过的内容,不许换成更"书面"的说法,不许替你把话说完。建好之后设成转写的默认 Skill(`defaults.transcription` 这个槽位本来就在)。**依赖 X22** —— 现在新建 Skill 是坏的,建不出来。顺带一提,你提这个需求时说的那段话本身就是最好的测试样例 |
 | **V3** | 异步听写 —— 转写的时候不锁住,可以接着打字 | **原来这条挂在"等你拍板",问的是"转写到底要等多久"。那不该问你,该我去量 —— 现在量完了:** 拿真的 Host、真的模型跑 fixtures 里的三段音频,5.1 秒的话等 **3.3 秒**,8.2 秒的等 **4.0 秒**,16 秒的等 **8.4~13.3 秒**。粗算是音频长度的**一半到八成**,而且会抖 —— 同一段 8 秒的音频,有一次等了 **25.7 秒**。<br><br>**结论:"一秒内返回"根本不成立,这件事必须做。** 而且它和 **F4** 撞在一起:你要能录十分钟,按这个速度就是**锁住界面五到八分钟**,没人受得了。所以 V3 不再是待定项,它是 F4 的前提 |
+| **S3** | 真 key 到位后:重验所有 mock 之下验过的流程 | 替身模型只能证明管道通,不能证明产出对。要重验的:F6 的真话样例、审计的加载/出错/超长三态在真实延迟下的表现、X17 的真实转写、以及任何在此期间打了 mock 标的验证 |
 | **R12** | 竞品扫描,以及它翻出来的东西 | 你的原话点了方向:"anywhere voice input with customizable skills, notion's skills in docs, lineage of all content, content gen from sources, pkm"。做完研究把值得的功能补上,"polish the ux/product design/features to make it very good. keep pushing automatically in this way" |
 
 ## 等你拍板
@@ -56,6 +57,8 @@
 - **持续打磨不是一次性任务。** 你的原话是 "polish the ux/product design/features to make it very good. keep pushing automatically in this way"。
 - **只在这个会话里干活。** 你的原话是 "only work in this session"。
 - **该提交就提交,能推就推。** 你的原话是 "must commit when necessary. must push when possible"。一件事做完、验过,就落成一个提交并推上去 —— 只在本地的东西,一次机器故障就没了。
+- **提交前必须逐个文件看 diff,不认识的文件绝不进提交。** 你的原话是 "alway check the diff when commit. never files you do not know about. check each file/diff before commit"。455 个文件的泄露正是"没看就 add -A"的代价;机器上的闸(check-secrets)是兜底,读 diff 是本分,两个都要,谁也不替谁。
+- **暂时没有模型 key:用替身模型顶着,活不能停。** 你的原话是 "i dont have a key now. you must mock and continue the work"。这是你对"不许 mock"规则的**明确豁免**,只豁免模型这一层:Settings 里 key 填 `mock` 即启用,status 里 model 明写 mock,每条产出自报身份。**mock 之下验过的每一件都要打标,真 key 一到全部重验**(见队列 S3)。
 - **在真实浏览器里、用真实 Host 和真实模型验证。** 不拿 mock 顶替。
 - **要登录才能测的,就用你自己的浏览器测。** 你的原话是 "must use my browser with auth in qa when necessary (e.g. use app that needs login)"。Notion、Google Docs 这类必须登录的地方,不许用一个干净的测试浏览器绕过去,也不许拿"需要登录"当作跳过验证的理由。用带登录态的那个浏览器,并且只做验证要做的事:读、往 QA Project 里写,不删任何东西、不往外发任何东西。
 - **不许拿自制的测试页当验证。** 你的原话是 "do not use these to test. use real content."。就是截图里那种 "Draft / Existing text. / Article / Asynchronous research…" —— 自己写的假页面,字少、结构干净、什么都刚刚好,而真实网页从来不长这样。要用真实内容:真的文章、真的 Notion 页面、真的 Google Doc、真的聊天输入框。一个假页面上跑通,证明不了任何事。反例存在 `shots/rule-no-synthetic-test-page.png`。

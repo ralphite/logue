@@ -823,6 +823,47 @@ class ARecordingOutlivesItsTranscription(Workspace, unittest.TestCase):
             self.call("POST", "/v1/captures/capture_nothing/transcribe", {})
 
 
+class TheMockModel(Workspace, unittest.TestCase):
+    """The stand-in for when there is no key — honest, and reachable on demand.
+
+    It exists because the real key was revoked mid-session; the owner said
+    "you must mock and continue the work". These pin what makes it safe: it
+    never hides what it is, and it can produce the states a real model makes
+    hard to reach.
+    """
+
+    def mock(self):
+        from logue_host.providers.gemini import Provider
+        return Provider.load({"api_key": "mock"})
+
+    def test_the_mock_key_yields_a_ready_provider_named_mock(self) -> None:
+        provider = self.mock()
+        self.assertEqual(provider.model, "mock", "status must say what is answering")
+        self.assertTrue(provider.ready_for("generation"))
+        self.assertTrue(provider.ready_for("voice"))
+
+    def test_every_answer_admits_it_is_a_mock(self) -> None:
+        provider = self.mock()
+        self.assertIn("mock", provider.generate("", "anything"))
+        self.assertIn("[mock]", provider.transcribe(b"abc", "audio/webm", ""))
+
+    def test_a_transcript_proves_the_audio_arrived(self) -> None:
+        self.assertIn("3 bytes", self.mock().transcribe(b"abc", "audio/webm", ""))
+
+    def test_failure_and_overflow_can_be_asked_for(self) -> None:
+        from logue_host.errors import Unavailable
+        provider = self.mock()
+        with self.assertRaises(Unavailable):
+            provider.generate("", "please [mock:fail] now")
+        self.assertGreater(len(provider.generate("", "[mock:long]")), 5000)
+
+    def test_a_real_key_is_untouched_by_any_of_this(self) -> None:
+        from logue_host.providers.gemini import MockProvider, Provider
+        provider = Provider.load({"api_key": "AIzaSomethingReal"})
+        self.assertNotIsInstance(provider, MockProvider)
+        self.assertNotEqual(provider.model, "mock")
+
+
 class MakingASkill(Workspace, unittest.TestCase):
     """A Skill is named first and written afterwards.
 

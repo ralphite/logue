@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -36,8 +37,16 @@ class Provider:
 
     @classmethod
     def load(cls, record: dict[str, Any]) -> "Provider":
+        api_key = str(record.get("api_key") or "")
+        # The stand-in, chosen from Settings like any key. It exists because
+        # the real key was revoked mid-session and the owner had no other —
+        # their words: "i dont have a key now. you must mock and continue the
+        # work". Everything verified against it is marked as such and gets
+        # re-verified the day a real key is entered.
+        if api_key == MOCK_KEY:
+            return MockProvider(api_key=MOCK_KEY, model="mock", transcription_model="mock")
         return cls(
-            api_key=str(record.get("api_key") or ""),
+            api_key=api_key,
             model=str(record.get("model") or DEFAULT_MODEL),
             transcription_model=str(record.get("transcription_model") or record.get("model") or DEFAULT_MODEL),
             base_url=str(record.get("base_url") or DEFAULT_BASE_URL).rstrip("/"),
@@ -182,3 +191,59 @@ class Provider:
             return False, error.message
         self.record_health(capability, True)
         return True, ""
+
+
+#: Entered as the API key in Settings to run against the stand-in below.
+MOCK_KEY = "mock"
+
+
+class MockProvider(Provider):
+    """A model-shaped stand-in for when there is no model to call.
+
+    Deterministic and honest: `/v1/status` reports the model as "mock", every
+    answer says it is one, and nothing here pretends to think. What it is for:
+
+    - keeping every model-adjacent flow walkable (record → transcribe → insert,
+      ask → answer → adopt) while there is no key;
+    - reaching the states a real model makes hard to reach on purpose — put
+      `[mock:fail]` in an instruction for the failure state, `[mock:long]` for
+      an oversized answer, and every call carries a short real delay so
+      loading states actually show.
+
+    A transcript reports how many bytes of audio arrived, which is the part
+    worth proving: the plumbing, not the words.
+    """
+
+    def status_of(self, capability: Capability) -> str:  # noqa: ARG002
+        return "ready"
+
+    def error_of(self, capability: Capability) -> str:  # noqa: ARG002
+        return ""
+
+    def ready_for(self, capability: Capability) -> bool:  # noqa: ARG002
+        return True
+
+    def require(self, capability: Capability) -> None:  # noqa: ARG002
+        return None
+
+    def check(self, capability: Capability) -> tuple[bool, str]:
+        self.record_health(capability, True)
+        return True, ""
+
+    def generate(self, system: str, prompt: str) -> str:  # noqa: ARG002
+        time.sleep(1.0)
+        if "[mock:fail]" in prompt:
+            raise Unavailable("[mock] The stand-in failed on request.")
+        if "[mock:long]" in prompt:
+            line = "A long mock paragraph, produced on request to see how far a layout bends [Source 1]. "
+            return line * 120
+        return (
+            "A mock answer standing in for the model: the Sources beneath are real, "
+            "these words are not [Source 1]."
+        )
+
+    def transcribe(self, audio: bytes, media_type: str, instructions: str) -> str:
+        time.sleep(0.6)
+        if "[mock:fail]" in instructions:
+            raise Unavailable("[mock] The stand-in failed on request.")
+        return f"[mock] A stand-in transcript; {len(audio)} bytes of {media_type} really arrived."

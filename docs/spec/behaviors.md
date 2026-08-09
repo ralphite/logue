@@ -421,3 +421,12 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   beside the heading already says it: 0. This is not the rail's rule — a rail
   list that is empty must offer a way to begin, because things are created
   from there. Nothing is created from a reading of the current page.
+- **Every commit is read before it is made** — each staged file, each diff. A
+  file you cannot explain does not go in. The machine gate (check-secrets)
+  is the backstop, not the practice; 455 unread files is what the practice
+  being absent cost.
+- **When there is no model key, a stand-in keeps the flows walkable** — by the
+  owner's explicit say-so, and only at the model layer. It is entered like a
+  key ("mock" in Settings), it names itself in status and in every answer,
+  and nothing verified against it counts as verified until a real key repeats
+  it.
