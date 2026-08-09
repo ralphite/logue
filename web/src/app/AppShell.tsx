@@ -1,17 +1,6 @@
-import {
-  ChevronRight,
-  FileText,
-  FolderOpen,
-  Keyboard,
-  Layers,
-  MoreHorizontal,
-  PanelLeft,
-  Search,
-  Settings2,
-  Sparkles,
-} from "lucide-react";
+import { ChevronRight, FileText, FolderOpen, Layers, PanelLeft, Plus, Search, Settings2, Sparkles } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { LogueLogo, LogueMark, Menu, MenuItem, Resizer, cn, usePersistentSize } from "@logue/ui";
+import { LogueLogo, LogueMark, Resizer, cn, usePersistentSize } from "@logue/ui";
 import { FIND_KEYS, RAIL_KEYS } from "./shortcuts";
 
 export const ROUTES = ["stream", "projects", "documents", "skills", "settings"] as const;
@@ -27,8 +16,18 @@ const NAV: Record<Route, { label: string; icon: typeof Layers }> = {
 
 const RAIL = { key: "logue.rail.width", min: 180, max: 320, base: 208 };
 const COLLAPSED_KEY = "logue.rail.collapsed";
-/** Wide enough for an icon with the same padding it has when expanded. */
-const COLLAPSED_WIDTH = 48;
+/**
+ * Chosen so the icons do not move.
+ *
+ * Every row puts its icon in the same `size-6` slot at the same left padding —
+ * 6px on the rail plus 8px on the row — so the slot's centre is 26px in, brand
+ * mark included. A collapsed rail of twice that has the icons in exactly the
+ * place the open one does: collapsing narrows the rail around them instead of
+ * sliding them sideways, which had made the two states read as two different
+ * applications.
+ */
+const ICON_SLOT = "inline-flex size-6 shrink-0 items-center justify-center";
+const COLLAPSED_WIDTH = 52;
 
 function wasCollapsed(): boolean {
   try {
@@ -52,7 +51,7 @@ export function AppShell({
   children,
   offline = false,
   onFind,
-  onShortcuts,
+  onNew,
   list,
 }: {
   route: Route;
@@ -61,7 +60,8 @@ export function AppShell({
   /** The Host is unreachable — nothing on any screen is current. */
   offline?: boolean;
   onFind?: () => void;
-  onShortcuts?: () => void;
+  /** Sections that can make something, shown as a `+` on hover. */
+  onNew?: Partial<Record<Route, () => void>>;
   /** The open section's own list, shown under it in the rail. */
   list?: ReactNode;
 }) {
@@ -118,14 +118,16 @@ export function AppShell({
         style={{ width: collapsed ? COLLAPSED_WIDTH : size }}
         className="group/rail flex shrink-0 flex-col gap-0.5 bg-nav p-1.5"
       >
-        <div className={cn("mb-1 flex h-control items-center", collapsed ? "justify-center" : "gap-1 pl-1.5")}>
+        {/* The mark sits in the same slot as every other icon, so the whole
+            rail reads as one column of icons with words beside them. */}
+        <div className="mb-1 flex h-control items-center gap-2 px-2">
           {collapsed ? (
             <button
               type="button"
               aria-label="Open sidebar"
               title={`Open sidebar · ${RAIL_KEYS}`}
               onClick={() => setCollapsed(false)}
-              className="group inline-flex size-7 items-center justify-center rounded-md hover:bg-hover"
+              className={cn("group rounded-md hover:bg-hover", ICON_SLOT)}
             >
               {/* The mark itself is the way back: on a rail this narrow there is
                   no room for both an identity and a control, and the identity
@@ -143,7 +145,7 @@ export function AppShell({
                 onClick={() => setCollapsed(true)}
                 // Appears when the pointer is anywhere in the rail, not only
                 // on the button: nobody hovers a control they cannot see.
-                className="ml-auto inline-flex size-7 items-center justify-center rounded-md text-transparent group-hover/rail:text-muted hover:bg-hover hover:!text-ink focus-visible:text-muted"
+                className="-mr-1 ml-auto inline-flex size-6 shrink-0 items-center justify-center rounded-md text-transparent group-hover/rail:text-muted hover:bg-hover hover:!text-ink focus-visible:text-muted"
               >
                 <PanelLeft size={15} />
               </button>
@@ -156,14 +158,13 @@ export function AppShell({
           <button
             type="button"
             aria-label="Find anything"
-            title="Find anything · ⌘K"
+            title={`Find anything · ${FIND_KEYS}`}
             onClick={onFind}
-            className={cn(
-              "flex h-control items-center rounded-md text-left text-[13px] text-ink-soft hover:bg-hover",
-              collapsed ? "justify-center" : "gap-2 px-2",
-            )}
+            className="flex h-control items-center gap-2 rounded-md px-2 text-left text-[13px] text-ink-soft hover:bg-hover"
           >
-            <Search size={15} className="shrink-0 text-muted" />
+            <span className={ICON_SLOT}>
+              <Search size={15} className="text-muted" />
+            </span>
             {!collapsed && (
               <>
                 <span className="truncate">Find</span>
@@ -176,62 +177,51 @@ export function AppShell({
         {ROUTES.map((key, index) => {
           const { label, icon: Icon } = NAV[key];
           const active = route === key;
+          const make = onNew?.[key];
           return (
-            <button
-              key={key}
-              type="button"
-              aria-current={active ? "page" : undefined}
-              aria-label={label}
-              title={collapsed ? `${label} · ⌘${index + 1}` : undefined}
-              onClick={() => onRoute(key)}
-              className={cn(
-                "flex h-control items-center rounded-md text-left text-[13px]",
-                collapsed ? "justify-center" : "gap-2 px-2",
-                active ? "bg-active font-[560] text-ink" : "text-ink-soft hover:bg-hover",
+            <div key={key} className="group/nav relative flex items-center">
+              <button
+                type="button"
+                aria-current={active ? "page" : undefined}
+                aria-label={label}
+                title={collapsed ? `${label} · ⌘${index + 1}` : undefined}
+                onClick={() => onRoute(key)}
+                className={cn(
+                  "flex h-control min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-[13px]",
+                  active ? "bg-active font-[560] text-ink" : "text-ink-soft hover:bg-hover",
+                )}
+              >
+                <span className={ICON_SLOT}>
+                  <Icon size={15} className="text-muted" />
+                </span>
+                {!collapsed && <span className="truncate">{label}</span>}
+              </button>
+              {make && !collapsed && (
+                // On the section that will hold it, when the pointer is there.
+                // A permanent New button costs a row of the rail forever to
+                // save one hover.
+                <button
+                  type="button"
+                  aria-label={`New ${label.replace(/s$/, "")}`}
+                  title={`New ${label.replace(/s$/, "")}`}
+                  onClick={make}
+                  className="absolute right-1 inline-flex size-6 items-center justify-center rounded-md text-transparent group-hover/nav:text-muted hover:bg-surface-muted hover:!text-ink focus-visible:text-muted"
+                >
+                  <Plus size={14} />
+                </button>
               )}
-            >
-              <Icon size={15} className="shrink-0 text-muted" />
-              {!collapsed && <span className="truncate">{label}</span>}
-            </button>
+            </div>
           );
         })}
 
         {/*
           The section's own list, under the section — the arrangement
           chatgpt.com and Codex use. Only the open section shows one, so the
-          rail stays a thing you scan rather than a thing you scroll. It
-          scrolls on its own so the offline note below never leaves the screen.
+          rail stays a thing you scan rather than a thing you scroll. The line
+          above it keeps the five destinations from reading as its first rows.
         */}
-        {!collapsed && list && <div className="logue-scroll min-h-0 flex-1 pt-1 pb-2">{list}</div>}
-
-        {onShortcuts && !collapsed && (
-          // The rail's own housekeeping, closed. These are things you reach
-          // for once a month, and five destinations plus a list is already as
-          // much as a rail should show at rest.
-          <div className={cn("flex", list ? "" : "mt-auto")}>
-            <Menu
-              label="More"
-              align="start"
-              trigger={(props) => (
-                <button
-                  type="button"
-                  aria-label="More"
-                  {...props}
-                  className="inline-flex size-7 items-center justify-center rounded-md text-muted hover:bg-hover hover:text-ink"
-                >
-                  <MoreHorizontal size={15} />
-                </button>
-              )}
-            >
-              <MenuItem onClick={() => onRoute("settings")}>
-                <Settings2 size={13} /> Settings
-              </MenuItem>
-              <MenuItem onClick={onShortcuts}>
-                <Keyboard size={13} /> Keyboard shortcuts
-                <kbd className="ml-auto pl-3 font-sans text-[11px] text-faint">?</kbd>
-              </MenuItem>
-            </Menu>
-          </div>
+        {!collapsed && list && (
+          <div className="logue-scroll mt-1.5 min-h-0 flex-1 border-t border-line pt-1.5 pb-2">{list}</div>
         )}
 
         {offline && (

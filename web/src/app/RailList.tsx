@@ -19,8 +19,6 @@ export const GROUPS_LIMIT = 8;
 export interface RailAction {
   label: string;
   onRun: () => void;
-  /** Given when the action is worth a button on the row itself. */
-  icon?: ReactNode;
   tone?: "default" | "danger";
 }
 
@@ -40,7 +38,7 @@ export interface RailEntry {
   group?: string;
   /** What the hover card says. A function so a resting list builds none. */
   preview?: () => ReactNode;
-  /** Everything the row can do, in the menu — the first two also on hover. */
+  /** Everything the row can do, in one menu. */
   actions?: RailAction[];
 }
 
@@ -134,7 +132,6 @@ function RailRow({
   coarse: boolean;
 }) {
   const row = useRef<HTMLDivElement>(null);
-  const quick = (entry.actions ?? []).filter((action) => action.icon).slice(0, 2);
 
   // The chosen row is often the one a Show more is hiding, or the one a fresh
   // sort just moved. Bring it back into view rather than leave the rail
@@ -203,48 +200,29 @@ function RailRow({
         {entry.pinned && <Pin size={11} aria-label="Pinned" className="text-faint" />}
       </span>
 
-      {(entry.actions?.length ?? 0) > 0 &&
-        (coarse ? (
-          <button
-            type="button"
-            aria-label={`Actions for ${entry.title}`}
-            onClick={(event) => {
-              const rect = event.currentTarget.getBoundingClientRect();
-              onMenu(entry, { x: rect.left, y: rect.bottom + 2, returnTo: event.currentTarget });
-            }}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-muted"
-          >
-            <MoreHorizontal size={14} />
-          </button>
-        ) : (
-          <span className="hidden shrink-0 items-center gap-0.5 pr-1 group-hover/row:flex group-focus-within/row:flex">
-            {quick.map((action) => (
-              <button
-                key={action.label}
-                type="button"
-                aria-label={action.label}
-                title={action.label}
-                onClick={() => action.onRun()}
-                className="inline-flex size-6 items-center justify-center rounded-md text-muted hover:bg-surface-muted hover:text-ink"
-              >
-                {action.icon}
-              </button>
-            ))}
-            <button
-              type="button"
-              aria-label={`Actions for ${entry.title}`}
-              title="Actions"
-              onClick={(event) => {
-                const rect = event.currentTarget.getBoundingClientRect();
-                onHover(entry, undefined);
-                onMenu(entry, { x: rect.left, y: rect.bottom + 2, returnTo: event.currentTarget });
-              }}
-              className="inline-flex size-6 items-center justify-center rounded-md text-muted hover:bg-surface-muted hover:text-ink"
-            >
-              <MoreHorizontal size={14} />
-            </button>
-          </span>
-        ))}
+      {/* One control, holding everything the row can do. A pin button beside
+          it would be a third way to do what right-click and this already do,
+          and three ways to pin is two too many. */}
+      {(entry.actions?.length ?? 0) > 0 && (
+        <button
+          type="button"
+          aria-label={`Actions for ${entry.title}`}
+          title="Actions"
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            onHover(entry, undefined);
+            onMenu(entry, { x: rect.left, y: rect.bottom + 2, returnTo: event.currentTarget });
+          }}
+          className={cn(
+            "shrink-0 items-center justify-center rounded-md text-muted hover:bg-surface-muted hover:text-ink",
+            coarse
+              ? "inline-flex size-11"
+              : "hidden size-6 group-hover/row:inline-flex group-focus-within/row:inline-flex",
+          )}
+        >
+          <MoreHorizontal size={14} />
+        </button>
+      )}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button, Dialog, DialogActions, ErrorNote, Field, IconButton, Input, Select, Spinner } from "@logue/ui";
 import { api, type BackupFile, type Skill } from "../api";
 import { Page } from "./AppShell";
+import { ShortcutsList } from "./ShortcutsDialog";
 import { useAction, useHost } from "./useHost";
 
 const LANGUAGES = ["Auto-detect", "English", "中文", "日本語", "Español", "Français", "Deutsch"];
@@ -274,6 +275,12 @@ export function SettingsRoute() {
             </Button>
           </DialogActions>
         </Dialog>
+
+        {/* Where someone looks for them. `?` opens the same list, but a key
+            you have to already know is not a way to find anything out. */}
+        <Section title="Keyboard shortcuts">
+          <ShortcutsList />
+        </Section>
       </div>
     </Page>
   );

@@ -1,6 +1,6 @@
-import { Inbox, Layers, Pin, PinOff, Plus, Search } from "lucide-react";
+import { Inbox, Layers, Search } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Button, IconButton, Input, Menu, MenuItem, Tag, cn } from "@logue/ui";
+import { IconButton, Input, Menu, MenuItem, Tag, cn } from "@logue/ui";
 import { api, type Document, type Material, type Project, type Skill, type Topic } from "../api";
 import { ConfirmDelete } from "./ConfirmDelete";
 import { PromptDialog } from "./PromptDialog";
@@ -28,13 +28,9 @@ function Fact({ name, children }: { name: string; children: React.ReactNode }) {
   );
 }
 
-/** Pin or unpin, as the first hover button on every row in every rail. */
+/** Pin or unpin, the first action on every row in every rail. */
 function pinAction(pinned: boolean, onRun: () => void): RailAction {
-  return {
-    label: pinned ? "Unpin" : "Pin",
-    onRun,
-    icon: pinned ? <PinOff size={13} /> : <Pin size={13} />,
-  };
+  return { label: pinned ? "Unpin" : "Pin", onRun };
 }
 
 /** What the rail is about to delete, held while the dialog asks. */
@@ -239,13 +235,15 @@ export function ProjectsRail({
   selectedId,
   onSelect,
   onVisibleOrder,
+  made = 0,
 }: {
   selectedId?: string;
   onSelect: (id: string) => void;
   onVisibleOrder?: (ids: string[]) => void;
+  /** Bumped by the rail's `+`, which lives on the nav row above this list. */
+  made?: number;
 }) {
-  const projects = useHost(() => api.projects(), []);
-  const action = useAction();
+  const projects = useHost(() => api.projects(), [made]);
   const pins = usePins("project");
   const [doomed, setDoomed] = useState<Doomed>();
   const [renaming, setRenaming] = useState<Renaming>();
@@ -302,22 +300,6 @@ export function ProjectsRail({
 
   return (
     <>
-      <RailHeader>
-        <Button
-          variant="ghost"
-          className="justify-start"
-          disabled={action.busy}
-          onClick={() =>
-            void action.run(async () => {
-              const { project } = await api.createProject("New Project", "");
-              await projects.refresh();
-              onSelect(project.id);
-            })
-          }
-        >
-          <Plus size={13} /> New Project
-        </Button>
-      </RailHeader>
       <RailList
         storageKey="projects"
         entries={entries}
@@ -337,13 +319,15 @@ export function DocumentsRail({
   selectedId,
   onSelect,
   onVisibleOrder,
+  made = 0,
 }: {
   selectedId?: string;
   onSelect: (id: string) => void;
   onVisibleOrder?: (ids: string[]) => void;
+  /** Bumped by the rail's `+`, which lives on the nav row above this list. */
+  made?: number;
 }) {
-  const documents = useHost(() => api.documents(), []);
-  const action = useAction();
+  const documents = useHost(() => api.documents(), [made]);
   const pins = usePins("document");
   const [doomed, setDoomed] = useState<Doomed>();
   const [renaming, setRenaming] = useState<Renaming>();
@@ -399,22 +383,6 @@ export function DocumentsRail({
 
   return (
     <>
-      <RailHeader>
-        <Button
-          variant="ghost"
-          className="justify-start"
-          disabled={action.busy}
-          onClick={() =>
-            void action.run(async () => {
-              const { document } = await api.createDocument({});
-              await documents.refresh();
-              onSelect(document.id);
-            })
-          }
-        >
-          <Plus size={13} /> New Document
-        </Button>
-      </RailHeader>
       <RailList
         storageKey="documents"
         entries={entries}

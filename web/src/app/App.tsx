@@ -117,15 +117,33 @@ export function App() {
     order.current = ids;
   }, []);
 
+  // Bumped when something is made from the rail's `+`, which is outside the
+  // list that has to show it.
+  const [made, setMade] = useState(0);
+
+  const newProject = async () => {
+    const { project } = await api.createProject("New Project", "");
+    setProjectId(project.id);
+    setMade((n) => n + 1);
+    go("projects");
+  };
+
+  const newDocument = async () => {
+    const { document } = await api.createDocument({});
+    setDocumentId(document.id);
+    setMade((n) => n + 1);
+    go("documents");
+  };
+
   // The rail carries the open section's list; the main area carries the one
   // thing chosen from it.
   const list =
     route === "stream" ? (
       <StreamRail selectedId={sourceId} onSelect={setSourceId} onVisibleOrder={onVisibleOrder} />
     ) : route === "projects" ? (
-      <ProjectsRail selectedId={projectId} onSelect={setProjectId} onVisibleOrder={onVisibleOrder} />
+      <ProjectsRail selectedId={projectId} onSelect={setProjectId} onVisibleOrder={onVisibleOrder} made={made} />
     ) : route === "documents" ? (
-      <DocumentsRail selectedId={documentId} onSelect={setDocumentId} onVisibleOrder={onVisibleOrder} />
+      <DocumentsRail selectedId={documentId} onSelect={setDocumentId} onVisibleOrder={onVisibleOrder} made={made} />
     ) : route === "skills" ? (
       <SkillsRail selectedId={skillId} onSelect={setSkillId} onVisibleOrder={onVisibleOrder} />
     ) : undefined;
@@ -137,7 +155,7 @@ export function App() {
         onRoute={go}
         offline={Boolean(status.error)}
         onFind={() => setFinding(true)}
-        onShortcuts={() => setHelping(true)}
+        onNew={{ projects: () => void newProject(), documents: () => void newDocument() }}
         list={list}
       >
         {route === "stream" && <StreamRoute openId={sourceId} onOpen={setSourceId} onOpenDocument={openDocument} />}
