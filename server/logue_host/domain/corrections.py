@@ -16,6 +16,7 @@ from typing import Any
 from ..errors import BadRequest
 from ..ids import now
 from ..store import Store
+from . import vocabulary
 
 #: More than this and the prompt is mostly corrections. The oldest go first.
 LIMIT = 40
@@ -41,6 +42,10 @@ def remember(store: Store, spoken: str, preferred: str) -> list[dict[str, Any]]:
     profile["corrections"] = kept[-LIMIT:]
     settings["voice_profile"] = profile
     store.save_settings(settings)
+    # The word someone typed by hand is learned outright — they have already
+    # said which spelling is right, and this list holds only forty, so a name
+    # corrected today would otherwise be forgotten by winter.
+    vocabulary.learn(store, preferred, f"You corrected this to “{preferred}” while fixing a recording.")
     return profile["corrections"]
 
 

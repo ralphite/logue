@@ -13,7 +13,7 @@ from ..errors import BadRequest, HostError, NotFound
 from ..ids import new_id, now
 from ..providers import Provider
 from ..store import Record, Store
-from . import corrections, defaults, materials, projects
+from . import corrections, defaults, materials, projects, vocabulary
 
 
 #: Enough of the surrounding page to fix a name, without becoming the prompt.
@@ -62,8 +62,8 @@ def transcription_plan(
 
     language = overrides.get("primary_language") or profile.get("primary_language") or ""
     terms: list[str] = []
-    vocabulary = profile.get("vocabulary") or {}
-    for group in vocabulary.values():
+    profile_vocabulary = profile.get("vocabulary") or {}
+    for group in profile_vocabulary.values():
         if isinstance(group, list):
             terms.extend(str(term) for term in group)
     vocabulary_name = ""
@@ -73,7 +73,11 @@ def transcription_plan(
         if record:
             terms.extend(str(term) for term in record.get("terms") or [])
             vocabulary_name = str(record.get("name") or "")
-    terms = list(dict.fromkeys(terms))
+    # Two layers, in the order they should win: what Logue learned about this
+    # person in general goes in first, and the Project's own words go after —
+    # last write wins in the reader's mind, and a Project is the narrower
+    # statement about how a word is spelled here.
+    terms = list(dict.fromkeys([*vocabulary.terms(store), *terms]))
 
     # The transcription Skill is where someone writes down how they want to be
     # heard — filler words, punctuation, what to leave in. Ignoring it and

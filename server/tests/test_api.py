@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from logue_host.app import App
 from logue_host.build import installed_extension_build
-from logue_host.domain import capture, corrections, documents, organize, summaries
+from logue_host.domain import capture, corrections, documents, organize, summaries, vocabulary
 from logue_host.errors import BadRequest, Conflict, NotFound, Unavailable
 from logue_host.http import Request, serve, web_file
 from logue_host.providers import Provider
@@ -315,6 +315,93 @@ class HostTest(Workspace, unittest.TestCase):
     def test_ids_cannot_escape_the_workspace(self) -> None:
         with self.assertRaises(NotFound):
             self.call("GET", "/v1/materials/..%2f..%2fsettings")
+
+
+class LearningHowAWordIsSpelled(Workspace, unittest.TestCase):
+    """What is learned, what is only suggested, and what is never learned.
+
+    The rule the whole feature rests on: learn from what a person decided,
+    never from what the model produced. A name misheard ten times appears ten
+    times in the transcripts, so frequency alone would take the mistake for
+    the truth and then spell it that way forever.
+    """
+
+    def a_document(self, content: str) -> dict:
+        return self.call("POST", "/v1/documents", {"title": "Notes", "content": content})["document"]
+
+    def a_recording_said(self, text: str) -> dict:
+        return self.call("POST", "/v1/materials", {"kind": "voice", "content": text})["material"]
+
+    def test_a_correction_is_learned_outright(self) -> None:
+        corrections.remember(self.app.store, "kafka", "Kavka")
+        self.assertEqual([t["term"] for t in vocabulary.learned(self.app.store)], ["Kavka"])
+        self.assertIn("Kavka", capture.transcription_instructions(self.app.store, ""))
+
+    def test_the_reason_is_kept_with_the_word(self) -> None:
+        """Nothing is learned silently — the owner marked this one not up for discussion."""
+        corrections.remember(self.app.store, "kafka", "Kavka")
+        self.assertIn("corrected this", vocabulary.learned(self.app.store)[0]["reason"])
+
+    def test_a_hand_written_name_is_suggested_not_taken(self) -> None:
+        self.a_document("Notes on Zephyrine.\nZephyrine again.\nAnd Zephyrine once more.")
+        found = self.call("GET", "/v1/vocabulary")
+        self.assertEqual([c["term"] for c in found["candidates"]], ["Zephyrine"])
+        self.assertEqual(found["learned"], [], "a suggestion is not a decision")
+        self.assertNotIn("Zephyrine", capture.transcription_instructions(self.app.store, ""))
+
+    def test_approving_a_suggestion_puts_it_in_every_prompt(self) -> None:
+        self.a_document("Notes on Zephyrine.\nZephyrine again.\nAnd Zephyrine once more.")
+        self.call("POST", "/v1/vocabulary", {"term": "Zephyrine"})
+        self.assertIn("Zephyrine", capture.transcription_instructions(self.app.store, ""))
+        self.assertEqual(self.call("GET", "/v1/vocabulary")["candidates"], [], "and stops being asked about")
+
+    def test_a_word_written_twice_is_not_worth_asking_about(self) -> None:
+        self.a_document("Notes on Zephyrine.\nZephyrine again.")
+        self.assertEqual(self.call("GET", "/v1/vocabulary")["candidates"], [])
+
+    def test_a_word_only_the_model_produced_is_never_learned(self) -> None:
+        """Tier three. The one that stops a mishearing becoming a rule."""
+        for _ in range(9):
+            self.a_recording_said("I spoke to Zephyrine about it.")
+        self.assertEqual(self.call("GET", "/v1/vocabulary")["candidates"], [])
+
+    def test_a_word_the_transcripts_already_get_right_is_not_suggested(self) -> None:
+        self.a_document("Notes on Zephyrine.\nZephyrine again.\nAnd Zephyrine once more.")
+        self.a_recording_said("Zephyrine said the same thing.")
+        self.assertEqual(self.call("GET", "/v1/vocabulary")["candidates"], [])
+
+    def test_a_turned_down_suggestion_is_not_offered_again(self) -> None:
+        self.a_document("Notes on Zephyrine.\nZephyrine again.\nAnd Zephyrine once more.")
+        self.call("POST", "/v1/vocabulary/dismiss", {"term": "Zephyrine"})
+        self.assertEqual(self.call("GET", "/v1/vocabulary")["candidates"], [])
+
+    def test_a_learned_word_can_be_taken_back(self) -> None:
+        """And taking it back does not quietly undo the correction itself.
+
+        Two lists, two decisions: the correction says "when you hear kafka,
+        write Kavka", the vocabulary says "this word exists, spell it so".
+        Removing the second must not delete the first — nobody asked for that.
+        """
+        corrections.remember(self.app.store, "kafka", "Kavka")
+        self.call("DELETE", "/v1/vocabulary/Kavka")
+        self.assertEqual(vocabulary.learned(self.app.store), [])
+        prompt = capture.transcription_instructions(self.app.store, "")
+        self.assertNotIn("Spell these terms exactly", prompt)
+        self.assertIn('"kafka" → "Kavka"', prompt, "the correction stands on its own")
+
+    def test_a_project_word_still_wins_its_own_recordings(self) -> None:
+        """Two layers: what Logue learned in general, and what this Project says."""
+        corrections.remember(self.app.store, "kafka", "Kavka")
+        project = self.call("POST", "/v1/projects", {"name": "Opera"})["project"]
+        self.call(
+            "PATCH",
+            f"/v1/projects/{project['id']}",
+            {"transcription_profile": {"mode": "customized", "vocabulary": {"terms": ["Zerlina"]}}},
+        )
+        prompt = capture.transcription_instructions(self.app.store, "Opera")
+        self.assertIn("Kavka", prompt)
+        self.assertIn("Zerlina", prompt)
+        self.assertLess(prompt.index("Kavka"), prompt.index("Zerlina"), "the narrower statement is read last")
 
 
 class DefaultSkillTest(Workspace, unittest.TestCase):

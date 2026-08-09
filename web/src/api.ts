@@ -156,6 +156,20 @@ export interface Correction {
   at?: string;
 }
 
+/** A word Logue has learned to spell, and the reason it knows it. */
+export interface LearnedTerm {
+  term: string;
+  reason: string;
+  at?: string;
+}
+
+/** A proper noun written by hand often enough to be worth asking about. */
+export interface TermCandidate {
+  term: string;
+  count: number;
+  example: string;
+}
+
 export interface Topic {
   id: string;
   name: string;
@@ -264,6 +278,15 @@ export const api = {
   corrections: () => request<{ corrections: Correction[] }>("/v1/corrections"),
   forgetCorrection: (spoken: string) =>
     send<{ corrections: Correction[] }>("DELETE", `/v1/corrections/${encodeURIComponent(spoken)}`),
+
+  vocabulary: () =>
+    request<{ learned: LearnedTerm[]; candidates: TermCandidate[] }>("/v1/vocabulary"),
+  learnTerm: (term: string, reason?: string) =>
+    send<{ learned: LearnedTerm[] }>("POST", "/v1/vocabulary", { term, reason }),
+  dismissTerm: (term: string) =>
+    send<{ candidates: TermCandidate[] }>("POST", "/v1/vocabulary/dismiss", { term }),
+  forgetTerm: (term: string) =>
+    send<{ learned: LearnedTerm[] }>("DELETE", `/v1/vocabulary/${encodeURIComponent(term)}`),
 
   /** Groupings Logue noticed: by tag, by Project, by where things came from. */
   topics: () => request<{ topics: Topic[] }>("/v1/topics"),

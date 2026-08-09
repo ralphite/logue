@@ -24,6 +24,7 @@ from .domain import (
     skills,
     summaries,
     topics,
+    vocabulary,
 )
 from .errors import BadRequest, NotFound
 from .http import Request, Response, Router
@@ -505,6 +506,30 @@ class App:
         @route("DELETE", "/v1/corrections/{spoken}")
         def forget_correction(request: Request) -> dict[str, Any]:
             return {"corrections": corrections.forget(store, request.params["spoken"])}
+
+        @route("GET", "/v1/vocabulary")
+        def list_vocabulary(_: Request) -> dict[str, Any]:
+            # Suggestions are worked out on the spot rather than kept: the
+            # material they are read from changes every day, and a stored list
+            # would go stale the moment someone typed the name once more.
+            return {"learned": vocabulary.learned(store), "candidates": vocabulary.candidates(store)}
+
+        @route("POST", "/v1/vocabulary")
+        def learn_term(request: Request) -> dict[str, Any]:
+            body = request.json()
+            term = str(body.get("term") or "")
+            reason = str(body.get("reason") or "") or "You approved this from your own writing."
+            return {"learned": vocabulary.learn(store, term, reason)}
+
+        @route("POST", "/v1/vocabulary/dismiss")
+        def dismiss_term(request: Request) -> dict[str, Any]:
+            term = str(request.json().get("term") or "")
+            vocabulary.dismiss(store, term)
+            return {"candidates": vocabulary.candidates(store)}
+
+        @route("DELETE", "/v1/vocabulary/{term}")
+        def forget_term(request: Request) -> dict[str, Any]:
+            return {"learned": vocabulary.forget(store, request.params["term"])}
 
         @route("GET", "/v1/materials/{id}/transcript-revisions")
         def transcript_revisions(request: Request) -> dict[str, Any]:

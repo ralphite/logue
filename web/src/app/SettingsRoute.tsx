@@ -55,6 +55,7 @@ export function SettingsRoute() {
   const settings = useHost(() => api.settings(), []);
   const skills = useHost(() => api.skills(), []);
   const corrections = useHost(() => api.corrections(), []);
+  const vocabulary = useHost(() => api.vocabulary(), []);
   const backup = useHost(() => api.backupPreview(), []);
   const backups = useHost(() => api.backups(), []);
   const [restoring, setRestoring] = useState<BackupFile>();
@@ -207,6 +208,79 @@ export function SettingsRoute() {
                 </div>
               ))}
             </div>
+          )}
+        </Section>
+
+        <Section title="Words Logue knows">
+          <p className="text-xs text-muted">
+            Spelled exactly this way in every recording. Each one is here because you decided it —
+            nothing is learned from a transcript, which is only ever the model repeating itself.
+          </p>
+          {(vocabulary.data?.learned ?? []).length === 0 ? (
+            <p className="text-xs text-muted">
+              None yet — fix a word on a recording, or approve one below.
+            </p>
+          ) : (
+            <div className="grid gap-1">
+              {(vocabulary.data?.learned ?? []).map((known) => (
+                <div key={known.term} className="flex items-center gap-2 text-xs">
+                  <span className="shrink-0 text-ink-soft">{known.term}</span>
+                  <span className="truncate text-muted">{known.reason}</span>
+                  <IconButton
+                    label={`Forget ${known.term}`}
+                    className="ml-auto"
+                    disabled={action.busy}
+                    onClick={() =>
+                      void action.run(() => api.forgetTerm(known.term)).then(() => vocabulary.refresh())
+                    }
+                  >
+                    <X size={13} />
+                  </IconButton>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {(vocabulary.data?.candidates ?? []).length > 0 && (
+            <>
+              <p className="mt-1 text-xs text-muted">
+                Written by hand more than once, and never heard right. Yours to approve — Logue does
+                not add these on its own.
+              </p>
+              <div className="grid gap-1">
+                {(vocabulary.data?.candidates ?? []).map((maybe) => (
+                  <div key={maybe.term} className="flex items-center gap-2 text-xs">
+                    <span className="shrink-0 text-ink-soft">{maybe.term}</span>
+                    <span className="truncate text-muted" title={maybe.example}>
+                      written {maybe.count} times
+                    </span>
+                    <span className="ml-auto flex shrink-0 items-center gap-1">
+                      <Button
+                        disabled={action.busy}
+                        onClick={() =>
+                          void action
+                            .run(() =>
+                              api.learnTerm(maybe.term, "You approved this from your own writing."),
+                            )
+                            .then(() => vocabulary.refresh())
+                        }
+                      >
+                        Remember
+                      </Button>
+                      <IconButton
+                        label={`Never suggest ${maybe.term}`}
+                        disabled={action.busy}
+                        onClick={() =>
+                          void action.run(() => api.dismissTerm(maybe.term)).then(() => vocabulary.refresh())
+                        }
+                      >
+                        <X size={13} />
+                      </IconButton>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </Section>
 
