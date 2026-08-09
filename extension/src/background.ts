@@ -43,7 +43,40 @@ async function toOffscreen<T>(type: string): Promise<T> {
 
 chrome.runtime.onInstalled.addListener(() => {
   void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+  void healOpenTabs();
 });
+
+/**
+ * Put the surfaces back on pages that were already open.
+ *
+ * Reloading an extension orphans every content script it had running: the
+ * code stays on the page, `chrome.runtime` stops answering it, and the bar
+ * quietly does nothing until someone reloads the tab. Since the whole point of
+ * updating in the background is that nobody has to do anything, the tabs have
+ * to be healed too.
+ */
+async function healOpenTabs(): Promise<void> {
+  try {
+    const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
+    await Promise.all(
+      tabs.map(async (tab) => {
+        if (tab.id === undefined) return;
+        try {
+          // Resolved the same way the offscreen page is: an installed build
+          // may not have the worker at the extension root.
+          const worker = chrome.runtime.getManifest().background;
+          const from = worker && "service_worker" in worker ? worker.service_worker : "";
+          await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: [siblingOf(from, "content.js")] });
+        } catch {
+          // A restricted page, or one the extension has no permission for.
+          // Neither is worth a word: it had no surfaces to lose.
+        }
+      }),
+    );
+  } catch {
+    // Without the tabs permission there is nothing to heal and nothing to say.
+  }
+}
 
 // -- the only route to the Host -------------------------------------------
 
