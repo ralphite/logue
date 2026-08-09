@@ -126,6 +126,12 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   by accident.
 - **Follows Notion.** Very simple, very minimal, small spacing everywhere.
 - **Progressive disclosure.** Anything secondary is folded away by default.
+- **Opening a section opens a new one of whatever it holds.** Clicking Skills
+  lands on a new Skill, Documents on a new page, Projects on a new Project —
+  ready to type into, not a button offering to make one. The list is already in
+  the rail for anything that exists, so a screen whose only message is "pick
+  something from the list" wastes the click. Nothing is written until the first
+  keystroke. Stream is the exception: its material is captured, never made.
 - **An empty section takes up no room.** A heading over "Nothing saved yet."
   spends a screenful saying nothing; it folds to a single line, or it is not
   drawn at all. This does not contradict "an empty section carries the way out
