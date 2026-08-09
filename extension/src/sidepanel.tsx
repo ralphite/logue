@@ -32,6 +32,12 @@ interface ThreadMessage {
 }
 
 const THREAD = "logue:thread";
+
+/** A key that belongs to whatever is being typed into, not to the panel. */
+function typing(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+}
 /** Written by ⌘⇧K before the panel opens; read here on arrival. */
 const LISTEN = "logue:listen-at";
 
@@ -367,6 +373,12 @@ function Panel() {
   useEffect(() => {
     if (voice.phase !== "recording") return;
     const onKeyDown = (event: KeyboardEvent) => {
+      // Not while someone is typing. These keys belong to the recording only
+      // when nothing else has a claim on them: Esc in the ask box cancelled
+      // the recording, and Enter accepted instead of making a new line —
+      // v1 had a guard for exactly this and the rebuild did not carry it.
+      if (typing(event.target) || event.isComposing || event.repeat) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
       if (event.key === "Escape") {
         event.preventDefault();
         voice.cancel();

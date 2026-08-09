@@ -485,3 +485,8 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   agent. Answers carry live `[Source n]` citations like every other output.
   Typing and speaking reach the same conversation; two ways to ask one
   question, with answers that did not know about each other, was the bug.
+- **A panel shortcut never steals a key from what is being typed into.** Esc
+  and Enter drive the recording only when no input, textarea, select or
+  contenteditable has focus, no IME composition is in progress, the key is not
+  a repeat, and no modifier is held. Without this, Esc in the ask box cancels
+  a recording and Enter accepts it instead of making a new line.
