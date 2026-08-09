@@ -104,7 +104,9 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   screen, every list, including the Side Panel and the Sources under a
   Document. Printing the domain as dead text makes people go and find it by
   hand. Clicking the link must not also open the row.
-- **⌘K finds anything**; ⌘\ collapses the rail.
+- **⌘K finds anything**; ⌘\ collapses the rail; **⌘⇧L opens the Side Panel and
+  closes it again** — one key for both directions, so the panel never needs the
+  mouse to be put away.
 - **One Find, and it searches everything.** Stream, Projects, Documents,
   Skills — one entry point, not a second Search box above whichever list is
   open. Two controls doing the same job is one too many, and a search that only
@@ -174,6 +176,17 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   reference for its behaviour: read it out of the history and match it item by
   item, rather than inventing a replacement. A rebuild may change how the panel
   is built; what it does for the person was already settled.
+- **⌘⇧K opens the Side Panel already recording.** One key, no aiming: the
+  panel appears and the microphone is live. **Esc throws the recording away;
+  Enter takes it** and puts what was said into the panel's conversation as a
+  message. Nothing is sent until Enter — a recording nobody accepted leaves no
+  trace.
+- **The panel's conversation can call the Skills already configured** —
+  translate, file into a Project, and the rest — rather than offering its own
+  parallel set of verbs. A Skill is defined once and reachable from everywhere.
+- **The conversation runs on an agent we control**, not a single prompt fired
+  at a model. What it may read, which Skills it may reach for, and what it does
+  with the answer are ours to set.
 - **Right-clicking a page offers the Skills that apply to a whole page** —
   "translate to Chinese" and its like — listed by name in the browser's own
   menu. Choosing one opens the Side Panel onto a conversation: first a message
