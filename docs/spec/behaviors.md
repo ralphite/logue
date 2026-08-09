@@ -143,7 +143,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   whose buttons reach nothing.
 - **Google Docs must work.** It is not optional.
 - **A recording is saved before it is transcribed.** A model failure never
-  costs someone what they said.
+  costs someone what they said — and neither does the Host being off. A
+  recording made while nothing is listening waits in the extension and goes in
+  the moment the Host answers. The bar says it is kept, not that it failed.
+- **The microphone never gets stuck.** A recorder left behind by a session
+  nobody finished is released rather than refusing every recording after it.
 - **A transcript goes back where the caret was**, even if focus moved while it
   was being transcribed.
 - **The microphone is never offered in a password field.**

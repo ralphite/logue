@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import { host, HostError, type Material } from "./api";
 import { send } from "./messages";
+import { keep, LIMIT } from "./pending";
 import type { VoiceOverrides } from "./overrides";
 
 export type VoicePhase = "idle" | "starting" | "recording" | "working" | "error";
@@ -96,6 +97,27 @@ export function useVoice() {
         return { text, material };
       } catch (cause) {
         if (session.current !== id) return undefined;
+        // The Host is not answering, so nothing has the audio but this page —
+        // and this page is about to forget it. Keep it, and say it is kept.
+        // A model that refused is different: the Host already has the audio.
+        if (cause instanceof HostError && cause.status === 0) {
+          const kept = await keep({
+            audio: recorded.audio,
+            mediaType: recorded.mediaType ?? "audio/webm",
+            project: options.project,
+            overrides: options.overrides,
+            source: options.source,
+            parentIds: options.parentIds,
+            nearby: options.nearby,
+          });
+          setPhase("error");
+          setError(
+            kept
+              ? "Logue is not running. The recording is kept and will be saved when it starts."
+              : `Logue is not running, and ${LIMIT} recordings are already waiting. Start Logue to save them.`,
+          );
+          return undefined;
+        }
         setPhase("error");
         setError(describe(cause));
         return undefined;

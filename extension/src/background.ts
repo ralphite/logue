@@ -6,6 +6,7 @@
 import { HOST } from "./api";
 import { shouldReload } from "./build";
 import { tagOf, type HostReply } from "./messages";
+import { all as pendingVoice, forget } from "./pending";
 import { siblingOf } from "./paths";
 
 /**
@@ -146,6 +147,65 @@ async function relayToHost(message: { path: string; method?: string; body?: stri
   }
 }
 
+/**
+ * Send the recordings made while the Host was off.
+ *
+ * Oldest first, and one at a time: the point is that they arrive, not that
+ * they arrive quickly. A recording is only forgotten here once the Host has
+ * both transcribed it and saved it — a half-done one stays queued, because
+ * being sent twice costs a duplicate and being dropped costs the words.
+ */
+// oxlint-disable no-await-in-loop -- deliberately one at a time; see above.
+async function sendPending(): Promise<number> {
+  const waiting = await pendingVoice();
+  let sent = 0;
+  for (const one of waiting) {
+    try {
+      const heard = await relayToHost({
+        path: "/v1/transcribe",
+        method: "POST",
+        body: JSON.stringify({
+          audio: one.audio,
+          media_type: one.mediaType,
+          project: one.project,
+          overrides: one.overrides,
+          nearby: one.nearby,
+        }),
+      });
+      if (!heard.ok || heard.status !== 200) break;
+      const said: unknown = JSON.parse(heard.text);
+      if (typeof said !== "object" || said === null || !("capture_id" in said) || !("text" in said)) break;
+      const capture_id = String(said.capture_id);
+      const text = String(said.text);
+      const applied_context = "applied_context" in said ? said.applied_context : undefined;
+      // Nothing heard in it is still a finished recording: the Host has the
+      // audio now, so this queue's job is done either way.
+      if (text.trim()) {
+        const saved = await relayToHost({
+          path: "/v1/voice-materials",
+          method: "POST",
+          body: JSON.stringify({
+            capture_id,
+            text,
+            source: one.source,
+            project: one.project,
+            parent_ids: one.parentIds,
+            applied_context,
+          }),
+        });
+        if (!saved.ok || saved.status !== 200) break;
+      }
+      await forget(one.id);
+      sent += 1;
+    } catch {
+      // The Host went away again mid-queue. What is left stays left.
+      break;
+    }
+  }
+  return sent;
+}
+// oxlint-enable no-await-in-loop
+
 // -- stay on the deployed build ------------------------------------------
 
 const BUILD_ALARM = "logue:build-check";
@@ -205,7 +265,11 @@ async function scheduleBuildCheck(): Promise<void> {
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === BUILD_ALARM) void keepUpToDate();
+  if (alarm.name !== BUILD_ALARM) return;
+  void keepUpToDate();
+  // The same five minutes is the right cadence for this: a Host that has come
+  // back should not need a page opened before it hears what it missed.
+  void sendPending();
 });
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
@@ -249,6 +313,10 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
       // Opening a page is the most likely moment a deploy goes unnoticed, so
       // the question doubles as the trigger — the worker had to wake to answer.
       void keepUpToDate();
+      // And it is the moment someone would want the recordings they made
+      // while the Host was off to have gone in. Waiting for the five-minute
+      // alarm would be waiting for nothing in particular.
+      void sendPending();
       return false;
 
     case "logue:open-panel":
@@ -283,3 +351,4 @@ chrome.commands.onCommand.addListener((command) => {
 void scheduleBuildCheck();
 void keepUpToDate();
 void healIfAsked();
+void sendPending();

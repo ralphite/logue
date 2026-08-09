@@ -18,7 +18,12 @@ export function preferredMimeType(): string {
 }
 
 export async function start(): Promise<void> {
-  if (recorder) throw new Error("Already recording.");
+  // A recorder left behind by a session nobody finished — a tab closed
+  // mid-recording, a surface that went away while the microphone was open —
+  // used to refuse every recording after it, for good. The bar said "Already
+  // recording" over a page with no recording on it and offered no way out.
+  // Whatever it was holding is unreachable by then, so let it go.
+  if (recorder) cancel();
   stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const mimeType = preferredMimeType();
   recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
