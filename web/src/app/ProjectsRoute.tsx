@@ -116,11 +116,15 @@ function ProjectDetail({
         )
       }
     >
+      {/* A spinner that never stops is what a deleted Project used to look
+          like. Say what happened instead. */}
       {detail.error && <ErrorNote className="mb-2">{detail.error}</ErrorNote>}
       {!project ? (
-        <div className="flex items-center gap-2 py-8 text-xs text-muted">
-          <Spinner /> Loading
-        </div>
+        detail.error ? null : (
+          <div className="flex items-center gap-2 py-8 text-xs text-muted">
+            <Spinner /> Loading
+          </div>
+        )
       ) : (
         <div className="grid gap-5">
           <section>

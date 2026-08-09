@@ -88,6 +88,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   Document. Printing the domain as dead text makes people go and find it by
   hand. Clicking the link must not also open the row.
 - **⌘K finds anything**; ⌘\ collapses the rail.
+- **What is open is in the URL** — `#/documents/doc_1a2b`. It can be
+  bookmarked, sent to someone, reloaded onto, and Back returns to what you were
+  reading rather than to the section you were in before it. A link to something
+  that has since been deleted says so plainly; it does not draw an editor
+  around nothing.
 - **The rail's list is flat.** A Source belongs to several Projects at once,
   so a folder for one of them hid it from the rest. Pinned is the only heading.
 - **Every rail row carries its kind on the left**, in a fixed slot, so the

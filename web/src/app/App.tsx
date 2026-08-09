@@ -16,9 +16,26 @@ function isRoute(value: string): value is Route {
   return (ROUTES as readonly string[]).includes(value);
 }
 
-function routeFromHash(): Route {
-  const value = window.location.hash.replace("#/", "");
-  return isRoute(value) ? value : "stream";
+/** Where the URL says we are: a section, and what is open inside it. */
+interface Where {
+  route: Route;
+  id?: string;
+}
+
+/**
+ * `#/documents/doc_1a2b` — the section and the one thing chosen from it.
+ *
+ * The selection used to live only in memory, so a document could not be
+ * bookmarked, could not be sent to anyone, and Back went to whatever section
+ * you were in before rather than to what you were just reading.
+ */
+function readWhere(): Where {
+  const [route = "", ...rest] = window.location.hash.replace(/^#\/?/, "").split("/");
+  return { route: isRoute(route) ? route : "stream", id: rest.join("/") || undefined };
+}
+
+function hashFor(route: Route, id?: string): string {
+  return id ? `#/${route}/${id}` : `#/${route}`;
 }
 
 /** A key that belongs to whatever is being typed into, not to the app. */
@@ -34,11 +51,18 @@ function typing(target: EventTarget | null): boolean {
  * or a Project from anywhere, and something has to be able to say "go there".
  */
 export function App() {
-  const [route, setRoute] = useState<Route>(routeFromHash);
-  const [documentId, setDocumentId] = useState<string>();
-  const [projectId, setProjectId] = useState<string>();
-  const [sourceId, setSourceId] = useState<string>();
-  const [skillId, setSkillId] = useState<string>();
+  const first = readWhere();
+  const [route, setRoute] = useState<Route>(first.route);
+  const [documentId, setDocumentId] = useState<string | undefined>(
+    first.route === "documents" ? first.id : undefined,
+  );
+  const [projectId, setProjectId] = useState<string | undefined>(
+    first.route === "projects" ? first.id : undefined,
+  );
+  const [sourceId, setSourceId] = useState<string | undefined>(
+    first.route === "stream" ? first.id : undefined,
+  );
+  const [skillId, setSkillId] = useState<string | undefined>(first.route === "skills" ? first.id : undefined);
   const [finding, setFinding] = useState(false);
   const [helping, setHelping] = useState(false);
   const status = useHost(() => api.status(), []);
@@ -47,21 +71,30 @@ export function App() {
   // state: it changes on every filter keystroke and nothing renders from it.
   const order = useRef<string[]>([]);
 
+  // The URL is the one place that says where we are. Every way of moving —
+  // a rail row, ⌘K, the nav, the browser's own Back — goes through the hash,
+  // and this puts the state back in step with it.
   useEffect(() => {
-    const onHashChange = () => setRoute(routeFromHash());
+    const onHashChange = () => {
+      const { route: next, id } = readWhere();
+      setRoute(next);
+      if (next === "stream") setSourceId(id);
+      else if (next === "projects") setProjectId(id);
+      else if (next === "documents") setDocumentId(id);
+      else if (next === "skills") setSkillId(id);
+    };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  const openHere = useCallback(
-    (id: string) => {
-      if (route === "stream") setSourceId(id);
-      else if (route === "projects") setProjectId(id);
-      else if (route === "documents") setDocumentId(id);
-      else if (route === "skills") setSkillId(id);
-    },
-    [route],
-  );
+  /** Go somewhere. Writing the hash is what actually moves the app. */
+  const openIn = useCallback((next: Route, id?: string) => {
+    const wanted = hashFor(next, id);
+    if (window.location.hash === wanted) return;
+    window.location.hash = wanted;
+  }, []);
+
+  const openHere = useCallback((id: string) => openIn(readWhere().route, id), [openIn]);
 
   const here =
     route === "stream"
@@ -104,30 +137,27 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [here, openHere]);
 
+  /** The nav. A section reopens whatever was last open in it. */
   const go = (next: Route) => {
-    window.location.hash = `#/${next}`;
-    setRoute(next);
+    const last = {
+      stream: sourceId,
+      projects: projectId,
+      documents: documentId,
+      skills: skillId,
+      settings: undefined,
+    };
+    openIn(next, last[next]);
   };
 
-  const openDocument = (id: string) => {
-    setDocumentId(id);
-    go("documents");
-  };
+  const openDocument = (id: string) => openIn("documents", id);
 
   /** A Source lives in the Stream, wherever it happens to be listed. */
-  const openSource = (id: string) => {
-    setSourceId(id);
-    go("stream");
-  };
+  const openSource = (id: string) => openIn("stream", id);
 
   const goTo = (target: FindTarget) => {
     if (target.kind === "document") return openDocument(target.id);
-    if (target.kind === "project") {
-      setProjectId(target.id);
-      return go("projects");
-    }
-    setSourceId(target.id);
-    go("stream");
+    if (target.kind === "project") return openIn("projects", target.id);
+    openSource(target.id);
   };
 
   const onVisibleOrder = useCallback((ids: string[]) => {
@@ -141,22 +171,13 @@ export function App() {
   // Pressing `+` opens an empty one; the Host hears about it at the first
   // keystroke. Pressing it again while a draft is open lands on that draft
   // rather than starting a second.
-  const newProject = () => {
-    setProjectId(DRAFT);
-    go("projects");
-  };
-  const newDocument = () => {
-    setDocumentId(DRAFT);
-    go("documents");
-  };
-  const newSkill = () => {
-    setSkillId(DRAFT);
-    go("skills");
-  };
+  const newProject = () => openIn("projects", DRAFT);
+  const newDocument = () => openIn("documents", DRAFT);
+  const newSkill = () => openIn("skills", DRAFT);
 
   /** A draft became real: point at it, and let the list go and find it. */
-  const born = (set: (id: string) => void) => (id: string) => {
-    set(id);
+  const born = (next: Route) => (id: string) => {
+    openIn(next, id);
     setMade((n) => n + 1);
   };
 
@@ -164,11 +185,15 @@ export function App() {
   // thing chosen from it.
   const list =
     route === "stream" ? (
-      <StreamRail selectedId={sourceId} onSelect={setSourceId} onVisibleOrder={onVisibleOrder} />
+      <StreamRail
+        selectedId={sourceId}
+        onSelect={(id) => openIn("stream", id)}
+        onVisibleOrder={onVisibleOrder}
+      />
     ) : route === "projects" ? (
       <ProjectsRail
         selectedId={projectId}
-        onSelect={setProjectId}
+        onSelect={(id) => openIn("projects", id)}
         onVisibleOrder={onVisibleOrder}
         made={made}
         onNew={newProject}
@@ -176,7 +201,7 @@ export function App() {
     ) : route === "documents" ? (
       <DocumentsRail
         selectedId={documentId}
-        onSelect={setDocumentId}
+        onSelect={(id) => openIn("documents", id)}
         onVisibleOrder={onVisibleOrder}
         made={made}
         onNew={newDocument}
@@ -184,7 +209,7 @@ export function App() {
     ) : route === "skills" ? (
       <SkillsRail
         selectedId={skillId}
-        onSelect={setSkillId}
+        onSelect={(id) => openIn("skills", id)}
         onVisibleOrder={onVisibleOrder}
         made={made}
         onNew={newSkill}
@@ -206,27 +231,31 @@ export function App() {
         list={list}
       >
         {route === "stream" && (
-          <StreamRoute openId={sourceId} onOpen={setSourceId} onOpenDocument={openDocument} />
+          <StreamRoute
+            openId={sourceId}
+            onOpen={(id) => openIn("stream", id)}
+            onOpenDocument={openDocument}
+          />
         )}
         {route === "projects" && (
           <ProjectsRoute
             openId={projectId}
-            onOpen={setProjectId}
+            onOpen={(id) => openIn("projects", id)}
             onOpenDocument={openDocument}
             onOpenSource={openSource}
-            onCreated={born(setProjectId)}
+            onCreated={born("projects")}
           />
         )}
         {route === "documents" && (
           <DocumentsRoute
             openId={documentId}
-            onOpen={setDocumentId}
-            onCreated={born(setDocumentId)}
+            onOpen={(id) => openIn("documents", id)}
+            onCreated={born("documents")}
             onOpenSource={openSource}
           />
         )}
         {route === "skills" && (
-          <SkillsRoute openId={skillId} onOpen={setSkillId} onCreated={born(setSkillId)} />
+          <SkillsRoute openId={skillId} onOpen={(id) => openIn("skills", id)} onCreated={born("skills")} />
         )}
         {route === "settings" && <SettingsRoute />}
         <FindDialog open={finding} onClose={() => setFinding(false)} onGo={goTo} />

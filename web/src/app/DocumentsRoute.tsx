@@ -155,6 +155,14 @@ function DocumentEditor({
 
   const mine = () => ({ title, content: body.current?.innerHTML ?? "" });
 
+  // A link to something that has been deleted is a normal thing to click —
+  // from a bookmark, from a message, from Back. Say so plainly rather than
+  // drawing an editor around nothing, with an Export button for a document
+  // that is not there and a spinner that never stops.
+  if (loaded.error && !doc) {
+    return <Nothing section="Documents" hint={loaded.error} />;
+  }
+
   /**
    * Every document starts "Untitled" and, left alone, stays that way — which
    * makes a list of them useless. So the title follows the first line while
