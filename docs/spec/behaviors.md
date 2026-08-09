@@ -438,3 +438,9 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   floor. Grown with padding and handed back with negative margin, so a
   compact text line keeps its height while the target underneath it does not
   lie about where it can be pressed.
+- **A model may touch a document only through a person's accept.** A rewrite
+  arrives as decisions — kept stretches and changes with both sides shown —
+  each change taken or refused on its own, and Apply lands as an ordinary
+  edit the history records like any other. The proposal itself is kept as a
+  Run, so "why does it say this now" has an answer later. Decided by the
+  owner after the provenance conflict was put to them plainly.

@@ -128,6 +128,11 @@ export interface Version {
   summary_state?: "pending" | "ready" | "failed";
 }
 
+/** One decision in a proposed rewrite: a kept stretch, or a change with both sides. */
+export type RewriteHunk =
+  | { kind: "same"; lines: string[] }
+  | { kind: "change"; before: string[]; after: string[] };
+
 export interface DiffLine {
   kind: "same" | "added" | "removed";
   text: string;
@@ -304,6 +309,14 @@ export const api = {
   documentVersions: (id: string) => request<{ versions: Version[] }>(`/v1/documents/${id}/versions`),
   documentDiff: (id: string, revision: number) =>
     request<{ lines: DiffLine[] }>(`/v1/documents/${id}/versions/${revision}/diff`),
+  /** A model's proposal for a selected passage. Nothing is applied here. */
+  rewriteSelection: (id: string, selection: string, instruction: string) =>
+    send<{ run_id: string; rewritten: string; hunks: RewriteHunk[] }>(
+      "POST",
+      `/v1/documents/${id}/rewrite`,
+      { selection, instruction },
+    ),
+
   /** Written forward as a new edit, so the versions in between survive. */
   restoreDocument: (id: string, revision: number) =>
     send<{ document: Document }>("POST", `/v1/documents/${id}/versions/${revision}/restore`, {}),

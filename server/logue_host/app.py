@@ -295,6 +295,17 @@ class App:
         def name_document(request: Request) -> dict[str, Any]:
             return {"document": documents.suggest_title(store, self.provider(), request.params["id"])}
 
+        @route("POST", "/v1/documents/{id}/rewrite")
+        def rewrite_selection(request: Request) -> dict[str, Any]:
+            body = request.json()
+            return documents.rewrite(
+                store,
+                self.provider(),
+                request.params["id"],
+                selection=str(body.get("selection") or ""),
+                instruction=str(body.get("instruction") or ""),
+            )
+
         @route("GET", "/v1/documents/{id}/versions")
         def document_versions(request: Request) -> dict[str, Any]:
             return {"versions": documents.versions(store, request.params["id"])}

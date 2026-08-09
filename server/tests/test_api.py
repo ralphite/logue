@@ -1000,6 +1000,37 @@ class MakingASkill(Workspace, unittest.TestCase):
         self.assertIn("Tidy up", offered)
 
 
+class RewritingASelection(Workspace, unittest.TestCase):
+    """The model proposes; the person decides, hunk by hunk."""
+
+    def test_a_rewrite_returns_decisions_not_lines(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "<p>one</p><p>two</p>"})["document"]
+        out = self.call("POST", f"/v1/documents/{doc['id']}/rewrite",
+                        {"selection": "keep this line\nchange this line", "instruction": "tighten"})
+        self.assertTrue(out["run_id"], "the proposal is kept as a Run")
+        kinds = {h["kind"] for h in out["hunks"]}
+        self.assertLessEqual(kinds, {"same", "change"})
+        # The fake provider answers with a fixed sentence, so everything is
+        # one change against the original — both sides of it must be present.
+        change = next(h for h in out["hunks"] if h["kind"] == "change")
+        self.assertTrue(change["before"] and change["after"])
+
+    def test_nothing_touches_the_document_itself(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "<p>untouched</p>"})["document"]
+        self.call("POST", f"/v1/documents/{doc['id']}/rewrite",
+                  {"selection": "untouched", "instruction": "louder"})
+        after = self.call("GET", f"/v1/documents/{doc['id']}")["document"]
+        self.assertEqual(after["content"], "<p>untouched</p>")
+        self.assertEqual(after["revision"], doc["revision"], "applying is the editor's act, not this one's")
+
+    def test_an_empty_selection_or_instruction_is_refused(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "<p>x</p>"})["document"]
+        with self.assertRaises(BadRequest):
+            self.call("POST", f"/v1/documents/{doc['id']}/rewrite", {"selection": "", "instruction": "go"})
+        with self.assertRaises(BadRequest):
+            self.call("POST", f"/v1/documents/{doc['id']}/rewrite", {"selection": "text", "instruction": ""})
+
+
 class SkillHistory(Workspace, unittest.TestCase):
     """A prompt's past. Every edit was already written down; now it reads back."""
 

@@ -281,6 +281,51 @@ def restore(store: Store, document_id: str, revision: int) -> Record:
                   expected_revision=int(document.get("revision") or 1))
 
 
+REWRITE = (
+    "Rewrite the passage below as instructed. Return only the rewritten passage — "
+    "no preamble, no commentary, no quotation marks around it. Keep the meaning "
+    "unless the instruction says otherwise, and keep the original language."
+)
+
+
+def rewrite(
+    store: Store, provider: Provider, document_id: str, *, selection: str, instruction: str
+) -> dict[str, Any]:
+    """A model's rewrite of a selected passage, offered as decisions.
+
+    The model proposes; nothing touches the document here. What returns is the
+    rewritten text folded into hunks — stretches kept, changes offered — and
+    the person applies what they accept in the editor, where the edit lands as
+    an ordinary revision the history already records. The proposal itself is
+    kept as a Run, so "why does it say this now" has an answer later.
+    """
+    store.documents.get(document_id)
+    if not selection.strip():
+        raise BadRequest("Select the passage to rewrite first.")
+    if not instruction.strip():
+        raise BadRequest("Say how it should change.")
+
+    prompt = f"Instruction: {instruction.strip()}\n\nPassage:\n{selection}"
+    rewritten = provider.generate(REWRITE, prompt).strip()
+
+    run = store.runs.put(
+        {
+            "id": new_id("run"),
+            "kind": "rewrite",
+            "document_id": document_id,
+            "instruction": instruction.strip(),
+            "original_output": rewritten,
+            "selection": selection,
+            "status": "complete",
+            "sources": [],
+            "created_at": now(),
+        }
+    )
+    before = [line for line in selection.splitlines() if line.strip()]
+    after = [line for line in rewritten.splitlines() if line.strip()]
+    return {"run_id": run["id"], "rewritten": rewritten, "hunks": history.hunks(before, after)}
+
+
 def to_markdown(store: Store, document_id: str) -> str:
     """Export with a Sources appendix, so the file stands on its own."""
     document = store.documents.get(document_id)

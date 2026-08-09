@@ -1,9 +1,10 @@
-import { Download } from "lucide-react";
+import { Download, Wand2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button, ErrorNote, OriginMark, SourceLink, Spinner, originOf } from "@logue/ui";
 import { api, ApiError, type Document as DocumentRecord, type Material } from "../api";
 import { DRAFT, Nothing, Page } from "./AppShell";
 import { DOCUMENT, History } from "./History";
+import { RewriteDialog } from "./RewriteDialog";
 import { timeAgo, useAction, useHost } from "./useHost";
 const AUTOSAVE_MS = 900;
 /** How far a title taken from the body follows it. */
@@ -83,6 +84,8 @@ function DocumentEditor({
   const [revision, setRevision] = useState(0);
   const [conflict, setConflict] = useState(false);
   const [looking, setLooking] = useState(false);
+  /** The selected passage, frozen when Rewrite was pressed. */
+  const [rewriting, setRewriting] = useState<string>();
   /**
    * Who named this: the first line, a model, or the person.
    *
@@ -207,9 +210,22 @@ function DocumentEditor({
       here={doc?.title ?? ""}
       actions={
         draft ? undefined : (
-          <Button onClick={() => window.open(api.documentMarkdownUrl(id), "_blank")}>
-            <Download size={13} /> Export
-          </Button>
+          <>
+            <Button
+              onClick={() => {
+                // Frozen at the press: opening a dialog steals focus, and a
+                // selection read afterwards is empty.
+                const chosen = window.getSelection()?.toString() ?? "";
+                if (chosen.trim()) setRewriting(chosen);
+              }}
+              title="Select a passage first, then let a model propose changes you accept one by one"
+            >
+              <Wand2 size={13} /> Rewrite
+            </Button>
+            <Button onClick={() => window.open(api.documentMarkdownUrl(id), "_blank")}>
+              <Download size={13} /> Export
+            </Button>
+          </>
         )
       }
     >
@@ -285,6 +301,30 @@ function DocumentEditor({
             {saved && <span>Saved {timeAgo(saved)}</span>}
             {action.busy && <Spinner size={11} />}
           </footer>
+
+          {!draft && rewriting !== undefined && (
+            <RewriteDialog
+              documentId={id}
+              selection={rewriting}
+              open
+              onClose={() => setRewriting(undefined)}
+              onApply={(text) => {
+                // The selection is long gone — the dialog had focus. Replace
+                // the frozen passage in the body by matching its text, which
+                // is the passage the person chose.
+                const editor = body.current;
+                if (!editor) return;
+                const plain = editor.innerText;
+                const at = plain.indexOf(rewriting);
+                if (at >= 0) {
+                  editor.innerText = plain.slice(0, at) + text + plain.slice(at + rewriting.length);
+                } else {
+                  editor.innerText = plain + "\n" + text;
+                }
+                onBodyInput();
+              }}
+            />
+          )}
 
           {!draft && (
             <History

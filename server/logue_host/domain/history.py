@@ -66,3 +66,28 @@ def stack(entries: list[Record], split: Splitter) -> list[Record]:
         out.append({**{k: v for k, v in entry.items() if k != "text"}, "added": added, "removed": removed})
     out.reverse()
     return out
+
+
+def hunks(before: list[str], after: list[str]) -> list[Record]:
+    """The compare() lines, folded into decisions.
+
+    A person accepting a rewrite does not rule on lines, they rule on
+    changes: this stretch stays, that replacement happens or does not. So
+    contiguous removed+added runs fold into one "change" carrying both sides,
+    and untouched stretches fold into "same" — each entry is one decision.
+    """
+    folded: list[Record] = []
+    for line in compare(before, after):
+        kind = line["kind"]
+        last = folded[-1] if folded else None
+        if kind == "same":
+            if last and last["kind"] == "same":
+                last["lines"].append(line["text"])
+            else:
+                folded.append({"kind": "same", "lines": [line["text"]]})
+            continue
+        if not (last and last["kind"] == "change"):
+            last = {"kind": "change", "before": [], "after": []}
+            folded.append(last)
+        last["before" if kind == "removed" else "after"].append(line["text"])
+    return folded
