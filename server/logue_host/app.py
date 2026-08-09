@@ -284,6 +284,18 @@ class App:
             kept = [r for r in store.doc_revisions.list() if r.get("doc_id") == document["id"]]
             return {"current": document, "revisions": kept}
 
+        @route("GET", "/v1/documents/{id}/versions")
+        def document_versions(request: Request) -> dict[str, Any]:
+            return {"versions": documents.versions(store, request.params["id"])}
+
+        @route("GET", "/v1/documents/{id}/versions/{revision}/diff")
+        def document_diff(request: Request) -> dict[str, Any]:
+            return {"lines": documents.diff(store, request.params["id"], int(request.params["revision"]))}
+
+        @route("POST", "/v1/documents/{id}/versions/{revision}/restore")
+        def restore_document(request: Request) -> dict[str, Any]:
+            return {"document": documents.restore(store, request.params["id"], int(request.params["revision"]))}
+
         @route("GET", "/v1/documents/{id}/markdown")
         def export_document(request: Request) -> Response:
             text = documents.to_markdown(store, request.params["id"])

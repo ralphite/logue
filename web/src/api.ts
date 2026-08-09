@@ -112,6 +112,26 @@ export interface Run {
   created_at: string;
 }
 
+export interface DocumentVersion {
+  /** Empty for the version that is the document as it stands. */
+  id: string;
+  revision: number;
+  created_at?: string;
+  added: number;
+  removed: number;
+  current?: boolean;
+  /** What changed, in words. Written by a model, so it arrives late. */
+  summary?: string;
+  summary_state?: "pending" | "ready" | "failed";
+}
+
+export interface DiffLine {
+  kind: "same" | "added" | "removed";
+  text: string;
+  old: number | null;
+  new: number | null;
+}
+
 export interface TranscriptRevision {
   id: string;
   material_id: string;
@@ -270,6 +290,14 @@ export const api = {
   ) => send<{ document: Document }>("PATCH", `/v1/documents/${id}`, changes),
   deleteDocument: (id: string) => send<{ ok: true }>("DELETE", `/v1/documents/${id}`),
   documentMarkdownUrl: (id: string) => `${HOST}/v1/documents/${id}/markdown`,
+
+  /** Every version of a document, newest first, each saying what it changed. */
+  documentVersions: (id: string) => request<{ versions: DocumentVersion[] }>(`/v1/documents/${id}/versions`),
+  documentDiff: (id: string, revision: number) =>
+    request<{ lines: DiffLine[] }>(`/v1/documents/${id}/versions/${revision}/diff`),
+  /** Written forward as a new edit, so the versions in between survive. */
+  restoreDocument: (id: string, revision: number) =>
+    send<{ document: Document }>("POST", `/v1/documents/${id}/versions/${revision}/restore`, {}),
 
   skills: () => request<{ skills: Skill[] }>("/v1/skills"),
   createSkill: (body: Partial<Skill>) => send<{ skill: Skill }>("POST", "/v1/skills", body),

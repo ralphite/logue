@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button, ErrorNote, OriginMark, SourceLink, Spinner, originOf } from "@logue/ui";
 import { api, ApiError, type Material } from "../api";
 import { Nothing, Page } from "./AppShell";
+import { DocumentHistory } from "./DocumentHistory";
 import { timeAgo, useAction, useHost } from "./useHost";
 const AUTOSAVE_MS = 900;
 
@@ -27,6 +28,7 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
   /** What this editor last saw. Sent with every save so a second writer is caught. */
   const [revision, setRevision] = useState(0);
   const [conflict, setConflict] = useState(false);
+  const [looking, setLooking] = useState(false);
   const body = useRef<HTMLDivElement>(null);
   const timer = useRef<number>(undefined);
   const action = useAction();
@@ -137,10 +139,25 @@ function DocumentEditor({ id, onBack }: { id: string; onBack: () => void }) {
           />
 
           <footer className="mt-6 flex items-center gap-2 border-t border-line pt-2 text-[11px] text-faint">
-            <span>Revision {doc.revision}</span>
+            {/* The revision number was already printed here and meant nothing
+                to anyone. Making it the way in costs the rail no new control. */}
+            <button
+              type="button"
+              onClick={() => setLooking(true)}
+              className="rounded-md py-0.5 text-[11px] text-faint underline decoration-line underline-offset-2 hover:text-ink"
+            >
+              Version {doc.revision}
+            </button>
             {saved && <span>Saved {timeAgo(saved)}</span>}
             {action.busy && <Spinner size={11} />}
           </footer>
+
+          <DocumentHistory
+            id={id}
+            open={looking}
+            onClose={() => setLooking(false)}
+            onRestored={() => void loaded.refresh()}
+          />
 
           <Sources sources={loaded.data?.sources ?? []} />
         </>

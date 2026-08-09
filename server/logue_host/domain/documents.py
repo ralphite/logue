@@ -6,10 +6,11 @@ records edits rather than keystrokes.
 
 from __future__ import annotations
 
+import difflib
 import re
 from typing import Any
 
-from ..errors import BadRequest, Conflict
+from ..errors import BadRequest, Conflict, NotFound
 from ..ids import new_id, now
 from ..store import Record, Store
 
@@ -105,14 +106,127 @@ def sources_of(store: Store, document_id: str) -> list[Record]:
     return [source for source in found if source]
 
 
-def to_markdown(store: Store, document_id: str) -> str:
-    """Export with a Sources appendix, so the file stands on its own."""
-    document = store.documents.get(document_id)
-    body = re.sub(r"<br\s*/?>", "\n", str(document.get("content") or ""))
+def as_text(content: str) -> str:
+    """The document as the person sees it, with the markup taken out.
+
+    Everything that reads a document for a human — the export, the diff, the
+    summary a model writes — goes through here. Diffing the stored HTML would
+    report a changed wrapper tag as a changed paragraph.
+    """
+    body = re.sub(r"<br\s*/?>", "\n", content or "")
     body = re.sub(r"</(p|div|li|h[1-6])>", "\n\n", body)
     body = re.sub(r"<li>", "- ", body)
     body = re.sub(r"<[^>]+>", "", body)
-    body = re.sub(r"\n{3,}", "\n\n", body).strip()
+    return re.sub(r"\n{3,}", "\n\n", body).strip()
+
+
+# -- history --------------------------------------------------------------
+
+
+def _kept(store: Store, document_id: str) -> list[Record]:
+    """Every stored revision of one document, oldest first.
+
+    A stored row holds the content *before* the edit that replaced it, filed
+    under the revision number it was. The newest version is not in here — it is
+    the document itself.
+    """
+    rows = [r for r in store.doc_revisions.list() if r.get("doc_id") == document_id]
+    return sorted(rows, key=lambda r: int(r.get("revision") or 0))
+
+
+def _lines(content: str) -> list[str]:
+    """A document's paragraphs, which are the units a change is counted in.
+
+    The blank line between two paragraphs is punctuation, not content: leaving
+    it in reported every added paragraph as two added lines, one of them empty.
+    """
+    return [line for line in as_text(content).splitlines() if line.strip()]
+
+
+def _counts(before: str, after: str) -> tuple[int, int]:
+    diff = difflib.ndiff(_lines(before), _lines(after))
+    added = removed = 0
+    for line in diff:
+        if line.startswith("+ "):
+            added += 1
+        elif line.startswith("- "):
+            removed += 1
+    return added, removed
+
+
+def versions(store: Store, document_id: str) -> list[Record]:
+    """The document's history, newest first, each saying what it changed.
+
+    The current text is version one of these too. Leaving it out made the list
+    read as "the old ones", with nothing saying where they end and now begins.
+    """
+    document = store.documents.get(document_id)
+    rows = _kept(store, document_id)
+    timeline = [
+        *[{"id": r["id"], "revision": int(r.get("revision") or 0), "content": str(r.get("content") or ""),
+           "created_at": r.get("created_at"), "summary": r.get("summary"),
+           "summary_state": r.get("summary_state")} for r in rows],
+        {"id": "", "revision": int(document.get("revision") or 1), "content": str(document.get("content") or ""),
+         "created_at": document.get("updated_at"), "current": True},
+    ]
+    out = []
+    for index, version in enumerate(timeline):
+        before = timeline[index - 1]["content"] if index else ""
+        added, removed = _counts(before, version["content"])
+        out.append({**{k: v for k, v in version.items() if k != "content"}, "added": added, "removed": removed})
+    out.reverse()
+    return out
+
+
+def diff(store: Store, document_id: str, revision: int) -> list[Record]:
+    """What one version changed, line by line, against the one before it."""
+    document = store.documents.get(document_id)
+    rows = _kept(store, document_id)
+    timeline = [*rows, {"revision": int(document.get("revision") or 1), "content": document.get("content")}]
+    at = next((i for i, r in enumerate(timeline) if int(r.get("revision") or 0) == revision), None)
+    if at is None:
+        raise NotFound(f"This document has no version {revision}.")
+
+    before = _lines(str(timeline[at - 1].get("content") or "")) if at else []
+    after = _lines(str(timeline[at].get("content") or ""))
+
+    lines: list[Record] = []
+    old = new = 0
+    for chunk in difflib.ndiff(before, after):
+        mark, text = chunk[:2], chunk[2:]
+        if mark == "  ":
+            old, new = old + 1, new + 1
+            lines.append({"kind": "same", "text": text, "old": old, "new": new})
+        elif mark == "- ":
+            old += 1
+            lines.append({"kind": "removed", "text": text, "old": old, "new": None})
+        elif mark == "+ ":
+            new += 1
+            lines.append({"kind": "added", "text": text, "old": None, "new": new})
+        # "? " lines are ndiff's own hint markers, not content.
+    return lines
+
+
+def restore(store: Store, document_id: str, revision: int) -> Record:
+    """Bring an old version back as a new edit.
+
+    Written forward rather than rolled back: the versions in between stay, and
+    coming back from a restore is itself a restore. A history that loses its
+    tail every time someone looks at it is not a history.
+    """
+    rows = _kept(store, document_id)
+    found = next((r for r in rows if int(r.get("revision") or 0) == revision), None)
+    if found is None:
+        raise NotFound(f"This document has no version {revision} to go back to.")
+    document = store.documents.get(document_id)
+    return update(store, document_id, {"content": str(found.get("content") or "")},
+                  expected_revision=int(document.get("revision") or 1))
+
+
+def to_markdown(store: Store, document_id: str) -> str:
+    """Export with a Sources appendix, so the file stands on its own."""
+    document = store.documents.get(document_id)
+    body = as_text(str(document.get("content") or ""))
 
     lines = [f"# {document.get('title') or 'Untitled'}", "", body]
     sources = sources_of(store, document_id)

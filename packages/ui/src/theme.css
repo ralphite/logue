@@ -36,6 +36,8 @@
   --color-danger-line: #efc9c4;
   --color-warning: #9a6814;
   --color-success: #347847;
+  /* The pair to danger-soft, for the two halves of a diff. */
+  --color-success-soft: #f1f8f2;
 
   /* The third and smallest type size: counts, timestamps, provenance detail. */
   --text-meta: 11px;

@@ -717,6 +717,58 @@ class InstalledBuildTest(unittest.TestCase):
         self.assertEqual(installed_extension_build(), "")
 
 
+class DocumentHistory(Workspace, unittest.TestCase):
+    """A document's past, and going back to it without losing the present."""
+
+    def three_versions(self) -> str:
+        doc = self.call("POST", "/v1/documents", {"title": "Notes", "content": "<p>one</p>"})["document"]
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "<p>one</p><p>two</p>"})
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "<p>one</p><p>two</p><p>three</p>"})
+        return doc["id"]
+
+    def test_the_current_text_is_in_the_history(self) -> None:
+        versions = self.call("GET", f"/v1/documents/{self.three_versions()}/versions")["versions"]
+        self.assertEqual([v["revision"] for v in versions], [3, 2, 1], "newest first")
+        self.assertTrue(versions[0]["current"], "the newest version is the document itself")
+
+    def test_each_version_says_what_it_changed(self) -> None:
+        versions = self.call("GET", f"/v1/documents/{self.three_versions()}/versions")["versions"]
+        by_revision = {v["revision"]: v for v in versions}
+        self.assertEqual((by_revision[3]["added"], by_revision[3]["removed"]), (1, 0))
+        self.assertEqual((by_revision[1]["added"], by_revision[1]["removed"]), (1, 0), "the first version is all new")
+
+    def test_the_diff_is_of_the_words_not_the_markup(self) -> None:
+        document = self.call("POST", "/v1/documents", {"content": "<p>kept</p>"})["document"]
+        # Only the wrapper changes; a person sees the same line.
+        self.call("PATCH", f"/v1/documents/{document['id']}", {"content": "<div>kept</div>"})
+        lines = self.call("GET", f"/v1/documents/{document['id']}/versions/2/diff")["lines"]
+        self.assertEqual([line["kind"] for line in lines], ["same"])
+
+    def test_the_diff_marks_both_sides(self) -> None:
+        lines = self.call("GET", f"/v1/documents/{self.three_versions()}/versions/3/diff")["lines"]
+        self.assertIn("added", [line["kind"] for line in lines])
+        self.assertEqual([line["text"] for line in lines if line["kind"] == "added"], ["three"])
+
+    def test_restoring_keeps_the_versions_it_skipped_over(self) -> None:
+        document_id = self.three_versions()
+        self.call("POST", f"/v1/documents/{document_id}/versions/1/restore")
+
+        after = self.call("GET", f"/v1/documents/{document_id}")["document"]
+        self.assertEqual(after["revision"], 4, "going back is itself an edit")
+        self.assertIn("one", after["content"])
+        self.assertNotIn("three", after["content"])
+
+        revisions = [v["revision"] for v in self.call("GET", f"/v1/documents/{document_id}/versions")["versions"]]
+        self.assertEqual(revisions, [4, 3, 2, 1], "nothing was thrown away to make room")
+
+    def test_asking_for_a_version_that_never_existed_says_so(self) -> None:
+        document_id = self.three_versions()
+        with self.assertRaises(NotFound):
+            self.call("GET", f"/v1/documents/{document_id}/versions/99/diff")
+        with self.assertRaises(NotFound):
+            self.call("POST", f"/v1/documents/{document_id}/versions/99/restore")
+
+
 class ServingTheApp(unittest.TestCase):
     """The Host hands out the built web app, and nothing else on the disk."""
 
