@@ -1,6 +1,7 @@
 import { MoreHorizontal, Pin } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { ContextMenu, MenuHeading, MenuItem, MenuSeparator, cn, type MenuPoint } from "@logue/ui";
+import { ICON_SLOT } from "./AppShell";
 
 /**
  * Past this a section stops being a navigator and becomes a scroll.
@@ -162,18 +163,18 @@ function RailRow({
           onMenu(entry, { x: rect.left, y: rect.bottom + 2, returnTo: event.currentTarget });
         }}
         className={cn(
-          "flex min-h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left text-xs outline-none",
+          "flex min-h-7 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs outline-none",
           coarse && "min-h-11",
           active ? "font-[560] text-ink" : "text-ink-soft",
         )}
       >
-        {entry.icon && (
-          // A fixed slot, so every row's text starts on the same vertical line
-          // whether or not its kind has an icon.
-          <span aria-hidden className="inline-flex size-3.5 shrink-0 items-center justify-center">
-            {entry.icon}
-          </span>
-        )}
+        {/* The same slot the five destinations use, so the rail is one column
+            of icons from the mark at the top to the last row of the list —
+            and the words beside them line up too. Always rendered, so a row
+            without an icon does not start its text somewhere else. */}
+        <span aria-hidden className={ICON_SLOT}>
+          {entry.icon}
+        </span>
         <span className={cn("min-w-0 flex-1 truncate", entry.draft && "text-muted italic")}>
           {entry.title}
         </span>

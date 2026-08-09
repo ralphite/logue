@@ -44,7 +44,7 @@ const COLLAPSED_KEY = "logue.rail.collapsed";
  * sliding them sideways, which had made the two states read as two different
  * applications.
  */
-const ICON_SLOT = "inline-flex size-6 shrink-0 items-center justify-center";
+export const ICON_SLOT = "inline-flex size-6 shrink-0 items-center justify-center";
 const COLLAPSED_WIDTH = 52;
 
 function wasCollapsed(): boolean {
