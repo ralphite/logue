@@ -17,7 +17,8 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   actively broken for the person right now.
 - **The queue lives in the repository**, in [tasks.md](tasks.md). A list that
   exists only in a session is one crash from being lost, and this one has been
-  lost before.
+  lost before. Every new request is written there the moment it is made, before
+  any work on it — a request that lives only in a reply is not queued.
 - **Verify in a real browser, against the real Host and a real model.** Unit
   tests are necessary and never sufficient. No mocks standing in for a run.
 - **Never stop early, never wait to be unblocked.** If something is in the way,
@@ -95,6 +96,9 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   will hold them — not from a permanent button taking a row of its own. Every
   section that can make one has it; a section that cannot says why in its empty
   state instead of leaving a gap where the control would be.
+- **Nothing is written until it is meant.** A new Document, Skill or Project
+  that has never been touched is not in the workspace. Pressing `+` five times
+  leaves one draft, not five empty rows.
 - **An empty section carries the way out of it.** A hover-only `+` is useless
   when there is no list to hover near.
 - **Hover reads above selected.** The chosen row still answers the pointer —
