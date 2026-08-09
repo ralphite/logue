@@ -444,3 +444,13 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   edit the history records like any other. The proposal itself is kept as a
   Run, so "why does it say this now" has an answer later. Decided by the
   owner after the provenance conflict was put to them plainly.
+- **The address is a real path, and it tells the truth.** `/documents/doc_1a2b`,
+  never `#/...`; a cold load or a reload on any deep link lands on the right
+  thing (the Host answers every non-file path with the app). Old `#/` bookmarks
+  still resolve, once, and the address is rewritten without the hash.
+- **A section with nothing chosen opens on a fresh draft** — `/skills/new`,
+  a real editor, nothing saved until the first keystroke (the untouched-draft
+  rule). The list is already in the rail; a page that only says "pick from the
+  list" made a person click twice for nothing. Stream and Settings are the
+  honest exceptions: their content arrives or is configured, it cannot be
+  "made new".

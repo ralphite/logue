@@ -224,7 +224,7 @@ function Panel() {
         {!modelReady && !error && (
           // The one thing that makes every other control in here do nothing.
           <a
-            href={`${WEB_APP}/#/settings`}
+            href={`${WEB_APP}/settings`}
             target="_blank"
             rel="noreferrer"
             className="mb-2 flex items-center gap-1.5 rounded-md border border-line bg-surface-muted px-2 py-1.5 text-[11px] text-warning hover:text-ink"

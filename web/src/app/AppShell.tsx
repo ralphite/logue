@@ -21,7 +21,9 @@ export const ROUTES = ["stream", "projects", "documents", "skills", "settings"] 
  * Pressing `+` used to write an empty row into the workspace immediately, so
  * pressing it five times left five of them. Nothing goes in until it is meant.
  */
-export const DRAFT = "draft";
+// "new" because it is also the address: `/skills/new` is a URL that says
+// what the page is, which `/skills/draft` said less plainly.
+export const DRAFT = "new";
 export type Route = (typeof ROUTES)[number];
 
 const NAV: Record<Route, { label: string; icon: typeof Layers }> = {

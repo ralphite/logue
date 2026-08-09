@@ -141,7 +141,8 @@ def web_file(root: Path, path: str) -> tuple[bytes, str] | None:
     """The built web app, resolved from a URL path.
 
     Anything that is not a real file is answered with `index.html`, because the
-    app routes on the hash and a deep link has to survive a reload.
+    app routes on real paths (`/documents/doc_1a2b`) and a deep link has to
+    survive a reload.
 
     The containment check is not decoration: `..` in a URL path is how a local
     server gets talked into reading someone's SSH key.

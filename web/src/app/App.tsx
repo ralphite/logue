@@ -23,19 +23,34 @@ interface Where {
 }
 
 /**
- * `#/documents/doc_1a2b` — the section and the one thing chosen from it.
+ * `/documents/doc_1a2b` — the section and the one thing chosen from it.
  *
- * The selection used to live only in memory, so a document could not be
- * bookmarked, could not be sent to anyone, and Back went to whatever section
- * you were in before rather than to what you were just reading.
+ * A real path, not a hash: the Host answers every non-file path with the app
+ * (http.py), so a deep link survives a reload and reads like an address.
+ * Old `#/...` bookmarks still resolve — the first read prefers the hash if
+ * one is present, and the URL is then rewritten without it.
  */
 function readWhere(): Where {
-  const [route = "", ...rest] = window.location.hash.replace(/^#\/?/, "").split("/");
+  const legacy = window.location.hash.replace(/^#\/?/, "");
+  const source = legacy || window.location.pathname.replace(/^\/+/, "");
+  const [route = "", ...rest] = source.split("/");
   return { route: isRoute(route) ? route : "stream", id: rest.join("/") || undefined };
 }
 
-function hashFor(route: Route, id?: string): string {
-  return id ? `#/${route}/${id}` : `#/${route}`;
+function pathFor(route: Route, id?: string): string {
+  return id ? `/${route}/${id}` : `/${route}`;
+}
+
+/**
+ * A section with nothing chosen opens on a fresh draft, and the address says
+ * so (`/skills/new`). The list is already in the rail — a page whose whole
+ * message is "pick from the list" made a person click twice for nothing.
+ * Stream and Settings are the honest exceptions: their content arrives or
+ * is configured, it cannot be "made new".
+ */
+function normalize(where: Where): Where {
+  if (where.id || where.route === "stream" || where.route === "settings") return where;
+  return { route: where.route, id: DRAFT };
 }
 
 /** A key that belongs to whatever is being typed into, not to the app. */
@@ -51,7 +66,7 @@ function typing(target: EventTarget | null): boolean {
  * or a Project from anywhere, and something has to be able to say "go there".
  */
 export function App() {
-  const first = readWhere();
+  const first = normalize(readWhere());
   const [route, setRoute] = useState<Route>(first.route);
   const [documentId, setDocumentId] = useState<string | undefined>(
     first.route === "documents" ? first.id : undefined,
@@ -71,28 +86,53 @@ export function App() {
   // state: it changes on every filter keystroke and nothing renders from it.
   const order = useRef<string[]>([]);
 
-  // The URL is the one place that says where we are. Every way of moving —
-  // a rail row, ⌘K, the nav, the browser's own Back — goes through the hash,
-  // and this puts the state back in step with it.
-  useEffect(() => {
-    const onHashChange = () => {
-      const { route: next, id } = readWhere();
-      setRoute(next);
-      if (next === "stream") setSourceId(id);
-      else if (next === "projects") setProjectId(id);
-      else if (next === "documents") setDocumentId(id);
-      else if (next === "skills") setSkillId(id);
-    };
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+  /** Put the app where a Where says. The URL is handled by the callers. */
+  const apply = useCallback(({ route: next, id }: Where) => {
+    setRoute(next);
+    if (next === "stream") setSourceId(id);
+    else if (next === "projects") setProjectId(id);
+    else if (next === "documents") setDocumentId(id);
+    else if (next === "skills") setSkillId(id);
   }, []);
 
-  /** Go somewhere. Writing the hash is what actually moves the app. */
-  const openIn = useCallback((next: Route, id?: string) => {
-    const wanted = hashFor(next, id);
-    if (window.location.hash === wanted) return;
-    window.location.hash = wanted;
+  // The URL is the one place that says where we are. Every way of moving —
+  // a rail row, ⌘K, the nav, the browser's own Back — goes through the
+  // address, and this puts the state back in step when the browser moves it.
+  useEffect(() => {
+    const onPopState = () => {
+      const where = normalize(readWhere());
+      const path = pathFor(where.route, where.id);
+      // A bare section address is made honest in place — replace, not push,
+      // so Back is not padded with corrections.
+      if (window.location.pathname !== path) window.history.replaceState(null, "", path);
+      apply(where);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [apply]);
+
+  // The first address is aligned once: a legacy `#/...` or a bare section
+  // becomes the real path it meant, without adding a history entry.
+  useEffect(() => {
+    const path = pathFor(first.route, first.id);
+    if (window.location.pathname !== path || window.location.hash)
+      window.history.replaceState(null, "", path);
+    // `first` is from the initial render by construction.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Go somewhere. Writing the address is what actually moves the app. */
+  const openIn = useCallback(
+    (next: Route, id?: string) => {
+      const wanted = normalize({ route: next, id });
+      const path = pathFor(wanted.route, wanted.id);
+      if (window.location.pathname === path) return;
+      window.history.pushState(null, "", path);
+      // pushState fires no event; the app is moved by hand.
+      apply(wanted);
+    },
+    [apply],
+  );
 
   const openHere = useCallback((id: string) => openIn(readWhere().route, id), [openIn]);
 
