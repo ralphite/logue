@@ -51,6 +51,12 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   something genuinely cannot be measured yet, say what it is expected to be and
   why, so there is something to be wrong about. (Written after "how long does
   transcription actually take?" was put to the person instead of a stopwatch.)
+- **When a sentence has two readings, ask which one.** Not everything
+  ambiguous can be settled by going and looking: if two readings lead to two
+  different pieces of work, stop and ask rather than picking the convenient
+  one. Guessing wrong costs either the work itself or something that was
+  already right. This does not soften "never ask what can be measured" — those
+  answers are gone and fetched; this is about what only the person knows.
 - **Never stop early, never wait to be unblocked.** If something is in the way,
   find another route; a computer is available. When a task genuinely needs an
   answer only the person can give, write the question into the queue and move
