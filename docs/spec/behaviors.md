@@ -460,3 +460,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   document editor's own typography is the exception; interface text is not.
   Likewise one grey: `faint` was 3 RGB points from `muted` — a distinction
   that existed in code and nowhere on screen — so `muted` is the only one.
+- **A word is learned from a decision, never from a transcript.** Corrections
+  are learned outright and keep their reason in words; proper nouns written by
+  hand three times or more, that no transcript has produced, are *suggested*
+  and wait for approval; anything whose only source is a transcript is never
+  learned — a name misheard ten times appears ten times, and frequency would
+  make the mistake permanent. Every learned word shows why it is there and can
+  be taken back. Two layers in the prompt: the global list, then a Project's
+  own vocabulary, which wins.
