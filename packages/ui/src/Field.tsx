@@ -1,10 +1,5 @@
 import { cloneElement, useId } from "react";
-import type {
-  InputHTMLAttributes,
-  ReactElement,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-} from "react";
+import type { InputHTMLAttributes, ReactElement, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 import { cn } from "./cn";
 
 const control =
@@ -60,13 +55,7 @@ export function Select({ className, children, ...props }: SelectHTMLAttributes<H
  * around a `<select>` folds every option into the accessible name, so the
  * field announces itself as "ProfileDefaultMobile researchLogue".
  */
-export function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactElement<{ id?: string }>;
-}) {
+export function Field({ label, children }: { label: string; children: ReactElement<{ id?: string }> }) {
   const id = useId();
   return (
     <div className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-2">

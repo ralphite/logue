@@ -3,7 +3,12 @@ import type { ReactNode } from "react";
 import { cn } from "./cn";
 
 export function Spinner({ size = 14, className }: { size?: number; className?: string }) {
-  return <LoaderCircle size={size} className={cn("shrink-0 animate-[logue-spin_0.8s_linear_infinite]", className)} />;
+  return (
+    <LoaderCircle
+      size={size}
+      className={cn("shrink-0 animate-[logue-spin_0.8s_linear_infinite]", className)}
+    />
+  );
 }
 
 /** Recording is the pulsing dot itself; the word lives in the a11y tree. */
@@ -12,7 +17,10 @@ export function RecordingDot({ className }: { className?: string }) {
     <span
       role="status"
       aria-label="Recording"
-      className={cn("size-2 shrink-0 animate-[logue-pulse_1.4s_ease-in-out_infinite] rounded-full bg-danger", className)}
+      className={cn(
+        "size-2 shrink-0 animate-[logue-pulse_1.4s_ease-in-out_infinite] rounded-full bg-danger",
+        className,
+      )}
     />
   );
 }

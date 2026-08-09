@@ -13,7 +13,14 @@ function TwoPanels() {
       <div style={{ width }} className="shrink-0 bg-nav p-2 text-xs text-muted">
         {width}px
       </div>
-      <Resizer label="Resize the sidebar" value={width} min={180} max={320} defaultValue={208} onChange={setWidth} />
+      <Resizer
+        label="Resize the sidebar"
+        value={width}
+        min={180}
+        max={320}
+        defaultValue={208}
+        onChange={setWidth}
+      />
       <div className="flex-1 p-2 text-xs text-muted">Drag the hairline. Double-click resets it.</div>
     </div>
   );

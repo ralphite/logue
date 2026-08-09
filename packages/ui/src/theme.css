@@ -2,8 +2,8 @@
    controls injected into other people's pages — resolves to these values. */
 @theme {
   --font-sans:
-    -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", Inter, ui-sans-serif,
-    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", Inter, ui-sans-serif, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
   --color-canvas: #ffffff;
@@ -81,6 +81,25 @@
   /* The one chevron every select uses. Kept here rather than inline so the
      URL-encoded `#` in the stroke color cannot be mangled by a class parser. */
   --logue-chevron: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%2370726c' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 4.75 6 7.75 9 4.75'/%3E%3C/svg%3E");
+}
+
+@layer base {
+  /*
+   * A long line wraps; it never widens the page.
+   *
+   * A grid item's `min-width` is `auto`, which means it refuses to shrink
+   * below its own content — so one Source with no break in it widened its
+   * track to 6718px, the page grew a horizontal scrollbar, and every row was
+   * cut off at the right edge with a dead strip beside it. That is three times
+   * now: the rail's rows, the Sources under a Project, and the Skills list.
+   * Fixed once, here, rather than remembered at each new grid.
+   *
+   * `:where` keeps this at zero specificity, so any layout that genuinely
+   * wants a track sized by its content just says so.
+   */
+  :where(.grid) > * {
+    min-width: 0;
+  }
 }
 
 @layer components {

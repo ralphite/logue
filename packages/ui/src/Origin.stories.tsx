@@ -25,8 +25,8 @@ function CitedParagraph() {
   return (
     <p className="max-w-reading text-[13px] leading-[1.6] text-ink">
       Asynchronous research yields higher completion rates{" "}
-      <Citation n={1} aria-pressed={open === 1} onClick={() => setOpen(open === 1 ? undefined : 1)} /> and richer
-      detail than real-time prompting{" "}
+      <Citation n={1} aria-pressed={open === 1} onClick={() => setOpen(open === 1 ? undefined : 1)} /> and
+      richer detail than real-time prompting{" "}
       <Citation n={2} aria-pressed={open === 2} onClick={() => setOpen(open === 2 ? undefined : 2)} />.
     </p>
   );

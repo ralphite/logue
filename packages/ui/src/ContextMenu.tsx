@@ -120,7 +120,12 @@ export function ContextMenu({
       // Fixed, not absolute: an ancestor with `overflow` would clip the panel,
       // and a clipped panel is not just cut off — the hidden half stops taking
       // clicks at all.
-      style={{ position: "fixed", left: box?.left ?? at.x, top: box?.top ?? at.y, visibility: box ? undefined : "hidden" }}
+      style={{
+        position: "fixed",
+        left: box?.left ?? at.x,
+        top: box?.top ?? at.y,
+        visibility: box ? undefined : "hidden",
+      }}
       className="logue-float z-popover min-w-44 max-w-72 p-1"
       onClick={(event) => {
         // After an item runs the menu has said what it had to say.

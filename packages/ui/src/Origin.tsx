@@ -46,7 +46,13 @@ export function readAnswer(text: string): AnswerToken[] {
   let at = 0;
   return text.split(/(\[Source[^\]]*\])/g).map((part) => {
     const token: AnswerToken = /^\[Source[^\]]*\]$/.test(part)
-      ? { cites: [...part.matchAll(/\d+/g)].map((found) => ({ n: Number(found[0]), at: at + (found.index ?? 0) })), at }
+      ? {
+          cites: [...part.matchAll(/\d+/g)].map((found) => ({
+            n: Number(found[0]),
+            at: at + (found.index ?? 0),
+          })),
+          at,
+        }
       : { text: part, at };
     at += part.length;
     return token;
@@ -59,7 +65,15 @@ const marks: Record<Origin, { icon: typeof Globe; label: string; className: stri
   ai: { icon: Sparkles, label: "Generated", className: "text-warning" },
 };
 
-export function OriginMark({ origin, detail, className }: { origin: Origin; detail?: string; className?: string }) {
+export function OriginMark({
+  origin,
+  detail,
+  className,
+}: {
+  origin: Origin;
+  detail?: string;
+  className?: string;
+}) {
   const mark = marks[origin];
   const Icon = mark.icon;
   return (

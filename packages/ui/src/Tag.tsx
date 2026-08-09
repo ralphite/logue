@@ -31,12 +31,20 @@ export function Tag({
       {name}
     </>
   );
-  const shape = cn("inline-flex max-w-40 items-center gap-px rounded-sm bg-surface-muted px-1 text-ink-soft", className);
+  const shape = cn(
+    "inline-flex max-w-40 items-center gap-px rounded-sm bg-surface-muted px-1 text-ink-soft",
+    className,
+  );
 
   return (
     <span className={cn(shape, onRemove && "pr-0.5")}>
       {onClick ? (
-        <button type="button" className="max-w-full truncate hover:text-ink" onClick={onClick} title={`Only #${name}`}>
+        <button
+          type="button"
+          className="max-w-full truncate hover:text-ink"
+          onClick={onClick}
+          title={`Only #${name}`}
+        >
           {label}
         </button>
       ) : (

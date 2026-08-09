@@ -23,11 +23,14 @@ export function DocumentsRoute({
   openId,
   onOpen,
   onCreated,
+  onOpenSource,
 }: {
   openId: string | undefined;
   onOpen: (id: string | undefined) => void;
   /** A draft became real. */
   onCreated: (id: string) => void;
+  /** Go to this Source where it lives — in the Stream. */
+  onOpenSource: (id: string) => void;
 }) {
   return openId ? (
     <DocumentEditor
@@ -37,6 +40,7 @@ export function DocumentsRoute({
       id={openId}
       onBack={() => onOpen(undefined)}
       onCreated={onCreated}
+      onOpenSource={onOpenSource}
     />
   ) : (
     <Nothing section="Documents" hint="Pick one from the list, or start a new page." />
@@ -62,10 +66,12 @@ function DocumentEditor({
   id,
   onBack,
   onCreated,
+  onOpenSource,
 }: {
   id: string;
   onBack: () => void;
   onCreated: (id: string) => void;
+  onOpenSource: (id: string) => void;
 }) {
   // Nothing is in the workspace yet. It goes in at the first keystroke, so
   // pressing `+` and walking away leaves no trace.
@@ -282,7 +288,7 @@ function DocumentEditor({
             />
           )}
 
-          <Sources sources={loaded.data?.sources ?? []} />
+          <Sources sources={loaded.data?.sources ?? []} onOpen={onOpenSource} />
         </>
       )}
     </Page>
@@ -290,13 +296,27 @@ function DocumentEditor({
 }
 
 /** The Sources a document cites, so a reader can check any claim. */
-function Sources({ sources }: { sources: Material[] }) {
+function Sources({ sources, onOpen }: { sources: Material[]; onOpen: (id: string) => void }) {
   if (sources.length === 0) return null;
   return (
     <section className="mt-6 grid gap-1.5">
       <h2 className="text-xs text-muted">{sources.length} Sources</h2>
       {sources.map((source, index) => (
-        <div key={source.id} className="flex gap-2 rounded-md bg-surface-muted px-2 py-1.5">
+        // Clickable for the same reason as everywhere else: this Source has a
+        // home in the Stream, and a citation you cannot follow is a dead end.
+        <div
+          key={source.id}
+          role="button"
+          tabIndex={0}
+          onClick={() => onOpen(source.id)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onOpen(source.id);
+            }
+          }}
+          className="flex cursor-pointer gap-2 rounded-md bg-surface-muted px-2 py-1.5 hover:bg-hover"
+        >
           <span className="shrink-0 text-[11px] font-[650] text-accent">{index + 1}</span>
           <span className="min-w-0">
             <span className="flex items-center gap-2 text-[11px] text-muted">

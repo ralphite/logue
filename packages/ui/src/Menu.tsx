@@ -72,7 +72,9 @@ export function MenuItem({
       role="menuitem"
       className={cn(
         "flex h-control w-full items-center gap-2 rounded-sm px-2 text-left text-xs whitespace-nowrap disabled:opacity-45 [&_svg]:shrink-0",
-        tone === "danger" ? "text-danger hover:bg-danger-soft" : "text-ink-soft hover:bg-surface-muted hover:text-ink",
+        tone === "danger"
+          ? "text-danger hover:bg-danger-soft"
+          : "text-ink-soft hover:bg-surface-muted hover:text-ink",
         className,
       )}
       {...props}

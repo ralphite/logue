@@ -77,6 +77,12 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   control. (Asked for after the sidebar's collapse button only appeared when
   hovered directly.)
 - **Every text control is a real `<select>` / `<input>`** — no look-alikes.
+- **A long line wraps; it never widens the page.** No screen grows a
+  horizontal scrollbar at any window width. A grid item that refuses to shrink
+  below its content is the usual cause, and the rule is set once in the theme
+  rather than remembered at each new grid.
+- **Wherever a Source is listed, it is one click from where it lives** — the
+  Stream. A citation you cannot follow is a dead end.
 - **Wherever a Source is listed, the page it came from is a link.** Every
   screen, every list, including the Side Panel and the Sources under a
   Document. Printing the domain as dead text makes people go and find it by

@@ -73,7 +73,13 @@ export function Dialog({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div ref={panel} role="dialog" aria-modal="true" aria-label={title} className={cn("logue-float p-3", width)}>
+      <div
+        ref={panel}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={cn("logue-float p-3", width)}
+      >
         <div className="mb-2 flex items-center justify-between gap-2">
           <h2 className="text-[13px] font-[650] text-ink">{title}</h2>
           <IconButton label="Close" onClick={onClose}>

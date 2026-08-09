@@ -28,7 +28,10 @@ export const Color: Story = {
     <div className="grid max-w-[560px] gap-1">
       {swatches.map(([name, hex, use]) => (
         <div key={name} className="grid grid-cols-[24px_140px_90px_1fr] items-center gap-2 text-xs">
-          <span className="size-6 rounded-md" style={{ background: hex, boxShadow: "inset 0 0 0 1px rgb(15 15 15/8%)" }} />
+          <span
+            className="size-6 rounded-md"
+            style={{ background: hex, boxShadow: "inset 0 0 0 1px rgb(15 15 15/8%)" }}
+          />
           <code className="text-ink">{name}</code>
           <code className="text-faint">{hex}</code>
           <span className="text-muted">{use}</span>

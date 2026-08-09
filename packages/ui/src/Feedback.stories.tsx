@@ -25,7 +25,9 @@ export const Working: Story = {
 export const Nothing: Story = {
   render: () => (
     <div className="w-[420px] rounded-md border border-line">
-      <Empty action={<Button variant="primary">Capture this page</Button>}>Nothing saved from this page yet.</Empty>
+      <Empty action={<Button variant="primary">Capture this page</Button>}>
+        Nothing saved from this page yet.
+      </Empty>
     </div>
   ),
 };

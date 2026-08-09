@@ -140,7 +140,10 @@ export function Resizer({
         event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
         from.current = { pointerId: event.pointerId, x: event.clientX, value };
-        bodyStyle.current = { cursor: document.body.style.cursor, userSelect: document.body.style.userSelect };
+        bodyStyle.current = {
+          cursor: document.body.style.cursor,
+          userSelect: document.body.style.userSelect,
+        };
         document.body.style.cursor = "col-resize";
         document.body.style.userSelect = "none";
         setDragging(true);
@@ -157,7 +160,10 @@ export function Resizer({
       onDoubleClick={() => onChange(clampSize(defaultValue, min, max))}
       title="Drag to resize · double-click to reset"
     >
-      <span aria-hidden className="absolute inset-y-0 left-1/2 w-3 -translate-x-1/2 cursor-col-resize touch-none" />
+      <span
+        aria-hidden
+        className="absolute inset-y-0 left-1/2 w-3 -translate-x-1/2 cursor-col-resize touch-none"
+      />
       <span
         aria-hidden
         className={cn(

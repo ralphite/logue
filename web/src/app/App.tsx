@@ -114,6 +114,12 @@ export function App() {
     go("documents");
   };
 
+  /** A Source lives in the Stream, wherever it happens to be listed. */
+  const openSource = (id: string) => {
+    setSourceId(id);
+    go("stream");
+  };
+
   const goTo = (target: FindTarget) => {
     if (target.kind === "document") return openDocument(target.id);
     if (target.kind === "project") {
@@ -207,11 +213,17 @@ export function App() {
             openId={projectId}
             onOpen={setProjectId}
             onOpenDocument={openDocument}
+            onOpenSource={openSource}
             onCreated={born(setProjectId)}
           />
         )}
         {route === "documents" && (
-          <DocumentsRoute openId={documentId} onOpen={setDocumentId} onCreated={born(setDocumentId)} />
+          <DocumentsRoute
+            openId={documentId}
+            onOpen={setDocumentId}
+            onCreated={born(setDocumentId)}
+            onOpenSource={openSource}
+          />
         )}
         {route === "skills" && (
           <SkillsRoute openId={skillId} onOpen={setSkillId} onCreated={born(setSkillId)} />

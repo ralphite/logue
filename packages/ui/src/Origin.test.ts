@@ -30,7 +30,11 @@ describe("reading citations out of generated text", () => {
 
   it("keeps the prose intact around a citation", () => {
     const tokens = readAnswer("Before [Source 1] after.");
-    expect(tokens.map((t) => t.text ?? `[${t.cites?.map((c) => c.n).join(",")}]`)).toEqual(["Before ", "[1]", " after."]);
+    expect(tokens.map((t) => t.text ?? `[${t.cites?.map((c) => c.n).join(",")}]`)).toEqual([
+      "Before ",
+      "[1]",
+      " after.",
+    ]);
   });
 
   it("leaves text with no citations alone", () => {

@@ -12,11 +12,14 @@ export function ProjectsRoute({
   openId,
   onOpen,
   onOpenDocument,
+  onOpenSource,
   onCreated,
 }: {
   openId?: string;
   onOpen: (id: string | undefined) => void;
   onOpenDocument: (id: string) => void;
+  /** Go to this Source where it lives — in the Stream. */
+  onOpenSource: (id: string) => void;
   /** A draft became real. */
   onCreated: (id: string) => void;
 }) {
@@ -36,7 +39,12 @@ export function ProjectsRoute({
     );
   }
   return openId ? (
-    <ProjectDetail id={openId} onBack={() => onOpen(undefined)} onOpenDocument={onOpenDocument} />
+    <ProjectDetail
+      id={openId}
+      onBack={() => onOpen(undefined)}
+      onOpenDocument={onOpenDocument}
+      onOpenSource={onOpenSource}
+    />
   ) : (
     <Nothing section="Projects" hint="Pick one from the list, or start a new Project." />
   );
@@ -68,10 +76,12 @@ function ProjectDetail({
   id,
   onBack,
   onOpenDocument,
+  onOpenSource,
 }: {
   id: string;
   onBack: () => void;
   onOpenDocument: (documentId: string) => void;
+  onOpenSource: (sourceId: string) => void;
 }) {
   const detail = useHost(() => api.project(id), [id]);
   const skills = useHost(() => api.skills(), []);
@@ -223,7 +233,9 @@ function ProjectDetail({
             ) : (
               <Rows>
                 {detail.data?.materials.map((material) => (
-                  <Row key={material.id}>
+                  // Every Source has a home in the Stream. Listing one without
+                  // a way to reach it makes you go and find it by hand.
+                  <Row key={material.id} onClick={() => onOpenSource(material.id)}>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] text-ink">{material.content}</span>
                       <span className="mt-0.5 flex items-center gap-2 text-[11px] text-muted">
