@@ -297,6 +297,10 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   having been closed. (Written after it came back once already.)
 - **A transcript goes back where the caret was**, even if focus moved while it
   was being transcribed.
+- **Every floating surface can be dragged, and its handle is always visible.**
+  Not on hover, not in some states and not others — if it floats over someone's
+  page, there is something to take hold of. A bar that lands on the sentence
+  being read and offers nothing to grab is the page being taken away.
 - **No Logue surface ever covers what the person is reading or writing.** A
   confirmation sitting on top of the sentence it just inserted hides the one
   thing someone wants to look at. Either it keeps itself clear of the text, or
