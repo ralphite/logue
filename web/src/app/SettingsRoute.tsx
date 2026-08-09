@@ -62,13 +62,18 @@ export function SettingsRoute() {
 
   const [apiKey, setApiKey] = useState("");
   const [modelName, setModelName] = useState("");
+  const [kind, setKind] = useState("");
   const [tested, setTested] = useState<{ generation: boolean; voice: boolean; error: string }>();
   const action = useAction();
 
   const test = async () => {
     setTested(undefined);
     await action.run(async () => {
-      const result = await api.testModel({ api_key: apiKey || undefined, model: modelName || undefined });
+      const result = await api.testModel({
+        api_key: apiKey || undefined,
+        model: modelName || undefined,
+        provider: kind || undefined,
+      });
       setTested({
         generation: result.generation.ok,
         voice: result.voice.ok,
@@ -79,7 +84,7 @@ export function SettingsRoute() {
 
   const save = async () => {
     const ok = await action.run(() =>
-      api.saveModel({ api_key: apiKey || undefined, model: modelName || undefined }),
+      api.saveModel({ api_key: apiKey || undefined, model: modelName || undefined, provider: kind || undefined }),
     );
     if (ok) {
       setApiKey("");
@@ -101,13 +106,25 @@ export function SettingsRoute() {
           />
           <Capability label="Transcribing" state={model.data?.voice} error={model.data?.voice_error} />
 
+          <Field label="Provider">
+            {/* Two wire formats cover everything anyone has asked for: Google's
+                own, and the OpenAI shape that Groq and most free tiers speak.
+                Switching resets the endpoint-shaped fields on the Host side. */}
+            <Select
+              value={kind || model.data?.provider || "gemini"}
+              onChange={(event) => setKind(event.target.value)}
+            >
+              <option value="gemini">Gemini</option>
+              <option value="openai">OpenAI-compatible (Groq)</option>
+            </Select>
+          </Field>
           <Field label="API key">
             <Input
               type="password"
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
               placeholder={
-                model.data?.configured ? "Saved — enter a new key to replace" : "Paste your Gemini key"
+                model.data?.configured ? "Saved — enter a new key to replace" : "Paste your key"
               }
             />
           </Field>
@@ -116,6 +133,7 @@ export function SettingsRoute() {
               value={modelName}
               onChange={(event) => setModelName(event.target.value)}
               placeholder={model.data?.model ?? "gemini-3.6-flash"}
+              aria-label="Model name"
             />
           </Field>
 

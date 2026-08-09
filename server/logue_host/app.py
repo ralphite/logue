@@ -594,6 +594,7 @@ class App:
             provider = self.provider()
             return {
                 "configured": bool(provider.api_key),
+                "provider": provider.kind,
                 "model": provider.model,
                 "transcription_model": provider.transcription_model,
                 "base_url": provider.base_url,
@@ -603,16 +604,35 @@ class App:
                 "voice_error": provider.error_of("voice"),
             }
 
+        MODEL_FIELDS = ("provider", "api_key", "model", "transcription_model", "base_url")
+
+        def merged_model_record(body: dict[str, Any]) -> dict[str, Any]:
+            """The stored record with the request's changes on top.
+
+            Merged as a record rather than mutated as an instance: an instance
+            round-trip writes its own kind back, so saving while the mock key
+            was in would have forgotten which provider the person had chosen.
+            Switching provider resets the endpoint-shaped fields — a Gemini
+            base_url pointed at an OpenAI path answers nothing but 404s.
+            """
+            record = dict(store.provider())
+            if "provider" in body and str(body["provider"]) != str(record.get("provider") or "gemini"):
+                for stale in ("model", "transcription_model", "base_url"):
+                    record.pop(stale, None)
+            for key in MODEL_FIELDS:
+                if key in body:
+                    value = str(body[key]).rstrip("/") if key == "base_url" else str(body[key])
+                    if value:
+                        record[key] = value
+                    else:
+                        record.pop(key, None)
+            return record
+
         @route("POST", "/v1/model/test")
         def test_model(request: Request) -> dict[str, Any]:
-            body = request.json()
-            current = self.provider()
-            candidate = Provider(
-                api_key=str(body.get("api_key") or current.api_key),
-                model=str(body.get("model") or current.model or DEFAULT_MODEL),
-                transcription_model=str(body.get("transcription_model") or body.get("model") or current.transcription_model),
-                base_url=str(body.get("base_url") or current.base_url),
-            )
+            record = merged_model_record(request.json())
+            record.pop("health", None)
+            candidate = Provider.load(record)
             generation_ok, generation_error = candidate.check("generation")
             voice_ok, voice_error = candidate.check("voice")
             return {
@@ -623,22 +643,15 @@ class App:
 
         @route("PATCH", "/v1/model")
         def patch_model(request: Request) -> dict[str, Any]:
-            body = request.json()
-            provider = self.provider()
-            if "api_key" in body:
-                provider.api_key = str(body["api_key"])
-            if "model" in body:
-                provider.model = str(body["model"]) or DEFAULT_MODEL
-            if "transcription_model" in body:
-                provider.transcription_model = str(body["transcription_model"]) or provider.model
-            if "base_url" in body:
-                provider.base_url = str(body["base_url"]).rstrip("/")
+            record = merged_model_record(request.json())
             # Any config change invalidates the old verdict; re-probe now so the
             # UI never shows a green light left over from a previous key.
-            provider.health = None
-            provider.check("generation")
-            provider.check("voice")
-            self.save_provider(provider)
+            record.pop("health", None)
+            probe = Provider.load(record)
+            probe.check("generation")
+            probe.check("voice")
+            record["health"] = probe.health or {}
+            store.save_provider(record)
             return get_model(request)
 
         # -- backup ---------------------------------------------------------

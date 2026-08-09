@@ -169,6 +169,8 @@ export interface BackupFile {
 }
 
 export interface ModelStatus {
+  /** Which wire format answers: "gemini" or "openai" (Groq and kin). */
+  provider?: string;
   configured: boolean;
   model: string;
   transcription_model?: string;
@@ -336,13 +338,14 @@ export const api = {
     send<{ settings: Record<string, unknown> }>("PATCH", "/v1/settings", changes),
 
   model: () => request<ModelStatus>("/v1/model"),
-  testModel: (body: { api_key?: string; model?: string }) =>
+  testModel: (body: { api_key?: string; model?: string; provider?: string; base_url?: string }) =>
     send<{ generation: { ok: boolean; error: string }; voice: { ok: boolean; error: string } }>(
       "POST",
       "/v1/model/test",
       body,
     ),
-  saveModel: (body: { api_key?: string; model?: string }) => send<ModelStatus>("PATCH", "/v1/model", body),
+  saveModel: (body: { api_key?: string; model?: string; provider?: string; base_url?: string }) =>
+    send<ModelStatus>("PATCH", "/v1/model", body),
 
   backupPreview: () => request<{ counts: Record<string, number>; audio: number; bytes: number }>("/v1/backup/preview"),
   backups: () => request<{ backups: BackupFile[] }>("/v1/backups"),

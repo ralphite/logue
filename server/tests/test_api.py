@@ -823,6 +823,99 @@ class ARecordingOutlivesItsTranscription(Workspace, unittest.TestCase):
             self.call("POST", "/v1/captures/capture_nothing/transcribe", {})
 
 
+class TheOpenAIShapedProvider(unittest.TestCase):
+    """Groq and its kin, pinned at the wire.
+
+    The stub below is not a model stand-in — it is a request recorder. What
+    these pin is OUR half of the contract: the auth header, the field names,
+    the multipart layout. Get those wrong and every free-tier key the owner
+    pastes in fails with a 400 nobody can read.
+    """
+
+    def setUp(self) -> None:
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        recorded: list[dict] = []
+
+        class Stub(BaseHTTPRequestHandler):
+            def do_POST(self) -> None:
+                body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                recorded.append({
+                    "path": self.path,
+                    "auth": self.headers.get("Authorization"),
+                    "type": self.headers.get("Content-Type") or "",
+                    "body": body,
+                })
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                if self.path.endswith("/audio/transcriptions"):
+                    self.wfile.write(json.dumps({"text": "heard you"}).encode())
+                else:
+                    self.wfile.write(json.dumps({"choices": [{"message": {"content": "an answer"}}]}).encode())
+
+            def log_message(self, *args: object) -> None:  # noqa: ARG002
+                return
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Stub)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.addCleanup(self.server.shutdown)
+        self.recorded = recorded
+
+        from logue_host.providers.gemini import Provider
+        self.provider = Provider.load({
+            "provider": "openai",
+            "api_key": "test-openai-key",
+            "base_url": f"http://127.0.0.1:{self.server.server_address[1]}",
+        })
+        self.provider.record_health("generation", True)
+        self.provider.record_health("voice", True)
+
+    def test_the_openai_kind_is_chosen_and_defaults_to_groq_models(self) -> None:
+        from logue_host.providers.openai_compat import OpenAICompatProvider
+        self.assertIsInstance(self.provider, OpenAICompatProvider)
+        self.assertEqual(self.provider.model, "llama-3.3-70b-versatile")
+        self.assertEqual(self.provider.transcription_model, "whisper-large-v3")
+
+    def test_generation_speaks_chat_completions(self) -> None:
+        answer = self.provider.generate("be brief", "why async?")
+        self.assertEqual(answer, "an answer")
+        sent = self.recorded[-1]
+        self.assertTrue(sent["path"].endswith("/chat/completions"))
+        self.assertEqual(sent["auth"], "Bearer test-openai-key")
+        payload = json.loads(sent["body"])
+        self.assertEqual([m["role"] for m in payload["messages"]], ["system", "user"])
+
+    def test_transcription_speaks_multipart_with_the_plan_as_prompt(self) -> None:
+        text = self.provider.transcribe(b"AUDIOBYTES", "audio/webm", "Spell Logue exactly.")
+        self.assertEqual(text, "heard you")
+        sent = self.recorded[-1]
+        self.assertTrue(sent["path"].endswith("/audio/transcriptions"))
+        self.assertIn("multipart/form-data", sent["type"])
+        self.assertIn(b'name="file"', sent["body"])
+        self.assertIn(b"AUDIOBYTES", sent["body"])
+        self.assertIn(b"Spell Logue exactly.", sent["body"], "the transcription plan travels as the prompt")
+        self.assertIn(b"whisper-large-v3", sent["body"])
+
+    def test_switching_provider_resets_endpoint_shaped_fields(self) -> None:
+        # A Gemini base_url pointed at an OpenAI path answers nothing but 404s,
+        # so a provider switch must not carry it along.
+        from pathlib import Path
+        import tempfile
+        from logue_host.app import App
+        with tempfile.TemporaryDirectory() as root:
+            app = App(Path(root), file_new_materials=False)
+            app.store.save_provider({"provider": "gemini", "api_key": "old", "base_url": "https://gemini.example"})
+            match = app.router.match("PATCH", "/v1/model")
+            assert match
+            handler, params = match
+            handler(Request(method="PATCH", path="/v1/model", query={}, params=params, headers={},
+                            body=json.dumps({"provider": "openai", "api_key": "mock"}).encode()))
+            saved = app.store.provider()
+            self.assertEqual(saved.get("provider"), "openai")
+            self.assertNotIn("base_url", saved, "the Gemini address must not leak into the OpenAI path")
+
+
 class TheMockModel(Workspace, unittest.TestCase):
     """The stand-in for when there is no key — honest, and reachable on demand.
 

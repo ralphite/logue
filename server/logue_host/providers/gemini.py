@@ -34,6 +34,8 @@ class Provider:
     transcription_model: str = DEFAULT_MODEL
     base_url: str = DEFAULT_BASE_URL
     health: dict[str, Any] | None = None
+    #: Which wire format this speaks: "gemini" here, "openai" in the subclass.
+    kind: str = "gemini"
 
     @classmethod
     def load(cls, record: dict[str, Any]) -> "Provider":
@@ -44,7 +46,30 @@ class Provider:
         # work". Everything verified against it is marked as such and gets
         # re-verified the day a real key is entered.
         if api_key == MOCK_KEY:
-            return MockProvider(api_key=MOCK_KEY, model="mock", transcription_model="mock")
+            # The stand-in carries the remembered wire-format choice through,
+            # so switching provider while mocked is not silently forgotten.
+            return MockProvider(
+                api_key=MOCK_KEY,
+                model="mock",
+                transcription_model="mock",
+                kind=str(record.get("provider") or "gemini"),
+            )
+        if str(record.get("provider") or "") == "openai":
+            from .openai_compat import (
+                DEFAULT_GENERATION_MODEL,
+                DEFAULT_TRANSCRIPTION_MODEL,
+                GROQ_BASE_URL,
+                OpenAICompatProvider,
+            )
+
+            return OpenAICompatProvider(
+                api_key=api_key,
+                model=str(record.get("model") or DEFAULT_GENERATION_MODEL),
+                transcription_model=str(record.get("transcription_model") or DEFAULT_TRANSCRIPTION_MODEL),
+                base_url=str(record.get("base_url") or GROQ_BASE_URL).rstrip("/"),
+                health=record.get("health") if isinstance(record.get("health"), dict) else None,
+                kind="openai",
+            )
         return cls(
             api_key=api_key,
             model=str(record.get("model") or DEFAULT_MODEL),
@@ -55,7 +80,7 @@ class Provider:
 
     def dump(self) -> dict[str, Any]:
         return {
-            "provider": "gemini",
+            "provider": self.kind,
             "api_key": self.api_key,
             "model": self.model,
             "transcription_model": self.transcription_model,
