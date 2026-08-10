@@ -258,6 +258,13 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
 - **Google Docs must work.** It is not optional. It is confirmed on a Google
   Doc created for that check, never on one already open — a page carrying a
   content script from an older build reports on that build, not this one.
+- **On Google Docs, voice goes to the caret and that is all.** No selection
+  toolbar, no selection Skills there. Not because it cannot be done — it can:
+  with screen reader support on, the selected text is readable from the hidden
+  `docs-texteventtarget-iframe` (same-origin, `about:blank`), measured
+  2026-08-09 on a real document. It is not built because he decided against
+  spending it. Recording that here so nobody researches the same ground twice
+  and concludes it is impossible.
 - **The Side Panel must work, and v1 is what it must do.** v1's panel is the
   reference for its behaviour: read it out of the history and match it item by
   item, rather than inventing a replacement. A rebuild may change how the panel
