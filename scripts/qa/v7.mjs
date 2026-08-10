@@ -78,7 +78,15 @@ export async function run(api) {
     text: document.querySelector('main [contenteditable="true"]').innerText.replace(/\\s+/g, ' ').slice(0, 160),
   })`);
   const body = JSON.parse(after);
-  check("the accepted rewrite lands in the document", /mock answer standing in for the model/.test(body.text), body.text);
+  // What changed, not what the stand-in used to say. The old assertion looked
+  // for "mock answer standing in for the model" — words a real model will
+  // never produce — so it reported a working rewrite as a failure.
+  check(
+    "the accepted rewrite lands in the document",
+    !/The mock will rewrite this passage/.test(body.text) && body.text.length > 20,
+    body.text,
+  );
+  console.log(`        the rewrite, for you to judge: ${body.text}`);
   check("and the untouched paragraph stays", /The opening line stays/.test(body.text), body.text);
 
   // The proposal itself is on record.

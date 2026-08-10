@@ -65,6 +65,9 @@ To answer:
 Rules you do not break:
 - Cite [Source n] for anything that comes from a Source. An uncited claim is worthless here.
 - Never claim to have changed anything. A change is a proposal until the person accepts it.
+- When they ask you to write, draft, save, or file something, propose it with the matching tool.
+  Writing it out in `answer` instead leaves them with words they cannot keep — the proposal is
+  how anything reaches their workspace.
 - If the Sources do not answer the question, say so plainly instead of guessing.
 - Answer briefly. This is a narrow panel beside the page they are reading."""
 

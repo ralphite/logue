@@ -39,7 +39,15 @@ export async function run(api) {
       return {
         yours: /what do my notes say/.test(section.textContent),
         steps: [...section.querySelectorAll('li')].map(li => li.textContent.trim()),
-        answer: [...section.querySelectorAll('p')].map(p => p.textContent.trim()).find(t => /stand-in|Source/.test(t)) ?? null,
+        // The longest paragraph that is not the question. Matching on the
+        // words "stand-in" or "Source" was the stand-in's wording and the
+        // citations' — and a real model's citations render as buttons, so
+        // neither word is in the paragraph at all. It reported a missing
+        // answer while counting six citations inside it.
+        answer: [...section.querySelectorAll('p')]
+          .map(p => p.textContent.trim())
+          .filter(t => t.length > 40 && !/what do my notes say/i.test(t))
+          .sort((a, b) => b.length - a.length)[0] ?? null,
         citations: section.querySelectorAll('[aria-label^="Source "]').length,
         sourcesNote: /\\d+ Sources/.test(section.textContent),
       };
@@ -54,10 +62,22 @@ export async function run(api) {
 
   // A write is proposed, never done. Count documents before and after.
   const before = await api.eval(`fetch('http://127.0.0.1:8787/v1/documents', { headers: { 'X-Logue-Client': 'extension' } }).then(r => r.json()).then(d => d.documents.length)`);
+  // From a clean conversation. The panel sends its history with every turn,
+  // and after a few turns in which it has already drafted something, the agent
+  // reasonably answers instead of proposing again — so a thread left by an
+  // earlier run was what this check was really measuring.
+  await api.eval(`chrome.storage.local.remove('logue:threads')`);
+  await api.eval(`location.reload()`);
+  await api.sleep(2500);
   await api.eval(`(() => {
     const box = document.querySelector('textarea');
     const set = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-    set.call(box, '[mock:propose] write this up for me');
+    // Asked in words, not with the stand-in's trigger. A real model reads
+    // "[mock:propose]" as literal text and proposes or does not depending on
+    // its mood — this check passed and failed on consecutive runs because of
+    // it. A request that genuinely wants something written is the real test of
+    // "offers, never does".
+    set.call(box, 'Draft a short document summarising what my notes say about Logue.');
     box.dispatchEvent(new Event('input', { bubbles: true }));
     [...document.querySelectorAll('button')].find(b => /^Ask$/.test(b.textContent.trim())).click();
   })()`);
