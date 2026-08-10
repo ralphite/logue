@@ -172,6 +172,11 @@ class _AsMarkdown(HTMLParser):
         self.prefix = ""
         self.lists: list[list[Any]] = []
         self.hrefs: list[str] = []
+        # Inside `<code>` there is no such thing as an escape: a backslash is a
+        # backslash and `===` is three characters. Escaping in there turned
+        # `tab === "talk"` into `tab \=\== "talk"` on the way out.
+        self.code_depth = 0
+        self.code_at = 0
 
     def _flush(self, *, keep_empty: bool = False) -> None:
         """End the current block. Empty ones are dropped unless a `<br>` meant it."""
@@ -201,6 +206,11 @@ class _AsMarkdown(HTMLParser):
             self.hrefs.append(dict(attrs).get("href") or "")
             self.line += "["
             return
+        if tag == "code":
+            if not self.code_depth:
+                self.code_at = len(self.line)
+            self.code_depth += 1
+            return
         if tag in INLINE_TAGS:
             self.line += INLINE_TAGS[tag]
             return
@@ -225,6 +235,15 @@ class _AsMarkdown(HTMLParser):
             href = self.hrefs.pop() if self.hrefs else ""
             self.line += f"]({href})"
             return
+        if tag == "code":
+            self.code_depth = max(0, self.code_depth - 1)
+            if not self.code_depth:
+                inside = self.line[self.code_at :]
+                # Long enough to hold whatever is in there, as Markdown fences.
+                runs = [len(run) for run in re.findall(r"`+", inside)]
+                fence = "`" * ((max(runs) + 1) if runs else 1)
+                self.line = f"{self.line[: self.code_at]}{fence}{inside}{fence}"
+            return
         if tag in INLINE_TAGS:
             self.line += INLINE_TAGS[tag]
             return
@@ -246,7 +265,7 @@ class _AsMarkdown(HTMLParser):
         for index, part in enumerate(lines):
             if index:
                 self._flush(keep_empty=True)
-            self.line += _protect(part)
+            self.line += part if self.code_depth else _protect(part)
 
     def result(self) -> str:
         self._flush()
@@ -269,6 +288,38 @@ def _escape(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _hold_code(text: str, held: list[str]) -> str:
+    """Lift code spans out, pairing runs of backticks by length.
+
+    A regex looking for the next backtick pairs a stray ``` with whatever
+    backtick comes later in the line and swallows everything between — which is
+    how `**49/50 篇往返零差异**` ended up inside a code span. A run only closes
+    against a run of its own length; one that never closes stays text.
+    """
+    out: list[str] = []
+    at = 0
+    while at < len(text):
+        if text[at] != "`":
+            out.append(text[at])
+            at += 1
+            continue
+        fence = re.match(r"`+", text[at:]).group(0)  # type: ignore[union-attr]
+        close = at + len(fence)
+        while True:
+            close = text.find(fence, close)
+            if close == -1 or text[close + len(fence) : close + len(fence) + 1] != "`":
+                break
+            close += 1
+        if close == -1:
+            out.append(fence)
+            at += len(fence)
+            continue
+        held.append(text[at + len(fence) : close])
+        out.append(f"\x00{len(held) - 1}\x00")
+        at = close + len(fence)
+    return "".join(out)
+
+
 def _inline(text: str) -> str:
     """Markdown's inline marks, into tags. Escaped first: this is somebody's page.
 
@@ -279,10 +330,6 @@ def _inline(text: str) -> str:
     held: list[str] = []
     literal: list[str] = []
 
-    def hold(match: re.Match[str]) -> str:
-        held.append(match.group(1))
-        return f"\x00{len(held) - 1}\x00"
-
     def keep(match: re.Match[str]) -> str:
         literal.append(match.group(1))
         return f"\x01{len(literal) - 1}\x01"
@@ -290,8 +337,7 @@ def _inline(text: str) -> str:
     # `\*` means a star, and nothing below may look at it again. Punctuation
     # only, as Markdown has it: `C:\path` is a path, not an escaped `p`.
     text = re.sub(r"\\([\\`*_{}\[\]()#+\-.!>=~|])", keep, text)
-    text = re.sub(r"`([^`\n]+)`", hold, text)
-    out = _escape(text)
+    out = _escape(_hold_code(text, held))
     out = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", r'<a href="\2">\1</a>', out)
     out = re.sub(r"\*\*(?=\S)(.+?)(?<=\S)\*\*", r"<strong>\1</strong>", out)
     out = re.sub(r"==(?=\S)(.+?)(?<=\S)==", r"<mark>\1</mark>", out)

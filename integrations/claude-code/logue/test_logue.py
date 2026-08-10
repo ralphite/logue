@@ -66,6 +66,17 @@ class WhatAnAgentWrites(unittest.TestCase):
     def test_a_lone_backtick_stays_a_backtick(self) -> None:
         self.assertEqual(markdown_to_html("```"), "<div>```</div>")
 
+    def test_a_stray_fence_does_not_swallow_what_follows_it(self) -> None:
+        # It used to pair with the next backtick on the line and eat the text
+        # in between, bold and all.
+        html = markdown_to_html("孤立的 ``` 被吃掉。现在 **零差异**,见 `npm test`。")
+        self.assertIn("孤立的 ``` 被吃掉", html)
+        self.assertIn("<strong>零差异</strong>", html)
+        self.assertIn("<code>npm test</code>", html)
+
+    def test_code_may_hold_a_backtick(self) -> None:
+        self.assertIn("<code>a ` b</code>", markdown_to_html("``a ` b``"))
+
 
 class WhatAnAgentReads(unittest.TestCase):
     def test_the_editor_s_markup_becomes_markdown(self) -> None:
@@ -120,6 +131,16 @@ class TextThatOnlyLooksLikeMarkup(unittest.TestCase):
 
     def test_a_backslash_is_a_backslash(self) -> None:
         self.unchanged("<div>C:\\path\\to and \\*not bold\\*</div>")
+
+    def test_inside_code_there_are_no_escapes(self) -> None:
+        # `tab === "talk"` came back as `tab \=\== "talk"`, and a code span
+        # holding `* **顺序**` came back with four backslashes in it.
+        self.unchanged('<div>代码里 <code>tab === "talk"</code> 这类标识</div>')
+        self.unchanged("<div>所以 <code>* **顺序**</code> 在真文档里就是字</div>")
+        self.unchanged("<div>路径 <code>C:\\temp</code> 照抄</div>")
+
+    def test_code_holding_a_backtick_comes_back_whole(self) -> None:
+        self.unchanged("<div>写作 <code>a ` b</code> 的时候</div>")
 
     def test_citations_are_left_exactly_as_they_are(self) -> None:
         self.unchanged("<div>Evidence stays traceable [Source 1], [Source 2, 7].</div>")
