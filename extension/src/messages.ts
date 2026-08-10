@@ -11,6 +11,20 @@ export type ToBackground =
   | { type: "logue:open-panel" }
   /** Try the queued recordings now, rather than waiting for the next check. */
   | { type: "logue:pending-send" }
+  /**
+   * A Skill picked off the selection toolbar. The answer goes to the panel,
+   * the same as the one picked off the right-click menu — so the worker runs
+   * it, rather than the page running it and drawing the answer itself.
+   */
+  | {
+      type: "logue:run-skill-on-selection";
+      skillId: string;
+      skillName: string;
+      text: string;
+      url: string;
+      title: string;
+      project?: string;
+    }
   | { type: "logue:record-start"; sessionId: string }
   | { type: "logue:record-stop"; sessionId: string }
   | { type: "logue:record-cancel"; sessionId: string };

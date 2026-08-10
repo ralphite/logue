@@ -56,7 +56,8 @@ export function useVoice() {
     return () => clearInterval(timer);
   }, [phase]);
 
-  const start = useCallback(async () => {
+  /** Whether the microphone actually came up — callers place their own bar on it. */
+  const start = useCallback(async (): Promise<boolean> => {
     const id = (session.current += 1);
     setError(undefined);
     setPhase("starting");
@@ -64,13 +65,14 @@ export function useVoice() {
       type: "logue:record-start",
       sessionId: String(id),
     });
-    if (session.current !== id) return;
+    if (session.current !== id) return false;
     if (!result?.ok) {
       setPhase("error");
       setError(result?.message ?? "Could not reach the microphone.");
-      return;
+      return false;
     }
     setPhase("recording");
+    return true;
   }, []);
 
   const cancel = useCallback(() => {

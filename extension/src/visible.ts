@@ -9,11 +9,9 @@
  * something each surface has to remember.
  */
 
-export type Surface = "command" | "voice" | "selection" | "none";
+export type Surface = "voice" | "selection" | "none";
 
 export interface Showing {
-  /** The command box is open. */
-  command: boolean;
   /** Text is selected and the toolbar has somewhere to sit. */
   selection: boolean;
   /** The caret bar has somewhere to sit. */
@@ -25,19 +23,18 @@ export interface Showing {
 /**
  * Ordered by how much the person would lose if it were covered:
  *
- * 1. the command box — they opened it on purpose;
- * 2. the caret bar mid-recording — the only way to stop, and the only place the
+ * 1. the caret bar mid-recording — the only way to stop, and the only place the
  *    error is legible;
- * 3. the selection toolbar — selecting text is a deliberate act, and the
+ * 2. the selection toolbar — selecting text is a deliberate act, and the
  *    toolbar sits on the selection, so it is what they are reaching for;
- * 4. the idle caret bar — ambient, and the cheapest thing to give up.
+ * 3. the idle caret bar — ambient, and the cheapest thing to give up.
  *
- * A transcript used to top this list, waiting in a panel to be accepted. It
- * does not wait any more: spoken words go straight to the caret, and the only
- * thing left to show is that they landed, which the caret bar itself says.
+ * Two surfaces have left this list. A transcript used to top it, waiting in a
+ * panel to be accepted; spoken words go straight to the caret now. An ask box
+ * came next, opened over the page to ask about the page — that lives in the
+ * side panel, which is not on the page and so cannot cover it.
  */
 export function visibleSurface(showing: Showing): Surface {
-  if (showing.command) return "command";
   if (showing.voice && showing.voiceBusy) return "voice";
   if (showing.selection) return "selection";
   if (showing.voice) return "voice";

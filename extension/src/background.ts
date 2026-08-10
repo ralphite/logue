@@ -34,12 +34,36 @@ async function ensureOffscreen(): Promise<void> {
   });
 }
 
-async function toOffscreen<T>(type: string): Promise<T> {
-  await ensureOffscreen();
-  const reply: unknown = await chrome.runtime.sendMessage({ type });
-  // The offscreen document is ours; its reply shape is the contract above.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-  return reply as T;
+/**
+ * Every ask of the offscreen document comes back — including when it doesn't.
+ *
+ * `sendMessage` carries no deadline of its own: sent to a listener that never
+ * answers, it simply never settles. `getUserMedia` does exactly that when the
+ * operating system is holding a microphone prompt nobody has answered, or when
+ * another app owns the device — and neither `createDocument` nor the reply
+ * ever arrives. The only symptom is a bar reading "Starting mic…" with a
+ * spinner, forever, and nothing on it that ends the wait.
+ *
+ * A refusal is a state someone can leave. Silence is not, so this turns one
+ * into the other.
+ */
+async function toOffscreen<T>(type: string, deadlineMs = 15_000): Promise<T> {
+  const ask = (async () => {
+    await ensureOffscreen();
+    return await chrome.runtime.sendMessage({ type });
+  })();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("The microphone did not come up.")), deadlineMs);
+  });
+  try {
+    const reply: unknown = await Promise.race([ask, deadline]);
+    // The offscreen document is ours; its reply shape is the contract above.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    return reply as T;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -201,23 +225,38 @@ export interface ThreadMessage {
   at: string;
 }
 
-async function runSkillOnPage(skillId: string, skillName: string, tab: chrome.tabs.Tab): Promise<void> {
+/**
+ * A Skill run whose answer belongs in the panel.
+ *
+ * Both ways of asking end here — the page's right-click menu, and the Skill
+ * list on the selection toolbar — because an answer should have one place to
+ * land. It used to have two: the menu wrote into the panel while the selection
+ * toolbar unfolded its own block over the page, so the same Skill on the same
+ * page put its result somewhere different depending on how it was reached.
+ *
+ * The caller supplies the text and the line that names it; keeping the Source,
+ * running the Skill, and everything the panel reads is written once, here.
+ */
+async function runSkillIntoThread(options: {
+  skillId: string;
+  skillName: string;
+  /** The line above the answer: "Simplify, on the passage you selected". */
+  heading: string;
+  /** What is being run on, and how to keep it as a Source. */
+  keep: { kind: "page" | "selection"; content: string; url: string; title: string };
+  project?: string;
+}): Promise<void> {
+  const { skillId, skillName, heading, keep, project } = options;
   const say = async (messages: ThreadMessage[]) => {
     await chrome.storage.local.set({ [THREAD]: messages });
     // The panel may already be open on an older thread.
     chrome.runtime.sendMessage({ type: "logue:thread-changed" }).catch(() => undefined);
   };
   const at = new Date().toISOString();
-  await say([{ from: "logue", text: `Running ${skillName} on this page…`, at }]);
+  await say([{ from: "logue", text: `Running ${skillName}…`, at }]);
 
   try {
-    if (tab.id === undefined) throw new Error("There is no page here to read.");
-    const page: unknown = await chrome.tabs
-      .sendMessage(tab.id, { type: "logue:read-page" })
-      .catch(() => undefined);
-    const text =
-      page && typeof page === "object" && "text" in page && typeof page.text === "string" ? page.text.trim() : "";
-    if (!text) throw new Error("Nothing readable was found on this page.");
+    if (!keep.content.trim()) throw new Error("There was nothing to read.");
 
     // Saved as a Source first, so the answer stands on something that exists
     // and can be followed afterwards — the same rule as everywhere else.
@@ -225,12 +264,13 @@ async function runSkillOnPage(skillId: string, skillName: string, tab: chrome.ta
       path: "/v1/materials",
       method: "POST",
       body: JSON.stringify({
-        kind: "page",
-        content: text,
-        source: { url: tab.url ?? "", title: tab.title ?? "", domain: domainOf(tab.url ?? "") },
+        kind: keep.kind,
+        content: keep.content,
+        project,
+        source: { url: keep.url, title: keep.title, domain: domainOf(keep.url) },
       }),
     });
-    if (!kept.ok || kept.status >= 400) throw new Error("Logue could not keep this page.");
+    if (!kept.ok || kept.status >= 400) throw new Error("Logue could not keep this.");
     const sourceId = pickString(JSON.parse(kept.text), "material", "id");
 
     const ran = await relayToHost({
@@ -238,7 +278,8 @@ async function runSkillOnPage(skillId: string, skillName: string, tab: chrome.ta
       method: "POST",
       body: JSON.stringify({
         skill_id: skillId,
-        instruction: `${skillName} — ${tab.title || tab.url || "this page"}`,
+        instruction: `${skillName} — ${keep.title || keep.url || "this page"}`,
+        project,
         source_ids: sourceId ? [sourceId] : [],
       }),
     });
@@ -247,7 +288,7 @@ async function runSkillOnPage(skillId: string, skillName: string, tab: chrome.ta
     const output = pickString(answered, "run", "original_output").trim();
     const failed = pickString(answered, "run", "error");
     await say([
-      { from: "logue", text: `${skillName}, on ${tab.title || tab.url || "this page"}`, at },
+      { from: "logue", text: heading, at },
       {
         from: "skill",
         text: output || failed || "The model answered with nothing.",
@@ -256,7 +297,7 @@ async function runSkillOnPage(skillId: string, skillName: string, tab: chrome.ta
     ]);
   } catch (cause) {
     await say([
-      { from: "logue", text: `${skillName}, on ${tab.title || tab.url || "this page"}`, at },
+      { from: "logue", text: heading, at },
       {
         from: "skill",
         text: cause instanceof Error ? cause.message : "Something went wrong.",
@@ -264,6 +305,22 @@ async function runSkillOnPage(skillId: string, skillName: string, tab: chrome.ta
       },
     ]);
   }
+}
+
+async function runSkillOnPage(skillId: string, skillName: string, tab: chrome.tabs.Tab): Promise<void> {
+  const where = tab.title || tab.url || "this page";
+  const page: unknown =
+    tab.id === undefined
+      ? undefined
+      : await chrome.tabs.sendMessage(tab.id, { type: "logue:read-page" }).catch(() => undefined);
+  const text =
+    page && typeof page === "object" && "text" in page && typeof page.text === "string" ? page.text.trim() : "";
+  await runSkillIntoThread({
+    skillId,
+    skillName,
+    heading: `${skillName}, on ${where}`,
+    keep: { kind: "page", content: text, url: tab.url ?? "", title: tab.title ?? "" },
+  });
 }
 
 chrome.contextMenus?.onClicked.addListener((info, tab) => {
@@ -586,6 +643,31 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
         (error: unknown) => respond({ ok: false, message: String(error) }),
       );
       return true;
+
+    case "logue:run-skill-on-selection": {
+      // Answered at once so the toolbar can put itself away; the panel is
+      // where the waiting is shown, and it is already open by now — the page
+      // asked for it inside the same click.
+      // The union in messages.ts is the contract; the tag has been checked.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      const ask = message as {
+        skillId: string;
+        skillName: string;
+        text: string;
+        url: string;
+        title: string;
+        project?: string;
+      };
+      void runSkillIntoThread({
+        skillId: ask.skillId,
+        skillName: ask.skillName,
+        heading: `${ask.skillName}, on the passage you selected`,
+        keep: { kind: "selection", content: ask.text, url: ask.url, title: ask.title },
+        project: ask.project,
+      });
+      respond({ ok: true });
+      return true;
+    }
 
     case "logue:pending-send":
       // "Try now" in the panel. The periodic check would get there eventually;

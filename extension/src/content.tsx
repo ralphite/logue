@@ -1,6 +1,6 @@
 import { StrictMode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { host, type Context, type Material } from "./api";
+import { host, type Context } from "./api";
 import { caretRect } from "./caret";
 import * as googleDocs from "./googleDocs";
 import { readablePageText } from "./readable";
@@ -10,12 +10,10 @@ import { aboveSelection, besideCaret, BAR } from "./position";
 import { NO_OVERRIDES, type VoiceOverrides } from "./overrides";
 import { useVoice } from "./useVoice";
 import { visibleSurface } from "./visible";
-import { CommandBox } from "./surfaces/CommandBox";
 import { SelectionBar, type SelectionPhase } from "./surfaces/SelectionBar";
 import { VoiceBar } from "./surfaces/VoiceBar";
 import styles from "./surface.css?inline";
 
-const COMMAND = { width: 360, height: 190 };
 const SELECTION = { width: 220, height: 32 };
 
 function viewport() {
@@ -135,14 +133,6 @@ function Surfaces() {
       window.removeEventListener("keydown", onKeyDown, true);
     };
   }, [inserted]);
-  const [commandOpen, setCommandOpen] = useState(false);
-  const [command, setCommand] = useState<{
-    busy: boolean;
-    answer?: string;
-    sources: Material[];
-    error?: string;
-    runId?: string;
-  }>({ busy: false, sources: [] });
   const [selection, setSelection] = useState<SelectionSnapshot>();
   const [selectionPhase, setSelectionPhase] = useState<SelectionPhase>("idle");
   const [selectionError, setSelectionError] = useState<string>();
@@ -231,7 +221,11 @@ function Surfaces() {
     const listener = (message: unknown, _sender: unknown, respond: (reply: unknown) => void) => {
       if (!isFromBackground(message)) return undefined;
       if (message.type === "logue:start-voice" && target.current) void voice.start();
-      if (message.type === "logue:start-command") setCommandOpen(true);
+      // Asking about this page is a panel thing now, wherever it is asked
+      // from. The shortcut used to open a second box on top of the page, so
+      // the same question had two homes depending on how it was reached —
+      // and the answer in the page box died with the next selection.
+      if (message.type === "logue:start-command") void send({ type: "logue:open-panel" });
       if (message.type === "logue:read-page") {
         // The worker cannot read a page; only something on it can. This is
         // the same text the Side Panel already saves, so a Skill run from the
@@ -288,24 +282,6 @@ function Surfaces() {
    * The words failed; the recording did not. Ask again on the audio the Host
    * kept, and land the transcript where the first attempt would have.
    */
-  /** The ask box's own dictation: recorded the same way, landing in the box. */
-  const [boxDictation, setBoxDictation] = useState<"idle" | "recording" | "settling">("idle");
-  const [dictated, setDictated] = useState<{ text: string; at: number }>();
-  const dictateIntoBox = async () => {
-    setBoxDictation("recording");
-    await voice.start();
-  };
-  const stopBoxDictation = async () => {
-    setBoxDictation("settling");
-    const result = await voice.stop({
-      project,
-      overrides,
-      source: pageSource(),
-    });
-    setBoxDictation("idle");
-    if (result) setDictated({ text: result.text, at: Date.now() });
-  };
-
   const retryVoice = async () => {
     const held = destination.current;
     const result = await voice.retry({
@@ -344,42 +320,6 @@ function Surfaces() {
     if (done) setInserted(done);
   };
 
-  const runCommand = async ({
-    instruction,
-    skillId,
-    project: chosen,
-    scope,
-  }: {
-    instruction: string;
-    skillId: string;
-    project: string;
-    scope: string;
-  }) => {
-    setCommand({ busy: true, sources: [] });
-    try {
-      let sourceIds: string[] | undefined;
-      if (scope === "selection" && selection) {
-        sourceIds = [(await keepSelection(selection, chosen)).id];
-      } else if (scope === "page") {
-        const { materials } = await host.pageMaterials(location.href);
-        sourceIds = materials.map((item) => item.id);
-      }
-      const result = await host.run({ skill_id: skillId, instruction, project: chosen, source_ids: sourceIds });
-      if (result.run.status !== "complete") {
-        setCommand({ busy: false, sources: [], error: result.run.error ?? "The model did not answer." });
-        return;
-      }
-      setCommand({
-        busy: false,
-        answer: result.run.original_output ?? "",
-        sources: result.sources,
-        runId: result.run.id,
-      });
-    } catch (cause) {
-      setCommand({ busy: false, sources: [], error: cause instanceof Error ? cause.message : "Could not run that." });
-    }
-  };
-
   const saveSelection = async (extra?: { note?: string }) => {
     if (!selection) return;
     setSelectionPhase("saving");
@@ -408,8 +348,17 @@ function Surfaces() {
   const startSelectionVoice = async () => {
     if (!selection) return;
     setSelectionPhase("starting");
-    await selectionVoice.start();
-    setSelectionPhase("recording");
+    // The bar leaves "Starting mic…" whatever the answer is. It used to go to
+    // "recording" unconditionally — so a microphone that never came up left a
+    // bar claiming to record nothing — and if the reply never arrived at all
+    // it sat on the spinner with nothing to press. Both ends are answers now.
+    const started = await selectionVoice.start();
+    if (started) {
+      setSelectionPhase("recording");
+      return;
+    }
+    setSelectionPhase("idle");
+    setSelectionError(selectionVoice.error ?? "Could not reach the microphone.");
   };
 
   const finishSelectionVoice = async () => {
@@ -467,9 +416,6 @@ function Surfaces() {
   const barAt = caret
     ? (moved ?? besideCaret(caret, viewport(), barSize.width, barSize.height))
     : undefined;
-  const commandAt = caret
-    ? besideCaret(caret, viewport(), COMMAND.width, COMMAND.height)
-    : { left: 16, top: 16 };
   const selectionAt = selection
     ? (selectionMoved ??
       aboveSelection(selection.rect, viewport(), writing ? 320 : SELECTION.width, writing ? 140 : SELECTION.height))
@@ -483,7 +429,6 @@ function Surfaces() {
     .toSorted((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
 
   const showing = visibleSurface({
-    command: commandOpen,
     selection: Boolean(selection && selectionAt),
     voice: Boolean(barAt),
     voiceBusy,
@@ -540,35 +485,6 @@ function Surfaces() {
         />
       )}
 
-      {showing === "command" && (
-        <CommandBox
-          style={{ left: commandAt.left, top: commandAt.top }}
-          context={context}
-          busy={command.busy}
-          error={command.error}
-          answer={command.answer}
-          sources={command.sources}
-          hasSelection={Boolean(selection)}
-          dictation={boxDictation}
-          dictated={dictated}
-          onDictate={() => void dictateIntoBox()}
-          onStopDictation={() => void stopBoxDictation()}
-          onRun={(input) => void runCommand(input)}
-          onInsert={(text) => {
-            if (target.current) insertAtCaret(target.current, text);
-            // Which Skills actually get used was unanswerable from the
-            // extension, where most of them are run.
-            if (command.runId) void host.adopt(command.runId, text, "insert");
-            setCommandOpen(false);
-            setCommand({ busy: false, sources: [] });
-          }}
-          onClose={() => {
-            setCommandOpen(false);
-            setCommand({ busy: false, sources: [] });
-          }}
-        />
-      )}
-
       {showing === "selection" && selection && selectionAt && (
         <SelectionBar
           onMove={setSelectionMoved}
@@ -593,10 +509,28 @@ function Surfaces() {
             setSelectionPhase("idle");
           }}
           onSkill={(skillId) => {
-            // Open first, then run. Running first left the person looking at an
-            // unchanged toolbar for the whole model call.
-            setCommandOpen(true);
-            void runCommand({ instruction: selection.text, skillId, project, scope: "selection" });
+            // The panel is asked for first, inside the click that asked for the
+            // Skill: opening a side panel needs a real gesture, and anything
+            // awaited before the request spends it. Then the worker runs the
+            // Skill and writes the answer where every other Skill writes it.
+            //
+            // This is the whole of D3. The answer used to unfold over the page
+            // here, so the same Skill landed in two different places depending
+            // on whether it was reached from this toolbar or the right-click
+            // menu — and the page was the worse of the two: it covers what you
+            // were reading and goes away when the selection does.
+            void send({ type: "logue:open-panel" });
+            const chosen = selectionSkills.find((one) => one.id === skillId);
+            void send({
+              type: "logue:run-skill-on-selection",
+              skillId,
+              skillName: chosen?.name ?? "That Skill",
+              text: selection.text,
+              url: location.href,
+              title: document.title,
+              project: project || undefined,
+            });
+            setSelection(undefined);
           }}
         />
       )}
