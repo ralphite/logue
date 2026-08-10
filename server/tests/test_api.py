@@ -710,6 +710,32 @@ class HeardContextTest(Workspace, unittest.TestCase):
         plan = capture.transcription_plan(self.app.store, "", nearby="x" * 50_000)
         self.assertLessEqual(plan["applied"]["page_context_characters"], capture.NEARBY_LIMIT)
 
+    def test_no_speech_means_no_words_and_no_skill_can_say_otherwise(self) -> None:
+        """The one rule a Skill may not overrule.
+
+        Given five seconds of digital silence and a page of context, a real
+        model answered "To calculate the standard deviation, start by finding
+        the mean of the dataset" — a fluent sentence nobody said, on its way to
+        someone's caret. Every other instruction pushes towards producing text;
+        this is the only one that says no text is allowed, so it goes last and
+        it goes in whatever else is set.
+        """
+        skill = self.call(
+            "POST",
+            "/v1/skills",
+            {"name": "Chatty", "instructions": "Always produce a full sentence.", "task": "transcribe"},
+        )["skill"]
+        self.call("PATCH", "/v1/settings", {"default_transcription_skill": skill["id"]})
+        plan = capture.transcription_plan(self.app.store, "", nearby="A page full of tempting words")
+
+        instructions = str(plan["instructions"])
+        self.assertIn("Always produce a full sentence.", instructions, "the Skill still speaks first")
+        self.assertTrue(
+            instructions.rstrip().endswith(capture.NOTHING_WAS_SAID),
+            "the rule is last, so it is the last thing read",
+        )
+        self.assertIn("Never invent", instructions)
+
     def test_what_shaped_the_transcript_is_recorded(self) -> None:
         skill = self.call(
             "POST", "/v1/skills", {"name": "Mine", "instructions": "Keep filler words.", "task": "transcribe"}

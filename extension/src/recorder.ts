@@ -12,6 +12,61 @@ let stream: MediaStream | undefined;
 let ceiling: ReturnType<typeof setTimeout> | undefined;
 let abandon: ReturnType<typeof setTimeout> | undefined;
 let startedAt = 0;
+/** The loudest thing the microphone heard this recording, 0…1. */
+let loudest = 0;
+let listening: { context: AudioContext; timer: ReturnType<typeof setInterval> } | undefined;
+
+/**
+ * Below this, nobody spoke.
+ *
+ * Room tone through a laptop microphone sits around 0.01–0.02 peak; a voice
+ * two feet away clears 0.1 easily. This is set low enough that a mumble still
+ * counts and high enough that a muted or missing microphone does not.
+ */
+export const HEARD_SOMETHING = 0.02;
+
+/** Whether this recording has anything in it worth sending. */
+export function heardSomething(): boolean {
+  return loudest >= HEARD_SOMETHING;
+}
+
+/**
+ * Watch the level while recording.
+ *
+ * The point is not a meter. It is that "was anything said?" is a question the
+ * browser can answer for itself, and asking a language model instead gets a
+ * confident sentence back: five seconds of digital silence produced "To
+ * calculate the standard deviation, start by finding the mean of the
+ * dataset" — words nobody said, on their way to someone's caret. The
+ * microphone knows. Nothing has to be guessed.
+ */
+function listen(source: MediaStream): void {
+  try {
+    const context = new AudioContext();
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 2048;
+    context.createMediaStreamSource(source).connect(analyser);
+    const samples = new Float32Array(analyser.fftSize);
+    const timer = setInterval(() => {
+      analyser.getFloatTimeDomainData(samples);
+      let peak = 0;
+      for (const sample of samples) peak = Math.max(peak, Math.abs(sample));
+      loudest = Math.max(loudest, peak);
+    }, 200);
+    listening = { context, timer };
+  } catch {
+    // No AudioContext, or a stream that cannot be tapped. The recording still
+    // happens; it just goes without this check rather than not at all.
+    loudest = 1;
+  }
+}
+
+function stopListening(): void {
+  if (!listening) return;
+  clearInterval(listening.timer);
+  void listening.context.close().catch(() => undefined);
+  listening = undefined;
+}
 
 /**
  * Ten minutes, after which the microphone stops itself and keeps what it has.
@@ -55,6 +110,8 @@ export async function start(): Promise<void> {
   // Whatever it was holding is unreachable by then, so let it go.
   if (recorder) cancel();
   stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  loudest = 0;
+  listen(stream);
   const mimeType = preferredMimeType();
   recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
   chunks = [];
@@ -85,6 +142,7 @@ export async function start(): Promise<void> {
 }
 
 function release() {
+  stopListening();
   clearTimeout(ceiling);
   clearTimeout(abandon);
   ceiling = undefined;
@@ -96,10 +154,12 @@ function release() {
 }
 
 /** Stops and returns the recording as base64, which is how the Host takes it. */
-export async function stop(): Promise<{ audio: string; mediaType: string }> {
+export async function stop(): Promise<{ audio: string; mediaType: string; heard: boolean }> {
   const active = recorder;
   if (!active) throw new Error("Not recording.");
   const mediaType = active.mimeType.split(";")[0] || "audio/webm";
+  // Read before release() clears it.
+  const heard = heardSomething();
 
   const blob =
     // Already stopped, because the ceiling ended it. Waiting for `onstop` here
@@ -114,7 +174,7 @@ export async function stop(): Promise<{ audio: string; mediaType: string }> {
   release();
   chunks = [];
 
-  return { audio: base64Of(await blob.arrayBuffer()), mediaType };
+  return { audio: base64Of(await blob.arrayBuffer()), mediaType, heard };
 }
 
 /**

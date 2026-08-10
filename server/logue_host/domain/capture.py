@@ -19,6 +19,14 @@ from . import corrections, defaults, materials, projects, vocabulary
 #: Enough of the surrounding page to fix a name, without becoming the prompt.
 NEARBY_LIMIT = 1500
 
+#: The one instruction a Skill may not overrule: no words is a legal answer.
+NOTHING_WAS_SAID = (
+    "If the recording contains no speech — silence, background noise, or "
+    "nothing audible — return an empty response. Never invent, guess at, or "
+    "fill in words that were not spoken, and never answer from the context "
+    "above: it is there to spell what was said, not to supply it."
+)
+
 
 def _quoted(text: str) -> str:
     """The page's words, marked as words rather than as instructions.
@@ -98,6 +106,18 @@ def transcription_plan(
     trimmed = nearby.strip()[:NEARBY_LIMIT]
     if trimmed:
         parts.append(_quoted(trimmed))
+
+    # Last, and not from the Skill — nothing anyone writes into a Skill should
+    # be able to switch this off.
+    #
+    # Asked to transcribe five seconds of digital silence, a real model
+    # answered "To calculate the standard deviation, start by finding the mean
+    # of the dataset" — a fluent sentence nobody said, which this product then
+    # types at someone's caret. Every other instruction above pushes towards
+    # producing text; none of them says that no text is an allowed answer, and
+    # a model given a page of context and no audio will happily use the
+    # context. So it is said here, plainly, after everything else.
+    parts.append(NOTHING_WAS_SAID)
 
     instructions = " ".join(parts)
     return {

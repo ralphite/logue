@@ -106,7 +106,13 @@ export function useVoice() {
       // to say so later.
       const ranFor = seconds;
       setPhase("working");
-      const recorded = await send<{ ok: boolean; audio?: string; mediaType?: string; message?: string }>({
+      const recorded = await send<{
+        ok: boolean;
+        audio?: string;
+        mediaType?: string;
+        message?: string;
+        heard?: boolean;
+      }>({
         type: "logue:record-stop",
         sessionId: String(id),
       });
@@ -114,6 +120,21 @@ export function useVoice() {
       if (!recorded?.ok || !recorded.audio) {
         setPhase("error");
         setError(recorded?.message ?? "Nothing was recorded.");
+        return undefined;
+      }
+
+      // A silent recording never reaches the model.
+      //
+      // Not an optimisation. Given five seconds of silence and a page of
+      // context, a real model returns a fluent sentence nobody said — and this
+      // is the one product that would then type it at your caret. Whether the
+      // microphone heard anything is measured while recording, so it is known
+      // here for certain, and `false` is the only value that counts: an older
+      // recorder that never reported leaves it undefined, and an unanswered
+      // question must not become an accusation.
+      if (recorded.heard === false) {
+        setPhase("error");
+        setError("Logue did not hear anything. Check the microphone and try again.");
         return undefined;
       }
 

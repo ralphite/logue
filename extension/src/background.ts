@@ -678,7 +678,9 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
       respond({ ok: true });
       return true;
     case "logue:record-stop":
-      toOffscreen<{ ok: boolean; audio?: string; mediaType?: string; message?: string }>("logue:offscreen-stop").then(
+      toOffscreen<{ ok: boolean; audio?: string; mediaType?: string; message?: string; heard?: boolean }>(
+        "logue:offscreen-stop",
+      ).then(
         (result) => {
           respond(result);
           // The audio is in hand; the document has nothing left to hold.

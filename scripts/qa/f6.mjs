@@ -27,6 +27,13 @@ async function until(api, fn, label, timeout = 60000) {
 }
 
 export async function run(api) {
+  // Land on the app before asking it anything. The relative fetches below run
+  // in whatever tab was left open, and a browser that has just been launched
+  // is sitting on chrome://extensions — where they fail as "Failed to fetch",
+  // which reads like a Host that is down.
+  await api.goto(`${APP}/stream`);
+  await api.sleep(2000);
+
   // The slot names the cleanup Skill, and that is what /v1/context reports.
   const slot = await api.eval(`fetch('/v1/context', { headers: { 'X-Logue-Client': 'web' } }).then(r => r.json()).then(d => d.defaults.transcription)`);
   const named = await api.eval(`fetch('/v1/skills', { headers: { 'X-Logue-Client': 'web' } }).then(r => r.json()).then(d => { const s = d.skills.find(x => x.id === '${slot}'); return { name: s.name, prompt: s.instructions }; })`);
@@ -57,11 +64,15 @@ export async function run(api) {
     [...bar.querySelectorAll('button')].find(b => (b.getAttribute('aria-label')||'').startsWith('Voice ·')).click();
     return 'go';
   })()`);
-  await until(api, (s) => (s.barText || "").includes("Accept"), "recording never started");
+  // The accept control is the tick, and its name is the tooltip — it stopped
+  // being a button reading "Accept" when the two bars were merged (F10/X29).
+  // Waiting on the old word left this recording for a full minute and then
+  // reported a feature that was working the whole time.
+  await until(api, (s) => (s.labels || []).some((l) => /Transcribe and insert/i.test(l || "")), "recording never started");
   await api.sleep(5000);
   await api.eval(`(() => {
     const bar = document.getElementById('logue-host').shadowRoot.querySelector('[aria-label="Logue voice"]');
-    [...bar.querySelectorAll('button')].find(b => b.textContent.includes('Accept')).click();
+    [...bar.querySelectorAll('button')].find(b => /Transcribe and insert/i.test(b.getAttribute('aria-label') || '')).click();
     return 'stop';
   })()`);
 
