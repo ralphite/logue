@@ -138,6 +138,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   the rail for anything that exists, so a screen whose only message is "pick
   something from the list" wastes the click. Nothing is written until the first
   keystroke. Stream is the exception: its material is captured, never made.
+- **A conversation belongs to the page it is about.** Asking about one page
+  and then moving to another does not carry the answers along — the new page
+  starts clean, and coming back brings its own conversation with it. One shared
+  thread across every page puts unrelated questions under each other and calls
+  it a history.
 - **An empty section takes up no room.** A heading over "Nothing saved yet."
   spends a screenful saying nothing; it folds to a single line, or it is not
   drawn at all. This does not contradict "an empty section carries the way out
@@ -345,6 +350,30 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   diffed and gone back to. Going back is a new revision, so the numbers Runs
   recorded keep pointing at prompts that exist. No model writes summary lines
   here — a person edits a prompt by hand and the diff is the story.
+
+## An agent that is not ours
+
+- **A document link is all another agent needs.** Hand the URL of a document to
+  a coding agent — Claude Code first — and it can read that document and write
+  back into it. Nothing else is set up first: no key, no account, no config
+  file naming a port. The link says which Host and which document, and the Host
+  already answers a local tool that arrives without an `Origin`.
+- **The outside agent speaks Markdown, and Logue stores what its own editor
+  stores.** What comes out is Markdown; what goes in is turned back into the
+  editor's own markup. An agent that hands over `## Heading` must not leave two
+  hash marks sitting in the person's document.
+- **A replacing write says which version it read.** Full-content writes carry
+  `expected_revision`, so an agent that read at revision 4 and writes after the
+  person typed something is refused rather than silently winning. Appending
+  needs no version — it cannot overwrite anything.
+- **The outside agent adds; it does not tidy up.** It may read, append, replace
+  and create. Deleting a document is not something it does on its own — that is
+  the same rule the in-product agent lives under, applied to a bigger blast
+  radius.
+- **What is installed lives in this repository.** The skill Claude Code loads is
+  a copy of `integrations/claude-code/logue/`, put in place by a script that can
+  be run again. A skill that only exists in someone's home directory is one
+  machine away from not existing.
 
 ## Provenance — the part that cannot bend
 
