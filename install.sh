@@ -270,6 +270,27 @@ cli_next="${bin_dir}/.logue.next.$$"
 chmod 755 "${cli_next}"
 say "App, Web App, and CLI candidates are ready"
 
+link_web() {
+  # The Host looks for the app at `<install root>/web` and serves the API alone
+  # when it is not there, so an install without this link answers every browser
+  # with JSON. `current` is the only thing an upgrade moves, so a fixed symlink
+  # through it never needs a second switch — and a rollback of `current` takes
+  # the app back with it.
+  local web_link="${install_root}/web" web_next
+  [[ "$(readlink "${web_link}" 2>/dev/null)" == "${current_link}/web" ]] && return 0
+  # Anything else at this name is a previous install's copy of the app: the
+  # install root holds only installer-managed files, and the preflight has
+  # already refused a data root that overlaps it.
+  if [[ -e "${web_link}" && ! -L "${web_link}" ]]; then
+    rm -rf -- "${web_link}" || return 1
+  fi
+  web_next="${install_root}/.web.next.$$"
+  rm -f -- "${web_next}"
+  ln -s "${current_link}/web" "${web_next}" || return 1
+  replace_path "${web_next}" "${web_link}" || return 1
+  return 0
+}
+
 managed_command_belongs_to_install() {
   # Only ever signal a Host that is serving this workspace. Legacy matched the
   # install root in argv; `-m logue_host` hides it, so the data root — which
@@ -361,6 +382,8 @@ commit_install() {
   current_switched="yes"
   say "App switched to ${logue_version}"
 
+  link_web || return 1
+
   start_service || return 1
   inject_failure service || return 1
   say "Service started: ${health_url}"
@@ -428,5 +451,5 @@ say "Command: ${bin_dir}/logue"
 say "Data remains at: ${data_root}"
 say "Web App files: ${current_link}/web"
 # Pinned, never `latest`: both machines must end up on this exact release.
-say "Chrome Extension (run on the Mac with Chrome, pinned to this Host release):"
+say "Chrome Extension (run on the computer with Chrome, pinned to this Host release):"
 say "curl -fsSL https://github.com/ralphite/logue/releases/download/${logue_version}/install-extension.sh | LOGUE_RELEASE='${logue_version}' bash"

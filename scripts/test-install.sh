@@ -86,6 +86,12 @@ status_data_dir() {
     "${python_bin}" -c 'import json,sys;s=json.load(sys.stdin);print(s["data_dir"] if s.get("ok") else "")'
 }
 
+# A Host that answers the API but not `/` is an install whose only documented
+# URL returns JSON, which every earlier check here would still call a success.
+serves_app() {
+  curl -fsS "http://127.0.0.1:${port}/" | grep -q '<div id="root"'
+}
+
 # "Download one zip, run it with system Python" — an installer that reaches for
 # a build toolchain has quietly broken the product promise.
 if grep -qE '(^|[^[:alnum:]_])(node|npm|go|pip)([^[:alnum:]_]|$)' "${repo_dir}/install.sh"; then
@@ -113,7 +119,9 @@ current_v1="$(readlink "${install_root}/current")"
 grep -Fq "${python_bin}" "${bin_dir}/logue" || die 'CLI does not use absolute python3.13'
 [[ "$("${bin_dir}/logue" --version)" == "${release_v1}" ]] || die 'CLI reports the wrong version'
 [[ "$(status_data_dir)" == "$("${python_bin}" -c 'import pathlib,sys;print(pathlib.Path(sys.argv[1]).resolve())' "${data_root}")" ]] || die 'Host is not serving the installed data root'
-printf 'First install: staged release, atomic current symlink, CLI, and running Host verified.\n'
+[[ "$(readlink "${install_root}/web")" == "${install_root}/current/web" ]] || die 'app link does not point through current'
+serves_app || die 'Host is serving the API only, not the Web App'
+printf 'First install: staged release, atomic current symlink, CLI, app, and running Host verified.\n'
 
 mkdir -p "${data_root}/items"
 printf '%s\n' 'preserve-me' > "${data_root}/items/installer-sentinel.txt"
@@ -146,6 +154,7 @@ current_v2="$(readlink "${install_root}/current")"
 [[ "${current_v2}" != "${current_v1}" ]] || die 'upgrade reused the previous release directory'
 [[ "$("${bin_dir}/logue" --version)" == "${release_v2}" ]] || die 'upgrade did not switch the CLI'
 [[ "$(status_data_dir)" != "" ]] || die 'upgrade did not leave a running Host'
+serves_app || die 'upgrade left the Host serving the API only'
 [[ "$(file_sha256 "${data_root}/items/installer-sentinel.txt")" == "${sentinel_before}" ]] || die 'upgrade changed persistent data'
 
 printf 'Installer overlap, checksum, atomic switch, rollback, and data-preservation regression passed.\n'

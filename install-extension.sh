@@ -230,9 +230,10 @@ if [[ "${first_install}" == "yes" ]]; then
   printf '%s\n' '  2. Turn on Developer mode.'
   printf '%s\n' '  3. Click Load unpacked.'
   printf '  4. Select: %s\n' "${extension_dir}"
-  printf '%s\n' '  5. Open the Logue Side Panel.'
-  printf '%s\n' '  6. Open More options → Server settings.'
-  printf '%s\n' '  7. Enter http(s)://<Logue Host>:8787, click Connect, and allow that origin.'
+  # The Extension talks to http://127.0.0.1:8787 and nothing else, so there is
+  # no address to enter — only a model to connect, which lives in the app.
+  printf '%s\n' '  5. Open http://127.0.0.1:8787 and connect a model under Settings.'
+  printf '%s\n' '  6. Open the Logue Side Panel on any page.'
 else
   printf '\n✓ Logue Extension %s update is ready\n' "${logue_version}"
   say "Chrome remains on the previous or unknown version until Reload."

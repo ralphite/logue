@@ -172,6 +172,6 @@ grep -Fq "Logue Extension ${release_v2} update is ready" "${upgrade_log}" || die
 grep -Fq 'Chrome remains on the previous or unknown version until Reload.' "${upgrade_log}" || die 'upgrade misstated the running Chrome version'
 grep -Fq 'click Reload on the Logue card' "${upgrade_log}" || die 'upgrade omitted the Reload step'
 if grep -Fq 'Click Load unpacked' "${upgrade_log}"; then die 'upgrade repeated first-time Load unpacked instructions'; fi
-if grep -Fq 'Server settings' "${upgrade_log}"; then die 'upgrade repeated first-time Server settings instructions'; fi
+if grep -Fq 'connect a model under Settings' "${upgrade_log}"; then die 'upgrade repeated first-time model setup instructions'; fi
 
 printf 'Extension checksum, versioned release, atomic manifest switch, and Reload regression passed.\n'
