@@ -1,0 +1,245 @@
+{
+  "version": 2,
+  "updated": "2026-08-10",
+  "tasks": [
+    {
+      "id": "N1",
+      "title": "重想面板的信息架构 —— 先出提案,一行代码都不动",
+      "type": "proposal",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "panel"
+      ],
+      "note": "他说界面设计非常有问题,要从信息架构的角度重新组织 —— 不是挪几个控件,是重新决定面板里有哪些东西、谁属于谁、什么时候出现。硬约束:先出提案,他 confirm 之前一行代码都不动。",
+      "input_ids": [
+        "in_review_extension_panel",
+        "in_item"
+      ],
+      "created": "2026-08-10",
+      "updated": "2026-08-10"
+    },
+    {
+      "id": "M2v",
+      "title": "确认浏览器里跑的扩展真的是 v1.0.0",
+      "type": "test",
+      "status": "blocked",
+      "priority": "P0",
+      "confirmed": true,
+      "tags": [
+        "release",
+        "extension"
+      ],
+      "note": "拷进安装目录不等于浏览器在跑 —— X19 就是栽在这上面。按 ⌘⇧L 打开面板,读上面的构建标记。",
+      "blocked_on": "要你人在键盘前",
+      "input_ids": [
+        "in_ext_latest"
+      ],
+      "created": "2026-08-10",
+      "updated": "2026-08-10"
+    },
+    {
+      "id": "S3g",
+      "title": "在登录着的 Google Docs 上跑 cuj-gdocs",
+      "type": "test",
+      "status": "blocked",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "qa",
+        "gdocs"
+      ],
+      "note": "S3 最后一条没做完的。干净的测试浏览器打不开需要登录的文档,而「要登录」不是跳过验证的理由。",
+      "blocked_on": "要你浏览器里的登录态",
+      "input_ids": [
+        "in_auth_browser",
+        "in_test_notion"
+      ],
+      "created": "2026-08-10",
+      "updated": "2026-08-10"
+    },
+    {
+      "id": "A2",
+      "title": "审计剩下的五条,挑哪几条要修",
+      "type": "question",
+      "status": "blocked",
+      "priority": "P1",
+      "confirmed": false,
+      "tags": [
+        "audit"
+      ],
+      "note": "audit.md 里六条按值不值得排好了,已经修掉一条。剩下五条等的不是工时,是你一句话。",
+      "blocked_on": "等你拍板",
+      "input_ids": [
+        "in_confirm_unsure"
+      ],
+      "created": "2026-08-09",
+      "updated": "2026-08-10"
+    },
+    {
+      "id": "P6b",
+      "title": "在真的会滚动的页面上证明「滚动到可见」",
+      "type": "test",
+      "status": "queued",
+      "priority": "P2",
+      "confirmed": false,
+      "tags": [
+        "anchors",
+        "qa"
+      ],
+      "note": "P6 当时测的那段文字自始至终都在视野里,所以滚动这个动作本身从没被证明过。不许拿一个滚不动的页面糊过去。",
+      "input_ids": [
+        "in_real_content"
+      ],
+      "created": "2026-08-10",
+      "updated": "2026-08-10"
+    },
+    {
+      "id": "G1b",
+      "title": "在真实的 Claude Code 会话里触发 /logue",
+      "type": "test",
+      "status": "queued",
+      "priority": "P2",
+      "confirmed": true,
+      "tags": [
+        "integration"
+      ],
+      "note": "skill 装好了,49 篇真实文档的往返也验过了。唯一没证明的一步,是这条命令在活的会话里被真正触发 —— 嵌套的 claude 进程做不了准。",
+      "input_ids": [
+        "in_any_agent"
+      ],
+      "created": "2026-08-10",
+      "updated": "2026-08-10"
+    },
+    {
+      "id": "X38",
+      "title": "一个页面一条对话 —— 而且它叫 Chat",
+      "type": "bug",
+      "status": "done",
+      "priority": "P0",
+      "confirmed": true,
+      "tags": [
+        "panel",
+        "bug"
+      ],
+      "note": "存储键写死,所以所有页面共用同一条对话。现在按页面存,只留最近 20 个,旧的那条全局对话丢掉。",
+      "input_ids": [
+        "in_thread_bug"
+      ],
+      "created": "2026-08-09",
+      "updated": "2026-08-10"
+    },
+    {
+      "id": "X33",
+      "title": "把 ⋯ 菜单改成 Claude Code 那种样子",
+      "type": "feature",
+      "status": "done",
+      "priority": "P2",
+      "confirmed": true,
+      "tags": [
+        "ui",
+        "menu"
+      ],
+      "note": "标题行收成一行小灰字,行高 24px,菜单更窄,选中用淡填充而不是那圈重蓝框,右边那个字母真的能用。",
+      "input_ids": [
+        "in_menu_shot",
+        "in_consistent_ui"
+      ],
+      "created": "2026-08-09",
+      "updated": "2026-08-10"
+    },
+    {
+      "id": "R13",
+      "title": "一条 Source 可以被后来的推翻 —— 你点头才算",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "sources",
+        "agent"
+      ],
+      "note": "模型提议,你确认。旧的那条永远不删也不挪,只是淡下去,并指向取代它的那一条。",
+      "input_ids": [
+        "in_consistent_ui"
+      ],
+      "created": "2026-08-09",
+      "updated": "2026-08-10"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "in_thread_bug",
+      "at": "2026-08-09 21:39",
+      "text": "我去 talk 某一个东西,它给我换到其他页面的时候也放在这里……就完全没有相关性一样",
+      "images": [
+        "shots/x36-thread-not-per-page.png"
+      ]
+    },
+    {
+      "id": "in_menu_shot",
+      "at": "2026-08-09 15:35",
+      "text": "这个菜单和 Claude Code 的差太多了,看一下它的样子,五个地方都不一样。",
+      "images": [
+        "shots/x33-used-where-not-editable.png"
+      ]
+    },
+    {
+      "id": "in_consistent_ui",
+      "at": "2026-08-08 11:02",
+      "text": "ui design must be consistent! everywhere! all levels! this is the basics.",
+      "images": []
+    },
+    {
+      "id": "in_ext_latest",
+      "at": "2026-08-09 09:12",
+      "text": "my browser must have latest extension. update it regularly.",
+      "images": []
+    },
+    {
+      "id": "in_auth_browser",
+      "at": "2026-08-08 17:44",
+      "text": "must use my browser with auth in qa when necessary (e.g. use app that needs login)",
+      "images": []
+    },
+    {
+      "id": "in_test_notion",
+      "at": "2026-08-08 17:45",
+      "text": "must test in notion",
+      "images": []
+    },
+    {
+      "id": "in_confirm_unsure",
+      "at": "2026-08-07 20:31",
+      "text": "confirm with me in case of something you are not sure about",
+      "images": []
+    },
+    {
+      "id": "in_real_content",
+      "at": "2026-08-08 13:20",
+      "text": "do not use these to test. use real content.",
+      "images": [
+        "shots/x32-saving-no-drag-handle.png"
+      ]
+    },
+    {
+      "id": "in_any_agent",
+      "at": "2026-08-10 08:15",
+      "text": "让任意 agent 能够使用我们的这个产品。第一个是文档吧,假如我把这个文档链接给比如说 Claude Code,它应该有能力读写这个文档。",
+      "images": []
+    },
+    {
+      "id": "in_review_extension_panel",
+      "at": "2026-08-10 13:51",
+      "text": "重新仔细 review 一下我们的 extension 的 panel 的界面。现在的界面设计非常之有问题，我们需要从信息架构的角度重新组织。先 propose 一下，不要去做，需要我 confirm 才能继续去做。",
+      "images": []
+    },
+    {
+      "id": "in_item",
+      "at": "2026-08-10 13:51",
+      "text": "更新一下现在这个item",
+      "images": []
+    }
+  ]
+}
