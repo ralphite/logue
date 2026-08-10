@@ -12,6 +12,7 @@ import {
   Select,
   Spinner,
   Tag,
+  Textarea,
   cn,
   originOf,
 } from "@logue/ui";
@@ -1068,7 +1069,70 @@ function Kept({
   );
 }
 
-/** Where a Source belongs and what it is about, decided while it is fresh. */
+/**
+ * The words, editable where they are.
+ *
+ * Everything a recording becomes stands on this text, and until now the panel
+ * could only show it: a name heard wrong had to be carried to the Web App to
+ * be fixed, from a panel that is open on the very page it came from. Nothing
+ * about that trip made the correction better. This is D2.
+ *
+ * Saved on leaving the box, so there is no button to find and nothing to
+ * forget to press. Escape puts it back the way it was, which is the only way
+ * out of a change someone has started and does not want.
+ */
+function Words({
+  material,
+  busy,
+  onSave,
+}: {
+  material: Material;
+  busy: boolean;
+  onSave: (content: string) => void;
+}) {
+  const [draft, setDraft] = useState(material.content);
+  const [saved, setSaved] = useState(false);
+
+  const keep = () => {
+    const next = draft.trim();
+    // An empty box is a slip, not an instruction: a Source with no words is
+    // one that everything derived from it now points at for nothing.
+    if (!next || next === material.content) return;
+    onSave(next);
+    setSaved(true);
+    window.setTimeout(() => setSaved(false), 1500);
+  };
+
+  return (
+    <div className="grid gap-1">
+      <label className="flex items-center gap-1.5 text-xs text-muted">
+        <span>What it says</span>
+        {saved && (
+          <span className="flex items-center gap-1 text-success">
+            <Check size={12} /> Saved
+          </span>
+        )}
+        <Textarea
+          rows={3}
+          value={draft}
+          disabled={busy}
+          className="mt-0.5 text-xs leading-[1.45]"
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={keep}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setDraft(material.content);
+              event.currentTarget.blur();
+            }
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) event.currentTarget.blur();
+          }}
+        />
+      </label>
+    </div>
+  );
+}
+
+/** Where a Source belongs, what it is about, and what it actually says. */
 function Filing({
   material,
   context,
@@ -1089,6 +1153,7 @@ function Filing({
 
   return (
     <div className="mt-1.5 grid gap-1.5 rounded-md bg-surface-muted p-1.5">
+      <Words material={material} busy={busy} onSave={(content) => run(host.editMaterial(material.id, content))} />
       <div className="flex flex-wrap gap-1">
         {(context?.projects ?? []).map((project) => {
           const member = material.projects.includes(project.name);

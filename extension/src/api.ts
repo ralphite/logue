@@ -166,6 +166,9 @@ export const host = {
     call<{ project: ProjectDetail }>(`/v1/projects/${id}`, { method: "PATCH", body: JSON.stringify(changes) }),
   tagMaterial: (id: string, tags: string[]) =>
     call<{ material: Material }>(`/v1/materials/${id}`, { method: "PATCH", body: JSON.stringify({ tags }) }),
+  /** The words themselves, corrected where they were heard wrong. */
+  editMaterial: (id: string, content: string) =>
+    call<{ material: Material }>(`/v1/materials/${id}`, { method: "PATCH", body: JSON.stringify({ content }) }),
   setMembership: (materialId: string, project: string, member: boolean) =>
     post<{ material: Material }>("/v1/project-membership", { material_id: materialId, project, member }),
   audioUrl: (captureId: string) => `${HOST}/v1/captures/${captureId}/audio`,
