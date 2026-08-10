@@ -1,5 +1,5 @@
 import { Bookmark, Check, Copy, CornerDownLeft, ExternalLink, Mic, Settings2, Sparkles, X } from "lucide-react";
-import { StrictMode, useCallback, useEffect, useState } from "react";
+import { StrictMode, useCallback, useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Answer,
@@ -251,6 +251,21 @@ async function copyWithQuote(item: Material): Promise<void> {
     // formatting, so fall back rather than copy nothing.
     await navigator.clipboard.writeText(plain);
   }
+}
+
+/**
+ * Nothing here yet, said the same way everywhere.
+ *
+ * The three tabs each had their own shape for this: a grey line shoved to the
+ * bottom by `justify-end`, a folded section row, and a long sentence sitting
+ * above half a screen of white. One thing, three faces.
+ */
+function NothingYet({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-1 items-center justify-center px-6 py-10">
+      <p className="max-w-56 text-center text-xs leading-[1.6] text-muted">{children}</p>
+    </div>
+  );
 }
 
 /** A recording made while Logue was off, and what can be done about it. */
@@ -787,9 +802,21 @@ function Panel() {
 
       {tab === "talk" ? (
         <>
-          <div className="logue-scroll flex flex-1 flex-col justify-end gap-2 p-2">
-            {error && <ErrorNote>{error}</ErrorNote>}
-            <WaitingRecordings items={waiting} onChanged={readWaiting} />
+          {/* Anything the person must see stays at the top, above the
+              conversation: an error pushed to the bottom by `justify-end`
+              ends up whispering next to the composer. */}
+          {(error || waiting.length > 0) && (
+            <div className="grid shrink-0 gap-2 px-2 pt-2">
+              {error && <ErrorNote>{error}</ErrorNote>}
+              <WaitingRecordings items={waiting} onChanged={readWaiting} />
+            </div>
+          )}
+          <div
+            className={cn(
+              "logue-scroll flex flex-1 flex-col gap-2 p-2",
+              thread.length > 0 ? "justify-end" : "justify-center",
+            )}
+          >
             {!modelReady && !error && (
               // The one thing that makes every other control in here do nothing.
               <a
@@ -814,9 +841,10 @@ function Panel() {
               }}
             />
             {thread.length === 0 && (
-              <p className="px-1 text-xs text-muted">
-                Ask about this page, or press ⌘⇧K anywhere and just say it.
-              </p>
+              // Said once. The composer's placeholder says the other half —
+              // two near-identical sentences, one above the other, was the
+              // whole of what this space offered.
+              <NothingYet>Nothing said yet. ⌘⇧K starts a conversation from anywhere.</NothingYet>
             )}
           </div>
           {composer}
@@ -863,9 +891,7 @@ function Panel() {
           {project ? (
             <AboutProject project={project} context={context} onError={setError} />
           ) : (
-            <p className="px-1 text-xs text-muted">
-              Choose a Project and what Logue knows about it — its background and its words — is editable here.
-            </p>
+            <NothingYet>Choose a Project to see and edit what Logue knows about it.</NothingYet>
           )}
         </div>
       )}
