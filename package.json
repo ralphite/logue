@@ -17,8 +17,9 @@
     "typecheck": "tsc -p packages/ui --pretty false && tsc -p web --pretty false && tsc -p extension --pretty false",
     "lint": "oxlint --type-aware",
     "format": "prettier --write .",
-    "test": "npm run hooks && npm run test -w @logue/ui && npm run test -w @logue/web && npm run test -w @logue/extension && npm run test:host",
+    "test": "npm run hooks && npm run test -w @logue/ui && npm run test -w @logue/web && npm run test -w @logue/extension && npm run test:host && npm run test:integrations",
     "test:host": "cd server && python3.13 -m unittest discover -s tests -t . -p 'test_*.py'",
+    "test:integrations": "python3.13 -m unittest discover -s integrations/claude-code/logue -t integrations/claude-code/logue -p 'test_*.py'",
     "hooks": "git config core.hooksPath .githooks",
     "secrets": "./scripts/check-secrets.sh"
   },
