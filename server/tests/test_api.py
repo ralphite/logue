@@ -710,6 +710,22 @@ class HeardContextTest(Workspace, unittest.TestCase):
         plan = capture.transcription_plan(self.app.store, "", nearby="x" * 50_000)
         self.assertLessEqual(plan["applied"]["page_context_characters"], capture.NEARBY_LIMIT)
 
+    def test_a_setting_nobody_reads_is_refused_rather_than_stored(self) -> None:
+        """A setting that is kept and ignored is worse than one that is refused.
+
+        `model` was the one that showed it: accepted here, saved, read back, and
+        read by nothing — the model lives behind /v1/model. The setting looked
+        kept and changed nothing, and a client with a typo was never told.
+        """
+        self.call("PATCH", "/v1/settings", {"personal_context": "I write about tools."})
+        self.assertEqual(self.call("GET", "/v1/settings")["settings"]["personal_context"], "I write about tools.")
+
+        with self.assertRaises(BadRequest) as refused:
+            self.call("PATCH", "/v1/settings", {"model": "gemini-does-not-exist"})
+        self.assertIn("no such setting", str(refused.exception.message))
+        self.assertIn("model", str(refused.exception.message))
+        self.assertNotIn("model", self.call("GET", "/v1/settings")["settings"])
+
     def test_no_speech_means_no_words_and_no_skill_can_say_otherwise(self) -> None:
         """The one rule a Skill may not overrule.
 

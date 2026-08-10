@@ -35,6 +35,39 @@ from .providers import DEFAULT_MODEL, Provider
 from .store import Record, Store
 
 
+#: Everything `/v1/settings` is allowed to hold, and nothing else.
+#:
+#: This endpoint used to take any key at all and store it. A "model" written
+#: here was accepted, saved, and read back — while nothing anywhere read it,
+#: because the model lives behind /v1/model. The setting looked kept and
+#: changed nothing, which is the worst of both: a client with a typo in a field
+#: name is never told, and the bug shows up much later as behaviour that
+#: ignores a setting someone made.
+#:
+#: `materials.update` has worked this way all along. This is the same rule.
+SETTINGS_KEYS = frozenset(
+    {
+        "personal_context",
+        "voice_profile",
+        "default_transcription_skill",
+        "default_organization_skill",
+        "default_extension_skill",
+        "default_qa_skill",
+        "default_document_skill",
+        # Read by the app rather than the Host — a setting is still a setting
+        # when the client is the one who cares about it.
+        "pins",
+    }
+)
+
+
+def _only_real_settings(changes: dict[str, Any]) -> dict[str, Any]:
+    unknown = set(changes) - SETTINGS_KEYS
+    if unknown:
+        raise BadRequest(f"no such setting: {', '.join(sorted(unknown))}")
+    return changes
+
+
 class App:
     def __init__(self, data_dir: Path, *, file_new_materials: bool = True) -> None:
         self.store = Store(data_dir)
@@ -684,7 +717,7 @@ class App:
         @route("PATCH", "/v1/settings")
         def patch_settings(request: Request) -> dict[str, Any]:
             settings = store.settings()
-            settings.update(request.json())
+            settings.update(_only_real_settings(request.json()))
             return {"settings": store.save_settings(settings)}
 
         @route("GET", "/v1/model")
