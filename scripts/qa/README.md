@@ -12,20 +12,39 @@ this directory.
 
 ## Speech, for the voice checks
 
-Chrome's fake microphone plays silence, and a real model correctly hears
-nothing in it — so every voice check needs a file with words in it:
+**The fake microphone does not work in this Chrome, and it fails silently.**
+Measured 2026-08-09 on Chrome for Testing 151.0.7922.76:
+`--use-file-for-fake-audio-capture` is accepted, `getUserMedia` succeeds,
+`MediaRecorder` writes a WebM — and the peak level is **0**. Mono, stereo,
+48k, 44.1k, 16k, inside the repo and out: every variant silent. Drop the flag
+and Chrome's own fake device gives peak 1.03 and 74KB in five seconds, so the
+pipe is fine; it is the file that never plays.
+
+This is worse than a broken flag, because nothing fails. The recording is
+made, the Host takes it, and a model handed silence used to answer with a
+fluent sentence nobody said — which read as "the model heard it wrong", not as
+"there was nothing to hear". Every earlier voice check that claimed a real
+transcript through this harness was measuring silence.
+
+So the question is split in two, and neither half pretends to be the other:
+
+**Does the model hear real speech properly?** — `node scripts/qa/speech.mjs`.
+No browser. macOS `say` speaks a filler-heavy sentence, it goes straight to the
+Host, and the output is printed next to what was said so it can be read rather
+than counted. It also posts pure silence and asserts an empty transcript back.
+
+**Does the browser half work — bar, caret, queue, the ten-minute ceiling?** —
+launch without `LOGUE_TEST_AUDIO` and use Chrome's built-in fake device. It is
+a tone, not speech, so it proves the plumbing and says nothing about words.
+
+**Before trusting any browser-side voice check**, run the gate:
 
 ```bash
-say -o scripts/qa/spoken.wav --data-format=LEI16@48000 \
-  "This sentence was spoken aloud by the test, so the model has something real to hear."
-python3 -c "import wave;src=wave.open('scripts/qa/spoken.wav');p,f=src.getparams(),src.readframes(src.getnframes());out=wave.open('scripts/qa/spoken-loop.wav','wb');out.setparams(p);[out.writeframes(f) for _ in range(67)];out.close()"
-LOGUE_TEST_AUDIO="$PWD/scripts/qa/spoken-loop.wav" ./scripts/qa/browser.sh 9899 http://127.0.0.1:8787
+node scripts/qa/cdp.mjs 9899 ./scripts/qa/mic-level.mjs
 ```
 
-The loop matters: Chrome plays the file **once** and then feeds silence, so a
-recording started a minute in hears nothing and the check fails looking
-exactly like a broken feature. The looped file is not committed — it is 28MB
-of the same sentence; the command above rebuilds it.
+It records five seconds and reports the peak. If that is 0, everything
+downstream is measuring nothing.
 
 And give a recording something to record: accepting the moment the tick
 appears captures about seven tenths of a second, which transcribes to
@@ -58,6 +77,9 @@ that needs their account.
 | `overlay-states` | the four states of what Logue puts on a page |
 | `f3-states` | the same four for the panel's agent |
 | `f3a` · `f3b` | ⌘⇧K opens and listens; the agent shows its working and asks before it writes |
+| `mic-level` | whether the fake microphone is feeding audio at all — the gate for every check below |
+| `speech` | real speech through the real model, and silence transcribing to nothing (no browser) |
+| `d2d3` | a kept item's words edited in the panel; a Skill's answer landing there and nowhere else |
 | `f5` | words learned from decisions, suggested from writing, never from transcripts |
 | `f6` | the transcription Skill is the one in the slot, and its words are the plan |
 | `f7` · `x26f7` | real paths in the address bar, sections opening on a draft |
@@ -70,9 +92,14 @@ Everything marked ⚠️ mock in `docs/spec/tasks.md` was proved through the
 stand-in, which shows the plumbing and says nothing about the words. With a key
 in Settings, rerun in this order and read the **output**, not just the count:
 
-1. `f6` — then say the owner's own filler-heavy sentence out loud and read what
-   comes back. The Skill's promise is "only remove"; a real model is the only
-   thing that can break it.
+1. `speech` — the Skill's promise is "only remove", and a real model is the
+   only thing that can break it. Done 2026-08-09: every tic gone ("um", "uh",
+   "you know", a stuttered "I I"), every word that carries meaning kept,
+   nothing added, and silence transcribing to nothing. The softer filler
+   ("basically", "the thing is", "right?") comes and goes run to run — the
+   check reports it rather than asserting on it, because that judgement is
+   yours. `f6` still covers the other half: that the Skill in the slot is the
+   plan that was frozen onto the Source.
 2. `audit-states` — the three states at real latency, not a stand-in's one-second sleep.
 3. `f5` — a correction learned from a real mishearing rather than a typed one.
 4. `f3b` — whether the agent *chooses* well: does it search before answering,
