@@ -200,7 +200,7 @@ say "Data: ${data_root} (never overwritten)"
 
 install_tmp="$(mktemp -d "${TMPDIR:-/tmp}/logue-install.XXXXXX")"
 
-step "1/3  Download and verify the release"
+step "1/4  Download and verify the release"
 curl -fsSL --retry 3 --retry-delay 1 "${asset_base_url}/${asset_name}" -o "${install_tmp}/${asset_name}"
 curl -fsSL --retry 3 --retry-delay 1 "${asset_base_url}/checksums.txt" -o "${install_tmp}/checksums.txt"
 checksum_line="$(awk -v wanted="${asset_name}" '$2 == wanted || $2 == "./" wanted { print; exit }' "${install_tmp}/checksums.txt")"
@@ -236,7 +236,7 @@ say "Preparing ${logue_version}"
 
 mkdir -p "${install_root}/releases" "${bin_dir}" "${run_dir}" "${data_root}"
 
-step "2/3  Stage and verify the full candidate"
+step "2/4  Stage and verify the full candidate"
 # The whole candidate lands on disk, under its own name, before anything the
 # running installation depends on is touched.
 release_dir="$(mktemp -d "${install_root}/releases/${logue_version}.XXXXXX")"
@@ -424,7 +424,7 @@ rollback_install() {
   [[ "${rollback_failed}" == "no" ]]
 }
 
-step "3/3  Commit atomically and check the service"
+step "3/4  Commit atomically and check the service"
 validate_managed_service
 stop_managed_service || fail "Could not stop the existing service safely; the existing installation was not switched."
 if ! commit_install; then
@@ -441,7 +441,30 @@ rm -f -- "${cli_backup}"
 [[ -n "${previous_current_backup}" && -e "${previous_current_backup}" ]] && rm -rf -- "${previous_current_backup}"
 staged_release_dir=""
 
-printf '\n✓ Logue Host/Web %s is installed and running\n' "${logue_version}"
+step "4/4  Install the Chrome Extension"
+# One command, both halves. Two commands meant a machine could sit with a Host
+# and no Extension — the half that has no way of telling you that is what it is.
+# The Extension installer takes the release this one already downloaded and
+# verified, so `latest` is resolved once and both halves are the same release.
+if [[ "${LOGUE_SKIP_EXTENSION:-}" == "1" ]]; then
+  say "Skipped: LOGUE_SKIP_EXTENSION=1"
+  say "Later, on the computer with Chrome, pinned to this release:"
+  say "curl -fsSL https://github.com/ralphite/logue/releases/download/${logue_version}/install-extension.sh | LOGUE_RELEASE='${logue_version}' bash"
+else
+  curl -fsSL --retry 3 --retry-delay 1 "${asset_base_url}/install-extension.sh" \
+    -o "${install_tmp}/install-extension.sh" ||
+    fail "The Host is installed and running, but the Extension installer could not be downloaded."
+  # Not rolled back if this fails: the Host is up and serving, and taking a
+  # working installation away is the worse of the two outcomes. The failure is
+  # reported instead, with the command that retries only this half.
+  LOGUE_PACKAGE_DIR="${current_link}" \
+  LOGUE_EXTENSION_DIR="${LOGUE_EXTENSION_DIR:-${install_root}/extension}" \
+  LOGUE_RELEASE="${logue_version}" \
+    bash "${install_tmp}/install-extension.sh" ||
+    fail "The Host is installed and running at ${open_url}, but the Extension was not installed."
+fi
+
+printf '\n✓ Logue %s is installed and running\n' "${logue_version}"
 say "Open: ${open_url}"
 say "Listen address: ${logue_address}"
 case "${address_host}" in
@@ -450,6 +473,3 @@ esac
 say "Command: ${bin_dir}/logue"
 say "Data remains at: ${data_root}"
 say "Web App files: ${current_link}/web"
-# Pinned, never `latest`: both machines must end up on this exact release.
-say "Chrome Extension (run on the computer with Chrome, pinned to this Host release):"
-say "curl -fsSL https://github.com/ralphite/logue/releases/download/${logue_version}/install-extension.sh | LOGUE_RELEASE='${logue_version}' bash"

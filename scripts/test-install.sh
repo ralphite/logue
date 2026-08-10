@@ -67,6 +67,10 @@ build_fixture() {
   LOGUE_RELEASE_SKIP_NPM_CI=1 LOGUE_EXTENSION_DIST="${extension_dist}" \
     bash "${repo_dir}/scripts/build-release.sh" "${version}" >/dev/null
   cp "${repo_dir}/dist/release/logue.zip" "${repo_dir}/dist/release/checksums.txt" "${destination}/"
+  # A release carries both installers, and the Host installer fetches the other
+  # one from beside the zip. A fixture without it would test a command nobody
+  # can run.
+  cp "${repo_dir}/install-extension.sh" "${destination}/"
 }
 
 run_installer() {
@@ -121,6 +125,9 @@ grep -Fq "${python_bin}" "${bin_dir}/logue" || die 'CLI does not use absolute py
 [[ "$(status_data_dir)" == "$("${python_bin}" -c 'import pathlib,sys;print(pathlib.Path(sys.argv[1]).resolve())' "${data_root}")" ]] || die 'Host is not serving the installed data root'
 [[ "$(readlink "${install_root}/web")" == "${install_root}/current/web" ]] || die 'app link does not point through current'
 serves_app || die 'Host is serving the API only, not the Web App'
+# One command, both halves: a Host with no Extension beside it is half a product.
+[[ -f "${install_root}/extension/manifest.json" ]] || die 'the one command did not install the Extension'
+grep -Fq 'Turn on Developer mode.' "${test_root}/first.log" || die 'the install did not print the Chrome setup steps'
 printf 'First install: staged release, atomic current symlink, CLI, app, and running Host verified.\n'
 
 mkdir -p "${data_root}/items"

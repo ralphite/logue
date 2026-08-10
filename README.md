@@ -20,23 +20,23 @@ Web App ───────────┘         └── your model (Gemin
 |---|---|
 | Host | macOS or Linux, with `python3.13` on `PATH` |
 | Also needed | `curl`, and `shasum` or `sha256sum` |
-| Browser | Google Chrome, on the same computer as the Host |
+| Browser | Google Chrome — on the same computer, or pointed at this one |
 
 Python 3.13 is the whole runtime. No Node, no Go, no virtualenv, no compiler —
 the release is one zip of Python source and prebuilt assets.
 
 ## Install
 
-One line installs the Host and Web App, starts the server, and stages the Chrome
-Extension:
+One command installs the Host, the Web App and the Chrome Extension, and leaves
+the server running:
 
 ```bash
-curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh | bash && curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install-extension.sh | bash
+curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh | bash
 ```
 
-The first script asks where to listen — network (`0.0.0.0:8787`) or this
-computer only (`127.0.0.1:8787`) — verifies the release checksum, and leaves
-Logue **running**. When it finishes, open:
+It asks where to listen — network (`0.0.0.0:8787`) or this computer only
+(`127.0.0.1:8787`) — verifies the release checksum, and starts Logue. When it
+finishes, open:
 
 ```
 http://127.0.0.1:8787
@@ -48,13 +48,23 @@ To skip the question (scripts, CI, `ssh`), set the address up front:
 curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh | LOGUE_ADDRESS=127.0.0.1:8787 bash
 ```
 
-Run the same line again to upgrade. Nothing under your data directory is ever
+Run the same command again to upgrade. Nothing under your data directory is ever
 touched by an install.
+
+Two variations, if you need them:
+
+```bash
+# The Host only — no Chrome on this machine
+curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install.sh | LOGUE_SKIP_EXTENSION=1 bash
+
+# The Extension only — Chrome here, the Host somewhere else
+curl -fsSL https://github.com/ralphite/logue/releases/latest/download/install-extension.sh | bash
+```
 
 ### Finish the Chrome setup — once
 
-Chrome cannot be handed an unpacked extension by a script, so the last four
-clicks are yours:
+Chrome will not let a script load an unpacked extension, so the last four clicks
+are yours:
 
 1. Open `chrome://extensions`.
 2. Turn on **Developer mode**.
@@ -119,18 +129,42 @@ prefix.
 | `LOGUE_ADDRESS` | Listen address, e.g. `127.0.0.1:8787`. Skips the interactive question. |
 | `LOGUE_PORT` | Port for the interactive choice (default `8787`). |
 | `LOGUE_RELEASE` | Install an exact release, e.g. `v1.0.0`, instead of the latest. |
+| `LOGUE_SKIP_EXTENSION` | `1` installs the Host alone. |
 | `LOGUE_DATA_DIR` | Where the workspace lives. |
 | `LOGUE_INSTALL_ROOT`, `LOGUE_BIN_DIR`, `LOGUE_EXTENSION_DIR` | Where the app, the CLI and the Chrome folder go. |
+
+### Using a Host that is not on this computer
+
+The Extension talks to `http://127.0.0.1:8787` until you tell it otherwise. To
+point it somewhere else — a tunnel, another computer on your desk — open the
+Side Panel, click the ⚙ beside **Open Logue web app**, and enter the address:
+
+```
+https://your-tunnel-8787.usw2.devtunnels.ms
+```
+
+A bare name is read as `https`; an IP or `localhost` as `http`. **Connect** tries
+the address before keeping it, so a typo is refused with the reason instead of
+leaving the browser pointed at nothing. Everything follows at once — capture,
+Ask, the links out of the panel, the recordings it plays.
+
+Publishing the Host is your side of it: run the tunnel of your choice in front
+of `8787` (`devtunnel`, `cloudflared`, `ssh -R`, a reverse proxy). Anything that
+forwards to the Host and keeps the `Host` header pointed at it will do.
+
+Some tunnels put a warning page in front of the first *page* you open — VS Code
+dev tunnels do, once per browser. It does not stand in the Extension's way,
+which asks for JSON rather than a page, but you will click through it once
+before the Web App loads over that address.
 
 ### A note on access
 
 Logue has no password. Anything that can reach the port can read and rewrite the
 whole workspace, so the Host refuses browser origins it does not know and demands
 a header on every write. That protects you from web pages — not from the
-network. Choose `0.0.0.0` only when you want to open the Web App from another
-device on a network you trust, and put a firewall or VPN in front of port `8787`.
-The Extension itself always talks to `127.0.0.1:8787`, so it needs Chrome and the
-Host on the same computer.
+network, and not from anyone holding a tunnel URL. Choose `0.0.0.0`, or publish
+the port, only when you mean to, and put a firewall, a VPN or an authenticating
+proxy in front of it.
 
 ### Uninstall
 
@@ -173,6 +207,15 @@ folder:
 ```bash
 bash scripts/test-install.sh
 bash scripts/test-install-extension.sh
+```
+
+The product itself is checked in a real browser — see
+[`scripts/qa/README.md`](scripts/qa/README.md). Pointing the Extension at a Host
+that is not on this computer is one of those checks:
+
+```bash
+LOGUE_TEST_EXTENSION="$PWD/extension/dist" ./scripts/qa/browser.sh 9899 http://127.0.0.1:8787
+LOGUE_QA_OTHER=http://127.0.0.1:18900 LOGUE_QA_TUNNEL=https://your-tunnel node scripts/qa/cdp.mjs 9899 ./scripts/qa/remote-host.mjs
 ```
 
 ## Release

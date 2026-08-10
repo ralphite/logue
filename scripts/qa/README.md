@@ -57,6 +57,9 @@ nothing. Four seconds is a sentence.
 node scripts/qa/cdp.mjs 9899 ./scripts/qa/<check>.mjs
 ```
 
+`LOGUE_TEST_EXTENSION=<dir>` loads a build that has not been deployed — checking
+a change otherwise means installing it over the machine's own Logue first.
+
 `browser.sh` launches real Chrome on a throwaway profile with the installed
 extension registered as unpacked — not `--load-extension`, which Chrome
 disables the moment an extension reloads itself. It refuses a port that is
@@ -85,6 +88,7 @@ that needs their account.
 | `f7` · `x26f7` | real paths in the address bar, sections opening on a draft |
 | `v7` | a rewrite decided change by change |
 | `p5` | the panel's keys leave typing alone |
+| `remote-host` | the address in the panel is what the extension calls — a second Host, and a real https tunnel |
 
 ## S3 — the day a real key arrives
 

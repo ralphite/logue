@@ -2,7 +2,13 @@
 
 import { send, type HostReply } from "./messages";
 
-export const HOST = "http://127.0.0.1:8787";
+/**
+ * The one call that cannot go through the worker: a `<audio src>` is fetched by
+ * the panel itself, so it needs the address rather than a relayed reply. Which
+ * address that is belongs to `server.ts`, and the caller holds it.
+ */
+export const audioUrl = (server: string, captureId: string): string =>
+  `${server}/v1/captures/${captureId}/audio`;
 
 export interface Skill {
   id: string;
@@ -187,7 +193,6 @@ export const host = {
     call<{ material: Material }>(`/v1/materials/${id}`, { method: "PATCH", body: JSON.stringify({ anchor }) }),
   setMembership: (materialId: string, project: string, member: boolean) =>
     post<{ material: Material }>("/v1/project-membership", { material_id: materialId, project, member }),
-  audioUrl: (captureId: string) => `${HOST}/v1/captures/${captureId}/audio`,
 
   /** One turn of the panel's agent: what it did, what it said, what it wants. */
   agentMessage: (body: {

@@ -3,11 +3,11 @@
  * keyboard commands. It holds no product state — the Host does that.
  */
 
-import { HOST } from "./api";
 import { shouldReload } from "./build";
 import { tagOf, type HostReply } from "./messages";
 import { all as pendingVoice, forget, noteTry } from "./pending";
 import { siblingOf } from "./paths";
+import { currentServer, isLoopback } from "./server";
 import { writeThread, type ThreadMessage } from "./thread";
 
 /**
@@ -474,15 +474,40 @@ async function healOpenTabs(): Promise<void> {
  * refuse everyone else.
  */
 async function relayToHost(message: { path: string; method?: string; body?: string }): Promise<HostReply> {
+  // Read per call rather than cached: the worker outlives a change of address,
+  // and half the extension still calling the old one is not a state worth
+  // having. A `storage.local` read is cheaper than the request that follows.
+  const server = await currentServer();
   try {
-    const response = await fetch(`${HOST}${message.path}`, {
+    const response = await fetch(`${server}${message.path}`, {
       method: message.method ?? "GET",
       headers: { "Content-Type": "application/json", "X-Logue-Client": "extension" },
       body: message.body,
     });
     return { ok: true, status: response.status, text: await response.text() };
   } catch {
-    return { ok: false, message: "Logue is not running on this Mac." };
+    // Naming the address is the whole message when it can be any address: "not
+    // running on this Mac" sends someone to the wrong computer entirely.
+    return {
+      ok: false,
+      message: isLoopback(server) ? "Logue is not running on this computer." : `Logue is not answering at ${server}.`,
+    };
+  }
+}
+
+/** Whether a Logue answers at an address, before that address is kept. */
+async function probeServer(server: string): Promise<{ ok: boolean; message?: string }> {
+  try {
+    const response = await fetch(`${server}/v1/status`, { headers: { "X-Logue-Client": "extension" } });
+    if (!response.ok) return { ok: false, message: `That address answered ${response.status}, not Logue.` };
+    const status: unknown = await response.json();
+    // Something answers on most addresses. Only a Logue answers like one.
+    if (!status || typeof status !== "object" || !("data_dir" in status)) {
+      return { ok: false, message: "Something answered there, but it is not a Logue Host." };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, message: `Nothing answered at ${server}.` };
   }
 }
 
@@ -563,7 +588,12 @@ function runningBuild(): string {
 }
 
 async function installedBuild(): Promise<string> {
-  const response = await fetch(`${HOST}/v1/status`);
+  const server = await currentServer();
+  // The folder a Host can see is this browser's folder only when both are on
+  // this computer. A remote Host reports the build of a machine whose extension
+  // folder this browser does not load, and reloading for that proves nothing.
+  if (!isLoopback(server)) return "";
+  const response = await fetch(`${server}/v1/status`);
   if (!response.ok) return "";
   const status: unknown = await response.json();
   const build = status && typeof status === "object" && "build" in status ? status.build : undefined;
@@ -701,6 +731,14 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion
       const ask = message as { path: string; method?: string; body?: string };
       relayToHost(ask).then(respond, () => respond({ ok: false, message: "Logue could not reach the Host." }));
+      return true;
+    }
+
+    case "logue:server-probe": {
+      // The union in messages.ts is the contract; the tag has been checked.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      const ask = message as { server: string };
+      probeServer(ask.server).then(respond, () => respond({ ok: false, message: "That address could not be reached." }));
       return true;
     }
 

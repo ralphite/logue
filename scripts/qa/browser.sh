@@ -55,11 +55,16 @@ for _ in $(seq 1 60); do
 done
 
 node "${here}/developer-mode.mjs" "${port}"
-node "${here}/load-unpacked.mjs" "${port}"
+# The installed folder by default, because that is what a person has. A build
+# under test that has not been deployed yet can be named instead — without it,
+# checking a change means deploying it over the machine's own Logue first.
+node "${here}/load-unpacked.mjs" "${port}" "${LOGUE_TEST_EXTENSION:-${HOME}/.local/share/logue/extension}"
 node "${here}/grant-mic.mjs" "${port}"
 
 # Leave the browser on the page the caller asked for, not chrome://extensions.
-node - "${port}" "${page}" <<'NODE'
+# `--input-type=module`: stdin is a CommonJS script otherwise, and the top-level
+# await below fails to parse — which left every launch on chrome://extensions.
+node --input-type=module - "${port}" "${page}" <<'NODE'
 const [port, page] = process.argv.slice(2);
 const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
 const target = targets.find((t) => t.type === "page" && !t.url.startsWith("devtools://"));

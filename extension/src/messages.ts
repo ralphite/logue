@@ -9,6 +9,11 @@ import type { TextAnchor } from "./anchor";
 export type ToBackground =
   | { type: "logue:build" }
   | { type: "logue:host"; path: string; method?: string; body?: string }
+  /**
+   * Is there a Logue at this address? Asked before the address is kept, so a
+   * typo cannot leave the extension pointed at nothing with no way back.
+   */
+  | { type: "logue:server-probe"; server: string }
   | { type: "logue:open-panel" }
   /** Try the queued recordings now, rather than waiting for the next check. */
   | { type: "logue:pending-send" }

@@ -93,11 +93,26 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   login item that restarts if it stops, and it serves the app itself at
   `http://127.0.0.1:8787`. Needing a terminal window left open means the
   product is not actually installed.
-- **The Host listens on loopback only.** Never `0.0.0.0` — the workspace has no
-  password.
+- **Where the Host listens is chosen at install time, and defaults to this
+  computer.** Changed 2026-08-10: it used to read "loopback only, never
+  `0.0.0.0`". The workspace still has no password, so anything wider than
+  loopback is a decision a person makes with a firewall, a VPN or a tunnel in
+  mind — the installer asks, and says so.
+- **The extension talks to whichever Logue it is told to.** One address is
+  right until the Host is published — a tunnel, another computer on the desk —
+  and a hard-coded one cannot be fixed from inside Chrome. The address is a
+  setting in the panel, because the app's own Settings live behind the very
+  Host being named. It is tried before it is kept: an address nothing answers
+  at is refused with the reason, and the working one stays.
 - **There is one address for the app**, the one the Host serves. A dev server's
   port is for building, never the address anything hands to the person or opens
   on its own.
+- **One command installs Logue and leaves it running.** The Host, the app and
+  the Extension come from one release, resolved once, and the service is up
+  when the command returns. Two commands meant a machine could end up with a
+  Host and no Extension, and the half that is missing is the half that cannot
+  tell you it is missing. What is left for the person is what Chrome will not
+  let a script do: Load unpacked.
 - **Installing Logue adds no permission prompt to anybody's page.** A browser
   asking to "access other apps and services on this device" on an ordinary
   article is not something the extension may cause.

@@ -123,18 +123,19 @@ say "Chrome storage is preserved because this folder is never replaced"
 
 install_tmp="$(mktemp -d "${TMPDIR:-/tmp}/logue-extension-install.XXXXXX")"
 
-step "1/3  Download and verify the Extension"
-curl -fsSL --retry 3 --retry-delay 1 "${asset_base_url}/${asset_name}" -o "${install_tmp}/${asset_name}"
-curl -fsSL --retry 3 --retry-delay 1 "${asset_base_url}/checksums.txt" -o "${install_tmp}/checksums.txt"
-checksum_line="$(awk -v wanted="${asset_name}" '$2 == wanted || $2 == "./" wanted { print; exit }' "${install_tmp}/checksums.txt")"
-[[ -n "${checksum_line}" ]] || fail "checksums.txt does not contain ${asset_name}."
-printf '%s\n' "${checksum_line}" > "${install_tmp}/selected-checksum.txt"
-verify_checksum || fail "Release verification failed; the existing Extension was not changed."
-say "Verified"
+download_and_verify_release() {
+  step "1/3  Download and verify the Extension"
+  curl -fsSL --retry 3 --retry-delay 1 "${asset_base_url}/${asset_name}" -o "${install_tmp}/${asset_name}"
+  curl -fsSL --retry 3 --retry-delay 1 "${asset_base_url}/checksums.txt" -o "${install_tmp}/checksums.txt"
+  checksum_line="$(awk -v wanted="${asset_name}" '$2 == wanted || $2 == "./" wanted { print; exit }' "${install_tmp}/checksums.txt")"
+  [[ -n "${checksum_line}" ]] || fail "checksums.txt does not contain ${asset_name}."
+  printf '%s\n' "${checksum_line}" > "${install_tmp}/selected-checksum.txt"
+  verify_checksum || fail "Release verification failed; the existing Extension was not changed."
+  say "Verified"
 
-package_dir="${install_tmp}/package"
-mkdir -p "${package_dir}"
-"${python_bin}" - "${install_tmp}/${asset_name}" "${package_dir}" <<'PY'
+  package_dir="${install_tmp}/package"
+  mkdir -p "${package_dir}"
+  "${python_bin}" - "${install_tmp}/${asset_name}" "${package_dir}" <<'UNZIP'
 import sys
 from pathlib import Path
 from zipfile import ZipFile
@@ -148,7 +149,23 @@ with ZipFile(archive_path) as archive:
         if destination not in target.parents and target != destination:
             raise SystemExit(f"Unsafe release path: {member.filename}")
     archive.extractall(destination)
-PY
+UNZIP
+}
+
+# Run as the second half of the Host installer, which has already downloaded
+# this exact release, verified its checksum and put it on disk. Downloading it a
+# second time would not make it any more verified — and would leave two commands
+# free to resolve `latest` to two different releases.
+if [[ -n "${LOGUE_PACKAGE_DIR:-}" ]]; then
+  package_dir="${LOGUE_PACKAGE_DIR}"
+  [[ -f "${package_dir}/VERSION" && -f "${package_dir}/extension/manifest.json" ]] ||
+    fail "LOGUE_PACKAGE_DIR does not hold a verified Logue release: ${package_dir}"
+  step "1/3  Use the release the Host installer verified"
+  say "From: ${package_dir}"
+else
+  download_and_verify_release
+fi
+
 [[ -f "${package_dir}/extension/manifest.json" ]] || fail "Release is missing extension/manifest.json."
 [[ -f "${package_dir}/extension/background.js" && -f "${package_dir}/extension/content.js" && -f "${package_dir}/extension/sidepanel.html" && -f "${package_dir}/extension/offscreen.html" ]] || fail "Release Extension assets are incomplete."
 [[ -f "${package_dir}/VERSION" ]] || fail "Release is missing VERSION."

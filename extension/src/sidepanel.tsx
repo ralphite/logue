@@ -16,19 +16,13 @@ import {
   cn,
   originOf,
 } from "@logue/ui";
-import { host, HOST, type Context, type Material } from "./api";
+import { audioUrl, host, HostError, type Context, type Material } from "./api";
+import { send } from "./messages";
 import { readablePageText } from "./readable";
+import { currentServer, DEFAULT_SERVER, readAddress, rememberServer, whenServerChanges } from "./server";
 import { clearThread, readThread, writeThread } from "./thread";
 import { useVoice } from "./useVoice";
 
-/**
- * Where Logue lives, which is the Host itself.
- *
- * This pointed at the dev server's port, so every "open in Logue" from the
- * panel went to an address that is only up while someone is building. One
- * machine, one Logue, one address — and it is the one already in `api.ts`.
- */
-const WEB_APP = HOST;
 
 /** What came off the page, as opposed to what you said about it. */
 const FROM_THE_PAGE = new Set(["page", "selection"]);
@@ -387,6 +381,82 @@ function WaitingRecordings({ items, onChanged }: { items: Waiting[]; onChanged: 
  * a place to ask using it. Everything past that is folded away — the panel is
  * 360 pixels wide and the page beside it is the thing being read.
  */
+/**
+ * Where Logue is.
+ *
+ * The extension used to know this on its own, because there was one answer.
+ * A Host published through a tunnel or sitting on another computer has an
+ * address no build can guess, and this panel is the only place a person can
+ * say it — the app's own Settings live behind the very Host being named.
+ *
+ * The address is tried before it is kept. A typo that was stored first would
+ * leave every surface pointing at nothing, and the way back would be this same
+ * box, now unable to tell you whether the new address is any better.
+ */
+function WhereLogueIs({ server, onConnected }: { server: string; onConnected: (server: string) => void }) {
+  const [draft, setDraft] = useState(server);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState("");
+  const [note, setNote] = useState("");
+
+  // Another panel may have changed it while this one was open.
+  useEffect(() => setDraft(server), [server]);
+
+  const connect = async () => {
+    setFailed("");
+    setNote("");
+    let address: string;
+    try {
+      address = readAddress(draft);
+    } catch (cause) {
+      setFailed(cause instanceof Error ? cause.message : "That is not an address Logue can reach.");
+      return;
+    }
+    setBusy(true);
+    const reply = await send<{ ok: boolean; message?: string }>({ type: "logue:server-probe", server: address });
+    setBusy(false);
+    if (!reply?.ok) {
+      setFailed(reply?.message ?? "Logue's background service is restarting. Try again in a moment.");
+      return;
+    }
+    await rememberServer(address);
+    setDraft(address);
+    setNote(`Connected to ${address}`);
+    onConnected(address);
+  };
+
+  return (
+    <div className="grid gap-1.5 border-t border-line bg-surface-muted px-2 py-2">
+      <label htmlFor="logue-server" className="text-xs text-muted">
+        Logue server
+      </label>
+      <div className="flex items-center gap-1.5">
+        <Input
+          id="logue-server"
+          className="flex-1 text-xs"
+          value={draft}
+          placeholder={DEFAULT_SERVER}
+          spellCheck={false}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") void connect();
+          }}
+        />
+        <Button variant="primary" disabled={busy} onClick={() => void connect()}>
+          {busy ? <Spinner size={13} /> : null} Connect
+        </Button>
+      </div>
+      {failed ? (
+        <ErrorNote>{failed}</ErrorNote>
+      ) : (
+        <p className="text-xs text-muted">
+          {note || "The address of the Host this browser talks to — this computer, another one, or a tunnel."}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Panel() {
   const [page, setPage] = useState<{ id?: number; url: string; title: string }>();
   /** Which page the conversation belongs to. Empty means there is no page. */
@@ -402,7 +472,20 @@ function Panel() {
   /** Which part of the panel is showing. Chat is the one people come for. */
   const [tab, setTab] = useState<"chat" | "page" | "project">("chat");
   const [waiting, setWaiting] = useState<Waiting[]>([]);
+  /** Which Logue this browser is talking to, and whether it is being changed. */
+  const [server, setServer] = useState(DEFAULT_SERVER);
+  const [changingServer, setChangingServer] = useState(false);
+  /** The Host never answered at all — which the address can be the reason for. */
+  const [unreachable, setUnreachable] = useState(false);
   const voice = useVoice();
+
+  // Read before anything is asked of the Host, and followed afterwards: the
+  // address can be changed from another panel, and a panel still calling the
+  // previous one would report it as down.
+  useEffect(() => {
+    void currentServer().then(setServer);
+    return whenServerChanges(setServer);
+  }, []);
 
   /**
    * Add to the conversation, in the panel and in storage, as one act.
@@ -436,8 +519,13 @@ function Panel() {
       setSaved(onPage.materials);
       setModelReady(status.model.generation_ready && status.model.voice_ready);
       setError("");
+      setUnreachable(false);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Logue is not running on this Mac.");
+      setError(cause instanceof Error ? cause.message : "Logue is not answering.");
+      // Status 0 is the worker saying the request never happened. That is the
+      // one failure the address can be the reason for, so it is the only one
+      // that opens the address form — a Host that answered 500 is reachable.
+      setUnreachable(cause instanceof HostError && cause.status === 0);
     }
   }, [project]);
 
@@ -510,7 +598,10 @@ function Panel() {
       chrome.tabs.onActivated.removeListener(onActivated);
       chrome.tabs.onUpdated.removeListener(onActivated);
     };
-  }, [load]);
+    // `server` is not read here, but everything `load` asks for is fetched from
+    // it — a panel that kept the failure from the old address would say Logue
+    // is down while it is answering at the new one.
+  }, [load, server]);
 
   const capture = async () => {
     if (!page?.url || page.id === undefined) return;
@@ -782,14 +873,26 @@ function Panel() {
           */}
           <span className="min-w-0 flex-1 truncate text-xs text-muted">{page?.title || "This page"}</span>
           <a
-            href={WEB_APP}
+            href={server}
             target="_blank"
             rel="noreferrer"
             className="inline-flex h-control shrink-0 items-center gap-1 rounded-md border border-line px-1.5 text-xs text-muted hover:bg-surface-muted hover:text-ink"
           >
             <ExternalLink size={12} /> Open Logue web app
           </a>
+          {/* The address itself, one click away rather than in a menu: when
+              Logue is not answering, this is the only control on screen that
+              can be the reason. */}
+          <IconButton
+            label={changingServer ? "Close server address" : `Logue server: ${server}`}
+            onClick={() => setChangingServer((was) => !was)}
+          >
+            <Settings2 size={13} />
+          </IconButton>
         </div>
+        {(changingServer || unreachable) && (
+          <WhereLogueIs server={server} onConnected={() => setChangingServer(false)} />
+        )}
       </header>
 
       <h1 className="sr-only">{tab === "chat" ? "Chat with Logue" : tab === "page" ? "What is kept from this page" : "This Project"}</h1>
@@ -838,7 +941,7 @@ function Panel() {
             {!modelReady && !error && (
               // The one thing that makes every other control in here do nothing.
               <a
-                href={`${WEB_APP}/settings`}
+                href={`${server}/settings`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-1.5 rounded-md border border-line bg-surface-muted px-2 py-1.5 text-xs text-warning hover:text-ink"
@@ -885,6 +988,7 @@ function Panel() {
             title="Kept from this page"
             items={[...fromPage, ...said].toSorted((a, b) => (a.created_at < b.created_at ? 1 : -1))}
             context={context}
+            server={server}
             tabId={page?.id}
             onChanged={load}
             empty="Nothing kept from this page yet."
@@ -984,6 +1088,7 @@ function Kept({
   title,
   items,
   context,
+  server,
   tabId,
   onChanged,
   empty,
@@ -991,6 +1096,8 @@ function Kept({
   title: string;
   items: Material[];
   context?: Context;
+  /** The Logue these were kept in: what plays a recording, and what a link opens. */
+  server: string;
   /** The page these were kept from, so a row can ask it where the passage is. */
   tabId?: number;
   onChanged: () => Promise<void> | void;
@@ -1046,7 +1153,7 @@ function Kept({
               </button>
               <div className="mt-0.5 flex items-center gap-1">
                 {item.capture_id ? (
-                  <Recording src={host.audioUrl(item.capture_id)} seconds={item.capture_seconds} className="flex-1" />
+                  <Recording src={audioUrl(server, item.capture_id)} seconds={item.capture_seconds} className="flex-1" />
                 ) : (
                   <span className="flex-1" />
                 )}
@@ -1057,7 +1164,7 @@ function Kept({
                     you back to this page. */}
                 <IconButton
                   label="Open this in Logue"
-                  onClick={() => window.open(`${WEB_APP}/stream/${item.id}`, "_blank", "noreferrer")}
+                  onClick={() => window.open(`${server}/stream/${item.id}`, "_blank", "noreferrer")}
                 >
                   <ExternalLink size={13} />
                 </IconButton>
