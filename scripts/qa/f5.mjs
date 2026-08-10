@@ -38,7 +38,25 @@ export async function run(api) {
   check("…and carries the reason in words", /corrected this/i.test(term?.reason ?? ""), term?.reason ?? "");
 
   // It is in the plan the very next recording would use.
-  const plan = await api.eval(`fetch('/v1/materials/${mat}/retranscribe', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Logue-Client': 'web' }, body: JSON.stringify({}) }).then(r => r.json()).then(d => d.material.applied_context?.terms ?? [])`);
+  //
+  // Read from a fresh transcription rather than by re-running an old one:
+  // a recording with nothing in it is now refused outright ("Nothing was heard
+  // the second time either"), which is right, and left this check reading
+  // `material` off an error. The plan is what the claim is about anyway.
+  const silence = `(() => {
+    const rate = 48000, samples = rate;
+    const bytes = new Uint8Array(44 + samples * 2);
+    const view = new DataView(bytes.buffer);
+    const tag = (at, text) => [...text].forEach((c, i) => view.setUint8(at + i, c.charCodeAt(0)));
+    tag(0, 'RIFF'); view.setUint32(4, 36 + samples * 2, true); tag(8, 'WAVEfmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true);
+    view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    tag(36, 'data'); view.setUint32(40, samples * 2, true);
+    let binary = ''; for (const b of bytes) binary += String.fromCharCode(b);
+    return btoa(binary);
+  })()`;
+  const plan = await api.eval(`fetch('/v1/transcribe', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Logue-Client': 'web' }, body: JSON.stringify({ audio: ${silence}, media_type: 'audio/wav', seconds: 1 }) }).then(r => r.json()).then(d => d.applied_context?.terms ?? [])`);
   check("the learned word is in the next recording's plan", plan.includes("Zephyrine"), JSON.stringify(plan.slice(0, 6)));
 
   // On screen, with its reason, and removable.
