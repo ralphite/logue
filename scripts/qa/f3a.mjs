@@ -64,7 +64,7 @@ export async function run(api) {
   check("…and a cancelled recording says nothing", afterEsc.thread === false);
 
   // The microphone button starts one too — the shortcut is not the only way.
-  await api.eval(`[...document.querySelectorAll('button')].find(b => /Talk to Logue/.test(b.getAttribute('aria-label') || '')).click()`);
+  await api.eval(`[...document.querySelectorAll('button')].find(b => /Chat with Logue/.test(b.getAttribute('aria-label') || '')).click()`);
   await api.sleep(3500);
   check("the microphone button starts one too", (await api.eval(`/Listening/.test(document.body.textContent)`)) === true);
 

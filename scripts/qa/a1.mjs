@@ -34,7 +34,7 @@ export async function run(api) {
     };
   })()`;
 
-  for (const tab of ["Talk", "This page", "Project"]) {
+  for (const tab of ["Chat", "This page", "Project"]) {
     await api.goto(panel);
     await api.sleep(2200);
     await api.eval(`[...document.querySelectorAll('[role="tab"]')].find(b => b.textContent.includes(${JSON.stringify(tab)}))?.click()`);

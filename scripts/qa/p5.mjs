@@ -14,7 +14,7 @@ export async function run(api) {
   await api.goto(panel);
   await api.sleep(2500);
 
-  await api.eval(`[...document.querySelectorAll('button')].find(b => /Talk to Logue/.test(b.getAttribute('aria-label') || '')).click()`);
+  await api.eval(`[...document.querySelectorAll('button')].find(b => /Chat with Logue/.test(b.getAttribute('aria-label') || '')).click()`);
   await api.sleep(3000);
   check("recording", (await api.eval(`/Listening/.test(document.body.textContent)`)) === true);
 

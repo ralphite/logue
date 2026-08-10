@@ -37,7 +37,7 @@ export async function run(api) {
     const thread = document.querySelector('[role="tab"][aria-selected="true"]').textContent.trim();
     return JSON.stringify({ box: true, bottom: Math.round(r.bottom), viewport: window.innerHeight, tab: thread });
   })()`));
-  check("the composer sits at the bottom of Talk",
+  check("the composer sits at the bottom of Chat",
     composer.box && composer.viewport - composer.bottom < 90, JSON.stringify(composer));
 
   // Switching tabs actually changes what is shown.
@@ -60,7 +60,7 @@ export async function run(api) {
     { id: 'qa1', audio: 'AAAA', mediaType: 'audio/webm', at: new Date(Date.now() - 60000).toISOString(), seconds: 22, tries: 0 },
     { id: 'qa2', audio: 'AAAA', mediaType: 'audio/webm', at: new Date().toISOString(), seconds: 64, tries: 2 },
   ] })`);
-  await api.eval(`[...document.querySelectorAll('[role="tab"]')].find(b => /Talk/.test(b.textContent)).click()`);
+  await api.eval(`[...document.querySelectorAll('[role="tab"]')].find(b => /Chat/.test(b.textContent)).click()`);
   await api.sleep(900);
   const banner = await api.eval(`(() => { const b = [...document.querySelectorAll('button')].find(x => /recordings waiting/.test(x.textContent)); return b ? b.textContent.replace(/\\s+/g, ' ').trim() : null; })()`);
   check("the waiting recordings announce themselves", /2 recordings waiting/.test(String(banner)), String(banner));

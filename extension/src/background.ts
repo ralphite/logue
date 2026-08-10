@@ -8,6 +8,7 @@ import { shouldReload } from "./build";
 import { tagOf, type HostReply } from "./messages";
 import { all as pendingVoice, forget, noteTry } from "./pending";
 import { siblingOf } from "./paths";
+import { writeThread, type ThreadMessage } from "./thread";
 
 /**
  * The offscreen page sits beside this worker.
@@ -215,15 +216,8 @@ async function buildMenus(): Promise<void> {
  *
  * Written before the panel opens rather than passed to it: opening a side
  * panel is a request, not a call, and the panel decides for itself when it is
- * ready to read.
+ * ready to read. Written against the page it was run on — see thread.ts.
  */
-const THREAD = "logue:thread";
-
-export interface ThreadMessage {
-  from: "logue" | "skill";
-  text: string;
-  at: string;
-}
 
 /**
  * A Skill run whose answer belongs in the panel.
@@ -248,8 +242,10 @@ async function runSkillIntoThread(options: {
 }): Promise<void> {
   const { skillId, skillName, heading, keep, project } = options;
   const say = async (messages: ThreadMessage[]) => {
-    await chrome.storage.local.set({ [THREAD]: messages });
-    // The panel may already be open on an older thread.
+    // Filed under the page it happened on. A Skill run on an article belongs
+    // to that article, and used to be shown over every other page as well.
+    await writeThread(keep.url, messages, new Date().toISOString());
+    // The panel may already be open, on this page or another one.
     chrome.runtime.sendMessage({ type: "logue:thread-changed" }).catch(() => undefined);
   };
   const at = new Date().toISOString();

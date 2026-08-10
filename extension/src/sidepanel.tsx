@@ -18,6 +18,7 @@ import {
 } from "@logue/ui";
 import { host, HOST, type Context, type Material } from "./api";
 import { readablePageText } from "./readable";
+import { clearThread, readThread, writeThread } from "./thread";
 import { useVoice } from "./useVoice";
 
 /**
@@ -44,8 +45,6 @@ interface ThreadMessage {
   /** Sources behind this answer, so a claim can be followed back. */
   sources?: Material[];
 }
-
-const THREAD = "logue:thread";
 
 /** A key that belongs to whatever is being typed into, not to the panel. */
 function typing(target: EventTarget | null): boolean {
@@ -390,6 +389,8 @@ function WaitingRecordings({ items, onChanged }: { items: Waiting[]; onChanged: 
  */
 function Panel() {
   const [page, setPage] = useState<{ id?: number; url: string; title: string }>();
+  /** Which page the conversation belongs to. Empty means there is no page. */
+  const pageUrl = page?.url ?? "";
   const [thread, setThread] = useState<ThreadMessage[]>([]);
   const [context, setContext] = useState<Context>();
   const [saved, setSaved] = useState<Material[]>([]);
@@ -398,19 +399,28 @@ function Panel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [modelReady, setModelReady] = useState(true);
-  /** Which part of the panel is showing. Talk is the one people come for. */
-  const [tab, setTab] = useState<"talk" | "page" | "project">("talk");
+  /** Which part of the panel is showing. Chat is the one people come for. */
+  const [tab, setTab] = useState<"chat" | "page" | "project">("chat");
   const [waiting, setWaiting] = useState<Waiting[]>([]);
   const voice = useVoice();
 
-  /** Add to the conversation, in the panel and in storage, as one act. */
-  const say = useCallback((message: ThreadMessage) => {
-    setThread((was) => {
-      const next = [...was, message];
-      void chrome.storage.local.set({ [THREAD]: next });
-      return next;
-    });
-  }, []);
+  /**
+   * Add to the conversation, in the panel and in storage, as one act.
+   *
+   * Filed under the page it was said on. There used to be one conversation
+   * with nothing tying it to anywhere, so a question about an article stayed
+   * on screen over a Google Doc, above an unrelated answer.
+   */
+  const say = useCallback(
+    (message: ThreadMessage) => {
+      setThread((was) => {
+        const next = [...was, message];
+        if (pageUrl) void writeThread(pageUrl, next, new Date().toISOString());
+        return next;
+      });
+    },
+    [pageUrl],
+  );
 
   const load = useCallback(async () => {
     const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -433,12 +443,15 @@ function Panel() {
 
   // The thread is written to storage before the panel opens — a side panel is
   // requested, not called — so it is read on arrival and again on notice.
+  // …and re-read whenever the page changes, because the conversation belongs
+  // to the page rather than to the panel.
   useEffect(() => {
     const read = () => {
-      void chrome.storage.local.get(THREAD).then((stored) => {
-        const found: unknown = stored[THREAD];
-        setThread(Array.isArray(found) ? found.filter(isMessage) : []);
-      });
+      if (!pageUrl) {
+        setThread([]);
+        return;
+      }
+      void readThread(pageUrl).then((found) => setThread(found.filter(isMessage)));
     };
     read();
     const onMessage = (message: unknown) => {
@@ -448,7 +461,7 @@ function Panel() {
     };
     chrome.runtime.onMessage.addListener(onMessage);
     return () => chrome.runtime.onMessage.removeListener(onMessage);
-  }, []);
+  }, [pageUrl]);
 
   // ⌘⇧K: the panel opens and starts listening in the same act. The flag is
   // consumed on read so re-opening the panel later does not start a recording
@@ -637,11 +650,11 @@ function Panel() {
       try {
         await host.agentAccept({
           proposal: message.proposal,
-          page: page?.url ? { url: page.url, title: page.title, domain: new URL(page.url).hostname } : undefined,
+          page: pageUrl ? { url: pageUrl, title: page?.title ?? "", domain: new URL(pageUrl).hostname } : undefined,
         });
         setThread((was) => {
           const next = was.map((m) => (m.at === message.at ? { ...m, proposal: null } : m));
-          void chrome.storage.local.set({ [THREAD]: next });
+          if (pageUrl) void writeThread(pageUrl, next, new Date().toISOString());
           return next;
         });
         say({ from: "logue", text: "Done — it is in your workspace.", at: new Date().toISOString() });
@@ -652,16 +665,19 @@ function Panel() {
         setBusy(false);
       }
     },
-    [page?.url, page?.title, say, load],
+    [pageUrl, page?.title, say, load],
   );
 
-  const leaveIt = useCallback((message: ThreadMessage) => {
-    setThread((was) => {
-      const next = was.map((m) => (m.at === message.at ? { ...m, proposal: null } : m));
-      void chrome.storage.local.set({ [THREAD]: next });
-      return next;
-    });
-  }, []);
+  const leaveIt = useCallback(
+    (message: ThreadMessage) => {
+      setThread((was) => {
+        const next = was.map((m) => (m.at === message.at ? { ...m, proposal: null } : m));
+        if (pageUrl) void writeThread(pageUrl, next, new Date().toISOString());
+        return next;
+      });
+    },
+    [pageUrl],
+  );
 
   const fromPage = saved.filter((item) => FROM_THE_PAGE.has(item.kind));
   const said = saved.filter((item) => !FROM_THE_PAGE.has(item.kind));
@@ -734,7 +750,7 @@ function Panel() {
           </Select>
           <span className="ml-auto flex items-center gap-1">
             <IconButton
-              label="Talk to Logue · ⌘⇧K"
+              label="Chat with Logue · ⌘⇧K"
               disabled={voice.phase === "recording" || voice.phase === "starting"}
               onClick={() => void voice.start()}
             >
@@ -776,10 +792,10 @@ function Panel() {
         </div>
       </header>
 
-      <h1 className="sr-only">{tab === "talk" ? "Talk to Logue" : tab === "page" ? "What is kept from this page" : "This Project"}</h1>
+      <h1 className="sr-only">{tab === "chat" ? "Chat with Logue" : tab === "page" ? "What is kept from this page" : "This Project"}</h1>
       <div role="tablist" aria-label="Panel sections" className="flex shrink-0 gap-0.5 border-b border-line bg-surface px-1.5">
         {([
-          ["talk", "Talk", undefined],
+          ["chat", "Chat", undefined],
           ["page", "This page", fromPage.length + said.length],
           ["project", "Project", undefined],
         ] as const).map(([key, label, count]) => (
@@ -802,7 +818,7 @@ function Panel() {
         ))}
       </div>
 
-      {tab === "talk" ? (
+      {tab === "chat" ? (
         <>
           {/* Anything the person must see stays at the top, above the
               conversation: an error pushed to the bottom by `justify-end`
@@ -838,8 +854,9 @@ function Panel() {
               onAccept={(message) => void carryOut(message)}
               onDiscard={leaveIt}
               onClear={() => {
+                // This page's conversation, not every page's.
                 setThread([]);
-                void chrome.storage.local.remove(THREAD);
+                if (pageUrl) void clearThread(pageUrl);
               }}
             />
             {thread.length === 0 && (

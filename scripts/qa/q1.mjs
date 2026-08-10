@@ -29,7 +29,7 @@ export async function run(api) {
       duplicates: (body.textContent.match(/Ask about this page/g) ?? []).length,
     });
   })()`));
-  check("Talk says something when it is empty", talk.empty === true, JSON.stringify(talk));
+  check("Chat says something when it is empty", talk.empty === true, JSON.stringify(talk));
   check("…in the middle of the space, not against the composer",
     talk.middle !== null && talk.middle < talk.composerTop - 60, `line ${talk.middle}, composer ${talk.composerTop}`);
   check("…and the sentence is not printed twice", talk.duplicates <= 1, `${talk.duplicates}× "Ask about this page"`);
