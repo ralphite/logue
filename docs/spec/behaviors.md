@@ -559,3 +559,9 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   costs someone a paragraph is worse than the bug it fixes. This is not hot
   reloading and does not pretend to be — there is no dev server, by the rule
   that says one machine, one address.
+- **A menu is a list to scan, and it can be finished without the pointer.**
+  Compact rows, a narrow frame, the item's name in small grey type rather than
+  a heading that outranks the actions, focus shown as a wash rather than a
+  ring — a heavy outline inside a small popover reads as an error. Every
+  action carries one letter, shown on the right, and pressing that letter runs
+  it and closes the menu.

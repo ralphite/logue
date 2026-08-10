@@ -7,6 +7,8 @@ export interface RailAction {
   label: string;
   onRun: () => void;
   tone?: "default" | "danger";
+  /** The letter that runs it while the menu is open. */
+  accelerator?: string;
 }
 
 export interface RailEntry {
@@ -368,7 +370,7 @@ export function RailList({
         {(menu?.entry.actions ?? []).map((action, index) => (
           <div key={action.label}>
             {action.tone === "danger" && index > 0 && <MenuSeparator />}
-            <MenuItem tone={action.tone} onClick={() => action.onRun()}>
+            <MenuItem tone={action.tone} accelerator={action.accelerator} onClick={() => action.onRun()}>
               {action.label}
             </MenuItem>
           </div>

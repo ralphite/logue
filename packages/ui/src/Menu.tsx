@@ -64,22 +64,44 @@ export function MenuItem({
   className,
   children,
   tone = "default",
+  accelerator,
+  submenu = false,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: "default" | "danger" }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  tone?: "default" | "danger";
+  /**
+   * One letter that runs this item while the menu is open.
+   *
+   * Shown on the right, the way every menu worth using shows it. The letter
+   * is also what the menu listens for — see ContextMenu — so a menu can be
+   * operated without moving the pointer at all.
+   */
+  accelerator?: string;
+  /** This one opens another list rather than doing something. */
+  submenu?: boolean;
+}) {
   return (
     <button
       type="button"
       role="menuitem"
+      data-accelerator={accelerator}
       className={cn(
-        "flex h-control w-full items-center gap-2 rounded-sm px-2 text-left text-xs whitespace-nowrap disabled:opacity-45 [&_svg]:shrink-0",
+        // Tighter than a control: a menu is a list to scan, not a row of
+        // buttons. Focus is a wash of the same grey as hover rather than a
+        // ring — a heavy outline inside a small popover reads as an error.
+        "flex h-6 w-full items-center gap-2 rounded-sm px-2 text-left text-xs whitespace-nowrap outline-none disabled:opacity-45 [&_svg]:shrink-0",
         tone === "danger"
-          ? "text-danger hover:bg-danger-soft"
-          : "text-ink-soft hover:bg-surface-muted hover:text-ink",
+          ? "text-danger hover:bg-danger-soft focus-visible:bg-danger-soft"
+          : "text-ink-soft hover:bg-surface-muted hover:text-ink focus-visible:bg-surface-muted focus-visible:text-ink",
         className,
       )}
       {...props}
     >
-      {children}
+      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {accelerator && (
+        <span className="shrink-0 font-mono text-[11px] text-muted uppercase">{accelerator}</span>
+      )}
+      {submenu && <span className="shrink-0 text-muted">›</span>}
     </button>
   );
 }

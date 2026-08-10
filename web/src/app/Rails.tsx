@@ -31,7 +31,7 @@ function Fact({ name, children }: { name: string; children: React.ReactNode }) {
 
 /** Pin or unpin, the first action on every row in every rail. */
 function pinAction(pinned: boolean, onRun: () => void): RailAction {
-  return { label: pinned ? "Unpin" : "Pin", onRun };
+  return { label: pinned ? "Unpin" : "Pin", onRun, accelerator: "p" };
 }
 
 /** What the rail is about to delete, held while the dialog asks. */
@@ -127,13 +127,15 @@ export function StreamRail({
         ? [
             {
               label: "Open where it came from",
+              accelerator: "o",
               onRun: () => window.open(material.source?.url, "_blank", "noopener"),
             },
           ]
         : []),
-      { label: "Copy text", onRun: () => void navigator.clipboard.writeText(material.content) },
+      { label: "Copy text", accelerator: "c", onRun: () => void navigator.clipboard.writeText(material.content) },
       {
         label: "Delete",
+        accelerator: "d",
         tone: "danger" as const,
         onRun: () =>
           setDoomed({
@@ -279,6 +281,7 @@ export function ProjectsRail({
       pinAction(pins.isPinned(project.id), () => pins.toggle(project.id)),
       {
         label: "Rename…",
+        accelerator: "r",
         onRun: () =>
           setRenaming({
             id: project.id,
@@ -292,6 +295,7 @@ export function ProjectsRail({
       },
       {
         label: "Delete",
+        accelerator: "d",
         tone: "danger" as const,
         onRun: () =>
           setDoomed({
@@ -378,6 +382,7 @@ export function DocumentsRail({
         pinAction(pins.isPinned(document.id), () => pins.toggle(document.id)),
         {
           label: "Rename…",
+        accelerator: "r",
           onRun: () =>
             setRenaming({
               id: document.id,
@@ -395,6 +400,7 @@ export function DocumentsRail({
         },
         {
           label: "Delete",
+        accelerator: "d",
           tone: "danger" as const,
           onRun: () =>
             setDoomed({
@@ -482,6 +488,7 @@ export function SkillsRail({
       },
       {
         label: "Rename…",
+        accelerator: "r",
         onRun: () =>
           setRenaming({
             id: skill.id,
@@ -498,6 +505,7 @@ export function SkillsRail({
         : [
             {
               label: "Delete",
+        accelerator: "d",
               tone: "danger" as const,
               onRun: () =>
                 setDoomed({

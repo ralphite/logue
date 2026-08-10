@@ -126,7 +126,7 @@ export function ContextMenu({
         top: box?.top ?? at.y,
         visibility: box ? undefined : "hidden",
       }}
-      className="logue-float z-popover min-w-44 max-w-72 p-1"
+      className="logue-float z-popover min-w-40 max-w-64 p-0.5"
       onClick={(event) => {
         // After an item runs the menu has said what it had to say.
         if (event.target instanceof Element && event.target.closest('[role="menuitem"]')) close();
@@ -150,6 +150,16 @@ export function ContextMenu({
         } else if (event.key === "End") {
           event.preventDefault();
           list[list.length - 1]?.focus();
+        } else if (/^[a-z]$/i.test(event.key) && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          // The letter beside an item runs it. A menu you can finish without
+          // moving the pointer is the whole point of having letters there.
+          const match = items(panel.current).find(
+            (item) => (item.dataset.accelerator ?? "").toLowerCase() === event.key.toLowerCase(),
+          );
+          if (match) {
+            event.preventDefault();
+            match.click();
+          }
         } else if (event.key === "Tab") {
           // Tab leaves the menu rather than cycling inside it: someone tabbing
           // is trying to get past this, not to read it again.
@@ -170,7 +180,7 @@ export function ContextMenu({
  * be deleted.
  */
 export function MenuHeading({ children }: { children: ReactNode }) {
-  return <p className="truncate px-2 pt-1 pb-1.5 text-xs text-muted">{children}</p>;
+  return <p className="truncate px-2 pt-0.5 pb-1 text-[11px] text-muted">{children}</p>;
 }
 
 /** A hairline between two kinds of action — the destructive one below it. */
