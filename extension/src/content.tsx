@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { host, type Context } from "./api";
 import { caretRect } from "./caret";
 import * as googleDocs from "./googleDocs";
+import { locate, reveal } from "./anchor";
 import { readablePageText } from "./readable";
 import { activeEditable, insertAtCaret, isOurs, nearbyText, pageSelection, pageSource, readCaret, restoreCaret, type CaretPosition, type Editable, type SelectionSnapshot } from "./editable";
 import { isFromBackground, send, watchForOrphaning, whenOrphaned } from "./messages";
@@ -61,6 +62,9 @@ async function keepSelection(snapshot: SelectionSnapshot, into: string) {
     content: snapshot.text,
     context: snapshot.context,
     source: pageSource(),
+    // Where on the page it was. Taken at the moment of saving, because that is
+    // the only moment the passage is still pointed at by something real.
+    anchor: snapshot.anchor,
     projects: into ? [into] : [],
   });
   return material;
@@ -226,6 +230,20 @@ function Surfaces() {
       // the same question had two homes depending on how it was reached —
       // and the answer in the page box died with the next selection.
       if (message.type === "logue:start-command") void send({ type: "logue:open-panel" });
+      if (message.type === "logue:locate") {
+        // The panel is asking where a saved passage is. Only this script can
+        // answer — the panel has the words, the page has the place.
+        const found = locate(message.anchor);
+        if (found) reveal(found.range);
+        respond({ found: Boolean(found), exactly: found?.exactly ?? false });
+        return true;
+      }
+      if (message.type === "logue:anchor-here") {
+        // Repairing an anchor: whatever is selected now becomes the new one.
+        const now = pageSelection();
+        respond({ anchor: now?.anchor, text: now?.text });
+        return true;
+      }
       if (message.type === "logue:read-page") {
         // The worker cannot read a page; only something on it can. This is
         // the same text the Side Panel already saves, so a Skill run from the

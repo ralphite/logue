@@ -1,3 +1,4 @@
+import { anchorFor, type TextAnchor } from "./anchor";
 /**
  * Reading and writing the page's own editors.
  *
@@ -148,6 +149,8 @@ export interface SelectionSnapshot {
   /** The paragraph the quote sits in, so a citation can be read in context. */
   context: string;
   rect: { left: number; right: number; top: number; bottom: number };
+  /** How to find this passage again on a page that has since been rebuilt. */
+  anchor?: TextAnchor;
 }
 
 /** The block the selection belongs to, trimmed to something readable. */
@@ -173,6 +176,9 @@ export function pageSelection(): SelectionSnapshot | undefined {
     text,
     context: surroundingText(range),
     rect: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
+    // Taken now, while the Range exists. Afterwards there is only a string,
+    // and a string cannot say which copy of itself it was.
+    anchor: anchorFor(range),
   };
 }
 

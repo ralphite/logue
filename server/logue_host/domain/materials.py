@@ -28,6 +28,7 @@ def create(
     capture_seconds: float | None = None,
     transcript: str | None = None,
     context: str | None = None,
+    anchor: dict[str, Any] | None = None,
     actor: str = "user",
     extra: dict[str, Any] | None = None,
 ) -> Record:
@@ -55,6 +56,14 @@ def create(
         # The passage the quote came from, kept so a citation can be read in
         # context after the page it came from has changed.
         record["context"] = context
+    if anchor:
+        # Where on the page this was, so it can be found again.
+        #
+        # Kept apart from `source` on purpose. The URL, the title and the
+        # domain are where it came from and never change; an anchor is a
+        # pointer into a page that other people keep editing, and repairing it
+        # must not mean rewriting the origin.
+        record["anchor"] = anchor
     if capture_id:
         record["capture_id"] = capture_id
         # Kept on the Source as well as beside the audio: a player asking how
@@ -69,7 +78,9 @@ def create(
 
 def update(store: Store, material_id: str, changes: dict[str, Any]) -> Record:
     record = store.materials.get(material_id)
-    allowed = {"content", "status", "projects", "tags", "organization", "topic_ids", "excluded"}
+    # `anchor` is here and `source` is not, and that is the whole distinction:
+    # a pointer into someone else's page can be repaired, an origin cannot.
+    allowed = {"content", "status", "projects", "tags", "organization", "topic_ids", "excluded", "anchor"}
     unknown = set(changes) - allowed
     if unknown:
         raise BadRequest(f"cannot change {', '.join(sorted(unknown))}")

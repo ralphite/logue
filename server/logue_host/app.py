@@ -121,6 +121,7 @@ class App:
                 capture_id=body.get("capture_id"),
                 capture_seconds=body.get("seconds"),
                 context=body.get("context"),
+                anchor=body.get("anchor"),
                 actor=str(body.get("actor") or "user"),
             )
             return {"material": self.file_later(material)}

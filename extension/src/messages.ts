@@ -1,3 +1,4 @@
+import type { TextAnchor } from "./anchor";
 /**
  * The typed contract between content script, side panel, and background.
  *
@@ -41,6 +42,10 @@ export type HostReply = { ok: true; status: number; text: string } | { ok: false
 
 export type FromBackground =
   | { type: "logue:start-voice" }
+  /** Find a saved passage on this page and scroll to it. */
+  | { type: "logue:locate"; anchor: TextAnchor }
+  /** Take an anchor from whatever is selected right now, to repair an old one. */
+  | { type: "logue:anchor-here" }
   | { type: "logue:start-command" }
   /** What is on this page, asked for by the worker on the person's behalf. */
   | { type: "logue:read-page" }
@@ -59,6 +64,8 @@ export function tagOf(value: unknown): string | undefined {
 // being dropped at runtime — which is how "read the page" answered nothing.
 const FROM_BACKGROUND = new Set<string>([
   "logue:start-voice",
+  "logue:locate",
+  "logue:anchor-here",
   "logue:start-command",
   "logue:read-page",
   "logue:thread-changed",

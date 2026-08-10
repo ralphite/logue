@@ -34,6 +34,17 @@ export interface Material {
   capture_seconds?: number;
   created_at: string;
   source?: { url?: string; title?: string; domain?: string };
+  /** Where on the page this passage was, and what has happened to that since. */
+  anchor?: {
+    exact: string;
+    before: string;
+    after: string;
+    progress?: number;
+    /** Set when the pointer was repaired against a newer version of the page. */
+    reanchored_at?: string;
+    /** Set when the page moved on and the snapshot is all there is. */
+    snapshot_only?: boolean;
+  };
   /** What this was said about — the selection a comment hangs off. */
   parent_ids?: string[];
   /** The words around it on the page, kept when it was captured. */
@@ -139,6 +150,8 @@ export const host = {
     content: string;
     context?: string;
     source?: unknown;
+    /** Where on the page it was, so it can be found there again. */
+    anchor?: unknown;
     projects?: string[];
     parent_ids?: string[];
   }) => post<{ material: Material }>("/v1/materials", body),
@@ -169,6 +182,9 @@ export const host = {
   /** The words themselves, corrected where they were heard wrong. */
   editMaterial: (id: string, content: string) =>
     call<{ material: Material }>(`/v1/materials/${id}`, { method: "PATCH", body: JSON.stringify({ content }) }),
+  /** A new pointer into a page that has moved on. The origin is untouched. */
+  reanchor: (id: string, anchor: unknown) =>
+    call<{ material: Material }>(`/v1/materials/${id}`, { method: "PATCH", body: JSON.stringify({ anchor }) }),
   setMembership: (materialId: string, project: string, member: boolean) =>
     post<{ material: Material }>("/v1/project-membership", { material_id: materialId, project, member }),
   audioUrl: (captureId: string) => `${HOST}/v1/captures/${captureId}/audio`,

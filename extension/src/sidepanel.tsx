@@ -1,4 +1,4 @@
-import { Bookmark, Check, Copy, CornerDownLeft, ExternalLink, Mic, Settings2, Sparkles, X } from "lucide-react";
+import { Bookmark, Check, Copy, CornerDownLeft, Crosshair, ExternalLink, Mic, Settings2, Sparkles, X } from "lucide-react";
 import { StrictMode, useCallback, useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -868,6 +868,7 @@ function Panel() {
             title="Kept from this page"
             items={[...fromPage, ...said].toSorted((a, b) => (a.created_at < b.created_at ? 1 : -1))}
             context={context}
+            tabId={page?.id}
             onChanged={load}
             empty="Nothing kept from this page yet."
           />
@@ -966,12 +967,15 @@ function Kept({
   title,
   items,
   context,
+  tabId,
   onChanged,
   empty,
 }: {
   title: string;
   items: Material[];
   context?: Context;
+  /** The page these were kept from, so a row can ask it where the passage is. */
+  tabId?: number;
   onChanged: () => Promise<void> | void;
   empty: string;
 }) {
@@ -1060,12 +1064,124 @@ function Kept({
               >
                 <p className="line-clamp-2 text-xs leading-[1.45] text-ink-soft">{item.content}</p>
               </button>
-              {openId === item.id && <Filing material={item} context={context} onChanged={onChanged} />}
+              {openId === item.id && <Filing material={item} context={context} tabId={tabId} onChanged={onChanged} />}
             </div>
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Getting back to where a saved passage was (P6).
+ *
+ * Everything else in this panel is about what you kept. This is the one thing
+ * that was missing entirely: a way back to *where* you kept it from. A quote
+ * saved from a long page is a needle you have no way of finding again — the
+ * URL takes you to the top of the article and no further.
+ *
+ * Four states, and they are all real outcomes rather than decorations:
+ * anchored (nothing said, it just works), the page has changed, re-anchored,
+ * and snapshot only. The last one is not a failure — the words are in the
+ * Source either way, and saying so plainly is better than an entry that keeps
+ * offering a button that cannot work.
+ */
+function OnThePage({
+  material,
+  tabId,
+  onChanged,
+}: {
+  material: Material;
+  tabId?: number;
+  onChanged: () => Promise<void> | void;
+}) {
+  const anchor = material.anchor;
+  const [state, setState] = useState<"ready" | "looking" | "gone" | "found">("ready");
+  const [busy, setBusy] = useState(false);
+  if (!anchor?.exact) return null;
+
+  const ask = async <T,>(message: unknown): Promise<T | undefined> => {
+    if (tabId === undefined) return undefined;
+    try {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      return (await chrome.tabs.sendMessage(tabId, message)) as T;
+    } catch {
+      // No content script on this tab — a restricted page, or one loaded
+      // before the extension was. Nothing to say beyond "not found".
+      return undefined;
+    }
+  };
+
+  const find = async () => {
+    setState("looking");
+    const reply = await ask<{ found: boolean }>({ type: "logue:locate", anchor });
+    setState(reply?.found ? "found" : "gone");
+    if (reply?.found) window.setTimeout(() => setState("ready"), 2000);
+  };
+
+  const repair = async () => {
+    const reply = await ask<{ anchor?: unknown; text?: string }>({ type: "logue:anchor-here" });
+    if (!reply?.anchor) {
+      // Nothing selected. Say what to do rather than failing quietly.
+      setState("gone");
+      return;
+    }
+    setBusy(true);
+    try {
+      await host.reanchor(material.id, { ...reply.anchor, reanchored_at: new Date().toISOString() });
+      await onChanged();
+      setState("ready");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const keepSnapshot = async () => {
+    setBusy(true);
+    try {
+      await host.reanchor(material.id, { ...anchor, snapshot_only: true });
+      await onChanged();
+      setState("ready");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (anchor.snapshot_only) {
+    return (
+      <p className="text-xs text-muted">
+        The page moved on — this is the snapshot Logue kept.
+      </p>
+    );
+  }
+
+  return (
+    <div className="grid gap-1 text-xs">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Button variant="ghost" disabled={busy || state === "looking"} onClick={() => void find()}>
+          {state === "looking" ? <Spinner size={12} /> : <Crosshair size={13} />}
+          Find it on the page
+        </Button>
+        {state === "found" && <span className="text-success">Found it</span>}
+        {anchor.reanchored_at && state !== "gone" && <span className="text-muted">Re-anchored</span>}
+      </div>
+      {state === "gone" && (
+        <div className="grid gap-1 rounded-md bg-surface p-1.5">
+          <p className="text-muted">
+            It is not on this page any more. Select the passage where it lives now, then point this at it.
+          </p>
+          <div className="flex flex-wrap gap-1">
+            <Button variant="primary" disabled={busy} onClick={() => void repair()}>
+              Point it at what I selected
+            </Button>
+            <Button variant="ghost" disabled={busy} onClick={() => void keepSnapshot()}>
+              Keep the snapshot
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1136,10 +1252,12 @@ function Words({
 function Filing({
   material,
   context,
+  tabId,
   onChanged,
 }: {
   material: Material;
   context?: Context;
+  tabId?: number;
   onChanged: () => Promise<void> | void;
 }) {
   const [adding, setAdding] = useState("");
@@ -1154,6 +1272,7 @@ function Filing({
   return (
     <div className="mt-1.5 grid gap-1.5 rounded-md bg-surface-muted p-1.5">
       <Words material={material} busy={busy} onSave={(content) => run(host.editMaterial(material.id, content))} />
+      <OnThePage material={material} tabId={tabId} onChanged={onChanged} />
       <div className="flex flex-wrap gap-1">
         {(context?.projects ?? []).map((project) => {
           const member = material.projects.includes(project.name);
