@@ -17,3 +17,14 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/*
+ * The player is a browser widget and comes with the browser's own type and
+ * colour — 16px and pure black, neither of which is a token here. It is the
+ * one element in the panel that has to be told.
+ */
+audio {
+  font-size: var(--text-xs);
+  color: var(--color-ink);
+  color-scheme: light;
+}

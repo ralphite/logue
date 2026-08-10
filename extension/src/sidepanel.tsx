@@ -768,13 +768,14 @@ function Panel() {
             href={WEB_APP}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-line px-1.5 py-0.5 text-xs text-muted hover:bg-surface-muted hover:text-ink"
+            className="inline-flex h-control shrink-0 items-center gap-1 rounded-md border border-line px-1.5 text-xs text-muted hover:bg-surface-muted hover:text-ink"
           >
             <ExternalLink size={12} /> Open Logue web app
           </a>
         </div>
       </header>
 
+      <h1 className="sr-only">{tab === "talk" ? "Talk to Logue" : tab === "page" ? "What is kept from this page" : "This Project"}</h1>
       <div role="tablist" aria-label="Panel sections" className="flex shrink-0 gap-0.5 border-b border-line bg-surface px-1.5">
         {([
           ["talk", "Talk", undefined],
@@ -794,7 +795,7 @@ function Panel() {
           >
             {label}
             {count ? (
-              <span className="rounded-full bg-surface-muted px-1.5 text-[11px] text-muted">{count}</span>
+              <span className="rounded-full bg-surface-muted px-1.5 text-xs text-muted">{count}</span>
             ) : null}
           </button>
         ))}
@@ -1010,7 +1011,7 @@ function Kept({
             <div key={item.id} className="py-1.5">
               <button
                 type="button"
-                className="block w-full text-left"
+                className="-my-1 block w-full py-1 text-left"
                 onClick={() => setOpenId(openId === item.id ? undefined : item.id)}
               >
                 {/* The domain used to be printed here, on every row, in a
@@ -1053,7 +1054,7 @@ function Kept({
                   kept things has to show the thing. */}
               <button
                 type="button"
-                className="mt-0.5 block w-full text-left"
+                className="-my-1 mt-0.5 block w-full py-1 text-left"
                 onClick={() => setOpenId(openId === item.id ? undefined : item.id)}
               >
                 <p className="line-clamp-2 text-xs leading-[1.45] text-ink-soft">{item.content}</p>
