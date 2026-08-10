@@ -103,7 +103,9 @@ export async function run(a) {
   // An idle worker is not a target, so a browser sitting on chrome://extensions
   // has nothing to read the extension's id from. A page with the content script
   // on it wakes one — which is also the state a person is ever in.
-  await a.goto(process.env.LOGUE_QA_PAGE ?? "http://127.0.0.1:8899/editor.html");
+  // A real page, never one written to be checked: `LOGUE_QA_PAGE` should name
+  // a long document in Logue's own app, which is what this was run against.
+  await a.goto(process.env.LOGUE_QA_PAGE ?? `${HERE}/stream`);
   await a.sleep(1500);
   const targets = await (await fetch(`http://127.0.0.1:${CDP}/json`)).json();
   // Ours by its file names, not by id: a profile carries Chrome's own
