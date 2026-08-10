@@ -61,32 +61,60 @@ export function MaterialPanel({
             </div>
           ) : (
             <>
+              {/*
+                What cannot change comes first, and the two kinds of it are
+                kept apart: the recording is what you said, the passage is
+                what the page gave. Everything below them is derived from
+                them — the transcript most of all — and the order used to say
+                the opposite, with the transcript on top and the passage last.
+              */}
+              <section className="grid gap-2 rounded-lg border border-line bg-surface-muted p-2.5">
+                <h2 className="text-xs font-[560] text-muted">What this came from</h2>
+
+                {material.capture_id && (
+                  <div className="grid gap-1">
+                    <span className="text-xs text-muted">The recording</span>
+                    <Recording src={api.audioUrl(material.capture_id)} seconds={material.capture_seconds} />
+                  </div>
+                )}
+
+                {(material.source?.url || material.context) && (
+                  <div className="grid gap-1">
+                    <span className="text-xs text-muted">
+                      {material.kind === "page" ? "The page" : "The passage on the page"}
+                    </span>
+                    {material.context && material.context !== material.content && (
+                      <p className="line-clamp-6 text-[13px] leading-normal whitespace-pre-wrap text-ink-soft">
+                        {material.context}
+                      </p>
+                    )}
+                    {material.source?.url && (
+                      <a
+                        href={material.source.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+                      >
+                        <ExternalLink size={12} />
+                        <span className="truncate">{material.source.title || material.source.url}</span>
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                <Lineage title="Made from" items={lineage.data?.parents ?? []} />
+
+                {!material.capture_id && !material.source?.url && !material.context && (
+                  <p className="text-xs text-muted">Typed here. There is nothing behind it but you.</p>
+                )}
+              </section>
+
+              {/* Derived from the above: for a recording this is the
+                  transcript, and it is the part a model may have got wrong. */}
               <div className="grid gap-1.5">
                 <OriginMark origin={originOf(material.kind)} detail={timeAgo(material.created_at)} />
                 <p className="text-[13px] leading-normal whitespace-pre-wrap text-ink">{material.content}</p>
-                {material.context && material.context !== material.content && (
-                  <details className="text-xs text-muted">
-                    <summary className="cursor-pointer select-none">In context</summary>
-                    <p className="mt-1 leading-normal text-ink-soft">{material.context}</p>
-                  </details>
-                )}
               </div>
-
-              {material.source?.url && (
-                <a
-                  href={material.source.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
-                >
-                  <ExternalLink size={12} />
-                  <span className="truncate">{material.source.title || material.source.url}</span>
-                </a>
-              )}
-
-              {material.capture_id && (
-                <Recording src={api.audioUrl(material.capture_id)} seconds={material.capture_seconds} />
-              )}
 
               {material.capture_id && (
                 <Transcript
@@ -102,7 +130,6 @@ export function MaterialPanel({
 
               <HowItWasHeard applied={material.applied_context} />
 
-              <Lineage title="Came from" items={lineage.data?.parents ?? []} />
               <UsedIn materialId={material.id} onOpenDocument={onOpenDocument} />
 
               {material.organization?.status === "needs_review" && (
