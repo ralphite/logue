@@ -987,32 +987,33 @@ function Kept({
                 className="block w-full text-left"
                 onClick={() => setOpenId(openId === item.id ? undefined : item.id)}
               >
-                {/* No domain on the row. This whole list is about one page,
-                    and printing chatgpt.com fourteen times said the same
-                    thing fourteen times where nothing needed saying once. */}
+                {/* The domain used to be printed here, on every row, in a
+                    list that is about one page — the same thing said fourteen
+                    times. This line carries the recording instead, which is
+                    what it was asked to carry. */}
                 <span className="flex items-center gap-2 text-xs text-muted">
                   <OriginMark origin={originOf(item.kind)} detail={timeAgo(item.created_at)} />
                 </span>
-                <p className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-ink-soft">{item.content}</p>
               </button>
-              {/* The line the domain used to occupy: the recording if there is
-                  one, and the two things worth doing with any of them. */}
-              <div className="mt-1 flex items-center gap-1">
+              <div className="mt-0.5 flex items-center gap-1">
                 {item.capture_id ? (
                   <Recording src={host.audioUrl(item.capture_id)} seconds={item.capture_seconds} className="flex-1" />
                 ) : (
                   <span className="flex-1" />
                 )}
-                {item.source?.url && (
-                  <IconButton
-                    label="Open where this came from"
-                    onClick={() => window.open(item.source?.url, "_blank", "noreferrer")}
-                  >
-                    <ExternalLink size={13} />
-                  </IconButton>
-                )}
+                {/* This one opens the Source in Logue — the row itself, with
+                    its lineage and everything made from it. Where it came
+                    from on the web is already one tap away inside that page,
+                    and a panel about this page has little to say by sending
+                    you back to this page. */}
                 <IconButton
-                  label={copied === item.id ? "Copied" : "Copy, with what it was about"}
+                  label="Open this in Logue"
+                  onClick={() => window.open(`${WEB_APP}/stream/${item.id}`, "_blank", "noreferrer")}
+                >
+                  <ExternalLink size={13} />
+                </IconButton>
+                <IconButton
+                  label={copied === item.id ? "Copied" : "Copy, with the passage it is about"}
                   onClick={() => void copyWithQuote(item).then(() => {
                     setCopied(item.id);
                     window.setTimeout(() => setCopied(undefined), 1500);
@@ -1021,6 +1022,16 @@ function Kept({
                   {copied === item.id ? <Check size={13} className="text-success" /> : <Copy size={13} />}
                 </IconButton>
               </div>
+              {/* The words themselves, under the line that describes them. Moving
+                  the recording up here took this with it once — a row in a list of
+                  kept things has to show the thing. */}
+              <button
+                type="button"
+                className="mt-0.5 block w-full text-left"
+                onClick={() => setOpenId(openId === item.id ? undefined : item.id)}
+              >
+                <p className="line-clamp-2 text-xs leading-[1.45] text-ink-soft">{item.content}</p>
+              </button>
               {openId === item.id && <Filing material={item} context={context} onChanged={onChanged} />}
             </div>
           ))}
