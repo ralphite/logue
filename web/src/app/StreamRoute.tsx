@@ -33,6 +33,7 @@ export function StreamRoute({
       onChanged={() => setChanged((n) => n + 1)}
       projects={projects.data?.projects ?? []}
       onOpenDocument={onOpenDocument}
+      onOpenMaterial={(id) => onOpen(id)}
     />
   );
 }

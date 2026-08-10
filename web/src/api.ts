@@ -51,8 +51,15 @@ export interface Material {
     suggested_projects?: string[];
     suggested_tags?: string[];
     duplicate_of?: string;
+    /** An earlier Source this one seems to overrule, waiting for a person. */
+    supersedes?: { id: string; why?: string };
+    accepted_supersedes?: string;
     decided?: "accepted" | "dismissed";
   };
+  /** Set once someone agreed a newer Source overrules this one. */
+  superseded_by?: { id: string; at: string; why?: string };
+  /** The earlier Sources this one was agreed to overrule. */
+  supersedes?: string[];
   created_at: string;
   updated_at?: string;
 }
@@ -301,7 +308,10 @@ export const api = {
   /** Sources with a suggestion nobody has looked at, most confident first. */
   review: () => request<{ materials: Material[] }>("/v1/review"),
   organizeMaterial: (id: string) => send<{ material: Material }>("POST", `/v1/materials/${id}/organize`, {}),
-  resolveOrganization: (id: string, body: { accept: boolean; projects?: string[]; tags?: string[] }) =>
+  resolveOrganization: (
+    id: string,
+    body: { accept: boolean; projects?: string[]; tags?: string[]; supersede?: boolean },
+  ) =>
     send<{ material: Material }>("POST", `/v1/materials/${id}/organization`, body),
   setMembership: (materialId: string, project: string, member: boolean) =>
     send<{ material: Material }>("POST", "/v1/project-membership", { material_id: materialId, project, member }),

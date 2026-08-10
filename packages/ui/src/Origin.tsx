@@ -97,22 +97,41 @@ export function OriginMark({
 export function Citation({
   n,
   quote,
+  outOfDate,
   className,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { n: number; quote?: string }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  n: number;
+  quote?: string;
+  /**
+   * This Source has been overruled by a later one (R13).
+   *
+   * Marked here rather than only on the Source's own page, because a citation
+   * is where it does damage: an answer standing on something that stopped
+   * being true reads exactly like an answer standing on something that is.
+   */
+  outOfDate?: boolean;
+}) {
   return (
     <button
       type="button"
-      aria-label={`Source ${n}`}
-      title={quote ? `Source ${n} — ${quote.slice(0, 300)}` : `Source ${n}`}
+      aria-label={outOfDate ? `Source ${n}, out of date` : `Source ${n}`}
+      title={
+        (outOfDate ? `Source ${n} — out of date. ` : `Source ${n}`) + (quote ? ` — ${quote.slice(0, 300)}` : "")
+      }
       className={cn(
-        "inline-flex h-5 items-center rounded-full border border-accent-line bg-accent-soft px-1.5 text-xs font-[650] text-accent-ink align-baseline",
-        "hover:bg-accent-hover-soft aria-pressed:border-accent aria-pressed:bg-accent-pressed",
+        "inline-flex h-5 items-center gap-0.5 rounded-full border px-1.5 text-xs font-[650] align-baseline",
+        outOfDate
+          ? // Not the accent: the accent means "follow this". A citation that
+            // is no longer current should not look like the others.
+            "border-line bg-surface-muted text-muted hover:bg-surface aria-pressed:border-muted"
+          : "border-accent-line bg-accent-soft text-accent-ink hover:bg-accent-hover-soft aria-pressed:border-accent aria-pressed:bg-accent-pressed",
         className,
       )}
       {...props}
     >
       {n}
+      {outOfDate && <span aria-hidden="true">†</span>}
     </button>
   );
 }

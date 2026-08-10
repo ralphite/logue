@@ -40,6 +40,16 @@ CONFIRMED = "confirmed"
 #: Above this a suggestion leads the queue. It never applies anything by itself.
 CONFIDENT = 0.75
 
+#: How many earlier Sources are shown to the model when asking about a contradiction.
+NEIGHBOURS = 8
+
+#: Words too common to mean two Sources are about the same thing.
+_NOISE = frozenset(
+    "the a an and or but if then than that this these those is are was were be been being to of in on at "
+    "for with from by as it its we you i he she they them our your their not no do does did can could "
+    "will would should may might just about into over under more most some any all one two".split()
+)
+
 FALLBACK_INSTRUCTIONS = (
     "Decide which of this person's Projects a new Source belongs to, and suggest a few short tags "
     "describing what it is about."
@@ -72,6 +82,34 @@ def duplicate_of(store: Store, material: Record) -> str | None:
     return None
 
 
+def _words(text: str) -> set[str]:
+    return {w for w in re.findall(r"[\w']+", str(text or "").casefold()) if len(w) > 2 and w not in _NOISE}
+
+
+def neighbours(store: Store, material: Record, limit: int = NEIGHBOURS) -> list[Record]:
+    """The earlier Sources this one might be talking about.
+
+    Chosen by shared words rather than by asking a model, for the same reason
+    duplicates are: it is exact, free, and the model's job is the judgement, not
+    the shortlist. Only earlier Sources — a Source cannot be replaced by one
+    that already existed when it was written — and never one already replaced.
+    """
+    mine = _words(material.get("content"))
+    if len(mine) < 4:
+        return []
+    scored: list[tuple[int, Record]] = []
+    for candidate in store.materials.list():
+        if candidate["id"] == material["id"] or candidate.get("superseded_by"):
+            continue
+        if str(candidate.get("created_at") or "") >= str(material.get("created_at") or ""):
+            continue
+        shared = mine & _words(candidate.get("content"))
+        if len(shared) >= 3:
+            scored.append((len(shared), candidate))
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [record for _, record in scored[:limit]]
+
+
 def mark_pending(store: Store, material: Record) -> Record:
     """Record that this is waiting to be looked at, in the same write as the Source.
 
@@ -101,11 +139,32 @@ def _prompt(store: Store, material: Record) -> tuple[str, str]:
         "---",
         str(material.get("content") or "")[:4000],
         "---",
+    ]
+
+    # The time dimension (R13). A Source saying the limit is ten minutes,
+    # written after one saying it is five, does not merely differ from it — it
+    # replaces it. Nothing here could express that, so both stayed quotable and
+    # the older one kept being cited as current.
+    #
+    # The model is asked because a contradiction is exactly what a person
+    # cannot see: nobody remembers what a Source from three months ago said.
+    # It only ever proposes; `resolve` is where anything happens.
+    earlier = neighbours(store, material)
+    if earlier:
+        lines += ["", "Earlier Sources that may be about the same thing:"]
+        lines += [f"- {record['id']}: {str(record.get('content') or '')[:220]}".replace("\n", " ") for record in earlier]
+
+    lines += [
         "",
         "Reply with JSON only, no prose and no code fence:",
         '{"projects": ["exact Project name"], "tags": ["short", "lowercase"], '
-        '"confidence": 0.0, "reason": "one sentence"}',
+        '"confidence": 0.0, "reason": "one sentence", '
+        '"supersedes": {"id": "mat_...", "why": "one sentence"} or null}',
         "Use only Project names from the list; use [] if none fit. Never invent a Project.",
+        "Set `supersedes` only when this Source states something that makes one of the earlier ones "
+        "wrong or out of date — a changed number, a reversed decision, a replaced rule. Two Sources "
+        "about the same subject that simply say different things are not a contradiction. Use null "
+        "when in doubt.",
     ]
     return system, "\n".join(lines)
 
@@ -135,12 +194,37 @@ def _clean(store: Store, parsed: dict[str, Any], material: Record) -> dict[str, 
         confidence = min(1.0, max(0.0, float(parsed.get("confidence", 0))))
     except (TypeError, ValueError):
         confidence = 0.0
-    return {
+    cleaned = {
         "suggested_projects": projects[:3],
         "suggested_tags": tags[:5],
         "confidence": confidence,
         "reason": str(parsed.get("reason") or "").strip()[:280],
     }
+    replaced = _supersedes(store, parsed.get("supersedes"), material)
+    if replaced:
+        cleaned["supersedes"] = replaced
+    return cleaned
+
+
+def _supersedes(store: Store, claim: Any, material: Record) -> dict[str, Any] | None:
+    """The model's claim that this Source replaces an earlier one, checked.
+
+    Every part of it is verified against the workspace rather than believed: an
+    id that exists, is not this Source, is genuinely older, and has not already
+    been replaced. A hallucinated id here would put a "replaced by" banner on
+    something at random.
+    """
+    if not isinstance(claim, dict):
+        return None
+    target = str(claim.get("id") or "").strip()
+    if not target or target == material["id"]:
+        return None
+    older = store.materials.find(target)
+    if not older or older.get("superseded_by"):
+        return None
+    if str(older.get("created_at") or "") >= str(material.get("created_at") or ""):
+        return None
+    return {"id": target, "why": str(claim.get("why") or "").strip()[:280]}
 
 
 def _write(store: Store, material_id: str, organization: dict[str, Any]) -> Record:
@@ -181,7 +265,7 @@ def classify(store: Store, provider: Provider, material_id: str) -> Record:
             },
         )
 
-    has_suggestion = bool(result["suggested_projects"] or result["suggested_tags"] or twin)
+    has_suggestion = bool(result["suggested_projects"] or result["suggested_tags"] or twin or result.get("supersedes"))
     return _write(
         store,
         material_id,
@@ -236,16 +320,32 @@ def queue(store: Store) -> list[Record]:
 
 
 def resolve(store: Store, material_id: str, *, accept: bool, projects: list[str] | None = None,
-            tags: list[str] | None = None) -> Record:
+            tags: list[str] | None = None, supersede: bool | None = None) -> Record:
     """Take the suggestion, or set it aside. Either way it leaves the queue.
 
     What was applied is kept next to what was suggested: a Project that gained
     a Source should always be able to say who put it there.
+
+    `supersede` answers the contradiction question separately from the filing
+    one, because they are different decisions and someone may well want the
+    tags without agreeing that an old Source is now wrong. Left unset, it
+    follows `accept`.
     """
     material = store.materials.get(material_id)
     organization = dict(material.get("organization") or {})
     if not organization:
         raise BadRequest("this Source has no suggestion to resolve")
+
+    proposed = organization.get("supersedes")
+    if isinstance(proposed, dict) and (accept if supersede is None else supersede):
+        older_id = str(proposed.get("id"))
+        if _mark_superseded(store, older_id=older_id, by=material, why=str(proposed.get("why") or "")):
+            # Written onto the copy this function is about to save, not in a
+            # write of its own. Two writers to one record is how a field
+            # disappears: the second one puts back a copy taken before the
+            # first, and nothing anywhere reports a problem.
+            material["supersedes"] = list(dict.fromkeys([*(material.get("supersedes") or []), older_id]))
+            organization["accepted_supersedes"] = older_id
 
     if accept:
         live = {str(p.get("name")) for p in store.projects.list() if not p.get("archived_at")}
@@ -264,3 +364,25 @@ def resolve(store: Store, material_id: str, *, accept: bool, projects: list[str]
     material["organization"] = organization
     material["updated_at"] = now()
     return store.materials.put(material)
+
+
+def _mark_superseded(store: Store, *, older_id: str, by: Record, why: str) -> bool:
+    """Write the replacement onto both ends, and only on a person's word.
+
+    This end only — the caller writes the other, in the same save it was
+    already making. Both ends are needed, because both questions get asked:
+    reading the old one, "is this still true?"; reading the new one, "what did
+    this change?". One pointer would answer only the first.
+
+    The old Source is not touched otherwise. It is not deleted, not edited, not
+    unfiled — it was true when it was written, and a record of what was
+    believed then is worth keeping. It is only marked as no longer current.
+    """
+    older = store.materials.find(older_id)
+    if not older or older.get("superseded_by"):
+        return False
+    stamp = now()
+    older["superseded_by"] = {"id": by["id"], "at": stamp, "why": why}
+    older["updated_at"] = stamp
+    store.materials.put(older)
+    return True

@@ -14,7 +14,7 @@ export function Answer({
   text: string;
   open: number | undefined;
   onCite: (n: number | undefined) => void;
-  sources?: { content: string }[];
+  sources?: { content: string; superseded_by?: { id: string } }[];
 }) {
   return (
     <>
@@ -26,6 +26,7 @@ export function Answer({
                 key={cite.at}
                 n={cite.n}
                 quote={sources?.[cite.n - 1]?.content}
+                outOfDate={Boolean(sources?.[cite.n - 1]?.superseded_by)}
                 className="mx-0.5"
                 aria-pressed={open === cite.n}
                 onClick={() => onCite(open === cite.n ? undefined : cite.n)}

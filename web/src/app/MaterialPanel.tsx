@@ -10,6 +10,7 @@ import {
   SourceLink,
   Spinner,
   Tag,
+  cn,
   originOf,
 } from "@logue/ui";
 import { api, type Material, type Project } from "../api";
@@ -25,12 +26,15 @@ export function MaterialPanel({
   onChanged,
   projects,
   onOpenDocument,
+  onOpenMaterial,
 }: {
   materialId: string;
   onClose: () => void;
   onChanged: () => void;
   projects: Project[];
   onOpenDocument?: (id: string) => void;
+  /** Follow a replacement, in either direction. */
+  onOpenMaterial?: (id: string) => void;
 }) {
   const lineage = useHost(() => api.lineage(materialId), [materialId]);
   const action = useAction();
@@ -111,9 +115,39 @@ export function MaterialPanel({
 
               {/* Derived from the above: for a recording this is the
                   transcript, and it is the part a model may have got wrong. */}
+              {material.superseded_by && (
+                /*
+                 * R13, the reading end. This Source was true when it was
+                 * written and is not deleted, edited or unfiled — a record of
+                 * what was believed then is worth keeping. What it must not do
+                 * is go on looking current, because nobody remembers what a
+                 * Source from three months ago said, and it stays quotable.
+                 */
+                <div className="grid gap-1 rounded-lg border border-line bg-surface-muted px-2.5 py-2">
+                  <span className="text-xs text-muted">
+                    Out of date{material.superseded_by.why ? ` — ${material.superseded_by.why}` : ""}
+                  </span>
+                  <button
+                    type="button"
+                    className="justify-self-start text-xs text-accent-ink underline-offset-2 hover:underline"
+                    onClick={() => onOpenMaterial?.(material.superseded_by!.id)}
+                  >
+                    Open the one that replaced it
+                  </button>
+                </div>
+              )}
+
               <div className="grid gap-1.5">
                 <OriginMark origin={originOf(material.kind)} detail={timeAgo(material.created_at)} />
-                <p className="text-[13px] leading-normal whitespace-pre-wrap text-ink">{material.content}</p>
+                <p
+                  className={cn(
+                    "text-[13px] leading-normal whitespace-pre-wrap",
+                    // Dimmed, not hidden: still readable, no longer current.
+                    material.superseded_by ? "text-muted" : "text-ink",
+                  )}
+                >
+                  {material.content}
+                </p>
               </div>
 
               {material.capture_id && (
@@ -150,13 +184,54 @@ export function MaterialPanel({
                       {material.organization.reason}
                     </span>
                   )}
+                  {material.organization.supersedes && (
+                    /*
+                     * Its own question and its own button. Filing and "an
+                     * older Source is now wrong" are different decisions, and
+                     * someone may well want the tags without agreeing to the
+                     * second — so they are never one click.
+                     */
+                    <span className="grid gap-1 rounded-md bg-panel px-2 py-1.5">
+                      <span className="text-xs leading-normal text-ink-soft">
+                        This looks like it replaces an earlier Source
+                        {material.organization.supersedes.why
+                          ? ` — ${material.organization.supersedes.why}`
+                          : ""}
+                      </span>
+                      <span className="flex flex-wrap gap-1">
+                        <Button
+                          variant="ghost"
+                          disabled={action.busy}
+                          onClick={() => onOpenMaterial?.(material.organization!.supersedes!.id)}
+                        >
+                          Read the older one
+                        </Button>
+                        <Button
+                          variant="primary"
+                          disabled={action.busy}
+                          onClick={() =>
+                            void action
+                              .run(() => api.resolveOrganization(material.id, { accept: true, supersede: true }))
+                              .then((ok) => ok && (lineage.refresh(), onChanged()))
+                          }
+                        >
+                          Mark the older one out of date
+                        </Button>
+                      </span>
+                    </span>
+                  )}
                   <span className="flex justify-end gap-1">
                     <Button
                       variant="primary"
                       disabled={action.busy}
                       onClick={() =>
                         void action
-                          .run(() => api.resolveOrganization(material.id, { accept: true }))
+                          .run(() =>
+                            // Filing is not agreeing. The contradiction has
+                            // its own button above; this one answers only the
+                            // question it asks.
+                            api.resolveOrganization(material.id, { accept: true, supersede: false }),
+                          )
                           .then((ok) => ok && (lineage.refresh(), onChanged()))
                       }
                     >

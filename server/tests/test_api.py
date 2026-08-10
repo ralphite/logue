@@ -589,6 +589,83 @@ class OrganizeTest(Workspace, unittest.TestCase):
         self.assertEqual(left["tags"], [])
         self.assertEqual(left["organization"]["decided"], "dismissed")
 
+    # -- R13: the time dimension ------------------------------------------
+
+    def test_a_contradiction_is_proposed_and_nothing_changes_until_someone_says_so(self) -> None:
+        """The one thing a person cannot see for themselves.
+
+        Nobody remembers what a Source from three months ago said, so a newer
+        one that overrules it just sits alongside it and both stay quotable.
+        The model is the right thing to notice; it is not the right thing to
+        decide, so this is a proposal like every other.
+        """
+        old = self.a_source("The recording limit is five minutes, after which it stops.")
+        new = self.a_source("We changed the recording limit: it is ten minutes now, not five.")
+        provider = self.answering(
+            '{"projects":[],"tags":[],"confidence":0.9,"reason":"A changed number.",'
+            f'"supersedes":{{"id":"{old["id"]}","why":"The limit went from five minutes to ten."}}}}'
+        )
+
+        filed = organize.classify(self.app.store, provider, new["id"])
+        self.assertEqual(filed["organization"]["supersedes"]["id"], old["id"])
+        self.assertEqual(filed["organization"]["status"], "needs_review")
+        self.assertNotIn(
+            "superseded_by",
+            self.call("GET", f"/v1/materials/{old['id']}")["material"],
+            "a proposal must not mark anything out of date on its own",
+        )
+
+        self.call("POST", f"/v1/materials/{new['id']}/organization", {"accept": True})
+        replaced = self.call("GET", f"/v1/materials/{old['id']}")["material"]
+        self.assertEqual(replaced["superseded_by"]["id"], new["id"])
+        self.assertIn("five minutes to ten", replaced["superseded_by"]["why"])
+        # Both ends, because both questions get asked.
+        self.assertEqual(self.call("GET", f"/v1/materials/{new['id']}")["material"]["supersedes"], [old["id"]])
+        # And the old one is still there, still readable, still filed.
+        self.assertIn("five minutes", replaced["content"])
+
+    def test_the_filing_can_be_taken_without_the_contradiction(self) -> None:
+        """Two questions, two answers. Wanting the tags is not agreeing."""
+        old = self.a_source("The recording limit is five minutes.")
+        new = self.a_source("The recording limit is ten minutes now, we changed it.")
+        provider = self.answering(
+            '{"projects":[],"tags":["limits"],"confidence":0.9,"reason":"x",'
+            f'"supersedes":{{"id":"{old["id"]}","why":"changed"}}}}'
+        )
+        organize.classify(self.app.store, provider, new["id"])
+
+        self.call("POST", f"/v1/materials/{new['id']}/organization", {"accept": True, "supersede": False})
+        self.assertEqual(self.call("GET", f"/v1/materials/{new['id']}")["material"]["tags"], ["limits"])
+        self.assertNotIn("superseded_by", self.call("GET", f"/v1/materials/{old['id']}")["material"])
+
+    def test_a_replacement_the_model_invented_is_dropped(self) -> None:
+        """A hallucinated id would put "replaced by" on something at random."""
+        new = self.a_source("Some Source that replaces nothing at all.")
+        provider = self.answering(
+            '{"projects":[],"tags":[],"confidence":1,"reason":"x","supersedes":{"id":"mat_nope","why":"y"}}'
+        )
+        self.assertNotIn("supersedes", organize.classify(self.app.store, provider, new["id"])["organization"])
+
+    def test_nothing_can_be_replaced_by_something_older_than_it(self) -> None:
+        """Time only runs one way; a Source cannot be overruled by its own past."""
+        first = self.a_source("The limit is five minutes.")
+        second = self.a_source("The limit is ten minutes now.")
+        # The claim points the wrong way round: the older one replacing the newer.
+        provider = self.answering(
+            '{"projects":[],"tags":[],"confidence":1,"reason":"x",'
+            f'"supersedes":{{"id":"{second["id"]}","why":"backwards"}}}}'
+        )
+        self.assertNotIn("supersedes", organize.classify(self.app.store, provider, first["id"])["organization"])
+
+    def test_the_shortlist_is_earlier_sources_that_share_words(self) -> None:
+        """Which Sources the model is shown is arithmetic, not judgement."""
+        about = self.a_source("The recording limit is five minutes for every capture.")
+        self.a_source("Entirely unrelated notes concerning bicycle maintenance schedules.")
+        newest = self.a_source("The recording limit is now ten minutes for every capture.")
+        found = [m["id"] for m in organize.neighbours(self.app.store, self.app.store.materials.get(newest["id"]))]
+        self.assertIn(about["id"], found)
+        self.assertEqual(len(found), 1, "an unrelated Source is not a candidate")
+
     def test_a_project_the_model_invented_is_dropped(self) -> None:
         source = self.a_source()
         provider = self.answering('{"projects":["Nonexistent"],"tags":[],"confidence":1,"reason":"x"}')

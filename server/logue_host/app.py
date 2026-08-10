@@ -179,6 +179,9 @@ class App:
                     accept=bool(body.get("accept")),
                     projects=body.get("projects"),
                     tags=body.get("tags"),
+                    # Answered separately from the filing: someone may well
+                    # want the tags without agreeing an old Source is now wrong.
+                    supersede=body.get("supersede"),
                 )
             }
 
