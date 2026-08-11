@@ -650,8 +650,8 @@ function Panel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [modelReady, setModelReady] = useState(true);
-  /** Which part of the panel is showing. Chat is the one people come for. */
-  const [tab, setTab] = useState<"chat" | "page" | "dictation" | "project">("chat");
+  /** Which part of the panel is showing. Dictation is what the panel is opened for. */
+  const [tab, setTab] = useState<"chat" | "page" | "dictation" | "project">("dictation");
   const [waiting, setWaiting] = useState<Waiting[]>([]);
   /** Which Logue this browser is talking to, and whether it is being changed. */
   const [server, setServer] = useState(DEFAULT_SERVER);
@@ -751,7 +751,10 @@ function Panel() {
       void chrome.storage.local.get(LISTEN).then((stored) => {
         if (!stored[LISTEN]) return;
         void chrome.storage.local.remove(LISTEN);
-        // The shortcut is for talking to Logue, whichever tab was last open.
+        // ⌘⇧K is for talking to Logue, and the panel now opens on Dictation —
+        // so the shortcut brings its own tab with it rather than recording into
+        // whichever one happens to be showing.
+        setTab("chat");
         setSpeaking("chat");
         void listen();
       });
@@ -1138,9 +1141,9 @@ function Panel() {
       </h1>
       <div role="tablist" aria-label="Panel sections" className="flex shrink-0 gap-0.5 border-b border-line bg-surface px-1.5">
         {([
+          ["dictation", "Dictation", undefined],
           ["chat", "Chat", undefined],
           ["page", "This page", fromPage.length + said.length],
-          ["dictation", "Dictation", undefined],
           ["project", "Project", undefined],
         ] as const).map(([key, label, count]) => (
           <button
