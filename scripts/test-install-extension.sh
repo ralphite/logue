@@ -36,8 +36,16 @@ from pathlib import Path
 
 root = Path(sys.argv[1])
 (root / "assets").mkdir(parents=True)
+# The icons are part of the shape under test: Chrome refuses to load an
+# extension whose manifest names an icon that is not where it says it is.
+(root / "icons").mkdir(parents=True)
+icons = {str(size): f"icons/logue-{size}.png" for size in (16, 32, 48, 128)}
+for name in icons.values():
+    (root / name).write_bytes(b"\x89PNG\r\n\x1a\n stand-in\n")
 (root / "manifest.json").write_text(json.dumps({
     "manifest_version": 3, "name": "Logue", "version": "0.0.0", "version_name": "v0.0.0",
+    "icons": icons,
+    "action": {"default_title": "Open Logue", "default_icon": icons},
     "background": {"service_worker": "background.js", "type": "module"},
     "side_panel": {"default_path": "sidepanel.html"},
     "content_scripts": [{"matches": ["<all_urls>"], "js": ["content.js"], "css": ["content.css"]}],
@@ -90,6 +98,35 @@ else:
 PY
 }
 
+# Chrome loads the stable folder, so every path in the live manifest has to
+# resolve inside it. This is the check that was missing when a release shipped a
+# manifest naming `icons/logue-16.png` and put the icons one directory down:
+# every entry point was versioned, the installer said it was ready, and Chrome
+# answered "Could not load icon" and loaded nothing.
+assert_manifest_paths_resolve() {
+  "${python_bin}" - "${extension_dir}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+manifest = json.loads((root / "manifest.json").read_text())
+declared = list((manifest.get("icons") or {}).values())
+declared += list(((manifest.get("action") or {}).get("default_icon") or {}).values())
+declared += [manifest["background"]["service_worker"], manifest["side_panel"]["default_path"]]
+for script in manifest.get("content_scripts") or []:
+    declared += list(script.get("js") or []) + list(script.get("css") or [])
+if len(declared) < 3:
+    raise SystemExit("live manifest names too few files to be the real one")
+missing = [path for path in declared if not (root / path).is_file()]
+if missing:
+    raise SystemExit("live manifest names files Chrome cannot load: " + ", ".join(sorted(missing)))
+unversioned = [path for path in declared if not path.startswith("releases/")]
+if unversioned:
+    raise SystemExit("live manifest names unversioned paths: " + ", ".join(sorted(unversioned)))
+PY
+}
+
 assert_installed_extension() {
   local version="$1" worker content sidepanel offscreen
   [[ "$(manifest_entry identity)" == "${workspace_version} ${version}" ]] || die "installed manifest identity does not match ${version}"
@@ -103,6 +140,7 @@ assert_installed_extension() {
   [[ -f "${extension_dir}/${worker}" && -f "${extension_dir}/${content}" && -f "${extension_dir}/${sidepanel}" && -f "${extension_dir}/${offscreen}" ]] || die "${version} Extension assets are incomplete"
   [[ -f "${extension_dir}/manifest.json" && ! -L "${extension_dir}/manifest.json" ]] || die 'stable manifest is not a regular file'
   [[ ! -e "${extension_dir}/${sidepanel%/*}/manifest.json" ]] || die 'versioned release directory must not hold a second manifest'
+  assert_manifest_paths_resolve || die "${version} manifest does not resolve inside the folder Chrome loads"
   installed_worker="${worker}"
   installed_content="${content}"
   installed_sidepanel="${sidepanel}"
@@ -158,6 +196,33 @@ if run_installer "file://${missing_offscreen_fixture}" "${test_root}/missing-off
   die 'installer accepted a release without offscreen.html'
 fi
 [[ "$(file_sha256 "${extension_dir}/manifest.json")" == "${manifest_before}" ]] || die 'incomplete release changed the active manifest'
+
+# A release that declares an icon and forgets to ship it loads in nothing, so it
+# has to be refused here rather than at Chrome's Load unpacked.
+missing_icon_fixture="${test_root}/missing-icon-release"
+mkdir -p "${missing_icon_fixture}"
+"${python_bin}" - "${fixture_v2}/logue.zip" "${missing_icon_fixture}/logue.zip" <<'PY'
+import sys
+from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
+
+source, destination = map(Path, sys.argv[1:])
+dropped = 0
+with ZipFile(source) as archive, ZipFile(destination, "w", compression=ZIP_DEFLATED, compresslevel=9) as output:
+    for member in archive.infolist():
+        if member.filename.startswith("extension/icons/"):
+            dropped += 1
+            continue
+        output.writestr(member, archive.read(member.filename))
+if not dropped:
+    raise SystemExit("fixture dropped no icons; the release under test declares none")
+PY
+(cd "${missing_icon_fixture}" && { command -v sha256sum >/dev/null 2>&1 && sha256sum logue.zip || shasum -a 256 logue.zip; } > checksums.txt)
+if run_installer "file://${missing_icon_fixture}" "${test_root}/missing-icon.log"; then
+  die 'installer accepted a release whose manifest names icons it does not ship'
+fi
+[[ "$(file_sha256 "${extension_dir}/manifest.json")" == "${manifest_before}" ]] || die 'release with missing icons changed the active manifest'
+
 [[ "$(find "${extension_dir}/releases" -maxdepth 1 -mindepth 1 -type d | wc -l | tr -d ' ')" == "1" ]] || die 'a rejected release left staged assets behind'
 printf 'Rejected releases: active manifest and stable folder untouched, staging cleaned up.\n'
 

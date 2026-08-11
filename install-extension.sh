@@ -89,6 +89,36 @@ if not match or manifest.get("version") != match.group(1) or manifest.get("versi
 PY
 }
 
+validate_manifest_paths() {
+  # Chrome resolves every path a manifest names against the folder it loaded,
+  # and refuses the whole extension over a single missing file. The stable root
+  # holds nothing but the manifest, so any path the rewrite below forgets to
+  # move into releases/<id>/ names a file that is not there — which is how
+  # "Could not load icon" made a verified release impossible to load.
+  MANIFEST_PATH="$1" EXTENSION_ROOT="$2" "${python_bin}" - <<'PY'
+import json
+import os
+from pathlib import Path
+
+manifest = json.loads(Path(os.environ["MANIFEST_PATH"]).read_text())
+root = Path(os.environ["EXTENSION_ROOT"])
+declared = list((manifest.get("icons") or {}).values())
+declared += list(((manifest.get("action") or {}).get("default_icon") or {}).values())
+for value in ((manifest.get("background") or {}).get("service_worker"), (manifest.get("side_panel") or {}).get("default_path")):
+    if value:
+        declared.append(value)
+for script in manifest.get("content_scripts") or []:
+    declared += list(script.get("js") or []) + list(script.get("css") or [])
+for entry in manifest.get("web_accessible_resources") or []:
+    declared += [resource for resource in entry.get("resources") or [] if "*" not in resource]
+if not declared:
+    raise SystemExit("manifest names no files at all")
+missing = [path for path in declared if not (root / path).is_file()]
+if missing:
+    raise SystemExit("manifest names files this folder does not hold: " + ", ".join(sorted(missing)))
+PY
+}
+
 validate_extension_html_assets() {
   # Every page runs from releases/<id>/, so an absolute or missing asset
   # reference produces an extension that loads and then silently does nothing.
@@ -173,6 +203,8 @@ logue_version="$(tr -d '\r\n' < "${package_dir}/VERSION")"
 validate_release_contract || fail "Release VERSION and Extension identity do not match; the existing Extension was not changed."
 validate_extension_html_assets "${package_dir}/extension/sidepanel.html" || fail "Release Side Panel references missing or non-relative assets."
 validate_extension_html_assets "${package_dir}/extension/offscreen.html" || fail "Release offscreen document references missing or non-relative assets."
+validate_manifest_paths "${package_dir}/extension/manifest.json" "${package_dir}/extension" ||
+  fail "Release manifest names files the release does not ship; the existing Extension was not changed."
 
 step "2/3  Stage and switch atomically"
 mkdir -p "${extension_dir}/releases"
@@ -200,11 +232,26 @@ manifest = json.loads(Path(os.environ["EXTENSION_MANIFEST_SOURCE"]).read_text())
 prefix = f"releases/{os.environ['EXTENSION_ASSET_ID']}"
 manifest["background"]["service_worker"] = f"{prefix}/background.js"
 manifest["side_panel"]["default_path"] = f"{prefix}/sidepanel.html"
+
+
+def version_icons(holder, key):
+    # The icons are declared twice — the extension's own mark and the toolbar
+    # action's — and Chrome loads both from the folder it was pointed at.
+    icons = holder.get(key)
+    if icons:
+        holder[key] = {size: f"{prefix}/{path}" for size, path in icons.items()}
+
+
+version_icons(manifest, "icons")
+version_icons(manifest.get("action") or {}, "default_icon")
 versioned = False
 for script in manifest.get("content_scripts", []):
     if script.get("js") == ["content.js"]:
         script["js"] = [f"{prefix}/content.js"]
-        script["css"] = [f"{prefix}/{name}" for name in script.get("css", [])] or script.get("css", [])
+        # An empty `css` is not written back: a key Chrome has to parse, listing
+        # nothing, is a way for the rewrite to look like it happened.
+        if script.get("css"):
+            script["css"] = [f"{prefix}/{name}" for name in script["css"]]
         versioned = True
 if not versioned:
     raise SystemExit("manifest has no content script to version")
@@ -220,6 +267,10 @@ grep -Fq "\"default_path\": \"releases/${extension_asset_id}/sidepanel.html\"" "
 [[ -f "${staged_extension_assets}/background.js" && -f "${staged_extension_assets}/content.js" && -f "${staged_extension_assets}/sidepanel.html" && -f "${staged_extension_assets}/offscreen.html" ]] || fail "Staged Extension assets are incomplete."
 validate_extension_html_assets "${staged_extension_assets}/sidepanel.html" || fail "Staged Side Panel references missing or non-versioned assets."
 validate_extension_html_assets "${staged_extension_assets}/offscreen.html" || fail "Staged offscreen document references missing or non-versioned assets."
+# Read the manifest that is about to become live against the folder Chrome will
+# be pointed at: every path it names has to be a file that is already there.
+validate_manifest_paths "${extension_manifest_next}" "${extension_dir}" ||
+  fail "Staged manifest names files the Extension folder does not hold; the existing Extension was not changed."
 
 if [[ -d "${extension_dir}/manifest.json" && ! -L "${extension_dir}/manifest.json" ]]; then
   fail "Extension manifest path is a directory; stopped to avoid overwriting unknown content."
