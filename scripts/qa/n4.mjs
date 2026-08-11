@@ -99,7 +99,11 @@ export async function run(a) {
   const seen = targets.find((t) => t.url.startsWith("chrome-extension://"));
   const id = process.env.LOGUE_EXTENSION_ID ?? seen?.url.split("/")[2];
   if (!id) throw new Error("no extension id — pass LOGUE_EXTENSION_ID");
-  const panel = `chrome-extension://${id}/sidepanel.html`;
+  // An installed extension serves the panel from inside its versioned release
+  // folder, and leaves an older `sidepanel.html` at the root. Reading the root
+  // one reports the build that is not running — so the path comes from the
+  // manifest when the caller has read it.
+  const panel = process.env.LOGUE_PANEL ?? `chrome-extension://${id}/sidepanel.html`;
   await a.goto(panel);
   await a.sleep(2500);
 
