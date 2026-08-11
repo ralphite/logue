@@ -413,18 +413,34 @@ class App:
         def create_run(request: Request) -> dict[str, Any]:
             body = request.json()
             instruction = str(body.get("instruction") or "").strip()
-            if not instruction:
+            # What to work on, as opposed to what is being asked for. A rewrite
+            # has the first and none of the second.
+            text = str(body.get("input") or "").strip()
+            if not instruction and not text:
                 raise BadRequest("instruction is required")
 
-            # The question is itself worth keeping: it is what the user said.
-            activity = materials.create(
-                store,
-                kind="text",
-                content=instruction,
-                projects=[str(body.get("project"))] if body.get("project") else [],
-                actor="user",
-                extra={"purpose": "activity"},
-            )
+            # Where the request came from.
+            #
+            # Normally the question is itself worth keeping — it is what the
+            # user said, and nothing else has it. But a Skill run over a
+            # transcript is given the transcript as its instruction, and that
+            # is already a Source; storing it again would leave a copy of every
+            # recording in the workspace for every rewrite of it. `origin_id`
+            # says "the instruction is that Material", and the Run points at it.
+            origin_id = str(body.get("origin_id") or "")
+            if origin_id:
+                activity_id = str(store.materials.get(origin_id)["id"])
+            else:
+                activity_id = str(
+                    materials.create(
+                        store,
+                        kind="text",
+                        content=instruction or text,
+                        projects=[str(body.get("project"))] if body.get("project") else [],
+                        actor="user",
+                        extra={"purpose": "activity"},
+                    )["id"]
+                )
             run = generation.run_skill(
                 store,
                 self.provider(),
@@ -432,7 +448,8 @@ class App:
                 instruction=instruction,
                 project=str(body.get("project") or ""),
                 source_ids=body.get("source_ids"),
-                activity_source_id=activity["id"],
+                activity_source_id=activity_id,
+                text=text,
             )
             return {"run": run, "sources": generation.dependencies(store, run["id"])["sources"]}
 

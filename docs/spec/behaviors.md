@@ -501,6 +501,20 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   — into another language, into Markdown — puts its result beside the
   transcript with the Skill's name on it. The transcript is the first-hand text
   of the recording; replacing it with a conclusion loses what the audio proves.
+- **A rewrite is handed writing, never a request.** A Skill that translates or
+  restructures a piece of text is given the text as material and no question at
+  all. Sent as the request it arrived labelled as one, and a real model wrote
+  the label into its own answer — then again, compounded, on the next rewrite.
+- **Running a Skill over something already kept does not keep it again.** The
+  words of a recording are already a Source; a rewrite of them points at that
+  Source rather than storing a second copy of it.
+- **Every text a recording produced offers the same things**: copy it, and run
+  any dictation Skill that has not already been run on it. The transcript is
+  not privileged — it is the first text, shaped like the ones after it.
+- **Where a Skill is offered is a control, not a sentence.** Every surface
+  decides what to show from a Skill's contexts, so a Skill can be written and
+  then appear nowhere; the page that says where it is used is the page that
+  sets it.
 - **Context spells what was said; it never supplies it.** Whatever surrounds
   the words — the page being read, the document being written into — goes to
   the model as quoted material, to get names and terms spelled the way they are

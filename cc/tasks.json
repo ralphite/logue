@@ -6,7 +6,7 @@
       "id": "N4",
       "title": "面板加一个 Dictation 分区:说完能改写、能复制、还能接着录下一条",
       "type": "feature",
-      "status": "blocked",
+      "status": "done",
       "priority": "P0",
       "confirmed": true,
       "tags": [
@@ -14,14 +14,13 @@
         "voice",
         "dictation"
       ],
-      "note": "**方案写好了,在 [docs/spec/dictation.md](docs/spec/dictation.md),等你回答四个问题。**<br>五件事:①面板里新开一个 tab,叫 **Dictation**;②录的时候把当前页面的可见文字一起当 context(他明说「你可以决定,你可以反驳我」);③转完之后音频和文本都要在;④文本能一键复制,也能用预先定义好的 Skill 一键改写(中文转英文、重写成 markdown);⑤多个任务并行。UI 要和输入框里那条 transcribe-and-insert **同一套**,他把设计交给我。<br>**方案里已经定的**:②我反驳了「送正文」——量过,真实维基页抽出 60,000 字,而转写上下文只装 1,500 字,等于整页的 2.5%,而且那 2.5% 恰好是维护模板;改成**送整页的生词表**(327 字,含 HMM/ASR/CTC/Rabiner/Siri)。⑤ V3 已经做掉一半(麦克风在按下停止那刻就还回来),这里只缺一个**列表**。⑥ **和 N1b 其实不撞车** —— Dictation 的主语是「我现在说的话」,是第四个主语,A/B 两种排法下它都是自己一格,里面完全一样。<br>**顺手修掉一个正在发生的 bug**:`readablePageText()` 用「含空格」判断正文,中文句子没有空格 —— 真实中文维基页上 440 块里丢掉 362 块,正文段落全丢。已修并验:中文页 87→169 块、7,680→13,592 字,英文页 699→699 零变化。",
+      "note": "面板里加了一个 **Dictation** tab:一个底部按钮开始录,按下之后**原地变形**成 ✕ · ● 计时 · 波形 · ✓;说完落成一条 Source(音频 + 文字都在),每一段文字都能复制、也能再套一个 Skill,**套出来的和原文长得一模一样、能继续再套**,缩进表示 lineage,用过的 Skill 在那一段上不再出现。内建两个 Skill:Into English、As Markdown;Skills 页的「Used where」从只读的一行字改成了可点的开关。<br>**方案在 [docs/spec/dictation.md](docs/spec/dictation.md)**,mockup 迭代到 v4(他砍掉了语音选项、待转计数、10:00 提示、版本编号)。<br>**真机验过 13/13**:真麦克风(`say` 说给它听)、真 Host、真 Gemini。路上抓到两个真 bug:①`readablePageText()` 用「含空格」判断正文,中文页 440 块丢 362 块;②改写把待处理的文字当成「Request:」送给模型,模型把这个标签写进了自己的答案,第二次改写还会叠加成「# Request: Request:」——现在 `POST /v1/runs` 分成 `instruction`(要什么)和 `input`(处理什么)两件事。",
       "input_ids": [
         "in_extension_panel_tab",
         "in_dictation_dictation_ui"
       ],
       "created": "2026-08-11",
-      "updated": "2026-08-10",
-      "blocked_on": "等你回答 docs/spec/dictation.md 第七节的四个问题(中文页上下文怎么取、列表显示哪些段、改写要不要存、先做哪个)"
+      "updated": "2026-08-11"
     },
     {
       "id": "N2",

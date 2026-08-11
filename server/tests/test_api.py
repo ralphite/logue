@@ -103,6 +103,54 @@ class HostTest(Workspace, unittest.TestCase):
         self.assertEqual(run["citations"], [1])
         self.assertTrue(run["activity_source_id"], "the question itself is kept")
 
+    def test_a_run_over_an_existing_source_does_not_store_it_twice(self) -> None:
+        """A rewrite of a transcript is given the transcript as its instruction.
+
+        Without somewhere to say "the instruction already is a Source", every
+        rewrite left another copy of the recording's words in the workspace.
+        """
+        said = self.call("POST", "/v1/materials", {"kind": "text", "content": "The words that were said."})["material"]
+        before = len(self.call("GET", "/v1/materials")["materials"])
+        english = next(s for s in self.call("GET", "/v1/skills")["skills"] if s["name"] == "Into English")
+
+        run = self.call(
+            "POST",
+            "/v1/runs",
+            {"skill_id": english["id"], "input": said["content"], "source_ids": [], "origin_id": said["id"]},
+        )["run"]
+
+        self.assertEqual(run["activity_source_id"], said["id"], "the Run points at the Source it came from")
+        self.assertEqual(len(self.call("GET", "/v1/materials")["materials"]), before, "nothing was stored again")
+
+    def test_text_to_work_on_is_not_sent_as_the_request(self) -> None:
+        """A rewrite is handed a piece of writing, not a question about one.
+
+        Sent as the request it arrived labelled `Request:`, and a real model
+        wrote the label into its own answer — then again on the next rewrite.
+        """
+        seen: dict[str, str] = {}
+
+        class Watching(FakeProvider):
+            def generate(self, system: str, prompt: str) -> str:
+                seen["prompt"] = prompt
+                return "translated"
+
+        watching = Watching(api_key="test-key")
+        watching.record_health("generation", True)
+        self.app.provider = lambda: watching  # type: ignore[method-assign]
+        english = next(s for s in self.call("GET", "/v1/skills")["skills"] if s["name"] == "Into English")
+
+        self.call("POST", "/v1/runs", {"skill_id": english["id"], "input": "把它翻译一下。", "source_ids": []})
+
+        self.assertIn("<text>", seen["prompt"], "the writing arrives as writing")
+        self.assertNotIn("Request:", seen["prompt"], "and never as a request")
+
+    def test_dictation_skills_ship_and_ask_for_nothing_but_the_text(self) -> None:
+        skills = {s["name"]: s for s in self.call("GET", "/v1/skills")["skills"]}
+        for name in ("Into English", "As Markdown"):
+            self.assertEqual(skills[name]["contexts"], ["dictation"], f"{name} is offered on dictated text")
+            self.assertTrue(skills[name]["instructions"].strip(), f"{name} has a prompt")
+
     def test_citations_are_read_in_both_forms_models_write(self) -> None:
         from logue_host.domain.generation import cited_indexes
 

@@ -37,6 +37,15 @@ than counted. It also posts pure silence and asserts an empty transcript back.
 launch without `LOGUE_TEST_AUDIO` and use Chrome's built-in fake device. It is
 a tone, not speech, so it proves the plumbing and says nothing about words.
 
+**And when a check needs real words in a real browser** — a transcript to
+rewrite, say — `LOGUE_TEST_REAL_MIC=1` drops the fake device and leaves Chrome
+on the machine's own microphone. The check speaks with `say` and the recording
+hears it through the room. Measured 2026-08-11: peak 0.0434, 400KB in five
+seconds, against 0 for every file-backed variant including a stereo 48k
+re-encode. It needs the speakers audible and nothing plugged into the
+headphone jack, so it is opt-in — but it is the only way to get real speech
+through a real recording, and `n4` uses it.
+
 **Before trusting any browser-side voice check**, run the gate:
 
 ```bash
@@ -89,6 +98,7 @@ that needs their account.
 | `v7` | a rewrite decided change by change |
 | `p5` | the panel's keys leave typing alone |
 | `remote-host` | the address in the panel is what the extension calls — a second Host, and a real https tunnel |
+| `n4` | Dictation: one control that morphs where it is, a transcript, and Skills chained over it (needs `LOGUE_TEST_REAL_MIC=1`) |
 
 ## S3 — the day a real key arrives
 

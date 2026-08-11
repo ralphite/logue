@@ -57,6 +57,49 @@ BUILT_INS: list[dict[str, Any]] = [
         "contexts": ["transcription"],
     },
     {
+        "key": "into_english",
+        "name": "Into English",
+        "purpose": "The same thing, in English.",
+        "instructions": (
+            "Translate the text into natural English.\n"
+            "\n"
+            "Keep the meaning, the tone and the register of the original. Do not summarise, do not "
+            "expand, do not add anything that was not there. Names, numbers, quotations and technical "
+            "terms stay as they are unless English has a settled form for them.\n"
+            "\n"
+            "If the text is already English, return it unchanged.\n"
+            "\n"
+            "Return the translation alone, with no commentary."
+        ),
+        "task": "generate",
+        "output": "insert",
+        "surfaces": ["web", "extension"],
+        # Offered on any piece of dictated text — the transcript, or anything
+        # another Skill has already made from it.
+        "contexts": ["dictation"],
+    },
+    {
+        "key": "as_markdown",
+        "name": "As Markdown",
+        "purpose": "The same words, given structure.",
+        "instructions": (
+            "Rewrite the text as Markdown, keeping the words as close to the original as the "
+            "structure allows.\n"
+            "\n"
+            "Give it the shape it already has: headings where the speaker changed subject, a list "
+            "where they listed things, paragraphs everywhere else. Use the original's own language.\n"
+            "\n"
+            "Do not summarise and do not add anything that was not said. Structure is the only thing "
+            "being added.\n"
+            "\n"
+            "Return the Markdown alone, with no commentary and no code fence around it."
+        ),
+        "task": "generate",
+        "output": "insert",
+        "surfaces": ["web", "extension"],
+        "contexts": ["dictation"],
+    },
+    {
         "key": "draft",
         "name": "Draft document",
         "purpose": "Write a document grounded in the Project's Sources.",

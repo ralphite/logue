@@ -12,6 +12,18 @@ const LONG_MS = 60 * 1000;
 
 export type VoicePhase = "idle" | "starting" | "recording" | "working" | "error";
 
+/**
+ * What became of one recording.
+ *
+ * A failure used to be reported only by leaving `phase` at "error" — which
+ * works for a bar showing one recording and not at all for a list showing
+ * four: the caller could not tell whose failure it was reading. The outcome
+ * comes back to whoever asked for it.
+ */
+export type Settled =
+  | { ok: true; text: string; material: Material }
+  | { ok: false; message: string; captureId?: string };
+
 function describe(cause: unknown): string {
   if (cause instanceof HostError) return cause.message;
   return cause instanceof Error ? cause.message : "Something went wrong.";
@@ -114,7 +126,8 @@ export function useVoice() {
   }, []);
 
   /**
-   * Stops, then settles in the background. Returns the Material, or undefined.
+   * Stops, then settles in the background. Returns what became of it, or
+   * undefined if the recording was cancelled or superseded meanwhile.
    *
    * The await falls in two halves on purpose. Capturing the audio is quick
    * and exclusive — the microphone is one. Settling it (transcribe, save) is
@@ -130,12 +143,28 @@ export function useVoice() {
       parentIds?: string[];
       /** What the person is writing into, so names match the page. */
       nearby?: string;
-    }): Promise<{ text: string; material: Material } | undefined> => {
+      /**
+       * Keep failures out of the shared phase and error.
+       *
+       * A caller that shows one recording wants them there — it is the only
+       * place it has to say so. A caller showing a list of recordings has a
+       * row per recording, and a shared error there would blame whichever one
+       * happens to be on top.
+       */
+      quiet?: boolean;
+    }): Promise<Settled | undefined> => {
       const id = session.current;
       // Read the clock before the phase change resets it: this is the only
       // record of how long the recording ran, and a queued one has to be able
       // to say so later.
       const ranFor = seconds;
+      const failed = (message: string, captureId?: string): Settled => {
+        if (!options.quiet) {
+          setPhase("error");
+          setError(message);
+        }
+        return { ok: false, message, captureId };
+      };
       setPhase("working");
       const recorded = await send<{
         ok: boolean;
@@ -149,9 +178,7 @@ export function useVoice() {
       });
       if (session.current !== id) return undefined;
       if (!recorded?.ok || !recorded.audio) {
-        setPhase("error");
-        setError(recorded?.message ?? "Nothing was recorded.");
-        return undefined;
+        return failed(recorded?.message ?? "Nothing was recorded.");
       }
 
       // A silent recording never reaches the model.
@@ -164,9 +191,7 @@ export function useVoice() {
       // recorder that never reported leaves it undefined, and an unanswered
       // question must not become an accusation.
       if (recorded.heard === false) {
-        setPhase("error");
-        setError("Logue did not hear anything. Check the microphone and try again.");
-        return undefined;
+        return failed("Logue did not hear anything. Check the microphone and try again.");
       }
 
       // The microphone is free from here; everything below is one job among
@@ -190,9 +215,10 @@ export function useVoice() {
           // half the job — the recording sat there with nothing offering a
           // second attempt, which reads as "kept, and no use to you".
           setKept(capture_id);
-          setPhase("error");
-          setError("Nothing was heard in that recording. The audio was kept — you can try again.");
-          return undefined;
+          return failed(
+            "Nothing was heard in that recording. The audio was kept — you can try again.",
+            capture_id,
+          );
         }
         const { material } = await host.saveVoice({
           capture_id,
@@ -202,7 +228,7 @@ export function useVoice() {
           parent_ids: options.parentIds,
           applied_context,
         });
-        return { text, material };
+        return { ok: true, text, material };
       } catch (cause) {
         // The Host is not answering, so nothing has the audio but this page —
         // and this page is about to forget it. Keep it, and say it is kept.
@@ -221,26 +247,22 @@ export function useVoice() {
             parentIds: options.parentIds,
             nearby: options.nearby,
           });
-          setPhase("error");
-          setError(
+          return failed(
             queued
               ? "Logue is not running. The recording is kept and will be saved when it starts."
               : `Logue is not running, and ${LIMIT} recordings are already waiting. Start Logue to save them.`,
           );
-          return undefined;
         }
         // A model that refused, or a Host that answered with a failure: the
         // audio is already on disk there, and the id came back with the error.
         // Remembering it is the whole difference between "try again" and
         // "say it all over again".
-        if (cause instanceof HostError && cause.captureId) setKept(cause.captureId);
-        setPhase("error");
-        setError(
-          cause instanceof HostError && cause.captureId
-            ? `${describe(cause)} The recording was kept — you can try again.`
-            : describe(cause),
+        const onDisk = cause instanceof HostError ? cause.captureId : undefined;
+        if (onDisk) setKept(onDisk);
+        return failed(
+          onDisk ? `${describe(cause)} The recording was kept — you can try again.` : describe(cause),
+          onDisk,
         );
-        return undefined;
       } finally {
         setPending((n) => n - 1);
       }
@@ -256,10 +278,19 @@ export function useVoice() {
       source?: unknown;
       parentIds?: string[];
       nearby?: string;
-    }): Promise<{ text: string; material: Material } | undefined> => {
+      /** As on `stop`: a caller with a row per recording says it there. */
+      quiet?: boolean;
+    }): Promise<Settled | undefined> => {
       const captureId = kept;
       if (!captureId) return undefined;
       const id = (session.current += 1);
+      const failed = (message: string): Settled => {
+        if (!options.quiet) {
+          setPhase("error");
+          setError(message);
+        }
+        return { ok: false, message, captureId };
+      };
       setPhase("working");
       setError(undefined);
       try {
@@ -270,9 +301,7 @@ export function useVoice() {
         });
         if (session.current !== id) return undefined;
         if (!text.trim()) {
-          setPhase("error");
-          setError("Nothing was heard in that recording. The audio is still kept.");
-          return undefined;
+          return failed("Nothing was heard in that recording. The audio is still kept.");
         }
         const { material } = await host.saveVoice({
           capture_id: captureId,
@@ -285,13 +314,11 @@ export function useVoice() {
         if (session.current !== id) return undefined;
         setKept(undefined);
         setPhase("idle");
-        return { text, material };
+        return { ok: true, text, material };
       } catch (cause) {
         if (session.current !== id) return undefined;
-        setPhase("error");
         // The audio has not gone anywhere; it stays offered.
-        setError(`${describe(cause)} The recording is still kept.`);
-        return undefined;
+        return failed(`${describe(cause)} The recording is still kept.`);
       }
     },
     [kept],

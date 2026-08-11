@@ -162,7 +162,29 @@ export const host = {
     parent_ids?: string[];
   }) => post<{ material: Material }>("/v1/materials", body),
 
-  run: (body: { skill_id: string; instruction: string; project?: string; source_ids?: string[] }) =>
+  run: (body: {
+    skill_id: string;
+    /** What is being asked for. A rewrite asks for nothing beyond its Skill. */
+    instruction?: string;
+    /**
+     * The text to work on.
+     *
+     * Not the same thing as the instruction, and sending it as one made a real
+     * model answer "Request: …" — it carried the label it had been handed into
+     * its own output, and compounded it on the next rewrite.
+     */
+    input?: string;
+    project?: string;
+    source_ids?: string[];
+    /**
+     * The Material the instruction already is.
+     *
+     * Without it every Skill run over a transcript stores the transcript again
+     * as its own "what was asked" Source — a copy of the recording's words per
+     * rewrite of them.
+     */
+    origin_id?: string;
+  }) =>
     post<{ run: { id: string; original_output?: string; status: string; error?: string }; sources: Material[] }>(
       "/v1/runs",
       body,

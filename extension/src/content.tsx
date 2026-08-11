@@ -291,7 +291,7 @@ function Surfaces() {
       // the person means, and they may click away while it transcribes.
       nearby: nearbyText(target.current),
     });
-    if (result) {
+    if (result?.ok) {
       place(result.text, held);
     }
   };
@@ -308,7 +308,7 @@ function Surfaces() {
       source: pageSource(),
       nearby: nearbyText(target.current),
     });
-    if (result) {
+    if (result?.ok) {
       place(result.text, held);
     }
   };

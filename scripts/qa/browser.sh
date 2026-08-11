@@ -45,7 +45,8 @@ nohup "${chrome}" \
   --remote-debugging-port="${port}" \
   --no-first-run --no-default-browser-check \
   --enable-unsafe-extension-debugging --remote-debugging-targets \
-  --use-fake-ui-for-media-stream --use-fake-device-for-media-stream \
+  --use-fake-ui-for-media-stream \
+  ${LOGUE_TEST_REAL_MIC:---use-fake-device-for-media-stream} \
   ${LOGUE_TEST_AUDIO:+--use-file-for-fake-audio-capture="${LOGUE_TEST_AUDIO}"} \
   --window-size=1400,900 "${page}" >"${here}/test-browser-${port}.log" 2>&1 &
 

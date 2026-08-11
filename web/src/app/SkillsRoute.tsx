@@ -1,12 +1,20 @@
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Button, ErrorNote, Field, Input, Select, Spinner, Textarea } from "@logue/ui";
+import { Button, ErrorNote, Field, Input, Select, Spinner, Textarea, cn } from "@logue/ui";
 import { api, type Skill } from "../api";
 import { DRAFT, Nothing, Page } from "./AppShell";
 import { History, SKILL } from "./History";
 import { NewNamed } from "./NewNamed";
 import { ConfirmDelete } from "./ConfirmDelete";
 import { useAction, useHost } from "./useHost";
+
+/** The four places a Skill can be reached from, in the words each one uses. */
+const WHERE: { key: string; label: string; hint: string }[] = [
+  { key: "project", label: "A Project", hint: "Offered when generating from a Project's Sources." },
+  { key: "page", label: "A page", hint: "Offered on the right-click menu of a web page." },
+  { key: "selection", label: "A selection", hint: "Offered on the toolbar over selected text." },
+  { key: "dictation", label: "Dictation", hint: "Offered on anything spoken into the panel." },
+];
 
 /**
  * One Skill, full width. The list of them is in the rail.
@@ -60,6 +68,7 @@ export function SkillsRoute({
           purpose: editing.purpose,
           instructions: editing.instructions,
           output: editing.output,
+          contexts: editing.contexts,
           enabled: editing.enabled,
         }),
       )
@@ -108,10 +117,44 @@ export function SkillsRoute({
             <option value="qa">An answer</option>
           </Select>
         </Field>
+        {/*
+          Where a Skill is offered, and until now a sentence rather than a
+          control. Every surface reads `contexts` to decide what to put in
+          front of someone — so a Skill written for dictation could be written
+          and then never appear anywhere, with nothing on the page explaining
+          why. The four are the four places a Skill can be reached from.
+        */}
         <Field label="Used where">
-          <span className="flex flex-wrap gap-1 text-xs text-muted">
-            {skill.contexts.length === 0 ? "Anywhere" : skill.contexts.join(" · ")}
-          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {WHERE.map((where) => {
+              const on = (editing.contexts ?? []).includes(where.key);
+              return (
+                <button
+                  key={where.key}
+                  type="button"
+                  aria-pressed={on}
+                  title={where.hint}
+                  onClick={() =>
+                    setDraft({
+                      ...editing,
+                      id: skill.id,
+                      contexts: on
+                        ? (editing.contexts ?? []).filter((name) => name !== where.key)
+                        : [...(editing.contexts ?? []), where.key],
+                    })
+                  }
+                  className={cn(
+                    "h-control rounded-md border px-2 text-xs font-[560]",
+                    on
+                      ? "border-accent-line bg-accent-soft text-accent-ink"
+                      : "border-line-strong bg-surface text-muted hover:text-ink",
+                  )}
+                >
+                  {where.label}
+                </button>
+              );
+            })}
+          </div>
         </Field>
         <Textarea
           className="min-h-64 font-mono text-xs"

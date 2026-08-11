@@ -56,7 +56,17 @@ def run_skill(
     project: str = "",
     source_ids: list[str] | None = None,
     activity_source_id: str = "",
+    text: str = "",
 ) -> Record:
+    """Run a Skill. `instruction` is what was asked; `text` is what to work on.
+
+    They are not the same thing and must not be sent as if they were. A Skill
+    that rewrites — into another language, into Markdown — is given a piece of
+    writing and no request at all, and passing that writing as the request made
+    a real model answer "Request: Test voice input\nWe should settle…", with
+    the label it had been handed carried into its own output. Run it twice and
+    the answer began "# Request: Request:".
+    """
     skill = store.skills.get(skill_id)
     if not str(skill.get("instructions") or "").strip():
         # Named but not written yet. Sending an empty prompt would produce
@@ -81,7 +91,15 @@ def run_skill(
         ]
         if part
     )
-    prompt = "\n\n".join(part for part in [numbered(sources), f"Request: {instruction}"] if part)
+    prompt = "\n\n".join(
+        part
+        for part in [
+            numbered(sources),
+            f"<text>\n{text}\n</text>" if text else "",
+            f"Request: {instruction}" if instruction else "",
+        ]
+        if part
+    )
 
     run: Record = {
         "id": new_id("run"),
@@ -89,7 +107,7 @@ def run_skill(
         "skill_name": skill.get("name"),
         "skill_revision": skill.get("revision", 1),
         "skill_instructions": skill.get("instructions"),
-        "instruction": instruction,
+        "instruction": instruction or text,
         "project": project,
         "task": skill.get("task", "generate"),
         "output_type": skill.get("output", "insert"),

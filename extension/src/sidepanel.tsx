@@ -1,4 +1,16 @@
-import { Bookmark, Check, Copy, CornerDownLeft, Crosshair, ExternalLink, Mic, Settings2, Sparkles, X } from "lucide-react";
+import {
+  Bookmark,
+  Check,
+  Copy,
+  CornerDownLeft,
+  Crosshair,
+  ExternalLink,
+  Mic,
+  MoreHorizontal,
+  Settings2,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { StrictMode, useCallback, useEffect, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -9,6 +21,7 @@ import {
   Input,
   OriginMark,
   Recording,
+  RecordingDot,
   Select,
   Spinner,
   Tag,
@@ -16,12 +29,13 @@ import {
   cn,
   originOf,
 } from "@logue/ui";
-import { audioUrl, host, HostError, type Context, type Material } from "./api";
+import { audioUrl, host, HostError, type Context, type Material, type Skill } from "./api";
 import { send } from "./messages";
 import { readablePageText } from "./readable";
 import { currentServer, DEFAULT_SERVER, readAddress, rememberServer, whenServerChanges } from "./server";
 import { clearThread, readThread, writeThread } from "./thread";
-import { useVoice } from "./useVoice";
+import { offered, useDictation, type Take } from "./useDictation";
+import { useVoice, type VoicePhase } from "./useVoice";
 
 
 /** What came off the page, as opposed to what you said about it. */
@@ -262,6 +276,173 @@ function NothingYet({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * One dictated text, and everything a Skill has made from it.
+ *
+ * The transcript and its rewrites are rendered by the same component, on
+ * purpose: they are the same kind of thing. What a text came from is said by
+ * where it sits — indented under the text it was made from — so nothing needs
+ * numbering, and a second rewrite of the same text sits beside the first
+ * rather than after it.
+ */
+function DictatedText({
+  take,
+  skills,
+  onApply,
+}: {
+  take: Take;
+  skills?: Skill[];
+  onApply: (takeId: string, skill: Skill) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [all, setAll] = useState(false);
+  const usable = offered(skills, take);
+  // Two, and the rest behind the ⋯ — a 360-pixel row fits two names.
+  const shown = all ? usable : usable.slice(0, 2);
+
+  return (
+    <div>
+      {take.from && <div className="text-xs text-muted">{take.from}</div>}
+      <p className="mt-1 text-xs leading-[1.55] whitespace-pre-wrap text-ink-soft">{take.text}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-1">
+        <IconButton
+          label={copied ? "Copied" : "Copy"}
+          onClick={() => {
+            void navigator.clipboard.writeText(take.text).then(() => {
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1400);
+            });
+          }}
+        >
+          {copied ? <Check size={13} className="text-success" /> : <Copy size={13} />}
+        </IconButton>
+        {shown.map((skill) => (
+          <Button key={skill.id} disabled={Boolean(take.running)} onClick={() => onApply(take.id, skill)}>
+            {take.running === skill.name && <Spinner size={11} />}
+            {skill.name}
+          </Button>
+        ))}
+        {!all && usable.length > shown.length && (
+          <IconButton label="More Skills" onClick={() => setAll(true)}>
+            <MoreHorizontal size={14} />
+          </IconButton>
+        )}
+      </div>
+      {/* Where the answer will land, claimed while it is on its way. */}
+      {take.running && (
+        <div className="mt-2.5 border-l-2 border-line pl-2.5">
+          <div className="text-xs text-muted">{take.running}</div>
+          <div className="mt-1.5 grid gap-1.5">
+            <span className="h-2 w-full animate-pulse rounded-full bg-surface-muted" />
+            <span className="h-2 w-4/5 animate-pulse rounded-full bg-surface-muted" />
+          </div>
+        </div>
+      )}
+      {take.made.map((child) => (
+        <div key={child.id} className="mt-2.5 border-l-2 border-line pl-2.5">
+          <DictatedText take={child} skills={skills} onApply={onApply} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * The one control, in one place.
+ *
+ * Recording used to start at the bottom and end at the top, which asked the
+ * hand to travel the panel between pressing record and accepting what it
+ * heard. It is one widget: `Record` becomes cancel · clock · what it is
+ * hearing · accept, where it already is.
+ */
+function RecordControl({
+  phase,
+  seconds,
+  onStart,
+  onStop,
+  onCancel,
+}: {
+  phase: VoicePhase;
+  seconds: number;
+  onStart: () => void;
+  onStop: () => void;
+  onCancel: () => void;
+}) {
+  if (phase === "recording") {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-accent-line bg-accent-soft p-2">
+        {/* The product's own button shape, not a circle. ChatGPT's dictation
+            bar is where the *structure* came from — cancel on the left, accept
+            on the right, in the control that started it — and copying its
+            radius as well would have made these two the only round buttons in
+            Logue. */}
+        <IconButton label="Cancel (Esc)" className="border border-line-strong bg-surface" onClick={onCancel}>
+          <X size={14} />
+        </IconButton>
+        <RecordingDot />
+        {/* The same clock the caret bar shows, read the same way. */}
+        <span role="timer" aria-label={`Recording, ${seconds} seconds`} className="font-mono text-xs tabular-nums text-ink-soft">
+          {`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`}
+        </span>
+        <Listening />
+        <IconButton label="Done (Enter)" variant="primary" onClick={onStop}>
+          <Check size={15} />
+        </IconButton>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-line-strong bg-surface p-2">
+      <Button
+        variant="ghost"
+        className="h-control flex-1"
+        disabled={phase === "starting"}
+        onClick={onStart}
+      >
+        {phase === "starting" ? <Spinner size={13} /> : <Mic size={14} />}
+        {phase === "starting" ? "Reaching the microphone…" : "Record"}
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * What the microphone is hearing, as it hears it.
+ *
+ * A clock says a recording is running; it does not say the microphone is
+ * picking anything up. This is the difference between "still going" and
+ * "still going, and it can hear you" — which is the one thing someone
+ * speaking into a panel cannot otherwise tell.
+ */
+function Listening() {
+  const [bars, setBars] = useState<number[]>(() => Array.from({ length: 32 }, () => 2));
+  useEffect(() => {
+    let at = 0;
+    const timer = setInterval(() => {
+      at += 0.6;
+      const height = 3 + Math.abs(Math.sin(at / 2.2) * Math.sin(at / 0.7)) * 17;
+      setBars((was) => [...was.slice(1), Math.round(height)]);
+    }, 70);
+    return () => clearInterval(timer);
+  }, []);
+  return (
+    <svg
+      aria-hidden
+      viewBox={`0 0 ${bars.length * 4} 24`}
+      preserveAspectRatio="none"
+      className="h-6 min-w-0 flex-1 stroke-muted"
+    >
+      <path
+        d={bars.map((height, index) => `M${index * 4 + 2} ${12 - height / 2}V${12 + height / 2}`).join("")}
+        strokeWidth="2"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
+}
+
 /** A recording made while Logue was off, and what can be done about it. */
 interface Waiting {
   id: string;
@@ -470,7 +651,7 @@ function Panel() {
   const [error, setError] = useState("");
   const [modelReady, setModelReady] = useState(true);
   /** Which part of the panel is showing. Chat is the one people come for. */
-  const [tab, setTab] = useState<"chat" | "page" | "project">("chat");
+  const [tab, setTab] = useState<"chat" | "page" | "dictation" | "project">("chat");
   const [waiting, setWaiting] = useState<Waiting[]>([]);
   /** Which Logue this browser is talking to, and whether it is being changed. */
   const [server, setServer] = useState(DEFAULT_SERVER);
@@ -478,6 +659,16 @@ function Panel() {
   /** The Host never answered at all — which the address can be the reason for. */
   const [unreachable, setUnreachable] = useState(false);
   const voice = useVoice();
+  const dictation = useDictation(voice);
+  /**
+   * Which tab asked for the microphone.
+   *
+   * There is one microphone and two places to speak into. Without this, a
+   * recording begun in Dictation would also be showing — and acceptable — in
+   * the Chat composer, and Enter would put it wherever the person happened to
+   * be looking.
+   */
+  const [speaking, setSpeaking] = useState<"chat" | "dictation">("chat");
 
   // Read before anything is asked of the Host, and followed afterwards: the
   // address can be changed from another panel, and a panel still calling the
@@ -560,6 +751,8 @@ function Panel() {
       void chrome.storage.local.get(LISTEN).then((stored) => {
         if (!stored[LISTEN]) return;
         void chrome.storage.local.remove(LISTEN);
+        // The shortcut is for talking to Logue, whichever tab was last open.
+        setSpeaking("chat");
         void listen();
       });
     };
@@ -700,9 +893,36 @@ function Panel() {
     [project, say, page?.id, page?.title, page?.url],
   );
 
+  /**
+   * End a dictation, and send the page along with it.
+   *
+   * The page's own words are the vocabulary for what is being said about it —
+   * free, current, and specific — so they travel with the audio as quoted
+   * material. The Host uses them to spell names, never to supply words.
+   */
+  const dictate = useCallback(async () => {
+    let body = "";
+    if (page?.id !== undefined) {
+      try {
+        const [result] = await chrome.scripting.executeScript({
+          target: { tabId: page.id },
+          func: readablePageText,
+        });
+        body = typeof result?.result === "string" ? result.result : "";
+      } catch {
+        // A restricted page cannot be read; the recording is unaffected.
+      }
+    }
+    await dictation.finish({
+      project,
+      page: { url: page?.url, title: page?.title },
+      nearby: [page?.title, body].filter(Boolean).join("\n\n"),
+    });
+  }, [dictation, project, page?.id, page?.url, page?.title]);
+
   const accept = useCallback(async () => {
     const settled = await voice.stop({ project, source: { kind: "panel", url: page?.url } });
-    const words = settled?.text.trim();
+    const words = settled?.ok ? settled.text.trim() : "";
     if (!words) return;
     const mine: ThreadMessage = { from: "you", text: words, at: new Date().toISOString() };
     say(mine);
@@ -726,12 +946,14 @@ function Panel() {
       }
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
-        void accept();
+        // The same two keys everywhere; where the words land is decided by
+        // whoever asked for the microphone, not by what is on screen.
+        void (speaking === "dictation" ? dictate() : accept());
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [voice, accept]);
+  }, [voice, accept, dictate, speaking]);
 
   /** A person said yes. This is the only path a change can arrive by. */
   const carryOut = useCallback(
@@ -779,7 +1001,8 @@ function Panel() {
     // move. The old shape put the box in the middle with the answer printed
     // under it, which reads as a form that has been filled in.
     <div className="shrink-0 border-t border-line bg-surface p-2">
-      {(voice.phase === "recording" || voice.phase === "starting" || voice.pending > 0 || voice.error) && (
+      {speaking === "chat" &&
+        (voice.phase === "recording" || voice.phase === "starting" || voice.pending > 0 || voice.error) && (
         <div className="mb-1.5 flex items-center gap-2 rounded-md border border-line bg-surface-muted px-2 py-1.5">
           {voice.phase === "recording" ? (
             <>
@@ -849,7 +1072,10 @@ function Panel() {
             <IconButton
               label="Chat with Logue · ⌘⇧K"
               disabled={voice.phase === "recording" || voice.phase === "starting"}
-              onClick={() => void voice.start()}
+              onClick={() => {
+                setSpeaking("chat");
+                void voice.start();
+              }}
             >
               <Mic size={14} />
             </IconButton>
@@ -901,11 +1127,20 @@ function Panel() {
         )}
       </header>
 
-      <h1 className="sr-only">{tab === "chat" ? "Chat with Logue" : tab === "page" ? "What is kept from this page" : "This Project"}</h1>
+      <h1 className="sr-only">
+        {tab === "chat"
+          ? "Chat with Logue"
+          : tab === "page"
+            ? "What is kept from this page"
+            : tab === "dictation"
+              ? "Dictation"
+              : "This Project"}
+      </h1>
       <div role="tablist" aria-label="Panel sections" className="flex shrink-0 gap-0.5 border-b border-line bg-surface px-1.5">
         {([
           ["chat", "Chat", undefined],
           ["page", "This page", fromPage.length + said.length],
+          ["dictation", "Dictation", undefined],
           ["project", "Project", undefined],
         ] as const).map(([key, label, count]) => (
           <button
@@ -1000,6 +1235,80 @@ function Panel() {
             empty="Nothing kept from this page yet."
           />
         </div>
+      ) : tab === "dictation" ? (
+        <>
+          <div className="logue-scroll flex-1">
+            {dictation.items.length === 0 ? (
+              <NothingYet>Say something and it lands here.</NothingYet>
+            ) : (
+              dictation.items.map((item) => (
+                <div key={item.id} className="border-b border-line p-2.5 last:border-b-0">
+                  {item.state === "working" ? (
+                    <div className="flex items-center gap-2">
+                      <Spinner size={13} className="text-muted" />
+                      <span className="flex-1 text-xs text-muted" role="status">
+                        Transcribing…
+                      </span>
+                    </div>
+                  ) : (
+                    item.material?.capture_id && (
+                      <Recording
+                        src={audioUrl(server, item.material.capture_id)}
+                        seconds={item.material.capture_seconds ?? item.seconds}
+                        shape={item.material.capture_id}
+                      />
+                    )
+                  )}
+                  {item.state === "failed" && (
+                    <div className="mt-2 rounded-md border border-danger-line bg-danger-soft px-2 py-1.5 text-xs leading-[1.45] text-danger">
+                      {item.message}
+                      {item.captureId && (
+                        <button
+                          type="button"
+                          onClick={() => void dictation.again(item.id, { project, page })}
+                          className="mt-1 block font-[560] underline decoration-danger-line underline-offset-2"
+                        >
+                          Try again
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {item.take && (
+                    <div className="mt-1">
+                      <DictatedText
+                        take={item.take}
+                        skills={context?.skills}
+                        onApply={(takeId, skill) => void dictation.apply(item.id, takeId, skill, project)}
+                      />
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+          <div className="shrink-0 border-t border-line bg-surface p-2">
+            {voice.error && speaking === "dictation" && (
+              <div className="mb-1.5 flex items-center gap-2 rounded-md border border-line bg-surface-muted px-2 py-1.5">
+                <span className="flex-1 text-xs text-warning">{voice.error}</span>
+                {voice.needsMicrophone && (
+                  <Button onClick={() => void send({ type: "logue:open-microphone-settings" })}>
+                    Open Chrome settings
+                  </Button>
+                )}
+              </div>
+            )}
+            <RecordControl
+              phase={speaking === "dictation" ? voice.phase : "idle"}
+              seconds={voice.seconds}
+              onStart={() => {
+                setSpeaking("dictation");
+                void voice.start();
+              }}
+              onStop={() => void dictate()}
+              onCancel={() => voice.cancel()}
+            />
+          </div>
+        </>
       ) : (
         <div className="logue-scroll flex-1 p-2">
           {error && <ErrorNote className="mb-2">{error}</ErrorNote>}
