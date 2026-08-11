@@ -28,8 +28,17 @@ export function readablePageText(): string {
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (!(node instanceof HTMLElement)) continue;
     const text = node.innerText?.replace(/\s+/g, " ").trim();
-    // Single words are navigation, not prose.
-    if (text && text.length > 2 && text.includes(" ")) parts.push(text);
+    // Single words are navigation, not prose — but a space is how a Latin
+    // script says "more than one word", not how every script does. Chinese,
+    // Japanese, Korean and Thai write sentences without any, so requiring one
+    // threw the article away and kept the menu: on zh.wikipedia's 语音识别 it
+    // dropped 362 of 440 blocks, among them every paragraph of the body.
+    // For those scripts length says the same thing: twelve characters is
+    // longer than every navigation label on that page and shorter than its
+    // shortest sentence. Latin pages are untouched by this — measured on
+    // en.wikipedia, 699 blocks before and after.
+    const unspaced = /[฀-๿぀-ヿ㐀-鿿가-힯]/.test(text ?? "");
+    if (text && text.length > 2 && (text.includes(" ") || (unspaced && text.length >= 12))) parts.push(text);
     if (parts.length > 800) break;
   }
 

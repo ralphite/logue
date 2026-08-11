@@ -3,20 +3,76 @@
   "updated": "2026-08-10",
   "tasks": [
     {
+      "id": "N4",
+      "title": "面板加一个 Dictation 分区:说完能改写、能复制、还能接着录下一条",
+      "type": "feature",
+      "status": "blocked",
+      "priority": "P0",
+      "confirmed": true,
+      "tags": [
+        "panel",
+        "voice",
+        "dictation"
+      ],
+      "note": "**方案写好了,在 [docs/spec/dictation.md](docs/spec/dictation.md),等你回答四个问题。**<br>五件事:①面板里新开一个 tab,叫 **Dictation**;②录的时候把当前页面的可见文字一起当 context(他明说「你可以决定,你可以反驳我」);③转完之后音频和文本都要在;④文本能一键复制,也能用预先定义好的 Skill 一键改写(中文转英文、重写成 markdown);⑤多个任务并行。UI 要和输入框里那条 transcribe-and-insert **同一套**,他把设计交给我。<br>**方案里已经定的**:②我反驳了「送正文」——量过,真实维基页抽出 60,000 字,而转写上下文只装 1,500 字,等于整页的 2.5%,而且那 2.5% 恰好是维护模板;改成**送整页的生词表**(327 字,含 HMM/ASR/CTC/Rabiner/Siri)。⑤ V3 已经做掉一半(麦克风在按下停止那刻就还回来),这里只缺一个**列表**。⑥ **和 N1b 其实不撞车** —— Dictation 的主语是「我现在说的话」,是第四个主语,A/B 两种排法下它都是自己一格,里面完全一样。<br>**顺手修掉一个正在发生的 bug**:`readablePageText()` 用「含空格」判断正文,中文句子没有空格 —— 真实中文维基页上 440 块里丢掉 362 块,正文段落全丢。已修并验:中文页 87→169 块、7,680→13,592 字,英文页 699→699 零变化。",
+      "input_ids": [
+        "in_extension_panel_tab",
+        "in_dictation_dictation_ui"
+      ],
+      "created": "2026-08-11",
+      "updated": "2026-08-10",
+      "blocked_on": "等你回答 docs/spec/dictation.md 第七节的四个问题(中文页上下文怎么取、列表显示哪些段、改写要不要存、先做哪个)"
+    },
+    {
+      "id": "N2",
+      "title": "输入框里已经打好的字,语音一来就被丢掉",
+      "type": "bug",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "panel",
+        "voice"
+      ],
+      "note": "截图:面板底部输入框里已经有「Chorus」,光标在后面;这时按麦克风说话,那几个字没被当成上下文,也没被接着写下去。已经打进去的东西不该因为改用语音就消失 —— 光标在哪儿,转写就接在哪儿,原有内容保留。",
+      "input_ids": [
+        "in_extension_text_input"
+      ],
+      "created": "2026-08-11",
+      "updated": "2026-08-10"
+    },
+    {
       "id": "N1",
       "title": "重想面板的信息架构 —— 先出提案,一行代码都不动",
       "type": "proposal",
-      "status": "queued",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
         "panel"
       ],
-      "note": "他说界面设计非常有问题,要从信息架构的角度重新组织 —— 不是挪几个控件,是重新决定面板里有哪些东西、谁属于谁、什么时候出现。硬约束:先出提案,他 confirm 之前一行代码都不动。",
+      "note": "提案已出:docs/spec/panel-ia.md —— 把面板今天渲染的每一件东西按「主语是谁」重排了一遍,列出九个问题(最重的一条:Project 一个 state 干三个活),给了 A/B 两个方案和三个要你回答的问题。一行代码都没动。改动本身另开 N1b,等你拍板。",
       "input_ids": [
         "in_review_extension_panel",
         "in_item"
       ],
+      "created": "2026-08-10",
+      "updated": "2026-08-10"
+    },
+    {
+      "id": "N1b",
+      "title": "按 panel-ia.md 重排面板 —— 等你选 A 还是 B",
+      "type": "feature",
+      "status": "blocked",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "panel",
+        "ui"
+      ],
+      "note": "提案在 docs/spec/panel-ia.md。A:Chat 和 This page 合成一条流,Project 提到头部只留一个,全局状态收进顶部状态条。B:tab 留着只按主语重排。我推荐 A。你点头之前一行代码都不动。",
+      "blocked_on": "等你在 docs/spec/panel-ia.md 第六节回答三个问题",
+      "input_ids": [],
       "created": "2026-08-10",
       "updated": "2026-08-10"
     },
@@ -81,14 +137,14 @@
       "id": "P6b",
       "title": "在真的会滚动的页面上证明「滚动到可见」",
       "type": "test",
-      "status": "queued",
+      "status": "done",
       "priority": "P2",
       "confirmed": false,
       "tags": [
         "anchors",
         "qa"
       ],
-      "note": "P6 当时测的那段文字自始至终都在视野里,所以滚动这个动作本身从没被证明过。不许拿一个滚不动的页面糊过去。",
+      "note": "证完了,在真会滚的页面上:scripts/qa/p6b.mjs,真实的 Wikipedia《Special relativity》—— 48240px 高,窗口 757px。段落在 31539px 处,scrollY=0 时确认在视野外,locate 之后页面滚到 31190,段落落在 349px 处并被选中。12/12 通过。第一次跑还抓到一个真问题:https 页面 fetch 不到 http://127.0.0.1 的 Host,断言得从面板那边发。",
       "input_ids": [
         "in_real_content"
       ],
@@ -99,13 +155,13 @@
       "id": "G1b",
       "title": "在真实的 Claude Code 会话里触发 /logue",
       "type": "test",
-      "status": "queued",
+      "status": "done",
       "priority": "P2",
       "confirmed": true,
       "tags": [
         "integration"
       ],
-      "note": "skill 装好了,49 篇真实文档的往返也验过了。唯一没证明的一步,是这条命令在活的会话里被真正触发 —— 嵌套的 claude 进程做不了准。",
+      "note": "在这个活着的 Claude Code 会话里真的触发了 —— 不是嵌套进程。用 Skill 工具按名字调起 logue,harness 把 ~/.claude/skills/logue/SKILL.md 载进这一轮,然后跑 logue.py read 打到真 Host(127.0.0.1:8787),读回 doc_efbbfbd5c5ce02c8 «Logue QA — V7 rewrite» revision 2 和正文。没证到的一条说清楚:是我在活会话里按名字调的,不是你亲手敲 /logue —— 机制上是同一条路。",
       "input_ids": [
         "in_any_agent"
       ],
@@ -165,6 +221,23 @@
         "in_consistent_ui"
       ],
       "created": "2026-08-09",
+      "updated": "2026-08-10"
+    },
+    {
+      "id": "N3",
+      "title": "自查一轮:凡是「已经在那儿的东西被我们悄悄丢掉」的,全找出来修掉",
+      "type": "audit",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "audit",
+        "voice"
+      ],
+      "note": "出处是 N2 那句话的后半段:「希望这种级别的 bug 不应该再有,自查一轮,要找到所有这种 bug 全部修复」。要找的是同一个模式,不是同一个控件 —— 现场已经有内容(输入框里的字、选中的一段、光标位置、正在编辑的草稿、队列里等着的录音),而我们的某个动作把它当成不存在:覆盖掉、忽略掉、或者没接上。逐个走:页面输入框 + 语音、选区 + Skill、面板输入框 + 语音、文档编辑器 + 插入、离线队列 + 重新上线。每找到一条都要能说清「原来在那儿的是什么、它去哪了」。",
+      "blocked_on": "",
+      "input_ids": [],
+      "created": "2026-08-10",
       "updated": "2026-08-10"
     }
   ],
@@ -239,6 +312,26 @@
       "id": "in_item",
       "at": "2026-08-10 13:51",
       "text": "更新一下现在这个item",
+      "images": []
+    },
+    {
+      "id": "in_extension_text_input",
+      "at": "2026-08-10 17:12",
+      "text": "extension 里面这个 text input，如果已经有文本内容在里面了，我用语音的时候，为什么这个文本没有被使用？这是一个 bug。希望这种级别的 bug 不应该再有，自查一轮，要找到所有这种 bug 全部修复。",
+      "images": [
+        "shots/paste-20260810-171056-f5b5.png"
+      ]
+    },
+    {
+      "id": "in_extension_panel_tab",
+      "at": "2026-08-10 22:36",
+      "text": "我们在 extension 的 panel 里面加入一个新的功能。\n简单起见，我们加一个新的 tab，就叫 transcription——语音输入吧。\n在里面，用户可以用语音输入，我们需要把这个页面里面的内容也作为 context 的一部分。\n我们只要显示那种可见内容。我觉得是 HTML 里面的非 tag 里的东西，就是 visible 的这些 text，应该作为 context。\n你可以决定，你可以反驳我，可以用更好的办法。\ntranscribe 之后，我需要能有这个 audio，能有文本。对于这个文本，我可以一键点击，可以 copy，而且我可以预定义一些 skill 来 transform 这个文本。\n比如 transcribe 之后它是中文的，我可以一键点击让它转换成英文的，或者一键点击让它重写成一个 markdown 格式等。\n同时我应该支持多个任务并行。一个正在处理的时候，我可以启动第二个任务继续录音。只要我的录音没有被使用，在其他任务执行的时候我就可以继续录音。",
+      "images": []
+    },
+    {
+      "id": "in_dictation_dictation_ui",
+      "at": "2026-08-10 22:39",
+      "text": "我们先更新一下这个任务 还是把这个功能叫做 dictation 吧，我觉得 dictation 是更准确的。另外一点，这个 UI 应该和 input 里面的 transcribe and insert 是类似的。另外是一个非常好用简洁的 UI。你可以来设计，现在的 UI 有点太差了。",
       "images": []
     }
   ]

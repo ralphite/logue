@@ -366,6 +366,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   thing: there the words are being handed to the panel's conversation, and
   choosing to send them is the point.)
 - **The microphone is never offered in a password field.**
+- **A page is read in whatever language it is written in.** What counts as
+  prose cannot be decided by a rule that only holds for Latin script: requiring
+  a space to prove a block was more than one word threw away every paragraph of
+  a Chinese page and kept its menu. Whatever is kept from a page is kept the
+  same way whichever script it is in.
 
 ## Documents
 
@@ -484,6 +489,23 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   ten-minute recordings are more than this storage holds; a count alone means
   the quota does the refusing, from somewhere else, about something the person
   cannot see.
+- **A dictation keeps both halves.** The recording and the words it became are
+  both there afterwards, and both survive the panel being closed. Words alone
+  cannot be checked against what was said; audio alone cannot be used.
+- **Speaking again never waits for the last one to finish.** The microphone is
+  exclusive only while it is capturing; from the moment a recording is ended,
+  the next one can start, however many are still being transcribed. Each one
+  carries its own state — its own clock, its own words, its own failure — so a
+  list of four can say which one went wrong.
+- **A rewrite is added, never substituted.** Running a Skill over a transcript
+  — into another language, into Markdown — puts its result beside the
+  transcript with the Skill's name on it. The transcript is the first-hand text
+  of the recording; replacing it with a conclusion loses what the audio proves.
+- **Context spells what was said; it never supplies it.** Whatever surrounds
+  the words — the page being read, the document being written into — goes to
+  the model as quoted material, to get names and terms spelled the way they are
+  spelled there. It is never an instruction, and no amount of it makes silence
+  into a sentence.
 - **A page's own Skills are on its right-click menu**, and which Skills those
   are is the Skill's `contexts` — never a second list kept in step by hand.
   Choosing one opens the panel and shows what ran and what came back, in that
