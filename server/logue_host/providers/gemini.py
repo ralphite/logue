@@ -17,6 +17,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from .. import trace
 from ..errors import Unavailable
 from ..ids import now
 
@@ -164,9 +165,12 @@ class Provider:
         payload: dict[str, Any] = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
         if system:
             payload["systemInstruction"] = {"parts": [{"text": system}]}
-        text = self._text_of(self._post(self.model, payload))
-        if not text:
-            raise Unavailable("The model returned nothing.")
+        with trace.span("generate", **self._span(self.model, system, prompt)) as recorded:
+            answer = self._post(self.model, payload)
+            text = self._text_of(answer)
+            recorded.update(self._answered(text, answer))
+            if not text:
+                raise Unavailable("The model returned nothing.")
         return text
 
     def transcribe(self, audio: bytes, media_type: str, instructions: str) -> str:
@@ -182,7 +186,43 @@ class Provider:
                 }
             ]
         }
-        return self._text_of(self._post(self.transcription_model, payload))
+        # The audio itself is not in the span: it is megabytes, and the thing
+        # worth reading is the instruction that shaped what came back.
+        attributes = self._span(self.transcription_model, instructions, f"<{len(audio)} bytes of {media_type}>")
+        with trace.span("transcribe", **attributes) as recorded:
+            answer = self._post(self.transcription_model, payload)
+            text = self._text_of(answer)
+            recorded.update(self._answered(text, answer))
+            recorded["audio.bytes"] = len(audio)
+        return text
+
+    # -- what a model call looks like in a trace ----------------------------
+
+    def _span(self, model: str, system: str, prompt: str) -> dict[str, Any]:
+        """OpenInference's names, because they are what make Phoenix show this
+        as a model call rather than an anonymous box."""
+        return {
+            "kind": "LLM",
+            "llm.provider": self.kind,
+            "llm.model_name": model,
+            "llm.system": system,
+            "input.value": prompt,
+            "llm.input_messages.0.message.role": "system",
+            "llm.input_messages.0.message.content": system,
+            "llm.input_messages.1.message.role": "user",
+            "llm.input_messages.1.message.content": prompt,
+        }
+
+    def _answered(self, text: str, answer: dict[str, Any]) -> dict[str, Any]:
+        used = answer.get("usageMetadata") if isinstance(answer.get("usageMetadata"), dict) else {}
+        return {
+            "output.value": text,
+            "llm.output_messages.0.message.role": "assistant",
+            "llm.output_messages.0.message.content": text,
+            "llm.token_count.prompt": used.get("promptTokenCount"),
+            "llm.token_count.completion": used.get("candidatesTokenCount"),
+            "llm.token_count.total": used.get("totalTokenCount"),
+        }
 
     def check(self, capability: Capability) -> tuple[bool, str]:
         """Probe the capability for real and remember the verdict."""

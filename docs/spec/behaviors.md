@@ -489,6 +489,14 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   ten-minute recordings are more than this storage holds; a count alone means
   the quota does the refusing, from somewhere else, about something the person
   cannot see.
+- **What the model was asked and what it said can be watched, on this
+  machine.** Every hard failure in this product has been about the prompt that
+  actually went over the wire — a transcript sent as a request, silence turned
+  into a sentence, a page that arrived without its Chinese paragraphs — and in
+  each case the code looked right. It is off unless an endpoint is set, it adds
+  no dependency to the Host, and an endpoint that is not this machine is
+  refused unless somebody says otherwise in as many words: these traces carry
+  everything a person said and every page they said it about.
 - **A recording that never became words is findable without the tab that made
   it.** The audio is written before the model is asked, so a refusal never
   costs the recording — but for a long time the only thing that knew its id was

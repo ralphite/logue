@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from . import trace
 from .build import installed_extension_build
 from .domain import (
     agent,
@@ -57,6 +58,10 @@ SETTINGS_KEYS = frozenset(
         # Read by the app rather than the Host — a setting is still a setting
         # when the client is the one who cares about it.
         "pins",
+        # Where to send what the model was asked and what it said. The Host is
+        # a background service, so an environment variable means editing
+        # launchd to turn on a debugging aid — which nobody will do twice.
+        "trace_endpoint",
     }
 )
 
@@ -75,6 +80,7 @@ class App:
         # workspace that has already been deleted.
         self.file_new_materials = file_new_materials
         skills.ensure_built_ins(self.store)
+        trace.configure(self.store.settings())
         self.router = Router()
         self._register()
 
@@ -127,6 +133,11 @@ class App:
                     "generation_ready": provider.ready_for("generation"),
                     "voice_ready": provider.ready_for("voice"),
                 },
+                # Whether anything is watching. Said out loud because
+                # "tracing is on" is otherwise unfalsifiable from outside,
+                # and a refused endpoint has to name itself or it looks like
+                # a typo that worked.
+                "trace": {"to": trace.endpoint(store.settings()), "refused": trace.refused(store.settings())},
             }
 
         # -- materials ------------------------------------------------------
@@ -743,7 +754,11 @@ class App:
         def patch_settings(request: Request) -> dict[str, Any]:
             settings = store.settings()
             settings.update(_only_real_settings(request.json()))
-            return {"settings": store.save_settings(settings)}
+            saved = store.save_settings(settings)
+            # Takes effect on the next model call, not the next restart: a
+            # setting that needs a service restarted is a setting nobody uses.
+            trace.configure(saved)
+            return {"settings": saved}
 
         @route("GET", "/v1/model")
         def get_model(_: Request) -> dict[str, Any]:

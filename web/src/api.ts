@@ -216,6 +216,8 @@ export interface HostStatus {
   data_dir: string;
   bytes: number;
   model: ModelStatus & { generation_ready: boolean; voice_ready: boolean };
+  /** Where model calls are being reported, and any endpoint declined for not being this machine. */
+  trace?: { to: string; refused: string };
 }
 
 export class ApiError extends Error {

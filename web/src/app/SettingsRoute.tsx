@@ -178,6 +178,44 @@ export function SettingsRoute() {
           </Field>
         </Section>
 
+        {/*
+          Where to send what the model was asked and what it said.
+          A field rather than an environment variable because the Host is a
+          background service: an environment variable means editing launchd to
+          turn on a debugging aid, which nobody does twice.
+        */}
+        <Section title="Tracing">
+          <p className="text-xs text-muted">
+            Every model call — the prompt, the answer, how long it took — sent to a collector you run.
+            Off unless there is an address here. Arize Phoenix listens at{" "}
+            <code className="rounded-sm bg-surface-muted px-1">http://127.0.0.1:6006/v1/traces</code>.
+          </p>
+          <Field label="Collector">
+            <Input
+              defaultValue={chosen(settings.data?.settings, "trace_endpoint")}
+              placeholder="http://127.0.0.1:6006/v1/traces"
+              onBlur={(event) =>
+                void action
+                  .run(() => api.updateSettings({ trace_endpoint: event.target.value.trim() }))
+                  .then(() => {
+                    void settings.refresh();
+                    void status.refresh();
+                  })
+              }
+            />
+          </Field>
+          {/* These carry everything said and every page it was said about, so
+              anywhere but this machine is refused rather than quietly used. */}
+          {status.data?.trace?.refused ? (
+            <p className="text-xs text-warning">
+              {status.data.trace.refused} is not this machine, so nothing is being sent there. Set
+              LOGUE_TRACE_ALLOW_REMOTE on the Host to insist.
+            </p>
+          ) : status.data?.trace?.to ? (
+            <p className="text-xs text-success">Sending to {status.data.trace.to}.</p>
+          ) : null}
+        </Section>
+
         <Section title="Corrections">
           <p className="text-xs text-muted">
             Words Logue has misheard before. Every recording is transcribed knowing these.

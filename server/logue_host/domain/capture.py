@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from .. import trace
 from ..errors import BadRequest, HostError, NotFound
 from ..ids import new_id, now
 from ..providers import Provider
@@ -244,7 +245,22 @@ def transcribe(
         applied["seconds"] = round(float(seconds), 1)
     store.save_capture_context(capture_id, applied)
     try:
-        text = provider.transcribe(audio, media_type, str(plan["instructions"]))
+        with trace.span(
+            "dictation",
+            **{
+                "capture.id": capture_id,
+                "capture.seconds": applied.get("seconds"),
+                "project": project,
+                "voice.profile": applied.get("profile"),
+                "voice.language": applied.get("language"),
+                "voice.terms": len(applied.get("terms") or []),
+                # The plan is the prompt. Every wrong transcript so far has
+                # been explained by something in here.
+                "input.value": str(plan["instructions"]),
+            },
+        ) as recorded:
+            text = provider.transcribe(audio, media_type, str(plan["instructions"]))
+            recorded["output.value"] = text
     except HostError as failure:
         # The audio is already on disk — it was written before the model was
         # asked, on purpose. But the caller only ever saw the failure, so the

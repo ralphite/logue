@@ -20,6 +20,7 @@ import re
 import threading
 from typing import Any
 
+from .. import trace
 from ..errors import BadRequest, Unavailable
 from ..ids import now
 from ..providers import Provider
@@ -247,7 +248,16 @@ def classify(store: Store, provider: Provider, material_id: str) -> Record:
 
     try:
         system, prompt = _prompt(store, material)
-        result = _clean(store, _read(provider.generate(system, prompt)), material)
+        with trace.span(
+            "file",
+            **{
+                "material.id": str(material.get("id") or ""),
+                "material.kind": str(material.get("kind") or ""),
+                "input.value": str(material.get("content") or "")[:400],
+            },
+        ) as recorded:
+            result = _clean(store, _read(provider.generate(system, prompt)), material)
+            recorded["output.value"] = json.dumps(result, ensure_ascii=False)
     except (Unavailable, ValueError, json.JSONDecodeError) as cause:
         # A model that is down or rambling must not cost someone the capture,
         # and must not look like "nothing to file here" either.

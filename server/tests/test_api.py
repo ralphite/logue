@@ -1633,3 +1633,97 @@ class ServingTheApp(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Tracing(unittest.TestCase):
+    """What went to the model, sent to a collector the person runs.
+
+    The wire is checked rather than mocked: these assert on the bytes that
+    would be posted. That they are bytes Phoenix accepts is checked by posting
+    them to a running Phoenix, which is `scripts/qa/n7.mjs`'s job.
+    """
+
+    def setUp(self) -> None:
+        from logue_host import trace
+
+        self.trace = trace
+        for name in (trace.ENDPOINT, trace.ALLOW_REMOTE):
+            os.environ.pop(name, None)
+            self.addCleanup(lambda key=name: os.environ.pop(key, None))
+
+    def test_nothing_is_sent_anywhere_unless_asked(self) -> None:
+        self.assertFalse(self.trace.on())
+        sent: list[dict] = []
+        with mock.patch.object(self.trace, "_send", sent.append):
+            # The caller writes into the dict either way — it is thrown away
+            # when nothing is listening, and the caller never has to ask.
+            with self.trace.span("dictation") as recorded:
+                recorded["output.value"] = "words"
+        self.assertEqual(sent, [], "no endpoint, nothing recorded, nothing sent")
+
+    def test_somewhere_other_than_this_machine_is_refused_and_says_so(self) -> None:
+        """These spans carry everything a person said and every page they said it about."""
+        os.environ[self.trace.ENDPOINT] = "https://telemetry.example.com/v1/traces"
+        self.assertFalse(self.trace.on())
+        self.assertEqual(self.trace.refused(), "https://telemetry.example.com/v1/traces")
+
+        os.environ[self.trace.ALLOW_REMOTE] = "1"
+        self.assertTrue(self.trace.on(), "and it can be insisted on, in as many words")
+
+    def test_the_wire_carries_the_prompt_the_answer_and_who_asked(self) -> None:
+        os.environ[self.trace.ENDPOINT] = "http://127.0.0.1:6006/v1/traces"
+        sent: list[dict] = []
+        with mock.patch.object(self.trace, "_send", sent.append):
+            with self.trace.span("skill:Into English", **{"skill.name": "Into English"}):
+                with self.trace.span("generate", kind="LLM", **{"input.value": "把它翻译一下"}) as recorded:
+                    recorded["output.value"] = "Translate this."
+
+        inner, outer = sent
+        self.assertEqual(inner["parentSpanId"], outer["spanId"], "the model call sits under the Skill that made it")
+        self.assertEqual(inner["traceId"], outer["traceId"], "one trace, not two")
+
+        body = self.trace.encode(sent)
+        for expected in (b"skill:Into English", b"input.value", "把它翻译一下".encode(), b"Translate this.", b"LLM"):
+            self.assertIn(expected, body)
+        self.assertIn(bytes.fromhex(outer["spanId"]), body, "ids go on the wire as bytes, not as text")
+
+    def test_a_failure_is_the_thing_most_worth_recording(self) -> None:
+        os.environ[self.trace.ENDPOINT] = "http://127.0.0.1:6006/v1/traces"
+        sent: list[dict] = []
+        with mock.patch.object(self.trace, "_send", sent.append):
+            with self.assertRaises(Unavailable):
+                with self.trace.span("dictation"):
+                    raise Unavailable("The model would not answer.")
+
+        self.assertEqual(sent[0]["status"]["code"], 2)
+        self.assertIn("The model would not answer.", sent[0]["status"]["message"])
+        self.assertIn(b"The model would not answer.", self.trace.encode(sent))
+
+
+class TracingIsASetting(Workspace, unittest.TestCase):
+    """The Host is a background service, so a debugging aid it can only be
+    given on the command line is one nobody will ever turn on twice."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        from logue_host import trace
+
+        os.environ.pop(trace.ENDPOINT, None)
+        trace.configure({})
+        self.addCleanup(trace.configure, {})
+
+    def test_it_can_be_turned_on_from_settings_and_takes_effect_at_once(self) -> None:
+        self.assertEqual(self.call("GET", "/v1/status")["trace"]["to"], "")
+
+        self.call("PATCH", "/v1/settings", {"trace_endpoint": "http://127.0.0.1:6006/v1/traces"})
+
+        from logue_host import trace
+
+        self.assertTrue(trace.on(), "no restart: the next model call is already traced")
+        self.assertEqual(self.call("GET", "/v1/status")["trace"]["to"], "http://127.0.0.1:6006/v1/traces")
+
+    def test_and_somewhere_off_this_machine_is_still_refused(self) -> None:
+        self.call("PATCH", "/v1/settings", {"trace_endpoint": "https://telemetry.example.com/v1/traces"})
+        reported = self.call("GET", "/v1/status")["trace"]
+        self.assertEqual(reported["to"], "")
+        self.assertEqual(reported["refused"], "https://telemetry.example.com/v1/traces")

@@ -28,3 +28,8 @@ __pycache__/
 *.pyc
 *.tsbuildinfo
 scripts/qa/spoken-loop.wav
+
+# Phoenix, for tracing while debugging. A venv beside the repo rather than in
+# the Host's own interpreter: the Host has no third-party packages and this
+# does not give it one.
+.phoenix-venv/

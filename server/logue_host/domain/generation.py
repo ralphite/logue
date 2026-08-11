@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .. import trace
 from ..errors import BadRequest
 from ..ids import new_id, now
 from ..providers import Provider
@@ -120,7 +121,19 @@ def run_skill(
     store.runs.put(run)
 
     try:
-        output = provider.generate(system, prompt)
+        with trace.span(
+            f"skill:{skill.get('name')}",
+            **{
+                "skill.name": str(skill.get("name") or ""),
+                "skill.revision": skill.get("revision", 1),
+                "run.id": run["id"],
+                "project": project,
+                "sources": len(sources),
+                "input.value": text or instruction,
+            },
+        ) as recorded:
+            output = provider.generate(system, prompt)
+            recorded["output.value"] = output
     except Exception as error:  # noqa: BLE001 - recorded on the Run, then re-raised
         run.update({"status": "failed", "error": str(error), "updated_at": now()})
         store.runs.put(run)

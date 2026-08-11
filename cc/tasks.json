@@ -3,6 +3,32 @@
   "updated": "2026-08-10",
   "tasks": [
     {
+      "id": "N8",
+      "title": "我们把各个功能全部用 Storybook 来画出来，让我呢看到每一个产品功能在不同状态下它的 UI 长什么样。因为我们现在的 UI 问题太多。 然后一定要完整，我们有基础组件， feature, page, user journey 等等各个级别的 Storybook",
+      "type": "",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": false,
+      "tags": [],
+      "note": "我们把各个功能全部用 Storybook 来画出来，让我呢看到每一个产品功能在不同状态下它的 UI 长什么样。因为我们现在的 UI 问题太多。 然后一定要完整，我们有基础组件， feature, page, user journey 等等各个级别的 Storybook",
+      "input_ids": [],
+      "created": "2026-08-11",
+      "updated": "2026-08-11"
+    },
+    {
+      "id": "N7",
+      "title": "Arize Phoenix 我们用这个来做 observability 以方便 debug，然後把它集成进我们的这个应用里。",
+      "type": "",
+      "status": "done",
+      "priority": "P2",
+      "confirmed": true,
+      "tags": [],
+      "note": "用 **Arize Phoenix** 做 observability,接进 Host。<br>**关键决定:不给 Host 加依赖。** `pip install arize-phoenix` 会装 **190 个包**;Host 到今天一个第三方包都没有,为一个只在 debug 时有用的东西把这些装到每台跑 Logue 的机器上不合算。**量过**:Phoenix 的 collector 对 OTLP/JSON 回 **415**,所以 OTLP protobuf 由 `server/logue_host/trace.py` **自己编码**(一个消息形状,80 行)。<br>**三条硬规矩**:①**默认关**,没有 endpoint 就没有 span、没有线程、没有开销;②**只发本机** —— span 里是他说的每一句话和每一个页面,非 loopback 的地址直接拒绝并在 status 里说出来,除非显式设 `LOGUE_TRACE_ALLOW_REMOTE`;③**是个设置不是环境变量** —— Host 是后台服务,环境变量意味着要改 launchd,没人会为一个调试开关做第二次;现在在 Settings 里填地址,**下一次模型调用就生效**。<br>**追了什么**:`dictation`→`transcribe`、`skill:<名字>`→`generate`、`file`→`generate`,用 OpenInference 语义,所以 Phoenix 把模型调用显示成模型调用,带 prompt / 回答 / token / 延迟 / 失败原因。<br>**真机验过**:真 Host、真 Gemini、真麦克风走了一遍完整的 dictation + 两次改写,7 条 trace 13 个 span 全在 Phoenix 里。`scripts/qa/n7.py` **7/7**(把 span 发出去再从 Phoenix 读回来,不是读我们自己的代码),另加 6 条 Host 单元测试。<br>**它第一次跑就查出一件事**:每存一条 Source 的自动归档要 **983 token**,比转写(717)还多,是两次改写(170/176)的五六倍。",
+      "input_ids": [],
+      "created": "2026-08-11",
+      "updated": "2026-08-11"
+    },
+    {
       "id": "N6",
       "title": "Context Center 界面大改:先用产品设计的 skill 走查一遍,再动手",
       "type": "design",
@@ -118,7 +144,7 @@
       "id": "M2v",
       "title": "确认浏览器里跑的扩展真的是 v1.0.0",
       "type": "test",
-      "status": "blocked",
+      "status": "done",
       "priority": "P0",
       "confirmed": true,
       "tags": [
@@ -131,7 +157,7 @@
         "in_ext_latest"
       ],
       "created": "2026-08-10",
-      "updated": "2026-08-10"
+      "updated": "2026-08-11"
     },
     {
       "id": "S3g",

@@ -16,6 +16,7 @@ import urllib.request
 import uuid
 from typing import Any
 
+from .. import trace
 from ..errors import Unavailable
 from .gemini import Capability, Provider
 
@@ -61,17 +62,19 @@ class OpenAICompatProvider(Provider):
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
-        reply = self._request(
-            "/chat/completions",
-            body=json.dumps({"model": self.model, "messages": messages}).encode("utf-8"),
-            content_type="application/json",
-        )
-        choices = reply.get("choices")
-        text = ""
-        if isinstance(choices, list) and choices:
-            text = str(((choices[0] or {}).get("message") or {}).get("content") or "").strip()
-        if not text:
-            raise Unavailable("The model returned nothing.")
+        with trace.span("generate", **self._span(self.model, system, prompt)) as recorded:
+            reply = self._request(
+                "/chat/completions",
+                body=json.dumps({"model": self.model, "messages": messages}).encode("utf-8"),
+                content_type="application/json",
+            )
+            choices = reply.get("choices")
+            text = ""
+            if isinstance(choices, list) and choices:
+                text = str(((choices[0] or {}).get("message") or {}).get("content") or "").strip()
+            recorded.update(self._answered(text, reply))
+            if not text:
+                raise Unavailable("The model returned nothing.")
         return text
 
     def transcribe(self, audio: bytes, media_type: str, instructions: str) -> str:
@@ -89,12 +92,29 @@ class OpenAICompatProvider(Provider):
             f"Content-Type: {media_type}\r\n\r\n",
         ]
         body = "".join(parts).encode("utf-8") + audio + f"\r\n--{boundary}--\r\n".encode("ascii")
-        reply = self._request(
-            "/audio/transcriptions",
-            body=body,
-            content_type=f"multipart/form-data; boundary={boundary}",
-        )
-        return str(reply.get("text") or "").strip()
+        attributes = self._span(self.transcription_model, instructions, f"<{len(audio)} bytes of {media_type}>")
+        with trace.span("transcribe", **attributes) as recorded:
+            reply = self._request(
+                "/audio/transcriptions",
+                body=body,
+                content_type=f"multipart/form-data; boundary={boundary}",
+            )
+            text = str(reply.get("text") or "").strip()
+            recorded.update(self._answered(text, reply))
+            recorded["audio.bytes"] = len(audio)
+        return text
+
+    def _answered(self, text: str, reply: dict[str, Any]) -> dict[str, Any]:
+        """Same span shape as the Gemini path; this wire format counts differently."""
+        used = reply.get("usage") if isinstance(reply.get("usage"), dict) else {}
+        return {
+            "output.value": text,
+            "llm.output_messages.0.message.role": "assistant",
+            "llm.output_messages.0.message.content": text,
+            "llm.token_count.prompt": used.get("prompt_tokens"),
+            "llm.token_count.completion": used.get("completion_tokens"),
+            "llm.token_count.total": used.get("total_tokens"),
+        }
 
     def check(self, capability: Capability) -> tuple[bool, str]:
         if not self.api_key:
