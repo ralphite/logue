@@ -14,7 +14,7 @@
         "voice",
         "dictation"
       ],
-      "note": "面板里加了一个 **Dictation** tab:一个底部按钮开始录,按下之后**原地变形**成 ✕ · ● 计时 · 波形 · ✓;说完落成一条 Source(音频 + 文字都在),每一段文字都能复制、也能再套一个 Skill,**套出来的和原文长得一模一样、能继续再套**,缩进表示 lineage,用过的 Skill 在那一段上不再出现。内建两个 Skill:Into English、As Markdown;Skills 页的「Used where」从只读的一行字改成了可点的开关。<br>**方案在 [docs/spec/dictation.md](docs/spec/dictation.md)**,mockup 迭代到 v4(他砍掉了语音选项、待转计数、10:00 提示、版本编号)。<br>**真机验过 13/13**:真麦克风(`say` 说给它听)、真 Host、真 Gemini。路上抓到两个真 bug:①`readablePageText()` 用「含空格」判断正文,中文页 440 块丢 362 块;②改写把待处理的文字当成「Request:」送给模型,模型把这个标签写进了自己的答案,第二次改写还会叠加成「# Request: Request:」——现在 `POST /v1/runs` 分成 `instruction`(要什么)和 `input`(处理什么)两件事。",
+      "note": "面板里加了一个 **Dictation** tab:一个底部按钮开始录,按下之后**原地变形**成 ✕ · ● 计时 · 波形 · ✓;说完落成一条 Source(音频 + 文字都在),每一段文字都能复制、也能再套一个 Skill,**套出来的和原文长得一模一样、能继续再套**,缩进表示 lineage,用过的 Skill 在那一段上不再出现。内建两个 Skill:Into English、As Markdown;Skills 页的「Used where」从只读的一行字改成了可点的开关。<br>**方案在 [docs/spec/dictation.md](docs/spec/dictation.md)**,mockup 迭代到 v4(他砍掉了语音选项、待转计数、10:00 提示、版本编号)。<br>**真机验过 13/13**:真麦克风(`say` 说给它听)、真 Host、真 Gemini。路上抓到两个真 bug:①`readablePageText()` 用「含空格」判断正文,中文页 440 块丢 362 块;②改写把待处理的文字当成「Request:」送给模型,模型把这个标签写进了自己的答案,第二次改写还会叠加成「# Request: Request:」——现在 `POST /v1/runs` 分成 `instruction`(要什么)和 `input`(处理什么)两件事。<br>**已发 v1.0.4**,Dictation 排到第一个 tab 并作为默认(⌘⇧K 会自己切到 Chat,否则会在一个标题下开始录音、把词送到另一个)。",
       "input_ids": [
         "in_extension_panel_tab",
         "in_dictation_dictation_ui"
