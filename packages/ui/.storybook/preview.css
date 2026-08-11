@@ -2,6 +2,7 @@
 @import "../src/theme.css";
 @source "../src";
 @source "../../../web/src";
+@source "../../../extension/src";
 
 body {
   font-family: var(--font-sans);

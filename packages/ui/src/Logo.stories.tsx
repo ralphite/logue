@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { LogueLogo, LogueMark } from "./Logo";
 
-const meta = { title: "Shell/Logo", parameters: { layout: "padded" } } satisfies Meta;
+const meta = { title: "Component/Logo", parameters: { layout: "padded" } } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

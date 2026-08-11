@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button, IconButton } from "./Button";
 
 const meta = {
-  title: "Controls/Button",
+  title: "Component/Button",
   component: Button,
   args: { children: "Insert" },
   parameters: { layout: "padded" },

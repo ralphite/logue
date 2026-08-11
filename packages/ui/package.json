@@ -9,7 +9,7 @@
   },
   "scripts": {
     "typecheck": "tsc -b --pretty false",
-    "storybook": "storybook dev -p 6006 --no-open",
+    "storybook": "storybook dev -p 6007 --no-open",
     "build-storybook": "storybook build",
     "test": "vitest run"
   },

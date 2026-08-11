@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { Tag } from "./Tag";
 
-const meta = { title: "Content/Tag", parameters: { layout: "padded" } } satisfies Meta;
+const meta = { title: "Component/Tag", parameters: { layout: "padded" } } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

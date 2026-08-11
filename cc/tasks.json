@@ -6,11 +6,27 @@
       "id": "N8",
       "title": "我们把各个功能全部用 Storybook 来画出来，让我呢看到每一个产品功能在不同状态下它的 UI 长什么样。因为我们现在的 UI 问题太多。 然后一定要完整，我们有基础组件， feature, page, user journey 等等各个级别的 Storybook",
       "type": "",
-      "status": "queued",
+      "status": "done",
       "priority": "P1",
-      "confirmed": false,
+      "confirmed": true,
       "tags": [],
-      "note": "我们把各个功能全部用 Storybook 来画出来，让我呢看到每一个产品功能在不同状态下它的 UI 长什么样。因为我们现在的 UI 问题太多。 然后一定要完整，我们有基础组件， feature, page, user journey 等等各个级别的 Storybook",
+      "note": "**一个 Storybook,四个层级** —— 按他说的:基础组件 / feature / page / user journey。以前只有 `packages/ui` 里的基础组件;现在 Storybook 也扫 `extension/` 和 `web/`,已有的 10 个组件故事重排进统一层级(Controls/Overlays/Shell/Provenance/Content → **Component**)。<br>**为此做的一次重构**:面板的 `RecordControl` / `Listening` / `DictatedText` 从 1600 行的 `sidepanel.tsx` 里抽到 `extension/src/panel/dictation.tsx` —— 原文件在模块顶层 `createRoot`,任何 story 一 import 就会去渲染。<br>**现在能看的**:①Component:Recording 播放器(每种时长、时长未知、两条录音不能长得一样、三种宽度)+ 原有 10 个;②Feature:Dictation(录音控件四态、转写、Skill 用过就消失、改写进行中、链 + 分叉、一个字和一整屏)、页面上的浮层(光标条五态、选区条四态、写批注、语音选项)——**都压在真实文字上看,不是白底**;③Page:侧边栏 360×640 的七种状态(空、正在录、两条并行、完整的链、其中一条失败、有东西卡住、麦克风被 Chrome 拦);④Journey:三条**分镜** —— 说完再改写(6 格)、Logue 没开时(4 格)、对着别人的页面说(4 格)。分镜是关键:单个状态只能说画得对不对,**只有序列能说好不好用** —— Record 和勾隔了半个面板,就是这么看出来的。<br>**顺带**:Storybook 默认会往外发遥测,关掉了(这个产品不往外发任何东西,它的工具也不该发)。端口从 6006 挪到 **6007**,6006 让给 Phoenix(N7)。<br>**没覆盖到、诚实说**:Web 应用的路由(Stream / Documents / Projects / Skills / Settings)和面板的 Chat / This page / Project 三个 tab 还没有 story —— 它们和面板一样需要先把展示层抽出来。已另开 **N8b**。",
+      "input_ids": [],
+      "created": "2026-08-11",
+      "updated": "2026-08-11"
+    },
+    {
+      "id": "N8b",
+      "title": "Storybook 的另一半:Web 应用的路由,和面板剩下三个 tab",
+      "type": "feature",
+      "status": "queued",
+      "priority": "P2",
+      "confirmed": true,
+      "tags": [
+        "ui",
+        "storybook"
+      ],
+      "note": "N8 覆盖了扩展这一侧(Dictation、页面上的浮层、侧边栏七态、三条 journey)。**还没覆盖的**:Web 应用的 Stream / Documents / Projects / Skills / Settings,以及面板的 Chat / This page / Project 三个 tab。它们都要先像 `extension/src/panel/dictation.tsx` 那样,把展示层从带网络请求的路由组件里抽出来 —— `useHost` 会在 import 时就去请求,story 里没有 Host。",
       "input_ids": [],
       "created": "2026-08-11",
       "updated": "2026-08-11"

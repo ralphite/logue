@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { Resizer } from "./Resizer";
 
-const meta = { title: "Shell/Resizer", parameters: { layout: "padded" } } satisfies Meta;
+const meta = { title: "Component/Resizer", parameters: { layout: "padded" } } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

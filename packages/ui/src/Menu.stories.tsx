@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button, IconButton } from "./Button";
 import { Menu, MenuItem } from "./Menu";
 
-const meta = { title: "Controls/Menu", parameters: { layout: "centered" } } satisfies Meta;
+const meta = { title: "Component/Menu", parameters: { layout: "centered" } } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

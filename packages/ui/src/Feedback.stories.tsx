@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button } from "./Button";
 import { Empty, ErrorNote, RecordingDot, Spinner } from "./Feedback";
 
-const meta = { title: "Feedback/States", parameters: { layout: "padded" } } satisfies Meta;
+const meta = { title: "Component/States", parameters: { layout: "padded" } } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

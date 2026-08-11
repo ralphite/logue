@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { Citation, OriginMark } from "./Origin";
 
-const meta = { title: "Provenance/Origin", parameters: { layout: "padded" } } satisfies Meta;
+const meta = { title: "Component/Origin", parameters: { layout: "padded" } } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

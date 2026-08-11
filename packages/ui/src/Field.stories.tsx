@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Checkbox, Field, Input, Select, Textarea } from "./Field";
 
-const meta = { title: "Controls/Field", parameters: { layout: "padded" } } satisfies Meta;
+const meta = { title: "Component/Field", parameters: { layout: "padded" } } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

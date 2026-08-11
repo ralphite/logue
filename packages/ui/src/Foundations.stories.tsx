@@ -4,7 +4,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
  * The values every surface resolves to. If a size or color is not here, it does
  * not belong in the product.
  */
-const meta = { title: "Foundations/Tokens", parameters: { layout: "padded" } } satisfies Meta;
+const meta = { title: "Foundation/Tokens", parameters: { layout: "padded" } } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

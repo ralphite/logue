@@ -4,7 +4,7 @@ import { Button } from "./Button";
 import { Dialog, DialogActions } from "./Dialog";
 import { Field, Input, Textarea } from "./Field";
 
-const meta = { title: "Overlays/Dialog", parameters: { layout: "fullscreen" } } satisfies Meta;
+const meta = { title: "Component/Dialog", parameters: { layout: "fullscreen" } } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
 
