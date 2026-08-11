@@ -5,6 +5,7 @@
 
 import { shouldReload } from "./build";
 import { tagOf, type HostReply } from "./messages";
+import { settingsUrl as microphoneSettingsUrl } from "./microphone";
 import { all as pendingVoice, forget, noteTry } from "./pending";
 import { siblingOf } from "./paths";
 import { currentServer, isLoopback } from "./server";
@@ -664,8 +665,18 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
 
   switch (tag) {
     case "logue:record-start":
-      toOffscreen<{ ok: boolean; message?: string }>("logue:offscreen-start").then(
+      // `code` travels with the failure: the surface that asked is the one that
+      // knows what to offer next, and only it can tell a blocked microphone
+      // from a recorder that broke.
+      toOffscreen<{ ok: boolean; message?: string; code?: string }>("logue:offscreen-start").then(
         (result) => respond(result),
+        (error: unknown) => respond({ ok: false, message: String(error) }),
+      );
+      return true;
+
+    case "logue:open-microphone-settings":
+      chrome.tabs.create({ url: microphoneSettingsUrl() }).then(
+        () => respond({ ok: true }),
         (error: unknown) => respond({ ok: false, message: String(error) }),
       );
       return true;

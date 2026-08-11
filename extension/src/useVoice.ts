@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { host, HostError, type Material } from "./api";
 import { send } from "./messages";
+import { ask as askForMicrophone, blockedMessage, canAsk, MICROPHONE_BLOCKED, reading } from "./microphone";
 import { keep, LIMIT } from "./pending";
 import type { VoiceOverrides } from "./overrides";
 
@@ -40,6 +41,13 @@ export function useVoice() {
    * meant one thought at a time. This is the count the bar shows instead.
    */
   const [pending, setPending] = useState(0);
+  /**
+   * Chrome is holding the microphone back, and only its settings can undo it.
+   *
+   * A separate fact from `error` because it is the difference between a message
+   * and a message with somewhere to go.
+   */
+  const [needsMicrophone, setNeedsMicrophone] = useState(false);
   const session = useRef(0);
   const startedAt = useRef(0);
 
@@ -60,15 +68,37 @@ export function useVoice() {
   const start = useCallback(async (): Promise<boolean> => {
     const id = (session.current += 1);
     setError(undefined);
+    setNeedsMicrophone(false);
     setPhase("starting");
-    const result = await send<{ ok: boolean; message?: string }>({
+
+    // Ask before the recorder does, because the recorder cannot.
+    //
+    // It runs in the offscreen document, which has no window for Chrome to draw
+    // a prompt in, so an ungranted microphone comes back as a flat refusal. Here
+    // there is a window. Once granted the grant belongs to the extension, so
+    // this runs at most once per browser — and never on the recording path,
+    // which must not open the device the recorder is about to want.
+    if (canAsk() && (await reading()) !== "granted") {
+      const outcome = await askForMicrophone();
+      if (session.current !== id) return false;
+      if (outcome === "denied") {
+        setPhase("error");
+        setError(blockedMessage());
+        setNeedsMicrophone(true);
+        return false;
+      }
+    }
+
+    const result = await send<{ ok: boolean; message?: string; code?: string }>({
       type: "logue:record-start",
       sessionId: String(id),
     });
     if (session.current !== id) return false;
     if (!result?.ok) {
+      const blocked = result?.code === MICROPHONE_BLOCKED;
       setPhase("error");
-      setError(result?.message ?? "Could not reach the microphone.");
+      setError(blocked ? blockedMessage() : (result?.message ?? "Could not reach the microphone."));
+      setNeedsMicrophone(blocked);
       return false;
     }
     setPhase("recording");
@@ -80,6 +110,7 @@ export function useVoice() {
     void send({ type: "logue:record-cancel", sessionId: String(session.current) });
     setPhase("idle");
     setError(undefined);
+    setNeedsMicrophone(false);
   }, []);
 
   /**
@@ -281,6 +312,8 @@ export function useVoice() {
     keptCapture: kept,
     /** Recordings captured and not yet settled — transcribing or saving. */
     pending,
+    /** Chrome is refusing the microphone; the surface should offer the setting. */
+    needsMicrophone,
     start,
     stop,
     cancel,

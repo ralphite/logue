@@ -325,6 +325,18 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   retry, never an apology in place of what was said.
 - **The microphone never gets stuck.** A recorder left behind by a session
   nobody finished is released rather than refusing every recording after it.
+- **Logue asks for the microphone itself.** The first recording in a browser
+  brings up Chrome's own Allow prompt, from the panel — the one surface at the
+  extension's origin that has a window to draw it in. The recorder cannot ask:
+  it runs in the offscreen document, which has no window, so Chrome refuses
+  without asking anyone and the permission reads `prompt` forever. Two releases
+  shipped a microphone that no sequence of clicks could grant.
+- **A blocked microphone comes with the way out, not a description of it.** Once
+  someone has refused, only Chrome's settings can undo it — on a page that is
+  not linked from anywhere and never lists an extension in its site list. So the
+  panel opens that page for the extension's own id. On a web page, where no
+  prompt can appear at all, the surface says to open Logue and record there —
+  the step that actually works — instead of naming a setting.
 - **"Already recording." never reaches the screen, by any route.** Pressing the
   microphone either records or says something the person can act on. A message
   that only describes the extension's own confusion is not an answer, and the

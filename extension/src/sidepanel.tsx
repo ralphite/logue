@@ -795,6 +795,12 @@ function Panel() {
           ) : voice.error ? (
             <>
               <span className="flex-1 text-xs text-warning">{voice.error}</span>
+              {/* Chrome's own prompt is gone once someone has dismissed it, and
+                  the page that grants it back cannot be linked to. So the button
+                  opens it, rather than the sentence describing it. */}
+              {voice.needsMicrophone && (
+                <Button onClick={() => void send({ type: "logue:open-microphone-settings" })}>Open Chrome settings</Button>
+              )}
               <Button onClick={() => void voice.start()}>Try again</Button>
             </>
           ) : (

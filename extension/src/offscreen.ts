@@ -1,6 +1,7 @@
 /** Runs in the offscreen document; owns the microphone for the whole extension. */
 
 import { tagOf } from "./messages";
+import { MICROPHONE_BLOCKED } from "./microphone";
 import { cancel, holding, recording, start, stop } from "./recorder";
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, respond) => {
@@ -10,7 +11,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, respond) => {
   if (tag === "logue:offscreen-start") {
     start().then(
       () => respond({ ok: true }),
-      (error: unknown) => respond({ ok: false, message: describe(error) }),
+      (error: unknown) => respond({ ok: false, ...describe(error) }),
     );
     return true;
   }
@@ -18,7 +19,7 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, respond) => {
   if (tag === "logue:offscreen-stop") {
     stop().then(
       (result) => respond({ ok: true, ...result }),
-      (error: unknown) => respond({ ok: false, message: describe(error) }),
+      (error: unknown) => respond({ ok: false, ...describe(error) }),
     );
     return true;
   }
@@ -45,9 +46,18 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, respond) => {
   return undefined;
 });
 
-function describe(error: unknown): string {
+/**
+ * The failure, and whether it is the one with a way out.
+ *
+ * A code rather than a sentence for the microphone case: the caller knows
+ * whether it is a panel that can send someone to the setting or a web page that
+ * cannot, and the wording differs. Matching on the sentence would put the same
+ * fact in two places, one of which is a string.
+ */
+function describe(error: unknown): { message: string; code?: string } {
   if (error instanceof DOMException && error.name === "NotAllowedError") {
-    return "Microphone access is blocked. Allow it for this extension in Chrome settings.";
+    // No window here, so Chrome refused without asking anyone. Nobody denied it.
+    return { message: "Chrome is not letting Logue use the microphone.", code: MICROPHONE_BLOCKED };
   }
-  return error instanceof Error ? error.message : "Could not record.";
+  return { message: error instanceof Error ? error.message : "Could not record." };
 }

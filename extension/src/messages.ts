@@ -31,6 +31,14 @@ export type ToBackground =
       title: string;
       project?: string;
     }
+  /**
+   * Open the one page in Chrome that grants an extension the microphone.
+   *
+   * The worker opens it because a content script cannot, and because a link to
+   * a `chrome://` URL is not clickable from an extension page either — leaving
+   * a message that names a destination nobody can reach.
+   */
+  | { type: "logue:open-microphone-settings" }
   | { type: "logue:record-start"; sessionId: string }
   | { type: "logue:record-stop"; sessionId: string }
   | { type: "logue:record-cancel"; sessionId: string };
