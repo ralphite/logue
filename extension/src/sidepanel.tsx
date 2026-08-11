@@ -35,6 +35,7 @@ import { readablePageText } from "./readable";
 import { currentServer, DEFAULT_SERVER, readAddress, rememberServer, whenServerChanges } from "./server";
 import { clearThread, readThread, writeThread } from "./thread";
 import { offered, useDictation, type Take } from "./useDictation";
+import { held, type Held } from "./unfinished";
 import { useVoice, type VoicePhase } from "./useVoice";
 
 
@@ -486,10 +487,33 @@ function download(one: Waiting): void {
   URL.revokeObjectURL(url);
 }
 
-function WaitingRecordings({ items, onChanged }: { items: Waiting[]; onChanged: () => void }) {
+/**
+ * Everything that has not become words yet, in one list.
+ *
+ * A recording can be stopped in two places, and they used to be two different
+ * situations to a person: one had a section in the panel, the other had
+ * whatever the tab that made it happened to still be showing. They are the
+ * same situation — "I said something and there are no words" — so they are
+ * one list, and each row says where it is stopped and offers the one thing
+ * that can move it.
+ */
+function WaitingRecordings({
+  items,
+  onHost,
+  server,
+  onChanged,
+}: {
+  items: Waiting[];
+  /** Recordings the Host is holding, with no words yet. */
+  onHost: Held[];
+  server: string;
+  onChanged: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  if (items.length === 0) return null;
+  const [trying, setTrying] = useState<string>();
+  const total = items.length + onHost.length;
+  if (total === 0) return null;
 
   const failing = items.filter((one) => (one.tries ?? 0) > 0).length;
 
@@ -503,7 +527,7 @@ function WaitingRecordings({ items, onChanged }: { items: Waiting[]; onChanged: 
       >
         <span className={cn("size-1.5 shrink-0 rounded-full", failing > 0 ? "bg-danger" : "bg-warning")} />
         <span className="flex-1">
-          {items.length} recording{items.length === 1 ? "" : "s"} waiting
+          {total} recording{total === 1 ? "" : "s"} without words
           {failing > 0 ? ` · ${failing} failed` : ""}
         </span>
         <span className="text-accent-ink">{open ? "Hide" : "Show"}</span>
@@ -511,6 +535,47 @@ function WaitingRecordings({ items, onChanged }: { items: Waiting[]; onChanged: 
 
       {open && (
         <div className="grid gap-1.5">
+          {/* On the Host: it has the audio, the words are what failed. These
+              can be played, which is the proof that nothing was lost. */}
+          {onHost.map((one) => (
+            <div key={one.captureId} className="grid gap-1 rounded-md border border-line bg-surface p-2">
+              <Recording
+                src={audioUrl(server, one.captureId)}
+                seconds={one.seconds}
+                shape={one.captureId}
+              />
+              <p className="text-xs text-muted">Logue has this recording; the words did not come back.</p>
+              <div className="flex gap-1">
+                <Button
+                  disabled={trying === one.captureId}
+                  onClick={() => {
+                    setTrying(one.captureId);
+                    void host
+                      .transcribeKept(one.captureId, {})
+                      .then((said) =>
+                        said.text.trim()
+                          ? host.saveVoice({ capture_id: one.captureId, text: said.text, applied_context: said.applied_context })
+                          : undefined,
+                      )
+                      .catch(() => undefined)
+                      .then(() => {
+                        setTrying(undefined);
+                        onChanged();
+                      });
+                  }}
+                >
+                  {trying === one.captureId ? <Spinner size={13} /> : null} Try again
+                </Button>
+                <a
+                  href={audioUrl(server, one.captureId)}
+                  download
+                  className="inline-flex h-control shrink-0 items-center gap-1 rounded-md border border-line-strong bg-surface px-2 text-xs font-[560] text-ink-soft hover:bg-surface-muted hover:text-ink"
+                >
+                  Export audio
+                </a>
+              </div>
+            </div>
+          ))}
           {items.map((one) => (
             <div key={one.id} className="grid gap-1 rounded-md border border-line bg-surface p-2">
               <div className="flex items-center gap-2 text-xs text-muted">
@@ -653,6 +718,8 @@ function Panel() {
   /** Which part of the panel is showing. Dictation is what the panel is opened for. */
   const [tab, setTab] = useState<"chat" | "page" | "dictation" | "project">("dictation");
   const [waiting, setWaiting] = useState<Waiting[]>([]);
+  /** Recordings the Host is holding that never became words. */
+  const [stuck, setStuck] = useState<Held[]>([]);
   /** Which Logue this browser is talking to, and whether it is being changed. */
   const [server, setServer] = useState(DEFAULT_SERVER);
   const [changingServer, setChangingServer] = useState(false);
@@ -774,6 +841,11 @@ function Panel() {
       const found: unknown = stored[PENDING_KEY];
       setWaiting(Array.isArray(found) ? found.filter(isWaiting) : []);
     });
+    // And the other half: what the Host is holding with no words. The Host is
+    // the record of that — nothing here keeps a second copy to disagree with.
+    void held()
+      .then(setStuck)
+      .catch(() => setStuck([]));
   }, []);
 
   useEffect(() => {
@@ -903,6 +975,13 @@ function Panel() {
    * free, current, and specific — so they travel with the audio as quoted
    * material. The Host uses them to spell names, never to supply words.
    */
+  // What the Host holds changes when a recording of ours fails, and nothing
+  // else would say so until the panel was opened again.
+  const finished = dictation.items.filter((one) => one.state !== "working").length;
+  useEffect(() => {
+    if (finished > 0) readWaiting();
+  }, [finished, readWaiting]);
+
   const dictate = useCallback(async () => {
     let body = "";
     if (page?.id !== undefined) {
@@ -994,6 +1073,16 @@ function Panel() {
     },
     [pageUrl],
   );
+
+  /**
+   * Recordings the Host holds that this panel is not already showing.
+   *
+   * A dictation that failed is in the list above with its own message and its
+   * own Try again. Counting it a second time in the heading would be the same
+   * recording asking for attention twice.
+   */
+  const shown = new Set(dictation.items.map((one) => one.captureId).filter(Boolean));
+  const elsewhere = stuck.filter((one) => !shown.has(one.captureId));
 
   const fromPage = saved.filter((item) => FROM_THE_PAGE.has(item.kind));
   const said = saved.filter((item) => !FROM_THE_PAGE.has(item.kind));
@@ -1173,7 +1262,6 @@ function Panel() {
           {(error || waiting.length > 0) && (
             <div className="grid shrink-0 gap-2 px-2 pt-2">
               {error && <ErrorNote>{error}</ErrorNote>}
-              <WaitingRecordings items={waiting} onChanged={readWaiting} />
             </div>
           )}
           <div
@@ -1218,7 +1306,6 @@ function Panel() {
       ) : tab === "page" ? (
         <div className="logue-scroll flex-1 p-2">
           {error && <ErrorNote className="mb-2">{error}</ErrorNote>}
-          <WaitingRecordings items={waiting} onChanged={readWaiting} />
           <div className="mt-2 mb-2 flex">
             <Button onClick={() => void capture()} disabled={busy}>
               <Bookmark size={13} /> Save this page
@@ -1241,6 +1328,17 @@ function Panel() {
       ) : tab === "dictation" ? (
         <>
           <div className="logue-scroll flex-1">
+            {/* Said once, where recordings live. It used to be drawn in two
+                tabs at once — the same queue, twice, and belonging to
+                neither. */}
+            {/* Minus whatever this panel is already showing with its own
+                failure and its own button: one recording, one place to act on
+                it. */}
+            {(waiting.length > 0 || elsewhere.length > 0) && (
+              <div className="p-2">
+                <WaitingRecordings items={waiting} onHost={elsewhere} server={server} onChanged={readWaiting} />
+              </div>
+            )}
             {dictation.items.length === 0 ? (
               <NothingYet>Say something and it lands here.</NothingYet>
             ) : (

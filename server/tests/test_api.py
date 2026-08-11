@@ -1169,6 +1169,59 @@ class ARecordingOutlivesItsTranscription(Workspace, unittest.TestCase):
         self.assertEqual(again["capture_id"], capture_id, "the same recording, not a new one")
         self.assertEqual(again["text"], "spoken words")
 
+    def test_a_recording_with_no_words_is_findable_without_the_tab_that_made_it(self) -> None:
+        """The one thing this product may never do is lose what someone said.
+
+        The audio was always written before the model was asked, so a refusal
+        never cost the recording — but the only thing that knew its id was the
+        surface that made it, and a surface is a browser tab. Counted on the
+        author's own workspace the day this was written: 292 recordings on
+        disk, 86 with nothing pointing at them.
+        """
+        self.refuse_transcription()
+        with self.assertRaises(Unavailable) as caught:
+            self.call("POST", "/v1/transcribe", {"audio": base64.b64encode(b"real-audio").decode(), "seconds": 12})
+        capture_id = str(caught.exception.details["capture_id"])
+
+        waiting = self.call("GET", "/v1/captures")["captures"]
+
+        self.assertEqual([one["capture_id"] for one in waiting], [capture_id])
+        self.assertEqual(waiting[0]["seconds"], 12, "and it says how long it is, so it can describe itself")
+
+    def test_and_it_stops_being_listed_once_it_has_words(self) -> None:
+        self.refuse_transcription()
+        with self.assertRaises(Unavailable) as caught:
+            self.call("POST", "/v1/transcribe", {"audio": base64.b64encode(b"real-audio").decode()})
+        capture_id = str(caught.exception.details["capture_id"])
+
+        working = FakeProvider(api_key="test-key")
+        working.record_health("voice", True)
+        self.app.provider = lambda: working  # type: ignore[method-assign]
+        said = self.call("POST", f"/v1/captures/{capture_id}/transcribe", {})
+        self.call("POST", "/v1/voice-materials", {"capture_id": capture_id, "text": said["text"]})
+
+        self.assertEqual(self.call("GET", "/v1/captures")["captures"], [], "it is a Source now, not a loose recording")
+
+    def test_a_recording_the_model_answered_about_is_finished_not_waiting(self) -> None:
+        """Silence was reported at the time; it is not a thing to chase.
+
+        Presenting every wordless recording as unfinished turned a week of
+        ordinary silence into fifty things demanding attention — measured on
+        the author's own workspace, where the panel announced "50 recordings
+        without words" the first time this list existed.
+        """
+
+        class Silent(FakeProvider):
+            def transcribe(self, audio: bytes, media_type: str, instructions: str) -> str:  # noqa: ARG002
+                return "   "
+
+        silent = Silent(api_key="test-key")
+        silent.record_health("voice", True)
+        self.app.provider = lambda: silent  # type: ignore[method-assign]
+        self.call("POST", "/v1/transcribe", {"audio": base64.b64encode(b"quiet").decode()})
+
+        self.assertEqual(self.call("GET", "/v1/captures")["captures"], [])
+
     def test_asking_again_about_a_recording_that_is_gone_says_so(self) -> None:
         with self.assertRaises(NotFound):
             self.call("POST", "/v1/captures/capture_nothing/transcribe", {})

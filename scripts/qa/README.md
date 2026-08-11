@@ -99,6 +99,7 @@ that needs their account.
 | `p5` | the panel's keys leave typing alone |
 | `remote-host` | the address in the panel is what the extension calls — a second Host, and a real https tunnel |
 | `n4` | Dictation: one control that morphs where it is, a transcript, and Skills chained over it (needs `LOGUE_TEST_REAL_MIC=1`) |
+| `n5` | nothing said is lost: no Host at all, and a Host whose model refuses (`n5-hosts.sh start` first; needs `LOGUE_TEST_REAL_MIC=1`) |
 
 ## S3 — the day a real key arrives
 

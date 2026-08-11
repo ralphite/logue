@@ -7,6 +7,7 @@ because a network call failed is not acceptable.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from ..errors import BadRequest, HostError, NotFound
@@ -44,6 +45,77 @@ def _quoted(text: str) -> str:
         f"{body}\n"
         "</document_context>"
     )
+
+
+#: How long a recording nobody has explained is still treated as unfinished.
+UNKNOWN_WINDOW = timedelta(days=1)
+
+
+def _record_outcome(store: Store, capture_id: str, outcome: str, message: str = "") -> None:
+    """What became of this recording, written beside its audio.
+
+    Without it, every recording that never became a Source looks the same from
+    outside — and they are not the same. A model that refused is unfinished
+    business. A model that answered with nothing already said so at the time,
+    to the person who was standing there. Presenting both as "waiting" turns a
+    week of ordinary silence into fifty things demanding attention.
+    """
+    applied = store.capture_context(capture_id)
+    applied["outcome"] = outcome
+    if message:
+        applied["outcome_message"] = message
+    store.save_capture_context(capture_id, applied)
+
+
+def unclaimed(store: Store, limit: int = 50) -> list[dict[str, Any]]:
+    """Recordings that are here and never became words.
+
+    The audio is written before the model is asked, on purpose — so a model
+    that refuses, or a Host that was restarted mid-flight, leaves the recording
+    safe on disk. It left it *unreachable*, though: the only thing that knew
+    its id was the surface that made it, and that surface is a browser tab.
+    Close the tab and "the recording was kept" was true and useless.
+
+    Measured on this author's own workspace when this was written: 292
+    recordings on disk, 86 of them with nothing pointing at them.
+
+    Unfinished, not merely wordless. A recording the model *answered* about —
+    with nothing in it, because nothing was said — was reported at the time and
+    is finished; it stays on disk and can still be fetched by id, but it is not
+    something anyone is waiting for. What is returned here is what a refusal
+    left behind, plus anything recent enough that nobody has established which
+    it is.
+
+    Newest first, because the one worth retrying is almost always the last one.
+    """
+    claimed = {str(record.get("capture_id")) for record in store.materials.all() if record.get("capture_id")}
+    cutoff = datetime.now(tz=UTC) - UNKNOWN_WINDOW
+    waiting: list[dict[str, Any]] = []
+    for capture_id, when in reversed(store.audio_ids()):
+        if capture_id in claimed:
+            continue
+        applied = store.capture_context(capture_id)
+        outcome = str(applied.get("outcome") or "")
+        arrived = datetime.fromtimestamp(when, tz=UTC)
+        if outcome in {"empty", "heard"}:
+            continue
+        if not outcome and arrived < cutoff:
+            # From before outcomes were written down. Still on disk, still
+            # fetchable by id — but claiming to know it is waiting would be
+            # inventing the fact.
+            continue
+        waiting.append(
+            {
+                "capture_id": capture_id,
+                "seconds": applied.get("seconds") or 0,
+                "created_at": arrived.isoformat().replace("+00:00", "Z"),
+                "outcome": outcome or "unknown",
+                "applied_context": applied,
+            }
+        )
+        if len(waiting) >= limit:
+            break
+    return waiting
 
 
 def transcription_plan(
@@ -178,7 +250,9 @@ def transcribe(
         # asked, on purpose. But the caller only ever saw the failure, so the
         # recording sat there unreachable, which is the same as lost. The id
         # goes out with the error, and `transcribe_kept` picks it up again.
+        _record_outcome(store, capture_id, "refused", failure.message)
         raise type(failure)(failure.message, capture_id=capture_id, **failure.details) from failure
+    _record_outcome(store, capture_id, "heard" if text.strip() else "empty")
 
     return {
         "capture_id": capture_id,

@@ -7,6 +7,7 @@ import { shouldReload } from "./build";
 import { tagOf, type HostReply } from "./messages";
 import { settingsUrl as microphoneSettingsUrl } from "./microphone";
 import { all as pendingVoice, forget, noteTry } from "./pending";
+import { noteTry as noteCaptureTry, tries as captureTries, worthRetrying, type Held } from "./unfinished";
 import { siblingOf } from "./paths";
 import { currentServer, isLoopback } from "./server";
 import { writeThread, type ThreadMessage } from "./thread";
@@ -577,6 +578,72 @@ async function sendPending(): Promise<number> {
 }
 // oxlint-enable no-await-in-loop
 
+/**
+ * Try again, without being asked, on recordings the Host is holding.
+ *
+ * The other half of `sendPending`. That one covers a Host that was not there;
+ * this one covers a Host that was there and a model that refused — the audio
+ * is already on disk, and what is missing is another attempt at the words.
+ *
+ * Bounded on both sides: only recordings from the last half hour, and only a
+ * few attempts each. Everything else stays listed in the panel with a button,
+ * because a recording nobody can reach is the one thing this must never
+ * produce, and a worker quietly re-transcribing a month of abandoned audio is
+ * not the way to avoid it.
+ */
+// oxlint-disable no-await-in-loop -- one at a time, like sendPending.
+async function retryHeld(): Promise<number> {
+  let listed: { captures: { capture_id: string; seconds?: number; created_at: string }[] };
+  try {
+    const answer = await relayToHost({ path: "/v1/captures" });
+    if (!answer.ok || answer.status !== 200) return 0;
+    listed = JSON.parse(answer.text);
+  } catch {
+    // The Host is not answering. `sendPending` covers that case; this one has
+    // nothing to do until it is back.
+    return 0;
+  }
+  const items: Held[] = (listed.captures ?? []).map((one) => ({
+    captureId: one.capture_id,
+    seconds: one.seconds ?? 0,
+    createdAt: one.created_at,
+  }));
+  const counted = await captureTries();
+  let done = 0;
+  for (const one of worthRetrying(items, counted, Date.now())) {
+    await noteCaptureTry(one.captureId);
+    try {
+      const said = await relayToHost({
+        path: `/v1/captures/${one.captureId}/transcribe`,
+        method: "POST",
+        body: "{}",
+      });
+      if (!said.ok || said.status !== 200) continue;
+      const heard: unknown = JSON.parse(said.text);
+      if (typeof heard !== "object" || heard === null || !("text" in heard)) continue;
+      const text = String(heard.text);
+      // Still nothing in it. The audio stays; another attempt is counted, and
+      // after a few the panel is where it waits.
+      if (!text.trim()) continue;
+      const saved = await relayToHost({
+        path: "/v1/voice-materials",
+        method: "POST",
+        body: JSON.stringify({
+          capture_id: one.captureId,
+          text,
+          applied_context: "applied_context" in heard ? heard.applied_context : undefined,
+        }),
+      });
+      if (saved.ok && saved.status === 200) done += 1;
+    } catch {
+      // Went away mid-pass; the next one will find it still waiting.
+      break;
+    }
+  }
+  return done;
+}
+// oxlint-enable no-await-in-loop
+
 // -- stay on the deployed build ------------------------------------------
 
 const BUILD_ALARM = "logue:build-check";
@@ -657,6 +724,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   // The same five minutes is the right cadence for this: a Host that has come
   // back should not need a page opened before it hears what it missed.
   void sendPending();
+  void retryHeld();
 });
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
@@ -709,8 +777,8 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
     case "logue:pending-send":
       // "Try now" in the panel. The periodic check would get there eventually;
       // a person watching a recording wait should not have to.
-      void sendPending().then((sent) => {
-        if (sent > 0) void chrome.runtime.sendMessage({ type: "logue:thread-changed" }).catch(() => undefined);
+      void Promise.all([sendPending(), retryHeld()]).then(([sent, done]) => {
+        if (sent + done > 0) void chrome.runtime.sendMessage({ type: "logue:thread-changed" }).catch(() => undefined);
       });
       respond({ ok: true });
       return true;
@@ -764,6 +832,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
       // while the Host was off to have gone in. Waiting for the five-minute
       // alarm would be waiting for nothing in particular.
       void sendPending();
+      void retryHeld();
       return false;
 
     case "logue:open-panel":
@@ -812,6 +881,7 @@ void scheduleBuildCheck();
 void keepUpToDate();
 void healIfAsked();
 void sendPending();
+void retryHeld();
 // On every start, not only on install: a reload clears the extension's menus
 // and `onInstalled` does not fire for `chrome.runtime.reload()` — the same
 // trap that once left orphaned tabs and a dead side panel behind an update.

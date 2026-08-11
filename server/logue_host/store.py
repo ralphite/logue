@@ -177,6 +177,21 @@ class Store:
     def capture_context(self, capture_id: str) -> Record:
         return read_json(self.audio / f"{capture_id}.context.json", {}) or {}
 
+    def audio_ids(self) -> list[tuple[str, float]]:
+        """Every recording on disk, with when it arrived. Newest last.
+
+        The audio is written before the model is asked, so this is the full
+        record of what was said — including the recordings that never became
+        words, which are the only ones nothing else can find.
+        """
+        found: list[tuple[str, float]] = []
+        for path in self.audio.iterdir():
+            if path.name.endswith(".context.json") or path.suffix == ".json" or not path.is_file():
+                continue
+            found.append((path.stem, path.stat().st_mtime))
+        found.sort(key=lambda pair: pair[1])
+        return found
+
     def usage_bytes(self) -> int:
         return sum(f.stat().st_size for f in self.root.rglob("*") if f.is_file())
 

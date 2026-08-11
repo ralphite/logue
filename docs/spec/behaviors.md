@@ -489,6 +489,23 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   ten-minute recordings are more than this storage holds; a count alone means
   the quota does the refusing, from somewhere else, about something the person
   cannot see.
+- **A recording that never became words is findable without the tab that made
+  it.** The audio is written before the model is asked, so a refusal never
+  costs the recording — but for a long time the only thing that knew its id was
+  the surface that made it, and a surface is a browser tab. Close it and "the
+  recording was kept" was true and useless. Counted the day this was written:
+  292 recordings on one workspace, 86 with nothing pointing at them.
+- **A refusal is retried without being asked, and then it waits.** Recent ones
+  are tried again a few times on their own; past that they are listed with a
+  button rather than tried forever. Giving up automatically and giving up are
+  different things.
+- **A recording the model answered about is finished, not waiting.** Silence
+  was reported at the time, to the person standing there. Presenting every
+  wordless recording as unfinished turns an ordinary week into fifty things
+  demanding attention — which is what it did, the first time this list existed.
+- **One recording, one place to act on it.** What the panel is already showing
+  with its own message and its own button is not counted again in the heading
+  above it.
 - **A dictation keeps both halves.** The recording and the words it became are
   both there afterwards, and both survive the panel being closed. Words alone
   cannot be checked against what was said; audio alone cannot be used.

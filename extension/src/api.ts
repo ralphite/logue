@@ -131,6 +131,16 @@ export const host = {
     nearby?: string;
   }) => post<{ capture_id: string; text: string; applied_context?: unknown }>("/v1/transcribe", body),
 
+  /**
+   * Recordings the Host is holding that never became words.
+   *
+   * The audio is written before the model is asked, so a refusal leaves it
+   * safe — and, until this existed, unreachable: the only thing that knew its
+   * id was the tab that made it.
+   */
+  captures: () =>
+    call<{ captures: { capture_id: string; seconds?: number; created_at: string }[] }>("/v1/captures"),
+
   /** Try again on a recording the Host already has — the way back from a failed model call. */
   transcribeKept: (
     captureId: string,

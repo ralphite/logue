@@ -533,6 +533,11 @@ class App:
                 )
             }
 
+        @route("GET", "/v1/captures")
+        def waiting_captures(_: Request) -> dict[str, Any]:
+            """Every recording here that never became words, so it can be tried again."""
+            return {"captures": capture.unclaimed(store)}
+
         @route("GET", "/v1/captures/{id}/context")
         def capture_context(request: Request) -> dict[str, Any]:
             """What shaped a transcription, including one that produced nothing."""
