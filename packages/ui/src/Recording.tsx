@@ -130,7 +130,7 @@ export function Recording({
           />
           <path
             d={strokes(bars, played, bars.length)}
-            className="stroke-line-strong"
+            className="stroke-faint"
             strokeWidth="2"
             strokeLinecap="round"
             vectorEffect="non-scaling-stroke"

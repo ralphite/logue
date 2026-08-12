@@ -3,8 +3,9 @@
  *
  * A day of captures is a mixed list — spoken notes between kept passages
  * between saved pages — and the eye should split it without reading. The
- * kind is carried twice, deliberately small: a 30px tinted badge and the
- * verb's ink. Tints, never alarms: this is provenance, not status.
+ * kind is carried once, deliberately small: a 24px tinted badge. The verb
+ * beside it stays ink — seven inks in one column read as noise, his ruling.
+ * Tints, never alarms: this is provenance, not status.
  */
 
 import type { JSX } from "react";
@@ -72,18 +73,18 @@ export function ActIcon({ kind, className }: { kind: ActKind; className?: string
   );
 }
 
-/** The 30px tinted square that starts a list row. */
+/** The 24px tinted square that starts a list row. */
 export function ActBadge({ kind, className }: { kind: ActKind; className?: string }) {
   return (
     <span
       className={cn(
-        "flex h-[30px] w-[30px] flex-none items-center justify-center rounded-[9px]",
+        "flex h-6 w-6 flex-none items-center justify-center rounded-[7px]",
         ACTS[kind].ink,
         ACTS[kind].soft,
         className,
       )}
     >
-      <ActIcon kind={kind} />
+      <ActIcon kind={kind} className="h-[12px] w-[12px]" />
     </span>
   );
 }
@@ -119,6 +120,9 @@ const GLYPHS = {
   x: <path d="m7 7 10 10M17 7 7 17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />,
   undo: (
     <path d="m8.5 8.5-4 3.5 4 3.5M5 12h8a6 6 0 0 1 6 6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+  ),
+  chevron: (
+    <path d="m6 9.5 6 6 6-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
   ),
   auto: (
     <path d="m12 4 1.2 3.2L16.5 8.5l-3.3 1.3L12 13l-1.2-3.2-3.3-1.3 3.3-1.3L12 4ZM18.5 13.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8.8-2ZM6 14.5l.6 1.5 1.5.6-1.5.6L6 18.7l-.6-1.5-1.5-.6 1.5-.6.6-1.5Z" fill="none" stroke="currentColor" strokeWidth="1.55" strokeLinejoin="round" />

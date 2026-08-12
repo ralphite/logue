@@ -116,7 +116,10 @@ export function AppShell({
   }, [onRoute]);
 
   return (
-    <div className="flex h-screen">
+    // 1220 is the floor under three panes: the rail's minimum, the list, and
+    // a detail column that can still hold its evidence rail. Below it the
+    // window scrolls sideways rather than crushing the panes into each other.
+    <div className="flex h-screen min-w-[1220px]">
       {/* First thing a Tab reaches. The rail holds nearly every tab stop in
           the app, so without this a keyboard user walks the whole list before
           reaching the thing they opened. */}
@@ -173,10 +176,10 @@ export function AppShell({
             aria-label="Find anything"
             title={`Find anything · ${FIND_KEYS}`}
             onClick={onFind}
-            className="flex h-[38px] items-center gap-2 rounded-md px-2 text-left text-[13px] font-[500] text-ink-soft hover:bg-hover hover:text-ink"
+            className="flex h-control items-center gap-2 rounded-md px-2 text-left text-[13px] font-[500] text-ink-soft hover:bg-hover hover:text-ink"
           >
             <span className={ICON_SLOT}>
-              <Glyph name="search" className="h-[17px] w-[17px] text-muted-strong" />
+              <Glyph name="search" className="h-[15px] w-[15px] text-muted-strong" />
             </span>
             {!collapsed && (
               <>
@@ -200,20 +203,14 @@ export function AppShell({
                 title={collapsed ? `${label} · ⌘${index + 1}` : undefined}
                 onClick={() => onRoute(key)}
                 className={cn(
-                  "flex h-[38px] min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-[13px]",
+                  "flex h-control min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-[13px]",
                   active ? "bg-active font-[600] text-ink" : "font-[500] text-ink-soft hover:bg-hover hover:text-ink",
                 )}
               >
                 <span className={ICON_SLOT}>
-                  <Glyph
-                    name={icon}
-                    className={cn("h-[17px] w-[17px]", active ? "text-accent" : "text-muted-strong")}
-                  />
+                  <Glyph name={icon} className="h-[15px] w-[15px] text-muted-strong" />
                 </span>
                 {!collapsed && <span className="truncate">{label}</span>}
-                {!collapsed && active && (
-                  <span aria-hidden className="ml-auto h-[5px] w-[5px] flex-none rounded-full bg-accent" />
-                )}
               </button>
               {make && !collapsed && (
                 // On the section that will hold it, when the pointer is there.

@@ -43,7 +43,6 @@ export function StreamRoute({
         <MaterialPanel
           key={`${selectedId}:${changed}`}
           materialId={selectedId}
-          onClose={() => onOpen(undefined)}
           onChanged={() => setChanged((n) => n + 1)}
           projects={projects.data?.projects ?? []}
           onOpenDocument={onOpenDocument}

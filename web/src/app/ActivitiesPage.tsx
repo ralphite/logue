@@ -12,9 +12,10 @@ import { type Material } from "../api";
  * verdict was that he could not name the feature it served. Filing happens
  * silently; each Source carries its own receipt.
  *
- * The pane is 486px against the detail's remainder, rows are 82px against a
- * 30px badge, and the day is a sticky 31px cap — the approved mock's numbers,
- * kept exactly, because the density is the design.
+ * The pane is 486px against the detail's remainder, rows are ~64px against a
+ * 24px badge, the verb is ink (the badge alone carries the kind), and every
+ * left edge sits on one 16px baseline — the approved mock's numbers, kept
+ * exactly, because the density is the design.
  */
 export function ActivitiesList({
   items,
@@ -59,26 +60,26 @@ export function ActivitiesList({
   return (
     <section aria-label="Activities" className="flex w-[486px] flex-none flex-col border-r border-line bg-surface">
       <header className="flex-none border-b border-line bg-panel px-4">
-        <div className="flex h-[58px] items-baseline gap-2">
-          <h1 className="text-[18px] font-[700] tracking-[-0.025em] text-ink">Activities</h1>
+        <div className="flex h-[42px] items-baseline gap-2">
+          <h1 className="text-[15px] font-[650] tracking-[-0.015em] text-ink">Activities</h1>
           <span className="text-[11px] font-[550] tabular-nums text-muted">{items.length || ""}</span>
           <span className="ml-auto text-[10.5px] font-[500] text-muted">Newest first</span>
         </div>
-        <div className="flex items-start gap-2 pb-4">
-          <label className="flex h-[38px] min-w-0 flex-1 items-center gap-2 rounded-[9px] border border-line-strong bg-surface px-3 focus-within:border-accent-line">
-            <Glyph name="search" className="h-[15px] w-[15px] flex-none text-muted" />
+        <div className="flex items-center gap-2 pb-3">
+          <label className="flex h-control min-w-0 flex-1 items-center gap-1.5 rounded-[7px] border border-control-line bg-surface px-2 focus-within:border-accent-line">
+            <Glyph name="search" className="h-[13px] w-[13px] flex-none text-muted" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search words, pages, or projects"
-              className="w-full bg-transparent text-[12.5px] text-ink outline-none placeholder:text-faint"
+              placeholder="Search"
+              className="w-full bg-transparent text-[12px] text-ink outline-none placeholder:text-faint"
             />
           </label>
           <select
             aria-label="Filter by action"
             value={kind}
             onChange={(event) => setKind(isKind(event.target.value) ? event.target.value : "")}
-            className="h-[38px] w-[144px] flex-none appearance-none rounded-[9px] border border-line-strong bg-surface bg-[image:var(--logue-chevron)] bg-[position:right_10px_center] bg-no-repeat pr-7 pl-3 text-[12.5px] font-[500] text-ink-soft"
+            className="h-control w-[138px] flex-none appearance-none rounded-[7px] border border-control-line bg-surface bg-[image:var(--logue-chevron)] bg-[position:right_9px_center] bg-no-repeat pr-[26px] pl-2.5 text-[12px] font-[500] text-ink-soft"
           >
             <option value="">All actions</option>
             {kinds.map((one) => (
@@ -110,7 +111,7 @@ export function ActivitiesList({
         )}
         {groups.map(([day, rows]) => (
           <section key={day}>
-            <div className="sticky top-0 z-[5] flex h-[31px] items-center border-b border-line bg-panel/95 px-[15px] text-[9.5px] font-[700] tracking-[0.13em] text-muted uppercase backdrop-blur-sm">
+            <div className="sticky top-0 z-[5] flex h-[26px] items-center border-b border-line bg-panel/95 px-4 text-[11px] font-[500] text-muted backdrop-blur-sm">
               {day}
             </div>
             {rows.map((item) => (
@@ -137,7 +138,7 @@ function ActivityRow({ item, selected, onSelect }: { item: Material; selected: b
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
       className={cn(
-        "relative grid w-full grid-cols-[30px_minmax(0,1fr)] gap-x-[11px] border-b border-line py-[10px] pr-[14px] pl-[13px] text-left transition-colors",
+        "relative grid w-full grid-cols-[24px_minmax(0,1fr)] gap-x-[9px] border-b border-line py-[7px] pr-4 pl-4 text-left transition-colors",
         selected ? "bg-accent-soft" : "hover:bg-hover-soft",
       )}
     >
@@ -145,15 +146,13 @@ function ActivityRow({ item, selected, onSelect }: { item: Material; selected: b
       <ActBadge kind={kind} className="mt-px" />
       <span className="min-w-0">
         <span className="flex min-w-0 items-center gap-2">
-          <span className={cn("truncate text-[11.5px] font-[650] tracking-[-0.005em]", ACTS[kind].ink)}>
-            {ACTS[kind].label}
-          </span>
+          <span className="truncate text-[12px] font-[600] tracking-[-0.005em] text-ink">{ACTS[kind].label}</span>
           <span className="ml-auto flex-none text-[10.5px] tabular-nums text-muted">{clockOf(item.created_at)}</span>
         </span>
-        <span className="mt-[3px] block truncate text-[12.7px] font-[430] leading-[1.35] text-ink/85" title={excerpt}>
+        <span className="mt-[2px] block truncate text-[12.5px] font-[430] leading-[1.35] text-ink/85" title={excerpt}>
           {excerpt || "Empty"}
         </span>
-        <span className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[10.5px] leading-none text-muted">
+        <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[10.5px] leading-none text-muted">
           {item.capture_seconds ? (
             <span className="inline-flex flex-none items-center gap-[3px] tabular-nums">
               <Glyph name="clock" />
@@ -161,7 +160,7 @@ function ActivityRow({ item, selected, onSelect }: { item: Material; selected: b
             </span>
           ) : null}
           {item.projects?.[0] && (
-            <span className="max-w-[132px] flex-none truncate rounded-full border border-line bg-surface-muted px-[7px] py-[3px] text-[9.8px] font-[600] text-ink-soft">
+            <span className="max-w-[132px] flex-none truncate rounded-full bg-surface-muted px-[7px] py-[2.5px] text-[9.8px] font-[600] text-ink-soft">
               {item.projects[0]}
             </span>
           )}

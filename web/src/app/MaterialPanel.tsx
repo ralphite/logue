@@ -1,4 +1,3 @@
-import { X } from "lucide-react";
 import { Fragment, useState } from "react";
 import {
   ACTS,
@@ -6,7 +5,6 @@ import {
   Button,
   ErrorNote,
   Glyph,
-  IconButton,
   Input,
   OriginMark,
   Recording,
@@ -30,14 +28,12 @@ import { useAction, useHost } from "./useHost";
  */
 export function MaterialPanel({
   materialId,
-  onClose,
   onChanged,
   projects,
   onOpenDocument,
   onOpenMaterial,
 }: {
   materialId: string;
-  onClose: () => void;
   onChanged: () => void;
   projects: Project[];
   onOpenDocument?: (id: string) => void;
@@ -56,14 +52,12 @@ export function MaterialPanel({
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
-      <header className="flex h-[64px] flex-none items-center gap-3 border-b border-line px-7">
+      <header className="flex h-12 flex-none items-center gap-2.5 border-b border-line px-5">
         {material && kind ? (
           <>
-            <ActBadge kind={kind} className="h-[31px] w-[31px]" />
+            <ActBadge kind={kind} />
             <div className="min-w-0">
-              <div className={cn("truncate text-[12px] font-[680] tracking-[-0.005em]", ACTS[kind].ink)}>
-                {ACTS[kind].label}
-              </div>
+              <div className="truncate text-[12px] font-[650] tracking-[-0.005em] text-ink">{ACTS[kind].label}</div>
               <div className="mt-0.5 truncate text-[10.5px] font-[500] tabular-nums text-muted">
                 {whenOf(material.created_at)}
                 {material.capture_seconds ? ` · ${duration(material.capture_seconds)}` : ""}
@@ -74,15 +68,10 @@ export function MaterialPanel({
         ) : (
           <span className="text-[12px] text-muted">Source</span>
         )}
-        <span className="ml-auto">
-          <IconButton label="Close this Source" onClick={onClose}>
-            <X size={14} />
-          </IconButton>
-        </span>
       </header>
 
       <div className="logue-scroll min-h-0 flex-1">
-        <div className="px-7 pt-6 pb-14">
+        <div className="px-5 pt-5 pb-10">
           {lineage.error && <ErrorNote>{lineage.error}</ErrorNote>}
           {action.error && <ErrorNote className="mb-2">{action.error}</ErrorNote>}
           {!material || !kind ? (
@@ -113,7 +102,8 @@ export function MaterialPanel({
               )}
 
               {material.capture_id && (
-                <div className="flex h-[78px] items-center gap-3 rounded-xl border border-line-strong bg-panel px-4">
+                /* His N4 ruling, kept: one widget, one time — small. */
+                <div className="flex h-8 max-w-[440px] items-center gap-2 rounded-lg border border-line bg-panel px-2">
                   <Recording
                     src={api.audioUrl(material.capture_id)}
                     seconds={material.capture_seconds}
@@ -131,8 +121,8 @@ export function MaterialPanel({
               {material.organization?.decided === "auto" &&
                 ((material.organization.accepted_projects?.length ?? 0) > 0 ||
                   (material.organization.accepted_tags?.length ?? 0) > 0) && (
-                  <div className="mt-5 flex h-[46px] min-w-0 items-center gap-2 border-y border-line text-[11.5px] text-muted-strong">
-                    <span className="min-w-0 flex-1 truncate">
+                  <div className="mt-5 flex min-h-[38px] min-w-0 items-start gap-2 border-y border-line py-[7px] text-[11.5px] text-muted-strong">
+                    <span className="min-w-0 flex-1 leading-[1.5]">
                       Filed to{" "}
                       <strong className="font-[650] text-ink-soft">
                         {(material.organization.accepted_projects ?? []).join(", ") || "its tags"}
@@ -193,7 +183,7 @@ export function MaterialPanel({
                 </div>
               )}
 
-              <div className="mt-7 grid grid-cols-[minmax(0,1fr)_238px] items-start gap-[29px]">
+              <div className="mt-5 grid grid-cols-[minmax(0,1fr)_216px] items-start gap-5">
                 {/* The words themselves — the reason this pane exists — at the
                     one reading size in the product. */}
                 <div className="min-w-0">
@@ -206,18 +196,12 @@ export function MaterialPanel({
                   )}
                   <p
                     className={cn(
-                      "mt-6 max-w-[44rem] text-[19px] font-[430] leading-[1.58] tracking-[-0.018em] whitespace-pre-wrap",
+                      "mt-4 max-w-[44rem] text-[16px] font-[430] leading-[1.6] tracking-[-0.011em] whitespace-pre-wrap",
                       material.superseded_by ? "text-muted" : "text-ink",
                     )}
                   >
                     {material.content}
                   </p>
-                  {material.capture_id && (
-                    <p className="mt-6 flex items-center gap-1.5 text-[10.5px] text-muted">
-                      <Glyph name="mic" className="h-[11px] w-[11px]" />
-                      Original audio preserved with this activity
-                    </p>
-                  )}
                 </div>
 
                 {/* The evidence column: origin, destination, membership. */}
@@ -227,7 +211,7 @@ export function MaterialPanel({
                     <div className="mt-3 grid gap-[7px]">
                       {material.capture_id && (
                         <SourceCard
-                          icon={<Glyph name="mic" className="h-[15px] w-[15px]" />}
+                          icon={<Glyph name="mic" className="h-[12px] w-[12px]" />}
                           tinted
                           name="Microphone recording"
                           detail={`${material.source?.kind === "panel" ? "Chrome side panel" : "This Mac"}${material.capture_seconds ? ` · ${duration(material.capture_seconds)}` : ""}`}
@@ -241,7 +225,7 @@ export function MaterialPanel({
                           className="group block min-w-0"
                         >
                           <SourceCard
-                            icon={<Glyph name="globe" className="h-[15px] w-[15px]" />}
+                            icon={<Glyph name="globe" className="h-[12px] w-[12px]" />}
                             name={material.source.title || "Untitled webpage"}
                             detail={material.source.domain || material.source.url}
                             external
@@ -262,14 +246,14 @@ export function MaterialPanel({
                     <Lineage title="Made from" items={lineage.data?.parents ?? []} />
                   </section>
 
-                  <section className="mt-7 border-t border-line pt-6">
+                  <section className="mt-5 border-t border-line pt-4">
                     <SectionCap>Where it went</SectionCap>
                     <div className="mt-3">
                       <UsedIn materialId={material.id} onOpenDocument={onOpenDocument} />
                     </div>
                   </section>
 
-                  <section className="mt-7 border-t border-line pt-6">
+                  <section className="mt-5 border-t border-line pt-4">
                     <SectionCap>Projects</SectionCap>
                     <Membership
                       material={material}
@@ -283,7 +267,7 @@ export function MaterialPanel({
                     />
                   </section>
 
-                  <section className="mt-7 border-t border-line pt-6">
+                  <section className="mt-5 border-t border-line pt-4">
                     <SectionCap>Tags</SectionCap>
                     <Tags
                       material={material}
@@ -310,7 +294,7 @@ export function MaterialPanel({
 /** A right-column section's name: small caps, quiet, before what it names. */
 function SectionCap({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-[10px] font-[700] tracking-[0.115em] text-muted-strong uppercase">{children}</h3>
+    <h3 className="text-[11px] font-[550] text-muted">{children}</h3>
   );
 }
 
@@ -330,10 +314,10 @@ function SourceCard({
   external?: boolean;
 }) {
   return (
-    <span className="flex min-w-0 items-center gap-2.5 rounded-[10px] border border-line bg-surface p-2.5">
+    <span className="flex min-w-0 items-center gap-2 py-1">
       <span
         className={cn(
-          "flex h-[30px] w-[30px] flex-none items-center justify-center rounded-md",
+          "flex h-[22px] w-[22px] flex-none items-center justify-center rounded-[6px]",
           tinted ? "bg-accent-soft text-accent" : "bg-surface-muted text-ink-soft",
         )}
       >
@@ -603,9 +587,10 @@ function HowItWasHeard({ applied }: { applied?: Material["applied_context"] }) {
   ).filter((line): line is [string, string] => Boolean(line[1]));
   if (lines.length === 0 && !applied.instructions) return null;
   return (
-    <details className="mt-7 border-t border-line pt-6 text-xs text-muted">
-      <summary className="cursor-pointer text-[10px] font-[700] tracking-[0.115em] text-muted-strong uppercase select-none">
+    <details className="mt-5 border-t border-line pt-4 text-xs text-muted">
+      <summary className="flex cursor-pointer items-center gap-1 text-[11px] font-[550] text-muted select-none [&::-webkit-details-marker]:hidden [&::marker]:content-none">
         How it was heard
+        <Glyph name="chevron" className="h-[10px] w-[10px] text-faint" />
       </summary>
       <dl className="mt-3 grid grid-cols-[84px_minmax(0,1fr)] gap-x-2 gap-y-1">
         {lines.map(([label, value]) => (
@@ -764,7 +749,7 @@ function floorDay(date: Date): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 }
 
-/** "Today · 10:18 AM" — the day in words, the moment on the clock. */
+/** "Today · 10:18" — the day in words, the list's own 24-hour clock. */
 function whenOf(iso: string): string {
   const then = new Date(iso);
   const days = Math.round((floorDay(new Date()) - floorDay(then)) / 86_400_000);
@@ -776,7 +761,7 @@ function whenOf(iso: string): string {
         : days < 7
           ? then.toLocaleDateString("en-US", { weekday: "long" })
           : then.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  return `${day} · ${then.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+  return `${day} · ${then.getHours()}:${String(then.getMinutes()).padStart(2, "0")}`;
 }
 
 function duration(seconds: number): string {
