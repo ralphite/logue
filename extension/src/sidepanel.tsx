@@ -1065,7 +1065,7 @@ export function Panel() {
             rel="noreferrer"
             className="inline-flex h-control shrink-0 items-center gap-1 rounded-md border border-line px-1.5 text-xs text-muted hover:bg-surface-muted hover:text-ink"
           >
-            <ExternalLink size={12} /> Open Logue web app
+            <ExternalLink size={12} /> Open Logue
           </a>
           {/* The address itself, one click away rather than in a menu: when
               Logue is not answering, this is the only control on screen that
@@ -1203,7 +1203,16 @@ export function Panel() {
               </div>
             )}
             {dictation.items.length === 0 ? (
-              <NothingYet>Say something and it lands here.</NothingYet>
+              // What pressing the button leads to, not a mood. The old line —
+              // "Say something and it lands here." — identified nothing:
+              // not the control, not where "here" is, not that it is kept.
+              <NothingYet>
+                Press Record and speak. The recording and its transcript are
+                kept as a Source, and Skills can rewrite the words.
+                <span className="mt-1.5 block text-muted">
+                  While recording: <kbd>↵</kbd> finishes · <kbd>Esc</kbd> discards
+                </span>
+              </NothingYet>
             ) : (
               dictation.items.map((item) => (
                 <div key={item.id} className="border-b border-line p-2.5 last:border-b-0">

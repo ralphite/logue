@@ -3,6 +3,38 @@
   "updated": "2026-08-10",
   "tasks": [
     {
+      "id": "N9",
+      "title": "三路 UI/UX review + 第一轮 redesign:token 级的 13 条已落地",
+      "type": "design",
+      "status": "done",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "ui",
+        "review"
+      ],
+      "note": "93 个 story 全部截图,三路独立审:①Claude 子代理逐张精读(对比度/尺寸用 PIL 实测);②ChatGPT(结构清单,12 条 IA/文案);③自查。**汇总和逐条修法在 [docs/spec/ui-review.md](docs/spec/ui-review.md)**。<br>**本轮已修 13 条**,最重的:disabled primary 白字压浅紫 **1.93:1**(改中性灰);AI 出品借用 amber 和真警告同色(新 token `--color-ai`);控件边界 1.41:1 看不出是控件(新 token `--color-control-line` 3:1);Stream 详情头部只写 \"voice\"(改成内容第一句 + kind·时间·域名);转写正文和标签一样 13px(升 15px,标题移到正文前);rail 无第二事实(加时间);面板 Record 是 45px 幽灵按钮(36px primary);Dictation 空态改成教学文案;归属 chip 从实心 accent 改 ✓+中性。",
+      "input_ids": [],
+      "created": "2026-08-11",
+      "updated": "2026-08-11"
+    },
+    {
+      "id": "N9b",
+      "title": "redesign 第二轮:Markdown 渲染、Notice/EmptyState 统一、浮动条不压字段",
+      "type": "design",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "ui",
+        "review"
+      ],
+      "note": "ui-review.md「值得做、这轮没做的」全列表:①Documents 正文渲染 Markdown + [Source n] 用 citation chip(现在按字面显示还被折行拆开);②Notice/EmptyState 统一组件(现存 7 种错误写法、3 种空态位置);③注入浮动条改锚定策略,不再压住正在写的字段(要真机 Notion/Docs 复验);④⌘K 选中行 1.15:1 + 键盘提示;⑤波形按时长映射宽度;⑥Delete 确认 danger 填充;⑦Settings 解释句收敛;⑧快捷键用 kbd。**一条要他裁决**:三处浮层的 ✓ 位置不一致,但「勾落在麦克风原位」是 X29 的既有决定 —— 统一方向要他选。",
+      "input_ids": [],
+      "created": "2026-08-11",
+      "updated": "2026-08-11"
+    },
+    {
       "id": "N8",
       "title": "我们把各个功能全部用 Storybook 来画出来，让我呢看到每一个产品功能在不同状态下它的 UI 长什么样。因为我们现在的 UI 问题太多。 然后一定要完整，我们有基础组件， feature, page, user journey 等等各个级别的 Storybook",
       "type": "",

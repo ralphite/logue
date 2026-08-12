@@ -15,7 +15,7 @@ const control =
  * of overriding at the call site could remove it.
  */
 const framed =
-  "border border-line-strong hover:border-line-strong focus:border-accent-line focus:shadow-[0_0_0_2px_var(--color-accent-soft)]";
+  "border border-control-line hover:border-control-line focus:border-accent-line focus:shadow-[0_0_0_2px_var(--color-accent-soft)]";
 
 /**
  * A control fills its row unless the caller gave it a width. Deciding this here

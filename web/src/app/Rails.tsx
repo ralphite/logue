@@ -100,6 +100,10 @@ export function StreamRail({
   const entries: RailEntry[] = pins.pinnedFirst(visible).map((material) => ({
     id: material.id,
     title: condense(material.content) || "Empty",
+    // When it was said. Five truncated first-lines in the same grey were
+    // unscannable — the one fact that orders a stream is the one no row
+    // carried.
+    detail: timeAgo(material.created_at),
     pinned: pins.isPinned(material.id),
     // A flat list. Grouping by Project was wrong twice over: a Source belongs
     // to several Projects, and taking the first one silently hid it from the
@@ -169,6 +173,10 @@ export function StreamRail({
           is the one that looks like the answer. */}
       <RailHeader>
         <div className="flex items-center gap-1">
+          {/* The list gets its name. This row used to open with "1 to look
+              at | Groups" — a count of an unnamed thing beside an unlabeled
+              menu, standing where the answer to "what is this list?" goes. */}
+          <span className="px-0.5 text-xs font-[560] text-ink-soft">Sources</span>
           {(waiting?.length ?? 0) > 0 && (
             <button
               type="button"
@@ -176,11 +184,11 @@ export function StreamRail({
               title="Logue has worked out where these probably belong. Nobody has looked yet."
               onClick={() => setReviewing(!reviewing)}
               className={cn(
-                "rounded-md px-1.5 py-1 text-xs",
+                "rounded-md px-1.5 py-1 text-xs whitespace-nowrap",
                 reviewing ? "bg-active font-[560] text-ink" : "text-muted hover:bg-hover hover:text-ink",
               )}
             >
-              {waiting?.length} to look at
+              To review · {waiting?.length}
             </button>
           )}
           <Menu

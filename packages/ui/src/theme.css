@@ -32,6 +32,17 @@
   --color-accent-hover-soft: #e4e6fc;
   --color-accent-pressed: #dfe1fb;
 
+  /* What AI produced, as a provenance, not an alarm. It borrowed
+     --color-warning for a while, which made "a model wrote this" and
+     "something needs you" the same colour on the same screens. */
+  --color-ai: #4e504b;
+
+  /* The boundary of something you can press or type into. --color-line is a
+     separator and reads at 1.24:1 against the surface — fine for hairlines,
+     invisible as an affordance. This one holds 3:1, the WCAG floor for
+     control boundaries. */
+  --color-control-line: #c3c4bf;
+
   --color-danger: #a33d36;
   --color-danger-soft: #fdf3f2;
   --color-danger-line: #efc9c4;

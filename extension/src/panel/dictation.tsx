@@ -132,17 +132,18 @@ export function RecordControl({
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-line-strong bg-surface p-2">
-      <Button
-        variant="ghost"
-        className="h-control flex-1"
-        disabled={phase === "starting"}
-        onClick={onStart}
-      >
-        {phase === "starting" ? <Spinner size={13} /> : <Mic size={14} />}
-        {phase === "starting" ? "Reaching the microphone…" : "Record"}
-      </Button>
-    </div>
+    // The one thing this tab is for, dressed like it. It was a ghost button
+    // inside a bordered box — double chrome around the least visible control
+    // on the screen, on the screen whose whole purpose it is.
+    <Button
+      variant="primary"
+      className="h-9 w-full"
+      disabled={phase === "starting"}
+      onClick={onStart}
+    >
+      {phase === "starting" ? <Spinner size={13} /> : <Mic size={14} />}
+      {phase === "starting" ? "Reaching the microphone…" : "Record"}
+    </Button>
   );
 }
 

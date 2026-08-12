@@ -8,13 +8,17 @@ import { cn } from "./cn";
 export type ButtonVariant = "default" | "primary" | "ghost" | "danger";
 
 const base =
-  "inline-flex h-control shrink-0 items-center justify-center gap-1 rounded-md px-2 text-xs font-[560] whitespace-nowrap transition-colors select-none disabled:pointer-events-none disabled:opacity-45 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent [&_kbd]:font-sans [&_kbd]:text-[10px] [&_kbd]:opacity-60 [&_svg]:shrink-0";
+  "inline-flex h-control shrink-0 items-center justify-center gap-1 rounded-md px-2 text-xs font-[560] whitespace-nowrap transition-colors select-none disabled:pointer-events-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent [&_kbd]:font-sans [&_kbd]:text-[10px] [&_kbd]:opacity-60 [&_svg]:shrink-0 " +
+  // One disabled look for every variant. Fading the accent kept white text
+  // on pale violet — measured at 1.93:1, which is not text. A control that
+  // cannot be pressed is grey the same way everywhere.
+  "disabled:border disabled:border-line disabled:bg-surface-muted disabled:text-muted";
 
 const variants: Record<ButtonVariant, string> = {
-  default: "border border-line-strong bg-surface text-ink-soft hover:bg-surface-muted hover:text-ink",
+  default: "border border-control-line bg-surface text-ink-soft hover:bg-surface-muted hover:text-ink",
   primary: "bg-accent text-white hover:bg-accent-hover",
   ghost: "text-ink-soft hover:bg-surface-muted hover:text-ink",
-  danger: "border border-line-strong bg-surface text-danger hover:bg-danger-soft",
+  danger: "border border-control-line bg-surface text-danger hover:bg-danger-soft",
 };
 
 export function Button({

@@ -62,7 +62,10 @@ export function readAnswer(text: string): AnswerToken[] {
 const marks: Record<Origin, { icon: typeof Globe; label: string; className: string }> = {
   web: { icon: Globe, label: "From the web", className: "text-muted" },
   you: { icon: Mic, label: "From you", className: "text-accent" },
-  ai: { icon: Sparkles, label: "Generated", className: "text-warning" },
+  // Neutral, deliberately: amber here made "a model wrote this" and "this
+  // needs you" the same colour, and provenance is a fact, not an alarm. The
+  // sparkle carries the identification.
+  ai: { icon: Sparkles, label: "Generated", className: "text-ai" },
 };
 
 export function OriginMark({

@@ -1,4 +1,4 @@
-import { ExternalLink, FileText, Sparkles, X } from "lucide-react";
+import { Check, ExternalLink, FileText, Sparkles, X } from "lucide-react";
 import { Fragment, useState } from "react";
 import {
   Button,
@@ -20,6 +20,12 @@ import { timeAgo, useAction, useHost } from "./useHost";
  * One Source, and the chain it belongs to. This panel is where the product's
  * promise is inspectable: what the page said, what you added, and what came out.
  */
+/** The first breathable phrase of the content: the Source's own name. */
+function firstWords(content: string): string {
+  const line = content.split("\n").find((one) => one.trim()) ?? "";
+  return line.length > 80 ? `${line.slice(0, 80)}…` : line || "Source";
+}
+
 export function MaterialPanel({
   materialId,
   onClose,
@@ -44,13 +50,24 @@ export function MaterialPanel({
     // Not a drawer any more: the list lives in the rail, so this is simply
     // what the main area is for.
     <section className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-11 shrink-0 items-center justify-between gap-2 border-b border-line px-4">
-        {/* The one route whose main area had no h1 — a heading is a landmark
-            for keyboard and screen-reader travel, same as the other four. */}
-        <h1 className="truncate text-[13px] font-[560] text-ink">
-          {material ? material.kind : "Source"}
+      <header className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-line px-4">
+        {/*
+          The words, not the type. This bar used to read "voice" — the one
+          fact shared by half the workspace, standing where the identity goes,
+          while the words that make this Source itself sat two sections down.
+          The kind, the age and the origin are one muted phrase beside it:
+          together they are the identity line of a Source anywhere.
+        */}
+        <h1 className="min-w-0 flex-1 truncate text-[13px] font-[560] text-ink">
+          {material ? firstWords(material.content) : "Source"}
         </h1>
-        <IconButton label="Close" onClick={onClose}>
+        {material && (
+          <span className="flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap text-muted">
+            <OriginMark origin={originOf(material.kind)} detail={timeAgo(material.created_at)} />
+            {material.source?.domain && <span>· {material.source.domain}</span>}
+          </span>
+        )}
+        <IconButton label="Close this Source" onClick={onClose}>
           <X size={14} />
         </IconButton>
       </header>
@@ -137,11 +154,28 @@ export function MaterialPanel({
                 </div>
               )}
 
+              {/*
+                The words themselves — the reason this page exists — set a
+                step larger than everything around them. They used to render
+                at the same 13px as the metadata labels, so the eye had no
+                landing place: a page about one paragraph gave that paragraph
+                no more weight than the word "Tags".
+              */}
               <div className="grid gap-1.5">
-                <OriginMark origin={originOf(material.kind)} detail={timeAgo(material.created_at)} />
+                {material.capture_id ? (
+                  <Transcript
+                    material={material}
+                    busy={action.busy}
+                    onChanged={() => {
+                      void lineage.refresh();
+                      onChanged();
+                    }}
+                    run={action.run}
+                  />
+                ) : null}
                 <p
                   className={cn(
-                    "text-[13px] leading-normal whitespace-pre-wrap",
+                    "max-w-prose text-[15px] leading-relaxed whitespace-pre-wrap",
                     // Dimmed, not hidden: still readable, no longer current.
                     material.superseded_by ? "text-muted" : "text-ink",
                   )}
@@ -149,18 +183,6 @@ export function MaterialPanel({
                   {material.content}
                 </p>
               </div>
-
-              {material.capture_id && (
-                <Transcript
-                  material={material}
-                  busy={action.busy}
-                  onChanged={() => {
-                    void lineage.refresh();
-                    onChanged();
-                  }}
-                  run={action.run}
-                />
-              )}
 
               <HowItWasHeard applied={material.applied_context} />
 
@@ -268,9 +290,14 @@ export function MaterialPanel({
                   {projects.map((project) => {
                     const member = material.projects.includes(project.name);
                     return (
+                      // Membership is a checkmark, not a colour. The member
+                      // chip used to be a solid accent button — the exact
+                      // dress of the page's one primary action, on a toggle,
+                      // with the state carried by fill alone.
                       <Button
                         key={project.id}
-                        variant={member ? "primary" : "default"}
+                        aria-pressed={member}
+                        className={member ? "border-ink/25 bg-surface-muted text-ink" : "text-muted"}
                         disabled={action.busy}
                         onClick={() =>
                           void action
@@ -278,6 +305,7 @@ export function MaterialPanel({
                             .then((ok) => ok && (lineage.refresh(), onChanged()))
                         }
                       >
+                        {member && <Check size={12} className="text-success" />}
                         {project.name}
                       </Button>
                     );
@@ -327,16 +355,21 @@ function Transcript({
     });
 
   return (
-    <div className="grid gap-1.5 border-t border-line pt-3">
-      <span className="flex items-center gap-2 text-xs text-muted">
+    // The heading, before the words it names — it used to follow them, so
+    // the text explained itself only after it had been read. The actions sit
+    // on the heading, and each says what it does to the transcript rather
+    // than what the person might be feeling: "Hear it again" read as
+    // playback, while what it does is ask the model to listen once more.
+    <div className="grid gap-1.5">
+      <span className="flex items-center gap-2 text-xs font-[560] text-muted">
         Transcript
-        {revisions.length > 0 && <span className="text-muted">{revisions.length} earlier</span>}
+        {revisions.length > 0 && <span className="font-normal">{revisions.length} earlier</span>}
         <span className="ml-auto flex gap-1">
           <Button variant="ghost" disabled={busy} onClick={() => setFixing(!fixing)}>
             Fix a word
           </Button>
-          <Button variant="ghost" disabled={busy} onClick={() => again()}>
-            {busy ? <Spinner size={12} /> : null} Hear it again
+          <Button variant="ghost" disabled={busy} onClick={() => again()} title="Ask the model to transcribe the recording again">
+            {busy ? <Spinner size={12} /> : null} Transcribe again
           </Button>
         </span>
       </span>
