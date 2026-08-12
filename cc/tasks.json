@@ -13,11 +13,11 @@
         "ui",
         "ia"
       ],
-      "note": "他对 N9 的定性:review 选错方向 —— 「我并不 care font 等小层面的问题,需要的是整体页面和信息架构的重构」,并且明确「不要直接改代码,给我 preview,几个不同类型更好」。<br>**已交付三方向 preview**(scratchpad `ia-preview.html`,已发给他):**A · Inbox 优先**(落地页=待分拣,导航按活动分,Skills 降级进 Settings);**B · Project 优先**(Project 变真容器,里面 Stream/Documents/About 三个 tab);**C · 一条时间线**(砍第二列 rail,过滤器代替路由,详情占满全宽、正文+出处两栏)。每个都写了核心选择、编号 callout、代价;附对比表。**我的推荐:A 做骨架 + C 的焦点详情**。<br>诊断(四条结构病):导航是数据库表不是活动;「分拣」被藏成 rail chip;Project 是过滤器被当地点;第三列永远单列右侧 40% 空白。<br>**他拍板了骨架**:左栏保持 Inbox·Projects·Documents·Skills·Settings(Stream→Inbox),左栏尽量不动,其余可改。**第二版 preview 已交**(scratchpad `ia-final.html`):Web ①Inbox=待分拣卡片(建议上卡面,↵ 归档)+ 下半屏时间流,第二列 rail 取消;②焦点详情接管整页,左=话+改写 16px,右=出处+去向;③Projects 容器化(Sources/Documents/About 三 tab)。Extension:Dictation·This page·Chat 三 tab,Project tab 删除,scope 升头部一处,全局状态一条横幅,This page 合流(存的/说的/答的)=panel-ia 提案 A。迁移顺序:焦点详情→Inbox→面板→Projects,每步一个可验 PR。",
+      "note": "他对 N9 的定性:review 选错方向 —— 「我并不 care font 等小层面的问题,需要的是整体页面和信息架构的重构」,并且明确「不要直接改代码,给我 preview,几个不同类型更好」。<br>**已交付三方向 preview**(scratchpad `ia-preview.html`,已发给他):**A · Inbox 优先**(落地页=待分拣,导航按活动分,Skills 降级进 Settings);**B · Project 优先**(Project 变真容器,里面 Stream/Documents/About 三个 tab);**C · 一条时间线**(砍第二列 rail,过滤器代替路由,详情占满全宽、正文+出处两栏)。每个都写了核心选择、编号 callout、代价;附对比表。**我的推荐:A 做骨架 + C 的焦点详情**。<br>诊断(四条结构病):导航是数据库表不是活动;「分拣」被藏成 rail chip;Project 是过滤器被当地点;第三列永远单列右侧 40% 空白。<br>**他拍板了骨架**:左栏保持 Inbox·Projects·Documents·Skills·Settings(Stream→Inbox),左栏尽量不动,其余可改。**第二版 preview 已交**(scratchpad `ia-final.html`):Web ①Inbox=待分拣卡片(建议上卡面,↵ 归档)+ 下半屏时间流,第二列 rail 取消;②焦点详情接管整页,左=话+改写 16px,右=出处+去向;③Projects 容器化(Sources/Documents/About 三 tab)。Extension:Dictation·This page·Chat 三 tab,Project tab 删除,scope 升头部一处,全局状态一条横幅,This page 合流(存的/说的/答的)=panel-ia 提案 A。迁移顺序:焦点详情→Inbox→面板→Projects,每步一个可验 PR。<br>**第三版 preview(定稿候选)已交**(`ia-complete.html`):他要求 UI 文案全英文(用户内容可以非英文)、必须完整。这版盖住:Web 五个目的地全部(Inbox 分拣+全部、焦点详情两栏、Projects 容器、Documents 渲染 Markdown + Sources 边栏、Skills/Settings 说明为何不动版面)+ Extension 四帧(Dictation 有内容、空态+录音中、This page 合流+模型横幅、Logue 掉线横幅+队列卡+Record 禁用)。落地顺序:焦点详情→Inbox→面板→Projects→Documents Markdown,每步一个可验提交。",
+      "blocked_on": "等他对这版完整 preview 点头,点头即按顺序动代码",
       "input_ids": [],
       "created": "2026-08-11",
-      "updated": "2026-08-11",
-      "blocked_on": "等他对第二版 preview 点头(或改),点头后按迁移顺序动代码"
+      "updated": "2026-08-11"
     },
     {
       "id": "N9",
@@ -201,11 +201,11 @@
         "panel",
         "ui"
       ],
-      "note": "提案在 docs/spec/panel-ia.md。A:Chat 和 This page 合成一条流,Project 提到头部只留一个,全局状态收进顶部状态条。B:tab 留着只按主语重排。我推荐 A。你点头之前一行代码都不动。",
+      "note": "提案在 docs/spec/panel-ia.md,已对着今天的面板刷新过(8/10 写的时候是三个 tab,现在四个、默认开 Dictation)。刷新后:原来第 5 条「等待中的录音画两遍」N5 已经修掉,划掉;新增两条 —— 2b 两个 tab 抢同一个录音机(靠 speaking 这个裁判变量让路)、10 默认那一屏由排期决定而不是由入口决定。A:四个 tab 收成两个(这一页 + 听写),Chat 和 This page 合成一条流,Project 提到头部,全局状态收进顶部状态条。B:四个 tab 留着只按主语重排。我推荐 A。第六节三个问题,你答完我才动手。",
       "blocked_on": "等你在 docs/spec/panel-ia.md 第六节回答三个问题",
       "input_ids": [],
       "created": "2026-08-10",
-      "updated": "2026-08-10"
+      "updated": "2026-08-11"
     },
     {
       "id": "M2v",
@@ -250,19 +250,19 @@
       "id": "A2",
       "title": "审计剩下的五条,挑哪几条要修",
       "type": "question",
-      "status": "blocked",
+      "status": "done",
       "priority": "P1",
       "confirmed": false,
       "tags": [
         "audit"
       ],
-      "note": "audit.md 里六条按值不值得排好了,已经修掉一条。剩下五条等的不是工时,是你一句话。",
+      "note": "六条早就全修完了 —— 但标记不是证据,所以重新量了一遍(真浏览器、真工作区、四个 tab 逐个)。先修了走查脚本自己:audit-ext.mjs 只量默认那一屏,面板改成默认开 Dictation 之后它拿到 null、整个死在 Illegal invocation —— 新加的那个面从来没被量过。复量抓到三条漏网的,都修了:①DocumentsRoute 的 h2 字重还是 400(另外四个都 560);②对话里的 [Source n] 角标 20x20,低于 24px 地板;③Dictation 里那行 16px 高。改完复量:低于 24px 的一个都没有(改前 5 个),字号仍只有 12/13 两档。四道门禁全绿。剩一处要你一句话:Menu 的快捷键字母和菜单分组标题还是 11px,那是 X33 照 Claude Code 特意做的,和 audit #4 冲突 —— 留着还是拉到 12px,见 audit.md 末节。",
       "blocked_on": "等你拍板",
       "input_ids": [
         "in_confirm_unsure"
       ],
       "created": "2026-08-09",
-      "updated": "2026-08-10"
+      "updated": "2026-08-11"
     },
     {
       "id": "P6b",
