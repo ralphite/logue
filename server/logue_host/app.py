@@ -180,6 +180,10 @@ class App:
         def organize_material(request: Request) -> dict[str, Any]:
             return {"material": organize.classify(store, self.provider(), request.params["id"])}
 
+        @route("POST", "/v1/materials/{id}/organization/undo")
+        def undo_organization(request: Request) -> dict[str, Any]:
+            return {"material": organize.undo(store, request.params["id"])}
+
         @route("POST", "/v1/materials/{id}/organization")
         def resolve_organization(request: Request) -> dict[str, Any]:
             body = request.json()

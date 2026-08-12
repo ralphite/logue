@@ -591,7 +591,7 @@ class DefaultSkillTest(Workspace, unittest.TestCase):
 
 
 class OrganizeTest(Workspace, unittest.TestCase):
-    """Automatic filing proposes; it never decides."""
+    """Automatic filing decides, quietly — and each decision can be taken back."""
 
     def a_source(self, content: str = "Async interviews finished faster.", **over) -> dict:
         return self.call("POST", "/v1/materials", {"kind": "text", "content": content, **over})["material"]
@@ -603,39 +603,40 @@ class OrganizeTest(Workspace, unittest.TestCase):
         self.app.provider = lambda: provider  # type: ignore[method-assign]
         return provider
 
-    def test_a_suggestion_waits_for_a_person(self) -> None:
-        """However sure the model is, nothing joins a Project on its own."""
+    def test_filing_is_automatic_silent_and_recorded(self) -> None:
+        """The moment the model answers, the Source is where it belongs."""
         self.call("POST", "/v1/projects", {"name": "Research", "overview": "Interviews"})
         source = self.a_source()
         provider = self.answering('{"projects":["Research"],"tags":["async"],"confidence":0.99,"reason":"Interviews."}')
 
         filed = organize.classify(self.app.store, provider, source["id"])
-        self.assertEqual(filed["organization"]["status"], "needs_review")
-        self.assertEqual(filed["organization"]["suggested_projects"], ["Research"])
-        self.assertEqual(filed["projects"], [], "a suggestion must not file anything by itself")
+        self.assertEqual(filed["projects"], ["Research"])
+        self.assertEqual(filed["tags"], ["async"])
+        self.assertEqual(filed["organization"]["status"], "confirmed")
+        self.assertEqual(filed["organization"]["decided"], "auto")
+        self.assertEqual(filed["organization"]["accepted_projects"], ["Research"])
+        self.assertEqual(filed["organization"]["accepted_tags"], ["async"])
+        self.assertEqual([m["id"] for m in organize.queue(self.app.store)], [], "nothing waits for a person")
 
-    def test_accepting_applies_it_and_records_that_it_was_accepted(self) -> None:
+    def test_undo_takes_back_only_what_filing_added(self) -> None:
+        """The subtraction is as exact as the recorded addition."""
         self.call("POST", "/v1/projects", {"name": "Research", "overview": "Interviews"})
         source = self.a_source()
         provider = self.answering('{"projects":["Research"],"tags":["async"],"confidence":0.9,"reason":"Interviews."}')
         organize.classify(self.app.store, provider, source["id"])
 
-        taken = self.call("POST", f"/v1/materials/{source['id']}/organization", {"accept": True})["material"]
-        self.assertEqual(taken["projects"], ["Research"])
-        self.assertEqual(taken["tags"], ["async"])
-        self.assertEqual(taken["organization"]["decided"], "accepted")
-        self.assertEqual([m["id"] for m in organize.queue(self.app.store)], [])
+        # Afterwards, the person files and tags it themselves too.
+        mine = self.app.store.materials.get(source["id"])
+        mine["projects"] = [*mine["projects"], "By hand"]
+        mine["tags"] = [*mine["tags"], "kept"]
+        self.app.store.materials.put(mine)
 
-    def test_dismissing_leaves_the_source_untouched(self) -> None:
-        self.call("POST", "/v1/projects", {"name": "Research", "overview": "Interviews"})
-        source = self.a_source()
-        provider = self.answering('{"projects":["Research"],"tags":["async"],"confidence":0.9,"reason":"Interviews."}')
-        organize.classify(self.app.store, provider, source["id"])
-
-        left = self.call("POST", f"/v1/materials/{source['id']}/organization", {"accept": False})["material"]
-        self.assertEqual(left["projects"], [])
-        self.assertEqual(left["tags"], [])
-        self.assertEqual(left["organization"]["decided"], "dismissed")
+        left = self.call("POST", f"/v1/materials/{source['id']}/organization/undo", {})["material"]
+        self.assertEqual(left["projects"], ["By hand"], "what the person did survives the undo")
+        self.assertEqual(left["tags"], ["kept"])
+        self.assertEqual(left["organization"]["decided"], "undone")
+        with self.assertRaises(BadRequest):
+            organize.undo(self.app.store, source["id"])  # there is no "automatic" left to undo
 
     # -- R13: the time dimension ------------------------------------------
 
@@ -656,7 +657,7 @@ class OrganizeTest(Workspace, unittest.TestCase):
 
         filed = organize.classify(self.app.store, provider, new["id"])
         self.assertEqual(filed["organization"]["supersedes"]["id"], old["id"])
-        self.assertEqual(filed["organization"]["status"], "needs_review")
+        self.assertEqual(filed["organization"]["status"], "organized", "nothing to add; the claim is kept, not queued")
         self.assertNotIn(
             "superseded_by",
             self.call("GET", f"/v1/materials/{old['id']}")["material"],
@@ -672,8 +673,8 @@ class OrganizeTest(Workspace, unittest.TestCase):
         # And the old one is still there, still readable, still filed.
         self.assertIn("five minutes", replaced["content"])
 
-    def test_the_filing_can_be_taken_without_the_contradiction(self) -> None:
-        """Two questions, two answers. Wanting the tags is not agreeing."""
+    def test_the_filing_arrives_without_the_contradiction(self) -> None:
+        """Filing is automatic; agreeing an old Source is now wrong never is."""
         old = self.a_source("The recording limit is five minutes.")
         new = self.a_source("The recording limit is ten minutes now, we changed it.")
         provider = self.answering(
@@ -682,7 +683,7 @@ class OrganizeTest(Workspace, unittest.TestCase):
         )
         organize.classify(self.app.store, provider, new["id"])
 
-        self.call("POST", f"/v1/materials/{new['id']}/organization", {"accept": True, "supersede": False})
+        # The tags are already on; the older Source is untouched until a person says so.
         self.assertEqual(self.call("GET", f"/v1/materials/{new['id']}")["material"]["tags"], ["limits"])
         self.assertNotIn("superseded_by", self.call("GET", f"/v1/materials/{old['id']}")["material"])
 
@@ -720,12 +721,13 @@ class OrganizeTest(Workspace, unittest.TestCase):
         filed = organize.classify(self.app.store, provider, source["id"])
         self.assertEqual(filed["organization"]["suggested_projects"], [])
 
-    def test_a_model_that_rambles_asks_for_a_person_rather_than_looking_settled(self) -> None:
+    def test_a_model_that_rambles_leaves_it_for_another_look(self) -> None:
         source = self.a_source()
         provider = self.answering("Sure! Here is my thinking, at length, with no JSON at all.")
         filed = organize.classify(self.app.store, provider, source["id"])
-        self.assertEqual(filed["organization"]["status"], "needs_review")
+        self.assertEqual(filed["organization"]["status"], "pending", "not settled, not queued — waiting")
         self.assertIn("Could not be filed", filed["organization"]["reason"])
+        self.assertEqual(filed["projects"], [], "a failed look files nothing")
 
     def test_json_inside_a_code_fence_is_still_read(self) -> None:
         self.call("POST", "/v1/projects", {"name": "Research", "overview": "Interviews"})
@@ -733,6 +735,7 @@ class OrganizeTest(Workspace, unittest.TestCase):
         provider = self.answering('```json\n{"projects":["Research"],"tags":[],"confidence":0.8,"reason":"x"}\n```')
         filed = organize.classify(self.app.store, provider, source["id"])
         self.assertEqual(filed["organization"]["suggested_projects"], ["Research"])
+        self.assertEqual(filed["projects"], ["Research"], "read, and therefore filed")
 
     def test_the_same_quote_twice_is_noticed_without_a_model(self) -> None:
         first = self.a_source("The exact same sentence.")
@@ -749,23 +752,42 @@ class OrganizeTest(Workspace, unittest.TestCase):
         provider = self.answering('{"projects":[],"tags":["async"],"confidence":0.5,"reason":"x"}')
         organize.classify(self.app.store, provider, str(stale["id"]))
 
-        self.assertTrue(self.app.store.materials.get(source["id"])["excluded"], "the edit survived filing")
+        fresh = self.app.store.materials.get(source["id"])
+        self.assertTrue(fresh["excluded"], "the edit survived filing")
+        self.assertEqual(fresh["tags"], ["async"], "and filing still landed, on the edited copy")
 
-    def test_the_queue_leads_with_the_most_confident(self) -> None:
+    def test_the_old_review_queue_is_settled_on_start(self) -> None:
+        """What waited under the old rule is filed under the new one."""
         self.call("POST", "/v1/projects", {"name": "Research", "overview": "Interviews"})
-        unsure = self.a_source("One.")
-        sure = self.a_source("Two.")
-        organize.classify(
-            self.app.store,
-            self.answering('{"projects":["Research"],"tags":[],"confidence":0.2,"reason":"x"}'),
-            unsure["id"],
+        waiting = self.a_source("A Source the old Logue queued for review.")
+        stuck = self.a_source("A Source the old Logue could not file.")
+        informational = self.a_source("A Source whose only finding was a twin.")
+        store = self.app.store
+        for source, organization in (
+            (waiting, {"suggested_projects": ["Research"], "suggested_tags": ["async"],
+                       "confidence": 0.8, "reason": "Interviews."}),
+            (stuck, {"suggested_projects": [], "suggested_tags": [], "confidence": 0.0,
+                     "reason": "Could not be filed automatically: model down"}),
+            (informational, {"suggested_projects": [], "suggested_tags": [], "confidence": 0.4,
+                             "reason": "Same as an earlier one.", "duplicate_of": waiting["id"]}),
+        ):
+            record = store.materials.get(source["id"])
+            record["organization"] = {"status": "needs_review", **organization, "updated_at": record["created_at"]}
+            store.materials.put(record)
+
+        self.assertEqual(organize.settle_backlog(store), (1, 1))
+
+        filed = store.materials.get(waiting["id"])
+        self.assertEqual(filed["projects"], ["Research"])
+        self.assertEqual(filed["organization"]["decided"], "auto", "undoable exactly like a fresh filing")
+        self.assertEqual(store.materials.get(stuck["id"])["organization"]["status"], "pending")
+        kept = store.materials.get(informational["id"])
+        self.assertEqual(kept["organization"]["status"], "organized")
+        self.assertEqual(kept["organization"]["duplicate_of"], waiting["id"], "the information survives")
+        self.assertFalse(
+            [m for m in store.materials.list() if (m.get("organization") or {}).get("status") == "needs_review"],
+            "the word needs_review retires with the queue",
         )
-        organize.classify(
-            self.app.store,
-            self.answering('{"projects":["Research"],"tags":[],"confidence":0.9,"reason":"x"}'),
-            sure["id"],
-        )
-        self.assertEqual([m["id"] for m in organize.queue(self.app.store)], [sure["id"], unsure["id"]])
 
     def test_a_source_left_pending_is_picked_up_again(self) -> None:
         self.call("POST", "/v1/projects", {"name": "Research", "overview": "Interviews"})
@@ -777,7 +799,9 @@ class OrganizeTest(Workspace, unittest.TestCase):
         for thread in threading.enumerate():
             if thread.name.startswith("organize-"):
                 thread.join(timeout=5)
-        self.assertEqual(self.app.store.materials.get(source["id"])["organization"]["status"], "needs_review")
+        picked = self.app.store.materials.get(source["id"])
+        self.assertEqual(picked["organization"]["status"], "confirmed")
+        self.assertEqual(picked["projects"], ["Research"], "picked up and filed, not re-queued")
 
 
 class AdoptionTest(Workspace, unittest.TestCase):

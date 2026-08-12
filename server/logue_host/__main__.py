@@ -30,6 +30,17 @@ def main(argv: list[str] | None = None) -> int:
     web = installed_web()
     server = serve(app.router, host or "127.0.0.1", int(port), web)
 
+    # What an earlier Logue queued for review is filed by this one: the queue
+    # is gone, and its backlog goes where new captures now go — applied,
+    # recorded as automatic, undoable one by one.
+    settled, retried = organize.settle_backlog(app.store)
+    if settled or retried:
+        print(
+            f"Filed {settled} Sources the old review queue was holding; "
+            f"{retried} sent back for another look.",
+            flush=True,
+        )
+
     # Anything a previous run was part-way through. Without this a Host
     # restarted mid-classification leaves Sources waiting for good.
     resumed = organize.catch_up(app.store, app.provider())

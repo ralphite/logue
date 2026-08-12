@@ -698,3 +698,15 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   ring — a heavy outline inside a small popover reads as an error. Every
   action carries one letter, shown on the right, and pressing that letter runs
   it and closes the menu.
+- **Filing is automatic, silent, and always undoable.** (2026-08-12, his words:
+  "全自动静默归档", "no to file pls".) The moment classification returns, the
+  Source is in its Projects and wearing its tags — no queue, no File or Skip,
+  no confidence number anywhere. The Source's own view carries the receipt:
+  what was added, the model's one-sentence reason, and Undo. Undo subtracts
+  exactly what filing added and nothing a person did, because the addition was
+  recorded at the moment it was made. A look that failed stays `pending` and
+  is retried on the next start, silently. One thing still waits for a person:
+  "this replaces an older Source" changes how other material reads, so it
+  remains a question in the Source view. On first start after this rule, the
+  old queue's backlog is filed the same way — recorded as automatic, undoable
+  one by one — and the word `needs_review` retires.

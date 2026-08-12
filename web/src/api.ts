@@ -45,18 +45,22 @@ export interface Material {
     reference_project?: string;
     glossary?: string[];
   };
-  /** What automatic filing proposed, and what became of it. */
+  /** What automatic filing did, why, and exactly what it added. */
   organization?: {
     status?: string;
     confidence?: number;
     reason?: string;
     suggested_projects?: string[];
     suggested_tags?: string[];
+    /** What filing actually added — the exact set an undo takes back. */
+    accepted_projects?: string[];
+    accepted_tags?: string[];
     duplicate_of?: string;
     /** An earlier Source this one seems to overrule, waiting for a person. */
     supersedes?: { id: string; why?: string };
     accepted_supersedes?: string;
-    decided?: "accepted" | "dismissed";
+    /** "auto" until a person confirms, undoes, or edits. */
+    decided?: "auto" | "undone" | "accepted" | "dismissed";
   };
   /** Set once someone agreed a newer Source overrules this one. */
   superseded_by?: { id: string; at: string; why?: string };
@@ -317,6 +321,9 @@ export const api = {
     body: { accept: boolean; projects?: string[]; tags?: string[]; supersede?: boolean },
   ) =>
     send<{ material: Material }>("POST", `/v1/materials/${id}/organization`, body),
+  /** Take back what automatic filing added — that, and nothing else. */
+  undoOrganization: (id: string) =>
+    send<{ material: Material }>("POST", `/v1/materials/${id}/organization/undo`, {}),
   setMembership: (materialId: string, project: string, member: boolean) =>
     send<{ material: Material }>("POST", "/v1/project-membership", { material_id: materialId, project, member }),
 

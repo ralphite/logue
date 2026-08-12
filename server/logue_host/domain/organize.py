@@ -1,16 +1,18 @@
-"""Automatic organisation: a suggestion, never a decision.
+"""Automatic organisation: filed on arrival, quietly, and always undoable.
 
-Something captured mid-task is filed by nobody, so the Stream fills with things
-that belong to a Project and are not in it. This proposes where each new Source
-belongs and why — and stops there. Every suggestion waits for a person, because
-a Project that quietly grew a Source nobody put there is worse than an
-unorganised Stream: it makes the next answer cite something the person never
-chose.
+Something captured mid-task is filed by nobody, so for a long time this module
+proposed and a queue waited for a person. The queue lost: two hundred and fifty
+decisions nobody wanted to make, parked in front of the record of what they had
+actually done. Now the model's filing is applied the moment it is made —
+silently, with the reason kept, and with exactly what was added written down so
+one click can take precisely that back. A filing that must be undone twice a
+week costs less than a queue that must be emptied every day.
 
-Two things are deliberately *not* the model's job. Duplicates are found by
-comparing text and URLs, which is exact and free. And nothing is ever applied
-automatically, however confident the model claims to be — confidence sorts the
-queue, it does not empty it.
+Two things are still not decided by the model. A contradiction — this Source
+replacing an older one — changes how other material reads, so it stays a
+proposal in the Source's own view until a person agrees. And duplicates are
+found by comparing text and URLs, which is exact and free; the finding is kept
+as information, never acted on.
 """
 
 from __future__ import annotations
@@ -27,19 +29,16 @@ from ..providers import Provider
 from ..store import Record, Store
 from . import defaults
 
-# The vocabulary this workspace already uses, kept exactly: 95 Sources carry
-# these words, and a sixth status would make the older ones ambiguous.
-#: Waiting to be looked at by the model.
+# The vocabulary this workspace already uses, kept exactly: hundreds of Sources
+# carry these words, and a fifth status would make the older ones ambiguous.
+#: Waiting to be looked at by the model — including again, after a failed look.
 PENDING = "pending"
-#: Looked at, nothing to propose — already where it belongs.
+#: Looked at, nothing to apply — already where it belongs.
 ORGANIZED = "organized"
-#: There is a suggestion and nobody has seen it yet.
+#: The old queue's word. New filings never write it; `settle_backlog` retires it.
 NEEDS_REVIEW = "needs_review"
-#: A person decided.
+#: Filed. `decided` says by whom: "auto" until a person confirms, undoes, or edits.
 CONFIRMED = "confirmed"
-
-#: Above this a suggestion leads the queue. It never applies anything by itself.
-CONFIDENT = 0.75
 
 #: How many earlier Sources are shown to the model when asking about a contradiction.
 NEIGHBOURS = 8
@@ -240,8 +239,39 @@ def _write(store: Store, material_id: str, organization: dict[str, Any]) -> Reco
     return store.materials.put(fresh)
 
 
+def _apply(store: Store, material_id: str, result: dict[str, Any], twin: str | None) -> Record:
+    """File it, quietly — and write down exactly what filing added.
+
+    Applied to the Source as it is *now* (the person may have filed or tagged
+    it themselves while the model thought), adding only what is not already
+    there, against the Projects that still exist. The additions are recorded
+    next to the suggestion so `undo` can take back precisely those and leave
+    everything a person did alone.
+    """
+    fresh = store.materials.get(material_id)
+    live = {str(p.get("name")) for p in store.projects.list() if not p.get("archived_at")}
+    adding = [str(n) for n in result.get("suggested_projects") or []
+              if str(n) in live and str(n) not in (fresh.get("projects") or [])]
+    already = {str(t).casefold() for t in fresh.get("tags") or []}
+    tagging = [str(t) for t in result.get("suggested_tags") or [] if str(t).casefold() not in already]
+    stamp = now()
+    fresh["projects"] = list(dict.fromkeys([*(fresh.get("projects") or []), *adding]))
+    fresh["tags"] = list(dict.fromkeys([*(fresh.get("tags") or []), *tagging]))
+    fresh["organization"] = {
+        "status": CONFIRMED,
+        "decided": "auto",
+        **result,
+        "accepted_projects": adding,
+        "accepted_tags": tagging,
+        **({"duplicate_of": twin} if twin else {}),
+        "updated_at": stamp,
+    }
+    fresh["updated_at"] = stamp
+    return store.materials.put(fresh)
+
+
 def classify(store: Store, provider: Provider, material_id: str) -> Record:
-    """Look at one Source and write down where it seems to belong."""
+    """Look at one Source and file it where it seems to belong."""
     material = store.materials.get(material_id)
     timestamp = now()
     twin = duplicate_of(store, material)
@@ -260,12 +290,13 @@ def classify(store: Store, provider: Provider, material_id: str) -> Record:
             recorded["output.value"] = json.dumps(result, ensure_ascii=False)
     except (Unavailable, ValueError, json.JSONDecodeError) as cause:
         # A model that is down or rambling must not cost someone the capture,
-        # and must not look like "nothing to file here" either.
+        # and must not look like "nothing to file here" either. It stays
+        # `pending`, so the next start's catch_up gives it another look.
         return _write(
             store,
             material_id,
             {
-                "status": NEEDS_REVIEW,
+                "status": PENDING,
                 "confidence": 0.0,
                 "reason": f"Could not be filed automatically: {cause}"[:280],
                 "suggested_projects": [],
@@ -275,12 +306,15 @@ def classify(store: Store, provider: Provider, material_id: str) -> Record:
             },
         )
 
-    has_suggestion = bool(result["suggested_projects"] or result["suggested_tags"] or twin or result.get("supersedes"))
+    if result["suggested_projects"] or result["suggested_tags"]:
+        return _apply(store, material_id, result, twin)
+    # Nothing to add. A contradiction claim or a twin is kept as information
+    # on the Source — read in its own view, never a queue entry.
     return _write(
         store,
         material_id,
         {
-            "status": NEEDS_REVIEW if has_suggestion else ORGANIZED,
+            "status": ORGANIZED,
             **result,
             **({"duplicate_of": twin} if twin else {}),
             "updated_at": timestamp,
@@ -322,7 +356,7 @@ def catch_up(store: Store, provider: Provider) -> int:  # noqa: D401 - reads bet
 
 
 def queue(store: Store) -> list[Record]:
-    """Everything with a suggestion nobody has looked at, most confident first."""
+    """What is still waiting to be looked at. Empty in the normal course of things."""
     waiting = [
         m for m in store.materials.list() if (m.get("organization") or {}).get("status") in {NEEDS_REVIEW, PENDING}
     ]
@@ -374,6 +408,64 @@ def resolve(store: Store, material_id: str, *, accept: bool, projects: list[str]
     material["organization"] = organization
     material["updated_at"] = now()
     return store.materials.put(material)
+
+
+def undo(store: Store, material_id: str) -> Record:
+    """Take back what automatic filing added — that, and nothing else.
+
+    The subtraction is exact because the addition was recorded: memberships
+    and tags the person put there themselves are untouched. The suggestion
+    and its reason stay readable afterwards; only their effect is gone. Once
+    a person has decided anything here, there is no "automatic" left to undo.
+    """
+    material = store.materials.get(material_id)
+    organization = dict(material.get("organization") or {})
+    if organization.get("decided") != "auto":
+        raise BadRequest("nothing here was filed automatically")
+    took = {str(name) for name in organization.get("accepted_projects") or []}
+    tagged = {str(tag).casefold() for tag in organization.get("accepted_tags") or []}
+    stamp = now()
+    material["projects"] = [n for n in material.get("projects") or [] if str(n) not in took]
+    material["tags"] = [t for t in material.get("tags") or [] if str(t).casefold() not in tagged]
+    organization.update(
+        {"decided": "undone", "accepted_projects": [], "accepted_tags": [], "updated_at": stamp}
+    )
+    material["organization"] = organization
+    material["updated_at"] = stamp
+    return store.materials.put(material)
+
+
+def settle_backlog(store: Store) -> tuple[int, int]:
+    """File everything the old review queue was holding for a person.
+
+    Written for the day the queue stopped being a queue. What waited in
+    `needs_review` under the old rule is filed under the new one, exactly as
+    if it had arrived today: applied, recorded as automatic, undoable one by
+    one. A Source that got stuck without a suggestion goes back to `pending`
+    for another look; one whose only finding was informational keeps the
+    information and stops waiting.
+    """
+    applied = retried = 0
+    for material in store.materials.list():
+        organization = material.get("organization") or {}
+        if organization.get("status") != NEEDS_REVIEW:
+            continue
+        if organization.get("suggested_projects") or organization.get("suggested_tags"):
+            result = {
+                key: organization[key]
+                for key in ("suggested_projects", "suggested_tags", "confidence", "reason", "supersedes")
+                if key in organization
+            }
+            _apply(store, str(material["id"]), result, organization.get("duplicate_of"))
+            applied += 1
+        elif str(organization.get("reason") or "").startswith("Could not be filed"):
+            mark_pending(store, material)
+            retried += 1
+        else:
+            organization.update({"status": ORGANIZED, "updated_at": now()})
+            material["organization"] = organization
+            store.materials.put(material)
+    return applied, retried
 
 
 def _mark_superseded(store: Store, *, older_id: str, by: Record, why: str) -> bool:

@@ -153,87 +153,78 @@ export function MaterialPanel({
                 </p>
               </div>
 
-              {material.organization?.status === "needs_review" && (
-                <div className="grid gap-1.5 rounded-lg border border-accent-line bg-accent-soft px-2.5 py-2">
-                  <span className="text-xs text-accent-ink">Logue suggests</span>
-                  <span className="flex flex-wrap items-center gap-1 text-xs">
-                    {(material.organization.suggested_projects ?? []).map((name) => (
-                      <span key={name} className="rounded-sm bg-panel px-1 text-ink-soft">
-                        {name}
+              {/*
+                Filing already happened, quietly, the moment this arrived.
+                This line is the receipt, not a question: what was added, why,
+                and the one control that takes exactly that back.
+              */}
+              {material.organization?.decided === "auto" &&
+                ((material.organization.accepted_projects?.length ?? 0) > 0 ||
+                  (material.organization.accepted_tags?.length ?? 0) > 0) && (
+                  <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-panel px-2.5 py-1.5">
+                    <span className="text-xs text-muted">Filed automatically</span>
+                    <span className="flex flex-wrap items-center gap-1 text-xs">
+                      {(material.organization.accepted_projects ?? []).map((name) => (
+                        <span key={name} className="rounded-sm bg-surface px-1 text-ink-soft">
+                          {name}
+                        </span>
+                      ))}
+                      {(material.organization.accepted_tags ?? []).map((name) => (
+                        <Tag key={name} name={name} className="bg-surface" />
+                      ))}
+                    </span>
+                    {material.organization.reason && (
+                      <span className="text-xs leading-normal text-muted">
+                        — {material.organization.reason}
                       </span>
-                    ))}
-                    {(material.organization.suggested_tags ?? []).map((name) => (
-                      <Tag key={name} name={name} className="bg-panel" />
-                    ))}
+                    )}
+                    <span className="ml-auto">
+                      <Button
+                        variant="ghost"
+                        disabled={action.busy}
+                        onClick={() =>
+                          void action
+                            .run(() => api.undoOrganization(material.id))
+                            .then((ok) => ok && (lineage.refresh(), onChanged()))
+                        }
+                      >
+                        Undo
+                      </Button>
+                    </span>
+                  </div>
+                )}
+
+              {/*
+                The one thing filing never decides. "An older Source is now
+                wrong" changes how other material reads, so it stays a
+                question until a person answers it.
+              */}
+              {material.organization?.supersedes && !material.organization.accepted_supersedes && (
+                <div className="grid gap-1 rounded-lg border border-line bg-panel px-2.5 py-2">
+                  <span className="text-xs leading-normal text-ink-soft">
+                    This looks like it replaces an earlier Source
+                    {material.organization.supersedes.why
+                      ? ` — ${material.organization.supersedes.why}`
+                      : ""}
                   </span>
-                  {material.organization.reason && (
-                    <span className="text-xs leading-normal text-muted">
-                      {material.organization.reason}
-                    </span>
-                  )}
-                  {material.organization.supersedes && (
-                    /*
-                     * Its own question and its own button. Filing and "an
-                     * older Source is now wrong" are different decisions, and
-                     * someone may well want the tags without agreeing to the
-                     * second — so they are never one click.
-                     */
-                    <span className="grid gap-1 rounded-md bg-panel px-2 py-1.5">
-                      <span className="text-xs leading-normal text-ink-soft">
-                        This looks like it replaces an earlier Source
-                        {material.organization.supersedes.why
-                          ? ` — ${material.organization.supersedes.why}`
-                          : ""}
-                      </span>
-                      <span className="flex flex-wrap gap-1">
-                        <Button
-                          variant="ghost"
-                          disabled={action.busy}
-                          onClick={() => onOpenMaterial?.(material.organization!.supersedes!.id)}
-                        >
-                          Read the older one
-                        </Button>
-                        <Button
-                          variant="primary"
-                          disabled={action.busy}
-                          onClick={() =>
-                            void action
-                              .run(() => api.resolveOrganization(material.id, { accept: true, supersede: true }))
-                              .then((ok) => ok && (lineage.refresh(), onChanged()))
-                          }
-                        >
-                          Mark the older one out of date
-                        </Button>
-                      </span>
-                    </span>
-                  )}
-                  <span className="flex justify-end gap-1">
+                  <span className="flex flex-wrap gap-1">
+                    <Button
+                      variant="ghost"
+                      disabled={action.busy}
+                      onClick={() => onOpenMaterial?.(material.organization!.supersedes!.id)}
+                    >
+                      Read the older one
+                    </Button>
                     <Button
                       variant="primary"
                       disabled={action.busy}
                       onClick={() =>
                         void action
-                          .run(() =>
-                            // Filing is not agreeing. The contradiction has
-                            // its own button above; this one answers only the
-                            // question it asks.
-                            api.resolveOrganization(material.id, { accept: true, supersede: false }),
-                          )
+                          .run(() => api.resolveOrganization(material.id, { accept: true, supersede: true }))
                           .then((ok) => ok && (lineage.refresh(), onChanged()))
                       }
                     >
-                      File it
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      disabled={action.busy}
-                      onClick={() =>
-                        void action
-                          .run(() => api.resolveOrganization(material.id, { accept: false }))
-                          .then((ok) => ok && (lineage.refresh(), onChanged()))
-                      }
-                    >
-                      Skip
+                      Mark the older one out of date
                     </Button>
                   </span>
                 </div>
