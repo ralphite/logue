@@ -6,6 +6,7 @@ import {
   Crosshair,
   ExternalLink,
   Mic,
+  MoreHorizontal,
   Settings2,
   Sparkles,
   X,
@@ -14,6 +15,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
   Answer,
   Button,
+  Menu,
+  MenuItem,
   ErrorNote,
   IconButton,
   Input,
@@ -355,7 +358,10 @@ function WaitingRecordings({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 text-left text-xs text-ink-soft"
+        // 24px of it, not 16: this whole line is the control that opens the
+        // queue, and a one-line row of 12px text is 16px tall. Padding makes
+        // the target, a negative margin gives the section its spacing back.
+        className="-my-1 flex min-h-6 items-center gap-2 py-1 text-left text-xs text-ink-soft"
       >
         <span className={cn("size-1.5 shrink-0 rounded-full", failing > 0 ? "bg-danger" : "bg-warning")} />
         <span className="flex-1">
@@ -550,7 +556,10 @@ export function Panel() {
   const [error, setError] = useState("");
   const [modelReady, setModelReady] = useState(true);
   /** Which part of the panel is showing. Dictation is what the panel is opened for. */
-  const [tab, setTab] = useState<"chat" | "page" | "dictation" | "project">("dictation");
+  // Three tabs, one subject each. Project is not a place in the panel any
+  // more: which Project is the scope lives in the header, and a Project's
+  // background and word list are edited in the web app, where there is room.
+  const [tab, setTab] = useState<"chat" | "page" | "dictation">("dictation");
   const [waiting, setWaiting] = useState<Waiting[]>([]);
   /** Recordings the Host is holding that never became words. */
   const [stuck, setStuck] = useState<Held[]>([]);
@@ -1007,22 +1016,12 @@ export function Panel() {
           className="min-h-12 w-full resize-none bg-transparent px-1 py-0.5 text-[13px] leading-[1.5] text-ink outline-0"
         />
         <div className="flex items-center gap-1">
-          {/* What this turn is about, said before it is sent rather than
-              guessed at afterwards. */}
-          <span className="rounded-full border border-line px-1.5 text-xs text-muted">This page</span>
-          <Select
-            className="h-6 max-w-28 flex-1 text-xs"
-            value={project}
-            onChange={(event) => setProject(event.target.value)}
-            aria-label="Project"
-          >
-            <option value="">No Project</option>
-            {context?.projects.map((item) => (
-              <option key={item.id} value={item.name}>
-                {item.name}
-              </option>
-            ))}
-          </Select>
+          {/* Keep, speak, ask — the three things done to this page, side by
+              side. The scope is the header's one control; the chip that said
+              "This page" and could not be pressed is gone. */}
+          <IconButton label="Save this page" disabled={busy} onClick={() => void capture()}>
+            <Bookmark size={13} />
+          </IconButton>
           <span className="ml-auto flex items-center gap-1">
             <IconButton
               label="Chat with Logue · ⌘⇧K"
@@ -1058,29 +1057,73 @@ export function Panel() {
             carries the product's icon and name — ours underneath made two,
             and the rule has always been that the identity appears once.
           */}
-          <span className="min-w-0 flex-1 truncate text-xs text-muted">{page?.title || "This page"}</span>
-          <a
-            href={server}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex h-control shrink-0 items-center gap-1 rounded-md border border-line px-1.5 text-xs text-muted hover:bg-surface-muted hover:text-ink"
+          <span className="min-w-0 flex-1 truncate text-xs font-[560] text-ink" title={page?.title}>
+            {page?.title || "This page"}
+          </span>
+          {/*
+            The scope, once. Three places used to carry a Project picker — the
+            composer, the Project tab, and each Source — sharing one state, so
+            changing what you were *looking at* silently changed what the next
+            question *assumed*. One control in the header is the scope for
+            everything the panel does; per-Source membership stays on the
+            Source in the web app.
+          */}
+          <Select
+            className="h-6 max-w-28 shrink-0 text-xs"
+            value={project}
+            onChange={(event) => setProject(event.target.value)}
+            aria-label="Project scope"
           >
-            <ExternalLink size={12} /> Open Logue
-          </a>
-          {/* The address itself, one click away rather than in a menu: when
-              Logue is not answering, this is the only control on screen that
-              can be the reason. */}
-          <IconButton
-            label={changingServer ? "Close server address" : `Logue server: ${server}`}
-            onClick={() => setChangingServer((was) => !was)}
+            <option value="">No Project</option>
+            {context?.projects.map((item) => (
+              <option key={item.id} value={item.name}>
+                {item.name}
+              </option>
+            ))}
+          </Select>
+          <Menu
+            label="Panel menu"
+            align="end"
+            trigger={(props) => (
+              <IconButton label="More" {...props}>
+                <MoreHorizontal size={14} />
+              </IconButton>
+            )}
           >
-            <Settings2 size={13} />
-          </IconButton>
+            <MenuItem onClick={() => window.open(server, "_blank", "noreferrer")}>
+              <ExternalLink size={12} /> Open Logue
+            </MenuItem>
+            <MenuItem onClick={() => setChangingServer((was) => !was)}>
+              <Settings2 size={12} /> Server address…
+            </MenuItem>
+          </Menu>
         </div>
         {(changingServer || unreachable) && (
           <WhereLogueIs server={server} onConnected={() => setChangingServer(false)} />
         )}
       </header>
+
+      {/*
+        What is broken, said once, above every tab. "The model is not
+        connected" used to render only inside Chat — Save on This page and
+        Record on Dictation failed with no warning at all.
+      */}
+      {(error || !modelReady) && (
+        <div className="grid shrink-0 gap-1.5 border-b border-line bg-surface p-2">
+          {error && <ErrorNote>{error}</ErrorNote>}
+          {!modelReady && !error && (
+            <a
+              href={`${server}/settings`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 rounded-md border border-line bg-surface-muted px-2 py-1.5 text-xs text-warning hover:text-ink"
+            >
+              <Settings2 size={12} />
+              No model connected — nothing can transcribe or answer. Open Settings.
+            </a>
+          )}
+        </div>
+      )}
 
       <h1 className="sr-only">
         {tab === "chat"
@@ -1094,9 +1137,8 @@ export function Panel() {
       <div role="tablist" aria-label="Panel sections" className="flex shrink-0 gap-0.5 border-b border-line bg-surface px-1.5">
         {([
           ["dictation", "Dictation", undefined],
-          ["chat", "Chat", undefined],
           ["page", "This page", fromPage.length + said.length],
-          ["project", "Project", undefined],
+          ["chat", "Chat", undefined],
         ] as const).map(([key, label, count]) => (
           <button
             key={key}
@@ -1119,32 +1161,12 @@ export function Panel() {
 
       {tab === "chat" ? (
         <>
-          {/* Anything the person must see stays at the top, above the
-              conversation: an error pushed to the bottom by `justify-end`
-              ends up whispering next to the composer. */}
-          {(error || waiting.length > 0) && (
-            <div className="grid shrink-0 gap-2 px-2 pt-2">
-              {error && <ErrorNote>{error}</ErrorNote>}
-            </div>
-          )}
           <div
             className={cn(
               "logue-scroll flex flex-1 flex-col gap-2 p-2",
               thread.length > 0 ? "justify-end" : "justify-center",
             )}
           >
-            {!modelReady && !error && (
-              // The one thing that makes every other control in here do nothing.
-              <a
-                href={`${server}/settings`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 rounded-md border border-line bg-surface-muted px-2 py-1.5 text-xs text-warning hover:text-ink"
-              >
-                <Settings2 size={12} />
-                The model is not connected. Open Settings.
-              </a>
-            )}
             <Thread
               messages={thread}
               busy={busy}
@@ -1167,28 +1189,26 @@ export function Panel() {
           {composer}
         </>
       ) : tab === "page" ? (
-        <div className="logue-scroll flex-1 p-2">
-          {error && <ErrorNote className="mb-2">{error}</ErrorNote>}
-          <div className="mt-2 mb-2 flex">
-            <Button onClick={() => void capture()} disabled={busy}>
-              <Bookmark size={13} /> Save this page
-            </Button>
+        <>
+          <div className="logue-scroll flex-1 p-2">
+            {/* One list, newest first. Splitting it into "from the page" and
+                "what you added" made two headings for one question — what is
+                here — and buried the newest thing under whichever half it
+                fell into. Each row still says which it is. Saving lives in
+                the composer below, beside speaking and asking. */}
+            <Kept
+              title="Kept from this page"
+              items={[...fromPage, ...said].toSorted((a, b) => (a.created_at < b.created_at ? 1 : -1))}
+              context={context}
+              server={server}
+              tabId={page?.id}
+              onChanged={load}
+              empty="Nothing kept from this page yet. Save it below, or speak."
+            />
           </div>
-          {/* One list, newest first. Splitting it into "from the page" and
-              "what you added" made two headings for one question — what is
-              here — and buried the newest thing under whichever half it fell
-              into. Each row still says which it is. */}
-          <Kept
-            title="Kept from this page"
-            items={[...fromPage, ...said].toSorted((a, b) => (a.created_at < b.created_at ? 1 : -1))}
-            context={context}
-            server={server}
-            tabId={page?.id}
-            onChanged={load}
-            empty="Nothing kept from this page yet."
-          />
-        </div>
-      ) : tab === "dictation" ? (
+          {composer}
+        </>
+      ) : (
         <>
           <div className="logue-scroll flex-1">
             {/* Said once, where recordings live. It used to be drawn in two
@@ -1282,30 +1302,6 @@ export function Panel() {
             />
           </div>
         </>
-      ) : (
-        <div className="logue-scroll flex-1 p-2">
-          {error && <ErrorNote className="mb-2">{error}</ErrorNote>}
-          <div className="mb-2">
-            <Select
-              className="w-full"
-              value={project}
-              onChange={(event) => setProject(event.target.value)}
-              aria-label="Project"
-            >
-              <option value="">No Project</option>
-              {context?.projects.map((item) => (
-                <option key={item.id} value={item.name}>
-                  {item.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          {project ? (
-            <AboutProject project={project} context={context} onError={setError} />
-          ) : (
-            <NothingYet>Choose a Project to see and edit what Logue knows about it.</NothingYet>
-          )}
-        </div>
       )}
     </div>
   );
@@ -1727,111 +1723,3 @@ function Filing({
   );
 }
 
-/**
- * The Project's background and the words it uses, editable here.
- *
- * These are what make a transcript sound like this work rather than like
- * anyone's, and the moment you notice they are wrong is the moment something
- * came out wrong — which happens on a page, not in the Web App.
- */
-function AboutProject({
-  project,
-  context,
-  onError,
-}: {
-  project: string;
-  context?: Context;
-  onError: (message: string) => void;
-}) {
-  const found = context?.projects.find((item) => item.name === project);
-  const [open, setOpen] = useState(false);
-  const [overview, setOverview] = useState("");
-  const [terms, setTerms] = useState("");
-  const [saved, setSaved] = useState(false);
-  const [busy, setBusy] = useState(false);
-  /**
-   * Which Project's words are in these boxes.
-   *
-   * The effect used to depend on the Project *object*, which the panel rebuilds
-   * every time it reads the tab — on every switch, and on every update Chrome
-   * reports. So a half-written overview was replaced by the saved one under
-   * the person's hands, at a moment that had nothing to do with them. It fills
-   * once per Project instead, and never over anything.
-   */
-  const filledFor = useRef<string | undefined>(undefined);
-  const id = found?.id;
-
-  useEffect(() => {
-    if (!open || !id || filledFor.current === id) return;
-    void host.project(id).then(
-      ({ project: detail }) => {
-        filledFor.current = id;
-        setOverview(detail.overview ?? "");
-        setTerms((detail.transcription_profile?.vocabulary?.terms ?? []).join(", "));
-      },
-      () => undefined,
-    );
-  }, [open, id]);
-
-  if (!found) return null;
-
-  return (
-    <section className="mt-4 border-t border-line pt-2">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-1 text-left text-xs text-muted hover:text-ink"
-      >
-        {open ? "▾" : "▸"} About {project}
-      </button>
-      {open && (
-        <div className="mt-1.5 grid gap-1.5">
-          <textarea
-            value={overview}
-            onChange={(event) => {
-              setOverview(event.target.value);
-              setSaved(false);
-            }}
-            placeholder="What this Project is about"
-            aria-label="Project context"
-            className="min-h-16 w-full resize-y rounded-md border border-line-strong bg-surface px-2 py-1.5 text-xs leading-[1.5] text-ink outline-0 focus:border-accent-line"
-          />
-          <Input
-            value={terms}
-            onChange={(event) => {
-              setTerms(event.target.value);
-              setSaved(false);
-            }}
-            placeholder="Terms to spell exactly, comma separated"
-            aria-label="Project terms"
-            className="text-xs"
-          />
-          <div className="flex items-center justify-end gap-1">
-            {saved && <span className="text-xs text-success">Saved</span>}
-            <Button
-              disabled={busy}
-              onClick={() => {
-                setBusy(true);
-                const list = terms.split(",").map((term) => term.trim()).filter(Boolean);
-                void host
-                  .updateProject(found.id, {
-                    overview,
-                    // `customized` is what makes the Host prefer these over the
-                    // global profile when transcribing for this Project.
-                    transcription_profile: { mode: "customized", vocabulary: { terms: list } },
-                  })
-                  .then(
-                    () => setSaved(true),
-                    (cause: unknown) => onError(cause instanceof Error ? cause.message : "Could not save."),
-                  )
-                  .finally(() => setBusy(false));
-              }}
-            >
-              {busy ? <Spinner size={12} /> : null} Save
-            </Button>
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}

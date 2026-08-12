@@ -89,20 +89,6 @@ function Frame({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Find something labelled `label` and click it, waiting for it to exist. */
-async function openTab(canvasElement: HTMLElement, label: string) {
-  for (let tries = 0; tries < 40; tries += 1) {
-    const hit = [...canvasElement.querySelectorAll<HTMLElement>('[role="tab"], button')].find((one) =>
-      (one.textContent ?? "").trim().startsWith(label),
-    );
-    if (hit) {
-      hit.click();
-      return;
-    }
-    // oxlint-disable-next-line no-await-in-loop
-    await new Promise((done) => window.setTimeout(done, 100));
-  }
-}
 
 /** Open a tab by its visible name, the way a person would. */
 const open = (label: string) => async ({ canvasElement }: { canvasElement: HTMLElement }) => {
@@ -204,8 +190,12 @@ export const ThisPageEmpty: Story = {
   play: open("This page"),
 };
 
-/** The Project tab before a Project is chosen — the honest default. */
-export const ProjectTab: Story = {
+/**
+ * The scope, in the header. The Project tab is gone — which Project the
+ * panel assumes is one select beside the page title, and a Project's
+ * background and word list are edited in the web app, where there is room.
+ */
+export const TheScopeInTheHeader: Story = {
   render: () => (
     <InChrome answers={HOST}>
       <Frame>
@@ -213,65 +203,8 @@ export const ProjectTab: Story = {
       </Frame>
     </InChrome>
   ),
-  play: open("Project"),
 };
 
-/** A Project chosen, and what Logue knows about it opened for editing. */
-export const ProjectTabWithAProject: Story = {
-  render: () => (
-    <InChrome
-      answers={{
-        ...HOST,
-        "/v1/projects/p1": {
-          project: {
-            id: "p1",
-            name: "Logue QA",
-            overview: "Everything used to verify Logue against real pages.",
-            transcription_profile: { mode: "customized", vocabulary: { terms: ["Logue", "CTC", "HMM"] } },
-          },
-        },
-      }}
-    >
-      <Frame>
-        <Panel />
-      </Frame>
-    </InChrome>
-  ),
-  play: async ({ canvasElement }) => {
-    await openTab(canvasElement, "Project");
-    // Choose the Project the way a person does — through the select.
-    for (let tries = 0; tries < 40; tries += 1) {
-      const pick = canvasElement.querySelector<HTMLSelectElement>('select[aria-label="Project"]');
-      if (pick) {
-        const descriptor = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value");
-        descriptor?.set?.call(pick, "Logue QA");
-        pick.dispatchEvent(new Event("change", { bubbles: true }));
-        break;
-      }
-      // oxlint-disable-next-line no-await-in-loop
-      await new Promise((done) => window.setTimeout(done, 100));
-    }
-    await openTab(canvasElement, "▸ About Logue QA");
-  },
-};
-
-/** Recordings stopped short of words, said once at the top of Dictation. */
-export const SomethingIsWaiting: Story = {
-  render: () => (
-    <InChrome
-      answers={{ ...HOST, "/v1/captures": { captures: [{ capture_id: "cap_x", seconds: 9, created_at: "2026-08-11T12:00:00Z" }] } }}
-      storage={{
-        "logue:pending-voice": [
-          { id: "pending_1", audio: "AAAA", mediaType: "audio/webm", seconds: 12, at: "2026-08-11T11:50:00Z", tries: 2 },
-        ],
-      }}
-    >
-      <Frame>
-        <Panel />
-      </Frame>
-    </InChrome>
-  ),
-};
 
 /** The model is not connected — the one fact that disarms every control. */
 export const ModelNotConnected: Story = {
