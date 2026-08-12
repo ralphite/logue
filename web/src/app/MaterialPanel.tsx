@@ -72,8 +72,18 @@ export function MaterialPanel({
         </IconButton>
       </header>
 
-      <div className="logue-scroll min-h-0 flex-1">
-        <div className="mx-auto grid max-w-page gap-3 px-8 py-6">
+      {/*
+        Two columns: the words, and the evidence.
+
+        One column stacked five equal sections and left 40% of the pane
+        white; the reason this page exists — what was said — had no more
+        weight than the word "Tags". Now the left column is the text and
+        what people do to it, and everything that proves or uses it reads
+        down the right, all visible at once.
+      */}
+      <div className="flex min-h-0 flex-1">
+        <div className="logue-scroll min-w-0 flex-1">
+          <div className="grid max-w-prose gap-3 px-8 py-6">
           {lineage.error && <ErrorNote>{lineage.error}</ErrorNote>}
           {action.error && <ErrorNote className="mb-2">{action.error}</ErrorNote>}
           {!material ? (
@@ -89,47 +99,6 @@ export function MaterialPanel({
                 them — the transcript most of all — and the order used to say
                 the opposite, with the transcript on top and the passage last.
               */}
-              <section className="grid gap-2 rounded-lg border border-line bg-surface-muted p-2.5">
-                <h2 className="text-xs font-[560] text-muted">What this came from</h2>
-
-                {material.capture_id && (
-                  <div className="grid gap-1">
-                    <span className="text-xs text-muted">The recording</span>
-                    <Recording src={api.audioUrl(material.capture_id)} seconds={material.capture_seconds} />
-                  </div>
-                )}
-
-                {(material.source?.url || material.context) && (
-                  <div className="grid gap-1">
-                    <span className="text-xs text-muted">
-                      {material.kind === "page" ? "The page" : "The passage on the page"}
-                    </span>
-                    {material.context && material.context !== material.content && (
-                      <p className="line-clamp-6 text-[13px] leading-normal whitespace-pre-wrap text-ink-soft">
-                        {material.context}
-                      </p>
-                    )}
-                    {material.source?.url && (
-                      <a
-                        href={material.source.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
-                      >
-                        <ExternalLink size={12} />
-                        <span className="truncate">{material.source.title || material.source.url}</span>
-                      </a>
-                    )}
-                  </div>
-                )}
-
-                <Lineage title="Made from" items={lineage.data?.parents ?? []} />
-
-                {!material.capture_id && !material.source?.url && !material.context && (
-                  <p className="text-xs text-muted">Typed here. There is nothing behind it but you.</p>
-                )}
-              </section>
-
               {/* Derived from the above: for a recording this is the
                   transcript, and it is the part a model may have got wrong. */}
               {material.superseded_by && (
@@ -183,10 +152,6 @@ export function MaterialPanel({
                   {material.content}
                 </p>
               </div>
-
-              <HowItWasHeard applied={material.applied_context} />
-
-              <UsedIn materialId={material.id} onOpenDocument={onOpenDocument} />
 
               {material.organization?.status === "needs_review" && (
                 <div className="grid gap-1.5 rounded-lg border border-accent-line bg-accent-soft px-2.5 py-2">
@@ -274,6 +239,81 @@ export function MaterialPanel({
                 </div>
               )}
 
+            </>
+          )}
+          </div>
+        </div>
+
+        {/* The evidence rail: where it came from, where it went, how it was
+            heard, and where it is filed — all of it visible at once, in the
+            width that used to be blank. */}
+        {material && (
+          <aside className="logue-scroll grid w-[340px] shrink-0 content-start gap-5 border-l border-line bg-nav px-4 py-5">
+            <section className="grid gap-1.5">
+              <Cap>Where it came from</Cap>
+              {material.capture_id && (
+                <div className="rounded-lg border border-line bg-surface p-2">
+                  <Recording src={api.audioUrl(material.capture_id)} seconds={material.capture_seconds} shape={material.capture_id} />
+                </div>
+              )}
+              {(material.source?.url || material.context) && (
+                <div className="grid gap-1 rounded-lg border border-line bg-surface p-2.5">
+                  {material.context && material.context !== material.content && (
+                    <p className="line-clamp-5 text-xs leading-normal whitespace-pre-wrap text-ink-soft">
+                      {material.context}
+                    </p>
+                  )}
+                  {material.source?.url && (
+                    <a
+                      href={material.source.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex min-w-0 items-center gap-1 text-xs text-accent hover:underline"
+                    >
+                      <ExternalLink size={12} className="shrink-0" />
+                      <span className="truncate">{material.source.title || material.source.url}</span>
+                    </a>
+                  )}
+                </div>
+              )}
+              <Lineage title="Made from" items={lineage.data?.parents ?? []} />
+              {!material.capture_id && !material.source?.url && !material.context && (
+                <p className="text-xs text-muted">Typed here. There is nothing behind it but you.</p>
+              )}
+            </section>
+
+            <section className="grid gap-1">
+              <Cap>Where it went</Cap>
+              <UsedIn materialId={material.id} onOpenDocument={onOpenDocument} />
+            </section>
+
+            <HowItWasHeard applied={material.applied_context} />
+
+            <section className="grid gap-1.5">
+              <Cap>Filed under</Cap>
+              <div className="flex flex-wrap gap-1">
+                {projects.map((project) => {
+                  const member = material.projects.includes(project.name);
+                  return (
+                    // Membership is a checkmark, not a colour: the member chip
+                    // used to wear the exact dress of a primary button.
+                    <Button
+                      key={project.id}
+                      aria-pressed={member}
+                      className={member ? "border-ink/25 bg-surface text-ink" : "text-muted"}
+                      disabled={action.busy}
+                      onClick={() =>
+                        void action
+                          .run(() => api.setMembership(material.id, project.name, !member))
+                          .then((ok) => ok && (lineage.refresh(), onChanged()))
+                      }
+                    >
+                      {member && <Check size={12} className="text-success" />}
+                      {project.name}
+                    </Button>
+                  );
+                })}
+              </div>
               <Tags
                 material={material}
                 busy={action.busy}
@@ -283,40 +323,18 @@ export function MaterialPanel({
                     .then((ok) => ok && (lineage.refresh(), onChanged()))
                 }
               />
-
-              <div className="grid gap-1.5 border-t border-line pt-3">
-                <span className="text-xs text-muted">Projects</span>
-                <div className="flex flex-wrap gap-1">
-                  {projects.map((project) => {
-                    const member = material.projects.includes(project.name);
-                    return (
-                      // Membership is a checkmark, not a colour. The member
-                      // chip used to be a solid accent button — the exact
-                      // dress of the page's one primary action, on a toggle,
-                      // with the state carried by fill alone.
-                      <Button
-                        key={project.id}
-                        aria-pressed={member}
-                        className={member ? "border-ink/25 bg-surface-muted text-ink" : "text-muted"}
-                        disabled={action.busy}
-                        onClick={() =>
-                          void action
-                            .run(() => api.setMembership(material.id, project.name, !member))
-                            .then((ok) => ok && (lineage.refresh(), onChanged()))
-                        }
-                      >
-                        {member && <Check size={12} className="text-success" />}
-                        {project.name}
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+            </section>
+          </aside>
+        )}
       </div>
     </section>
+  );
+}
+
+/** A rail section's name: small caps, quiet, before what it names. */
+function Cap({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-[10.5px] font-[700] tracking-[0.05em] text-muted uppercase">{children}</span>
   );
 }
 
@@ -467,8 +485,8 @@ function HowItWasHeard({ applied }: { applied?: Material["applied_context"] }) {
   ).filter((line): line is [string, string] => Boolean(line[1]));
   if (lines.length === 0 && !applied.instructions) return null;
   return (
-    <details className="border-t border-line pt-3 text-xs text-muted">
-      <summary className="cursor-pointer select-none">How this was heard</summary>
+    <details className="text-xs text-muted">
+      <summary className="cursor-pointer text-[10.5px] font-[700] tracking-[0.05em] uppercase select-none">How it was heard</summary>
       <dl className="mt-1.5 grid grid-cols-[84px_minmax(0,1fr)] gap-x-2 gap-y-1">
         {lines.map(([label, value]) => (
           <Fragment key={label}>
@@ -511,8 +529,7 @@ function Tags({
   };
 
   return (
-    <div className="grid gap-1.5 border-t border-line pt-3">
-      <span className="text-xs text-muted">Tags</span>
+    <div className="grid gap-1.5">
       <div className="flex flex-wrap items-center gap-1 text-xs">
         {tags.map((name) => (
           <Tag key={name} name={name} onRemove={() => onSave(tags.filter((t) => t !== name))} />
@@ -560,10 +577,8 @@ function UsedIn({
   const total = runs.length + documents.length + derived.length;
 
   return (
-    <div className="grid gap-1 border-t border-line pt-3">
-      <span className="text-xs text-muted">
-        Used in {total === 0 ? <span className="text-muted">nothing yet</span> : total}
-      </span>
+    <div className="grid gap-1">
+      {total === 0 && <span className="text-xs text-muted">Nothing yet.</span>}
 
       {documents.map((document) => (
         <button
@@ -598,7 +613,7 @@ function UsedIn({
 function Lineage({ title, items }: { title: string; items: Material[] }) {
   if (items.length === 0) return null;
   return (
-    <div className="grid gap-1 border-t border-line pt-3">
+    <div className="grid gap-1">
       <span className="text-xs text-muted">{title}</span>
       {items.map((item) => (
         <div key={item.id} className="rounded-md bg-surface-muted px-2 py-1.5">
