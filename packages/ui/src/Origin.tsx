@@ -122,19 +122,27 @@ export function Citation({
       title={
         (outOfDate ? `Source ${n} — out of date. ` : `Source ${n}`) + (quote ? ` — ${quote.slice(0, 300)}` : "")
       }
-      className={cn(
-        "inline-flex h-5 items-center gap-0.5 rounded-full border px-1.5 text-xs font-[650] align-baseline",
-        outOfDate
-          ? // Not the accent: the accent means "follow this". A citation that
-            // is no longer current should not look like the others.
-            "border-line bg-surface-muted text-muted hover:bg-surface aria-pressed:border-muted"
-          : "border-accent-line bg-accent-soft text-accent-ink hover:bg-accent-hover-soft aria-pressed:border-accent aria-pressed:bg-accent-pressed",
-        className,
-      )}
+      // The pill is 20px because it sits inside a line of 13px text; the thing
+      // you have to hit is 24px, the floor the audit set for every pointer
+      // target. Padding makes the target, a negative margin gives the line its
+      // height back — the same trick the low `Revision 2` / `Version 6` links
+      // were fixed with, so a citation is not the one control below the floor.
+      className={cn("group inline-flex h-6 -my-0.5 items-center align-baseline", className)}
       {...props}
     >
-      {n}
-      {outOfDate && <span aria-hidden="true">†</span>}
+      <span
+        className={cn(
+          "inline-flex h-5 items-center gap-0.5 rounded-full border px-1.5 text-xs font-[650]",
+          outOfDate
+            ? // Not the accent: the accent means "follow this". A citation that
+              // is no longer current should not look like the others.
+              "border-line bg-surface-muted text-muted group-hover:bg-surface group-aria-pressed:border-muted"
+            : "border-accent-line bg-accent-soft text-accent-ink group-hover:bg-accent-hover-soft group-aria-pressed:border-accent group-aria-pressed:bg-accent-pressed",
+        )}
+      >
+        {n}
+        {outOfDate && <span aria-hidden="true">†</span>}
+      </span>
     </button>
   );
 }

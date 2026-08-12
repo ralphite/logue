@@ -1,500 +1,500 @@
 {
-  "version": 2,
-  "updated": "2026-08-10",
-  "tasks": [
-    {
-      "id": "N10",
-      "title": "Web 应用整页 IA 重构:三个方向的 preview 等他选",
-      "type": "design",
-      "status": "in_progress",
-      "priority": "P0",
-      "confirmed": true,
-      "tags": [
-        "ui",
-        "ia"
-      ],
-      "note": "他对 N9 的定性:review 选错方向 —— 「我并不 care font 等小层面的问题,需要的是整体页面和信息架构的重构」,并且明确「不要直接改代码,给我 preview,几个不同类型更好」。<br>**已交付三方向 preview**(scratchpad `ia-preview.html`,已发给他):**A · Inbox 优先**(落地页=待分拣,导航按活动分,Skills 降级进 Settings);**B · Project 优先**(Project 变真容器,里面 Stream/Documents/About 三个 tab);**C · 一条时间线**(砍第二列 rail,过滤器代替路由,详情占满全宽、正文+出处两栏)。每个都写了核心选择、编号 callout、代价;附对比表。**我的推荐:A 做骨架 + C 的焦点详情**。<br>诊断(四条结构病):导航是数据库表不是活动;「分拣」被藏成 rail chip;Project 是过滤器被当地点;第三列永远单列右侧 40% 空白。<br>**他拍板了骨架**:左栏保持 Inbox·Projects·Documents·Skills·Settings(Stream→Inbox),左栏尽量不动,其余可改。**第二版 preview 已交**(scratchpad `ia-final.html`):Web ①Inbox=待分拣卡片(建议上卡面,↵ 归档)+ 下半屏时间流,第二列 rail 取消;②焦点详情接管整页,左=话+改写 16px,右=出处+去向;③Projects 容器化(Sources/Documents/About 三 tab)。Extension:Dictation·This page·Chat 三 tab,Project tab 删除,scope 升头部一处,全局状态一条横幅,This page 合流(存的/说的/答的)=panel-ia 提案 A。迁移顺序:焦点详情→Inbox→面板→Projects,每步一个可验 PR。<br>**第三版 preview(定稿候选)已交**(`ia-complete.html`):他要求 UI 文案全英文(用户内容可以非英文)、必须完整。这版盖住:Web 五个目的地全部(Inbox 分拣+全部、焦点详情两栏、Projects 容器、Documents 渲染 Markdown + Sources 边栏、Skills/Settings 说明为何不动版面)+ Extension 四帧(Dictation 有内容、空态+录音中、This page 合流+模型横幅、Logue 掉线横幅+队列卡+Record 禁用)。落地顺序:焦点详情→Inbox→面板→Projects→Documents Markdown,每步一个可验提交。<br>**面板工艺版已交**(`panel-craft.html`,他嫌上一版丑,要求 top-notch 水准 + 交付前自审):26px 控件族、7–9px 圆角族、真 SVG 图标、tabular 计时、有疏密的波形(录音中 accent 着色)、四级字阶(13.5/12.5/11/10.5)、时间线三种角色 glyph(bookmark/mic/sparkle)、真 composer(save·speak·ask)。**自审两轮,第二轮从渲染图里抓掉 3 个矛盾**:①录音中空态还在教 Press Record 且快捷键提示出现两遍;②提示里带回了他明确砍掉的 10:00 上限;③掉线帧把 Record 画成禁用而文案说还能录(N5 的设计就是掉线可录进队列)——按钮保持可用。<br>**他点头了(ok)。开始实施**,顺序:①焦点详情(MaterialPanel 重排:左=16px 正文+改写树,右栏=WHERE IT CAME FROM / WHERE IT WENT / HOW IT WAS HEARD,归属+tags 收进头部一行)→②Inbox(Stream 改名,分拣卡置顶,第二列 rail 取消,下半屏 Everything+过滤)→③面板(删 Project tab,scope 进头部,横幅全 tab 可见,This page 合流,按 panel-craft 的规格)→④Projects 容器(Sources/Documents/About)→⑤Documents Markdown 渲染。每步:四闸 + Storybook 全量重拍 + 真机验证,一步一个提交。标准 = ia-complete.html + panel-craft.html。<br>**进度**:①焦点详情 ✅(81d97bfc,两栏:16px 正文 + 340px 证据栏 WHERE IT CAME FROM / WHERE IT WENT / HOW IT WAS HEARD / FILED UNDER);②Inbox ✅(61620007,Stream→Inbox,分拣卡置顶带 File ↵/Edit/Skip,第二列 rail 取消,Groups 过滤器带过来了;**有意延后**:旧 rail 的 pins/hover 预览/行菜单,要在列表行上补回)。**下一步:③面板**(删 Project tab、scope 进头部、横幅全 tab、This page 合流,规格=panel-craft.html),然后 ④Projects 容器(顺带删掉已不渲染的 StreamRail)、⑤Documents Markdown。<br>③面板结构 ✅(4c49f65c):Project tab 删除、scope=头部一个 select、⋯ 菜单(Open Logue/Server address)、横幅提到所有 tab 之上、This page 得到 composer(存·说·问),真机四项断言 + n4 全绿。**步骤 3 剩余**:This page 把对话按时间并进列表(kept/said/answered 一条流)+ panel-craft 的工艺视觉层。**然后**:④Projects 容器(顺带删 StreamRail 和旧 rail 的 pins/预览要在 Inbox 行上补回)、⑤Documents Markdown。<br>**redesign 第二轮(他叫停后重启)**:部署后真实数据把 Inbox 打垮(To file · 250、重复条目不合并、卡片 180px)。按他的要求改用 chatgpt.com 做多 session 设计迭代,**必须带真截图**(从 127.0.0.1:8787 现拍,系统剪贴板 ⌘V 贴入;file_upload 工具在这环境里参数被剥,不可用)。在跑的 session:①triage IA 规格+对照修订(master-detail、68px 行、320px inspector、重复堆叠、File obvious N、虚拟化+会话级 undo);②他自己的 mocks 会话;③Variant B/C 完整 HTML(Tailwind CDN,单文件)。**流程**:收 HTML→本地 8899 跑→截图→按 token 审→拼对比页给他审,**他点头前不动产品代码**。<br>**方向纠正(他的原话)**:「i dont care about to File. I dont even know what this feature is for」→ 分拣队列从落地页删除;「inbox should be named as Activities. it's a list of different actions from the user」→ 改名 Activities;「actions are different with different type and purpose / input and page translation are very different, also voice comment/dictation」→ 每行带动词区分动作(Dictated into / Dictated / Voice comment / Spoke to Logue / Kept a passage / Saved the page / Typed / Generated,靠 kind + source.kind + parent_ids)。已部署真机验证(Activities · 392,无 To file,动词逐行)。**ChatGPT 三个 session 里分拣向的产出作废**,只回收:列表密度/行结构、焦点视图右栏修法(PROJECTS·2 成员制、IP 不做主标签、建议块位置)。**待他拍板的一个产品问题**:后台 organize 还在给每条新 Source 标 needs_review(积压 250+)——要么改全自动静默归档(可撤销),要么关掉,landing 不再显示。",
-      "input_ids": [],
-      "created": "2026-08-11",
-      "updated": "2026-08-11"
-    },
-    {
-      "id": "N9",
-      "title": "三路 UI/UX review + 第一轮 redesign:token 级的 13 条已落地",
-      "type": "design",
-      "status": "done",
-      "priority": "P1",
-      "confirmed": true,
-      "tags": [
-        "ui",
-        "review"
-      ],
-      "note": "93 个 story 全部截图,三路独立审:①Claude 子代理逐张精读(对比度/尺寸用 PIL 实测);②ChatGPT(结构清单,12 条 IA/文案);③自查。**汇总和逐条修法在 [docs/spec/ui-review.md](docs/spec/ui-review.md)**。<br>**本轮已修 13 条**,最重的:disabled primary 白字压浅紫 **1.93:1**(改中性灰);AI 出品借用 amber 和真警告同色(新 token `--color-ai`);控件边界 1.41:1 看不出是控件(新 token `--color-control-line` 3:1);Stream 详情头部只写 \"voice\"(改成内容第一句 + kind·时间·域名);转写正文和标签一样 13px(升 15px,标题移到正文前);rail 无第二事实(加时间);面板 Record 是 45px 幽灵按钮(36px primary);Dictation 空态改成教学文案;归属 chip 从实心 accent 改 ✓+中性。",
-      "input_ids": [],
-      "created": "2026-08-11",
-      "updated": "2026-08-11"
-    },
-    {
-      "id": "N9b",
-      "title": "redesign 第二轮:Markdown 渲染、Notice/EmptyState 统一、浮动条不压字段",
-      "type": "design",
-      "status": "queued",
-      "priority": "P1",
-      "confirmed": true,
-      "tags": [
-        "ui",
-        "review"
-      ],
-      "note": "ui-review.md「值得做、这轮没做的」全列表:①Documents 正文渲染 Markdown + [Source n] 用 citation chip(现在按字面显示还被折行拆开);②Notice/EmptyState 统一组件(现存 7 种错误写法、3 种空态位置);③注入浮动条改锚定策略,不再压住正在写的字段(要真机 Notion/Docs 复验);④⌘K 选中行 1.15:1 + 键盘提示;⑤波形按时长映射宽度;⑥Delete 确认 danger 填充;⑦Settings 解释句收敛;⑧快捷键用 kbd。**一条要他裁决**:三处浮层的 ✓ 位置不一致,但「勾落在麦克风原位」是 X29 的既有决定 —— 统一方向要他选。",
-      "input_ids": [],
-      "created": "2026-08-11",
-      "updated": "2026-08-11"
-    },
-    {
-      "id": "N8",
-      "title": "我们把各个功能全部用 Storybook 来画出来，让我呢看到每一个产品功能在不同状态下它的 UI 长什么样。因为我们现在的 UI 问题太多。 然后一定要完整，我们有基础组件， feature, page, user journey 等等各个级别的 Storybook",
-      "type": "",
-      "status": "done",
-      "priority": "P1",
-      "confirmed": true,
-      "tags": [],
-      "note": "**一个 Storybook,四个层级** —— 按他说的:基础组件 / feature / page / user journey。以前只有 `packages/ui` 里的基础组件;现在 Storybook 也扫 `extension/` 和 `web/`,已有的 10 个组件故事重排进统一层级(Controls/Overlays/Shell/Provenance/Content → **Component**)。<br>**为此做的一次重构**:面板的 `RecordControl` / `Listening` / `DictatedText` 从 1600 行的 `sidepanel.tsx` 里抽到 `extension/src/panel/dictation.tsx` —— 原文件在模块顶层 `createRoot`,任何 story 一 import 就会去渲染。<br>**现在能看的**:①Component:Recording 播放器(每种时长、时长未知、两条录音不能长得一样、三种宽度)+ 原有 10 个;②Feature:Dictation(录音控件四态、转写、Skill 用过就消失、改写进行中、链 + 分叉、一个字和一整屏)、页面上的浮层(光标条五态、选区条四态、写批注、语音选项)——**都压在真实文字上看,不是白底**;③Page:侧边栏 360×640 的七种状态(空、正在录、两条并行、完整的链、其中一条失败、有东西卡住、麦克风被 Chrome 拦);④Journey:三条**分镜** —— 说完再改写(6 格)、Logue 没开时(4 格)、对着别人的页面说(4 格)。分镜是关键:单个状态只能说画得对不对,**只有序列能说好不好用** —— Record 和勾隔了半个面板,就是这么看出来的。<br>**顺带**:Storybook 默认会往外发遥测,关掉了(这个产品不往外发任何东西,它的工具也不该发)。端口从 6006 挪到 **6007**,6006 让给 Phoenix(N7)。<br>**没覆盖到、诚实说**:Web 应用的路由(Stream / Documents / Projects / Skills / Settings)和面板的 Chat / This page / Project 三个 tab 还没有 story —— 它们和面板一样需要先把展示层抽出来。已另开 **N8b**。",
-      "input_ids": [],
-      "created": "2026-08-11",
-      "updated": "2026-08-11"
-    },
-    {
-      "id": "N8b",
-      "title": "Storybook 的另一半:Web 应用的路由,和面板剩下三个 tab",
-      "type": "feature",
-      "status": "done",
-      "priority": "P2",
-      "confirmed": true,
-      "tags": [
-        "ui",
-        "storybook"
-      ],
-      "note": "**这次是真的全了:67 个 story,每一个都被自动走查过一遍(0 错误、0 空白),四层组织,侧栏按层级排序。**<br>**Page 层现在是真正的整页**:①`Page/The app` —— 挂载**真的 `App`**(rail + 导航 + 路由,全屏),11 个状态:Stream 打开一条 Source、空、一直加载、**Host 没应答**、Documents、Skills、没写 prompt 的 Skill、Projects、Settings、Tracing 被拒、没连模型;②`Page/Side panel` —— 挂载**真的 `Panel`**(`createRoot` 抽到 `sidepanel-main.tsx`,组件终于可以 import),9 个状态盖住**全部四个 tab**:Dictation、Chat(有对话/空)、This page(有存货/空)、Project、有录音在等、模型没连、Logue 没开。<br>**做法一致**:web 靠 `WithHost` 换掉 `window.fetch`,面板靠 `chrome.stories-helper` 提供假 chrome(tab / storage / worker),**真组件、真解析、真错误处理**,只有网线是假的。<br>**自动走查抓到 3 个真问题**:①helper 里 `new Response(status:0)` 会 throw 在 setTimeout 里,promise 永不落地 —— 「Host 没应答」那个 story 从没真的显示过失败(网络失败改成 reject,和真 fetch 一致);②由此暴露一个**产品 bug**:rail 在离线时印着「Capture something to see it here」,紧挨着下面那句「Logue is not running」—— 邀请你去做那件唯一做不成的事,已修(`RailList` 加 `failed`,离线时空态闭嘴);③Settings 三个 story 挂在 `/v1/backup/preview` 的路径和形状上(fixture 写错了,页面真的会读 `counts.items`)。<br>**入口挪动过后真机复验**:重建 dist,真 Chrome 里 n4 全程 13/13。<br>**第二轮补完(他说 still far from complete,对)**:①Component 补了没 story 的三个:**Answer**(引用 chip、两种模型写法、引用了不存在的 Source、被推翻的 Source)、SourceLink(有址/无址/截断)、ContextMenu,Feedback 全家福;②Feature 加了 **Web 应用的八个对话框**(⌘K 查找带真输入、Run 详情、Skill 历史带 diff、删除带后果、生成框、命名、重命名、快捷键);③Journey 从 1 族扩到 **4 族 10 帧**,全部用**真组件**:Ask about this page(存→问→**点开引用看证据**,play 真点)、A proposal needs a yes(提案→点头后)、From voice to a document(真 App 两帧)、原有 Dictation 三条;④Page 加面板选中 Project 展开 About、App 上 ⌘K 打开并输入;⑤加了 **Overview** 首页(五层各自看什么、两条诚实规则),侧栏排序 Overview→Foundation→…→Journey。<br>**共 93 个 story + 1 个文档页**。26 个新 story 逐个真浏览器验证(路上抓出两个假 story:History 没点版本所以 diff 根本没画出来、引用 play 点到了旁边的「1 Sources」——都是 marker 法抓出来的),冷构建过,四闸全绿。",
-      "input_ids": [
-        "in_storybook_full_page"
-      ],
-      "created": "2026-08-11",
-      "updated": "2026-08-11"
-    },
-    {
-      "id": "N7",
-      "title": "Arize Phoenix 我们用这个来做 observability 以方便 debug，然後把它集成进我们的这个应用里。",
-      "type": "",
-      "status": "done",
-      "priority": "P2",
-      "confirmed": true,
-      "tags": [],
-      "note": "用 **Arize Phoenix** 做 observability,接进 Host。<br>**关键决定:不给 Host 加依赖。** `pip install arize-phoenix` 会装 **190 个包**;Host 到今天一个第三方包都没有,为一个只在 debug 时有用的东西把这些装到每台跑 Logue 的机器上不合算。**量过**:Phoenix 的 collector 对 OTLP/JSON 回 **415**,所以 OTLP protobuf 由 `server/logue_host/trace.py` **自己编码**(一个消息形状,80 行)。<br>**三条硬规矩**:①**默认关**,没有 endpoint 就没有 span、没有线程、没有开销;②**只发本机** —— span 里是他说的每一句话和每一个页面,非 loopback 的地址直接拒绝并在 status 里说出来,除非显式设 `LOGUE_TRACE_ALLOW_REMOTE`;③**是个设置不是环境变量** —— Host 是后台服务,环境变量意味着要改 launchd,没人会为一个调试开关做第二次;现在在 Settings 里填地址,**下一次模型调用就生效**。<br>**追了什么**:`dictation`→`transcribe`、`skill:<名字>`→`generate`、`file`→`generate`,用 OpenInference 语义,所以 Phoenix 把模型调用显示成模型调用,带 prompt / 回答 / token / 延迟 / 失败原因。<br>**真机验过**:真 Host、真 Gemini、真麦克风走了一遍完整的 dictation + 两次改写,7 条 trace 13 个 span 全在 Phoenix 里。`scripts/qa/n7.py` **7/7**(把 span 发出去再从 Phoenix 读回来,不是读我们自己的代码),另加 6 条 Host 单元测试。<br>**它第一次跑就查出一件事**:每存一条 Source 的自动归档要 **983 token**,比转写(717)还多,是两次改写(170/176)的五六倍。",
-      "input_ids": [],
-      "created": "2026-08-11",
-      "updated": "2026-08-11"
-    },
-    {
-      "id": "N6",
-      "title": "Context Center 界面大改:先用产品设计的 skill 走查一遍,再动手",
-      "type": "design",
-      "status": "done",
-      "priority": "P1",
-      "confirmed": true,
-      "tags": [
-        "cc",
-        "ui"
-      ],
-      "note": "先用 `design:design-critique` 对着真实 DOM 走查(不只看截图),再一次性大改。<br>**你圈的四处**:①note 现在**渲染**(粗体 / `<br>` / 反引号 / 链接)、**自动长高**、过一屏才滚动、有 NOTE 标题和 hover 时的「Click to edit」,点一下变回原文编辑,失焦存盘并给一个 ✓;②那条消息现在自报家门:**✓ Claude Code · 时间**,正文渲染 markdown;③时间戳挪到作者那一行,不再被 flex 挤在右边缘;④标题从单行 input 换成会**换行**的 textarea —— 标题都是整句话,截断而不说是最没道理的一种。<br>**走查里另外找到的**:回复最多只显示 3 条且不说还有多少(现在有「Show all N replies」);所有输入框 `focus:outline-none` 却没有替代物 —— 键盘用户完全没有焦点提示(补上了);编辑区一律无边框无背景、和下面有边框有 Send 的 composer 是两套约定(现在 hover/focus 有边框)。",
-      "input_ids": [
-        "in_ui_bug_ui",
-        "in_task"
-      ],
-      "created": "2026-08-11",
-      "updated": "2026-08-11"
-    },
-    {
-      "id": "N5",
-      "title": "所有录音走同一条路:上传失败存本地、转写失败能重试,原始输入永不丢失",
-      "type": "feature",
-      "status": "done",
-      "priority": "P1",
-      "confirmed": true,
-      "tags": [
-        "voice",
-        "reliability",
-        "qa"
-      ],
-      "note": "**一条路管所有录音**,不管从页面输入框、选区、面板还是 Dictation 来。<br>**量出来的洞**:音频一直在模型之前写盘,所以「录音不会丢」是真的 —— 但知道它 id 的只有当时那个标签页,关了就够不着。在他自己的工作区上数:**292 段录音,86 段没有任何东西指向它**。<br>**做了四件事**:①Host 新增 `GET /v1/captures` —— 没变成文字的录音都能被列出来,不再依赖某个标签页;②worker **自动重试**(只重试最近半小时的、每条最多 3 次),再往后就列在面板里等你按,「自动放弃」和「放弃」不是一回事;③面板把两种卡住的情况**合成一个列表**(浏览器里存着的 + Host 上没词的),每条能重试、能导出音频;④**记录每段录音的结局**(refused / empty / heard)—— 否则面板会把一周的正常静音喊成「50 段没有文字」,这是第一次跑真机时真的发生的,现在是 5 段。<br>**测试(他点名要的三种失败都造了出来)**:`scripts/qa/n5.mjs` **6/6 真机通过** —— ①把扩展指向一个没人监听的地址,录音存在浏览器里、面板说得出来;②地址指回来,它自己就上去了;③另起一个**用坏 key 的一次性 Host**(不动他的真 key),模型真的拒绝,录音仍在、面板说得出、**关掉面板再打开还在**、音频字节真的能取回来。另加 4 条单元测试(重试的年龄/次数边界)和 3 条 Host 测试。",
-      "input_ids": [
-        "in_transcribe_browser_transcrib",
-        "in_scenario_extension_server"
-      ],
-      "created": "2026-08-11",
-      "updated": "2026-08-11"
-    },
-    {
-      "id": "N4",
-      "title": "面板加一个 Dictation 分区:说完能改写、能复制、还能接着录下一条",
-      "type": "feature",
-      "status": "done",
-      "priority": "P0",
-      "confirmed": true,
-      "tags": [
-        "panel",
-        "voice",
-        "dictation"
-      ],
-      "note": "面板里加了一个 **Dictation** tab:一个底部按钮开始录,按下之后**原地变形**成 ✕ · ● 计时 · 波形 · ✓;说完落成一条 Source(音频 + 文字都在),每一段文字都能复制、也能再套一个 Skill,**套出来的和原文长得一模一样、能继续再套**,缩进表示 lineage,用过的 Skill 在那一段上不再出现。内建两个 Skill:Into English、As Markdown;Skills 页的「Used where」从只读的一行字改成了可点的开关。<br>**方案在 [docs/spec/dictation.md](docs/spec/dictation.md)**,mockup 迭代到 v4(他砍掉了语音选项、待转计数、10:00 提示、版本编号)。<br>**真机验过 13/13**:真麦克风(`say` 说给它听)、真 Host、真 Gemini。路上抓到两个真 bug:①`readablePageText()` 用「含空格」判断正文,中文页 440 块丢 362 块;②改写把待处理的文字当成「Request:」送给模型,模型把这个标签写进了自己的答案,第二次改写还会叠加成「# Request: Request:」——现在 `POST /v1/runs` 分成 `instruction`(要什么)和 `input`(处理什么)两件事。<br>**已发 v1.0.4**,Dictation 排到第一个 tab 并作为默认(⌘⇧K 会自己切到 Chat,否则会在一个标题下开始录音、把词送到另一个)。",
-      "input_ids": [
-        "in_extension_panel_tab",
-        "in_dictation_dictation_ui"
-      ],
-      "created": "2026-08-11",
-      "updated": "2026-08-11"
-    },
-    {
-      "id": "N2",
-      "title": "输入框里已经打好的字,语音一来就被丢掉",
-      "type": "bug",
-      "status": "done",
-      "priority": "P1",
-      "confirmed": true,
-      "tags": [
-        "panel",
-        "voice"
-      ],
-      "note": "**已修。** `accept()` 从头到尾没读过输入框里的字 —— 说话会另起一条消息发出去,已经打好的字既没当上下文、也没被接上,留在框里等你,而模型答的是你只说出口的那一半。<br>现在:①框里的字作为 `nearby` 一起送过去(名字按框里的写法拼);②**转写落在光标处、和已有的字接上,并且不自动发送** —— 你按 Ask 才发。框是空的才维持原来的「说完就问」。抽出 `joinAtCaret()` 并写了 5 条测试,其中一条对**每一个光标位置**断言:除了接缝处的空白,一个字符都不能少。",
-      "input_ids": [
-        "in_extension_text_input"
-      ],
-      "created": "2026-08-11",
-      "updated": "2026-08-11"
-    },
-    {
-      "id": "N1",
-      "title": "重想面板的信息架构 —— 先出提案,一行代码都不动",
-      "type": "proposal",
-      "status": "done",
-      "priority": "P1",
-      "confirmed": true,
-      "tags": [
-        "panel"
-      ],
-      "note": "提案已出:docs/spec/panel-ia.md —— 把面板今天渲染的每一件东西按「主语是谁」重排了一遍,列出九个问题(最重的一条:Project 一个 state 干三个活),给了 A/B 两个方案和三个要你回答的问题。一行代码都没动。改动本身另开 N1b,等你拍板。",
-      "input_ids": [
-        "in_review_extension_panel",
-        "in_item"
-      ],
-      "created": "2026-08-10",
-      "updated": "2026-08-10"
-    },
-    {
-      "id": "N1b",
-      "title": "按 panel-ia.md 重排面板 —— 等你选 A 还是 B",
-      "type": "feature",
-      "status": "blocked",
-      "priority": "P1",
-      "confirmed": true,
-      "tags": [
-        "panel",
-        "ui"
-      ],
-      "note": "提案在 docs/spec/panel-ia.md,已对着今天的面板刷新过(8/10 写的时候是三个 tab,现在四个、默认开 Dictation)。刷新后:原来第 5 条「等待中的录音画两遍」N5 已经修掉,划掉;新增两条 —— 2b 两个 tab 抢同一个录音机(靠 speaking 这个裁判变量让路)、10 默认那一屏由排期决定而不是由入口决定。A:四个 tab 收成两个(这一页 + 听写),Chat 和 This page 合成一条流,Project 提到头部,全局状态收进顶部状态条。B:四个 tab 留着只按主语重排。我推荐 A。第六节三个问题,你答完我才动手。",
-      "blocked_on": "等你在 docs/spec/panel-ia.md 第六节回答三个问题",
-      "input_ids": [],
-      "created": "2026-08-10",
-      "updated": "2026-08-11"
-    },
-    {
-      "id": "M2v",
-      "title": "确认浏览器里跑的扩展真的是 v1.0.0",
-      "type": "test",
-      "status": "done",
-      "priority": "P0",
-      "confirmed": true,
-      "tags": [
-        "release",
-        "extension"
-      ],
-      "note": "拷进安装目录不等于浏览器在跑 —— X19 就是栽在这上面。按 ⌘⇧L 打开面板,读上面的构建标记。",
-      "blocked_on": "要你人在键盘前",
-      "input_ids": [
-        "in_ext_latest"
-      ],
-      "created": "2026-08-10",
-      "updated": "2026-08-11"
-    },
-    {
-      "id": "S3g",
-      "title": "在登录着的 Google Docs 上跑 cuj-gdocs",
-      "type": "test",
-      "status": "blocked",
-      "priority": "P1",
-      "confirmed": true,
-      "tags": [
-        "qa",
-        "gdocs"
-      ],
-      "note": "S3 最后一条没做完的。干净的测试浏览器打不开需要登录的文档,而「要登录」不是跳过验证的理由。",
-      "blocked_on": "要你浏览器里的登录态",
-      "input_ids": [
-        "in_auth_browser",
-        "in_test_notion"
-      ],
-      "created": "2026-08-10",
-      "updated": "2026-08-10"
-    },
-    {
-      "id": "A2",
-      "title": "审计剩下的五条,挑哪几条要修",
-      "type": "question",
-      "status": "done",
-      "priority": "P1",
-      "confirmed": false,
-      "tags": [
-        "audit"
-      ],
-      "note": "六条早就全修完了 —— 但标记不是证据,所以重新量了一遍(真浏览器、真工作区、四个 tab 逐个)。先修了走查脚本自己:audit-ext.mjs 只量默认那一屏,面板改成默认开 Dictation 之后它拿到 null、整个死在 Illegal invocation —— 新加的那个面从来没被量过。复量抓到三条漏网的,都修了:①DocumentsRoute 的 h2 字重还是 400(另外四个都 560);②对话里的 [Source n] 角标 20x20,低于 24px 地板;③Dictation 里那行 16px 高。改完复量:低于 24px 的一个都没有(改前 5 个),字号仍只有 12/13 两档。四道门禁全绿。剩一处要你一句话:Menu 的快捷键字母和菜单分组标题还是 11px,那是 X33 照 Claude Code 特意做的,和 audit #4 冲突 —— 留着还是拉到 12px,见 audit.md 末节。",
-      "blocked_on": "等你拍板",
-      "input_ids": [
-        "in_confirm_unsure"
-      ],
-      "created": "2026-08-09",
-      "updated": "2026-08-11"
-    },
-    {
-      "id": "P6b",
-      "title": "在真的会滚动的页面上证明「滚动到可见」",
-      "type": "test",
-      "status": "done",
-      "priority": "P2",
-      "confirmed": false,
-      "tags": [
-        "anchors",
-        "qa"
-      ],
-      "note": "证完了,在真会滚的页面上:scripts/qa/p6b.mjs,真实的 Wikipedia《Special relativity》—— 48240px 高,窗口 757px。段落在 31539px 处,scrollY=0 时确认在视野外,locate 之后页面滚到 31190,段落落在 349px 处并被选中。12/12 通过。第一次跑还抓到一个真问题:https 页面 fetch 不到 http://127.0.0.1 的 Host,断言得从面板那边发。",
-      "input_ids": [
-        "in_real_content"
-      ],
-      "created": "2026-08-10",
-      "updated": "2026-08-10"
-    },
-    {
-      "id": "G1b",
-      "title": "在真实的 Claude Code 会话里触发 /logue",
-      "type": "test",
-      "status": "done",
-      "priority": "P2",
-      "confirmed": true,
-      "tags": [
-        "integration"
-      ],
-      "note": "在这个活着的 Claude Code 会话里真的触发了 —— 不是嵌套进程。用 Skill 工具按名字调起 logue,harness 把 ~/.claude/skills/logue/SKILL.md 载进这一轮,然后跑 logue.py read 打到真 Host(127.0.0.1:8787),读回 doc_efbbfbd5c5ce02c8 «Logue QA — V7 rewrite» revision 2 和正文。没证到的一条说清楚:是我在活会话里按名字调的,不是你亲手敲 /logue —— 机制上是同一条路。",
-      "input_ids": [
-        "in_any_agent"
-      ],
-      "created": "2026-08-10",
-      "updated": "2026-08-10"
-    },
-    {
-      "id": "X38",
-      "title": "一个页面一条对话 —— 而且它叫 Chat",
-      "type": "bug",
-      "status": "done",
-      "priority": "P0",
-      "confirmed": true,
-      "tags": [
-        "panel",
-        "bug"
-      ],
-      "note": "存储键写死,所以所有页面共用同一条对话。现在按页面存,只留最近 20 个,旧的那条全局对话丢掉。",
-      "input_ids": [
-        "in_thread_bug"
-      ],
-      "created": "2026-08-09",
-      "updated": "2026-08-10"
-    },
-    {
-      "id": "X33",
-      "title": "把 ⋯ 菜单改成 Claude Code 那种样子",
-      "type": "feature",
-      "status": "done",
-      "priority": "P2",
-      "confirmed": true,
-      "tags": [
-        "ui",
-        "menu"
-      ],
-      "note": "标题行收成一行小灰字,行高 24px,菜单更窄,选中用淡填充而不是那圈重蓝框,右边那个字母真的能用。",
-      "input_ids": [
-        "in_menu_shot",
-        "in_consistent_ui"
-      ],
-      "created": "2026-08-09",
-      "updated": "2026-08-10"
-    },
-    {
-      "id": "R13",
-      "title": "一条 Source 可以被后来的推翻 —— 你点头才算",
-      "type": "feature",
-      "status": "done",
-      "priority": "P1",
-      "confirmed": true,
-      "tags": [
-        "sources",
-        "agent"
-      ],
-      "note": "模型提议,你确认。旧的那条永远不删也不挪,只是淡下去,并指向取代它的那一条。",
-      "input_ids": [
-        "in_consistent_ui"
-      ],
-      "created": "2026-08-09",
-      "updated": "2026-08-10"
-    },
-    {
-      "id": "N3",
-      "title": "自查一轮:凡是「已经在那儿的东西被我们悄悄丢掉」的,全找出来修掉",
-      "type": "audit",
-      "status": "done",
-      "priority": "P1",
-      "confirmed": true,
-      "tags": [
-        "audit",
-        "voice"
-      ],
-      "note": "按 N2 那个模式走查了六处。**又抓到一条真的**:面板的 Project「背景/词表」——那个 effect 依赖的是 Project **对象**,而面板每次读标签页都会重建它(切标签、页面更新都会),**所以你写到一半的背景会被服务器上的旧版本盖掉**,而且发生在一个和你无关的时刻。改成按 Project id 只填一次。<br>**查过并且是对的**:页面输入框 + 语音(`nearby` + 光标插入)、选区 + 批注(选区监听器在 `writing` 时不动手,注释里写着为什么)、文档插入(只追加,从不读回来重写)、离线队列(project / overrides / nearby / source 全程带着)。<br>**报一条我没擅自改的**:面板里生成的改写只活在内存里 —— 关掉面板就没了(转写本身是 Source,不会丢)。N4 当时定的是「不默认存,复制才记一笔」,要不要改成存下来,你说了算。",
-      "blocked_on": "",
-      "input_ids": [],
-      "created": "2026-08-10",
-      "updated": "2026-08-11"
-    }
-  ],
-  "inputs": [
-    {
-      "id": "in_thread_bug",
-      "at": "2026-08-09 21:39",
-      "text": "我去 talk 某一个东西,它给我换到其他页面的时候也放在这里……就完全没有相关性一样",
-      "images": [
-        "shots/x36-thread-not-per-page.png"
-      ]
-    },
-    {
-      "id": "in_menu_shot",
-      "at": "2026-08-09 15:35",
-      "text": "这个菜单和 Claude Code 的差太多了,看一下它的样子,五个地方都不一样。",
-      "images": [
-        "shots/x33-used-where-not-editable.png"
-      ]
-    },
-    {
-      "id": "in_consistent_ui",
-      "at": "2026-08-08 11:02",
-      "text": "ui design must be consistent! everywhere! all levels! this is the basics.",
-      "images": []
-    },
-    {
-      "id": "in_ext_latest",
-      "at": "2026-08-09 09:12",
-      "text": "my browser must have latest extension. update it regularly.",
-      "images": []
-    },
-    {
-      "id": "in_auth_browser",
-      "at": "2026-08-08 17:44",
-      "text": "must use my browser with auth in qa when necessary (e.g. use app that needs login)",
-      "images": []
-    },
-    {
-      "id": "in_test_notion",
-      "at": "2026-08-08 17:45",
-      "text": "must test in notion",
-      "images": []
-    },
-    {
-      "id": "in_confirm_unsure",
-      "at": "2026-08-07 20:31",
-      "text": "confirm with me in case of something you are not sure about",
-      "images": []
-    },
-    {
-      "id": "in_real_content",
-      "at": "2026-08-08 13:20",
-      "text": "do not use these to test. use real content.",
-      "images": [
-        "shots/x32-saving-no-drag-handle.png"
-      ]
-    },
-    {
-      "id": "in_any_agent",
-      "at": "2026-08-10 08:15",
-      "text": "让任意 agent 能够使用我们的这个产品。第一个是文档吧,假如我把这个文档链接给比如说 Claude Code,它应该有能力读写这个文档。",
-      "images": []
-    },
-    {
-      "id": "in_review_extension_panel",
-      "at": "2026-08-10 13:51",
-      "text": "重新仔细 review 一下我们的 extension 的 panel 的界面。现在的界面设计非常之有问题，我们需要从信息架构的角度重新组织。先 propose 一下，不要去做，需要我 confirm 才能继续去做。",
-      "images": []
-    },
-    {
-      "id": "in_item",
-      "at": "2026-08-10 13:51",
-      "text": "更新一下现在这个item",
-      "images": []
-    },
-    {
-      "id": "in_extension_text_input",
-      "at": "2026-08-10 17:12",
-      "text": "extension 里面这个 text input，如果已经有文本内容在里面了，我用语音的时候，为什么这个文本没有被使用？这是一个 bug。希望这种级别的 bug 不应该再有，自查一轮，要找到所有这种 bug 全部修复。",
-      "images": [
-        "shots/paste-20260810-171056-f5b5.png"
-      ]
-    },
-    {
-      "id": "in_extension_panel_tab",
-      "at": "2026-08-10 22:36",
-      "text": "我们在 extension 的 panel 里面加入一个新的功能。\n简单起见，我们加一个新的 tab，就叫 transcription——语音输入吧。\n在里面，用户可以用语音输入，我们需要把这个页面里面的内容也作为 context 的一部分。\n我们只要显示那种可见内容。我觉得是 HTML 里面的非 tag 里的东西，就是 visible 的这些 text，应该作为 context。\n你可以决定，你可以反驳我，可以用更好的办法。\ntranscribe 之后，我需要能有这个 audio，能有文本。对于这个文本，我可以一键点击，可以 copy，而且我可以预定义一些 skill 来 transform 这个文本。\n比如 transcribe 之后它是中文的，我可以一键点击让它转换成英文的，或者一键点击让它重写成一个 markdown 格式等。\n同时我应该支持多个任务并行。一个正在处理的时候，我可以启动第二个任务继续录音。只要我的录音没有被使用，在其他任务执行的时候我就可以继续录音。",
-      "images": []
-    },
-    {
-      "id": "in_dictation_dictation_ui",
-      "at": "2026-08-10 22:39",
-      "text": "我们先更新一下这个任务 还是把这个功能叫做 dictation 吧，我觉得 dictation 是更准确的。另外一点，这个 UI 应该和 input 里面的 transcribe and insert 是类似的。另外是一个非常好用简洁的 UI。你可以来设计，现在的 UI 有点太差了。",
-      "images": []
-    },
-    {
-      "id": "in_transcribe_browser_transcrib",
-      "at": "2026-08-11 11:59",
-      "text": "我们所有的录音都应该走同样一个逻辑和流程，用来防止录音上传、transcribe失败等等的处理。首先任意一个录音如果上传失败，那么本地browser里面会有存储，并且在我们的服务可以成功连接的时候可以自动上传。其次，对于上传之后transcribe失败的时候，这个录音在服务端也是有保存的。我们可以规定自动retry，对于失败的entry也可以用户手动点击再次retry。总之有一点，用户的原始输入永远不能丢失。",
-      "images": []
-    },
-    {
-      "id": "in_scenario_extension_server",
-      "at": "2026-08-11 11:59",
-      "text": "关于测试，我觉得可以几个 scenario 都测试一下。比如配置 extension，让它指向一个不存在的 server，看看本地保存的能力。然后比如配置一下 generation API，看它失败的情况，或者 mock 一个 API，让 API 失败的情况处理一下。等等。必须要有测试。更新一下这个 task。",
-      "images": []
-    },
-    {
-      "id": "in_ui_bug_ui",
-      "at": "2026-08-11 12:06",
-      "text": "UI的bug。我们讨论这个界面UI的严重的问题。问题太多了，我建议你可以自己根据这个截图，把所有的问题找到，然后做一个大规模的改动。第一，你输入这一块是可以编辑这个内容，很难看出来它是可以编辑的。其次，它的格式并没有去真正的渲染出来。它的高度也完全是不对的，没有真正自动去grow，也没有scroll bar等，至少我看不出来。下面这一点，这是什么消息我们不是很清楚。来源哪些也都不清楚，而且格式也不对。时间的位置更是很不好。对于标题来讲，被截断的话也很难看出来。包括这个feature，那些button的behavior也非常之奇怪。总之这个设计非常多不合理的地方。你如果有一个做产品设计的skill，要用这样skill来review，然后做大规模的更新，做大幅的改善。",
-      "images": []
-    },
-    {
-      "id": "in_task",
-      "at": "2026-08-11 12:06",
-      "text": "基于这个截图，我们可以更新一下这个 task。",
-      "images": [
-        "shots/paste-20260811-120249-7a36.png"
-      ]
-    },
-    {
-      "id": "in_storybook_full_page",
-      "at": "2026-08-11 15:40",
-      "text": "too lazy. why pages are not full page??? quality too low. do not stop until you fix/complete all. also organize them well.",
-      "images": []
-    }
-  ]
+ "version": 2,
+ "updated": "2026-08-10",
+ "tasks": [
+  {
+   "id": "N10",
+   "title": "Web 应用整页 IA 重构:三个方向的 preview 等他选",
+   "type": "design",
+   "status": "in_progress",
+   "priority": "P0",
+   "confirmed": true,
+   "tags": [
+    "ui",
+    "ia"
+   ],
+   "note": "他对 N9 的定性:review 选错方向 —— 「我并不 care font 等小层面的问题,需要的是整体页面和信息架构的重构」,并且明确「不要直接改代码,给我 preview,几个不同类型更好」。<br>**已交付三方向 preview**(scratchpad `ia-preview.html`,已发给他):**A · Inbox 优先**(落地页=待分拣,导航按活动分,Skills 降级进 Settings);**B · Project 优先**(Project 变真容器,里面 Stream/Documents/About 三个 tab);**C · 一条时间线**(砍第二列 rail,过滤器代替路由,详情占满全宽、正文+出处两栏)。每个都写了核心选择、编号 callout、代价;附对比表。**我的推荐:A 做骨架 + C 的焦点详情**。<br>诊断(四条结构病):导航是数据库表不是活动;「分拣」被藏成 rail chip;Project 是过滤器被当地点;第三列永远单列右侧 40% 空白。<br>**他拍板了骨架**:左栏保持 Inbox·Projects·Documents·Skills·Settings(Stream→Inbox),左栏尽量不动,其余可改。**第二版 preview 已交**(scratchpad `ia-final.html`):Web ①Inbox=待分拣卡片(建议上卡面,↵ 归档)+ 下半屏时间流,第二列 rail 取消;②焦点详情接管整页,左=话+改写 16px,右=出处+去向;③Projects 容器化(Sources/Documents/About 三 tab)。Extension:Dictation·This page·Chat 三 tab,Project tab 删除,scope 升头部一处,全局状态一条横幅,This page 合流(存的/说的/答的)=panel-ia 提案 A。迁移顺序:焦点详情→Inbox→面板→Projects,每步一个可验 PR。<br>**第三版 preview(定稿候选)已交**(`ia-complete.html`):他要求 UI 文案全英文(用户内容可以非英文)、必须完整。这版盖住:Web 五个目的地全部(Inbox 分拣+全部、焦点详情两栏、Projects 容器、Documents 渲染 Markdown + Sources 边栏、Skills/Settings 说明为何不动版面)+ Extension 四帧(Dictation 有内容、空态+录音中、This page 合流+模型横幅、Logue 掉线横幅+队列卡+Record 禁用)。落地顺序:焦点详情→Inbox→面板→Projects→Documents Markdown,每步一个可验提交。<br>**面板工艺版已交**(`panel-craft.html`,他嫌上一版丑,要求 top-notch 水准 + 交付前自审):26px 控件族、7–9px 圆角族、真 SVG 图标、tabular 计时、有疏密的波形(录音中 accent 着色)、四级字阶(13.5/12.5/11/10.5)、时间线三种角色 glyph(bookmark/mic/sparkle)、真 composer(save·speak·ask)。**自审两轮,第二轮从渲染图里抓掉 3 个矛盾**:①录音中空态还在教 Press Record 且快捷键提示出现两遍;②提示里带回了他明确砍掉的 10:00 上限;③掉线帧把 Record 画成禁用而文案说还能录(N5 的设计就是掉线可录进队列)——按钮保持可用。<br>**他点头了(ok)。开始实施**,顺序:①焦点详情(MaterialPanel 重排:左=16px 正文+改写树,右栏=WHERE IT CAME FROM / WHERE IT WENT / HOW IT WAS HEARD,归属+tags 收进头部一行)→②Inbox(Stream 改名,分拣卡置顶,第二列 rail 取消,下半屏 Everything+过滤)→③面板(删 Project tab,scope 进头部,横幅全 tab 可见,This page 合流,按 panel-craft 的规格)→④Projects 容器(Sources/Documents/About)→⑤Documents Markdown 渲染。每步:四闸 + Storybook 全量重拍 + 真机验证,一步一个提交。标准 = ia-complete.html + panel-craft.html。<br>**进度**:①焦点详情 ✅(81d97bfc,两栏:16px 正文 + 340px 证据栏 WHERE IT CAME FROM / WHERE IT WENT / HOW IT WAS HEARD / FILED UNDER);②Inbox ✅(61620007,Stream→Inbox,分拣卡置顶带 File ↵/Edit/Skip,第二列 rail 取消,Groups 过滤器带过来了;**有意延后**:旧 rail 的 pins/hover 预览/行菜单,要在列表行上补回)。**下一步:③面板**(删 Project tab、scope 进头部、横幅全 tab、This page 合流,规格=panel-craft.html),然后 ④Projects 容器(顺带删掉已不渲染的 StreamRail)、⑤Documents Markdown。<br>③面板结构 ✅(4c49f65c):Project tab 删除、scope=头部一个 select、⋯ 菜单(Open Logue/Server address)、横幅提到所有 tab 之上、This page 得到 composer(存·说·问),真机四项断言 + n4 全绿。**步骤 3 剩余**:This page 把对话按时间并进列表(kept/said/answered 一条流)+ panel-craft 的工艺视觉层。**然后**:④Projects 容器(顺带删 StreamRail 和旧 rail 的 pins/预览要在 Inbox 行上补回)、⑤Documents Markdown。<br>**redesign 第二轮(他叫停后重启)**:部署后真实数据把 Inbox 打垮(To file · 250、重复条目不合并、卡片 180px)。按他的要求改用 chatgpt.com 做多 session 设计迭代,**必须带真截图**(从 127.0.0.1:8787 现拍,系统剪贴板 ⌘V 贴入;file_upload 工具在这环境里参数被剥,不可用)。在跑的 session:①triage IA 规格+对照修订(master-detail、68px 行、320px inspector、重复堆叠、File obvious N、虚拟化+会话级 undo);②他自己的 mocks 会话;③Variant B/C 完整 HTML(Tailwind CDN,单文件)。**流程**:收 HTML→本地 8899 跑→截图→按 token 审→拼对比页给他审,**他点头前不动产品代码**。<br>**方向纠正(他的原话)**:「i dont care about to File. I dont even know what this feature is for」→ 分拣队列从落地页删除;「inbox should be named as Activities. it's a list of different actions from the user」→ 改名 Activities;「actions are different with different type and purpose / input and page translation are very different, also voice comment/dictation」→ 每行带动词区分动作(Dictated into / Dictated / Voice comment / Spoke to Logue / Kept a passage / Saved the page / Typed / Generated,靠 kind + source.kind + parent_ids)。已部署真机验证(Activities · 392,无 To file,动词逐行)。**ChatGPT 三个 session 里分拣向的产出作废**,只回收:列表密度/行结构、焦点视图右栏修法(PROJECTS·2 成员制、IP 不做主标签、建议块位置)。**待他拍板的一个产品问题**:后台 organize 还在给每条新 Source 标 needs_review(积压 250+)——要么改全自动静默归档(可撤销),要么关掉,landing 不再显示。<br>**课程修正后重启(2026-08-12)**:他毙掉 To file(「i dont care about to FIle」「no to file pls」),Inbox→Activities(动作流,按 verb 分型),归档改**全自动静默**(「全自动静默归档」)——已落地:classify 即归档、详情页收据+Undo、启动 settle_backlog 清 250+ 积压(239 归档/0 剩余),四道门绿,8d1f0046 部署并真模型 E2E 验证(gemini 归档→UI 收据→Undo 生效)。**Mock 重做中**:3 个全新 ChatGPT 会话(他要求:我只给上下文,设计决策全归他们),S1 Activities·晚间回顾 /c/6a7c2f6e,S2 Activities·快速定位 /c/6a7c3010,S3 单条录音详情 /c/6a7c3060;各附现状截图,产出=单文件 Tailwind HTML;生成后渲染+截图交他审,审过才动产品代码。<br>**Round 2(他看完 R1 三案后的收敛)**:功能冻结(现有功能就是全部,Same session/Recall map/统计图这类新发明一律不加)+ 三栏同屏结构(nav|列表|详情,无 overlay 无多层跳转)+ 工艺水准对标 R1-S3 那张截图。三个新会话同 brief 自然分化:/c/6a7cc98b、/c/6a7cc9dd、/c/6a7cca26;附现状+工艺参照拼图(ref-stacked.png)。R1 产物已交他:mock-s1-activities-evening.html(日 trail+时段分组)、mock-s2-activities-midwork.html(搜索+Recall map)、mock-s3-detail.html(overlay 详情+自然语言归档解释)。",
+   "input_ids": [],
+   "created": "2026-08-11",
+   "updated": "2026-08-11"
+  },
+  {
+   "id": "N9",
+   "title": "三路 UI/UX review + 第一轮 redesign:token 级的 13 条已落地",
+   "type": "design",
+   "status": "done",
+   "priority": "P1",
+   "confirmed": true,
+   "tags": [
+    "ui",
+    "review"
+   ],
+   "note": "93 个 story 全部截图,三路独立审:①Claude 子代理逐张精读(对比度/尺寸用 PIL 实测);②ChatGPT(结构清单,12 条 IA/文案);③自查。**汇总和逐条修法在 [docs/spec/ui-review.md](docs/spec/ui-review.md)**。<br>**本轮已修 13 条**,最重的:disabled primary 白字压浅紫 **1.93:1**(改中性灰);AI 出品借用 amber 和真警告同色(新 token `--color-ai`);控件边界 1.41:1 看不出是控件(新 token `--color-control-line` 3:1);Stream 详情头部只写 \"voice\"(改成内容第一句 + kind·时间·域名);转写正文和标签一样 13px(升 15px,标题移到正文前);rail 无第二事实(加时间);面板 Record 是 45px 幽灵按钮(36px primary);Dictation 空态改成教学文案;归属 chip 从实心 accent 改 ✓+中性。",
+   "input_ids": [],
+   "created": "2026-08-11",
+   "updated": "2026-08-11"
+  },
+  {
+   "id": "N9b",
+   "title": "redesign 第二轮:Markdown 渲染、Notice/EmptyState 统一、浮动条不压字段",
+   "type": "design",
+   "status": "queued",
+   "priority": "P1",
+   "confirmed": true,
+   "tags": [
+    "ui",
+    "review"
+   ],
+   "note": "ui-review.md「值得做、这轮没做的」全列表:①Documents 正文渲染 Markdown + [Source n] 用 citation chip(现在按字面显示还被折行拆开);②Notice/EmptyState 统一组件(现存 7 种错误写法、3 种空态位置);③注入浮动条改锚定策略,不再压住正在写的字段(要真机 Notion/Docs 复验);④⌘K 选中行 1.15:1 + 键盘提示;⑤波形按时长映射宽度;⑥Delete 确认 danger 填充;⑦Settings 解释句收敛;⑧快捷键用 kbd。**一条要他裁决**:三处浮层的 ✓ 位置不一致,但「勾落在麦克风原位」是 X29 的既有决定 —— 统一方向要他选。",
+   "input_ids": [],
+   "created": "2026-08-11",
+   "updated": "2026-08-11"
+  },
+  {
+   "id": "N8",
+   "title": "我们把各个功能全部用 Storybook 来画出来，让我呢看到每一个产品功能在不同状态下它的 UI 长什么样。因为我们现在的 UI 问题太多。 然后一定要完整，我们有基础组件， feature, page, user journey 等等各个级别的 Storybook",
+   "type": "",
+   "status": "done",
+   "priority": "P1",
+   "confirmed": true,
+   "tags": [],
+   "note": "**一个 Storybook,四个层级** —— 按他说的:基础组件 / feature / page / user journey。以前只有 `packages/ui` 里的基础组件;现在 Storybook 也扫 `extension/` 和 `web/`,已有的 10 个组件故事重排进统一层级(Controls/Overlays/Shell/Provenance/Content → **Component**)。<br>**为此做的一次重构**:面板的 `RecordControl` / `Listening` / `DictatedText` 从 1600 行的 `sidepanel.tsx` 里抽到 `extension/src/panel/dictation.tsx` —— 原文件在模块顶层 `createRoot`,任何 story 一 import 就会去渲染。<br>**现在能看的**:①Component:Recording 播放器(每种时长、时长未知、两条录音不能长得一样、三种宽度)+ 原有 10 个;②Feature:Dictation(录音控件四态、转写、Skill 用过就消失、改写进行中、链 + 分叉、一个字和一整屏)、页面上的浮层(光标条五态、选区条四态、写批注、语音选项)——**都压在真实文字上看,不是白底**;③Page:侧边栏 360×640 的七种状态(空、正在录、两条并行、完整的链、其中一条失败、有东西卡住、麦克风被 Chrome 拦);④Journey:三条**分镜** —— 说完再改写(6 格)、Logue 没开时(4 格)、对着别人的页面说(4 格)。分镜是关键:单个状态只能说画得对不对,**只有序列能说好不好用** —— Record 和勾隔了半个面板,就是这么看出来的。<br>**顺带**:Storybook 默认会往外发遥测,关掉了(这个产品不往外发任何东西,它的工具也不该发)。端口从 6006 挪到 **6007**,6006 让给 Phoenix(N7)。<br>**没覆盖到、诚实说**:Web 应用的路由(Stream / Documents / Projects / Skills / Settings)和面板的 Chat / This page / Project 三个 tab 还没有 story —— 它们和面板一样需要先把展示层抽出来。已另开 **N8b**。",
+   "input_ids": [],
+   "created": "2026-08-11",
+   "updated": "2026-08-11"
+  },
+  {
+   "id": "N8b",
+   "title": "Storybook 的另一半:Web 应用的路由,和面板剩下三个 tab",
+   "type": "feature",
+   "status": "done",
+   "priority": "P2",
+   "confirmed": true,
+   "tags": [
+    "ui",
+    "storybook"
+   ],
+   "note": "**这次是真的全了:67 个 story,每一个都被自动走查过一遍(0 错误、0 空白),四层组织,侧栏按层级排序。**<br>**Page 层现在是真正的整页**:①`Page/The app` —— 挂载**真的 `App`**(rail + 导航 + 路由,全屏),11 个状态:Stream 打开一条 Source、空、一直加载、**Host 没应答**、Documents、Skills、没写 prompt 的 Skill、Projects、Settings、Tracing 被拒、没连模型;②`Page/Side panel` —— 挂载**真的 `Panel`**(`createRoot` 抽到 `sidepanel-main.tsx`,组件终于可以 import),9 个状态盖住**全部四个 tab**:Dictation、Chat(有对话/空)、This page(有存货/空)、Project、有录音在等、模型没连、Logue 没开。<br>**做法一致**:web 靠 `WithHost` 换掉 `window.fetch`,面板靠 `chrome.stories-helper` 提供假 chrome(tab / storage / worker),**真组件、真解析、真错误处理**,只有网线是假的。<br>**自动走查抓到 3 个真问题**:①helper 里 `new Response(status:0)` 会 throw 在 setTimeout 里,promise 永不落地 —— 「Host 没应答」那个 story 从没真的显示过失败(网络失败改成 reject,和真 fetch 一致);②由此暴露一个**产品 bug**:rail 在离线时印着「Capture something to see it here」,紧挨着下面那句「Logue is not running」—— 邀请你去做那件唯一做不成的事,已修(`RailList` 加 `failed`,离线时空态闭嘴);③Settings 三个 story 挂在 `/v1/backup/preview` 的路径和形状上(fixture 写错了,页面真的会读 `counts.items`)。<br>**入口挪动过后真机复验**:重建 dist,真 Chrome 里 n4 全程 13/13。<br>**第二轮补完(他说 still far from complete,对)**:①Component 补了没 story 的三个:**Answer**(引用 chip、两种模型写法、引用了不存在的 Source、被推翻的 Source)、SourceLink(有址/无址/截断)、ContextMenu,Feedback 全家福;②Feature 加了 **Web 应用的八个对话框**(⌘K 查找带真输入、Run 详情、Skill 历史带 diff、删除带后果、生成框、命名、重命名、快捷键);③Journey 从 1 族扩到 **4 族 10 帧**,全部用**真组件**:Ask about this page(存→问→**点开引用看证据**,play 真点)、A proposal needs a yes(提案→点头后)、From voice to a document(真 App 两帧)、原有 Dictation 三条;④Page 加面板选中 Project 展开 About、App 上 ⌘K 打开并输入;⑤加了 **Overview** 首页(五层各自看什么、两条诚实规则),侧栏排序 Overview→Foundation→…→Journey。<br>**共 93 个 story + 1 个文档页**。26 个新 story 逐个真浏览器验证(路上抓出两个假 story:History 没点版本所以 diff 根本没画出来、引用 play 点到了旁边的「1 Sources」——都是 marker 法抓出来的),冷构建过,四闸全绿。",
+   "input_ids": [
+    "in_storybook_full_page"
+   ],
+   "created": "2026-08-11",
+   "updated": "2026-08-11"
+  },
+  {
+   "id": "N7",
+   "title": "Arize Phoenix 我们用这个来做 observability 以方便 debug，然後把它集成进我们的这个应用里。",
+   "type": "",
+   "status": "done",
+   "priority": "P2",
+   "confirmed": true,
+   "tags": [],
+   "note": "用 **Arize Phoenix** 做 observability,接进 Host。<br>**关键决定:不给 Host 加依赖。** `pip install arize-phoenix` 会装 **190 个包**;Host 到今天一个第三方包都没有,为一个只在 debug 时有用的东西把这些装到每台跑 Logue 的机器上不合算。**量过**:Phoenix 的 collector 对 OTLP/JSON 回 **415**,所以 OTLP protobuf 由 `server/logue_host/trace.py` **自己编码**(一个消息形状,80 行)。<br>**三条硬规矩**:①**默认关**,没有 endpoint 就没有 span、没有线程、没有开销;②**只发本机** —— span 里是他说的每一句话和每一个页面,非 loopback 的地址直接拒绝并在 status 里说出来,除非显式设 `LOGUE_TRACE_ALLOW_REMOTE`;③**是个设置不是环境变量** —— Host 是后台服务,环境变量意味着要改 launchd,没人会为一个调试开关做第二次;现在在 Settings 里填地址,**下一次模型调用就生效**。<br>**追了什么**:`dictation`→`transcribe`、`skill:<名字>`→`generate`、`file`→`generate`,用 OpenInference 语义,所以 Phoenix 把模型调用显示成模型调用,带 prompt / 回答 / token / 延迟 / 失败原因。<br>**真机验过**:真 Host、真 Gemini、真麦克风走了一遍完整的 dictation + 两次改写,7 条 trace 13 个 span 全在 Phoenix 里。`scripts/qa/n7.py` **7/7**(把 span 发出去再从 Phoenix 读回来,不是读我们自己的代码),另加 6 条 Host 单元测试。<br>**它第一次跑就查出一件事**:每存一条 Source 的自动归档要 **983 token**,比转写(717)还多,是两次改写(170/176)的五六倍。",
+   "input_ids": [],
+   "created": "2026-08-11",
+   "updated": "2026-08-11"
+  },
+  {
+   "id": "N6",
+   "title": "Context Center 界面大改:先用产品设计的 skill 走查一遍,再动手",
+   "type": "design",
+   "status": "done",
+   "priority": "P1",
+   "confirmed": true,
+   "tags": [
+    "cc",
+    "ui"
+   ],
+   "note": "先用 `design:design-critique` 对着真实 DOM 走查(不只看截图),再一次性大改。<br>**你圈的四处**:①note 现在**渲染**(粗体 / `<br>` / 反引号 / 链接)、**自动长高**、过一屏才滚动、有 NOTE 标题和 hover 时的「Click to edit」,点一下变回原文编辑,失焦存盘并给一个 ✓;②那条消息现在自报家门:**✓ Claude Code · 时间**,正文渲染 markdown;③时间戳挪到作者那一行,不再被 flex 挤在右边缘;④标题从单行 input 换成会**换行**的 textarea —— 标题都是整句话,截断而不说是最没道理的一种。<br>**走查里另外找到的**:回复最多只显示 3 条且不说还有多少(现在有「Show all N replies」);所有输入框 `focus:outline-none` 却没有替代物 —— 键盘用户完全没有焦点提示(补上了);编辑区一律无边框无背景、和下面有边框有 Send 的 composer 是两套约定(现在 hover/focus 有边框)。",
+   "input_ids": [
+    "in_ui_bug_ui",
+    "in_task"
+   ],
+   "created": "2026-08-11",
+   "updated": "2026-08-11"
+  },
+  {
+   "id": "N5",
+   "title": "所有录音走同一条路:上传失败存本地、转写失败能重试,原始输入永不丢失",
+   "type": "feature",
+   "status": "done",
+   "priority": "P1",
+   "confirmed": true,
+   "tags": [
+    "voice",
+    "reliability",
+    "qa"
+   ],
+   "note": "**一条路管所有录音**,不管从页面输入框、选区、面板还是 Dictation 来。<br>**量出来的洞**:音频一直在模型之前写盘,所以「录音不会丢」是真的 —— 但知道它 id 的只有当时那个标签页,关了就够不着。在他自己的工作区上数:**292 段录音,86 段没有任何东西指向它**。<br>**做了四件事**:①Host 新增 `GET /v1/captures` —— 没变成文字的录音都能被列出来,不再依赖某个标签页;②worker **自动重试**(只重试最近半小时的、每条最多 3 次),再往后就列在面板里等你按,「自动放弃」和「放弃」不是一回事;③面板把两种卡住的情况**合成一个列表**(浏览器里存着的 + Host 上没词的),每条能重试、能导出音频;④**记录每段录音的结局**(refused / empty / heard)—— 否则面板会把一周的正常静音喊成「50 段没有文字」,这是第一次跑真机时真的发生的,现在是 5 段。<br>**测试(他点名要的三种失败都造了出来)**:`scripts/qa/n5.mjs` **6/6 真机通过** —— ①把扩展指向一个没人监听的地址,录音存在浏览器里、面板说得出来;②地址指回来,它自己就上去了;③另起一个**用坏 key 的一次性 Host**(不动他的真 key),模型真的拒绝,录音仍在、面板说得出、**关掉面板再打开还在**、音频字节真的能取回来。另加 4 条单元测试(重试的年龄/次数边界)和 3 条 Host 测试。",
+   "input_ids": [
+    "in_transcribe_browser_transcrib",
+    "in_scenario_extension_server"
+   ],
+   "created": "2026-08-11",
+   "updated": "2026-08-11"
+  },
+  {
+   "id": "N4",
+   "title": "面板加一个 Dictation 分区:说完能改写、能复制、还能接着录下一条",
+   "type": "feature",
+   "status": "done",
+   "priority": "P0",
+   "confirmed": true,
+   "tags": [
+    "panel",
+    "voice",
+    "dictation"
+   ],
+   "note": "面板里加了一个 **Dictation** tab:一个底部按钮开始录,按下之后**原地变形**成 ✕ · ● 计时 · 波形 · ✓;说完落成一条 Source(音频 + 文字都在),每一段文字都能复制、也能再套一个 Skill,**套出来的和原文长得一模一样、能继续再套**,缩进表示 lineage,用过的 Skill 在那一段上不再出现。内建两个 Skill:Into English、As Markdown;Skills 页的「Used where」从只读的一行字改成了可点的开关。<br>**方案在 [docs/spec/dictation.md](docs/spec/dictation.md)**,mockup 迭代到 v4(他砍掉了语音选项、待转计数、10:00 提示、版本编号)。<br>**真机验过 13/13**:真麦克风(`say` 说给它听)、真 Host、真 Gemini。路上抓到两个真 bug:①`readablePageText()` 用「含空格」判断正文,中文页 440 块丢 362 块;②改写把待处理的文字当成「Request:」送给模型,模型把这个标签写进了自己的答案,第二次改写还会叠加成「# Request: Request:」——现在 `POST /v1/runs` 分成 `instruction`(要什么)和 `input`(处理什么)两件事。<br>**已发 v1.0.4**,Dictation 排到第一个 tab 并作为默认(⌘⇧K 会自己切到 Chat,否则会在一个标题下开始录音、把词送到另一个)。",
+   "input_ids": [
+    "in_extension_panel_tab",
+    "in_dictation_dictation_ui"
+   ],
+   "created": "2026-08-11",
+   "updated": "2026-08-11"
+  },
+  {
+   "id": "N2",
+   "title": "输入框里已经打好的字,语音一来就被丢掉",
+   "type": "bug",
+   "status": "done",
+   "priority": "P1",
+   "confirmed": true,
+   "tags": [
+    "panel",
+    "voice"
+   ],
+   "note": "**已修。** `accept()` 从头到尾没读过输入框里的字 —— 说话会另起一条消息发出去,已经打好的字既没当上下文、也没被接上,留在框里等你,而模型答的是你只说出口的那一半。<br>现在:①框里的字作为 `nearby` 一起送过去(名字按框里的写法拼);②**转写落在光标处、和已有的字接上,并且不自动发送** —— 你按 Ask 才发。框是空的才维持原来的「说完就问」。抽出 `joinAtCaret()` 并写了 5 条测试,其中一条对**每一个光标位置**断言:除了接缝处的空白,一个字符都不能少。",
+   "input_ids": [
+    "in_extension_text_input"
+   ],
+   "created": "2026-08-11",
+   "updated": "2026-08-11"
+  },
+  {
+   "id": "N1",
+   "title": "重想面板的信息架构 —— 先出提案,一行代码都不动",
+   "type": "proposal",
+   "status": "done",
+   "priority": "P1",
+   "confirmed": true,
+   "tags": [
+    "panel"
+   ],
+   "note": "提案已出:docs/spec/panel-ia.md —— 把面板今天渲染的每一件东西按「主语是谁」重排了一遍,列出九个问题(最重的一条:Project 一个 state 干三个活),给了 A/B 两个方案和三个要你回答的问题。一行代码都没动。改动本身另开 N1b,等你拍板。",
+   "input_ids": [
+    "in_review_extension_panel",
+    "in_item"
+   ],
+   "created": "2026-08-10",
+   "updated": "2026-08-10"
+  },
+  {
+   "id": "N1b",
+   "title": "按 panel-ia.md 重排面板 —— 等你选 A 还是 B",
+   "type": "feature",
+   "status": "blocked",
+   "priority": "P1",
+   "confirmed": true,
+   "tags": [
+    "panel",
+    "ui"
+   ],
+   "note": "提案在 docs/spec/panel-ia.md,已对着今天的面板刷新过(8/10 写的时候是三个 tab,现在四个、默认开 Dictation)。刷新后:原来第 5 条「等待中的录音画两遍」N5 已经修掉,划掉;新增两条 —— 2b 两个 tab 抢同一个录音机(靠 speaking 这个裁判变量让路)、10 默认那一屏由排期决定而不是由入口决定。A:四个 tab 收成两个(这一页 + 听写),Chat 和 This page 合成一条流,Project 提到头部,全局状态收进顶部状态条。B:四个 tab 留着只按主语重排。我推荐 A。第六节三个问题,你答完我才动手。",
+   "blocked_on": "等你在 docs/spec/panel-ia.md 第六节回答三个问题",
+   "input_ids": [],
+   "created": "2026-08-10",
+   "updated": "2026-08-11"
+  },
+  {
+   "id": "M2v",
+   "title": "确认浏览器里跑的扩展真的是 v1.0.0",
+   "type": "test",
+   "status": "done",
+   "priority": "P0",
+   "confirmed": true,
+   "tags": [
+    "release",
+    "extension"
+   ],
+   "note": "拷进安装目录不等于浏览器在跑 —— X19 就是栽在这上面。按 ⌘⇧L 打开面板,读上面的构建标记。",
+   "blocked_on": "要你人在键盘前",
+   "input_ids": [
+    "in_ext_latest"
+   ],
+   "created": "2026-08-10",
+   "updated": "2026-08-11"
+  },
+  {
+   "id": "S3g",
+   "title": "在登录着的 Google Docs 上跑 cuj-gdocs",
+   "type": "test",
+   "status": "blocked",
+   "priority": "P1",
+   "confirmed": true,
+   "tags": [
+    "qa",
+    "gdocs"
+   ],
+   "note": "S3 最后一条没做完的。干净的测试浏览器打不开需要登录的文档,而「要登录」不是跳过验证的理由。",
+   "blocked_on": "要你浏览器里的登录态",
+   "input_ids": [
+    "in_auth_browser",
+    "in_test_notion"
+   ],
+   "created": "2026-08-10",
+   "updated": "2026-08-10"
+  },
+  {
+   "id": "A2",
+   "title": "审计剩下的五条,挑哪几条要修",
+   "type": "question",
+   "status": "done",
+   "priority": "P1",
+   "confirmed": false,
+   "tags": [
+    "audit"
+   ],
+   "note": "六条早就全修完了 —— 但标记不是证据,所以重新量了一遍(真浏览器、真工作区、四个 tab 逐个)。先修了走查脚本自己:audit-ext.mjs 只量默认那一屏,面板改成默认开 Dictation 之后它拿到 null、整个死在 Illegal invocation —— 新加的那个面从来没被量过。复量抓到三条漏网的,都修了:①DocumentsRoute 的 h2 字重还是 400(另外四个都 560);②对话里的 [Source n] 角标 20x20,低于 24px 地板;③Dictation 里那行 16px 高。改完复量:低于 24px 的一个都没有(改前 5 个),字号仍只有 12/13 两档。四道门禁全绿。剩一处要你一句话:Menu 的快捷键字母和菜单分组标题还是 11px,那是 X33 照 Claude Code 特意做的,和 audit #4 冲突 —— 留着还是拉到 12px,见 audit.md 末节。",
+   "blocked_on": "等你拍板",
+   "input_ids": [
+    "in_confirm_unsure"
+   ],
+   "created": "2026-08-09",
+   "updated": "2026-08-11"
+  },
+  {
+   "id": "P6b",
+   "title": "在真的会滚动的页面上证明「滚动到可见」",
+   "type": "test",
+   "status": "done",
+   "priority": "P2",
+   "confirmed": false,
+   "tags": [
+    "anchors",
+    "qa"
+   ],
+   "note": "证完了,在真会滚的页面上:scripts/qa/p6b.mjs,真实的 Wikipedia《Special relativity》—— 48240px 高,窗口 757px。段落在 31539px 处,scrollY=0 时确认在视野外,locate 之后页面滚到 31190,段落落在 349px 处并被选中。12/12 通过。第一次跑还抓到一个真问题:https 页面 fetch 不到 http://127.0.0.1 的 Host,断言得从面板那边发。",
+   "input_ids": [
+    "in_real_content"
+   ],
+   "created": "2026-08-10",
+   "updated": "2026-08-10"
+  },
+  {
+   "id": "G1b",
+   "title": "在真实的 Claude Code 会话里触发 /logue",
+   "type": "test",
+   "status": "done",
+   "priority": "P2",
+   "confirmed": true,
+   "tags": [
+    "integration"
+   ],
+   "note": "在这个活着的 Claude Code 会话里真的触发了 —— 不是嵌套进程。用 Skill 工具按名字调起 logue,harness 把 ~/.claude/skills/logue/SKILL.md 载进这一轮,然后跑 logue.py read 打到真 Host(127.0.0.1:8787),读回 doc_efbbfbd5c5ce02c8 «Logue QA — V7 rewrite» revision 2 和正文。没证到的一条说清楚:是我在活会话里按名字调的,不是你亲手敲 /logue —— 机制上是同一条路。",
+   "input_ids": [
+    "in_any_agent"
+   ],
+   "created": "2026-08-10",
+   "updated": "2026-08-10"
+  },
+  {
+   "id": "X38",
+   "title": "一个页面一条对话 —— 而且它叫 Chat",
+   "type": "bug",
+   "status": "done",
+   "priority": "P0",
+   "confirmed": true,
+   "tags": [
+    "panel",
+    "bug"
+   ],
+   "note": "存储键写死,所以所有页面共用同一条对话。现在按页面存,只留最近 20 个,旧的那条全局对话丢掉。",
+   "input_ids": [
+    "in_thread_bug"
+   ],
+   "created": "2026-08-09",
+   "updated": "2026-08-10"
+  },
+  {
+   "id": "X33",
+   "title": "把 ⋯ 菜单改成 Claude Code 那种样子",
+   "type": "feature",
+   "status": "done",
+   "priority": "P2",
+   "confirmed": true,
+   "tags": [
+    "ui",
+    "menu"
+   ],
+   "note": "标题行收成一行小灰字,行高 24px,菜单更窄,选中用淡填充而不是那圈重蓝框,右边那个字母真的能用。",
+   "input_ids": [
+    "in_menu_shot",
+    "in_consistent_ui"
+   ],
+   "created": "2026-08-09",
+   "updated": "2026-08-10"
+  },
+  {
+   "id": "R13",
+   "title": "一条 Source 可以被后来的推翻 —— 你点头才算",
+   "type": "feature",
+   "status": "done",
+   "priority": "P1",
+   "confirmed": true,
+   "tags": [
+    "sources",
+    "agent"
+   ],
+   "note": "模型提议,你确认。旧的那条永远不删也不挪,只是淡下去,并指向取代它的那一条。",
+   "input_ids": [
+    "in_consistent_ui"
+   ],
+   "created": "2026-08-09",
+   "updated": "2026-08-10"
+  },
+  {
+   "id": "N3",
+   "title": "自查一轮:凡是「已经在那儿的东西被我们悄悄丢掉」的,全找出来修掉",
+   "type": "audit",
+   "status": "done",
+   "priority": "P1",
+   "confirmed": true,
+   "tags": [
+    "audit",
+    "voice"
+   ],
+   "note": "按 N2 那个模式走查了六处。**又抓到一条真的**:面板的 Project「背景/词表」——那个 effect 依赖的是 Project **对象**,而面板每次读标签页都会重建它(切标签、页面更新都会),**所以你写到一半的背景会被服务器上的旧版本盖掉**,而且发生在一个和你无关的时刻。改成按 Project id 只填一次。<br>**查过并且是对的**:页面输入框 + 语音(`nearby` + 光标插入)、选区 + 批注(选区监听器在 `writing` 时不动手,注释里写着为什么)、文档插入(只追加,从不读回来重写)、离线队列(project / overrides / nearby / source 全程带着)。<br>**报一条我没擅自改的**:面板里生成的改写只活在内存里 —— 关掉面板就没了(转写本身是 Source,不会丢)。N4 当时定的是「不默认存,复制才记一笔」,要不要改成存下来,你说了算。",
+   "blocked_on": "",
+   "input_ids": [],
+   "created": "2026-08-10",
+   "updated": "2026-08-11"
+  }
+ ],
+ "inputs": [
+  {
+   "id": "in_thread_bug",
+   "at": "2026-08-09 21:39",
+   "text": "我去 talk 某一个东西,它给我换到其他页面的时候也放在这里……就完全没有相关性一样",
+   "images": [
+    "shots/x36-thread-not-per-page.png"
+   ]
+  },
+  {
+   "id": "in_menu_shot",
+   "at": "2026-08-09 15:35",
+   "text": "这个菜单和 Claude Code 的差太多了,看一下它的样子,五个地方都不一样。",
+   "images": [
+    "shots/x33-used-where-not-editable.png"
+   ]
+  },
+  {
+   "id": "in_consistent_ui",
+   "at": "2026-08-08 11:02",
+   "text": "ui design must be consistent! everywhere! all levels! this is the basics.",
+   "images": []
+  },
+  {
+   "id": "in_ext_latest",
+   "at": "2026-08-09 09:12",
+   "text": "my browser must have latest extension. update it regularly.",
+   "images": []
+  },
+  {
+   "id": "in_auth_browser",
+   "at": "2026-08-08 17:44",
+   "text": "must use my browser with auth in qa when necessary (e.g. use app that needs login)",
+   "images": []
+  },
+  {
+   "id": "in_test_notion",
+   "at": "2026-08-08 17:45",
+   "text": "must test in notion",
+   "images": []
+  },
+  {
+   "id": "in_confirm_unsure",
+   "at": "2026-08-07 20:31",
+   "text": "confirm with me in case of something you are not sure about",
+   "images": []
+  },
+  {
+   "id": "in_real_content",
+   "at": "2026-08-08 13:20",
+   "text": "do not use these to test. use real content.",
+   "images": [
+    "shots/x32-saving-no-drag-handle.png"
+   ]
+  },
+  {
+   "id": "in_any_agent",
+   "at": "2026-08-10 08:15",
+   "text": "让任意 agent 能够使用我们的这个产品。第一个是文档吧,假如我把这个文档链接给比如说 Claude Code,它应该有能力读写这个文档。",
+   "images": []
+  },
+  {
+   "id": "in_review_extension_panel",
+   "at": "2026-08-10 13:51",
+   "text": "重新仔细 review 一下我们的 extension 的 panel 的界面。现在的界面设计非常之有问题，我们需要从信息架构的角度重新组织。先 propose 一下，不要去做，需要我 confirm 才能继续去做。",
+   "images": []
+  },
+  {
+   "id": "in_item",
+   "at": "2026-08-10 13:51",
+   "text": "更新一下现在这个item",
+   "images": []
+  },
+  {
+   "id": "in_extension_text_input",
+   "at": "2026-08-10 17:12",
+   "text": "extension 里面这个 text input，如果已经有文本内容在里面了，我用语音的时候，为什么这个文本没有被使用？这是一个 bug。希望这种级别的 bug 不应该再有，自查一轮，要找到所有这种 bug 全部修复。",
+   "images": [
+    "shots/paste-20260810-171056-f5b5.png"
+   ]
+  },
+  {
+   "id": "in_extension_panel_tab",
+   "at": "2026-08-10 22:36",
+   "text": "我们在 extension 的 panel 里面加入一个新的功能。\n简单起见，我们加一个新的 tab，就叫 transcription——语音输入吧。\n在里面，用户可以用语音输入，我们需要把这个页面里面的内容也作为 context 的一部分。\n我们只要显示那种可见内容。我觉得是 HTML 里面的非 tag 里的东西，就是 visible 的这些 text，应该作为 context。\n你可以决定，你可以反驳我，可以用更好的办法。\ntranscribe 之后，我需要能有这个 audio，能有文本。对于这个文本，我可以一键点击，可以 copy，而且我可以预定义一些 skill 来 transform 这个文本。\n比如 transcribe 之后它是中文的，我可以一键点击让它转换成英文的，或者一键点击让它重写成一个 markdown 格式等。\n同时我应该支持多个任务并行。一个正在处理的时候，我可以启动第二个任务继续录音。只要我的录音没有被使用，在其他任务执行的时候我就可以继续录音。",
+   "images": []
+  },
+  {
+   "id": "in_dictation_dictation_ui",
+   "at": "2026-08-10 22:39",
+   "text": "我们先更新一下这个任务 还是把这个功能叫做 dictation 吧，我觉得 dictation 是更准确的。另外一点，这个 UI 应该和 input 里面的 transcribe and insert 是类似的。另外是一个非常好用简洁的 UI。你可以来设计，现在的 UI 有点太差了。",
+   "images": []
+  },
+  {
+   "id": "in_transcribe_browser_transcrib",
+   "at": "2026-08-11 11:59",
+   "text": "我们所有的录音都应该走同样一个逻辑和流程，用来防止录音上传、transcribe失败等等的处理。首先任意一个录音如果上传失败，那么本地browser里面会有存储，并且在我们的服务可以成功连接的时候可以自动上传。其次，对于上传之后transcribe失败的时候，这个录音在服务端也是有保存的。我们可以规定自动retry，对于失败的entry也可以用户手动点击再次retry。总之有一点，用户的原始输入永远不能丢失。",
+   "images": []
+  },
+  {
+   "id": "in_scenario_extension_server",
+   "at": "2026-08-11 11:59",
+   "text": "关于测试，我觉得可以几个 scenario 都测试一下。比如配置 extension，让它指向一个不存在的 server，看看本地保存的能力。然后比如配置一下 generation API，看它失败的情况，或者 mock 一个 API，让 API 失败的情况处理一下。等等。必须要有测试。更新一下这个 task。",
+   "images": []
+  },
+  {
+   "id": "in_ui_bug_ui",
+   "at": "2026-08-11 12:06",
+   "text": "UI的bug。我们讨论这个界面UI的严重的问题。问题太多了，我建议你可以自己根据这个截图，把所有的问题找到，然后做一个大规模的改动。第一，你输入这一块是可以编辑这个内容，很难看出来它是可以编辑的。其次，它的格式并没有去真正的渲染出来。它的高度也完全是不对的，没有真正自动去grow，也没有scroll bar等，至少我看不出来。下面这一点，这是什么消息我们不是很清楚。来源哪些也都不清楚，而且格式也不对。时间的位置更是很不好。对于标题来讲，被截断的话也很难看出来。包括这个feature，那些button的behavior也非常之奇怪。总之这个设计非常多不合理的地方。你如果有一个做产品设计的skill，要用这样skill来review，然后做大规模的更新，做大幅的改善。",
+   "images": []
+  },
+  {
+   "id": "in_task",
+   "at": "2026-08-11 12:06",
+   "text": "基于这个截图，我们可以更新一下这个 task。",
+   "images": [
+    "shots/paste-20260811-120249-7a36.png"
+   ]
+  },
+  {
+   "id": "in_storybook_full_page",
+   "at": "2026-08-11 15:40",
+   "text": "too lazy. why pages are not full page??? quality too low. do not stop until you fix/complete all. also organize them well.",
+   "images": []
+  }
+ ]
 }

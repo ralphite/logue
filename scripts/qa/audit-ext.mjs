@@ -33,11 +33,37 @@ export async function run(api) {
   const worker = targets.find((t) => t.url.endsWith("/background.js"));
   const panel = `chrome-extension://${new URL(worker.url).host}/sidepanel.html`;
 
-  // -- the panel, with real content in it --------------------------------
+  // -- the panel, every tab, with real content in it ----------------------
+  //
+  // Every tab, not the one that happens to be showing. This script measured
+  // whichever tab opened by default; when the panel gained Dictation and
+  // opened on it, the first line — `document.querySelector('textarea')` —
+  // came back null and the whole audit died on "Illegal invocation". A panel
+  // that grows a surface has to grow the audit with it, or the new surface is
+  // the one nobody ever measured.
   await api.goto(panel);
   await api.sleep(3000);
-  const panelState = await api.eval(`(() => {
+
+  /** Click a tab by its label and let it render. */
+  const showTab = async (label) => {
+    const clicked = await api.eval(`(() => {
+      const tab = [...document.querySelectorAll('[role="tab"]')]
+        .find(b => b.textContent.trim().startsWith(${JSON.stringify(label)}));
+      if (!tab) return 'no such tab';
+      tab.click();
+      return 'shown';
+    })()`);
+    await api.sleep(1200);
+    return clicked;
+  };
+
+  // Chat gets a real conversation first — an empty tab measures its empty
+  // state, which is not what the panel looks like in use.
+  const opened = await showTab("Chat");
+  if (opened !== "shown") throw new Error(`the Chat tab is not there: ${opened}`);
+  await api.eval(`(() => {
     const box = document.querySelector('textarea');
+    if (!box) return 'no ask box';
     const set = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
     set.call(box, 'what do my notes say about Logue?');
     box.dispatchEvent(new Event('input', { bubbles: true }));
@@ -48,8 +74,27 @@ export async function run(api) {
     await api.sleep(1000);
     if (await api.eval(`/stand-in|Sources/.test(document.body.textContent)`)) break;
   }
-  const measured = await api.eval(`(${MEASURE})(document.body)`);
-  console.log("PANEL (with a conversation in it):", JSON.stringify(measured, null, 1));
+
+  const tabs = ["Chat", "Dictation", "This page", "Project"];
+  const perTab = {};
+  for (const label of tabs) {
+    const state = await showTab(label);
+    if (state !== "shown") {
+      console.log(`PANEL · ${label}: NOT FOUND — the tab this audit expects is gone`);
+      continue;
+    }
+    perTab[label] = JSON.parse(await api.eval(`JSON.stringify((${MEASURE})(document.body))`));
+    console.log(`PANEL · ${label}:`, JSON.stringify(perTab[label], null, 1));
+  }
+
+  // The two rules the audit set for the whole product, checked across tabs
+  // rather than inside one: a font size that exists on one tab and nowhere
+  // else is the same inconsistency as one that differs between routes.
+  const everySize = new Set(Object.keys(perTab).flatMap((k) => Object.keys(perTab[k].sizes ?? {})));
+  const everySmall = Object.entries(perTab).flatMap(([k, v]) => (v.small ?? []).map((s) => `${k}: ${s}`));
+  console.log("\nACROSS THE PANEL");
+  console.log("  font sizes in use:", [...everySize].sort().join(", "));
+  console.log("  click targets under 24px:", everySmall.length ? everySmall.join(" | ") : "none");
 
   // -- the injected overlays, on the app's own long document -------------
   const docId = await api.eval(`fetch('http://127.0.0.1:8787/v1/documents', { headers: { 'X-Logue-Client': 'extension' } }).then(r => r.json()).then(d => { const rich = d.documents.filter(x => (x.content ?? '').length > 800); return (rich[0] ?? d.documents[0])?.id; })`);

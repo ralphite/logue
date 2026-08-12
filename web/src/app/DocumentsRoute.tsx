@@ -360,7 +360,7 @@ function Sources({ sources, onOpen }: { sources: Material[]; onOpen: (id: string
   if (sources.length === 0) return null;
   return (
     <section className="mt-6 grid gap-1.5">
-      <h2 className="text-xs text-muted">{sources.length} Sources</h2>
+      <h2 className="text-xs font-[560] text-muted">{sources.length} Sources</h2>
       {sources.map((source, index) => (
         // Clickable for the same reason as everywhere else: this Source has a
         // home in the Stream, and a citation you cannot follow is a dead end.
