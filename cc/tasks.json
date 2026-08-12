@@ -19,14 +19,14 @@
       "id": "N8b",
       "title": "Storybook 的另一半:Web 应用的路由,和面板剩下三个 tab",
       "type": "feature",
-      "status": "queued",
+      "status": "done",
       "priority": "P2",
       "confirmed": true,
       "tags": [
         "ui",
         "storybook"
       ],
-      "note": "N8 覆盖了扩展这一侧(Dictation、页面上的浮层、侧边栏七态、三条 journey)。**还没覆盖的**:Web 应用的 Stream / Documents / Projects / Skills / Settings,以及面板的 Chat / This page / Project 三个 tab。它们都要先像 `extension/src/panel/dictation.tsx` 那样,把展示层从带网络请求的路由组件里抽出来 —— `useHost` 会在 import 时就去请求,story 里没有 Host。",
+      "note": "Web 应用的路由现在也在 Storybook 里了,**66 个 story**(Foundation 3 / Component 25 / Feature 16 / Page 19 / Journey 3)。<br>**关键做法**:不 mock API 层,而是**只换掉网线** —— `WithHost` 在 story 期间替换 `window.fetch`,真正的 `request()`、真正的解析、真正的错误处理照跑。路由要是读错了 Host 的返回形状,在这里照样会挂,这才是重点。<br>**能看的状态**:Stream(打开一条 Source:录音、出处、血缘、tags / 什么都没选 / 空 / **一直在加载** / **Host 没应答**)、Documents(有 / 空)、Skill 的页面(写好的 / **只有名字没有 prompt**)、Settings(正常 / **Tracing 指向了外网被拒** / **没连模型**)。这五种里有四种以前只能靠把真实工作区摆成那个样子才能看到。<br>**还差的**:面板的 Chat / This page / Project 三个 tab —— 它们还长在 `sidepanel.tsx` 里,要先像 Dictation 那样抽出来。",
       "input_ids": [],
       "created": "2026-08-11",
       "updated": "2026-08-11"
