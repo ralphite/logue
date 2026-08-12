@@ -1,8 +1,8 @@
 import {
   ChevronRight,
+  Activity,
   FileText,
   FolderOpen,
-  Inbox,
   PanelLeft,
   Plus,
   Search,
@@ -26,12 +26,11 @@ export const ROUTES = ["stream", "projects", "documents", "skills", "settings"] 
 export const DRAFT = "new";
 export type Route = (typeof ROUTES)[number];
 
-const NAV: Record<Route, { label: string; icon: typeof Inbox }> = {
-  // Inbox, because that is what it does now: new captures wait at the top to
-  // be filed, and everything already filed reads below. "Stream" named the
-  // storage; this names the activity. The route id stays `stream` so every
-  // saved link keeps working.
-  stream: { label: "Inbox", icon: Inbox },
+const NAV: Record<Route, { label: string; icon: typeof Activity }> = {
+  // Activities — the owner's own name for it: "a list of different actions
+  // from the user". A recording made, a passage kept, a page saved. The route
+  // id stays `stream` so every saved link keeps working.
+  stream: { label: "Activities", icon: Activity },
   projects: { label: "Projects", icon: FolderOpen },
   documents: { label: "Documents", icon: FileText },
   skills: { label: "Skills", icon: Sparkles },

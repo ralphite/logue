@@ -16,7 +16,9 @@ export interface Material {
   /** The passage the quote sits in, kept at capture time. */
   context?: string;
   transcript?: string;
-  source?: { url?: string; title?: string; domain?: string };
+  /** Where the act happened. `kind` names the surface: dictation, panel, a
+      page's own field — the extension writes it and the verbs read it. */
+  source?: { kind?: string; url?: string; title?: string; domain?: string };
   projects: string[];
   tags?: string[];
   parent_ids?: string[];

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
-import { InboxPage } from "./InboxPage";
+import { ActivitiesPage } from "./ActivitiesPage";
 import { MaterialPanel } from "./MaterialPanel";
 import { useHost } from "./useHost";
 
@@ -22,10 +22,10 @@ export function StreamRoute({
   const projects = useHost(() => api.projects(), []);
   const [changed, setChanged] = useState(0);
 
-  // Nothing open means the Inbox itself: the queue to file, then everything.
-  // There used to be a second rail carrying the list and a pane whose whole
-  // message was "pick from the list" — two columns to say nothing.
-  if (!openId) return <InboxPage onOpen={onOpen} />;
+  // Nothing open means the activity list itself. There used to be a second
+  // rail carrying the same list beside a pane whose whole message was "pick
+  // from the list" — two columns to say nothing.
+  if (!openId) return <ActivitiesPage onOpen={onOpen} />;
 
   return (
     <MaterialPanel
