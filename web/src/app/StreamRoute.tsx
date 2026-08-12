@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { api } from "../api";
-import { Nothing } from "./AppShell";
+import { InboxPage } from "./InboxPage";
 import { MaterialPanel } from "./MaterialPanel";
 import { useHost } from "./useHost";
 
@@ -22,8 +22,10 @@ export function StreamRoute({
   const projects = useHost(() => api.projects(), []);
   const [changed, setChanged] = useState(0);
 
-  if (!openId)
-    return <Nothing section="Stream" hint="Pick something from the list to see where it came from." />;
+  // Nothing open means the Inbox itself: the queue to file, then everything.
+  // There used to be a second rail carrying the list and a pane whose whole
+  // message was "pick from the list" — two columns to say nothing.
+  if (!openId) return <InboxPage onOpen={onOpen} />;
 
   return (
     <MaterialPanel

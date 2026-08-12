@@ -6,7 +6,7 @@ import { FindDialog, type FindTarget } from "./FindDialog";
 import { somethingUnsaved, useNewerBuild } from "./freshness";
 import { PinsProvider } from "./pins";
 import { ProjectsRoute } from "./ProjectsRoute";
-import { DocumentsRail, ProjectsRail, SkillsRail, StreamRail } from "./Rails";
+import { DocumentsRail, ProjectsRail, SkillsRail } from "./Rails";
 import { SettingsRoute } from "./SettingsRoute";
 import { ShortcutsDialog } from "./ShortcutsDialog";
 import { SkillsRoute } from "./SkillsRoute";
@@ -239,13 +239,9 @@ export function App() {
   // The rail carries the open section's list; the main area carries the one
   // thing chosen from it.
   const list =
-    route === "stream" ? (
-      <StreamRail
-        selectedId={sourceId}
-        onSelect={(id) => openIn("stream", id)}
-        onVisibleOrder={onVisibleOrder}
-      />
-    ) : route === "projects" ? (
+    // The Inbox carries its own list in the main pane; a rail beside it would
+    // be the same rows twice.
+    route === "projects" ? (
       <ProjectsRail
         selectedId={projectId}
         onSelect={(id) => openIn("projects", id)}
