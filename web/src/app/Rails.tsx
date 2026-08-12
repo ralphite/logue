@@ -234,6 +234,7 @@ export function StreamRail({
         onSelect={onSelect}
         onVisibleOrder={onVisibleOrder}
         loading={materials.loading}
+        failed={Boolean(materials.error)}
         empty={tag || group ? "Nothing matches." : "Capture something to see it here."}
       />
 
@@ -329,6 +330,7 @@ export function ProjectsRail({
         onSelect={onSelect}
         onVisibleOrder={onVisibleOrder}
         loading={projects.loading}
+        failed={Boolean(projects.error)}
         empty={
           <>
             No Projects yet.
@@ -431,6 +433,7 @@ export function DocumentsRail({
         onSelect={onSelect}
         onVisibleOrder={onVisibleOrder}
         loading={documents.loading}
+        failed={Boolean(documents.error)}
         empty={
           <>
             No Documents yet.
@@ -543,6 +546,7 @@ export function SkillsRail({
         onSelect={onSelect}
         onVisibleOrder={onVisibleOrder}
         loading={skills.loading}
+        failed={Boolean(skills.error)}
         empty={
           <>
             No Skills yet.

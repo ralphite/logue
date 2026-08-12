@@ -28,12 +28,15 @@ export function WithHost({
   answers,
   speed = "instant",
   fails,
+  at,
   children,
 }: {
   answers: Answers;
   speed?: Speed;
   /** Answer everything with this failure instead — the state nobody designs. */
   fails?: { status: number; error: string };
+  /** The path the app should think it is on: it reads the real one. */
+  at?: string;
   children: ReactNode;
 }) {
   const [ready, setReady] = useState(false);
@@ -46,9 +49,17 @@ export function WithHost({
       const url = String(typeof input === "string" || input instanceof URL ? input : input.url);
       const wait = speed === "slow" ? 1200 : 0;
       if (speed === "never") return new Promise<Response>(() => undefined);
-      return new Promise<Response>((resolve) => {
+      return new Promise<Response>((resolve, reject) => {
         window.setTimeout(() => {
           if (fails) {
+            // A Host that is off is a failed connection, not an HTTP status —
+            // Response cannot even be constructed with a status of 0. Reject,
+            // the way fetch itself does, and the app's own handling takes it
+            // from there.
+            if (fails.status === 0) {
+              reject(new TypeError("Failed to fetch"));
+              return;
+            }
             resolve(
               new Response(JSON.stringify({ error: fails.error }), {
                 status: fails.status,
@@ -69,11 +80,17 @@ export function WithHost({
     };
     window.fetch = answer;
 
+    // The app reads the address to decide where it is, and in here the
+    // address is Storybook's. Set before the app mounts, and put back after —
+    // the next story, and Storybook itself, expect the URL they were on.
+    const was = `${window.location.pathname}${window.location.search}`;
+    if (at) window.history.replaceState(null, "", at);
     setReady(true);
     return () => {
       window.fetch = real;
+      if (at) window.history.replaceState(null, "", was);
     };
-  }, [answers, speed, fails]);
+  }, [answers, speed, fails, at]);
 
   // Mounted only once the wire is in place: a route that fetches on its first
   // effect would otherwise race the swap and see the real (absent) Host.

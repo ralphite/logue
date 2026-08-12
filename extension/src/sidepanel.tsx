@@ -10,8 +10,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { StrictMode, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Answer,
   Button,
@@ -536,7 +535,7 @@ function WhereLogueIs({ server, onConnected }: { server: string; onConnected: (s
   );
 }
 
-function Panel() {
+export function Panel() {
   const [page, setPage] = useState<{ id?: number; url: string; title: string }>();
   /** Which page the conversation belongs to. Empty means there is no page. */
   const pageUrl = page?.url ?? "";
@@ -1827,9 +1826,3 @@ function AboutProject({
     </section>
   );
 }
-
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <Panel />
-  </StrictMode>,
-);

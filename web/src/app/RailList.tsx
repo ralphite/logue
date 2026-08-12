@@ -262,11 +262,16 @@ export function RailList({
   onSelect,
   empty,
   loading = false,
+  failed = false,
   onVisibleOrder,
 }: {
   entries: RailEntry[];
   selectedId?: string;
   onSelect: (id: string) => void;
+  /** The list could not be read at all. The empty line must not show: "capture
+      something to see it here" is an invitation to do the one thing that
+      cannot work right now, printed directly above the reason it cannot. */
+  failed?: boolean;
   /** Shown when there is nothing — and, where one can be made, how to make it. */
   empty: ReactNode;
   loading?: boolean;
@@ -338,6 +343,9 @@ export function RailList({
   // An empty section whose only way forward is a `+` that appears on hover is
   // a dead end. The emptiness itself carries the way out of it.
   if (entries.length === 0) {
+    // Nothing arrived because nothing could: the offline line below the rail
+    // is the explanation, and this space stays quiet rather than advising.
+    if (failed) return null;
     return <div className="grid justify-items-start gap-1 px-2 py-1 text-xs text-muted">{empty}</div>;
   }
 

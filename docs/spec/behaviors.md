@@ -372,6 +372,15 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   a Chinese page and kept its menu. Whatever is kept from a page is kept the
   same way whichever script it is in.
 
+- **A Page-level story is the whole page.** The app pages mount the real
+  `App` — rails, navigation and route at a real viewport — and the panel pages
+  mount the real panel component at the size Chrome gives it. A route pane
+  floating in a box is not a page, and reviewing it as one hides exactly the
+  layout mistakes pages exist to catch. (His words, 2026-08-11: "why pages are
+  not full page??? quality too low.")
+- **The Storybook reads in levels, in order**: Foundation, Component, Feature,
+  Page, Journey. Every story belongs to exactly one.
+
 ## Documents
 
 - **A document names itself until someone names it.** The title follows the

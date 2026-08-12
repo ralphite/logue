@@ -26,8 +26,10 @@
         "ui",
         "storybook"
       ],
-      "note": "Web 应用的路由现在也在 Storybook 里了,**66 个 story**(Foundation 3 / Component 25 / Feature 16 / Page 19 / Journey 3)。<br>**关键做法**:不 mock API 层,而是**只换掉网线** —— `WithHost` 在 story 期间替换 `window.fetch`,真正的 `request()`、真正的解析、真正的错误处理照跑。路由要是读错了 Host 的返回形状,在这里照样会挂,这才是重点。<br>**能看的状态**:Stream(打开一条 Source:录音、出处、血缘、tags / 什么都没选 / 空 / **一直在加载** / **Host 没应答**)、Documents(有 / 空)、Skill 的页面(写好的 / **只有名字没有 prompt**)、Settings(正常 / **Tracing 指向了外网被拒** / **没连模型**)。这五种里有四种以前只能靠把真实工作区摆成那个样子才能看到。<br>**还差的**:面板的 Chat / This page / Project 三个 tab —— 它们还长在 `sidepanel.tsx` 里,要先像 Dictation 那样抽出来。",
-      "input_ids": [],
+      "note": "**这次是真的整页了。**<br>**Web 应用**:Page 级挂的是真正的 `<App />` —— 左边栏、导航、路由、对话框,真实视口;地址用 `at` 喂给它(App 本来就从 URL 读自己在哪),11 个整页状态:Stream 开着一条 Source / 空工作区 / 一直在加载 / Host 没应答 / Documents 开着文档 / Skills / 只有名字没 prompt 的 Skill / Projects / Settings(正常 / Tracing 指外网被拒 / 没连模型)。<br>**侧边栏**:挂的是**真正的 Panel 组件**,不是手搭的假框 —— 为此把 `createRoot` 从 sidepanel.tsx 拆到独立入口 `sidepanel-main.tsx`(1600 行的文件在模块顶层挂载,谁 import 谁遭殃),再配一个 `chrome` shim(真的 `send()`/`readThread()`/`host.*` 跑在假浏览器上)。9 个整面板状态,**换 tab 是 play() 真的点出来的**:Dictation / Chat 有对话(步骤、引用、等你点头的 proposal)/ Chat 空 / This page 有存的东西 / 空 / Project / 有录音卡住 / 模型没连 / Logue 没开(地址表单自己弹出来)。<br>**排序钉死**:Foundation → Component → Feature → Page(The app, Side panel)→ Journey,共 **67 个 story**。<br>**验证**:20 个 Page story 逐个在真浏览器里加载、各自断言**它真的画出来的字**(第一版 sweep 靠固定等待,读到的是上一个 story 的 DOM——被自己的 marker 抓出来了);冷的 `storybook build` 通过(dev server 会宽恕 import 时摸 chrome 的错,冷构建不会);拆完入口的 dist 在真 Chrome 里 3/3(面板照常启动)。四个闸全绿。",
+      "input_ids": [
+        "in_storybook_full_page"
+      ],
       "created": "2026-08-11",
       "updated": "2026-08-11"
     },
@@ -439,6 +441,12 @@
       "images": [
         "shots/paste-20260811-120249-7a36.png"
       ]
+    },
+    {
+      "id": "in_storybook_full_page",
+      "at": "2026-08-11 15:40",
+      "text": "too lazy. why pages are not full page??? quality too low. do not stop until you fix/complete all. also organize them well.",
+      "images": []
     }
   ]
 }

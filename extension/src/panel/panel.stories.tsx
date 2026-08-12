@@ -1,234 +1,246 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ExternalLink, Settings2 } from "lucide-react";
-import { Recording, Spinner, cn } from "@logue/ui";
-import { DictatedText, RecordControl } from "./dictation";
-import type { Skill } from "../api";
-import type { Take } from "../useDictation";
-import type { VoicePhase } from "../useVoice";
+import { Panel } from "../sidepanel";
+import { InChrome, PAGE, type Answers } from "./chrome.stories-helper";
 
 /**
- * Page · The side panel.
+ * Page · The side panel — the real component, in a fake browser.
  *
- * The real components, in the real layout, at the width Chrome actually gives
- * it. A panel can be assembled entirely out of components that were each
- * reviewed on their own and still be wrong — the record button ended up a
- * whole panel away from the tick that ends the recording, and every part of
- * that was correct in isolation.
+ * Not a rebuilt lookalike: this mounts `Panel` itself, with `chrome.*` and the
+ * Host answered from fixtures, at exactly the width Chrome gives a side panel.
+ * A lookalike drifts the day after it is written, and what it shows after that
+ * is the reviewer's memory of the panel rather than the panel.
+ *
+ * Tabs are switched the way a person switches them — the story clicks.
  */
 
-const SKILLS: Skill[] = [
-  { id: "en", name: "Into English", output: "insert", contexts: ["dictation"], enabled: true },
-  { id: "md", name: "As Markdown", output: "insert", contexts: ["dictation"], enabled: true },
-  { id: "short", name: "Shorten", output: "insert", contexts: ["dictation"], enabled: true },
-];
+const CONTEXT = {
+  voice_profile: { label: "Logue QA", project_name: "Logue QA", primary_language: "" },
+  projects: [
+    { id: "p1", name: "Logue QA" },
+    { id: "p2", name: "Reading" },
+  ],
+  vocabularies: [],
+  skills: [
+    { id: "en", name: "Into English", output: "insert", contexts: ["dictation"], enabled: true },
+    { id: "md", name: "As Markdown", output: "insert", contexts: ["dictation"], enabled: true },
+  ],
+};
 
-const SAID = "我们今天先把面板的信息架构定下来,然后再去做 Dictation 这一块。我的想法是先不要动 Chat 和 This page 的分法。";
-const nothing = () => undefined;
+const STATUS = { model: { generation_ready: true, voice_ready: true, model: "gemini-3.5-flash-lite" } };
 
-const TABS = ["Dictation", "Chat", "This page", "Project"] as const;
+const MATERIAL = (over: Record<string, unknown> = {}) => ({
+  id: "m1",
+  kind: "voice",
+  content: "我们今天先把面板的信息架构定下来,然后再去做 Dictation 这一块。",
+  projects: ["Logue QA"],
+  tags: ["ia"],
+  capture_id: "cap_a",
+  capture_seconds: 47,
+  created_at: "2026-08-11T11:59:00Z",
+  source: { url: PAGE.url, title: PAGE.title, domain: "en.wikipedia.org" },
+  ...over,
+});
 
-/** The panel's own frame: 360 wide, and the height Chrome gives a side panel. */
-function Panel({
-  children,
-  foot,
-  on = "Dictation",
-}: {
-  children: React.ReactNode;
-  foot?: React.ReactNode;
-  on?: (typeof TABS)[number];
-}) {
+const HOST: Answers = {
+  "/v1/context": CONTEXT,
+  "/v1/status": STATUS,
+  "/v1/captures": { captures: [] },
+  "/v1/materials": { materials: [] },
+};
+
+/** A conversation on this page, stored the way the panel stores one. */
+const THREADS = {
+  "logue:threads": {
+    [`${new URL(PAGE.url).origin}${new URL(PAGE.url).pathname}`]: {
+      at: "2026-08-11T12:00:00Z",
+      messages: [
+        { from: "you", text: "这一页讲的 CTC 和 HMM 有什么关系?", at: "2026-08-11T11:58:00Z" },
+        {
+          from: "skill",
+          text: "CTC 是端到端方法绕开逐帧对齐的手段,而 HMM 属于早一代的统计框架 [Source 1]。这一页把两者都列为里程碑。",
+          at: "2026-08-11T11:58:30Z",
+          steps: [
+            { did: "searched", detail: "3 Sources about this page" },
+            { did: "read", detail: "Speech recognition — History" },
+          ],
+          sources: [MATERIAL({ id: "m9", kind: "selection", content: "CTC avoids frame-level alignment.", capture_id: undefined })],
+          proposal: null,
+        },
+        { from: "you", text: "把它存成一条笔记。", at: "2026-08-11T11:59:00Z" },
+        {
+          from: "skill",
+          text: "可以。要我把这一段以「CTC 与 HMM 的关系」存进 Logue QA 吗?",
+          at: "2026-08-11T11:59:20Z",
+          steps: [{ did: "drafted", detail: "one note", proposed: true }],
+          proposal: { id: "prop_1", tool: "save_note", title: "CTC 与 HMM 的关系" },
+          sources: [],
+        },
+      ],
+    },
+  },
+};
+
+/** The frame Chrome gives a side panel: 360 wide, full height. */
+function Frame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-[640px] w-[360px] flex-col overflow-hidden rounded-lg border border-line-strong bg-surface text-ink">
-      <header className="flex shrink-0 items-center gap-2 border-b border-line px-2 py-1.5">
-        <span className="min-w-0 flex-1 truncate text-xs text-muted">语音识别 - 维基百科,自由的百科全书</span>
-        <span className="inline-flex h-control shrink-0 items-center gap-1 rounded-md border border-line px-1.5 text-xs text-muted">
-          <ExternalLink size={12} /> Open Logue web app
-        </span>
-        <span className="inline-flex size-control items-center justify-center rounded-md text-muted">
-          <Settings2 size={13} />
-        </span>
-      </header>
-      <div role="tablist" className="flex shrink-0 gap-0.5 border-b border-line px-1.5">
-        {TABS.map((label) => (
-          <span
-            key={label}
-            role="tab"
-            aria-selected={label === on}
-            className={cn(
-              "-mb-px flex items-center gap-1.5 border-b-2 px-2 py-1.5 text-xs",
-              label === on ? "border-accent font-[560] text-ink" : "border-transparent text-muted",
-            )}
-          >
-            {label}
-          </span>
-        ))}
-      </div>
-      <div className="logue-scroll flex-1">{children}</div>
-      {foot && <div className="shrink-0 border-t border-line bg-surface p-2">{foot}</div>}
+    <div className="h-[100dvh] w-[360px] overflow-hidden border-r border-line-strong bg-surface text-ink">
+      {children}
     </div>
   );
 }
 
-function control(phase: VoicePhase = "idle", seconds = 0) {
-  return <RecordControl phase={phase} seconds={seconds} onStart={nothing} onStop={nothing} onCancel={nothing} />;
-}
+/** Open a tab by its visible name, the way a person would. */
+const open = (label: string) => async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+  // Polling, and deliberately sequential: each try must see the DOM the last
+  // one did not. The panel mounts, fetches, and only then paints its tabs.
+  // oxlint-disable-next-line no-await-in-loop
+  for (let tries = 0; tries < 40; tries += 1) {
+    const tab = [...canvasElement.querySelectorAll<HTMLElement>('[role="tab"]')].find((one) =>
+      (one.textContent ?? "").startsWith(label),
+    );
+    if (tab) {
+      tab.click();
+      return;
+    }
+    // oxlint-disable-next-line no-await-in-loop
+    await new Promise((done) => window.setTimeout(done, 100));
+  }
+};
 
-function Row({ children }: { children: React.ReactNode }) {
-  return <div className="border-b border-line p-2.5 last:border-b-0">{children}</div>;
-}
-
-const take = (over: Partial<Take> = {}): Take => ({ id: "t", text: SAID, used: [], made: [], ...over });
-
-const meta = { title: "Page/Side panel", parameters: { layout: "centered" } } satisfies Meta;
+const meta = {
+  title: "Page/Side panel",
+  parameters: { layout: "fullscreen" },
+} satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Nothing said yet — the first thing anyone sees. */
-export const Empty: Story = {
+/** What the panel opens on: Dictation, empty, one control at the bottom. */
+export const Dictation: Story = {
   render: () => (
-    <Panel foot={control()}>
-      <div className="flex flex-1 items-center justify-center px-6 py-10">
-        <p className="max-w-56 text-center text-xs leading-[1.6] text-muted">Say something and it lands here.</p>
-      </div>
-    </Panel>
+    <InChrome answers={HOST}>
+      <Frame>
+        <Panel />
+      </Frame>
+    </InChrome>
   ),
 };
 
-/** Recording. The control changed shape where it already was. */
-export const WhileRecording: Story = {
+/** A conversation about this page: steps shown, sources cited, and a proposal
+ *  waiting for a yes — the only path a change can arrive by. */
+export const ChatWithAConversation: Story = {
   render: () => (
-    <Panel foot={control("recording", 14)}>
-      <div className="flex flex-1 items-center justify-center px-6 py-10">
-        <p className="max-w-56 text-center text-xs leading-[1.6] text-muted">Say something and it lands here.</p>
-      </div>
-    </Panel>
+    <InChrome answers={HOST} storage={THREADS}>
+      <Frame>
+        <Panel />
+      </Frame>
+    </InChrome>
   ),
+  play: open("Chat"),
 };
 
-/** One recording still settling while the next is already being made. */
-export const TwoInFlight: Story = {
+export const ChatEmpty: Story = {
   render: () => (
-    <Panel foot={control("recording", 3)}>
-      <Row>
-        <div className="flex items-center gap-2">
-          <Spinner size={13} className="text-muted" />
-          <span className="flex-1 text-xs text-muted">Transcribing…</span>
-        </div>
-      </Row>
-      <Row>
-        <Recording src="" seconds={47} shape="cap_a" />
-        <div className="mt-1">
-          <DictatedText take={take()} skills={SKILLS} onApply={nothing} />
-        </div>
-      </Row>
-    </Panel>
+    <InChrome answers={HOST}>
+      <Frame>
+        <Panel />
+      </Frame>
+    </InChrome>
   ),
+  play: open("Chat"),
 };
 
-/** A recording, and everything Skills have made from it. */
-export const AFullChain: Story = {
+/** What has been kept from this page: a recording, a passage, their handles. */
+export const ThisPageWithKeptThings: Story = {
   render: () => (
-    <Panel foot={control()}>
-      <Row>
-        <Recording src="" seconds={47} shape="cap_a" />
-        <div className="mt-1">
-          <DictatedText
-            take={take({
-              used: ["en"],
-              made: [
-                {
-                  id: "en",
-                  from: "Into English",
-                  text: "Let's settle the panel's information architecture first, then move on to Dictation.",
-                  used: ["md"],
-                  made: [
-                    {
-                      id: "md",
-                      from: "As Markdown",
-                      text: "## Panel\n\n- Settle the information architecture first\n- Then move on to Dictation",
-                      used: [],
-                      made: [],
-                    },
-                  ],
-                },
-              ],
-            })}
-            skills={SKILLS}
-            onApply={nothing}
-          />
-        </div>
-      </Row>
-    </Panel>
+    <InChrome
+      answers={{
+        ...HOST,
+        "/v1/materials": {
+          materials: [
+            MATERIAL(),
+            MATERIAL({
+              id: "m2",
+              kind: "selection",
+              content: "Speech recognition is an interdisciplinary subfield of computer science.",
+              capture_id: undefined,
+              capture_seconds: undefined,
+              anchor: { exact: "interdisciplinary subfield", before: "is an ", after: " of computer" },
+            }),
+          ],
+        },
+      }}
+    >
+      <Frame>
+        <Panel />
+      </Frame>
+    </InChrome>
   ),
+  play: open("This page"),
 };
 
-/** Out of four recordings, one failed — and it is the one that says so. */
-export const OneOfThemFailed: Story = {
+export const ThisPageEmpty: Story = {
   render: () => (
-    <Panel foot={control()}>
-      <Row>
-        <Recording src="" seconds={12} shape="cap_b" />
-        <div className="mt-2 rounded-md border border-danger-line bg-danger-soft px-2 py-1.5 text-xs leading-[1.45] text-danger">
-          Model rejected the request (503). The recording was kept — you can try again.
-          <button type="button" className="mt-1 block font-[560] underline decoration-danger-line underline-offset-2">
-            Try again
-          </button>
-        </div>
-      </Row>
-      <Row>
-        <Recording src="" seconds={47} shape="cap_a" />
-        <div className="mt-1">
-          <DictatedText take={take()} skills={SKILLS} onApply={nothing} />
-        </div>
-      </Row>
-    </Panel>
+    <InChrome answers={HOST}>
+      <Frame>
+        <Panel />
+      </Frame>
+    </InChrome>
   ),
+  play: open("This page"),
 };
 
-/** Recordings stopped somewhere, said once, above the ones that arrived. */
+/** The Project tab before a Project is chosen — the honest default. */
+export const ProjectTab: Story = {
+  render: () => (
+    <InChrome answers={HOST}>
+      <Frame>
+        <Panel />
+      </Frame>
+    </InChrome>
+  ),
+  play: open("Project"),
+};
+
+/** Recordings stopped short of words, said once at the top of Dictation. */
 export const SomethingIsWaiting: Story = {
   render: () => (
-    <Panel foot={control()}>
-      <div className="p-2">
-        <section className="grid gap-1.5 rounded-lg border border-line bg-surface-muted p-2">
-          <div className="flex items-center gap-2 text-xs text-ink-soft">
-            <span className="size-1.5 shrink-0 rounded-full bg-danger" />
-            <span className="flex-1">3 recordings without words · 1 failed</span>
-            <span className="text-accent-ink">Show</span>
-          </div>
-        </section>
-      </div>
-      <Row>
-        <Recording src="" seconds={47} shape="cap_a" />
-        <div className="mt-1">
-          <DictatedText take={take()} skills={SKILLS} onApply={nothing} />
-        </div>
-      </Row>
-    </Panel>
+    <InChrome
+      answers={{ ...HOST, "/v1/captures": { captures: [{ capture_id: "cap_x", seconds: 9, created_at: "2026-08-11T12:00:00Z" }] } }}
+      storage={{
+        "logue:pending-voice": [
+          { id: "pending_1", audio: "AAAA", mediaType: "audio/webm", seconds: 12, at: "2026-08-11T11:50:00Z", tries: 2 },
+        ],
+      }}
+    >
+      <Frame>
+        <Panel />
+      </Frame>
+    </InChrome>
   ),
 };
 
-/** The microphone is refused by Chrome, and the setting is one press away. */
-export const TheMicrophoneIsBlocked: Story = {
+/** The model is not connected — the one fact that disarms every control. */
+export const ModelNotConnected: Story = {
   render: () => (
-    <Panel
-      foot={
-        <>
-          <div className="mb-1.5 flex items-center gap-2 rounded-md border border-line bg-surface-muted px-2 py-1.5">
-            <span className="flex-1 text-xs text-warning">
-              Chrome is blocking the microphone for this extension.
-            </span>
-            <span className="inline-flex h-control items-center rounded-md border border-line-strong px-2 text-xs font-[560] text-ink-soft">
-              Open Chrome settings
-            </span>
-          </div>
-          {control()}
-        </>
-      }
+    <InChrome
+      answers={{ ...HOST, "/v1/status": { model: { generation_ready: false, voice_ready: false, model: "" } } }}
+      storage={THREADS}
     >
-      <div className="flex flex-1 items-center justify-center px-6 py-10">
-        <p className="max-w-56 text-center text-xs leading-[1.6] text-muted">Say something and it lands here.</p>
-      </div>
-    </Panel>
+      <Frame>
+        <Panel />
+      </Frame>
+    </InChrome>
+  ),
+  play: open("Chat"),
+};
+
+/** Logue is not running: the error, and the address that can be the reason. */
+export const LogueNotRunning: Story = {
+  render: () => (
+    <InChrome answers={HOST} hostDown>
+      <Frame>
+        <Panel />
+      </Frame>
+    </InChrome>
   ),
 };
