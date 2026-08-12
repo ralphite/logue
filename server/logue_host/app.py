@@ -544,6 +544,7 @@ class App:
                         project=str(body.get("project") or ""),
                         parent_ids=body.get("parent_ids"),
                         applied_context=body.get("applied_context"),
+                        context=str(body.get("context") or ""),
                     )
                 )
             }

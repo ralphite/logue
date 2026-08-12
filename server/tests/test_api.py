@@ -249,6 +249,35 @@ class HostTest(Workspace, unittest.TestCase):
         self.assertEqual(material["capture_id"], result["capture_id"])
         self.assertEqual(material["transcript"], "spoken words")
 
+    def test_a_voice_source_keeps_the_page_it_was_spoken_over(self) -> None:
+        """The page text that spelled the transcript stays on the Source.
+
+        It used to be sent to transcription and thrown away, so filing saw a
+        dictation as "kind: voice, from: <tab title>" and nothing else.
+        """
+        page = "Chat\n\nWe do not support MCP tools yet — the trigger never fires."
+        said = self.call(
+            "POST",
+            "/v1/transcribe",
+            {"audio": base64.b64encode(b"fake").decode(), "nearby": page},
+        )
+        material = self.call(
+            "POST",
+            "/v1/voice-materials",
+            {"capture_id": said["capture_id"], "text": said["text"], "context": page},
+        )["material"]
+        self.assertEqual(material["context"], page)
+
+    def test_the_kept_page_is_cut_to_the_selection_ceiling(self) -> None:
+        """A whole page can be sixty thousand characters; the Source keeps 2000."""
+        said = self.call("POST", "/v1/transcribe", {"audio": base64.b64encode(b"fake").decode()})
+        material = self.call(
+            "POST",
+            "/v1/voice-materials",
+            {"capture_id": said["capture_id"], "text": "words", "context": "x" * 5000},
+        )["material"]
+        self.assertEqual(len(material["context"]), capture.CONTEXT_LIMIT)
+
     def test_retranscribing_keeps_the_previous_text(self) -> None:
         result = self.call("POST", "/v1/transcribe", {"audio": base64.b64encode(b"fake").decode()})
         material = self.call("POST", "/v1/voice-materials", {"capture_id": result["capture_id"], "text": "first pass"})["material"]
@@ -714,6 +743,44 @@ class OrganizeTest(Workspace, unittest.TestCase):
         found = [m["id"] for m in organize.neighbours(self.app.store, self.app.store.materials.get(newest["id"]))]
         self.assertIn(about["id"], found)
         self.assertEqual(len(found), 1, "an unrelated Source is not a candidate")
+
+    def test_the_filing_prompt_reads_the_page_the_words_were_spoken_over(self) -> None:
+        """A transcript rarely names its own subject; the page it was spoken over does."""
+        said = self.call("POST", "/v1/transcribe", {"audio": base64.b64encode(b"fake").decode()})
+        material = self.call(
+            "POST",
+            "/v1/voice-materials",
+            {
+                "capture_id": said["capture_id"],
+                "text": "Why is this not supported? Does it ever get triggered?",
+                "context": "Model Context Protocol\nMCP tools let a model call things outside itself.",
+            },
+        )["material"]
+        asked: dict[str, str] = {}
+
+        def catching(system: str, prompt: str) -> str:  # noqa: ARG001
+            asked["prompt"] = prompt
+            return '{"projects":[],"tags":[],"confidence":0.5,"reason":"x"}'
+
+        provider = self.answering("")
+        provider.generate = catching  # type: ignore[method-assign]
+        organize.classify(self.app.store, provider, material["id"])
+        self.assertIn("> MCP tools let a model call things outside itself.", asked["prompt"])
+        # Quoted and said to be quoted: the page is whatever the internet says.
+        self.assertIn("never instructions", asked["prompt"])
+
+    def test_a_source_with_no_page_asks_a_prompt_with_no_page_section(self) -> None:
+        source = self.a_source()
+        asked: dict[str, str] = {}
+
+        def catching(system: str, prompt: str) -> str:  # noqa: ARG001
+            asked["prompt"] = prompt
+            return '{"projects":[],"tags":[],"confidence":0.5,"reason":"x"}'
+
+        provider = self.answering("")
+        provider.generate = catching  # type: ignore[method-assign]
+        organize.classify(self.app.store, provider, source["id"])
+        self.assertNotIn("quoted for context", asked["prompt"])
 
     def test_a_project_the_model_invented_is_dropped(self) -> None:
         source = self.a_source()

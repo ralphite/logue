@@ -710,3 +710,15 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   remains a question in the Source view. On first start after this rule, the
   old queue's backlog is filed the same way — recorded as automatic, undoable
   one by one — and the word `needs_review` retires.
+- **The page travels with a dictation all the way to filing.** (2026-08-12, his
+  report: "加一个 dictation 的时候,页面里面的文字内容并没有作为 context 发送过
+  去".) The page text collected when a recording starts was already sent to
+  transcription to spell names; it is now also saved on the voice Source as
+  `context` — the same field, and the same 2000-character ceiling, a selection
+  uses for the passage around a quote — and the filing prompt quotes it. A
+  transcript rarely names its own subject ("why doesn't this work?"); the page
+  it was spoken over does. Quoted line by line and declared to be quoted, never
+  instructions, because it is whatever the internet happens to say. This holds
+  on every voice path: the side panel's Dictate (whole readable page), the
+  on-page caret bar (text around the caret), and recordings queued while the
+  Host was off.

@@ -21,6 +21,10 @@ from . import corrections, defaults, materials, projects, vocabulary
 #: Enough of the surrounding page to fix a name, without becoming the prompt.
 NEARBY_LIMIT = 1500
 
+#: How much of the page is kept on the Source itself — the same ceiling the
+#: selection toolbar applies to the passage around a quote.
+CONTEXT_LIMIT = 2000
+
 #: The one instruction a Skill may not overrule: no words is a legal answer.
 NOTHING_WAS_SAID = (
     "If the recording contains no speech — silence, background noise, or "
@@ -334,6 +338,7 @@ def save_voice(
     project: str = "",
     parent_ids: list[str] | None = None,
     applied_context: dict[str, Any] | None = None,
+    context: str = "",
 ) -> Record:
     if not text.strip():
         # The recording is safe; only the words are missing. Say which.
@@ -350,6 +355,12 @@ def save_voice(
         # From the sidecar written when the recording was made — one place
         # knows how long it ran, and everything else reads it from there.
         capture_seconds=store.capture_context(capture_id).get("seconds"),
+        # The page the words were spoken over, on the Source the way a
+        # selection keeps its passage. Until this was kept, filing saw a voice
+        # Source as "kind: voice, from: <tab title>" and nothing else — the
+        # page text had already been used to spell the transcript and thrown
+        # away.
+        context=context.strip()[:CONTEXT_LIMIT],
         # Frozen with the transcript, not looked up later: the profile and the
         # Skill it names will have changed by the time anyone asks.
         extra={"applied_context": applied_context} if applied_context else None,

@@ -159,6 +159,8 @@ export const host = {
     parent_ids?: string[];
     /** What shaped the transcript, frozen alongside it. */
     applied_context?: unknown;
+    /** The text around the speaker when they spoke, kept so filing can read it too. */
+    context?: string;
   }) => post<{ material: Material }>("/v1/voice-materials", body),
 
   saveMaterial: (body: {

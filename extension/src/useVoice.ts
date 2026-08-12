@@ -227,6 +227,10 @@ export function useVoice() {
           project: options.project,
           parent_ids: options.parentIds,
           applied_context,
+          // The same page text that spelled the transcript. Saved with the
+          // Source, because filing reads what the speaker was reading — a
+          // transcript alone says "voice, from: Chat" and nothing else.
+          context: options.nearby,
         });
         return { ok: true, text, material };
       } catch (cause) {
@@ -310,6 +314,8 @@ export function useVoice() {
           project: options.project,
           parent_ids: options.parentIds,
           applied_context,
+          // As on `stop`: the page travels with the words it spelled.
+          context: options.nearby,
         });
         if (session.current !== id) return undefined;
         setKept(undefined);

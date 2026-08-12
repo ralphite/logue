@@ -563,6 +563,8 @@ async function sendPending(): Promise<number> {
             project: one.project,
             parent_ids: one.parentIds,
             applied_context,
+            // The page text queued with the audio — filing reads it too.
+            context: one.nearby,
           }),
         });
         if (!saved.ok || saved.status !== 200) break;
