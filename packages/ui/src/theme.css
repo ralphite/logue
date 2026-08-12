@@ -6,31 +6,56 @@
     "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
-  --color-canvas: #ffffff;
-  --color-nav: #fbfbfa;
-  --color-panel: #fcfcfb;
+  --color-canvas: #f5f5f2;
+  --color-nav: #f8f8f6;
+  --color-panel: #fbfbf9;
   --color-surface: #ffffff;
-  --color-surface-muted: #f6f6f4;
-  --color-hover: #f1f1ef;
-  --color-active: #ececea;
+  --color-surface-muted: #f5f5f2;
+  --color-hover: #efefec;
+  /* The list row's hover — one shade quieter than a control's. */
+  --color-hover-soft: #f8f8f6;
+  --color-active: #eaeae7;
   /* One step past active, so hovering the chosen row still answers. */
-  --color-active-strong: #e4e4e1;
+  --color-active-strong: #e2e2de;
 
-  --color-ink: #20211f;
-  --color-ink-soft: #4e504b;
-  --color-muted: #70726c;
+  --color-ink: #242423;
+  --color-ink-soft: #62625f;
+  --color-muted: #92928d;
+  /* Between ink-soft and muted: running copy that is quiet, not faded. */
+  --color-muted-strong: #6f6f6a;
+  --color-faint: #a3a39e;
 
-  --color-line: #e7e7e3;
-  --color-line-strong: #d9dad5;
+  --color-line: #e8e8e4;
+  --color-line-strong: #ddddda;
 
-  --color-accent: #535fdb;
-  --color-accent-hover: #4651c7;
-  --color-accent-soft: #f0f1fd;
-  --color-accent-line: #cfd2f6;
+  --color-accent: #6759dc;
+  --color-accent-hover: #5b4dd0;
+  --color-accent-soft: #f0eefc;
+  --color-accent-line: #ddd9f8;
   /* The citation chip: its own ink, hover, and pressed fills. */
-  --color-accent-ink: #424ebc;
-  --color-accent-hover-soft: #e4e6fc;
-  --color-accent-pressed: #dfe1fb;
+  --color-accent-ink: #4f43bd;
+  --color-accent-hover-soft: #f1effc;
+  --color-accent-pressed: #e4e0fa;
+
+  /*
+   * One colour pair per kind of act. A row's icon and verb carry the kind so
+   * the eye can split a mixed day without reading; the pairs are tints, never
+   * alarms — provenance, not status.
+   */
+  --color-act-spoke: #5d50cc;
+  --color-act-spoke-soft: #eeecfd;
+  --color-act-dictated: #3e63bf;
+  --color-act-dictated-soft: #edf2ff;
+  --color-act-comment: #a84965;
+  --color-act-comment-soft: #fff0f4;
+  --color-act-kept: #9a5b2c;
+  --color-act-kept-soft: #fff4e9;
+  --color-act-saved: #29775c;
+  --color-act-saved-soft: #edf8f3;
+  --color-act-generated: #267487;
+  --color-act-generated-soft: #edf8fa;
+  --color-act-typed: #5b5b57;
+  --color-act-typed-soft: #f0f0ed;
 
   /* What AI produced, as a provenance, not an alarm. It borrowed
      --color-warning for a while, which made "a model wrote this" and
@@ -51,9 +76,11 @@
   /* The pair to danger-soft, for the two halves of a diff. */
   --color-success-soft: #f1f8f2;
 
-  --radius-sm: 5px;
-  --radius-md: 6px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
   --radius-lg: 10px;
+  /* The one soft container — the audio player and nothing else so far. */
+  --radius-xl: 13px;
 
   /* Control heights. Nothing in the product is taller than a panel row. */
   --spacing-control: 28px;

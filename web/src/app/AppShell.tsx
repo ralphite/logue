@@ -1,16 +1,6 @@
-import {
-  ChevronRight,
-  Activity,
-  FileText,
-  FolderOpen,
-  PanelLeft,
-  Plus,
-  Search,
-  Settings2,
-  Sparkles,
-} from "lucide-react";
+import { ChevronRight, PanelLeft, Plus } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { LogueLogo, LogueMark, Resizer, cn, usePersistentSize } from "@logue/ui";
+import { Glyph, LogueLogo, LogueMark, Resizer, cn, usePersistentSize, type GlyphName } from "@logue/ui";
 import { FIND_KEYS, RAIL_KEYS } from "./shortcuts";
 
 export const ROUTES = ["stream", "projects", "documents", "skills", "settings"] as const;
@@ -26,15 +16,15 @@ export const ROUTES = ["stream", "projects", "documents", "skills", "settings"] 
 export const DRAFT = "new";
 export type Route = (typeof ROUTES)[number];
 
-const NAV: Record<Route, { label: string; icon: typeof Activity }> = {
+const NAV: Record<Route, { label: string; icon: GlyphName }> = {
   // Activities — the owner's own name for it: "a list of different actions
   // from the user". A recording made, a passage kept, a page saved. The route
   // id stays `stream` so every saved link keeps working.
-  stream: { label: "Activities", icon: Activity },
-  projects: { label: "Projects", icon: FolderOpen },
-  documents: { label: "Documents", icon: FileText },
-  skills: { label: "Skills", icon: Sparkles },
-  settings: { label: "Settings", icon: Settings2 },
+  stream: { label: "Activities", icon: "activities" },
+  projects: { label: "Projects", icon: "folder" },
+  documents: { label: "Documents", icon: "document" },
+  skills: { label: "Skills", icon: "skills" },
+  settings: { label: "Settings", icon: "settings" },
 };
 
 const RAIL = { key: "logue.rail.width", min: 180, max: 320, base: 208 };
@@ -183,10 +173,10 @@ export function AppShell({
             aria-label="Find anything"
             title={`Find anything · ${FIND_KEYS}`}
             onClick={onFind}
-            className="flex h-control items-center gap-2 rounded-md px-2 text-left text-[13px] text-ink-soft hover:bg-hover"
+            className="flex h-[38px] items-center gap-2 rounded-md px-2 text-left text-[13px] font-[500] text-ink-soft hover:bg-hover hover:text-ink"
           >
             <span className={ICON_SLOT}>
-              <Search size={15} className="text-muted" />
+              <Glyph name="search" className="h-[17px] w-[17px] text-muted-strong" />
             </span>
             {!collapsed && (
               <>
@@ -198,7 +188,7 @@ export function AppShell({
         )}
 
         {ROUTES.map((key, index) => {
-          const { label, icon: Icon } = NAV[key];
+          const { label, icon } = NAV[key];
           const active = route === key;
           const make = onNew?.[key];
           return (
@@ -210,14 +200,20 @@ export function AppShell({
                 title={collapsed ? `${label} · ⌘${index + 1}` : undefined}
                 onClick={() => onRoute(key)}
                 className={cn(
-                  "flex h-control min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-[13px]",
-                  active ? "bg-active font-[560] text-ink" : "text-ink-soft hover:bg-hover",
+                  "flex h-[38px] min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-[13px]",
+                  active ? "bg-active font-[600] text-ink" : "font-[500] text-ink-soft hover:bg-hover hover:text-ink",
                 )}
               >
                 <span className={ICON_SLOT}>
-                  <Icon size={15} className="text-muted" />
+                  <Glyph
+                    name={icon}
+                    className={cn("h-[17px] w-[17px]", active ? "text-accent" : "text-muted-strong")}
+                  />
                 </span>
                 {!collapsed && <span className="truncate">{label}</span>}
+                {!collapsed && active && (
+                  <span aria-hidden className="ml-auto h-[5px] w-[5px] flex-none rounded-full bg-accent" />
+                )}
               </button>
               {make && !collapsed && (
                 // On the section that will hold it, when the pointer is there.

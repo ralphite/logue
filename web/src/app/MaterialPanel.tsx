@@ -1,31 +1,33 @@
-import { Check, ExternalLink, FileText, Sparkles, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Fragment, useState } from "react";
 import {
+  ACTS,
+  ActBadge,
   Button,
   ErrorNote,
+  Glyph,
   IconButton,
   Input,
   OriginMark,
   Recording,
   SourceLink,
   Spinner,
-  Tag,
   cn,
   originOf,
 } from "@logue/ui";
 import { api, type Material, type Project } from "../api";
-import { timeAgo, useAction, useHost } from "./useHost";
+import { kindOf } from "./ActivitiesPage";
+import { useAction, useHost } from "./useHost";
 
 /**
- * One Source, and the chain it belongs to. This panel is where the product's
- * promise is inspectable: what the page said, what you added, and what came out.
+ * One capture, in full: the words at reading size, and everything that
+ * proves or uses them down a quiet right-hand column.
+ *
+ * This is the detail pane of the three-pane screen — never a page of its
+ * own, never an overlay. The receipt for automatic filing sits directly
+ * under the audio, because "where did this go" is the first question after
+ * "what did I say".
  */
-/** The first breathable phrase of the content: the Source's own name. */
-function firstWords(content: string): string {
-  const line = content.split("\n").find((one) => one.trim()) ?? "";
-  return line.length > 80 ? `${line.slice(0, 80)}…` : line || "Source";
-}
-
 export function MaterialPanel({
   materialId,
   onClose,
@@ -45,77 +47,64 @@ export function MaterialPanel({
   const lineage = useHost(() => api.lineage(materialId), [materialId]);
   const action = useAction();
   const material = lineage.data?.material;
+  const kind = material ? kindOf(material) : undefined;
+
+  const refreshed = () => {
+    void lineage.refresh();
+    onChanged();
+  };
 
   return (
-    // Not a drawer any more: the list lives in the rail, so this is simply
-    // what the main area is for.
-    <section className="flex min-h-0 flex-1 flex-col">
-      <header className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-line px-4">
-        {/*
-          The words, not the type. This bar used to read "voice" — the one
-          fact shared by half the workspace, standing where the identity goes,
-          while the words that make this Source itself sat two sections down.
-          The kind, the age and the origin are one muted phrase beside it:
-          together they are the identity line of a Source anywhere.
-        */}
-        <h1 className="min-w-0 flex-1 truncate text-[13px] font-[560] text-ink">
-          {material ? firstWords(material.content) : "Source"}
-        </h1>
-        {material && (
-          <span className="flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap text-muted">
-            <OriginMark origin={originOf(material.kind)} detail={timeAgo(material.created_at)} />
-            {material.source?.domain && <span>· {material.source.domain}</span>}
-          </span>
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
+      <header className="flex h-[64px] flex-none items-center gap-3 border-b border-line px-7">
+        {material && kind ? (
+          <>
+            <ActBadge kind={kind} className="h-[31px] w-[31px]" />
+            <div className="min-w-0">
+              <div className={cn("truncate text-[12px] font-[680] tracking-[-0.005em]", ACTS[kind].ink)}>
+                {ACTS[kind].label}
+              </div>
+              <div className="mt-0.5 truncate text-[10.5px] font-[500] tabular-nums text-muted">
+                {whenOf(material.created_at)}
+                {material.capture_seconds ? ` · ${duration(material.capture_seconds)}` : ""}
+                {material.source?.domain ? ` · ${material.source.domain}` : ""}
+              </div>
+            </div>
+          </>
+        ) : (
+          <span className="text-[12px] text-muted">Source</span>
         )}
-        <IconButton label="Close this Source" onClick={onClose}>
-          <X size={14} />
-        </IconButton>
+        <span className="ml-auto">
+          <IconButton label="Close this Source" onClick={onClose}>
+            <X size={14} />
+          </IconButton>
+        </span>
       </header>
 
-      {/*
-        Two columns: the words, and the evidence.
-
-        One column stacked five equal sections and left 40% of the pane
-        white; the reason this page exists — what was said — had no more
-        weight than the word "Tags". Now the left column is the text and
-        what people do to it, and everything that proves or uses it reads
-        down the right, all visible at once.
-      */}
-      <div className="flex min-h-0 flex-1">
-        <div className="logue-scroll min-w-0 flex-1">
-          <div className="grid max-w-prose gap-3 px-8 py-6">
+      <div className="logue-scroll min-h-0 flex-1">
+        <div className="px-7 pt-6 pb-14">
           {lineage.error && <ErrorNote>{lineage.error}</ErrorNote>}
           {action.error && <ErrorNote className="mb-2">{action.error}</ErrorNote>}
-          {!material ? (
+          {!material || !kind ? (
             <div className="flex items-center gap-2 text-xs text-muted">
               <Spinner /> Loading
             </div>
           ) : (
             <>
-              {/*
-                What cannot change comes first, and the two kinds of it are
-                kept apart: the recording is what you said, the passage is
-                what the page gave. Everything below them is derived from
-                them — the transcript most of all — and the order used to say
-                the opposite, with the transcript on top and the passage last.
-              */}
-              {/* Derived from the above: for a recording this is the
-                  transcript, and it is the part a model may have got wrong. */}
               {material.superseded_by && (
                 /*
                  * R13, the reading end. This Source was true when it was
                  * written and is not deleted, edited or unfiled — a record of
                  * what was believed then is worth keeping. What it must not do
-                 * is go on looking current, because nobody remembers what a
-                 * Source from three months ago said, and it stays quotable.
+                 * is go on looking current.
                  */
-                <div className="grid gap-1 rounded-lg border border-line bg-surface-muted px-2.5 py-2">
+                <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-muted px-3 py-2">
                   <span className="text-xs text-muted">
                     Out of date{material.superseded_by.why ? ` — ${material.superseded_by.why}` : ""}
                   </span>
                   <button
                     type="button"
-                    className="justify-self-start text-xs text-accent-ink underline-offset-2 hover:underline"
+                    className="text-xs text-accent-ink underline-offset-2 hover:underline"
                     onClick={() => onOpenMaterial?.(material.superseded_by!.id)}
                   >
                     Open the one that replaced it
@@ -123,74 +112,50 @@ export function MaterialPanel({
                 </div>
               )}
 
-              {/*
-                The words themselves — the reason this page exists — set a
-                step larger than everything around them. They used to render
-                at the same 13px as the metadata labels, so the eye had no
-                landing place: a page about one paragraph gave that paragraph
-                no more weight than the word "Tags".
-              */}
-              <div className="grid gap-1.5">
-                {material.capture_id ? (
-                  <Transcript
-                    material={material}
-                    busy={action.busy}
-                    onChanged={() => {
-                      void lineage.refresh();
-                      onChanged();
-                    }}
-                    run={action.run}
+              {material.capture_id && (
+                <div className="flex h-[78px] items-center gap-3 rounded-xl border border-line-strong bg-panel px-4">
+                  <Recording
+                    src={api.audioUrl(material.capture_id)}
+                    seconds={material.capture_seconds}
+                    shape={material.capture_id}
+                    className="min-w-0 flex-1"
                   />
-                ) : null}
-                <p
-                  className={cn(
-                    "max-w-prose text-[15px] leading-relaxed whitespace-pre-wrap",
-                    // Dimmed, not hidden: still readable, no longer current.
-                    material.superseded_by ? "text-muted" : "text-ink",
-                  )}
-                >
-                  {material.content}
-                </p>
-              </div>
+                </div>
+              )}
 
               {/*
                 Filing already happened, quietly, the moment this arrived.
-                This line is the receipt, not a question: what was added, why,
+                This line is the receipt, not a question: where it went, why,
                 and the one control that takes exactly that back.
               */}
               {material.organization?.decided === "auto" &&
                 ((material.organization.accepted_projects?.length ?? 0) > 0 ||
                   (material.organization.accepted_tags?.length ?? 0) > 0) && (
-                  <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-panel px-2.5 py-1.5">
-                    <span className="text-xs text-muted">Filed automatically</span>
-                    <span className="flex flex-wrap items-center gap-1 text-xs">
-                      {(material.organization.accepted_projects ?? []).map((name) => (
-                        <span key={name} className="rounded-sm bg-surface px-1 text-ink-soft">
-                          {name}
-                        </span>
-                      ))}
-                      {(material.organization.accepted_tags ?? []).map((name) => (
-                        <Tag key={name} name={name} className="bg-surface" />
-                      ))}
+                  <div className="mt-5 flex h-[46px] min-w-0 items-center gap-2 border-y border-line text-[11.5px] text-muted-strong">
+                    <span className="min-w-0 flex-1 truncate">
+                      Filed to{" "}
+                      <strong className="font-[650] text-ink-soft">
+                        {(material.organization.accepted_projects ?? []).join(", ") || "its tags"}
+                      </strong>
+                      {material.organization.reason
+                        ? ` because ${lowerFirst(material.organization.reason)}`
+                        : " automatically."}
                     </span>
-                    {material.organization.reason && (
-                      <span className="text-xs leading-normal text-muted">
-                        — {material.organization.reason}
-                      </span>
-                    )}
-                    <span className="ml-auto">
-                      <Button
-                        variant="ghost"
-                        disabled={action.busy}
-                        onClick={() =>
-                          void action
-                            .run(() => api.undoOrganization(material.id))
-                            .then((ok) => ok && (lineage.refresh(), onChanged()))
-                        }
-                      >
-                        Undo
-                      </Button>
+                    <span className="inline-flex h-[22px] flex-none items-center gap-1 rounded-full bg-accent-soft/70 px-[7px] text-[9.8px] font-[650] text-ink-soft">
+                      <Glyph name="auto" className="h-[10px] w-[10px]" />
+                      Automatic
                     </span>
+                    <button
+                      type="button"
+                      disabled={action.busy}
+                      onClick={() =>
+                        void action.run(() => api.undoOrganization(material.id)).then((ok) => ok && refreshed())
+                      }
+                      className="inline-flex h-[26px] flex-none items-center gap-1 rounded-md px-1.5 text-[10.8px] font-[650] text-accent-ink hover:bg-accent-hover-soft disabled:opacity-50"
+                    >
+                      <Glyph name="undo" className="h-[12px] w-[12px]" />
+                      Undo
+                    </button>
                   </div>
                 )}
 
@@ -200,12 +165,10 @@ export function MaterialPanel({
                 question until a person answers it.
               */}
               {material.organization?.supersedes && !material.organization.accepted_supersedes && (
-                <div className="grid gap-1 rounded-lg border border-line bg-panel px-2.5 py-2">
+                <div className="mt-5 grid gap-1.5 rounded-lg border border-line bg-panel px-3 py-2.5">
                   <span className="text-xs leading-normal text-ink-soft">
                     This looks like it replaces an earlier Source
-                    {material.organization.supersedes.why
-                      ? ` — ${material.organization.supersedes.why}`
-                      : ""}
+                    {material.organization.supersedes.why ? ` — ${material.organization.supersedes.why}` : ""}
                   </span>
                   <span className="flex flex-wrap gap-1">
                     <Button
@@ -221,7 +184,7 @@ export function MaterialPanel({
                       onClick={() =>
                         void action
                           .run(() => api.resolveOrganization(material.id, { accept: true, supersede: true }))
-                          .then((ok) => ok && (lineage.refresh(), onChanged()))
+                          .then((ok) => ok && refreshed())
                       }
                     >
                       Mark the older one out of date
@@ -230,102 +193,242 @@ export function MaterialPanel({
                 </div>
               )}
 
-            </>
-          )}
-          </div>
-        </div>
-
-        {/* The evidence rail: where it came from, where it went, how it was
-            heard, and where it is filed — all of it visible at once, in the
-            width that used to be blank. */}
-        {material && (
-          <aside className="logue-scroll grid w-[340px] shrink-0 content-start gap-5 border-l border-line bg-nav px-4 py-5">
-            <section className="grid gap-1.5">
-              <Cap>Where it came from</Cap>
-              {material.capture_id && (
-                <div className="rounded-lg border border-line bg-surface p-2">
-                  <Recording src={api.audioUrl(material.capture_id)} seconds={material.capture_seconds} shape={material.capture_id} />
-                </div>
-              )}
-              {(material.source?.url || material.context) && (
-                <div className="grid gap-1 rounded-lg border border-line bg-surface p-2.5">
-                  {material.context && material.context !== material.content && (
-                    <p className="line-clamp-5 text-xs leading-normal whitespace-pre-wrap text-ink-soft">
-                      {material.context}
+              <div className="mt-7 grid grid-cols-[minmax(0,1fr)_238px] items-start gap-[29px]">
+                {/* The words themselves — the reason this pane exists — at the
+                    one reading size in the product. */}
+                <div className="min-w-0">
+                  {material.capture_id ? (
+                    <Transcript material={material} busy={action.busy} onChanged={refreshed} run={action.run} />
+                  ) : (
+                    <h2 className="border-b border-line pb-3 text-[12px] font-[700] tracking-[-0.01em] text-ink">
+                      {material.kind === "selection" ? "Passage" : material.kind === "page" ? "Page" : "Text"}
+                    </h2>
+                  )}
+                  <p
+                    className={cn(
+                      "mt-6 max-w-[44rem] text-[19px] font-[430] leading-[1.58] tracking-[-0.018em] whitespace-pre-wrap",
+                      material.superseded_by ? "text-muted" : "text-ink",
+                    )}
+                  >
+                    {material.content}
+                  </p>
+                  {material.capture_id && (
+                    <p className="mt-6 flex items-center gap-1.5 text-[10.5px] text-muted">
+                      <Glyph name="mic" className="h-[11px] w-[11px]" />
+                      Original audio preserved with this activity
                     </p>
                   )}
-                  {material.source?.url && (
-                    <a
-                      href={material.source.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex min-w-0 items-center gap-1 text-xs text-accent hover:underline"
-                    >
-                      <ExternalLink size={12} className="shrink-0" />
-                      <span className="truncate">{material.source.title || material.source.url}</span>
-                    </a>
-                  )}
                 </div>
-              )}
-              <Lineage title="Made from" items={lineage.data?.parents ?? []} />
-              {!material.capture_id && !material.source?.url && !material.context && (
-                <p className="text-xs text-muted">Typed here. There is nothing behind it but you.</p>
-              )}
-            </section>
 
-            <section className="grid gap-1">
-              <Cap>Where it went</Cap>
-              <UsedIn materialId={material.id} onOpenDocument={onOpenDocument} />
-            </section>
+                {/* The evidence column: origin, destination, membership. */}
+                <aside className="grid min-w-0 content-start">
+                  <section>
+                    <SectionCap>Where it came from</SectionCap>
+                    <div className="mt-3 grid gap-[7px]">
+                      {material.capture_id && (
+                        <SourceCard
+                          icon={<Glyph name="mic" className="h-[15px] w-[15px]" />}
+                          tinted
+                          name="Microphone recording"
+                          detail={`${material.source?.kind === "panel" ? "Chrome side panel" : "This Mac"}${material.capture_seconds ? ` · ${duration(material.capture_seconds)}` : ""}`}
+                        />
+                      )}
+                      {material.source?.url ? (
+                        <a
+                          href={material.source.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="group block min-w-0"
+                        >
+                          <SourceCard
+                            icon={<Glyph name="globe" className="h-[15px] w-[15px]" />}
+                            name={material.source.title || "Untitled webpage"}
+                            detail={material.source.domain || material.source.url}
+                            external
+                          />
+                        </a>
+                      ) : null}
+                      {!material.capture_id && !material.source?.url && !material.context && (
+                        <p className="text-xs leading-normal text-muted">
+                          Typed here. There is nothing behind it but you.
+                        </p>
+                      )}
+                      {material.context && material.context !== material.content && (
+                        <p className="line-clamp-5 rounded-lg border border-line bg-surface p-2.5 text-xs leading-normal whitespace-pre-wrap text-ink-soft">
+                          {material.context}
+                        </p>
+                      )}
+                    </div>
+                    <Lineage title="Made from" items={lineage.data?.parents ?? []} />
+                  </section>
 
-            <HowItWasHeard applied={material.applied_context} />
+                  <section className="mt-7 border-t border-line pt-6">
+                    <SectionCap>Where it went</SectionCap>
+                    <div className="mt-3">
+                      <UsedIn materialId={material.id} onOpenDocument={onOpenDocument} />
+                    </div>
+                  </section>
 
-            <section className="grid gap-1.5">
-              <Cap>Filed under</Cap>
-              <div className="flex flex-wrap gap-1">
-                {projects.map((project) => {
-                  const member = material.projects.includes(project.name);
-                  return (
-                    // Membership is a checkmark, not a colour: the member chip
-                    // used to wear the exact dress of a primary button.
-                    <Button
-                      key={project.id}
-                      aria-pressed={member}
-                      className={member ? "border-ink/25 bg-surface text-ink" : "text-muted"}
-                      disabled={action.busy}
-                      onClick={() =>
+                  <section className="mt-7 border-t border-line pt-6">
+                    <SectionCap>Projects</SectionCap>
+                    <Membership
+                      material={material}
+                      projects={projects}
+                      busy={action.busy}
+                      onToggle={(name, member) =>
                         void action
-                          .run(() => api.setMembership(material.id, project.name, !member))
-                          .then((ok) => ok && (lineage.refresh(), onChanged()))
+                          .run(() => api.setMembership(material.id, name, member))
+                          .then((ok) => ok && refreshed())
                       }
-                    >
-                      {member && <Check size={12} className="text-success" />}
-                      {project.name}
-                    </Button>
-                  );
-                })}
+                    />
+                  </section>
+
+                  <section className="mt-7 border-t border-line pt-6">
+                    <SectionCap>Tags</SectionCap>
+                    <Tags
+                      material={material}
+                      busy={action.busy}
+                      onSave={(tags) =>
+                        void action
+                          .run(() => api.updateMaterial(material.id, { tags }))
+                          .then((ok) => ok && refreshed())
+                      }
+                    />
+                  </section>
+
+                  <HowItWasHeard applied={material.applied_context} />
+                </aside>
               </div>
-              <Tags
-                material={material}
-                busy={action.busy}
-                onSave={(tags) =>
-                  void action
-                    .run(() => api.updateMaterial(material.id, { tags }))
-                    .then((ok) => ok && (lineage.refresh(), onChanged()))
-                }
-              />
-            </section>
-          </aside>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </section>
   );
 }
 
-/** A rail section's name: small caps, quiet, before what it names. */
-function Cap({ children }: { children: React.ReactNode }) {
+/** A right-column section's name: small caps, quiet, before what it names. */
+function SectionCap({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-[10.5px] font-[700] tracking-[0.05em] text-muted uppercase">{children}</span>
+    <h3 className="text-[10px] font-[700] tracking-[0.115em] text-muted-strong uppercase">{children}</h3>
+  );
+}
+
+/** One origin, as a small card: an icon square, a name, a quiet detail line. */
+function SourceCard({
+  icon,
+  name,
+  detail,
+  tinted = false,
+  external = false,
+}: {
+  icon: React.ReactNode;
+  name: string;
+  detail?: string;
+  /** Accent-tinted icon square — the microphone, never the webpage. */
+  tinted?: boolean;
+  external?: boolean;
+}) {
+  return (
+    <span className="flex min-w-0 items-center gap-2.5 rounded-[10px] border border-line bg-surface p-2.5">
+      <span
+        className={cn(
+          "flex h-[30px] w-[30px] flex-none items-center justify-center rounded-md",
+          tinted ? "bg-accent-soft text-accent" : "bg-surface-muted text-ink-soft",
+        )}
+      >
+        {icon}
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-[11.5px] font-[620] leading-[1.25] text-ink group-hover:text-accent-ink">
+          {name}
+        </span>
+        {detail && (
+          <span className="mt-[3px] flex min-w-0 items-center gap-1 text-[10.5px] leading-[1.2] text-muted">
+            <span className="truncate">{detail}</span>
+            {external && <Glyph name="external" className="h-[10px] w-[10px] flex-none" />}
+          </span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Which Projects hold this — membership as chips, addition as a quiet
+ * control. The wall of every-project-as-a-button is gone: what it belongs
+ * to is worn, what it could join waits behind "Add project".
+ */
+function Membership({
+  material,
+  projects,
+  busy,
+  onToggle,
+}: {
+  material: Material;
+  projects: Project[];
+  busy: boolean;
+  onToggle: (name: string, member: boolean) => void;
+}) {
+  const [picking, setPicking] = useState(false);
+  const members = material.projects;
+  const others = projects.filter((one) => !members.includes(one.name));
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      {members.map((name) => (
+        <span
+          key={name}
+          className="inline-flex h-7 items-center gap-[5px] rounded-full border border-accent-line bg-accent-soft pr-[7px] pl-[9px] text-[11px] font-[650] text-accent-ink"
+        >
+          <span className="max-w-[150px] truncate">{name}</span>
+          <button
+            type="button"
+            aria-label={`Remove from ${name}`}
+            disabled={busy}
+            onClick={() => onToggle(name, false)}
+            className="flex h-4 w-4 items-center justify-center rounded-full opacity-60 hover:bg-ink/5 hover:opacity-100"
+          >
+            <Glyph name="x" className="h-[10px] w-[10px]" />
+          </button>
+        </span>
+      ))}
+      {members.length === 0 && <span className="text-xs text-muted">Not in any project.</span>}
+      {others.length > 0 &&
+        (picking ? (
+          <select
+            autoFocus
+            aria-label="Add to a project"
+            defaultValue=""
+            disabled={busy}
+            onBlur={() => setPicking(false)}
+            onChange={(event) => {
+              if (event.target.value) onToggle(event.target.value, true);
+              setPicking(false);
+            }}
+            className="h-7 appearance-none rounded-md border border-line-strong bg-surface bg-[image:var(--logue-chevron)] bg-[position:right_8px_center] bg-no-repeat pr-6 pl-2 text-[10.8px] font-[550] text-ink-soft"
+          >
+            <option value="" disabled>
+              Which project?
+            </option>
+            {others.map((one) => (
+              <option key={one.id} value={one.name}>
+                {one.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setPicking(true)}
+            className="inline-flex h-7 items-center gap-[5px] rounded-md border border-dashed border-control-line bg-surface px-[9px] text-[10.8px] font-[550] text-muted-strong hover:border-muted hover:bg-panel hover:text-ink-soft"
+          >
+            <Glyph name="plus" className="h-[12px] w-[12px]" />
+            Add project
+          </button>
+        ))}
+    </div>
   );
 }
 
@@ -364,33 +467,35 @@ function Transcript({
     });
 
   return (
-    // The heading, before the words it names — it used to follow them, so
-    // the text explained itself only after it had been read. The actions sit
-    // on the heading, and each says what it does to the transcript rather
-    // than what the person might be feeling: "Hear it again" read as
-    // playback, while what it does is ask the model to listen once more.
-    <div className="grid gap-1.5">
-      <span className="flex items-center gap-2 text-xs font-[560] text-muted">
-        Transcript
-        {revisions.length > 0 && <span className="font-normal">{revisions.length} earlier</span>}
-        <span className="ml-auto flex gap-1">
-          <Button variant="ghost" disabled={busy} onClick={() => setFixing(!fixing)}>
+    <div>
+      <div className="flex min-w-0 items-center border-b border-line pb-3">
+        <h2 className="text-[12px] font-[700] tracking-[-0.01em] text-ink">Transcript</h2>
+        {revisions.length > 0 && (
+          <span className="ml-2 text-[10.5px] text-muted">{revisions.length} earlier</span>
+        )}
+        <span className="ml-auto flex items-center gap-1">
+          <TextAction disabled={busy} onClick={() => setFixing(!fixing)} glyph="edit">
             Fix a word
-          </Button>
-          <Button variant="ghost" disabled={busy} onClick={() => again()} title="Ask the model to transcribe the recording again">
+          </TextAction>
+          <TextAction
+            disabled={busy}
+            onClick={() => again()}
+            glyph="retry"
+            title="Ask the model to transcribe the recording again"
+          >
             {busy ? <Spinner size={12} /> : null} Transcribe again
-          </Button>
+          </TextAction>
         </span>
-      </span>
+      </div>
 
       {fixing && (
-        <div className="flex flex-wrap items-center gap-1 text-xs">
+        <div className="mt-3 flex flex-wrap items-center gap-1 text-xs">
           <Input
             autoFocus
             value={spoken}
             placeholder="It wrote…"
             aria-label="What it wrote"
-            className="h-6 w-28 px-1.5 text-xs"
+            className="h-7 w-32 px-1.5 text-xs"
             onChange={(event) => setSpoken(event.target.value)}
           />
           <span className="text-muted">→</span>
@@ -398,7 +503,7 @@ function Transcript({
             value={preferred}
             placeholder="…should be"
             aria-label="What it should be"
-            className="h-6 w-28 px-1.5 text-xs"
+            className="h-7 w-32 px-1.5 text-xs"
             onChange={(event) => setPreferred(event.target.value)}
           />
           <Button
@@ -412,16 +517,13 @@ function Transcript({
       )}
 
       {revisions.length > 0 && (
-        <details className="text-xs text-muted">
+        <details className="mt-3 text-xs text-muted">
           <summary className="cursor-pointer select-none">What it said before</summary>
           <div className="mt-1 grid gap-1">
             {revisions
               .toSorted((a, b) => b.created_at.localeCompare(a.created_at))
               .map((revision) => (
-                <div
-                  key={revision.id}
-                  className="flex items-start gap-2 rounded-md bg-surface-muted px-2 py-1.5"
-                >
+                <div key={revision.id} className="flex items-start gap-2 rounded-md bg-surface-muted px-2 py-1.5">
                   <span className="min-w-0 flex-1 leading-normal text-ink-soft">
                     {revision.transcript ?? revision.text}
                   </span>
@@ -447,6 +549,34 @@ function Transcript({
   );
 }
 
+/** A quiet heading-row action: a small glyph, a few words, no border. */
+function TextAction({
+  onClick,
+  disabled,
+  glyph,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  glyph: "edit" | "retry";
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      title={title}
+      className="inline-flex items-center gap-[5px] rounded-md px-1.5 py-1 text-[11.5px] font-[550] text-muted-strong hover:bg-hover hover:text-ink disabled:opacity-50"
+    >
+      <Glyph name={glyph} className="h-[13px] w-[13px]" />
+      {children}
+    </button>
+  );
+}
+
 /**
  * Why the transcript came out the way it did.
  *
@@ -468,17 +598,16 @@ function HowItWasHeard({ applied }: { applied?: Material["applied_context"] }) {
       ["Skill", applied.skill ? `${applied.skill.name} · revision ${applied.skill.revision}` : ""],
       ["Terms", (applied.terms ?? applied.glossary ?? []).join(", ")],
       ["Vocabulary", applied.vocabulary],
-      [
-        "From the page",
-        applied.page_context_characters ? `${applied.page_context_characters} characters` : "",
-      ],
+      ["From the page", applied.page_context_characters ? `${applied.page_context_characters} characters` : ""],
     ] as [string, string | undefined][]
   ).filter((line): line is [string, string] => Boolean(line[1]));
   if (lines.length === 0 && !applied.instructions) return null;
   return (
-    <details className="text-xs text-muted">
-      <summary className="cursor-pointer text-[10.5px] font-[700] tracking-[0.05em] uppercase select-none">How it was heard</summary>
-      <dl className="mt-1.5 grid grid-cols-[84px_minmax(0,1fr)] gap-x-2 gap-y-1">
+    <details className="mt-7 border-t border-line pt-6 text-xs text-muted">
+      <summary className="cursor-pointer text-[10px] font-[700] tracking-[0.115em] text-muted-strong uppercase select-none">
+        How it was heard
+      </summary>
+      <dl className="mt-3 grid grid-cols-[84px_minmax(0,1fr)] gap-x-2 gap-y-1">
         {lines.map(([label, value]) => (
           <Fragment key={label}>
             <dt className="text-muted">{label}</dt>
@@ -520,28 +649,40 @@ function Tags({
   };
 
   return (
-    <div className="grid gap-1.5">
-      <div className="flex flex-wrap items-center gap-1 text-xs">
-        {tags.map((name) => (
-          <Tag key={name} name={name} onRemove={() => onSave(tags.filter((t) => t !== name))} />
-        ))}
-        <Input
-          value={adding}
-          disabled={busy}
-          onChange={(event) => setAdding(event.target.value)}
-          onBlur={add}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              add();
-            }
-            if (event.key === "Escape") setAdding("");
-          }}
-          placeholder={tags.length ? "Add" : "Add a tag"}
-          aria-label="Add a tag"
-          className="h-6 w-24 px-1.5 text-xs"
-        />
-      </div>
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      {tags.map((name) => (
+        <span
+          key={name}
+          className="inline-flex h-[27px] items-center gap-1 rounded-full border border-line bg-surface-muted pr-[7px] pl-[9px] text-[10.8px] font-[550] text-ink-soft"
+        >
+          <span className="max-w-[150px] truncate">{name}</span>
+          <button
+            type="button"
+            aria-label={`Remove tag ${name}`}
+            disabled={busy}
+            onClick={() => onSave(tags.filter((t) => t !== name))}
+            className="flex h-4 w-4 items-center justify-center rounded-full opacity-60 hover:bg-ink/5 hover:opacity-100"
+          >
+            <Glyph name="x" className="h-[10px] w-[10px]" />
+          </button>
+        </span>
+      ))}
+      <Input
+        value={adding}
+        disabled={busy}
+        onChange={(event) => setAdding(event.target.value)}
+        onBlur={add}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            add();
+          }
+          if (event.key === "Escape") setAdding("");
+        }}
+        placeholder={tags.length ? "Add" : "Add a tag"}
+        aria-label="Add a tag"
+        className="h-[27px] w-24 rounded-md border-dashed px-2 text-[10.8px]"
+      />
     </div>
   );
 }
@@ -549,10 +690,9 @@ function Tags({
 /**
  * What has been built on this Source.
  *
- * "Led to" used to list only the comments made on it, which is the smallest
- * part of the answer. The question worth asking of a Source is which answers
- * cited it and which documents are standing on it — that is what makes
- * deleting it consequential, and what makes keeping it worthwhile.
+ * The question worth asking of a Source is which answers cited it and which
+ * documents are standing on it — that is what makes deleting it
+ * consequential, and what makes keeping it worthwhile.
  */
 function UsedIn({
   materialId,
@@ -579,14 +719,14 @@ function UsedIn({
           onClick={() => onOpenDocument?.(document.id)}
           className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs text-ink-soft enabled:hover:bg-hover enabled:hover:text-ink"
         >
-          <FileText size={12} className="shrink-0 text-muted" />
+          <Glyph name="document" className="h-[12px] w-[12px] shrink-0 text-muted" />
           <span className="truncate">{document.title || "Untitled"}</span>
         </button>
       ))}
 
       {runs.map((run) => (
         <span key={run.id} className="flex items-center gap-1.5 px-1.5 py-1 text-xs text-ink-soft">
-          <Sparkles size={12} className="shrink-0 text-muted" />
+          <Glyph name="auto" className="h-[12px] w-[12px] shrink-0 text-muted" />
           <span className="truncate">{run.instruction}</span>
         </span>
       ))}
@@ -604,7 +744,7 @@ function UsedIn({
 function Lineage({ title, items }: { title: string; items: Material[] }) {
   if (items.length === 0) return null;
   return (
-    <div className="grid gap-1">
+    <div className="mt-3 grid gap-1">
       <span className="text-xs text-muted">{title}</span>
       {items.map((item) => (
         <div key={item.id} className="rounded-md bg-surface-muted px-2 py-1.5">
@@ -617,4 +757,33 @@ function Lineage({ title, items }: { title: string; items: Material[] }) {
       ))}
     </div>
   );
+}
+
+/** Midnight of the date, for whole-day arithmetic. */
+function floorDay(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+/** "Today · 10:18 AM" — the day in words, the moment on the clock. */
+function whenOf(iso: string): string {
+  const then = new Date(iso);
+  const days = Math.round((floorDay(new Date()) - floorDay(then)) / 86_400_000);
+  const day =
+    days <= 0
+      ? "Today"
+      : days === 1
+        ? "Yesterday"
+        : days < 7
+          ? then.toLocaleDateString("en-US", { weekday: "long" })
+          : then.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${day} · ${then.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+}
+
+function duration(seconds: number): string {
+  const whole = Math.max(0, Math.round(seconds));
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+function lowerFirst(text: string): string {
+  return text.length > 0 ? text.charAt(0).toLowerCase() + text.slice(1) : text;
 }
