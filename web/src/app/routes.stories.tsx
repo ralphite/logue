@@ -266,6 +266,37 @@ export const Settings: Story = {
   ),
 };
 
+/** ⌘K over the Stream: everything, one box, from anywhere. */
+export const FindEverywhere: Story = {
+  render: () => (
+    <Window>
+      <WithHost answers={FULL} at="/stream/m1">
+        <App />
+      </WithHost>
+    </Window>
+  ),
+  play: async ({ canvasElement }) => {
+    const doc = canvasElement.ownerDocument;
+    for (let tries = 0; tries < 40; tries += 1) {
+      if (doc.querySelector("nav, aside")) break;
+      // oxlint-disable-next-line no-await-in-loop
+      await new Promise((done) => window.setTimeout(done, 100));
+    }
+    doc.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }));
+    for (let tries = 0; tries < 40; tries += 1) {
+      const box = doc.querySelector<HTMLInputElement>("dialog input");
+      if (box) {
+        const descriptor = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value");
+        descriptor?.set?.call(box, "信息架构");
+        box.dispatchEvent(new Event("input", { bubbles: true }));
+        return;
+      }
+      // oxlint-disable-next-line no-await-in-loop
+      await new Promise((done) => window.setTimeout(done, 100));
+    }
+  },
+};
+
 /** Tracing pointed somewhere off this machine, and refused. */
 export const SettingsWithTracingRefused: Story = {
   render: () => (

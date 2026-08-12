@@ -6,6 +6,7 @@ const config: StorybookConfig = {
   // ever the parts, which is how a panel could be assembled entirely out of
   // reviewed components and still be wrong.
   stories: [
+    "../src/**/*.mdx",
     "../src/**/*.stories.@(ts|tsx)",
     "../../../extension/src/**/*.stories.@(ts|tsx)",
     "../../../web/src/**/*.stories.@(ts|tsx)",

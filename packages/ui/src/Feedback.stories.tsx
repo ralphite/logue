@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button } from "./Button";
-import { Empty, ErrorNote, RecordingDot, Spinner } from "./Feedback";
+import { Empty, ErrorBubble, ErrorNote, Loading, RecordingDot, Spinner } from "./Feedback";
 
 const meta = { title: "Component/States", parameters: { layout: "padded" } } satisfies Meta;
 export default meta;
@@ -28,6 +28,24 @@ export const Nothing: Story = {
       <Empty action={<Button variant="primary">Capture this page</Button>}>
         Nothing saved from this page yet.
       </Empty>
+    </div>
+  ),
+};
+
+
+/** Every face a wait or a failure has, side by side — one vocabulary. */
+export const TheWholeFamily: Story = {
+  render: () => (
+    <div className="grid w-[460px] gap-3">
+      <Loading />
+      <ErrorNote>Logue is not running on this Mac.</ErrorNote>
+      <ErrorBubble>The model rejected the request. The recording was kept.</ErrorBubble>
+      <div className="flex items-center gap-2 text-xs text-muted">
+        <RecordingDot /> the dot is the word
+      </div>
+      <div className="rounded-md border border-line">
+        <Empty>Nothing kept from this page yet.</Empty>
+      </div>
     </div>
   ),
 };

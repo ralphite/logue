@@ -10,7 +10,7 @@ const preview: Preview = {
     // alphabetical order put Journey above Component, which is backwards.
     options: {
       storySort: {
-        order: ["Foundation", "Component", "Feature", "Page", ["The app", "Side panel"], "Journey"],
+        order: ["Overview", "Foundation", "Component", "Feature", "Page", ["The app", "Side panel"], "Journey"],
       },
     },
   },

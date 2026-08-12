@@ -1,0 +1,27 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Overview" />
+
+# Logue, drawn at every level
+
+Every product surface, every state it can be in — reviewable here without a
+Host, a microphone, or an extension. Read the sidebar top to bottom; it is
+ordered the way the work divides, smallest piece to whole journey.
+
+| Level | What it holds | What to check there |
+| --- | --- | --- |
+| **Foundation** | The tokens: color, density, elevation | Nothing else defines a color or a size |
+| **Component** | One part, alone — a button, the recording player, an answer with citations | Every state of the part, including the ones with nothing in them |
+| **Feature** | Parts assembled into one capability — Dictation, the bars on a page, the app's dialogs | The states that used to need a real failure to see: a refused model, a blocked microphone, silence |
+| **Page** | The whole surface — the **real** `App` at a viewport, the **real** `Panel` at 360px | Layout truths panes cannot show: what competes, what collides, where the eye lands |
+| **Journey** | One thing start to finish, in numbered frames | Whether the hand travels, whether what was true a frame ago is still on screen |
+
+Two rules keep this honest:
+
+1. **Pages mount the real thing.** The app pages are `<App />` told where it is
+   by the address; the panel pages are `<Panel />` inside a story-sized fake
+   `chrome`. Lookalikes drift the day after they are written.
+2. **Only the wire is faked.** Fixtures answer `fetch` and
+   `chrome.runtime.sendMessage`; the real request code, parsing and error
+   handling run. A story that mis-reads the Host's shape breaks, which is the
+   point of looking at it.
