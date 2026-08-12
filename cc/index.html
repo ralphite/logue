@@ -1,0 +1,1292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Context Center</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+  @theme {
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", Inter, ui-sans-serif, "PingFang SC", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+    --color-canvas: #ffffff;
+    --color-nav: #fbfbfa;
+    --color-surface: #ffffff;
+    --color-surface-muted: #f6f6f4;
+    --color-hover: #f1f1ef;
+    --color-active: #ececea;
+
+    --color-ink: #20211f;
+    --color-ink-soft: #4e504b;
+    --color-muted: #70726c;
+
+    --color-line: #e7e7e3;
+    --color-line-strong: #d9dad5;
+
+    --color-accent: #535fdb;
+    --color-accent-soft: #f0f1fd;
+    --color-accent-ink: #424ebc;
+
+    --color-danger: #a33d36;
+    --color-danger-soft: #fdf3f2;
+    --color-warning: #9a6814;
+    --color-warning-soft: #fbf4e8;
+    --color-success: #347847;
+    --color-success-soft: #f1f8f2;
+
+    --radius-md: 6px;
+    --radius-lg: 10px;
+  }
+
+  @layer components {
+    /* A floating surface is defined by its shadow, never a border. */
+    .float {
+      background: var(--color-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 0 0 1px rgb(15 15 15 / 6%), 0 3px 6px rgb(15 15 15 / 8%), 0 9px 24px rgb(15 15 15 / 12%);
+    }
+    .scroll {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+      scrollbar-color: var(--color-line-strong) transparent;
+    }
+    .row-dragging { opacity: 0.35; }
+    .row-over { box-shadow: inset 0 2px 0 -1px var(--color-accent); }
+  }
+</style>
+</head>
+<body class="h-screen overflow-hidden bg-canvas font-sans text-[13px] text-ink antialiased">
+
+<!--
+  ============================================================================
+  The data lives in tasks.json, next to this file. Agents edit that file.
+
+  tasks[]           order in the array IS the queue order. To reorder, move
+                    the object. There is no `order` field to keep in sync.
+    status          queued | doing | blocked | done
+    priority        P0 | P1 | P2 | P3
+    type            bug | feature | question | test | anything else. Open
+                    vocabulary, lower case: a new word here just works, and
+                    joins the picker on its own. "" means not sorted yet.
+    confirmed       true only once the user has actually said yes to this
+                    Everything proposed, inferred, or carried over starts
+                    false — the flag is worth nothing if it defaults to true.
+    blocked_on      only read while status is "blocked"
+    input_ids       ids from inputs[] — many-to-many, an input may be
+                    referenced by any number of tasks
+
+  inputs[]          the messages behind the tasks, verbatim, and the shots that
+                    came with it. Never rewritten, never deleted by this page —
+                    the raw thing is immutable, everything else points back at
+                    it. Image paths are relative to this file, so a shot in
+                    shots/ just works.
+
+  Run it:  python3 server.py
+  ============================================================================
+-->
+
+<div id="app" class="flex h-screen"></div>
+
+<script>
+/* ---------------------------------------------------------------------------
+   State. tasks.json on disk is the truth; this page holds a working copy and
+   the revision it was based on. Two writers exist — this page and whoever
+   edits the file — so every write carries its revision, and a stale one comes
+   back rejected with the current contents rather than quietly winning.
+--------------------------------------------------------------------------- */
+let state = null;      // null until the stream delivers the first copy
+let rev = null;        // revision this copy was based on
+let myRev = null;      // revision of my own last successful write
+let unsaved = false;   // local edits not yet accepted by the server
+let pendingRemote = null;
+let conn = 'connecting';
+
+let runs = [];         // what has been handed to Claude Code, and how it went
+let cfg = null;        // config.json — project and session
+let sessions = null;   // this project's Claude Code sessions, loaded on demand
+
+let view = 'task';     // task | settings
+let runsExpanded = false;   // whether every reply is showing, or only the last three
+let filter = 'all';
+let query = '';
+let selectedId = null;
+let undo = null;
+let undoTimer = null;
+let lightbox = null;
+
+/* Composer drafts live outside `state`: a run finishing must never take away
+   whatever is halfway typed. Keyed by task, so switching away and back
+   keeps the draft. */
+const drafts = {};
+const draftFor = (id) => (drafts[id] ||= { text: '', images: [], busy: false, error: '' });
+
+const STATUS = {
+  queued:  { label: 'Queued',  dot: 'bg-line-strong', chip: 'text-muted bg-surface-muted' },
+  doing:   { label: 'Doing',   dot: 'bg-accent',      chip: 'text-accent-ink bg-accent-soft' },
+  blocked: { label: 'Blocked', dot: 'bg-danger',      chip: 'text-danger bg-danger-soft' },
+  done:    { label: 'Done',    dot: 'bg-success',     chip: 'text-success bg-success-soft' },
+};
+const STATUS_ORDER = ['queued', 'doing', 'blocked', 'done'];
+const PRIORITY = {
+  P0: 'text-danger bg-danger-soft',
+  P1: 'text-warning bg-warning-soft',
+  P2: 'text-ink-soft bg-surface-muted',
+  P3: 'text-muted bg-surface-muted',
+};
+const PRIORITY_ORDER = ['P0', 'P1', 'P2', 'P3'];
+
+/* Types are an open vocabulary. These four are seeded; anything else that
+   appears in the file joins the list on its own and renders in the neutral
+   style, so writing "chore" into tasks.json needs no change here. */
+const TYPE_SEED = ['bug', 'feature', 'question', 'test'];
+/* Type is coloured text, not a filled chip. Priority and status already own
+   the filled blocks in a row; a third one turned every line into confetti. */
+const TYPE_STYLE = {
+  bug:      'text-danger',
+  feature:  'text-accent-ink',
+  question: 'text-warning',
+};
+const TYPE_NEUTRAL = 'text-muted';
+const typeStyle = (v) => TYPE_STYLE[v] || TYPE_NEUTRAL;
+const typeLabel = (v) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : '');
+const knownTypes = () =>
+  [...new Set([...TYPE_SEED, ...state.tasks.map((t) => t.type).filter(Boolean)])].sort();
+
+const CONN = {
+  connecting: { label: 'Connecting',  dot: 'bg-line-strong', text: 'text-muted' },
+  live:       { label: 'Live',        dot: 'bg-success',     text: 'text-muted' },
+  saving:     { label: 'Saving',      dot: 'bg-accent',      text: 'text-muted' },
+  offline:    { label: 'Offline',     dot: 'bg-danger',      text: 'text-danger' },
+  conflict:   { label: 'Reloaded',    dot: 'bg-warning',     text: 'text-warning' },
+};
+
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* The little bit of Markdown these notes are actually written in.
+ *
+ * Every note in this workspace was written with `**bold**`, `<br>` and
+ * backticks in it, and every one of them was printed with the asterisks
+ * showing. The note is the most-read thing on this page and it was the least
+ * readable thing on it.
+ *
+ * Escaped first, then marked up: the source is somebody's typing, and the only
+ * tags that survive are the ones put back deliberately below. */
+function md(text) {
+  return esc(text)
+    .replace(/&lt;br\s*\/?&gt;/gi, '\n')
+    .replace(/`([^`]+)`/g, '<code class="rounded bg-surface-muted px-1 py-px font-mono text-[0.92em]">$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong class="font-medium text-ink">$1</strong>')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer" class="text-accent-ink underline decoration-line-strong underline-offset-2 hover:decoration-accent">$1</a>')
+    .replace(/\n/g, '<br />');
+}
+
+const byId = (id) => state?.tasks.find((t) => t.id === id);
+const inputById = (id) => state?.inputs.find((i) => i.id === id);
+const today = () => new Date().toISOString().slice(0, 10);
+const touch = (t) => { t.updated = today(); };
+const selected = () => byId(selectedId);
+
+/* An input belongs to as many tasks as reference it. This reads the edge back
+   the other way, which is the only way the detail pane can say "also on X33". */
+const tasksUsing = (inputId) => state.tasks.filter((t) => (t.input_ids || []).includes(inputId));
+
+/* ------------------------------------------------------- server: read side */
+function connect() {
+  const es = new EventSource('/api/events');
+  es.onmessage = (e) => {
+    if (conn === 'connecting' || conn === 'offline') setConn('live');
+    applyRemote(JSON.parse(e.data));
+  };
+  es.onerror = () => { setConn('offline'); };  // EventSource retries on its own
+}
+
+function applyRemote(msg) {
+  /* Runs and config are never edited here, so they can always land — and they
+     must, or a run would sit on "Thinking…" forever whenever tasks.json did not
+     also change. They repaint in place rather than through render(), so a
+     finishing run cannot steal focus from the composer. */
+  const runsChanged = JSON.stringify(runs) !== JSON.stringify(msg.runs || []);
+  runs = msg.runs || [];
+  cfg = msg.config || cfg;
+
+  /* tasks.json did not move — either this is our own write echoing back, or
+     only runs/config changed. Either way there is nothing to re-render, and
+     re-rendering anyway is what wiped the test result mid-run. */
+  if (msg.rev === myRev || msg.rev === rev) {
+    rev = msg.rev;
+    if (runsChanged) paintRuns();
+    return;
+  }
+  /* Never yank the ground out from under a cursor. Hold the update until the
+     field is left, then apply it. */
+  if (unsaved || document.activeElement?.closest?.('[data-field], [data-composer]')) {
+    pendingRemote = msg;
+    if (runsChanged) paintRuns();
+    return;
+  }
+  const first = state === null;
+  rev = msg.rev;
+  state = msg.data;
+  if (first) selectedId = state.tasks[0]?.id ?? null;
+  render();
+}
+
+/* A parked copy older than what we already hold is not news — it is the
+   snapshot taken before our own write landed. Applying it would silently undo
+   the edit that just succeeded, which is exactly what it did once. */
+const stale = (m) => !m || (rev && Number(m.rev) <= Number(rev));
+
+function flushRemote() {
+  if (!pendingRemote || unsaved) return;
+  const m = pendingRemote;
+  pendingRemote = null;
+  if (stale(m)) return;
+  rev = m.rev;
+  state = m.data;
+  if (!byId(selectedId)) selectedId = state.tasks[0]?.id ?? null;
+  render();
+}
+
+/* ------------------------------------------------------ server: write side */
+let saveTimer = null;
+let inFlight = false;
+
+function save() {
+  unsaved = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(push, 250);
+}
+
+async function push() {
+  if (inFlight) { saveTimer = setTimeout(push, 100); return; }
+  inFlight = true;
+  setConn('saving');
+  try {
+    const r = await fetch('/api/tasks', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rev, data: state }),
+    });
+    const j = await r.json();
+    if (r.status === 409) {
+      /* Someone edited the file under us. Their version wins — it is on disk —
+         and we say so rather than pretending the save went through. */
+      rev = j.rev; state = j.data; unsaved = false;
+      if (!byId(selectedId)) selectedId = state.tasks[0]?.id ?? null;
+      setConn('conflict');
+      setTimeout(() => setConn('live'), 2500);
+      render();
+    } else if (r.ok) {
+      rev = myRev = j.rev;
+      unsaved = false;
+      setConn('live');
+      flushRemote();
+    } else {
+      setConn('offline');
+    }
+  } catch {
+    /* Server stopped. The edit stays in the page and keeps knocking, so
+       starting the server again is all it takes — no lost keystrokes. */
+    setConn('offline');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(push, 2000);
+  }
+  inFlight = false;
+}
+
+function setConn(next) {
+  if (conn === next) return;
+  conn = next;
+  const el = document.getElementById('conn');
+  if (el) el.outerHTML = connHtml();
+}
+
+function connHtml() {
+  const c = CONN[conn];
+  return `<span id="conn" class="flex h-7 items-center gap-1.5 px-1.5 text-[12px] ${c.text}" title="tasks.json">
+    <span class="size-1.5 rounded-full ${c.dot}"></span>${c.label}${unsaved && conn !== 'saving' ? ' •' : ''}
+  </span>`;
+}
+
+/* ------------------------------------------------------------------ render */
+function visible() {
+  const q = query.trim().toLowerCase();
+  return state.tasks.filter((t) => {
+    if (filter === 'open' && t.status === 'done') return false;
+    if (filter === 'unconfirmed' && t.confirmed) return false;
+    if (!['open', 'all', 'unconfirmed'].includes(filter) && t.status !== filter) return false;
+    if (!q) return true;
+    const hay = [t.id, t.title, t.note, t.type, (t.tags || []).join(' '),
+      (t.input_ids || []).map((id) => inputById(id)?.text || '').join(' ')].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function render() {
+  const app = document.getElementById('app');
+
+  if (!state) {
+    app.innerHTML = `
+      <div class="grid h-full w-full place-items-center">
+        <div class="max-w-md text-center">
+          <p class="text-[13px] text-muted">${conn === 'offline' ? 'No server on this address.' : 'Connecting…'}</p>
+          <p class="mt-2 text-[13px] text-muted">Start it from this folder:</p>
+          <code class="mt-2 block rounded-md bg-surface-muted px-3 py-2 font-mono text-[12px] text-ink">python3 server.py</code>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const counts = {
+    all: state.tasks.length,
+    open: state.tasks.filter((t) => t.status !== 'done').length,
+    blocked: state.tasks.filter((t) => t.status === 'blocked').length,
+    done: state.tasks.filter((t) => t.status === 'done').length,
+    unconfirmed: state.tasks.filter((t) => !t.confirmed).length,
+  };
+  const rows = visible();
+  if (!byId(selectedId)) selectedId = rows[0]?.id ?? null;
+
+  app.innerHTML = `
+    <aside class="flex w-[400px] shrink-0 flex-col border-r border-line bg-nav">
+      <div class="flex items-center gap-2.5 px-4 pb-2 pt-3.5">
+        <div class="size-5 shrink-0 rounded-[5px] bg-accent"></div>
+        <h1 class="text-[15px] font-medium tracking-tight">Context Center</h1>
+        <span class="text-[12px] text-muted">${counts.open} open</span>
+        <div class="ml-auto flex items-center gap-1">
+          ${connHtml()}
+          <button data-act="settings" title="Settings"
+            class="grid size-7 place-items-center rounded-md ${view === 'settings' ? 'bg-active text-ink' : 'text-muted hover:bg-hover'}">
+            <svg class="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v1.7M8 12.8v1.7M14.5 8h-1.7M3.2 8H1.5M12.6 3.4l-1.2 1.2M4.6 11.4l-1.2 1.2M12.6 12.6l-1.2-1.2M4.6 4.6 3.4 3.4"/></svg>
+          </button>
+          <button data-act="new" title="New task"
+            class="grid size-7 place-items-center rounded-md border border-line bg-surface text-ink-soft hover:bg-hover">
+            <svg class="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="px-4 pb-2">
+        <div class="relative">
+          <input id="q" value="${esc(query)}" placeholder="Search tasks and what you said"
+            class="h-7 w-full rounded-md border border-line bg-surface pl-7 pr-7 text-[13px] placeholder:text-muted focus:border-accent focus:outline-none" />
+          <svg class="pointer-events-none absolute left-2 top-1.5 size-4 text-muted" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="4.25"/><path d="m10.2 10.2 3 3" stroke-linecap="round"/></svg>
+          <kbd class="pointer-events-none absolute right-2 top-1.5 text-[12px] leading-4 text-muted">/</kbd>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-1 px-4 pb-2">
+        ${[['all', 'All'], ['open', 'Open'], ['blocked', 'Blocked'], ['unconfirmed', 'Unconfirmed'], ['done', 'Done']]
+          .map(([k, label]) => `
+            <button data-filter="${k}" class="h-6 rounded-md px-2 text-[12px] ${filter === k ? 'bg-active text-ink' : 'text-muted hover:bg-hover'}">
+              ${label} <span class="tabular-nums ${filter === k ? 'text-ink-soft' : 'text-line-strong'}">${counts[k]}</span>
+            </button>`).join('')}
+      </div>
+
+      <ul id="list" role="listbox" aria-label="Tasks" class="scroll flex-1 border-t border-line">
+        ${rows.length ? rows.map(rowHtml).join('') : `
+          <li class="px-4 py-14 text-center text-[13px] text-muted">Nothing here.</li>`}
+      </ul>
+
+      <p class="flex flex-wrap gap-x-3 gap-y-1 border-t border-line px-4 py-2 text-[12px] text-muted">
+        <span><kbd class="font-mono">j</kbd> <kbd class="font-mono">k</kbd> move</span>
+        <span><kbd class="font-mono">⌥↑</kbd> <kbd class="font-mono">⌥↓</kbd> reorder</span>
+        <span><kbd class="font-mono">⌫</kbd> delete</span>
+      </p>
+    </aside>
+
+    <section class="scroll flex-1 bg-canvas">${view === 'settings' ? settingsHtml() : detailHtml(byId(selectedId))}</section>
+
+    ${undo ? `
+      <div class="float fixed bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-3 py-2 pl-4 pr-2">
+        <span class="text-[13px]">Deleted <span class="font-medium">${esc(undo.task.id)}</span></span>
+        <button data-act="undo" title="Undo" class="grid size-7 place-items-center rounded-md text-ink-soft hover:bg-hover">
+          <svg class="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h7a3 3 0 1 1 0 6H7"/><path d="m6 5-3 3 3 3"/></svg>
+        </button>
+      </div>` : ''}
+
+    ${lightbox ? `
+      <div data-act="lightbox-close" class="fixed inset-0 z-50 grid place-items-center bg-ink/70 p-10">
+        <img src="${esc(lightbox)}" alt="" class="max-h-[88vh] max-w-[88vw] rounded-lg object-contain shadow-2xl" />
+      </div>` : ''}
+  `;
+
+  const q = document.getElementById('q');
+  if (query) { q.focus(); q.setSelectionRange(query.length, query.length); }
+  // Every box that fits its content has just been rebuilt at one row high.
+  growAll();
+  paintTest();   // Settings was just rebuilt; put the watched result back
+}
+
+/* --------------------------------------------------------------- left list */
+function rowHtml(t) {
+  const s = STATUS[t.status];
+  const isSel = selectedId === t.id;
+  const n = (t.input_ids || []).length;
+  return `
+  <li data-id="${esc(t.id)}" draggable="true"
+      role="option" aria-selected="${isSel}" tabindex="${isSel ? 0 : -1}"
+      aria-label="${esc(t.title || 'Untitled')}, ${t.type ? esc(typeLabel(t.type)) + ', ' : ''}${esc(t.priority)}, ${s.label}, ${t.confirmed ? 'confirmed by you' : 'not confirmed'}"
+      class="group cursor-pointer border-b border-line/70 outline-offset-[-2px] focus-visible:outline-2 focus-visible:outline-accent ${isSel ? 'bg-active' : 'hover:bg-hover'}">
+    <div class="flex items-start gap-1.5 py-2 pl-1.5 pr-3">
+      <span class="mt-0.5 grid size-5 shrink-0 cursor-grab place-items-center text-transparent group-hover:text-line-strong">
+        <svg class="size-3.5" viewBox="0 0 14 14" fill="currentColor"><circle cx="5" cy="3" r="1.1"/><circle cx="9" cy="3" r="1.1"/><circle cx="5" cy="7" r="1.1"/><circle cx="9" cy="7" r="1.1"/><circle cx="5" cy="11" r="1.1"/><circle cx="9" cy="11" r="1.1"/></svg>
+      </span>
+      <div class="min-w-0 flex-1">
+        <p class="line-clamp-2 text-[13px] leading-snug ${t.status === 'done' ? 'text-muted' : 'text-ink'}">
+          ${esc(t.title) || '<span class="italic text-muted">Untitled</span>'}
+        </p>
+        <div class="mt-1.5 flex items-center gap-1.5">
+          ${t.type ? `<span class="text-[12px] font-medium leading-4 ${typeStyle(t.type)}">${esc(typeLabel(t.type))}</span>` : ''}
+          <span class="h-4 rounded px-1 font-mono text-[12px] font-medium leading-4 ${PRIORITY[t.priority]}">${esc(t.priority)}</span>
+          <span class="font-mono text-[12px] text-muted">${esc(t.id)}</span>
+          <span class="flex h-4 items-center gap-1 rounded px-1 text-[12px] ${s.chip}"><span class="size-1.5 rounded-full ${s.dot}"></span>${s.label}</span>
+          ${t.confirmed ? `<span class="text-success" title="Confirmed by you" aria-hidden="true">
+                   <svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>
+                 </span>` : ''}
+          ${n ? `<span class="flex items-center gap-0.5 text-[12px] text-muted" title="${n} input${n > 1 ? 's' : ''} from you">
+                   <svg class="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M10.5 5 6 9.5a1.6 1.6 0 0 0 2.3 2.3l4.7-4.7a3 3 0 0 0-4.3-4.3L4 7.5a4.4 4.4 0 0 0 6.3 6.2l3.2-3.2"/></svg>${n}
+                 </span>` : ''}
+        </div>
+      </div>
+    </div>
+  </li>`;
+}
+
+/* ------------------------------------------------------------ right detail */
+function detailHtml(t) {
+  if (!t) return `<div class="grid h-full place-items-center text-[13px] text-muted">Pick a task on the left.</div>`;
+  const s = STATUS[t.status];
+  const inputs = (t.input_ids || []).map(inputById).filter(Boolean);
+
+  return `
+  <article class="mx-auto max-w-3xl px-10 py-8">
+    <div class="flex items-center gap-2">
+      <span class="font-mono text-[12px] text-muted">${esc(t.id)}</span>
+      <span class="text-[12px] text-muted">Created ${esc(t.created || '—')} · Updated ${esc(t.updated || '—')}</span>
+      <button data-act="menu" title="More"
+        class="ml-auto grid size-7 place-items-center rounded-md text-muted hover:bg-hover">
+        <svg class="size-4" viewBox="0 0 16 16" fill="currentColor"><circle cx="4" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="12" cy="8" r="1.2"/></svg>
+      </button>
+    </div>
+
+    <!-- A heading wraps. As a single-line input a long title simply stopped,
+         with nothing to say it had — and these titles are sentences. -->
+    <textarea data-field="title" data-grow rows="1" placeholder="What needs doing"
+      class="mt-2 w-full resize-none overflow-hidden rounded-md bg-transparent text-[20px] font-medium leading-snug tracking-tight placeholder:font-normal placeholder:text-muted hover:bg-surface-muted/40 focus:bg-surface focus:outline-2 focus:outline-offset-2 focus:outline-accent">${esc(t.title)}</textarea>
+
+    <div class="mt-3 flex flex-wrap items-center gap-1.5">
+      ${t.type
+        ? `<button data-act="type" title="Change type"
+             class="h-6 rounded px-1.5 text-[12px] font-medium ${typeStyle(t.type)} hover:bg-hover">${esc(typeLabel(t.type))}</button>`
+        : `<button data-act="type" class="h-6 rounded border border-dashed border-line-strong px-1.5 text-[12px] text-muted hover:bg-hover">+ type</button>`}
+      <button data-act="priority" title="Change priority"
+        class="h-6 rounded px-1.5 font-mono text-[12px] font-medium ${PRIORITY[t.priority]} hover:brightness-95">${esc(t.priority)}</button>
+      <button data-act="status" title="Change status"
+        class="flex h-6 items-center gap-1.5 rounded px-2 text-[12px] ${s.chip} hover:brightness-95">
+        <span class="size-1.5 rounded-full ${s.dot}"></span>${s.label}
+      </button>
+      <button data-act="confirm" aria-pressed="${!!t.confirmed}"
+        title="${t.confirmed ? 'You confirmed this. Click to unconfirm.' : 'Nothing here says you asked for this yet.'}"
+        class="flex h-6 items-center gap-1 rounded px-1.5 text-[12px] ${t.confirmed
+          ? 'bg-success-soft text-success hover:brightness-95'
+          : 'border border-dashed border-line-strong text-muted hover:bg-hover'}">
+        ${t.confirmed
+          ? `<svg class="size-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>Confirmed`
+          : 'Unconfirmed'}
+      </button>
+      ${(t.tags || []).map((g, i) => `
+        <span class="group flex h-6 items-center gap-1 rounded bg-surface-muted px-1.5 text-[12px] text-muted">
+          #${esc(g)}
+          <button data-act="untag" data-i="${i}" title="Remove tag" class="hidden text-line-strong hover:text-danger group-hover:block">
+            <svg class="size-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 3l6 6M9 3l-6 6"/></svg>
+          </button>
+        </span>`).join('')}
+      <button data-act="tag" class="h-6 rounded border border-dashed border-line-strong px-1.5 text-[12px] text-muted hover:bg-hover">+ tag</button>
+    </div>
+
+    ${t.status === 'blocked' ? `
+      <div class="mt-4 flex items-center gap-2 rounded-md bg-danger-soft px-3 py-2 text-[13px] text-danger">
+        <svg class="size-4 shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="5.5"/><path d="M4.5 4.5l7 7" stroke-linecap="round"/></svg>
+        <input data-field="blocked_on" value="${esc(t.blocked_on || '')}" placeholder="What is it waiting on?"
+          class="w-full bg-transparent placeholder:text-danger/60 focus:outline-none" />
+      </div>` : ''}
+
+    <!--
+      The note: read as prose, edited in place.
+
+      It used to be a three-row textarea with its formatting showing and no way
+      to grow — the longest thing on the page, shown three lines at a time,
+      with the rest reachable only by discovering you could scroll inside it.
+      Now it renders, it grows to fit, and past a screenful it scrolls with a
+      bar you can see. Clicking it turns it back into the text you wrote.
+    -->
+    <section class="group/note mt-5">
+      <div class="mb-1 flex items-center gap-2">
+        <h2 class="text-[12px] font-medium uppercase tracking-wide text-muted">Note</h2>
+        <span data-note-saved class="hidden items-center gap-1 text-[12px] text-success">
+          <svg class="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>Saved
+        </span>
+        <span class="ml-auto text-[12px] text-muted opacity-0 transition-opacity group-hover/note:opacity-100">
+          Click to edit
+        </span>
+      </div>
+      ${t.note
+        ? `<div data-note-read tabindex="0" role="button" aria-label="Edit the note"
+             class="max-h-[22rem] cursor-text overflow-y-auto rounded-lg border border-transparent px-3 py-2.5 text-[13px] leading-relaxed text-ink-soft hover:border-line hover:bg-surface-muted/40 focus:border-line-strong focus:outline-none">${md(t.note)}</div>`
+        : `<div data-note-read tabindex="0" role="button" aria-label="Write a note"
+             class="cursor-text rounded-lg border border-dashed border-line-strong px-3 py-2.5 text-[13px] text-muted hover:bg-surface-muted/40 focus:border-accent focus:outline-none">Why this matters — click to write it</div>`}
+      <textarea data-field="note" data-grow hidden placeholder="Why this matters"
+        class="max-h-[22rem] w-full resize-none overflow-y-auto rounded-lg border border-line-strong bg-surface px-3 py-2.5 text-[13px] leading-relaxed text-ink-soft placeholder:text-muted focus:border-accent focus:outline-none">${esc(t.note || '')}</textarea>
+    </section>
+
+    ${composerHtml(t)}
+
+    <div id="runs">${runsHtml(t.id)}</div>
+
+    <!-- The messages behind it. Raw, immutable, and last — everything above is derived from them. -->
+    <section class="mt-8 border-t border-line pt-5">
+      <h2 class="text-[12px] font-medium uppercase tracking-wide text-muted">
+        From you${inputs.length ? ` <span class="tabular-nums">${inputs.length}</span>` : ''}
+      </h2>
+
+      ${inputs.length ? `
+        <ul class="mt-3 space-y-3">
+          ${inputs.map((inp) => {
+            const also = tasksUsing(inp.id).filter((x) => x.id !== t.id);
+            return `
+            <li class="rounded-lg border border-line bg-surface-muted/60 px-4 py-3">
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-[12px] text-muted">${esc(inp.at)}</span>
+                ${also.length ? `
+                  <span class="flex items-center gap-1 text-[12px] text-muted">· also on
+                    ${also.map((x) => `<button data-act="goto" data-id="${esc(x.id)}" class="font-mono text-accent-ink hover:underline">${esc(x.id)}</button>`).join('')}
+                  </span>` : ''}
+              </div>
+              <p class="mt-1.5 whitespace-pre-wrap text-[13px] leading-relaxed text-ink">${esc(inp.text)}</p>
+              ${(inp.images || []).length ? `
+                <div class="mt-3 flex flex-wrap gap-2">
+                  ${inp.images.map((src) => `
+                    <button data-act="zoom" data-src="${esc(src)}" title="Open it bigger"
+                      class="block overflow-hidden rounded-md border border-line bg-surface p-1 hover:border-line-strong">
+                      <img src="${esc(src)}" alt="" onerror="imgFail(this)" class="h-32 w-auto max-w-xs object-contain" />
+                    </button>`).join('')}
+                </div>` : ''}
+            </li>`;
+          }).join('')}
+        </ul>` : `
+        <p class="mt-3 text-[13px] text-muted">Nothing recorded yet.</p>`}
+    </section>
+  </article>`;
+}
+
+/* ---------------------------------------------------------------- composer */
+/* Say something about this task and hand it to a Claude Code session. What
+   comes back is not a chat reply — it is a new row in `From you` below, written
+   by the /cc skill. The loop closes on the file, not on a transcript. */
+function composerHtml(t) {
+  const d = draftFor(t.id);
+  const ready = cfg?.claude?.session_id;
+  return `
+  <section data-composer class="mt-6 rounded-lg border border-line bg-surface focus-within:border-line-strong">
+    <textarea data-draft rows="2" ${d.busy ? 'disabled' : ''}
+      placeholder="Say something about this task"
+      class="w-full resize-none bg-transparent px-3 pt-2.5 text-[13px] leading-relaxed placeholder:text-muted focus:outline-none disabled:opacity-50">${esc(d.text)}</textarea>
+
+    ${d.images.length ? `
+      <div class="flex flex-wrap gap-2 px-3 pb-1">
+        ${d.images.map((src, i) => `
+          <span class="group relative block overflow-hidden rounded border border-line">
+            <img src="${esc(src)}" alt="" class="h-14 w-auto max-w-[8rem] object-cover" />
+            <button data-act="unattach" data-i="${i}" title="Remove"
+              class="absolute right-0.5 top-0.5 hidden size-4 place-items-center rounded bg-ink/70 text-white group-hover:grid">
+              <svg class="size-2.5" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3l6 6M9 3l-6 6"/></svg>
+            </button>
+          </span>`).join('')}
+      </div>` : ''}
+
+    ${d.error ? `<p class="px-3 pb-1 text-[12px] text-danger">${esc(d.error)}</p>` : ''}
+
+    <div class="flex items-center gap-2 px-2 pb-2 pt-1">
+      <button data-act="attach" title="Attach an image"
+        class="grid size-6 place-items-center rounded text-muted hover:bg-hover">
+        <svg class="size-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M10.5 5 6 9.5a1.6 1.6 0 0 0 2.3 2.3l4.7-4.7a3 3 0 0 0-4.3-4.3L4 7.5a4.4 4.4 0 0 0 6.3 6.2l3.2-3.2"/></svg>
+      </button>
+      <span class="text-[12px] text-muted">${ready ? 'Paste or drop images' : 'No session chosen'}</span>
+      <div class="ml-auto flex items-center gap-2">
+        <kbd class="font-mono text-[12px] text-muted">⌘⏎</kbd>
+        <button data-act="send" ${d.busy || !ready ? 'disabled' : ''}
+          class="h-6 rounded-md bg-accent px-2.5 text-[12px] font-medium text-white hover:opacity-90 disabled:bg-surface-muted disabled:text-muted">
+          ${d.busy ? 'Sending' : 'Send'}
+        </button>
+      </div>
+    </div>
+    <input data-filepick type="file" accept="image/*" multiple class="hidden" />
+  </section>`;
+}
+
+/* The last few handoffs for this task. A failure stays until it is replaced —
+   a message that silently went nowhere is the same as a message that was lost. */
+function runsHtml(taskId) {
+  const mine = runs.filter((r) => r.task_id === taskId);
+  if (!mine.length) return '';
+  const shown = runsExpanded ? mine : mine.slice(0, 3);
+  /*
+   * What came back, and who it came back from.
+   *
+   * These rows carried a tick, a wall of unrendered Markdown, and a timestamp
+   * jammed against the right edge by the same flex row — so the one thing they
+   * never said was that Claude Code had answered. They are replies. They say
+   * so, they say when, and they read as prose.
+   */
+  return `
+  <ul class="mt-3 space-y-2">
+    ${shown.map((r) => {
+      const tone = r.status === 'failed'
+        ? 'border-danger-line bg-danger-soft'
+        : r.status === 'running' ? 'border-accent-line bg-accent-soft' : 'border-line bg-surface-muted/60';
+      const who = r.status === 'running' ? 'Claude Code is working' : r.status === 'failed' ? 'Claude Code could not' : 'Claude Code';
+      const mark = r.status === 'running'
+        ? '<svg class="size-3.5 animate-spin text-accent" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6" opacity=".25"/><path d="M14 8a6 6 0 0 0-6-6" stroke-linecap="round"/></svg>'
+        : r.status === 'failed'
+          ? '<svg class="size-3.5 text-danger" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v4M8 11h.01" stroke-linecap="round"/></svg>'
+          : '<svg class="size-3.5 text-success" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>';
+      return `
+      <li class="rounded-lg border ${tone} px-3 py-2.5">
+        <div class="flex items-center gap-2 text-[12px]">
+          <span class="shrink-0">${mark}</span>
+          <span class="font-medium text-ink-soft">${who}</span>
+          <span class="font-mono text-muted">${esc(r.at)}</span>
+          ${r.status === 'failed'
+            ? `<button data-act="retry" data-run="${esc(r.id)}"
+                 class="ml-auto rounded px-1.5 py-0.5 font-medium text-danger underline decoration-danger-line underline-offset-2 hover:bg-danger-soft focus:outline-2 focus:outline-offset-1 focus:outline-danger">Send it again</button>`
+            : ''}
+        </div>
+        <div class="mt-1.5 text-[13px] leading-relaxed ${r.status === 'failed' ? 'text-danger' : 'text-ink-soft'}">
+          ${r.status === 'running' ? 'Handed to Claude Code…' : r.status === 'failed' ? md(r.error) : md(r.result || 'Recorded.')}
+        </div>
+      </li>`;
+    }).join('')}
+  </ul>
+  ${mine.length > 3 ? `
+    <button data-act="more-runs" class="mt-2 rounded px-1 text-[12px] text-muted underline decoration-line underline-offset-2 hover:text-ink focus:outline-2 focus:outline-offset-1 focus:outline-accent">
+      ${runsExpanded ? 'Show fewer' : `Show all ${mine.length} replies`}
+    </button>` : ''}`;
+}
+
+/* Repaint just the run strip. render() would rebuild the composer and take the
+   cursor with it. */
+function paintRuns() {
+  const el = document.getElementById('runs');
+  if (el && byId(selectedId)) el.innerHTML = runsHtml(selectedId);
+  paintTest();
+}
+
+/* ---------------------------------------------------------------- settings */
+function settingsHtml() {
+  const c = cfg?.claude || {};
+  const p = cfg?.project || {};
+  const chosen = c.session_id || '';
+  return `
+  <article class="mx-auto max-w-3xl px-10 py-8">
+    <h2 class="text-[20px] font-medium tracking-tight">Settings</h2>
+    <p class="mt-1 text-[13px] text-muted">Stored in config.json, next to tasks.json.</p>
+
+    <section class="mt-7">
+      <h3 class="text-[12px] font-medium uppercase tracking-wide text-muted">Project</h3>
+      <p class="mt-2 text-[13px] text-ink-soft">The folder the session runs in.</p>
+      <div class="mt-2 flex gap-2">
+        <input data-cfg="project.label" value="${esc(p.label || '')}" placeholder="Label"
+          class="h-7 w-32 rounded-md border border-line bg-surface px-2 text-[13px] focus:border-accent focus:outline-none" />
+        <input data-cfg="project.cwd" value="${esc(p.cwd || '')}" placeholder="/path/to/project"
+          class="h-7 flex-1 rounded-md border border-line bg-surface px-2 font-mono text-[12px] focus:border-accent focus:outline-none" />
+      </div>
+    </section>
+
+    <section class="mt-7">
+      <h3 class="text-[12px] font-medium uppercase tracking-wide text-muted">Claude Code session</h3>
+      <p class="mt-2 text-[13px] text-ink-soft">
+        Messages are handed to one session you already created, so the context builds up
+        instead of starting cold each time. Keep this session for Context Center —
+        a session is one conversation on disk, and two writers would interleave.
+      </p>
+
+      ${sessions === null
+        ? `<button data-act="load-sessions" class="mt-3 h-7 rounded-md border border-line bg-surface px-2.5 text-[13px] text-ink-soft hover:bg-hover">
+             Show sessions in this project
+           </button>`
+        : sessions.length === 0
+          ? `<p class="mt-3 text-[13px] text-muted">No sessions found for that folder. Run <code class="font-mono">claude</code> in it once.</p>`
+          : `<ul class="mt-3 divide-y divide-line overflow-hidden rounded-lg border border-line">
+              ${sessions.map((s) => `
+                <li>
+                  <button data-act="pick-session" data-id="${esc(s.id)}"
+                    class="flex w-full items-start gap-3 px-3 py-2 text-left hover:bg-hover ${s.id === chosen ? 'bg-accent-soft' : ''}">
+                    <span class="mt-0.5 size-3.5 shrink-0 rounded-full border ${s.id === chosen ? 'border-accent bg-accent' : 'border-line-strong'}"></span>
+                    <span class="min-w-0 flex-1">
+                      <span class="block truncate text-[13px] ${s.id === chosen ? 'text-accent-ink' : 'text-ink'}">${esc(s.preview || '(no messages)')}</span>
+                      <span class="mt-0.5 block font-mono text-[12px] text-muted">${esc(s.at)} · ${s.size_mb} MB · ${esc(s.id.slice(0, 8))}</span>
+                    </span>
+                  </button>
+                </li>`).join('')}
+             </ul>`}
+
+      <div class="mt-2 flex items-center gap-2">
+        <input data-cfg="claude.session_id" value="${esc(chosen)}" placeholder="or paste a session id"
+          class="h-7 flex-1 rounded-md border border-line bg-surface px-2 font-mono text-[12px] focus:border-accent focus:outline-none" />
+        <button data-act="test" class="h-7 shrink-0 rounded-md border border-line bg-surface px-2.5 text-[13px] text-ink-soft hover:bg-hover">
+          Send a test message
+        </button>
+      </div>
+      <div id="test-result" class="mt-2"></div>
+    </section>
+
+    <section class="mt-7">
+      <h3 class="text-[12px] font-medium uppercase tracking-wide text-muted">How it is run</h3>
+      <p class="mt-2 text-[13px] text-ink-soft">
+        A page can start this process, so it is allowed one command and no more.
+      </p>
+      <div class="mt-2 space-y-2">
+        ${[['claude.bin', 'Binary', 'claude'],
+           ['claude.model', 'Model', 'default'],
+           ['claude.allowed_tools', 'Allowed tools', ''],
+           ['claude.permission_mode', 'Permission mode', 'dontAsk']]
+          .map(([key, label, ph]) => `
+            <label class="flex items-center gap-2">
+              <span class="w-28 shrink-0 text-[12px] text-muted">${label}</span>
+              <input data-cfg="${key}" value="${esc(c[key.split('.')[1]] || '')}" placeholder="${esc(ph)}"
+                class="h-7 flex-1 rounded-md border border-line bg-surface px-2 font-mono text-[12px] focus:border-accent focus:outline-none" />
+            </label>`).join('')}
+      </div>
+    </section>
+  </article>`;
+}
+
+/* A missing shot is a fact worth showing, not a broken image icon. */
+function imgFail(img) {
+  const b = document.createElement('span');
+  b.className = 'flex h-32 w-60 items-center justify-center px-3 text-center font-mono text-[12px] text-muted';
+  b.textContent = img.getAttribute('src') + ' — not on disk';
+  img.replaceWith(b);
+}
+
+/* -------------------------------------------------------------------- menu */
+const taskMenu = (t) => [
+  ['Move to top', 'T', () => move(t.id, 'top')],
+  ['Move up', 'U', () => move(t.id, -1)],
+  ['Move down', 'D', () => move(t.id, +1)],
+  ['Duplicate', 'C', () => duplicate(t.id)],
+  ['Delete', '⌫', () => remove(t.id)],
+];
+
+/* The vocabulary is whatever is in the file, plus a way to add one. Same menu
+   component as the task actions, so both look and behave the same. */
+const typeMenu = (t) => [
+  ...knownTypes().map((v) => [typeLabel(v), '', () => setType(t, v)]),
+  ['New type…', '', () => {
+    const v = prompt('Type');
+    if (v && v.trim()) setType(t, v.trim().toLowerCase());
+  }],
+  ...(t.type ? [['Clear', '', () => setType(t, '')]] : []),
+];
+
+function setType(t, v) {
+  t.type = v;
+  touch(t);
+  render();
+  save();
+}
+
+function showMenu(anchor, items) {
+  closeMenu();
+  const el = document.createElement('div');
+  el.id = 'menu';
+  el.className = 'float fixed z-40 w-44 py-1';
+  el.innerHTML = items.map(([label, key], i) => `
+    <button data-i="${i}" class="flex h-6 w-full items-center px-2.5 text-left text-[13px] ${label === 'Delete' ? 'text-danger' : 'text-ink'} hover:bg-hover">
+      <span class="flex-1">${esc(label)}</span>${key ? `<span class="font-mono text-[12px] text-muted">${key}</span>` : ''}
+    </button>`).join('');
+  document.body.appendChild(el);
+
+  /* Anchored by its right edge: measuring the width before the CDN has
+     generated w-44 once put the menu at left:-121px, entirely off screen. */
+  const r = anchor.getBoundingClientRect();
+  el.style.right = `${Math.max(8, innerWidth - r.right)}px`;
+  el.style.top = `${r.bottom + 4}px`;
+  requestAnimationFrame(() => {
+    if (r.bottom + 4 + el.offsetHeight > innerHeight - 8) el.style.top = `${r.top - el.offsetHeight - 4}px`;
+  });
+
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-i]');
+    if (!b) return;
+    closeMenu();
+    items[+b.dataset.i][2]();
+  });
+  const onKey = (e) => {
+    const hit = items.find(([, k]) => k && (k.toLowerCase() === e.key.toLowerCase() || (k === '⌫' && (e.key === 'Backspace' || e.key === 'Delete'))));
+    if (hit) { e.preventDefault(); closeMenu(); hit[2](); }
+    else if (e.key === 'Escape') closeMenu();
+  };
+  el._onKey = onKey;
+  document.addEventListener('keydown', onKey, true);
+  setTimeout(() => document.addEventListener('mousedown', closeMenu, { once: true }));
+}
+function closeMenu() {
+  const el = document.getElementById('menu');
+  if (!el) return;
+  document.removeEventListener('keydown', el._onKey, true);
+  el.remove();
+}
+
+/* ------------------------------------------------------------------- edits */
+function move(id, where) {
+  const i = state.tasks.findIndex((t) => t.id === id);
+  const j = where === 'top' ? 0 : Math.max(0, Math.min(state.tasks.length - 1, i + where));
+  const [t] = state.tasks.splice(i, 1);
+  state.tasks.splice(j, 0, t);
+  selectedId = id;
+  render(); save();
+  document.querySelector(`li[data-id="${id}"]`)?.scrollIntoView({ block: 'nearest' });
+}
+function duplicate(id) {
+  const i = state.tasks.findIndex((t) => t.id === id);
+  const copy = structuredClone(state.tasks[i]);
+  copy.id = nextId(copy.id);
+  copy.status = 'queued';
+  copy.created = copy.updated = today();
+  state.tasks.splice(i + 1, 0, copy);
+  selectedId = copy.id;
+  render(); save();
+}
+function remove(id) {
+  const i = state.tasks.findIndex((t) => t.id === id);
+  undo = { task: state.tasks[i], at: i };
+  state.tasks.splice(i, 1);
+  /* inputs[] is left alone. An input can belong to other tasks, and even when
+     it belongs to none it is still something that was said. */
+  selectedId = state.tasks[Math.min(i, state.tasks.length - 1)]?.id ?? null;
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(() => { undo = null; render(); }, 6000);
+  render(); save();
+}
+function nextId(seed) {
+  const base = String(seed).replace(/\d+$/, '') || 'N';
+  let n = 1;
+  while (byId(base + n)) n++;
+  return base + n;
+}
+function addTask() {
+  const t = {
+    id: nextId('N'), title: '', type: '', status: 'queued', priority: 'P2',
+    confirmed: false, tags: [], note: '', input_ids: [],
+    created: today(), updated: today(),
+  };
+  state.tasks.unshift(t);
+  selectedId = t.id;
+  filter = 'all'; query = '';
+  render(); save();
+  document.querySelector('[data-field="title"]')?.focus();
+}
+
+/* A field that fits what is in it.
+ *
+ * Every box on this page had a fixed row count, so the note — always the
+ * longest thing here — was shown three lines at a time. They grow to their
+ * content now, and stop at a screenful with a scrollbar rather than growing
+ * without end. */
+function grow(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
+function growAll(root = document) {
+  root.querySelectorAll('[data-grow]').forEach(grow);
+}
+
+/* Turn the rendered note back into the text it was written as. */
+function editNote(section) {
+  const read = section.querySelector('[data-note-read]');
+  const box = section.querySelector('[data-field="note"]');
+  if (!read || !box) return;
+  read.hidden = true;
+  box.hidden = false;
+  grow(box);
+  box.focus();
+  box.setSelectionRange(box.value.length, box.value.length);
+}
+
+document.addEventListener('input', (e) => {
+  if (e.target.matches('[data-grow]')) grow(e.target);
+}, true);
+
+document.addEventListener('focusin', (e) => {
+  const read = e.target.closest?.('[data-note-read]');
+  if (read) editNote(read.closest('section'));
+}, true);
+
+/* ------------------------------------------------------------------ events */
+document.addEventListener('click', (e) => {
+  if (!state) return;
+
+  const f = e.target.closest('[data-filter]');
+  if (f) { filter = f.dataset.filter; render(); return; }
+
+  const a = e.target.closest('[data-act]');
+  if (a) {
+    const t = selected();
+    switch (a.dataset.act) {
+      case 'new': return addTask();
+      case 'undo':
+        state.tasks.splice(undo.at, 0, undo.task);
+        selectedId = undo.task.id;
+        undo = null; clearTimeout(undoTimer);
+        return (render(), save());
+      case 'priority':
+        t.priority = PRIORITY_ORDER[(PRIORITY_ORDER.indexOf(t.priority) + 1) % 4];
+        touch(t); return (render(), save());
+      case 'status':
+        t.status = STATUS_ORDER[(STATUS_ORDER.indexOf(t.status) + 1) % 4];
+        touch(t); return (render(), save());
+      case 'menu': return showMenu(a, taskMenu(t));
+      case 'type': return showMenu(a, typeMenu(t));
+      case 'confirm':
+        t.confirmed = !t.confirmed;
+        touch(t); return (render(), save());
+      case 'untag':
+        t.tags.splice(+a.dataset.i, 1); touch(t); return (render(), save());
+      case 'tag': {
+        const v = prompt('Tag');
+        if (v && v.trim()) { (t.tags ||= []).push(v.trim().replace(/^#/, '')); touch(t); save(); }
+        return render();
+      }
+      case 'goto': selectedId = a.dataset.id; view = 'task'; return render();
+      case 'zoom': lightbox = a.dataset.src; return render();
+      case 'lightbox-close': lightbox = null; return render();
+
+      case 'settings': view = view === 'settings' ? 'task' : 'settings'; return render();
+      case 'load-sessions': return loadSessions();
+      case 'pick-session': return saveConfig({ claude: { session_id: a.dataset.id } });
+      case 'test': return sendTest(a);
+
+      case 'attach': return document.querySelector('[data-filepick]')?.click();
+      case 'unattach': {
+        draftFor(t.id).images.splice(+a.dataset.i, 1);
+        return render();
+      }
+      case 'send': return send(t.id);
+      case 'more-runs': {
+        runsExpanded = !runsExpanded;
+        const strip = document.getElementById('runs');
+        if (strip) strip.innerHTML = runsHtml(t.id);
+        return;
+      }
+      /* Send that run's own words again. It deliberately does not go through
+         the draft — whatever is being typed now is not this. */
+      case 'retry': {
+        const r = runs.find((x) => x.id === a.dataset.run);
+        return r && ask(r.task_id, r.text, r.images || []);
+      }
+    }
+  }
+
+  const li = e.target.closest('li[data-id]');
+  if (li) { selectedId = li.dataset.id; view = 'task'; render(); }
+});
+
+/* ------------------------------------------------------ composer behaviour */
+async function upload(file) {
+  if (file.size > 10 * 1024 * 1024) throw new Error(`${file.name} is over the 10 MB limit`);
+  const r = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'X-Filename': file.name || 'paste.png' },
+    body: file,
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'upload failed');
+  return j.path;
+}
+
+async function attach(files, taskId) {
+  const d = draftFor(taskId);
+  for (const f of files) {
+    if (!f.type.startsWith('image/')) continue;
+    try {
+      d.images.push(await upload(f));
+      d.error = '';
+    } catch (e) {
+      d.error = e.message;
+    }
+  }
+  render();
+}
+
+/* Hand a message over. Returns the run, or throws. */
+async function ask(taskId, text, images) {
+  const r = await fetch('/api/ask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ task_id: taskId, text, images }),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'could not send');
+  runs = [j.run, ...runs.filter((x) => x.id !== j.run.id)];
+  paintRuns();
+  return j.run;
+}
+
+async function send(taskId) {
+  const d = draftFor(taskId);
+  if (d.busy || (!d.text.trim() && !d.images.length)) return;
+  d.busy = true; d.error = ''; render();
+  try {
+    await ask(taskId, d.text, d.images);
+    /* Cleared only once the server has it. A message that failed to leave
+       should still be in the box; one that failed later is on its run, with a
+       Retry next to it. */
+    d.text = ''; d.images = [];
+  } catch (e) {
+    d.error = e.message;
+  }
+  d.busy = false;
+  render();
+}
+
+async function loadSessions() {
+  sessions = [];
+  render();
+  try {
+    sessions = (await (await fetch('/api/sessions')).json()).sessions || [];
+  } catch { sessions = []; }
+  render();
+}
+
+async function saveConfig(patch) {
+  const r = await fetch('/api/config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  const j = await r.json();
+  cfg = j.config || cfg;
+  render();
+}
+
+async function sendTest(btn) {
+  const out = document.getElementById('test-result');
+  btn.disabled = true;
+  out.innerHTML = `<p class="text-[12px] text-muted">Asking the session to answer…</p>`;
+  try {
+    const r = await fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kind: 'test',
+        text: 'This is a connection test from Context Center. Reply with one short line '
+            + 'confirming you received it. Do not read, write, or change any file.',
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'could not send');
+    watchRun = j.run.id;
+    paintTest();
+  } catch (e) {
+    out.innerHTML = `<p class="text-[12px] text-danger">${esc(e.message)}</p>`;
+  }
+  btn.disabled = false;
+}
+
+/* Which run the Settings panel is watching. Not on the element — a re-render
+   would take it with it, and then the result never appears. */
+let watchRun = null;
+
+function paintTest() {
+  const out = document.getElementById('test-result');
+  if (!out || !watchRun) return;
+  const r = runs.find((x) => x.id === watchRun);
+  if (!r) return;
+  out.innerHTML = r.status === 'running'
+    ? `<p class="text-[12px] text-muted">Running… the first turn on a large session takes a while.</p>`
+    : r.status === 'failed'
+      ? `<div class="rounded-md bg-danger-soft px-2.5 py-2 text-[12px] text-danger">
+           <p class="font-medium">It did not run.</p>
+           <p class="mt-1 whitespace-pre-wrap font-mono">${esc(r.error)}</p>
+         </div>`
+      : `<div class="rounded-md bg-success-soft px-2.5 py-2 text-[12px] text-success">
+           <p class="font-medium">It answered.</p>
+           <p class="mt-1 whitespace-pre-wrap">${esc(r.result)}</p>
+         </div>`;
+}
+
+document.addEventListener('paste', (e) => {
+  const box = e.target.closest?.('[data-draft]');
+  if (!box || !state) return;
+  const files = [...(e.clipboardData?.items || [])]
+    .filter((i) => i.type.startsWith('image/')).map((i) => i.getAsFile()).filter(Boolean);
+  if (!files.length) return;
+  e.preventDefault();   // otherwise the filename lands in the text as well
+  attach(files, selectedId);
+});
+
+document.addEventListener('change', (e) => {
+  if (!e.target.matches('[data-filepick]')) return;
+  attach([...e.target.files], selectedId);
+  e.target.value = '';
+});
+
+document.addEventListener('contextmenu', (e) => {
+  const li = e.target.closest('li[data-id]');
+  if (!li || !state) return;
+  e.preventDefault();
+  selectedId = li.dataset.id;
+  render();
+  showMenu(document.querySelector(`li[data-id="${selectedId}"]`), taskMenu(byId(selectedId)));
+});
+
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'q') { query = e.target.value; render(); }
+  /* The draft is kept without a re-render — repainting mid-word would move the
+     caret. It is read back out of the DOM when it matters. */
+  if (e.target.matches('[data-draft]') && selectedId) draftFor(selectedId).text = e.target.value;
+});
+
+/* Leaving a field saves it. Nothing here has a Save button. */
+document.addEventListener('focusout', (e) => {
+  /* Done writing the note: back to reading it, and say that it was kept.
+     Without the tick, a field with no Save button and no border gives no sign
+     anything happened at all. */
+  if (e.target.matches?.('[data-field="note"]')) {
+    const section = e.target.closest('section');
+    const read = section?.querySelector('[data-note-read]');
+    if (read) {
+      read.innerHTML = e.target.value ? md(e.target.value) : 'Why this matters — click to write it';
+      read.hidden = false;
+      e.target.hidden = true;
+      const tick = section.querySelector('[data-note-saved]');
+      if (tick) {
+        tick.classList.remove('hidden');
+        tick.classList.add('flex');
+        window.setTimeout(() => { tick.classList.add('hidden'); tick.classList.remove('flex'); }, 1500);
+      }
+    }
+  }
+  /* Settings save on the way out too — no Save button anywhere in this app. */
+  const c = e.target.closest?.('[data-cfg]');
+  if (c) {
+    const [section, key] = c.dataset.cfg.split('.');
+    if ((cfg?.[section]?.[key] ?? '') !== c.value) saveConfig({ [section]: { [key]: c.value } });
+    return;
+  }
+
+  const el = e.target.closest('[data-field]');
+  if (!el) { flushRemote(); return; }
+  const t = selected();
+  if (!t) return;
+  const key = el.dataset.field;
+  const value = key === 'title' ? el.value.trim() : el.value;
+  const changed = value !== (t[key] || '');
+  const id = t.id;
+
+  /* The file moved under us while the cursor sat in this field. Rebase rather
+     than pick a winner: take what is on disk, then re-apply the one field just
+     edited. Both edits survive unless they are literally the same field. */
+  if (stale(pendingRemote)) pendingRemote = null;
+  if (pendingRemote) {
+    const m = pendingRemote;
+    pendingRemote = null;
+    rev = m.rev;
+    state = m.data;
+    const target = byId(id);
+    if (changed && target) { target[key] = value; touch(target); render(); return save(); }
+    if (!byId(selectedId)) selectedId = state.tasks[0]?.id ?? null;
+    return render();
+  }
+
+  if (changed) { t[key] = value; touch(t); render(); save(); }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (!state) return;
+
+  /* ⌘⏎ sends; Enter is a newline. This box takes pasted paragraphs and Chinese
+     input — Enter-to-send would fire mid-composition, every time. */
+  if (e.target.matches?.('[data-draft]')) {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      draftFor(selectedId).text = e.target.value;
+      send(selectedId);
+    }
+    return;
+  }
+
+  if (e.key === 'Escape' && lightbox) { lightbox = null; return render(); }
+  const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+  if (e.key === '/' && !typing) { e.preventDefault(); document.getElementById('q').focus(); return; }
+  if (e.key === 'Escape' && typing) { document.activeElement.blur(); return; }
+  if (typing) return;
+
+  const rows = visible();
+  const i = rows.findIndex((t) => t.id === selectedId);
+  const goto = (id) => { selectedId = id; render(); document.querySelector(`li[data-id="${id}"]`)?.scrollIntoView({ block: 'nearest' }); };
+
+  if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); return goto(rows[Math.min(rows.length - 1, i + 1)]?.id ?? rows[0]?.id); }
+  if (e.key === 'k' || e.key === 'ArrowUp')   { e.preventDefault(); return goto(rows[Math.max(0, i - 1)]?.id ?? rows[0]?.id); }
+  if (!selectedId) return;
+  if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); return move(selectedId, e.key === 'ArrowUp' ? -1 : +1); }
+  if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); return remove(selectedId); }
+});
+
+/* Drag to reorder. Dropping A onto B moves A to B's real index, so the order
+   stays well-defined even when a filter is hiding rows between them. */
+let dragId = null;
+document.addEventListener('dragstart', (e) => {
+  const li = e.target.closest('li[data-id]');
+  if (!li) return;
+  dragId = li.dataset.id;
+  li.classList.add('row-dragging');
+  e.dataTransfer.effectAllowed = 'move';
+});
+/* Dragging a file in is a different gesture from dragging a row around, and the
+   two share these handlers — so files are claimed first, by type. */
+const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+
+document.addEventListener('dragover', (e) => {
+  if (hasFiles(e) && e.target.closest?.('[data-composer]')) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    return;
+  }
+  const li = e.target.closest('li[data-id]');
+  if (!li || !dragId) return;
+  e.preventDefault();
+  document.querySelectorAll('.row-over').forEach((n) => n.classList.remove('row-over'));
+  li.classList.add('row-over');
+});
+document.addEventListener('drop', (e) => {
+  if (hasFiles(e) && e.target.closest?.('[data-composer]')) {
+    e.preventDefault();
+    attach([...(e.dataTransfer.files || [])], selectedId);
+    return;
+  }
+  const li = e.target.closest('li[data-id]');
+  if (!li || !dragId) return;
+  e.preventDefault();
+  const from = state.tasks.findIndex((t) => t.id === dragId);
+  const to = state.tasks.findIndex((t) => t.id === li.dataset.id);
+  const [t] = state.tasks.splice(from, 1);
+  state.tasks.splice(to, 0, t);
+  selectedId = dragId; dragId = null;
+  render(); save();
+});
+document.addEventListener('dragend', () => {
+  dragId = null;
+  document.querySelectorAll('.row-over,.row-dragging').forEach((n) => n.classList.remove('row-over', 'row-dragging'));
+});
+
+render();
+connect();
+</script>
+</body>
+</html>

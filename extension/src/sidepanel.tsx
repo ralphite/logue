@@ -10,7 +10,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { StrictMode, useCallback, useEffect, useState, type ReactNode } from "react";
+import { StrictMode, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Answer,
@@ -28,6 +28,7 @@ import {
   originOf,
 } from "@logue/ui";
 import { audioUrl, host, HostError, type Context, type Material } from "./api";
+import { joinAtCaret } from "./compose";
 import { send } from "./messages";
 import { readablePageText } from "./readable";
 import { currentServer, DEFAULT_SERVER, readAddress, rememberServer, whenServerChanges } from "./server";
@@ -544,6 +545,8 @@ function Panel() {
   const [saved, setSaved] = useState<Material[]>([]);
   const [project, setProject] = useState("");
   const [instruction, setInstruction] = useState("");
+  /** The box itself, so a transcript can land where the caret actually is. */
+  const box = useRef<HTMLTextAreaElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [modelReady, setModelReady] = useState(true);
@@ -835,15 +838,43 @@ function Panel() {
   }, [dictation, project, page?.id, page?.url, page?.title]);
 
   const accept = useCallback(async () => {
-    const settled = await voice.stop({ project, source: { kind: "panel", url: page?.url } });
+    // What is already typed, read before the recording settles: it is both
+    // the vocabulary for what is being said and the thing that must not be
+    // destroyed by saying it.
+    const typed = instruction;
+    const at = box.current?.selectionStart ?? typed.length;
+    const settled = await voice.stop({
+      project,
+      source: { kind: "panel", url: page?.url },
+      // The words already in the box spell the names this sentence is about.
+      nearby: typed,
+    });
     const words = settled?.ok ? settled.text.trim() : "";
     if (!words) return;
+
+    /**
+     * Something was already written here, so the words join it.
+     *
+     * Speaking used to send a message of its own and leave whatever had been
+     * typed sitting in the box, unread by the model and unsent — a person who
+     * typed half a question and finished it out loud got the half they spoke,
+     * answered without the half they typed, and then found the rest still
+     * waiting for them. Nothing anyone put there is taken away by choosing to
+     * keep going with the microphone; it lands at the caret and waits for Ask,
+     * the same as if it had been typed.
+     */
+    if (typed.trim()) {
+      setInstruction(joinAtCaret(typed, at, words));
+      window.setTimeout(() => box.current?.focus(), 0);
+      return;
+    }
+
+    // An empty box: said, then answered. A message that only sat there would
+    // make the shortcut a dictation key rather than a way to ask for something.
     const mine: ThreadMessage = { from: "you", text: words, at: new Date().toISOString() };
     say(mine);
-    // Said, then answered: a message that only sat there would make the
-    // shortcut a dictation key rather than a way to ask for something.
     await converse(words, [...thread, mine]);
-  }, [voice, project, page?.url, say, converse, thread]);
+  }, [voice, project, page?.url, say, converse, thread, instruction]);
 
   useEffect(() => {
     if (voice.phase !== "recording") return;
@@ -963,6 +994,7 @@ function Panel() {
 
       <div className="grid gap-1.5 rounded-lg border border-line-strong bg-surface p-1.5">
         <textarea
+          ref={box}
           value={instruction}
           onChange={(event) => setInstruction(event.target.value)}
           onKeyDown={(event) => {
@@ -1709,17 +1741,29 @@ function AboutProject({
   const [terms, setTerms] = useState("");
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  /**
+   * Which Project's words are in these boxes.
+   *
+   * The effect used to depend on the Project *object*, which the panel rebuilds
+   * every time it reads the tab — on every switch, and on every update Chrome
+   * reports. So a half-written overview was replaced by the saved one under
+   * the person's hands, at a moment that had nothing to do with them. It fills
+   * once per Project instead, and never over anything.
+   */
+  const filledFor = useRef<string | undefined>(undefined);
+  const id = found?.id;
 
   useEffect(() => {
-    if (!open || !found) return;
-    void host.project(found.id).then(
+    if (!open || !id || filledFor.current === id) return;
+    void host.project(id).then(
       ({ project: detail }) => {
+        filledFor.current = id;
         setOverview(detail.overview ?? "");
         setTerms((detail.transcription_profile?.vocabulary?.terms ?? []).join(", "));
       },
       () => undefined,
     );
-  }, [open, found]);
+  }, [open, id]);
 
   if (!found) return null;
 

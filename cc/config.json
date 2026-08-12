@@ -1,0 +1,13 @@
+{
+  "project": {
+    "label": "Logue",
+    "cwd": "/Users/yadong/dev2/logue"
+  },
+  "claude": {
+    "bin": "claude",
+    "session_id": "a3f09025-7f93-4d00-bc22-a613c9078f44",
+    "model": "",
+    "allowed_tools": "Bash(python3 ~/.claude/skills/cc/cc.py *)",
+    "permission_mode": "dontAsk"
+  }
+}
