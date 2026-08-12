@@ -13,11 +13,11 @@
         "ui",
         "ia"
       ],
-      "note": "他对 N9 的定性:review 选错方向 —— 「我并不 care font 等小层面的问题,需要的是整体页面和信息架构的重构」,并且明确「不要直接改代码,给我 preview,几个不同类型更好」。<br>**已交付三方向 preview**(scratchpad `ia-preview.html`,已发给他):**A · Inbox 优先**(落地页=待分拣,导航按活动分,Skills 降级进 Settings);**B · Project 优先**(Project 变真容器,里面 Stream/Documents/About 三个 tab);**C · 一条时间线**(砍第二列 rail,过滤器代替路由,详情占满全宽、正文+出处两栏)。每个都写了核心选择、编号 callout、代价;附对比表。**我的推荐:A 做骨架 + C 的焦点详情**。<br>诊断(四条结构病):导航是数据库表不是活动;「分拣」被藏成 rail chip;Project 是过滤器被当地点;第三列永远单列右侧 40% 空白。",
+      "note": "他对 N9 的定性:review 选错方向 —— 「我并不 care font 等小层面的问题,需要的是整体页面和信息架构的重构」,并且明确「不要直接改代码,给我 preview,几个不同类型更好」。<br>**已交付三方向 preview**(scratchpad `ia-preview.html`,已发给他):**A · Inbox 优先**(落地页=待分拣,导航按活动分,Skills 降级进 Settings);**B · Project 优先**(Project 变真容器,里面 Stream/Documents/About 三个 tab);**C · 一条时间线**(砍第二列 rail,过滤器代替路由,详情占满全宽、正文+出处两栏)。每个都写了核心选择、编号 callout、代价;附对比表。**我的推荐:A 做骨架 + C 的焦点详情**。<br>诊断(四条结构病):导航是数据库表不是活动;「分拣」被藏成 rail chip;Project 是过滤器被当地点;第三列永远单列右侧 40% 空白。<br>**他拍板了骨架**:左栏保持 Inbox·Projects·Documents·Skills·Settings(Stream→Inbox),左栏尽量不动,其余可改。**第二版 preview 已交**(scratchpad `ia-final.html`):Web ①Inbox=待分拣卡片(建议上卡面,↵ 归档)+ 下半屏时间流,第二列 rail 取消;②焦点详情接管整页,左=话+改写 16px,右=出处+去向;③Projects 容器化(Sources/Documents/About 三 tab)。Extension:Dictation·This page·Chat 三 tab,Project tab 删除,scope 升头部一处,全局状态一条横幅,This page 合流(存的/说的/答的)=panel-ia 提案 A。迁移顺序:焦点详情→Inbox→面板→Projects,每步一个可验 PR。",
       "input_ids": [],
       "created": "2026-08-11",
       "updated": "2026-08-11",
-      "blocked_on": "等他选 A / B / C(或组合),选定后先出逐屏改动清单再动代码;面板侧同时要在 panel-ia.md 的 A/B 里拍板"
+      "blocked_on": "等他对第二版 preview 点头(或改),点头后按迁移顺序动代码"
     },
     {
       "id": "N9",
