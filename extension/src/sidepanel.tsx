@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
   Answer,
   Button,
+  Dropdown,
   Menu,
   MenuItem,
   ErrorNote,
@@ -26,6 +27,7 @@ import {
   Spinner,
   Tag,
   Textarea,
+  Tooltip,
   cn,
   originOf,
 } from "@logue/ui";
@@ -555,11 +557,12 @@ export function Panel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [modelReady, setModelReady] = useState(true);
-  /** Which part of the panel is showing. Dictation is what the panel is opened for. */
-  // Three tabs, one subject each. Project is not a place in the panel any
-  // more: which Project is the scope lives in the header, and a Project's
-  // background and word list are edited in the web app, where there is room.
-  const [tab, setTab] = useState<"chat" | "page" | "dictation">("dictation");
+  /**
+   * Whether the ask box is open. The panel is one surface — the box appears
+   * when asked for and not before, which is the whole of "progressive" here:
+   * three verbs on top, and nothing else until one of them is pressed.
+   */
+  const [asking, setAsking] = useState(false);
   const [waiting, setWaiting] = useState<Waiting[]>([]);
   /** Recordings the Host is holding that never became words. */
   const [stuck, setStuck] = useState<Held[]>([]);
@@ -661,10 +664,9 @@ export function Panel() {
       void chrome.storage.local.get(LISTEN).then((stored) => {
         if (!stored[LISTEN]) return;
         void chrome.storage.local.remove(LISTEN);
-        // ⌘⇧K is for talking to Logue, and the panel now opens on Dictation —
-        // so the shortcut brings its own tab with it rather than recording into
-        // whichever one happens to be showing.
-        setTab("chat");
+        // ⌘⇧K is for talking to Logue: it opens the ask box and starts
+        // listening in the same act.
+        setAsking(true);
         setSpeaking("chat");
         void listen();
       });
@@ -739,6 +741,41 @@ export function Panel() {
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save this page.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Keep — the selection if there is one, else the whole page.
+   *
+   * One verb covers both saves. It is not a bookmark: the words themselves
+   * go in as a Source, are filed automatically, and can be cited by Ask.
+   */
+  const keep = async () => {
+    if (!page?.url || page.id === undefined) return;
+    let selected = "";
+    try {
+      const [result] = await chrome.scripting.executeScript({
+        target: { tabId: page.id },
+        func: () => window.getSelection()?.toString() ?? "",
+      });
+      selected = typeof result?.result === "string" ? result.result.trim() : "";
+    } catch {
+      // A restricted page cannot be asked; the whole page still saves.
+    }
+    if (!selected) return capture();
+    setBusy(true);
+    try {
+      await host.saveMaterial({
+        kind: "selection",
+        content: selected,
+        source: { url: page.url, title: page.title, domain: new URL(page.url).hostname },
+        projects: project ? [project] : [],
+      });
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not keep that.");
     } finally {
       setBusy(false);
     }
@@ -958,12 +995,8 @@ export function Panel() {
   const fromPage = saved.filter((item) => FROM_THE_PAGE.has(item.kind));
   const said = saved.filter((item) => !FROM_THE_PAGE.has(item.kind));
 
-  const composer = (
-    // Pinned to the bottom, the way a conversation is written everywhere else:
-    // what was said stays above, and the place to say the next thing does not
-    // move. The old shape put the box in the middle with the answer printed
-    // under it, which reads as a form that has been filled in.
-    <div className="shrink-0 border-t border-line bg-surface p-2">
+  const askBox = (
+    <div className="shrink-0 border-b border-line bg-surface p-2">
       {speaking === "chat" &&
         (voice.phase === "recording" || voice.phase === "starting" || voice.pending > 0 || voice.error) && (
         <div className="mb-1.5 flex items-center gap-2 rounded-md border border-line bg-surface-muted px-2 py-1.5">
@@ -981,9 +1014,6 @@ export function Panel() {
           ) : voice.error ? (
             <>
               <span className="flex-1 text-xs text-warning">{voice.error}</span>
-              {/* Chrome's own prompt is gone once someone has dismissed it, and
-                  the page that grants it back cannot be linked to. So the button
-                  opens it, rather than the sentence describing it. */}
               {voice.needsMicrophone && (
                 <Button onClick={() => void send({ type: "logue:open-microphone-settings" })}>Open Chrome settings</Button>
               )}
@@ -1000,9 +1030,10 @@ export function Panel() {
         </div>
       )}
 
-      <div className="grid gap-1.5 rounded-lg border border-line-strong bg-surface p-1.5">
+      <div className="grid gap-1.5 rounded-lg border border-accent-line bg-surface p-1.5">
         <textarea
           ref={box}
+          autoFocus
           value={instruction}
           onChange={(event) => setInstruction(event.target.value)}
           onKeyDown={(event) => {
@@ -1010,21 +1041,16 @@ export function Panel() {
               event.preventDefault();
               void ask();
             }
+            if (event.key === "Escape" && !instruction.trim()) setAsking(false);
           }}
-          placeholder="Ask about this page, or just say it…"
+          placeholder="Ask — this page and your material are in context"
           aria-label="What to ask"
           className="min-h-12 w-full resize-none bg-transparent px-1 py-0.5 text-[13px] leading-[1.5] text-ink outline-0"
         />
         <div className="flex items-center gap-1">
-          {/* Keep, speak, ask — the three things done to this page, side by
-              side. The scope is the header's one control; the chip that said
-              "This page" and could not be pressed is gone. */}
-          <IconButton label="Save this page" disabled={busy} onClick={() => void capture()}>
-            <Bookmark size={13} />
-          </IconButton>
           <span className="ml-auto flex items-center gap-1">
             <IconButton
-              label="Chat with Logue · ⌘⇧K"
+              label="Say it instead · ⌘⇧K"
               disabled={voice.phase === "recording" || voice.phase === "starting"}
               onClick={() => {
                 setSpeaking("chat");
@@ -1042,45 +1068,32 @@ export function Panel() {
     </div>
   );
 
+  const streamEmpty =
+    dictation.items.length === 0 &&
+    thread.length === 0 &&
+    fromPage.length + said.length === 0 &&
+    waiting.length === 0 &&
+    elsewhere.length === 0;
+
+  const recordingHere = speaking === "dictation" && voice.phase !== "idle";
+
   return (
     <div className="flex h-screen flex-col">
-      {/*
-        Two rows, two subjects. The first belongs to Logue — the same mark and
-        wordmark the app carries, and a way into it that says so in words. The
-        second belongs to the page you are on. They used to share one row, so
-        the only control up here read as an action on the page's title.
-      */}
       <header className="shrink-0 border-b border-line bg-surface">
         <div className="flex min-w-0 items-center gap-2 px-2 py-1.5">
-          {/*
-            The page, and one way out. Chrome's own panel title bar already
-            carries the product's icon and name — ours underneath made two,
-            and the rule has always been that the identity appears once.
-          */}
           <span className="min-w-0 flex-1 truncate text-xs font-[560] text-ink" title={page?.title}>
             {page?.title || "This page"}
           </span>
-          {/*
-            The scope, once. Three places used to carry a Project picker — the
-            composer, the Project tab, and each Source — sharing one state, so
-            changing what you were *looking at* silently changed what the next
-            question *assumed*. One control in the header is the scope for
-            everything the panel does; per-Source membership stays on the
-            Source in the web app.
-          */}
-          <Select
-            className="h-6 max-w-28 shrink-0 text-xs"
+          <Dropdown
+            label="Project scope"
+            className="w-28 shrink-0"
             value={project}
-            onChange={(event) => setProject(event.target.value)}
-            aria-label="Project scope"
-          >
-            <option value="">No Project</option>
-            {context?.projects.map((item) => (
-              <option key={item.id} value={item.name}>
-                {item.name}
-              </option>
-            ))}
-          </Select>
+            onChange={(next) => setProject(next)}
+            options={[
+              { value: "", label: "No Project" },
+              ...(context?.projects.map((item) => ({ value: item.name, label: item.name })) ?? []),
+            ]}
+          />
           <Menu
             label="Panel menu"
             align="end"
@@ -1093,6 +1106,14 @@ export function Panel() {
             <MenuItem onClick={() => window.open(server, "_blank", "noreferrer")}>
               <ExternalLink size={12} /> Open Logue
             </MenuItem>
+            <MenuItem
+              onClick={() => {
+                setThread([]);
+                if (pageUrl) void clearThread(pageUrl);
+              }}
+            >
+              <X size={12} /> Clear this page's chat
+            </MenuItem>
             <MenuItem onClick={() => setChangingServer((was) => !was)}>
               <Settings2 size={12} /> Server address…
             </MenuItem>
@@ -1103,11 +1124,6 @@ export function Panel() {
         )}
       </header>
 
-      {/*
-        What is broken, said once, above every tab. "The model is not
-        connected" used to render only inside Chat — Save on This page and
-        Record on Dictation failed with no warning at all.
-      */}
       {(error || !modelReady) && (
         <div className="grid shrink-0 gap-1.5 border-b border-line bg-surface p-2">
           {error && <ErrorNote>{error}</ErrorNote>}
@@ -1125,184 +1141,166 @@ export function Panel() {
         </div>
       )}
 
-      <h1 className="sr-only">
-        {tab === "chat"
-          ? "Chat with Logue"
-          : tab === "page"
-            ? "What is kept from this page"
-            : tab === "dictation"
-              ? "Dictation"
-              : "This Project"}
-      </h1>
-      <div role="tablist" aria-label="Panel sections" className="flex shrink-0 gap-0.5 border-b border-line bg-surface px-1.5">
-        {([
-          ["dictation", "Dictation", undefined],
-          ["page", "This page", fromPage.length + said.length],
-          ["chat", "Chat", undefined],
-        ] as const).map(([key, label, count]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            onClick={() => setTab(key)}
-            className={cn(
-              "-mb-px flex items-center gap-1.5 border-b-2 px-2 py-1.5 text-xs",
-              tab === key ? "border-accent font-[560] text-ink" : "border-transparent text-muted hover:text-ink",
-            )}
-          >
-            {label}
-            {count ? (
-              <span className="rounded-full bg-surface-muted px-1.5 text-xs text-muted">{count}</span>
-            ) : null}
-          </button>
-        ))}
-      </div>
+      <h1 className="sr-only">Logue</h1>
 
-      {tab === "chat" ? (
-        <>
-          <div
-            className={cn(
-              "logue-scroll flex flex-1 flex-col gap-2 p-2",
-              thread.length > 0 ? "justify-end" : "justify-center",
-            )}
-          >
-            <Thread
-              messages={thread}
-              busy={busy}
-              onError={setError}
-              onAccept={(message) => void carryOut(message)}
-              onDiscard={leaveIt}
-              onClear={() => {
-                // This page's conversation, not every page's.
-                setThread([]);
-                if (pageUrl) void clearThread(pageUrl);
-              }}
-            />
-            {thread.length === 0 && (
-              // Said once. The composer's placeholder says the other half —
-              // two near-identical sentences, one above the other, was the
-              // whole of what this space offered.
-              <NothingYet>Nothing said yet. ⌘⇧K starts a conversation from anywhere.</NothingYet>
-            )}
-          </div>
-          {composer}
-        </>
-      ) : tab === "page" ? (
-        <>
-          <div className="logue-scroll flex-1 p-2">
-            {/* One list, newest first. Splitting it into "from the page" and
-                "what you added" made two headings for one question — what is
-                here — and buried the newest thing under whichever half it
-                fell into. Each row still says which it is. Saving lives in
-                the composer below, beside speaking and asking. */}
-            <Kept
-              title="Kept from this page"
-              items={[...fromPage, ...said].toSorted((a, b) => (a.created_at < b.created_at ? 1 : -1))}
-              context={context}
-              server={server}
-              tabId={page?.id}
-              onChanged={load}
-              empty="Nothing kept from this page yet. Save it below, or speak."
-            />
-          </div>
-          {composer}
-        </>
-      ) : (
-        <>
-          <div className="logue-scroll flex-1">
-            {/* Said once, where recordings live. It used to be drawn in two
-                tabs at once — the same queue, twice, and belonging to
-                neither. */}
-            {/* Minus whatever this panel is already showing with its own
-                failure and its own button: one recording, one place to act on
-                it. */}
-            {(waiting.length > 0 || elsewhere.length > 0) && (
-              <div className="p-2">
-                <WaitingRecordings items={waiting} onHost={elsewhere} server={server} onChanged={readWaiting} />
-              </div>
-            )}
-            {dictation.items.length === 0 ? (
-              // What pressing the button leads to, not a mood. The old line —
-              // "Say something and it lands here." — identified nothing:
-              // not the control, not where "here" is, not that it is kept.
-              <NothingYet>
-                Press Record and speak. The recording and its transcript are
-                kept as a Source, and Skills can rewrite the words.
-                <span className="mt-1.5 block text-muted">
-                  While recording: <kbd>↵</kbd> finishes · <kbd>Esc</kbd> discards
-                </span>
-              </NothingYet>
-            ) : (
-              dictation.items.map((item) => (
-                <div key={item.id} className="border-b border-line p-2.5 last:border-b-0">
-                  {item.state === "working" ? (
-                    <div className="flex items-center gap-2">
-                      <Spinner size={13} className="text-muted" />
-                      <span className="flex-1 text-xs text-muted" role="status">
-                        Transcribing…
-                      </span>
-                    </div>
-                  ) : (
-                    item.material?.capture_id && (
-                      <Recording
-                        src={audioUrl(server, item.material.capture_id)}
-                        seconds={item.material.capture_seconds ?? item.seconds}
-                        shape={item.material.capture_id}
-                      />
-                    )
-                  )}
-                  {item.state === "failed" && (
-                    <div className="mt-2 rounded-md border border-danger-line bg-danger-soft px-2 py-1.5 text-xs leading-[1.45] text-danger">
-                      {item.message}
-                      {item.captureId && (
-                        <button
-                          type="button"
-                          onClick={() => void dictation.again(item.id, { project, page })}
-                          className="mt-1 block font-[560] underline decoration-danger-line underline-offset-2"
-                        >
-                          Try again
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {item.take && (
-                    <div className="mt-1">
-                      <DictatedText
-                        take={item.take}
-                        skills={context?.skills}
-                        onApply={(takeId, skill) => void dictation.apply(item.id, takeId, skill, project)}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-          <div className="shrink-0 border-t border-line bg-surface p-2">
-            {voice.error && speaking === "dictation" && (
-              <div className="mb-1.5 flex items-center gap-2 rounded-md border border-line bg-surface-muted px-2 py-1.5">
-                <span className="flex-1 text-xs text-warning">{voice.error}</span>
-                {voice.needsMicrophone && (
-                  <Button onClick={() => void send({ type: "logue:open-microphone-settings" })}>
-                    Open Chrome settings
-                  </Button>
-                )}
-              </div>
-            )}
-            <RecordControl
-              phase={speaking === "dictation" ? voice.phase : "idle"}
-              seconds={voice.seconds}
-              onStart={() => {
+      {/*
+        The verbs, on top — one surface, no tabs. Record is the panel's
+        reason to exist and keeps the widest key; while it runs, the whole
+        row becomes the recording control, in place.
+      */}
+      <div className="shrink-0 border-b border-line bg-surface p-2">
+        {recordingHere ? (
+          <RecordControl
+            phase={voice.phase}
+            seconds={voice.seconds}
+            onStart={() => {
+              setSpeaking("dictation");
+              void voice.start();
+            }}
+            onStop={() => void dictate()}
+            onCancel={() => voice.cancel()}
+          />
+        ) : (
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              disabled={voice.phase !== "idle"}
+              onClick={() => {
                 setSpeaking("dictation");
                 void voice.start();
               }}
-              onStop={() => void dictate()}
-              onCancel={() => voice.cancel()}
-            />
+              className="flex h-9 flex-[1.6] items-center justify-center gap-1.5 rounded-lg bg-accent text-[12.5px] font-[600] text-white hover:bg-accent-hover disabled:opacity-50"
+            >
+              <Mic size={13} /> Record
+            </button>
+            <Tooltip label="Keeps the selection if there is one, else this whole page">
+              <button
+                type="button"
+                disabled={busy || !page?.url}
+                onClick={() => void keep()}
+                className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-control-line bg-surface text-xs font-[560] text-ink-soft hover:bg-panel disabled:opacity-50"
+              >
+                <Bookmark size={12} className="text-muted" /> Keep
+              </button>
+            </Tooltip>
+            <button
+              type="button"
+              aria-pressed={asking}
+              onClick={() => setAsking((was) => !was)}
+              className={cn(
+                "flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border text-xs font-[560]",
+                asking
+                  ? "border-accent-line bg-accent-soft text-accent-ink"
+                  : "border-control-line bg-surface text-ink-soft hover:bg-panel",
+              )}
+            >
+              <Sparkles size={12} className={asking ? undefined : "text-muted"} /> Ask
+            </button>
           </div>
-        </>
-      )}
+        )}
+        {speaking === "dictation" && voice.error && (
+          <div className="mt-1.5 flex items-center gap-2 rounded-md border border-line bg-surface-muted px-2 py-1.5">
+            <span className="flex-1 text-xs text-warning">{voice.error}</span>
+            {voice.needsMicrophone && (
+              <Button onClick={() => void send({ type: "logue:open-microphone-settings" })}>
+                Open Chrome settings
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {asking && askBox}
+
+      {/*
+        One stream: what was just said, what was asked, what this page holds.
+        The tabs are gone — everything the panel knows scrolls in one place,
+        newest concerns first.
+      */}
+      <div className="logue-scroll flex-1 p-2">
+        {(waiting.length > 0 || elsewhere.length > 0) && (
+          <div className="mb-2">
+            <WaitingRecordings items={waiting} onHost={elsewhere} server={server} onChanged={readWaiting} />
+          </div>
+        )}
+
+        {dictation.items.map((item) => (
+          <div key={item.id} className="mb-2 rounded-lg border border-line bg-surface p-2.5">
+            {item.state === "working" ? (
+              <div className="flex items-center gap-2">
+                <Spinner size={13} className="text-muted" />
+                <span className="flex-1 text-xs text-muted" role="status">
+                  Transcribing…
+                </span>
+              </div>
+            ) : (
+              item.material?.capture_id && (
+                <Recording
+                  src={audioUrl(server, item.material.capture_id)}
+                  seconds={item.material.capture_seconds ?? item.seconds}
+                  shape={item.material.capture_id}
+                />
+              )
+            )}
+            {item.state === "failed" && (
+              <div className="mt-2 rounded-md border border-danger-line bg-danger-soft px-2 py-1.5 text-xs leading-[1.45] text-danger">
+                {item.message}
+                {item.captureId && (
+                  <button
+                    type="button"
+                    onClick={() => void dictation.again(item.id, { project, page })}
+                    className="mt-1 block font-[560] underline decoration-danger-line underline-offset-2"
+                  >
+                    Try again
+                  </button>
+                )}
+              </div>
+            )}
+            {item.take && (
+              <div className="mt-1">
+                <DictatedText
+                  take={item.take}
+                  skills={context?.skills}
+                  onApply={(takeId, skill) => void dictation.apply(item.id, takeId, skill, project)}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+
+        <Thread
+          messages={thread}
+          busy={busy}
+          onError={setError}
+          onAccept={(message) => void carryOut(message)}
+          onDiscard={leaveIt}
+          onClear={() => {
+            setThread([]);
+            if (pageUrl) void clearThread(pageUrl);
+          }}
+        />
+
+        {fromPage.length + said.length > 0 && (
+          <Kept
+            title="Kept from this page"
+            items={[...fromPage, ...said].toSorted((a, b) => (a.created_at < b.created_at ? 1 : -1))}
+            context={context}
+            server={server}
+            tabId={page?.id}
+            onChanged={load}
+            empty="Nothing kept from this page yet."
+          />
+        )}
+
+        {streamEmpty && (
+          <NothingYet>
+            Record speaks · Keep saves this page · Ask answers from your material.
+            <span className="mt-1.5 block text-muted">
+              While recording: <kbd>↵</kbd> finishes · <kbd>Esc</kbd> discards
+            </span>
+          </NothingYet>
+        )}
+      </div>
     </div>
   );
 }
