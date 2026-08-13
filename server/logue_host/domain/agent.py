@@ -119,30 +119,13 @@ STOP = {"the", "and", "for", "what", "when", "where", "who", "why", "how", "was"
 
 
 def _search(store: Store, query: str, project: str = "") -> list[Record]:
-    """The phrase first, then its words — an agent asks in sentences.
+    """What this agent can find, which is what any generation can find.
 
-    The shared search matches a phrase, which is right for a person typing
-    into Find and wrong here: an agent's query is a question, and no Source
-    contains "when is the kickoff?" verbatim. So the phrase is tried, and if
-    nothing comes back the words are, ranked by how many of them a Source
-    carries. Widening the shared search instead would have changed Find for
-    everyone to fix a caller.
+    Kept as one ranking rather than two: the agent's used to be the only one
+    that ranked at all, and the Web app's Ask read whole Projects because the
+    good version lived in here.
     """
-    phrase = materials.search(store, query=query, project=project)
-    if phrase:
-        return phrase[:FOUND_LIMIT]
-    words = [w.strip("?.,!\"'“”") for w in query.casefold().split()]
-    words = [w for w in words if len(w) > 2 and w not in STOP]
-    if not words:
-        return []
-    scored: list[tuple[int, Record]] = []
-    for record in materials.search(store, project=project):
-        haystack = f"{record.get('content') or ''} {record.get('context') or ''}".casefold()
-        hits = sum(1 for word in words if word in haystack)
-        if hits:
-            scored.append((hits, record))
-    scored.sort(key=lambda pair: pair[0], reverse=True)
-    return [record for _, record in scored[:FOUND_LIMIT]]
+    return materials.relevant(store, query, project, limit=FOUND_LIMIT)
 
 
 def converse(

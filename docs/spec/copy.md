@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-485 strings across 74 files.
+495 strings across 75 files.
 
 ## extension/src/api.ts
 
@@ -95,33 +95,34 @@ state the fact, no justification, no chat register, no filler.
 - 497: `That is not an address Logue can reach.`
 - 504: `Logue's background service is restarting. Try again in a moment.`
 - 538: `The address of the Host this browser talks to — this computer, another one, or a tunnel.`
-- 627: `Logue is not answering.`
-- 742: `Could not save this page.`
-- 777: `Could not keep that.`
-- 842: `Could not reach Logue.`
-- 962: `Done — it is in your workspace.`
-- 965: `Could not do that.`
-- 1017: `Open Chrome settings`
-- 1019: `Try again`
-- 1025: `Reaching the microphone…`
-- 1045: `Ask — this page and your material are in context`
-- 1046: `What to ask`
-- 1052: `Say it instead · ⌘⇧K`
-- 1084: `This page`
-- 1087: `Project scope`
-- 1097: `Panel menu`
-- 1175: `Keeps the selection if there is one, else this whole page`
-- 1290: `Kept from this page`
-- 1296: `Nothing kept from this page yet.`
-- 1304: `finishes ·`
-- 1345: `Add to a Document`
-- 1361: `Could not add it.`
-- 1455: `Open this in Logue`
-- 1461: `Copy, with the passage it is about`
-- 1579: `Found it`
-- 1638: `What it says`
-- 1715: `Add a tag`
-- 1716: `Add a tag`
+- 629: `Logue is not answering.`
+- 744: `Could not save this page.`
+- 779: `Could not keep that.`
+- 844: `Could not reach Logue.`
+- 965: `Done — it is in your workspace.`
+- 968: `Could not do that.`
+- 1020: `Open Chrome settings`
+- 1022: `Try again`
+- 1028: `Reaching the microphone…`
+- 1048: `Ask — this page and your material are in context`
+- 1049: `What to ask`
+- 1055: `Say it instead · ⌘⇧K`
+- 1087: `This page`
+- 1090: `Project scope`
+- 1100: `Panel menu`
+- 1178: `Keeps the selection if there is one, else this whole page`
+- 1312: `Kept from this page`
+- 1318: `Nothing kept from this page yet.`
+- 1326: `finishes ·`
+- 1386: `Where a recording is added`
+- 1427: `Add to a Document`
+- 1443: `Could not add it.`
+- 1537: `Open this in Logue`
+- 1543: `Copy, with the passage it is about`
+- 1661: `Found it`
+- 1720: `What it says`
+- 1797: `Add a tag`
+- 1798: `Add a tag`
 
 ## extension/src/surfaces/FloatingBar.tsx
 
@@ -159,8 +160,9 @@ state the fact, no justification, no chat register, no filler.
 
 ## extension/src/useDictation.ts
 
-- 160: `That Skill returned nothing.`
-- 176: `That Skill could not run.`
+- 129: `Could not add it to that Document.`
+- 190: `That Skill returned nothing.`
+- 206: `That Skill could not run.`
 
 ## extension/src/useVoice.ts
 
@@ -231,19 +233,19 @@ state the fact, no justification, no chat register, no filler.
 
 ## server/logue_host/app.py
 
-- 90: `Read from disk each time so Settings changes take effect at once.`
-- 101: `say it and carry on`
-- 218: `What breaks if this Source goes away.`
-- 435: `instruction is required`
-- 505: `audio is required`
-- 509: `audio must be base64`
-- 554: `Every recording here that never became words, so it can be tried again.`
-- 559: `What shaped a transcription, including one that produced nothing.`
-- 611: `a proposal is required`
-- 650: `That recording is no longer available.`
-- 726: `Default voice`
-- 864: `backup_id or bundle is required`
-- 881: `Unnamed device`
+- 91: `Read from disk each time so Settings changes take effect at once.`
+- 102: `say it and carry on`
+- 222: `What breaks if this Source goes away.`
+- 439: `instruction is required`
+- 509: `audio is required`
+- 513: `audio must be base64`
+- 558: `Every recording here that never became words, so it can be tried again.`
+- 563: `What shaped a transcription, including one that produced nothing.`
+- 615: `a proposal is required`
+- 654: `That recording is no longer available.`
+- 730: `Default voice`
+- 868: `backup_id or bundle is required`
+- 885: `Unnamed device`
 
 ## server/logue_host/build.py
 
@@ -260,12 +262,11 @@ state the fact, no justification, no chat register, no filler.
 - 60: `", "reason": "`
 - 76: `The Skills this conversation may reach for, by their own declaration.`
 - 95: `the model did not follow the format`
-- 126: `when is the kickoff?`
-- 166: `a message is required`
-- 198: `There is something I could do, if you want it.`
-- 249: `I went round several times without reaching an answer. Try asking it a different way.`
-- 266: `there is no page to save`
-- 298: `that is not something Logue can do`
+- 149: `a message is required`
+- 181: `There is something I could do, if you want it.`
+- 232: `I went round several times without reaching an answer. Try asking it a different way.`
+- 249: `there is no page to save`
+- 281: `that is not something Logue can do`
 
 ## server/logue_host/domain/backup.py
 
@@ -317,29 +318,41 @@ state the fact, no justification, no chat register, no filler.
 - 90: `No model is set up to write a title.`
 - 95: `The model did not answer with a title.`
 - 153: `there is nothing to add`
-- 220: `the old ones`
-- 249: `What one version changed, line by line, against the one before it.`
-- 263: `The most recent version still waiting for its line, if there is one.`
-- 285: `Rewrite the passage below as instructed. Return only the rewritten passage — `
-- 286: `no preamble, no commentary, no quotation marks around it. Keep the meaning `
-- 287: `unless the instruction says otherwise, and keep the original language.`
-- 300: `why does it say this now`
-- 304: `Select the passage to rewrite first.`
-- 306: `Say how it should change.`
-- 330: `Export with a Sources appendix, so the file stands on its own.`
-- 339: `This Mac`
+- 291: `the old ones`
+- 320: `What one version changed, line by line, against the one before it.`
+- 334: `The most recent version still waiting for its line, if there is one.`
+- 356: `Rewrite the passage below as instructed. Return only the rewritten passage — `
+- 357: `no preamble, no commentary, no quotation marks around it. Keep the meaning `
+- 358: `unless the instruction says otherwise, and keep the original language.`
+- 371: `why does it say this now`
+- 375: `Select the passage to rewrite first.`
+- 377: `Say how it should change.`
+- 401: `Export with a Sources appendix, so the file stands on its own.`
+- 410: `This Mac`
+
+## server/logue_host/domain/finding.py
+
+- 33: `Someone is searching their own notes, which are written in a mix of English and Chinese. `
+- 36: `Short terms only: two or three words in English, two to four characters in Chinese. A long `
+- 37: `phrase never appears verbatim in someone's speech, so it finds nothing. For 'progressive `
+- 39: `Reply with one term per line, nothing else. No numbering, no explanation. If the query is a `
+- 40: `name, a number, or already unambiguous, reply with nothing.`
+- 73: `A filename-safe id for one query.`
+- 80: `Everything matching this query, and everything matching what it is also called.`
+- 100: `progressive disclosure`
 
 ## server/logue_host/domain/generation.py
 
-- 29: `This Mac`
-- 41: `Every Source cited in the output, in order, dropping out-of-range ones.`
-- 91: `Never state anything the Sources do not support.`
-- 160: `read and closed`
-- 167: `Only a complete Run can be adopted.`
-- 187: `This Run was never adopted.`
-- 197: `This Run has no output yet.`
-- 217: `File name too long`
-- 228: `What this Run read, resolved for display.`
+- 36: `This Mac`
+- 48: `Every Source cited in the output, in order, dropping out-of-range ones.`
+- 102: `Never state anything the Sources do not support.`
+- 171: `read and closed`
+- 178: `Only a complete Run can be adopted.`
+- 198: `This Run was never adopted.`
+- 207: `…into an accep`
+- 222: `This Run has no output yet.`
+- 251: `File name too long`
+- 262: `What this Run read, resolved for display.`
 
 ## server/logue_host/domain/history.py
 
@@ -349,7 +362,7 @@ state the fact, no justification, no chat register, no filler.
 
 - 38: `content is required`
 - 93: `Remove the Material and the derived work that would otherwise dangle.`
-- 132: `The Materials a generation may read: in the Project, not excluded.`
+- 158: `when is the kickoff?`
 
 ## server/logue_host/domain/organize.py
 
@@ -497,7 +510,7 @@ state the fact, no justification, no chat register, no filler.
 - 36: `Replace *path* atomically: write a neighbour file, then rename over.`
 - 78: `Errors reach the user's screen, so they name the thing, not its id.`
 - 113: `Every collection plus the singleton documents, rooted at one directory.`
-- 199: `Copy the whole workspace, for a backup taken before a risky change.`
+- 201: `Copy the whole workspace, for a backup taken before a risky change.`
 
 ## server/logue_host/trace.py
 
@@ -514,12 +527,12 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/ActivitiesPage.tsx
 
-- 65: `Newest first`
-- 70: `Filter by action`
-- 96: `Nothing here yet. Speak into the side panel, or save a passage from any page.`
-- 97: `Nothing matches. Clear the search or the filter to see everything again.`
-- 188: `Mar 4`
-- 198: `s own clock — the day is already the group`
+- 82: `Newest first`
+- 87: `Filter by action`
+- 113: `Nothing here yet. Speak into the side panel, or save a passage from any page.`
+- 114: `Nothing matches. Clear the search or the filter to see everything again.`
+- 239: `Mar 4`
+- 249: `s own clock — the day is already the group`
 
 ## web/src/app/App.tsx
 

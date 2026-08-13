@@ -129,9 +129,60 @@ def search(store: Store, query: str = "", project: str = "", kind: str = "") -> 
 
 
 def context_for(store: Store, project: str) -> list[Record]:
-    """The Materials a generation may read: in the Project, not excluded."""
+    """The Materials a generation may read: in the Project, not excluded.
+
+    Not what the person asked, either. A question typed into the ask box is
+    written down as a Material so the day's activity is complete — 53 of them
+    on this workspace — and an ask that retrieves its own wording is a model
+    reading the question back as if it were evidence.
+    """
     return [
         record
         for record in search(store, project=project)
-        if not record.get("excluded") and not (record.get("organization") or {}).get("duplicate_of")
+        if not record.get("excluded")
+        and not (record.get("organization") or {}).get("duplicate_of")
+        and record.get("purpose") != "activity"
     ]
+
+
+STOP = {"the", "and", "for", "what", "when", "where", "who", "why", "how", "was",
+        "were", "did", "does", "with", "from", "about", "this", "that", "there",
+        "have", "has", "any", "all", "into", "your", "you", "our"}
+
+
+def relevant(store: Store, query: str, project: str = "", limit: int = 6) -> list[Record]:
+    """The Materials most likely to answer this question, best first.
+
+    The phrase is tried whole, then its words, ranked by how many of them a
+    Source carries — a question is asked in sentences and no Source contains
+    "when is the kickoff?" verbatim.
+
+    Everything that reads a Project to answer with goes through here. Without
+    it, a generation was handed the Project entire: one ask on this workspace
+    took 192 Sources, cited one, and twice came back "the evidence is
+    insufficient" with the answer sitting in the pile.
+    """
+    within = context_for(store, project) if project else []
+    words = [w.strip("?.,!\"'“”") for w in query.casefold().split()]
+    words = [w for w in words if len(w) > 2 and w not in STOP]
+    if not words:
+        # Nothing to rank by — the newest, which is at least a rule someone
+        # can predict, rather than however the directory happened to list.
+        # Judged before the phrase is tried: a query of "?" matched every
+        # Source with a question mark in it and called that relevance.
+        return sorted(within, key=lambda r: str(r.get("created_at") or ""), reverse=True)[:limit]
+
+    ids = {record["id"] for record in within} if project else None
+    phrase = [r for r in search(store, query=query, project=project) if ids is None or r["id"] in ids]
+    if phrase:
+        return phrase[:limit]
+
+    pool = within if project else search(store)
+    scored: list[tuple[int, Record]] = []
+    for record in pool:
+        haystack = f"{record.get('content') or ''} {record.get('context') or ''}".casefold()
+        hits = sum(1 for word in words if word in haystack)
+        if hits:
+            scored.append((hits, record))
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [record for _, record in scored[:limit]]

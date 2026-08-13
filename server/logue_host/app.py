@@ -20,6 +20,7 @@ from .domain import (
     corrections,
     defaults,
     documents,
+    finding,
     generation,
     materials,
     organize,
@@ -144,13 +145,16 @@ class App:
 
         @route("GET", "/v1/materials")
         def list_materials(request: Request) -> dict[str, Any]:
-            found = materials.search(
-                store,
-                query=request.query.get("q", ""),
-                project=request.query.get("project", ""),
-                kind=request.query.get("kind", ""),
-            )
-            return {"materials": found}
+            query = request.query.get("q", "")
+            project = request.query.get("project", "")
+            kind = request.query.get("kind", "")
+            # Widening asks a model, so it is never on the typing path — the
+            # caller asks for it once the person has stopped and committed to
+            # the words. `also` says which other wordings were searched, so a
+            # result containing none of what was typed can be accounted for.
+            if query and request.query.get("wider"):
+                return finding.widened(store, self.provider(), query, project, kind)
+            return {"materials": materials.search(store, query=query, project=project, kind=kind)}
 
         @route("POST", "/v1/materials")
         def create_material(request: Request) -> dict[str, Any]:

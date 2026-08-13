@@ -581,6 +581,8 @@ export function Panel() {
    * be looking.
    */
   const [speaking, setSpeaking] = useState<"chat" | "dictation">("chat");
+  /** The Document the next recording is added to, or nowhere. */
+  const [into, setInto] = useState<{ id: string; title: string }>();
 
   // Read before anything is asked of the Host, and followed afterwards: the
   // address can be changed from another panel, and a panel still calling the
@@ -878,8 +880,9 @@ export function Panel() {
       project,
       page: { url: page?.url, title: page?.title },
       nearby: [page?.title, body].filter(Boolean).join("\n\n"),
+      into,
     });
-  }, [dictation, project, page?.id, page?.url, page?.title]);
+  }, [dictation, project, page?.id, page?.url, page?.title, into]);
 
   const accept = useCallback(async () => {
     // What is already typed, read before the recording settles: it is both
@@ -1170,7 +1173,7 @@ export function Panel() {
               }}
               className="flex h-9 flex-[1.6] items-center justify-center gap-1.5 rounded-lg bg-accent text-[12.5px] font-[600] text-white hover:bg-accent-hover disabled:opacity-50"
             >
-              <Mic size={13} /> Record
+              <Mic size={13} /> {into ? `Record into ${into.title}` : "Record"}
             </button>
             <Tooltip label="Keeps the selection if there is one, else this whole page">
               <button
@@ -1197,6 +1200,17 @@ export function Panel() {
             </button>
           </div>
         )}
+        {/*
+          Where the next recording lands, chosen before it starts.
+
+          Of the 33 things said into this panel on the owner's workspace, 33
+          were never used again: a transcript with a Copy button is a dead
+          end, and by the time the words exist the moment to decide where they
+          belong has passed. Deciding first is what makes the sentence worth
+          saying. It stays chosen, so a morning of thinking aloud into one
+          document is one decision, not thirty.
+        */}
+        {!recordingHere && <IntoDestination value={into} onChange={setInto} />}
         {speaking === "dictation" && voice.error && (
           <div className="mt-1.5 flex items-center gap-2 rounded-md border border-line bg-surface-muted px-2 py-1.5">
             <span className="flex-1 text-xs text-warning">{voice.error}</span>
@@ -1269,6 +1283,14 @@ export function Panel() {
                   />
                 </div>
               )}
+              {/* The one fact this row exists to report once it has one:
+                  the words are not only kept, they are somewhere. */}
+              {item.landed && (
+                <div className="mt-1.5 flex items-center gap-1 text-[11px] text-muted">
+                  <Check size={11} className="text-success" />
+                  Added to {item.landed.title}
+                </div>
+              )}
             </div>
           );
         })}
@@ -1317,6 +1339,66 @@ export function Panel() {
  * document, and overwriting whatever was typed in it meanwhile would be a
  * poor trade for a convenience.
  */
+/**
+ * Where the next recording goes.
+ *
+ * A dictation with nowhere to go is why 33 of them on this workspace were
+ * never touched again. This is one line under Record, remembered between
+ * recordings and across the panel being closed, because a session of thinking
+ * aloud into one document should cost one decision.
+ */
+function IntoDestination({
+  value,
+  onChange,
+}: {
+  value?: { id: string; title: string };
+  onChange: (next?: { id: string; title: string }) => void;
+}) {
+  const [documents, setDocuments] = useState<{ id: string; title: string }[]>([]);
+
+  useEffect(() => {
+    void host.documents().then(
+      (found) => setDocuments(found.documents.slice(0, 20)),
+      () => setDocuments([]),
+    );
+  }, []);
+
+  // Chosen once, kept — including across the panel being closed, which is the
+  // common way a side panel ends.
+  useEffect(() => {
+    void chrome.storage.local.get("logue:dictation-into").then((stored) => {
+      const kept: unknown = stored["logue:dictation-into"];
+      if (kept && typeof kept === "object" && "id" in kept && "title" in kept) {
+        onChange({ id: String(kept.id), title: String(kept.title) });
+      }
+    });
+    // Read once, on open. Re-running on every change would fight the person.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (documents.length === 0) return null;
+
+  return (
+    <div className="mt-1.5 flex items-center gap-1.5">
+      <span className="shrink-0 text-[11px] text-muted">Into</span>
+      <Dropdown
+        className="min-w-0 flex-1"
+        label="Where a recording is added"
+        value={value?.id ?? ""}
+        onChange={(next) => {
+          const chosen = documents.find((one) => one.id === next);
+          onChange(chosen);
+          void chrome.storage.local.set({ "logue:dictation-into": chosen ?? null });
+        }}
+        options={[
+          { value: "", label: "Logue only" },
+          ...documents.map((document) => ({ value: document.id, label: document.title || "Untitled" })),
+        ]}
+      />
+    </div>
+  );
+}
+
 function IntoDocument({
   answer,
   onError,

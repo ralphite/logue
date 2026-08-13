@@ -16,11 +16,18 @@ from ..errors import BadRequest
 from ..ids import new_id, now
 from ..providers import Provider
 from ..store import Record, Store
-from . import materials
+from . import documents, materials
 
 #: Models write citations both ways — `[Source 3, 7]` and `[Source 3, Source 7]`
 #: — so match the bracket and pull every number out of it.
 CITATION = re.compile(r"\[Source[^\]]*\]")
+
+#: How many Sources one generation may read when nobody named them.
+#:
+#: Higher than the panel agent's six, because drafting a document from a
+#: month of captures needs more than an answer to one question does — and far
+#: below "the whole Project", which is what this was.
+SOURCE_LIMIT = 24
 
 
 def numbered(sources: list[Record]) -> str:
@@ -74,7 +81,11 @@ def run_skill(
         # something, and that something would look like an answer.
         raise BadRequest(f"{skill.get('name') or 'That Skill'} has no prompt yet. Write one on its page.")
     if source_ids is None:
-        sources = materials.context_for(store, project) if project else []
+        # Retrieved for this question, not the Project entire. Handed all of
+        # it, one ask on the owner's workspace read 192 Sources, cited one,
+        # and twice answered "the evidence is insufficient" — the answer was
+        # in the pile, at a depth the model had no reason to reach.
+        sources = materials.relevant(store, instruction, project, limit=SOURCE_LIMIT) if project else []
     else:
         sources = [store.materials.get(source_id) for source_id in source_ids]
 
@@ -190,17 +201,40 @@ def undo_adoption(store: Store, run_id: str) -> Record:
     return store.runs.put(run)
 
 
+def _shortened(asked: str) -> str:
+    """The ask, cut to a title — on a word, never through one.
+
+    A hard slice at the limit put half a word in the list ("…into an accep"),
+    which reads as a name that broke rather than one that was shortened.
+    """
+    words = asked.strip().rstrip("。.?？!！").strip()
+    if len(words) <= documents.TITLE_LIMIT:
+        return words
+    cut = words[: documents.TITLE_LIMIT]
+    # Chinese has no spaces to cut on, so a hard cut is the honest one there.
+    return (cut.rsplit(" ", 1)[0] if " " in cut else cut).strip()
+
+
 def to_document(store: Store, run_id: str, title: str = "") -> Record:
     run = store.runs.get(run_id)
     body = str(run.get("adopted_output") or run.get("original_output") or "")
     if not body:
         raise BadRequest("This Run has no output yet.")
     timestamp = now()
+    # What was asked for is the best name anyone has. The editor's own naming
+    # runs on the body losing focus, which a document nobody has opened never
+    # does — so every generated document was called "Untitled" until someone
+    # renamed it, and three of them ended up sharing the name.
+    asked = str(run.get("instruction") or "").strip().splitlines()
+    named = title.strip() or (_shortened(asked[0]) if asked else "")
     document: Record = {
         "id": new_id("document"),
-        "title": title.strip() or "Untitled",
-        "content": body,
-        "source_ids": list(run.get("sources") or []),
+        "title": named or "Untitled",
+        # A name taken from the ask is one the person wrote; the body must not
+        # overwrite it, and neither should a model.
+        "title_state": documents.EDITED if named else documents.AUTO,
+        "content": documents.as_html(body),
+        "source_ids": [source_id for source_id in (_source_id(entry) for entry in run.get("sources") or []) if source_id],
         "run_id": run_id,
         "revision": 1,
         "created_at": timestamp,

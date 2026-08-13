@@ -126,6 +126,8 @@ class Store:
         self.doc_revisions = Collection(root, "doc-revisions")
         self.transcript_revisions = Collection(root, "transcript-revisions")
         self.skill_revisions = Collection(root, "skill-revisions")
+        #: What a search query is also called, so the model is asked once.
+        self.search_wordings = Collection(root, "search-wordings")
         self.audio = root / "audio"
         self.audio.mkdir(parents=True, exist_ok=True)
         self.backups = root / "backups"

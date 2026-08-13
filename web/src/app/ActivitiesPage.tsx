@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ACTS, ActBadge, Dropdown, ErrorNote, Glyph, Spinner, type ActKind } from "@logue/ui";
-import { type Material } from "../api";
+import { api, type Material } from "../api";
 import { ListPane, ListSearch, RowMeta, RowName, RowShell } from "./panes";
 
 /**
@@ -34,10 +34,24 @@ export function ActivitiesList({
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState<"" | ActKind>("");
   const kinds = Object.keys(ACTS).filter(isKind);
+  /**
+   * A search widened into the other language, once the plain one came up short.
+   *
+   * He speaks and writes English and Chinese in one sentence, and the match is
+   * a substring: `progressive disclosure` found nothing here while `渐进式`
+   * found five, about the same afternoon. Asking costs a model call, so it
+   * happens on request rather than on every keystroke, and what it also looked
+   * for is named — a row containing none of the typed words has to be able to
+   * account for itself.
+   */
+  const [wider, setWider] = useState<{ query: string; ids: Set<string>; also: string[] }>();
+  const [widening, setWidening] = useState(false);
 
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
+    const alsoFound = wider?.query === query.trim() ? wider.ids : undefined;
     return items.filter((one) => {
+      if (alsoFound?.has(one.id)) return !kind || kindOf(one) === kind;
       if (kind && kindOf(one) !== kind) return false;
       if (!needle) return true;
       const haystack = [one.content, one.source?.domain, one.source?.title, ...(one.projects ?? [])]
@@ -45,7 +59,7 @@ export function ActivitiesList({
         .toLowerCase();
       return haystack.includes(needle);
     });
-  }, [items, query, kind]);
+  }, [items, query, kind, wider]);
 
   const groups = useMemo(() => {
     const byDay = new Map<string, Material[]>();
@@ -61,7 +75,10 @@ export function ActivitiesList({
   return (
     <ListPane
       title="Activities"
-      count={items.length}
+      // What is on screen. It read the whole workspace's count through every
+      // search: 68 rows under the heading "409", and "410" over the words
+      // "Nothing matches".
+      count={shown.length === items.length ? items.length : `${shown.length} / ${items.length}`}
       corner="Newest first"
       controls={
         <>
@@ -95,6 +112,40 @@ export function ActivitiesList({
             {items.length === 0
               ? "Nothing here yet. Speak into the side panel, or save a passage from any page."
               : "Nothing matches. Clear the search or the filter to see everything again."}
+          </p>
+        )}
+        {/* Offered whenever the words could have been written another way,
+            not only when nothing matched: five results in English can still
+            be hiding fifteen in Chinese. */}
+        {!loading && !error && query.trim() && wider?.query !== query.trim() && (
+          <button
+            type="button"
+            disabled={widening}
+            onClick={() => {
+              const asked = query.trim();
+              setWidening(true);
+              void api
+                .findWider(asked)
+                .then((found) =>
+                  setWider({ query: asked, ids: new Set(found.materials.map((one) => one.id)), also: found.also }),
+                )
+                .catch(() => setWider({ query: asked, ids: new Set(), also: [] }))
+                .finally(() => setWidening(false));
+            }}
+            className="flex w-full items-center gap-1.5 border-b border-line px-4 py-2 text-left text-xs text-accent-ink hover:bg-hover disabled:opacity-50"
+          >
+            {widening ? <Spinner size={11} /> : <Glyph name="search" />}
+            Also search other wordings
+          </button>
+        )}
+        {wider?.query === query.trim() && wider.also.length > 0 && (
+          <p className="border-b border-line px-4 py-2 text-xs text-muted">
+            Also searched {wider.also.join(", ")}
+          </p>
+        )}
+        {wider?.query === query.trim() && wider.also.length === 0 && (
+          <p className="border-b border-line px-4 py-2 text-xs text-muted">
+            No other wording found more.
           </p>
         )}
         {groups.map(([day, rows]) => (

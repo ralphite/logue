@@ -176,6 +176,77 @@ def sources_of(store: Store, document_id: str) -> list[Record]:
     return [source for source in found if source]
 
 
+def as_html(markdown: str) -> str:
+    """A model's Markdown, in the shape the editor stores and `as_text` reads.
+
+    Generation answers in Markdown — headings, lists, checkboxes — and the
+    editor is a `contenteditable` that shows HTML. Storing the raw Markdown
+    put the whole answer on screen as one wall of text with `#` and `- ` in
+    it, which is the last metre of the best flow in the product.
+
+    Deliberately small: headings, the two kinds of list, paragraphs, and the
+    three inline marks. A Markdown library would bring a dependency to a Host
+    that has none, and everything past this point is text the person edits by
+    hand anyway.
+    """
+    text = str(markdown or "").replace("\r\n", "\n").strip()
+    if not text:
+        return ""
+    # Already HTML — a Run that was adopted from the editor, say.
+    if re.match(r"\s*<(p|h[1-6]|ul|ol|div)\b", text):
+        return text
+
+    def inline(raw: str) -> str:
+        out = raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        out = re.sub(r"`([^`]+)`", r"<code>\1</code>", out)
+        out = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", out)
+        out = re.sub(r"(?<![*\w])\*([^*\n]+)\*(?!\*)", r"<em>\1</em>", out)
+        return out
+
+    html: list[str] = []
+    lines = text.split("\n")
+    at = 0
+    while at < len(lines):
+        line = lines[at]
+        if not line.strip():
+            at += 1
+            continue
+
+        heading = re.match(r"^(#{1,6})\s+(.*)$", line)
+        if heading:
+            level = len(heading.group(1))
+            html.append(f"<h{level}>{inline(heading.group(2).strip())}</h{level}>")
+            at += 1
+            continue
+
+        # A list runs until the first line that is not one of its items.
+        bullet = re.match(r"^\s*([-*+])\s+(.*)$", line)
+        number = re.match(r"^\s*\d+[.)]\s+(.*)$", line)
+        if bullet or number:
+            tag = "ul" if bullet else "ol"
+            items: list[str] = []
+            while at < len(lines):
+                nxt = lines[at]
+                one = re.match(r"^\s*([-*+])\s+(.*)$", nxt) if bullet else re.match(r"^\s*\d+[.)]\s+(.*)$", nxt)
+                if not one:
+                    break
+                # `- [ ]` and `- [x]` are the shape his checklists come back
+                # in; kept as text so the box survives the round trip.
+                items.append(f"<li>{inline(one.group(2 if bullet else 1).strip())}</li>")
+                at += 1
+            html.append(f"<{tag}>{''.join(items)}</{tag}>")
+            continue
+
+        # A paragraph is everything up to the next blank line or block start.
+        paragraph: list[str] = []
+        while at < len(lines) and lines[at].strip() and not re.match(r"^(#{1,6}\s|\s*[-*+]\s|\s*\d+[.)]\s)", lines[at]):
+            paragraph.append(inline(lines[at].strip()))
+            at += 1
+        html.append(f"<p>{'<br>'.join(paragraph)}</p>")
+
+    return "".join(html)
+
+
 def as_text(content: str) -> str:
     """The document as the person sees it, with the markup taken out.
 

@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from logue_host.app import App
 from logue_host.build import installed_extension_build
-from logue_host.domain import capture, corrections, documents, organize, summaries, vocabulary
+from logue_host.domain import capture, corrections, documents, generation, organize, summaries, vocabulary
 from logue_host.errors import BadRequest, Conflict, NotFound, Unavailable
 from logue_host.http import Request, serve, web_file
 from logue_host.providers import Provider
@@ -98,10 +98,14 @@ class HostTest(Workspace, unittest.TestCase):
         run = result["run"]
 
         self.assertEqual(run["status"], "complete")
-        self.assertEqual(len(run["sources"]), 2, "the question is saved as a Source too")
         self.assertEqual(run["skill_revision"], ask["revision"])
         self.assertEqual(run["citations"], [1])
         self.assertTrue(run["activity_source_id"], "the question itself is kept")
+        # The question is kept as the day's activity, and it is not one of the
+        # Sources. It used to be both, so the model was handed the question
+        # back as numbered evidence and could cite it in its own answer.
+        self.assertEqual(len(run["sources"]), 1)
+        self.assertNotIn(run["activity_source_id"], run["sources"])
 
     def test_a_run_over_an_existing_source_does_not_store_it_twice(self) -> None:
         """A rewrite of a transcript is given the transcript as its instruction.
@@ -177,6 +181,61 @@ class HostTest(Workspace, unittest.TestCase):
         after = self.call("GET", f"/v1/materials/{child['id']}")["material"]
         self.assertEqual(after["parent_ids"], [])
         self.assertTrue(after["orphaned"])
+
+    def test_a_search_finds_what_was_said_in_the_other_language(self) -> None:
+        """His notes are written in two languages; the search matched substrings.
+
+        Measured on his workspace: `progressive disclosure` found nothing and
+        `渐进式` found five, and they were the same discussion. A capture you
+        cannot find again is worth what one never made is worth.
+        """
+        self.call("POST", "/v1/materials", {"kind": "text", "content": "渐进式披露，先给一句话"})
+        self.call("POST", "/v1/materials", {"kind": "text", "content": "unrelated note"})
+
+        asked = {"q": "progressive disclosure"}
+        wider_query = {"q": "progressive disclosure", "wider": "1"}
+
+        self.assertEqual(self.call("GET", "/v1/materials", query=asked)["materials"], [],
+                         "the substring search is unchanged")
+
+        with mock.patch.object(self.app.provider(), "generate", return_value="渐进式披露\n渐进披露"):
+            wider = self.call("GET", "/v1/materials", query=wider_query)
+        self.assertEqual([m["content"] for m in wider["materials"]], ["渐进式披露，先给一句话"])
+        self.assertEqual(wider["also"], ["渐进式披露"], "it says which other words it looked for")
+
+        # Asked once: the second search reads what the first remembered.
+        with mock.patch.object(self.app.provider(), "generate", side_effect=AssertionError("asked twice")):
+            again = self.call("GET", "/v1/materials", query=wider_query)
+        self.assertEqual(len(again["materials"]), 1)
+
+    def test_an_ask_reads_what_it_asked_about_not_the_whole_project(self) -> None:
+        """One ask on the owner's workspace read 192 Sources and cited one.
+
+        Twice it answered "the evidence is insufficient" with the answer in
+        the pile: a Project is not a context window, and depth is where a
+        model stops looking.
+        """
+        self.call("POST", "/v1/projects", {"name": "Big"})
+        for index in range(30):
+            self.call(
+                "POST",
+                "/v1/materials",
+                {"kind": "text", "content": f"unrelated note number {index}", "projects": ["Big"]},
+            )
+        wanted = self.call(
+            "POST",
+            "/v1/materials",
+            {"kind": "text", "content": "the kickoff is on Tuesday", "projects": ["Big"]},
+        )["material"]
+
+        ask = next(s for s in self.call("GET", "/v1/skills")["skills"] if s["name"] == "Answer questions")
+        run = self.call(
+            "POST", "/v1/runs", {"skill_id": ask["id"], "instruction": "when is the kickoff?", "project": "Big"}
+        )["run"]
+
+        self.assertIn(wanted["id"], run["sources"])
+        self.assertLessEqual(len(run["sources"]), generation.SOURCE_LIMIT)
+        self.assertLess(len(run["sources"]), 31, "the whole Project was handed over")
 
     def test_excluded_sources_do_not_reach_generation(self) -> None:
         self.call("POST", "/v1/projects", {"name": "P"})
@@ -277,6 +336,35 @@ class HostTest(Workspace, unittest.TestCase):
             {"capture_id": said["capture_id"], "text": "words", "context": "x" * 5000},
         )["material"]
         self.assertEqual(len(material["context"]), capture.CONTEXT_LIMIT)
+
+    def test_a_generated_document_arrives_as_a_document_not_as_markdown(self) -> None:
+        """The last metre of the best flow in the product.
+
+        Generation answers in Markdown; the editor shows HTML. The answer used
+        to land as one wall of text with its own `#` and `- ` in it, under the
+        name "Untitled" — the editor's naming runs on the body losing focus,
+        which a document nobody has opened never does.
+        """
+        self.app.store.runs.put(
+            {
+                "id": "run_md",
+                "kind": "document",
+                "status": "complete",
+                "instruction": "Turn what I said about retries into an acceptance list.",
+                "original_output": "# Acceptance list\n\n- the audio is kept\n- **Try again** works",
+                "sources": [],
+            }
+        )
+        document = self.call("POST", "/v1/runs/run_md/document", {})["document"]
+
+        # Cut on a word, never through one.
+        self.assertEqual(document["title"], "Turn what I said about retries into an acceptance")
+        self.assertIn("<h1>Acceptance list</h1>", document["content"])
+        self.assertIn("<li>the audio is kept</li>", document["content"])
+        self.assertIn("<strong>Try again</strong>", document["content"])
+        self.assertNotIn("# Acceptance", document["content"])
+        # And it is named by a person's words, so nothing renames it later.
+        self.assertEqual(document["title_state"], "edited")
 
     def test_a_run_that_stored_whole_records_as_its_sources_is_still_readable(self) -> None:
         """How twenty finished answers in the real workspace are stored.

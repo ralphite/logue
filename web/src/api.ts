@@ -273,6 +273,16 @@ export const api = {
 
   materials: (query?: { q?: string; project?: string; kind?: string }) =>
     request<{ materials: Material[] }>(`/v1/materials?${new URLSearchParams(query ?? {})}`),
+  /**
+   * The same search, plus whatever this query is also called.
+   *
+   * Separate from `materials` because it asks a model: it belongs to a person
+   * who has stopped typing and pressed something, never to a keystroke.
+   */
+  findWider: (q: string) =>
+    request<{ materials: Material[]; also: string[] }>(
+      `/v1/materials?${new URLSearchParams({ q, wider: "1" })}`,
+    ),
   lineage: (id: string) =>
     request<{ material: Material; parents: Material[]; children: Material[] }>(`/v1/materials/${id}/lineage`),
   updateMaterial: (id: string, changes: Partial<Material>) =>

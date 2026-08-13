@@ -39,6 +39,8 @@ export interface Dictation {
   message?: string;
   /** Audio the Host kept when the words failed, so a retry has something. */
   captureId?: string;
+  /** The Document the words were added to, when one was chosen beforehand. */
+  landed?: { id: string; title: string };
 }
 
 let counter = 0;
@@ -72,7 +74,21 @@ export function useDictation(voice: ReturnType<typeof useVoice>) {
    * own row, and the microphone is free the whole time.
    */
   const finish = useCallback(
-    async (options: { project?: string; page?: { url?: string; title?: string }; nearby?: string }) => {
+    async (options: {
+      project?: string;
+      page?: { url?: string; title?: string };
+      nearby?: string;
+      /**
+       * Where these words are going, chosen before the recording started.
+       *
+       * Speaking into the panel used to end at a transcript with a Copy
+       * button: of 33 panel dictations on this workspace, 33 were never used
+       * again. Deciding the destination beforehand is what makes the sentence
+       * worth saying — the words arrive where the writing already is, and the
+       * Source stays behind as the record of who said it.
+       */
+      into?: { id: string; title: string };
+    }) => {
       const id = nextId();
       const seconds = voice.seconds;
       setItems((was) => [{ id, seconds, state: "working" }, ...was]);
@@ -100,6 +116,20 @@ export function useDictation(voice: ReturnType<typeof useVoice>) {
         seconds: settled.material.capture_seconds ?? was.seconds,
         take: { id: `${id}t`, text: settled.text, used: [], made: [] },
       }));
+
+      if (options.into) {
+        try {
+          await host.appendToDocument(options.into.id, settled.text, [settled.material.id]);
+          change(id, (was) => ({ ...was, landed: options.into }));
+        } catch (cause) {
+          // The words are safe either way — they are a Source already. Only
+          // the last step failed, and the row says which one.
+          change(id, (was) => ({
+            ...was,
+            message: cause instanceof Error ? cause.message : "Could not add it to that Document.",
+          }));
+        }
+      }
     },
     [voice, change],
   );

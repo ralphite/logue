@@ -735,3 +735,25 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   on every voice path: the side panel's Dictate (whole readable page), the
   on-page caret bar (text around the caret), and recordings queued while the
   Host was off.
+
+- **A recording says where it is going before it is made.** (2026-08-13) The
+  panel picks a Document to record into; the words are added there when the
+  transcript lands, and the row says so. Speaking into the panel used to end
+  at a transcript with a Copy button — 33 of them on this workspace, none ever
+  used again — because by the time the words exist the moment to decide where
+  they belong has passed. The choice is remembered across the panel closing.
+- **An ask reads what it asked about, not the whole Project.** Sources are
+  retrieved and ranked for the question, capped. One ask here read 192 Sources,
+  cited one, and twice answered "the evidence is insufficient" with the answer
+  in the pile. The question itself is never one of them.
+- **A search can be widened into the other language.** These notes are written
+  in English and Chinese together and the match is a substring: `progressive
+  disclosure` found nothing while `渐进式` found five, about the same
+  afternoon. Widening asks a model for short terms that would appear verbatim,
+  remembers the answer, and names what it also searched — a result containing
+  none of the typed words must be able to account for itself. Never on the
+  typing path.
+- **A generated answer becomes a document, not a wall of Markdown.** Headings,
+  lists and checkboxes arrive as themselves, and the document is named by what
+  was asked, cut on a word. The editor's own naming runs on the body losing
+  focus, which a document nobody has opened never does.
