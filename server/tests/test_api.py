@@ -278,6 +278,33 @@ class HostTest(Workspace, unittest.TestCase):
         )["material"]
         self.assertEqual(len(material["context"]), capture.CONTEXT_LIMIT)
 
+    def test_one_recording_is_one_source_however_often_it_is_transcribed(self) -> None:
+        """Trying again on a kept recording revises the Source; it does not fork it.
+
+        Measured on the owner's workspace: six recordings had become fifteen
+        Sources, five of them saying different things about the same audio —
+        "we do not support MCP tools" beside "we do not know MCP tools" — and
+        filed into different Projects, because every retry made a new Source
+        and asked the classifier again.
+        """
+        said = self.call("POST", "/v1/transcribe", {"audio": base64.b64encode(b"fake").decode()})
+        first = self.call(
+            "POST", "/v1/voice-materials", {"capture_id": said["capture_id"], "text": "we do not support MCP tools"}
+        )["material"]
+        again = self.call(
+            "POST", "/v1/voice-materials", {"capture_id": said["capture_id"], "text": "we do not know MCP tools"}
+        )["material"]
+
+        self.assertEqual(again["id"], first["id"])
+        of_this_capture = [
+            m for m in self.app.store.materials.list() if m.get("capture_id") == said["capture_id"]
+        ]
+        self.assertEqual(len(of_this_capture), 1)
+        self.assertEqual(of_this_capture[0]["content"], "we do not know MCP tools")
+        # And the words it replaced are still readable.
+        kept = [r for r in self.app.store.transcript_revisions.all() if r["material_id"] == first["id"]]
+        self.assertEqual([r["transcript"] for r in kept], ["we do not support MCP tools"])
+
     def test_retranscribing_keeps_the_previous_text(self) -> None:
         result = self.call("POST", "/v1/transcribe", {"audio": base64.b64encode(b"fake").decode()})
         material = self.call("POST", "/v1/voice-materials", {"capture_id": result["capture_id"], "text": "first pass"})["material"]

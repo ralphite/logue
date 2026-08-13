@@ -343,6 +343,29 @@ def save_voice(
     if not text.strip():
         # The recording is safe; only the words are missing. Say which.
         raise BadRequest("The recording was kept, but nothing was heard in it.")
+
+    # One recording is one Source, however many times it was transcribed.
+    #
+    # Trying again on a kept recording came back through here and made a
+    # second Source of the same audio — and a model asked twice does not
+    # answer twice the same, so the workspace held two records of one
+    # sentence, disagreeing. Measured on the owner's data: six recordings
+    # had become fifteen Sources, five of them contradicting each other
+    # ("we do not support MCP tools" beside "we do not know MCP tools"),
+    # and filed into different Projects. In a product whose promise is that
+    # a Source can be trusted, that is the promise broken.
+    #
+    # So a second transcription of the same audio is a *revision* of the
+    # Source it already made, which is the shape "Transcribe again" in the
+    # web app has always had.
+    if capture_id:
+        already = next(
+            (m for m in store.materials.list() if str(m.get("capture_id") or "") == capture_id),
+            None,
+        )
+        if already is not None:
+            return _revised(store, already, text=text, applied_context=applied_context)
+
     return materials.create(
         store,
         kind="voice",
@@ -365,6 +388,40 @@ def save_voice(
         # Skill it names will have changed by the time anyone asks.
         extra={"applied_context": applied_context} if applied_context else None,
     )
+
+
+def _revised(
+    store: Store,
+    material: Record,
+    *,
+    text: str,
+    applied_context: dict[str, Any] | None = None,
+) -> Record:
+    """Replace a Source's transcript, keeping the one it replaces.
+
+    The same shape `retranscribe` writes, so a recording transcribed again
+    from the panel and one transcribed again from the web app leave one
+    history rather than two kinds of it.
+    """
+    material_id = str(material["id"])
+    kept = [r for r in store.transcript_revisions.list() if r.get("material_id") == material_id]
+    store.transcript_revisions.put(
+        {
+            "id": new_id("revision"),
+            "material_id": material_id,
+            "capture_id": str(material.get("capture_id") or ""),
+            "revision": len(kept) + 1,
+            "transcript": material.get("content"),
+            "applied_context": material.get("applied_context") or {},
+            "created_at": now(),
+        }
+    )
+    material["content"] = text
+    material["transcript"] = text
+    if applied_context:
+        material["applied_context"] = applied_context
+    material["updated_at"] = now()
+    return store.materials.put(material)
 
 
 def retranscribe(
