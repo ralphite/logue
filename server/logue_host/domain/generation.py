@@ -209,16 +209,32 @@ def to_document(store: Store, run_id: str, title: str = "") -> Record:
     return store.documents.put(document)
 
 
+def _source_id(entry: Any) -> str:
+    """The id of a Source a Run read, however that Run wrote it down.
+
+    Runs from an earlier format stored the whole Material record here instead
+    of its id. Handed one, `materials.find` built a filename out of the entire
+    record and the read failed with "File name too long" — a 500 on the only
+    request the Answer dialog makes, so twenty finished answers on the owner's
+    machine opened as a Python traceback with a Close button. The answers were
+    never damaged; they were unreachable.
+    """
+    if isinstance(entry, dict):
+        return str(entry.get("id") or "")
+    return str(entry or "")
+
+
 def dependencies(store: Store, run_id: str) -> dict[str, Any]:
     """What this Run read, resolved for display."""
     run = store.runs.get(run_id)
-    sources = [store.materials.find(source_id) for source_id in run.get("sources") or []]
+    wanted = [_source_id(entry) for entry in run.get("sources") or []]
+    sources = [store.materials.find(source_id) if source_id else None for source_id in wanted]
     return {
         "run": run,
         "sources": [source for source in sources if source],
         "missing": [
             source_id
-            for source_id, source in zip(run.get("sources") or [], sources, strict=True)
+            for source_id, source in zip(wanted, sources, strict=True)
             if source is None
         ],
     }

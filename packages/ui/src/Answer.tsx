@@ -26,6 +26,10 @@ export function Answer({
                 key={cite.at}
                 n={cite.n}
                 quote={sources?.[cite.n - 1]?.content}
+                // Only when the Sources are known. A caller that did not pass
+                // them cannot tell a real citation from an invented one, and
+                // must not accuse either way.
+                missing={Boolean(sources) && !sources?.[cite.n - 1]}
                 outOfDate={Boolean(sources?.[cite.n - 1]?.superseded_by)}
                 className="mx-0.5"
                 aria-pressed={open === cite.n}

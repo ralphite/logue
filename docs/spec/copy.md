@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-484 strings across 74 files.
+485 strings across 74 files.
 
 ## extension/src/api.ts
 
@@ -207,8 +207,8 @@ state the fact, no justification, no chat register, no filler.
 
 - 63: `From the web`
 - 64: `From you`
-- 130: `group inline-flex h-6 -my-0.5 items-center align-baseline`
-- 137: `follow this`
+- 149: `group inline-flex h-6 -my-0.5 items-center align-baseline`
+- 161: `follow this`
 
 ## packages/ui/src/Recording.tsx
 
@@ -292,11 +292,11 @@ state the fact, no justification, no chat register, no filler.
 - 304: `That recording is no longer here.`
 - 325: `From the file's own name, which is how the audio was filed.`
 - 345: `The recording was kept, but nothing was heard in it.`
-- 379: `Transcribe the kept audio again, preserving the previous text.`
-- 384: `The original recording is no longer available.`
-- 399: `Nothing was heard the second time either. The recording is unchanged.`
-- 430: `That revision belongs to a different Source.`
-- 433: `That revision has no text.`
+- 436: `Transcribe the kept audio again, preserving the previous text.`
+- 441: `The original recording is no longer available.`
+- 456: `Nothing was heard the second time either. The recording is unchanged.`
+- 487: `That revision belongs to a different Source.`
+- 490: `That revision has no text.`
 
 ## server/logue_host/domain/corrections.py
 
@@ -338,7 +338,8 @@ state the fact, no justification, no chat register, no filler.
 - 167: `Only a complete Run can be adopted.`
 - 187: `This Run was never adopted.`
 - 197: `This Run has no output yet.`
-- 213: `What this Run read, resolved for display.`
+- 217: `File name too long`
+- 228: `What this Run read, resolved for display.`
 
 ## server/logue_host/domain/history.py
 

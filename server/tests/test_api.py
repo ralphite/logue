@@ -278,6 +278,32 @@ class HostTest(Workspace, unittest.TestCase):
         )["material"]
         self.assertEqual(len(material["context"]), capture.CONTEXT_LIMIT)
 
+    def test_a_run_that_stored_whole_records_as_its_sources_is_still_readable(self) -> None:
+        """How twenty finished answers in the real workspace are stored.
+
+        They kept the whole Material record where later Runs keep its id, so
+        resolving them built a filename out of the record and failed with
+        "File name too long" — a 500 on the one request the Answer dialog
+        makes. The answer was intact the whole time and unreachable.
+        """
+        material = self.call("POST", "/v1/materials", {"kind": "text", "content": "the passage it stood on"})[
+            "material"
+        ]
+        self.app.store.runs.put(
+            {
+                "id": "run_old",
+                "kind": "answer",
+                "status": "complete",
+                "original_output": "An answer with [Source 1].",
+                "sources": [dict(material)],
+            }
+        )
+
+        found = self.call("GET", "/v1/runs/run_old")
+        self.assertEqual(found["run"]["original_output"], "An answer with [Source 1].")
+        self.assertEqual([s["id"] for s in found["sources"]], [material["id"]])
+        self.assertEqual(found["missing"], [])
+
     def test_one_recording_is_one_source_however_often_it_is_transcribed(self) -> None:
         """Trying again on a kept recording revises the Source; it does not fork it.
 

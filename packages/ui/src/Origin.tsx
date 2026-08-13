@@ -101,6 +101,7 @@ export function Citation({
   n,
   quote,
   outOfDate,
+  missing,
   className,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -114,13 +115,31 @@ export function Citation({
    * being true reads exactly like an answer standing on something that is.
    */
   outOfDate?: boolean;
+  /**
+   * There is no such Source behind this number.
+   *
+   * A model asked for citations will sometimes name a Source that was never
+   * given to it. Until this existed, `[Source 5]` with three Sources on the
+   * table rendered in the same accent blue as the three that were real — the
+   * one thing this product cannot do, because a citation nobody can follow is
+   * indistinguishable from evidence right up until someone tries.
+   */
+  missing?: boolean;
 }) {
   return (
     <button
       type="button"
-      aria-label={outOfDate ? `Source ${n}, out of date` : `Source ${n}`}
+      // Not pressable: there is nothing to open, and a chip that answers a
+      // press by doing nothing reads as a chip that failed, not as a claim
+      // with nothing behind it.
+      disabled={missing}
+      aria-label={
+        missing ? `Source ${n}, not in this answer's Sources` : outOfDate ? `Source ${n}, out of date` : `Source ${n}`
+      }
       title={
-        (outOfDate ? `Source ${n} — out of date. ` : `Source ${n}`) + (quote ? ` — ${quote.slice(0, 300)}` : "")
+        missing
+          ? `Source ${n} — this answer names a Source that is not among its own. Nothing stands behind this claim.`
+          : (outOfDate ? `Source ${n} — out of date. ` : `Source ${n}`) + (quote ? ` — ${quote.slice(0, 300)}` : "")
       }
       // The pill is 20px because it sits inside a line of 13px text; the thing
       // you have to hit is 24px, the floor the audit set for every pointer
@@ -133,15 +152,20 @@ export function Citation({
       <span
         className={cn(
           "inline-flex h-5 items-center gap-0.5 rounded-full border px-1.5 text-xs font-[650]",
-          outOfDate
-            ? // Not the accent: the accent means "follow this". A citation that
-              // is no longer current should not look like the others.
-              "border-line bg-surface-muted text-muted group-hover:bg-surface group-aria-pressed:border-muted"
-            : "border-accent-line bg-accent-soft text-accent-ink group-hover:bg-accent-hover-soft group-aria-pressed:border-accent group-aria-pressed:bg-accent-pressed",
+          missing
+            ? // Dashed and struck through: this one is not a weaker citation,
+              // it is not a citation. It has to be legible as broken at a
+              // glance, from across the paragraph.
+              "border-danger-line border-dashed bg-danger-soft text-danger line-through decoration-1"
+            : outOfDate
+              ? // Not the accent: the accent means "follow this". A citation
+                // that is no longer current should not look like the others.
+                "border-line bg-surface-muted text-muted group-hover:bg-surface group-aria-pressed:border-muted"
+              : "border-accent-line bg-accent-soft text-accent-ink group-hover:bg-accent-hover-soft group-aria-pressed:border-accent group-aria-pressed:bg-accent-pressed",
         )}
       >
         {n}
-        {outOfDate && <span aria-hidden="true">†</span>}
+        {outOfDate && !missing && <span aria-hidden="true">†</span>}
       </span>
     </button>
   );
