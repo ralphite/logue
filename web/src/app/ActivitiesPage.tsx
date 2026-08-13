@@ -150,17 +150,22 @@ function ActivityRow({ item, selected, onSelect }: { item: Material; selected: b
 }
 
 /**
- * What the person DID, as one of seven kinds.
+ * What the person DID, as one of eight kinds.
  *
  * The owner's words: "actions are different with different type and
  * purpose" — "input and page translation are very different, also voice
  * comment/dictation". Same audio pipe, different acts; the badge and the
  * verb's ink carry the kind so a mixed day splits without reading.
+ *
+ * The two dictations are told apart by the source shape: the panel's
+ * Dictation flow stamps kind "dictation"; the caret bar saves the raw page
+ * source, which has a URL and no kind. Only the caret one put words into
+ * the page.
  */
 export function kindOf(item: Material): ActKind {
   if (item.kind === "voice") {
     if (item.parent_ids?.length) return "comment";
-    if (item.source?.kind === "dictation") return "dictated";
+    if (item.source?.kind === "dictation") return "voiced";
     if (item.source?.kind === "panel") return "spoke";
     if (item.source?.url) return "dictated";
     return "spoke";

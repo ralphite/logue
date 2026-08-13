@@ -123,14 +123,16 @@ export function MaterialPanel({
                 ((material.organization.accepted_projects?.length ?? 0) > 0 ||
                   (material.organization.accepted_tags?.length ?? 0) > 0) && (
                   <div className="mt-5 flex min-h-[38px] min-w-0 items-start gap-2 border-y border-line py-[7px] text-[11.5px] text-muted-strong">
-                    <span className="min-w-0 flex-1 leading-[1.5]">
+                    {/* line-clamp: reasons written before the length rule
+                        existed run to 280 characters, and they are data now. */}
+                    <span className="line-clamp-2 min-w-0 flex-1 leading-[1.5]" title={material.organization.reason}>
                       Filed to{" "}
                       <strong className="font-[650] text-ink-soft">
                         {(material.organization.accepted_projects ?? []).join(", ") || "its tags"}
                       </strong>
                       {material.organization.reason
-                        ? ` because ${lowerFirst(material.organization.reason)}`
-                        : " automatically."}
+                        ? ` — ${lowerFirst(material.organization.reason)}`
+                        : ""}
                     </span>
                     <span className="inline-flex h-[22px] flex-none items-center gap-1 rounded-full bg-accent-soft/70 px-[7px] text-[9.8px] font-[650] text-ink-soft">
                       <Glyph name="auto" className="h-[10px] w-[10px]" />

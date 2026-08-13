@@ -23,14 +23,14 @@ export const DOCUMENT: Kind = {
   versions: api.documentVersions,
   diff: api.documentDiff,
   restore: api.restoreDocument,
-  note: "Going back keeps everything — it is written as a new version.",
+  note: "Restoring writes a new version.",
 };
 
 export const SKILL: Kind = {
   versions: api.skillVersions,
   diff: api.skillDiff,
   restore: api.restoreSkill,
-  note: "Going back is a new revision. Runs keep pointing at the prompt they actually ran with.",
+  note: "Restoring writes a new revision; Runs keep the prompt they ran with.",
 };
 
 /** How long to wait between asking whether the missing lines have arrived. */
@@ -60,9 +60,11 @@ function Entry({ version, onOpen }: { version: Version; onOpen: () => void }) {
       <span className="w-14 shrink-0 text-xs text-muted">v{version.revision}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13px] text-ink">
-          {version.summary ??
+          {/* `||`, not `??`: an empty summary is a version that changed no
+              visible line, and it falls through to the plain word. */}
+          {version.summary ||
             (version.summary_state === "pending" ? (
-              <span className="text-muted">Working out what changed…</span>
+              <span className="text-muted">Summarizing…</span>
             ) : version.current ? (
               "Now"
             ) : (
@@ -90,7 +92,7 @@ function Diff({ kind, id, revision }: { kind: Kind; id: string; revision: number
   if (lines.error) return <ErrorNote>{lines.error}</ErrorNote>;
   const found = lines.data?.lines ?? [];
   if (found.every((line) => line.kind === "same")) {
-    return <p className="px-2 py-4 text-xs text-muted">Nothing a reader would see changed here.</p>;
+    return <p className="px-2 py-4 text-xs text-muted">No visible change.</p>;
   }
   return (
     <div className="logue-scroll max-h-80 rounded-md border border-line">

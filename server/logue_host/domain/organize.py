@@ -172,9 +172,15 @@ def _prompt(store: Store, material: Record) -> tuple[str, str]:
         "",
         "Reply with JSON only, no prose and no code fence:",
         '{"projects": ["exact Project name"], "tags": ["short", "lowercase"], '
-        '"confidence": 0.0, "reason": "one sentence", '
+        '"confidence": 0.0, "reason": "3-8 plain words", '
         '"supersedes": {"id": "mat_...", "why": "one sentence"} or null}',
         "Use only Project names from the list; use [] if none fit. Never invent a Project.",
+        # Shown to the person as `Filed to X — <reason>`. The habit under
+        # instruction here is justification prose ("the voice input explicitly
+        # discusses..."), which the owner rejected on sight.
+        "The reason is shown after the Project name. Name the subject in 3-8 plain words "
+        '("panel layout notes", "Q3 pricing decision"). Never describe the input or argue '
+        'the choice — no "the voice input", no "discusses", no "fitting the project".',
         "Set `supersedes` only when this Source states something that makes one of the earlier ones "
         "wrong or out of date — a changed number, a reversed decision, a replaced rule. Two Sources "
         "about the same subject that simply say different things are not a contradiction. Use null "
@@ -212,7 +218,9 @@ def _clean(store: Store, parsed: dict[str, Any], material: Record) -> dict[str, 
         "suggested_projects": projects[:3],
         "suggested_tags": tags[:5],
         "confidence": confidence,
-        "reason": str(parsed.get("reason") or "").strip()[:280],
+        # 100, not 280: the cap backs the 3-8 word instruction against a model
+        # that writes a paragraph anyway.
+        "reason": str(parsed.get("reason") or "").strip()[:100],
     }
     replaced = _supersedes(store, parsed.get("supersedes"), material)
     if replaced:

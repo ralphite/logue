@@ -11,11 +11,12 @@
 import type { JSX } from "react";
 import { cn } from "./cn";
 
-export type ActKind = "spoke" | "dictated" | "comment" | "kept" | "saved" | "generated" | "typed";
+export type ActKind = "spoke" | "dictated" | "voiced" | "comment" | "kept" | "saved" | "generated" | "typed";
 
 export const ACTS: Record<ActKind, { label: string; ink: string; soft: string }> = {
   spoke: { label: "Spoke to Logue", ink: "text-act-spoke", soft: "bg-act-spoke-soft" },
   dictated: { label: "Dictated into a page", ink: "text-act-dictated", soft: "bg-act-dictated-soft" },
+  voiced: { label: "Dictated", ink: "text-act-voiced", soft: "bg-act-voiced-soft" },
   comment: { label: "Voice comment", ink: "text-act-comment", soft: "bg-act-comment-soft" },
   kept: { label: "Kept a passage", ink: "text-act-kept", soft: "bg-act-kept-soft" },
   saved: { label: "Saved a page", ink: "text-act-saved", soft: "bg-act-saved-soft" },
@@ -34,6 +35,13 @@ const STROKES: Record<ActKind, JSX.Element> = {
     <>
       <path d="M5 5.5h14v10H5v-10Z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
       <path d="M8 18.5h8M12 15.5v3M8.5 9h7M8.5 12h4.5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </>
+  ),
+  voiced: (
+    <>
+      <rect x="9" y="3" width="6" height="9.5" rx="3" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      <path d="M6.5 9.5a5.5 5.5 0 0 0 11 0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M6 17.5h12M8.5 20.5h7" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
     </>
   ),
   comment: (

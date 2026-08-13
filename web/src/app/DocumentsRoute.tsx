@@ -171,6 +171,8 @@ function DocumentEditor({
   const [looking, setLooking] = useState(false);
   /** The selected passage, frozen when Rewrite was pressed. */
   const [rewriting, setRewriting] = useState<string>();
+  /** Whether there is a passage to rewrite right now, so the button can say so. */
+  const [selected, setSelected] = useState(false);
   /**
    * Who named this: the first line, a model, or the person.
    *
@@ -196,6 +198,19 @@ function DocumentEditor({
     setConflict(false);
     if (body.current) body.current.innerHTML = doc.content;
   }, [doc]);
+
+  // Whether Rewrite has anything to work on. Watched rather than read on the
+  // press, because the button has to *say* it is unavailable before it is
+  // pressed — the press itself is too late to explain anything.
+  useEffect(() => {
+    const read = () => {
+      const chosen = window.getSelection();
+      const text = chosen?.toString().trim() ?? "";
+      setSelected(Boolean(text) && Boolean(chosen?.anchorNode) && Boolean(body.current?.contains(chosen!.anchorNode)));
+    };
+    document.addEventListener("selectionchange", read);
+    return () => document.removeEventListener("selectionchange", read);
+  }, []);
 
   const write = async (
     changes: { title?: string; content?: string; title_state?: "auto" | "generated" | "edited" },
@@ -308,16 +323,19 @@ function DocumentEditor({
       <DetailHeader
         badge={<IconBadge name="document" tinted />}
         name={draft ? "New Document" : title || "Untitled"}
-        sub={
-          draft
-            ? "Saved at the first keystroke"
-            : `${sources.length > 0 ? `${sources.length} sources · ` : ""}${saved ? `saved ${timeAgo(saved)}` : `version ${doc?.revision ?? revision}`}`
-        }
+        // What it is made of. Whether it is saved is the footer's line, and
+        // saying it twice on one screen — once lower case, once capitalised —
+        // was the screen disagreeing with itself.
+        sub={draft ? undefined : sources.length > 0 ? `${sources.length} sources` : undefined}
         actions={
           draft ? undefined : (
             <>
-              <Tooltip label="Select a passage, then let a model propose changes">
+              <Tooltip label={selected ? "Rewrite the passage" : "Select a passage first"}>
                 <Button
+                  // A button that answers a press by doing nothing is broken,
+                  // however good its reason: with no passage selected there is
+                  // nothing to rewrite, and it says so instead of going quiet.
+                  disabled={!selected}
                   onClick={() => {
                     // Frozen at the press: opening a dialog steals focus, and a
                     // selection read afterwards is empty.
@@ -400,7 +418,7 @@ function DocumentEditor({
               />
 
               <footer className="mt-6 flex items-center gap-2 border-t border-line pt-2 text-xs text-muted">
-                {draft && <span>Not saved yet — it will be, as soon as you write something.</span>}
+                {draft && <span>Not saved yet</span>}
                 {!draft && (
                   <Tooltip label="Every version is kept">
                     <button
