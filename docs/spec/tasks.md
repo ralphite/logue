@@ -16,14 +16,18 @@
 
 **活跃队列现在在 Context Center**([../../cc/tasks.json](../../cc/tasks.json),浏览器开 `http://127.0.0.1:8788/`)。那边是**日常进出的地方** —— 每一条新要求连同你的原话一起落在那里,靠 `/cc` 写入。这份文件仍然是**正本**:队列的快照抄在下面,做完的沉进"已完成",长期规则和行为约定只在这里和 [behaviors.md](behaviors.md) 里。**两边不一致时,以 Context Center 为准**,并把这里同步过来。
 
-下面这份快照同步于 **2026-08-11**。
+下面这份快照同步于 **2026-08-12**。
 
 | | 任务 | 状态 / 为什么在这 |
 |---|---|---|
+| **X1** | 扩展 sidepanel/widget 和 Web 应用的数据要保持同步 | `queued` · P1 · bug,你 2026-08-12 的原话 "ext widget/sidepanel and webapp should have data synced."。现状:两边各自从 Host 一次性拉数据(webapp 走 `useHost`,只有手动 refresh;`freshness.ts` 只轮询构建号),Host 没有事件推送 —— 在一边写入,另一边要手动刷新才看得到。坏的东西按规则排到队首。对应行为已记入 [behaviors.md](behaviors.md) 的 Data 一节。 |
+| **N10** | Web 应用整页 IA 重构:三个方向的 preview 等他选 | `in_progress` · P0 · redesign-c 分支上 C2 已落地,等你选定方向。 |
+| **N9b** | redesign 第二轮:Markdown 渲染、Notice/EmptyState 统一、浮动条不压字段 | `queued` · P1 |
+| **N11** | Extension sidepanel + 注入 widgets 按 C2 语言重设计 | `queued` · P1 |
 | **N1b** | 按 [panel-ia.md](panel-ia.md) 重排面板 | `blocked` · P1 · **等你在提案第六节回答三个问题**。提案已对着今天的面板刷新过(8/10 写的时候三个 tab,现在四个、默认开 Dictation):原第 5 条 N5 已修掉,新增 2b(两个 tab 抢同一个录音机)和 10(默认屏由排期决定,不由入口决定)。A:四个 tab 收成两个,Chat 和 This page 合成一条流。B:四个留着只按主语重排。**我推荐 A。你点头之前一行代码都不动。** |
 | **S3g** | 在登录着的 Google Docs 上跑 cuj-gdocs | `blocked` · P1 · **要你浏览器里的登录态**。2026-08-11 你已经点头:用你自己的 Chrome、新建一个空白文档来跑。但你紧接着说"focus on items not blocked",所以**我没有动你的浏览器** —— 这一条随时可以开跑,说一声就行。 |
 
-**两条卡在你身上,而且只剩这两条**:S3g(你的登录态,已点头待开跑)、N1b(等你 confirm 提案)。不等任何人的都做完了。
+**两条卡在你身上**:S3g(你的登录态,已点头待开跑)、N1b(等你 confirm 提案)。其余按顺序推进,X1 是新报的 bug,排最前。
 
 ## 长期规则(按你说的原话记)
 

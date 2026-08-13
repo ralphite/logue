@@ -450,6 +450,14 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   they renamed, a tag they wrote, a transcript they corrected: all theirs.
 - **A second writer is refused, not silently overwritten.**
 - **The Host answers only Logue** — an extension, or a page on this machine.
+- **Every surface shows the same data, without being reloaded.** The web app,
+  the side panel and the widgets on a page all read the one workspace, and a
+  change made through any of them appears in the others on its own — file
+  something from the panel and the app's Stream already has it; rename a
+  Project in the app and the panel's list says the new name. Two surfaces
+  disagreeing about the same workspace is a bug, not a refresh away from
+  correct. (Asked for 2026-08-12: "ext widget/sidepanel and webapp should have
+  data synced." — queued as X1.)
 
 ## Surviving an update
 
