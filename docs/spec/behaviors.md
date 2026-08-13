@@ -502,6 +502,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   without that the recording is saved and unreachable, which is the same as
   lost. Both "the model refused" and "nothing was heard" offer another try on
   the audio that is already there.
+- **A failed dictation row shows the audio player, not only the error.**
+  (2026-08-12, his report: "we should always show the audio if dictation
+  fails. why only showing the err?") Whenever the Host kept the recording, the
+  row plays it next to the failure message and the retry. Only a failure with
+  nothing kept — the capture itself failed — is a message alone.
 - **What waits offline is bounded in bytes, not in recordings.** Ten
   ten-minute recordings are more than this storage holds; a count alone means
   the quota does the refusing, from somewhere else, about something the person
