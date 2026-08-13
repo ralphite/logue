@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { ACTS, ActBadge, ErrorNote, Glyph, Spinner, cn, type ActKind } from "@logue/ui";
+import { ACTS, ActBadge, Dropdown, ErrorNote, Glyph, Spinner, type ActKind } from "@logue/ui";
 import { type Material } from "../api";
+import { ListPane, ListSearch, RowMeta, RowName, RowShell } from "./panes";
 
 /**
  * Activities: everything the person did, newest first — the middle pane.
@@ -58,40 +59,27 @@ export function ActivitiesList({
   }, [shown]);
 
   return (
-    <section aria-label="Activities" className="flex w-[486px] flex-none flex-col border-r border-line bg-surface">
-      <header className="flex-none border-b border-line bg-panel px-4">
-        <div className="flex h-[42px] items-baseline gap-2">
-          <h1 className="text-[15px] font-[650] tracking-[-0.015em] text-ink">Activities</h1>
-          <span className="text-[11px] font-[550] tabular-nums text-muted">{items.length || ""}</span>
-          <span className="ml-auto text-[10.5px] font-[500] text-muted">Newest first</span>
-        </div>
-        <div className="flex items-center gap-2 pb-3">
-          <label className="flex h-control min-w-0 flex-1 items-center gap-1.5 rounded-[7px] border border-control-line bg-surface px-2 focus-within:border-accent-line">
-            <Glyph name="search" className="h-[13px] w-[13px] flex-none text-muted" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search"
-              className="w-full bg-transparent text-[12px] text-ink outline-none placeholder:text-faint"
-            />
-          </label>
-          <select
-            aria-label="Filter by action"
+    <ListPane
+      title="Activities"
+      count={items.length}
+      corner="Newest first"
+      controls={
+        <>
+          <ListSearch value={query} onChange={setQuery} />
+          <Dropdown
+            label="Filter by action"
+            className="w-[138px] flex-none"
             value={kind}
-            onChange={(event) => setKind(isKind(event.target.value) ? event.target.value : "")}
-            className="h-control w-[138px] flex-none appearance-none rounded-[7px] border border-control-line bg-surface bg-[image:var(--logue-chevron)] bg-[position:right_9px_center] bg-no-repeat pr-[26px] pl-2.5 text-[12px] font-[500] text-ink-soft"
-          >
-            <option value="">All actions</option>
-            {kinds.map((one) => (
-              <option key={one} value={one}>
-                {ACTS[one].label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </header>
-
-      <div className="logue-scroll min-h-0 flex-1">
+            onChange={(next) => setKind(next)}
+            options={[
+              { value: "" as const, label: "All actions" },
+              ...kinds.map((one) => ({ value: one, label: ACTS[one].label })),
+            ]}
+          />
+        </>
+      }
+    >
+      <>
         {error && (
           <div className="p-4">
             <ErrorNote>{error}</ErrorNote>
@@ -124,8 +112,8 @@ export function ActivitiesList({
             ))}
           </section>
         ))}
-      </div>
-    </section>
+      </>
+    </ListPane>
   );
 }
 
@@ -133,46 +121,31 @@ function ActivityRow({ item, selected, onSelect }: { item: Material; selected: b
   const kind = kindOf(item);
   const excerpt = condense(item.content);
   return (
-    <button
-      type="button"
-      aria-current={selected ? "true" : undefined}
-      onClick={onSelect}
-      className={cn(
-        "relative grid w-full grid-cols-[24px_minmax(0,1fr)] gap-x-[9px] border-b border-line py-[7px] pr-4 pl-4 text-left transition-colors",
-        selected ? "bg-accent-soft" : "hover:bg-hover-soft",
-      )}
-    >
-      {selected && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-accent" />}
-      <ActBadge kind={kind} className="mt-px" />
-      <span className="min-w-0">
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[12px] font-[600] tracking-[-0.005em] text-ink">{ACTS[kind].label}</span>
-          <span className="ml-auto flex-none text-[10.5px] tabular-nums text-muted">{clockOf(item.created_at)}</span>
-        </span>
-        <span className="mt-[2px] block truncate text-[12.5px] font-[430] leading-[1.35] text-ink/85" title={excerpt}>
-          {excerpt || "Empty"}
-        </span>
-        <span className="mt-1 flex min-w-0 items-center gap-1.5 text-[10.5px] leading-none text-muted">
-          {item.capture_seconds ? (
-            <span className="inline-flex flex-none items-center gap-[3px] tabular-nums">
-              <Glyph name="clock" />
-              {duration(item.capture_seconds)}
-            </span>
-          ) : null}
-          {item.projects?.[0] && (
-            <span className="max-w-[132px] flex-none truncate rounded-full bg-surface-muted px-[7px] py-[2.5px] text-[9.8px] font-[600] text-ink-soft">
-              {item.projects[0]}
-            </span>
-          )}
-          {item.source?.domain && (
-            <span className="inline-flex min-w-0 items-center gap-1 truncate">
-              <Glyph name="globe" className="flex-none" />
-              <span className="truncate">{item.source.domain}</span>
-            </span>
-          )}
-        </span>
+    <RowShell badge={<ActBadge kind={kind} className="mt-px" />} selected={selected} onSelect={onSelect}>
+      <RowName edge={clockOf(item.created_at)}>{ACTS[kind].label}</RowName>
+      <span className="mt-[2px] block truncate text-[12.5px] font-[430] leading-[1.35] text-ink/85" title={excerpt}>
+        {excerpt || "Empty"}
       </span>
-    </button>
+      <RowMeta>
+        {item.capture_seconds ? (
+          <span className="inline-flex flex-none items-center gap-[3px] tabular-nums">
+            <Glyph name="clock" />
+            {duration(item.capture_seconds)}
+          </span>
+        ) : null}
+        {item.projects?.[0] && (
+          <span className="max-w-[132px] flex-none truncate rounded-full bg-surface-muted px-[7px] py-[2.5px] text-[9.8px] font-[600] text-ink-soft">
+            {item.projects[0]}
+          </span>
+        )}
+        {item.source?.domain && (
+          <span className="inline-flex min-w-0 items-center gap-1 truncate">
+            <Glyph name="globe" className="flex-none" />
+            <span className="truncate">{item.source.domain}</span>
+          </span>
+        )}
+      </RowMeta>
+    </RowShell>
   );
 }
 

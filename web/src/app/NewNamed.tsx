@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, ErrorNote, Input, Spinner } from "@logue/ui";
-import { Page } from "./AppShell";
+import { DetailBody, DetailHeader, DetailPane } from "./panes";
 import { useAction } from "./useHost";
 
 /**
@@ -35,34 +35,35 @@ export function NewNamed({
     });
 
   return (
-    <Page title={section} onBack={onCancel} here={`New ${label}`}>
-      <label className="grid gap-2 py-6">
-        <span className="text-[13px] text-muted">What is this {label} called?</span>
-        <Input
-          autoFocus
-          value={name}
-          placeholder={placeholder}
-          aria-label={`Name for the new ${label}`}
-          onChange={(event) => setName(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && name.trim()) make();
-            if (event.key === "Escape") onCancel();
-          }}
-          className="max-w-96 text-[15px]"
-        />
-        {action.error && <ErrorNote>{action.error}</ErrorNote>}
-        <span className="flex items-center gap-2 pt-1">
-          <Button data-primary variant="primary" disabled={!name.trim() || action.busy} onClick={make}>
-            {action.busy ? <Spinner size={13} /> : null} Create
-          </Button>
-          <Button variant="ghost" onClick={onCancel}>
-            Cancel
-          </Button>
-        </span>
-        <span className="pt-1 text-xs text-muted">
-          Nothing is saved until you create it — leaving now leaves no trace.
-        </span>
-      </label>
-    </Page>
+    <DetailPane>
+      <DetailHeader name={`New ${label}`} sub={section} />
+      <DetailBody>
+        <label className="grid max-w-96 gap-2">
+          <span className="text-[13px] text-muted">What is this {label} called?</span>
+          <Input
+            autoFocus
+            value={name}
+            placeholder={placeholder}
+            aria-label={`Name for the new ${label}`}
+            onChange={(event) => setName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && name.trim()) make();
+              if (event.key === "Escape") onCancel();
+            }}
+            className="text-[15px]"
+          />
+          {action.error && <ErrorNote>{action.error}</ErrorNote>}
+          <span className="flex items-center gap-2 pt-1">
+            <Button data-primary variant="primary" disabled={!name.trim() || action.busy} onClick={make}>
+              {action.busy ? <Spinner size={13} /> : null} Create
+            </Button>
+            <Button variant="ghost" onClick={onCancel}>
+              Cancel
+            </Button>
+          </span>
+          <span className="pt-1 text-xs text-muted">Nothing is saved until you create it.</span>
+        </label>
+      </DetailBody>
+    </DetailPane>
   );
 }

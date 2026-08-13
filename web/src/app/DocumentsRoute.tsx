@@ -1,12 +1,26 @@
 import { Download, Wand2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { Button, ErrorNote, OriginMark, SourceLink, Spinner, originOf } from "@logue/ui";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Button, ErrorNote, Spinner, Tooltip } from "@logue/ui";
 import { api, ApiError, type Document as DocumentRecord, type Material } from "../api";
-import { DRAFT, Nothing, Page } from "./AppShell";
+import { DRAFT } from "./AppShell";
 import { useHoldsUnsaved } from "./freshness";
 import { DOCUMENT, History } from "./History";
+import {
+  DetailBody,
+  DetailHeader,
+  DetailPane,
+  IconBadge,
+  ListPane,
+  ListSearch,
+  QuietRow,
+  RowMeta,
+  RowName,
+  RowShell,
+  Section,
+} from "./panes";
 import { RewriteDialog } from "./RewriteDialog";
 import { timeAgo, useAction, useHost } from "./useHost";
+
 const AUTOSAVE_MS = 900;
 /** How far a title taken from the body follows it. */
 const TITLE_LIMIT = 50;
@@ -21,11 +35,17 @@ function firstLine(html: string, limit = TITLE_LIMIT): string {
   return text.length > limit ? text.slice(0, limit) : text;
 }
 
+/**
+ * Documents, as three panes: everything written on the left, the page being
+ * written on the right — with the Sources it cites down its own rail.
+ */
 export function DocumentsRoute({
   openId,
   onOpen,
   onCreated,
   onOpenSource,
+  made = 0,
+  onVisibleOrder,
 }: {
   openId: string | undefined;
   onOpen: (id: string | undefined) => void;
@@ -33,19 +53,85 @@ export function DocumentsRoute({
   onCreated: (id: string) => void;
   /** Go to this Source where it lives — in the Stream. */
   onOpenSource: (id: string) => void;
+  made?: number;
+  /** The rows on screen, for ⌥⌘↑/↓ to step through. */
+  onVisibleOrder?: (ids: string[]) => void;
 }) {
-  return openId ? (
-    <DocumentEditor
-      // Remounts when the draft becomes real, which is what makes the editor
-      // pick up the id without having to thread it back through itself.
-      key={openId}
-      id={openId}
-      onBack={() => onOpen(undefined)}
-      onCreated={onCreated}
-      onOpenSource={onOpenSource}
-    />
-  ) : (
-    <Nothing section="Documents" hint="Pick one from the list, or start a new page." />
+  const documents = useHost(() => api.documents(), [made, openId]);
+  const [query, setQuery] = useState("");
+
+  const all = useMemo(() => documents.data?.documents ?? [], [documents.data]);
+  const shown = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const sorted = all.toSorted((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
+    if (!needle) return sorted;
+    return sorted.filter((one) => (one.title || "Untitled").toLowerCase().includes(needle));
+  }, [all, query]);
+
+  useEffect(() => {
+    onVisibleOrder?.(shown.map((one) => one.id));
+  }, [shown, onVisibleOrder]);
+
+  const selectedId = openId && openId !== DRAFT ? openId : openId === DRAFT ? undefined : shown[0]?.id;
+
+  return (
+    <div className="flex min-h-0 flex-1">
+      <ListPane
+        title="Documents"
+        count={all.length}
+        controls={<ListSearch value={query} onChange={setQuery} />}
+      >
+        {documents.error && (
+          <div className="p-4">
+            <ErrorNote>{documents.error}</ErrorNote>
+          </div>
+        )}
+        {documents.loading && all.length === 0 && (
+          <div className="flex items-center gap-2 p-4 text-xs text-muted">
+            <Spinner /> Loading
+          </div>
+        )}
+        {shown.map((one) => (
+          <RowShell
+            key={one.id}
+            badge={<IconBadge name="document" tinted={one.id === selectedId} />}
+            selected={one.id === selectedId}
+            onSelect={() => onOpen(one.id)}
+          >
+            <RowName edge={one.updated_at ? timeAgo(one.updated_at) : undefined}>
+              {one.title || "Untitled"}
+            </RowName>
+            <RowMeta>
+              <span className="flex-none tabular-nums">
+                {(one.source_ids?.length ?? 0) > 0
+                  ? `${one.source_ids.length} ${one.source_ids.length === 1 ? "source" : "sources"}`
+                  : "written by hand"}
+              </span>
+            </RowMeta>
+          </RowShell>
+        ))}
+      </ListPane>
+
+      {selectedId || openId === DRAFT ? (
+        <DocumentEditor
+          // Remounts when the draft becomes real, which is what makes the editor
+          // pick up the id without having to thread it back through itself.
+          key={openId ?? selectedId}
+          id={openId ?? selectedId!}
+          onCreated={onCreated}
+          onOpenSource={onOpenSource}
+        />
+      ) : (
+        <DetailPane>
+          <DetailHeader name={<span className="font-[500] text-muted">Documents</span>} />
+          <DetailBody>
+            {!documents.loading && (
+              <p className="text-[12.5px] text-muted">Nothing written yet — press + to start a page.</p>
+            )}
+          </DetailBody>
+        </DetailPane>
+      )}
+    </div>
   );
 }
 
@@ -66,12 +152,10 @@ const BLANK: { document: DocumentRecord; sources: Material[] } = {
 
 function DocumentEditor({
   id,
-  onBack,
   onCreated,
   onOpenSource,
 }: {
   id: string;
-  onBack: () => void;
   onCreated: (id: string) => void;
   onOpenSource: (id: string) => void;
 }) {
@@ -102,6 +186,7 @@ function DocumentEditor({
   const timer = useRef<number>(undefined);
   const action = useAction();
   const doc = loaded.data?.document;
+  const sources = loaded.data?.sources ?? [];
 
   useEffect(() => {
     if (!doc) return;
@@ -170,12 +255,17 @@ function DocumentEditor({
 
   const mine = () => ({ title, content: body.current?.innerHTML ?? "" });
 
-  // A link to something that has been deleted is a normal thing to click —
-  // from a bookmark, from a message, from Back. Say so plainly rather than
-  // drawing an editor around nothing, with an Export button for a document
-  // that is not there and a spinner that never stops.
+  // A link to something that has been deleted is a normal thing to click.
+  // Say so plainly rather than drawing an editor around nothing.
   if (loaded.error && !doc) {
-    return <Nothing section="Documents" hint={loaded.error} />;
+    return (
+      <DetailPane>
+        <DetailHeader name={<span className="font-[500] text-muted">Documents</span>} />
+        <DetailBody>
+          <p className="text-[12.5px] text-muted">{loaded.error}</p>
+        </DetailBody>
+      </DetailPane>
+    );
   }
 
   /**
@@ -202,8 +292,6 @@ function DocumentEditor({
    * get a second — which is the whole reason the three states exist.
    */
   const nameIt = () => {
-    // Nothing to name while it is still a draft; the first keystroke has
-    // already created it by then anyway.
     if (draft || named !== "auto" || !firstLine(body.current?.innerHTML ?? "")) return;
     void action.run(async () => {
       const { document } = await api.nameDocument(id);
@@ -216,177 +304,177 @@ function DocumentEditor({
   };
 
   return (
-    <Page
-      title="Documents"
-      onBack={onBack}
-      here={doc?.title ?? ""}
-      actions={
-        draft ? undefined : (
-          <>
+    <DetailPane>
+      <DetailHeader
+        badge={<IconBadge name="document" tinted />}
+        name={draft ? "New Document" : title || "Untitled"}
+        sub={
+          draft
+            ? "Saved at the first keystroke"
+            : `${sources.length > 0 ? `${sources.length} sources · ` : ""}${saved ? `saved ${timeAgo(saved)}` : `version ${doc?.revision ?? revision}`}`
+        }
+        actions={
+          draft ? undefined : (
+            <>
+              <Tooltip label="Select a passage, then let a model propose changes">
+                <Button
+                  onClick={() => {
+                    // Frozen at the press: opening a dialog steals focus, and a
+                    // selection read afterwards is empty.
+                    const chosen = window.getSelection()?.toString() ?? "";
+                    if (chosen.trim()) setRewriting(chosen);
+                  }}
+                >
+                  <Wand2 size={13} /> Rewrite
+                </Button>
+              </Tooltip>
+              <Tooltip label="Download as Markdown">
+                <Button onClick={() => window.open(api.documentMarkdownUrl(id), "_blank")}>
+                  <Download size={13} /> Export
+                </Button>
+              </Tooltip>
+            </>
+          )
+        }
+      />
+      <DetailBody>
+        {loaded.error && <ErrorNote>{loaded.error}</ErrorNote>}
+        {conflict && (
+          <div
+            role="alert"
+            className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-muted px-2.5 py-2 text-xs text-ink"
+          >
+            <span>This document changed somewhere else. Your edits are still here, unsaved.</span>
             <Button
               onClick={() => {
-                // Frozen at the press: opening a dialog steals focus, and a
-                // selection read afterwards is empty.
-                const chosen = window.getSelection()?.toString() ?? "";
-                if (chosen.trim()) setRewriting(chosen);
+                window.clearTimeout(timer.current);
+                void action.run(() => write(mine(), true));
               }}
-              title="Select a passage first, then let a model propose changes you accept one by one"
             >
-              <Wand2 size={13} /> Rewrite
+              Keep mine
             </Button>
-            <Button onClick={() => window.open(api.documentMarkdownUrl(id), "_blank")}>
-              <Download size={13} /> Export
-            </Button>
-          </>
-        )
-      }
-    >
-      {loaded.error && <ErrorNote>{loaded.error}</ErrorNote>}
-      {conflict && (
-        <div
-          role="alert"
-          className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-muted px-2.5 py-2 text-xs text-ink"
-        >
-          <span>This document changed somewhere else. Your edits are still here, unsaved.</span>
-          <Button
-            onClick={() => {
-              window.clearTimeout(timer.current);
-              void action.run(() => write(mine(), true));
-            }}
-          >
-            Keep mine
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              window.clearTimeout(timer.current);
-              void loaded.refresh();
-            }}
-          >
-            Discard mine
-          </Button>
-        </div>
-      )}
-      {!doc ? (
-        <div className="flex items-center gap-2 text-xs text-muted">
-          <Spinner /> Loading
-        </div>
-      ) : (
-        <>
-          <input
-            value={title}
-            onChange={(event) => {
-              setTitle(event.target.value);
-              // Typing here is the claim. Nothing renames it after this.
-              setNamed("edited");
-              queueSave({ title: event.target.value, title_state: "edited" });
-            }}
-            placeholder="Untitled"
-            aria-label="Document title"
-            className="mb-3 w-full border-0 bg-transparent text-[30px] leading-tight font-[700] tracking-[-0.02em] text-ink outline-0 placeholder:text-line-strong"
-          />
-          <div
-            ref={body}
-            contentEditable
-            suppressContentEditableWarning
-            role="textbox"
-            aria-multiline="true"
-            aria-label="Document body"
-            onInput={onBodyInput}
-            onBlur={nameIt}
-            className="logue-prose min-h-72 outline-0"
-          />
-
-          <footer className="mt-6 flex items-center gap-2 border-t border-line pt-2 text-xs text-muted">
-            {draft && <span>Not saved yet — it will be, as soon as you write something.</span>}
-            {/* The revision number was already printed here and meant nothing
-                to anyone. Making it the way in costs the rail no new control. */}
-            {!draft && (
-              <button
-                type="button"
-                onClick={() => setLooking(true)}
-                className="-my-1 inline-flex min-h-6 items-center rounded-md py-1 text-xs text-muted underline decoration-line underline-offset-2 hover:text-ink"
-              >
-                Version {doc.revision}
-              </button>
-            )}
-            {saved && <span>Saved {timeAgo(saved)}</span>}
-            {action.busy && <Spinner size={11} />}
-          </footer>
-
-          {!draft && rewriting !== undefined && (
-            <RewriteDialog
-              documentId={id}
-              selection={rewriting}
-              open
-              onClose={() => setRewriting(undefined)}
-              onApply={(text) => {
-                // The selection is long gone — the dialog had focus. Replace
-                // the frozen passage in the body by matching its text, which
-                // is the passage the person chose.
-                const editor = body.current;
-                if (!editor) return;
-                const plain = editor.innerText;
-                const at = plain.indexOf(rewriting);
-                if (at >= 0) {
-                  editor.innerText = plain.slice(0, at) + text + plain.slice(at + rewriting.length);
-                } else {
-                  editor.innerText = plain + "\n" + text;
-                }
-                onBodyInput();
+            <Button
+              variant="ghost"
+              onClick={() => {
+                window.clearTimeout(timer.current);
+                void loaded.refresh();
               }}
-            />
-          )}
-
-          {!draft && (
-            <History
-              kind={DOCUMENT}
-              id={id}
-              open={looking}
-              onClose={() => setLooking(false)}
-              onRestored={() => void loaded.refresh()}
-            />
-          )}
-
-          <Sources sources={loaded.data?.sources ?? []} onOpen={onOpenSource} />
-        </>
-      )}
-    </Page>
-  );
-}
-
-/** The Sources a document cites, so a reader can check any claim. */
-function Sources({ sources, onOpen }: { sources: Material[]; onOpen: (id: string) => void }) {
-  if (sources.length === 0) return null;
-  return (
-    <section className="mt-6 grid gap-1.5">
-      <h2 className="text-xs font-[560] text-muted">{sources.length} Sources</h2>
-      {sources.map((source, index) => (
-        // Clickable for the same reason as everywhere else: this Source has a
-        // home in the Stream, and a citation you cannot follow is a dead end.
-        <div
-          key={source.id}
-          role="button"
-          tabIndex={0}
-          onClick={() => onOpen(source.id)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              onOpen(source.id);
+            >
+              Discard mine
+            </Button>
+          </div>
+        )}
+        {!doc ? (
+          <div className="flex items-center gap-2 text-xs text-muted">
+            <Spinner /> Loading
+          </div>
+        ) : (
+          <div
+            className={
+              sources.length > 0 ? "grid grid-cols-[minmax(0,1fr)_216px] items-start gap-5" : undefined
             }
-          }}
-          className="flex cursor-pointer gap-2 rounded-md bg-surface-muted px-2 py-1.5 hover:bg-hover"
-        >
-          <span className="shrink-0 text-xs font-[650] text-accent">{index + 1}</span>
-          <span className="min-w-0">
-            <span className="flex items-center gap-2 text-xs text-muted">
-              <OriginMark origin={originOf(source.kind)} />
-              <SourceLink url={source.source?.url} label={source.source?.domain || "This Mac"} />
-            </span>
-            <p className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-ink-soft">{source.content}</p>
-          </span>
-        </div>
-      ))}
-    </section>
+          >
+            <article className="min-w-0">
+              <input
+                value={title}
+                onChange={(event) => {
+                  setTitle(event.target.value);
+                  // Typing here is the claim. Nothing renames it after this.
+                  setNamed("edited");
+                  queueSave({ title: event.target.value, title_state: "edited" });
+                }}
+                placeholder="Untitled"
+                aria-label="Document title"
+                className="mb-3 w-full border-0 bg-transparent text-[22px] leading-tight font-[700] tracking-[-0.02em] text-ink outline-0 placeholder:text-line-strong"
+              />
+              <div
+                ref={body}
+                contentEditable
+                suppressContentEditableWarning
+                role="textbox"
+                aria-multiline="true"
+                aria-label="Document body"
+                onInput={onBodyInput}
+                onBlur={nameIt}
+                className="logue-prose min-h-72 max-w-[44rem] outline-0"
+              />
+
+              <footer className="mt-6 flex items-center gap-2 border-t border-line pt-2 text-xs text-muted">
+                {draft && <span>Not saved yet — it will be, as soon as you write something.</span>}
+                {!draft && (
+                  <Tooltip label="Every version is kept">
+                    <button
+                      type="button"
+                      onClick={() => setLooking(true)}
+                      className="-my-1 inline-flex min-h-6 items-center rounded-md py-1 text-xs text-muted underline decoration-line underline-offset-2 hover:text-ink"
+                    >
+                      Version {doc.revision}
+                    </button>
+                  </Tooltip>
+                )}
+                {saved && <span>Saved {timeAgo(saved)}</span>}
+                {action.busy && <Spinner size={11} />}
+              </footer>
+            </article>
+
+            {sources.length > 0 && (
+              <aside className="min-w-0">
+                <Section cap="Sources" count={sources.length} first>
+                  <div className="mt-2 grid gap-0.5">
+                    {sources.map((source, index) => (
+                      <QuietRow
+                        key={source.id}
+                        onClick={() => onOpenSource(source.id)}
+                        icon={
+                          <span className="mt-px flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[5px] bg-accent-soft text-[10px] font-[650] text-accent-ink">
+                            {index + 1}
+                          </span>
+                        }
+                      >
+                        {source.content}
+                      </QuietRow>
+                    ))}
+                  </div>
+                </Section>
+              </aside>
+            )}
+          </div>
+        )}
+
+        {!draft && rewriting !== undefined && (
+          <RewriteDialog
+            documentId={id}
+            selection={rewriting}
+            open
+            onClose={() => setRewriting(undefined)}
+            onApply={(text) => {
+              // The selection is long gone — the dialog had focus. Replace
+              // the frozen passage in the body by matching its text, which
+              // is the passage the person chose.
+              const editor = body.current;
+              if (!editor) return;
+              const plain = editor.innerText;
+              const at = plain.indexOf(rewriting);
+              if (at >= 0) {
+                editor.innerText = plain.slice(0, at) + text + plain.slice(at + rewriting.length);
+              } else {
+                editor.innerText = plain + "\n" + text;
+              }
+              onBodyInput();
+            }}
+          />
+        )}
+
+        {!draft && (
+          <History
+            kind={DOCUMENT}
+            id={id}
+            open={looking}
+            onClose={() => setLooking(false)}
+            onRestored={() => void loaded.refresh()}
+          />
+        )}
+      </DetailBody>
+    </DetailPane>
   );
 }

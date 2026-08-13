@@ -6,7 +6,6 @@ import { FindDialog, type FindTarget } from "./FindDialog";
 import { somethingUnsaved, useNewerBuild } from "./freshness";
 import { PinsProvider } from "./pins";
 import { ProjectsRoute } from "./ProjectsRoute";
-import { DocumentsRail, ProjectsRail, SkillsRail } from "./Rails";
 import { SettingsRoute } from "./SettingsRoute";
 import { ShortcutsDialog } from "./ShortcutsDialog";
 import { SkillsRoute } from "./SkillsRoute";
@@ -43,15 +42,11 @@ function pathFor(route: Route, id?: string): string {
 }
 
 /**
- * A section with nothing chosen opens on a fresh draft, and the address says
- * so (`/skills/new`). The list is already in the rail — a page whose whole
- * message is "pick from the list" made a person click twice for nothing.
- * Stream and Settings are the honest exceptions: their content arrives or
- * is configured, it cannot be "made new".
+ * A section with nothing chosen shows its list with the newest thing open —
+ * every section carries its own list now, so there is nothing to force.
  */
 function normalize(where: Where): Where {
-  if (where.id || where.route === "stream" || where.route === "settings") return where;
-  return { route: where.route, id: DRAFT };
+  return where;
 }
 
 /** A key that belongs to whatever is being typed into, not to the app. */
@@ -236,37 +231,6 @@ export function App() {
     setMade((n) => n + 1);
   };
 
-  // The rail carries the open section's list; the main area carries the one
-  // thing chosen from it.
-  const list =
-    // The Inbox carries its own list in the main pane; a rail beside it would
-    // be the same rows twice.
-    route === "projects" ? (
-      <ProjectsRail
-        selectedId={projectId}
-        onSelect={(id) => openIn("projects", id)}
-        onVisibleOrder={onVisibleOrder}
-        made={made}
-        onNew={newProject}
-      />
-    ) : route === "documents" ? (
-      <DocumentsRail
-        selectedId={documentId}
-        onSelect={(id) => openIn("documents", id)}
-        onVisibleOrder={onVisibleOrder}
-        made={made}
-        onNew={newDocument}
-      />
-    ) : route === "skills" ? (
-      <SkillsRail
-        selectedId={skillId}
-        onSelect={(id) => openIn("skills", id)}
-        onVisibleOrder={onVisibleOrder}
-        made={made}
-        onNew={newSkill}
-      />
-    ) : undefined;
-
   return (
     <PinsProvider>
       <AppShell
@@ -279,13 +243,13 @@ export function App() {
           documents: newDocument,
           skills: newSkill,
         }}
-        list={list}
       >
         {route === "stream" && (
           <StreamRoute
             openId={sourceId}
             onOpen={(id) => openIn("stream", id)}
             onOpenDocument={openDocument}
+            onVisibleOrder={onVisibleOrder}
           />
         )}
         {route === "projects" && (
@@ -295,6 +259,8 @@ export function App() {
             onOpenDocument={openDocument}
             onOpenSource={openSource}
             onCreated={born("projects")}
+            made={made}
+            onVisibleOrder={onVisibleOrder}
           />
         )}
         {route === "documents" && (
@@ -303,10 +269,18 @@ export function App() {
             onOpen={(id) => openIn("documents", id)}
             onCreated={born("documents")}
             onOpenSource={openSource}
+            made={made}
+            onVisibleOrder={onVisibleOrder}
           />
         )}
         {route === "skills" && (
-          <SkillsRoute openId={skillId} onOpen={(id) => openIn("skills", id)} onCreated={born("skills")} />
+          <SkillsRoute
+            openId={skillId}
+            onOpen={(id) => openIn("skills", id)}
+            onCreated={born("skills")}
+            made={made}
+            onVisibleOrder={onVisibleOrder}
+          />
         )}
         {route === "settings" && <SettingsRoute />}
         {newerBuild && (

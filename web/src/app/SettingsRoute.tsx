@@ -4,15 +4,16 @@ import {
   Button,
   Dialog,
   DialogActions,
+  Dropdown,
   ErrorNote,
   Field,
   IconButton,
   Input,
-  Select,
   Spinner,
+  Tooltip,
 } from "@logue/ui";
 import { api, type BackupFile, type Skill } from "../api";
-import { Page } from "./AppShell";
+import { DetailBody, DetailHeader, DetailPane } from "./panes";
 import { ShortcutsList } from "./ShortcutsDialog";
 import { useAction, useHost } from "./useHost";
 
@@ -97,9 +98,11 @@ export function SettingsRoute() {
   const voiceProfile = (settings.data?.settings.voice_profile ?? {}) as { primary_language?: string };
 
   return (
-    <Page title="Settings">
-      <div className="grid gap-6">
-        <Section title="Model">
+    <DetailPane>
+      <DetailHeader name="Settings" />
+      <DetailBody>
+        <div className="grid max-w-[560px]">
+        <Section title="Model" first>
           <Capability
             label="Generating"
             state={model.data?.generation}
@@ -111,13 +114,15 @@ export function SettingsRoute() {
             {/* Two wire formats cover everything anyone has asked for: Google's
                 own, and the OpenAI shape that Groq and most free tiers speak.
                 Switching resets the endpoint-shaped fields on the Host side. */}
-            <Select
+            <Dropdown
+              label="Provider"
               value={kind || model.data?.provider || "gemini"}
-              onChange={(event) => setKind(event.target.value)}
-            >
-              <option value="gemini">Gemini</option>
-              <option value="openai">OpenAI-compatible (Groq)</option>
-            </Select>
+              onChange={(next) => setKind(next)}
+              options={[
+                { value: "gemini", label: "Gemini" },
+                { value: "openai", label: "OpenAI-compatible (Groq)" },
+              ]}
+            />
           </Field>
           <Field label="API key">
             <Input
@@ -159,22 +164,20 @@ export function SettingsRoute() {
 
         <Section title="Voice">
           <Field label="Language">
-            <Select
+            <Dropdown
+              label="Language"
               value={voiceProfile.primary_language ?? "Auto-detect"}
-              onChange={(event) =>
+              onChange={(next) =>
                 void action
                   .run(() =>
                     api.updateSettings({
-                      voice_profile: { ...voiceProfile, primary_language: event.target.value },
+                      voice_profile: { ...voiceProfile, primary_language: next },
                     }),
                   )
                   .then(() => settings.refresh())
               }
-            >
-              {LANGUAGES.map((name) => (
-                <option key={name}>{name}</option>
-              ))}
-            </Select>
+              options={LANGUAGES.map((name) => ({ value: name, label: name }))}
+            />
           </Field>
         </Section>
 
@@ -186,9 +189,7 @@ export function SettingsRoute() {
         */}
         <Section title="Tracing">
           <p className="text-xs text-muted">
-            Every model call — the prompt, the answer, how long it took — sent to a collector you run.
-            Off unless there is an address here. Arize Phoenix listens at{" "}
-            <code className="rounded-sm bg-surface-muted px-1">http://127.0.0.1:6006/v1/traces</code>.
+            Every model call, sent to a collector you run. Off while this is empty.
           </p>
           <Field label="Collector">
             <Input
@@ -328,22 +329,21 @@ export function SettingsRoute() {
           </p>
           {SLOTS.map((slot) => (
             <Field key={slot.key} label={slot.label}>
-              <Select
+              <Dropdown
+                label={slot.label}
                 value={chosen(settings.data?.settings, slot.key)}
-                aria-label={slot.label}
-                onChange={(event) =>
+                onChange={(next) =>
                   void action
-                    .run(() => api.updateSettings({ [slot.key]: event.target.value }))
+                    .run(() => api.updateSettings({ [slot.key]: next }))
                     .then(() => settings.refresh())
                 }
-              >
-                <option value="">Ask me each time</option>
-                {(skills.data?.skills ?? []).filter(slot.accepts).map((skill) => (
-                  <option key={skill.id} value={skill.id}>
-                    {skill.name}
-                  </option>
-                ))}
-              </Select>
+                options={[
+                  { value: "", label: "Ask me each time" },
+                  ...(skills.data?.skills ?? [])
+                    .filter(slot.accepts)
+                    .map((skill) => ({ value: skill.id, label: skill.name })),
+                ]}
+              />
             </Field>
           ))}
         </Section>
@@ -436,16 +436,25 @@ export function SettingsRoute() {
         <Section title="Keyboard shortcuts">
           <ShortcutsList />
         </Section>
-      </div>
-    </Page>
+        </div>
+      </DetailBody>
+    </DetailPane>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  first = false,
+  children,
+}: {
+  title: string;
+  first?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="grid gap-2">
-      <h2 className="text-xs font-[560] text-muted">{title}</h2>
-      <div className="grid gap-2 rounded-lg border border-line p-3">{children}</div>
+    <section className={first ? undefined : "mt-5 border-t border-line pt-4"}>
+      <h2 className="text-[11px] font-[550] text-muted">{title}</h2>
+      <div className="mt-2 grid gap-2">{children}</div>
     </section>
   );
 }
@@ -456,13 +465,12 @@ function Capability({ label, state, error }: { label: string; state?: string; er
   return (
     <div className="flex items-center justify-between gap-2 text-xs">
       <span className="text-ink-soft">{label}</span>
-      <span
-        className={ready ? "flex items-center gap-1 text-success" : "text-warning"}
-        title={error || undefined}
-      >
-        {ready ? <Check size={12} /> : null}
-        {ready ? "Ready" : state === "unknown" ? "Not tested" : "Needs attention"}
-      </span>
+      <Tooltip label={error || (ready ? "Responded to the last test" : "Run Test to check")}>
+        <span className={ready ? "flex items-center gap-1 text-success" : "text-warning"}>
+          {ready ? <Check size={12} /> : null}
+          {ready ? "Ready" : state === "unknown" ? "Not tested" : "Needs attention"}
+        </span>
+      </Tooltip>
     </div>
   );
 }

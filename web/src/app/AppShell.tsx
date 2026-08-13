@@ -1,4 +1,4 @@
-import { ChevronRight, PanelLeft, Plus } from "lucide-react";
+import { PanelLeft, Plus } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Glyph, LogueLogo, LogueMark, Resizer, cn, usePersistentSize, type GlyphName } from "@logue/ui";
 import { FIND_KEYS, RAIL_KEYS } from "./shortcuts";
@@ -65,7 +65,6 @@ export function AppShell({
   offline = false,
   onFind,
   onNew,
-  list,
 }: {
   route: Route;
   onRoute: (route: Route) => void;
@@ -75,8 +74,6 @@ export function AppShell({
   onFind?: () => void;
   /** Sections that can make something, shown as a `+` on hover. */
   onNew?: Partial<Record<Route, () => void>>;
-  /** The open section's own list, shown under it in the rail. */
-  list?: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(wasCollapsed);
   const { size, setSize } = usePersistentSize({
@@ -230,15 +227,6 @@ export function AppShell({
           );
         })}
 
-        {/*
-          The section's own list, under the section — the arrangement
-          chatgpt.com and Codex use. Only the open section shows one, so the
-          rail stays a thing you scan rather than a thing you scroll. The line
-          above it keeps the five destinations from reading as its first rows.
-        */}
-        {!collapsed && list && (
-          <div className="logue-scroll mt-1.5 min-h-0 flex-1 border-t border-line pt-1.5 pb-2">{list}</div>
-        )}
 
         {offline && (
           // Kept in both states: a rail narrowed to icons is exactly when
@@ -277,133 +265,7 @@ export function AppShell({
   );
 }
 
-/**
- * A route: a fixed bar naming where you are, then everything else scrolling
- * under it.
- *
- * The bar is fixed because what it holds — search, New, Export — is what you
- * reach for partway down a long list, and a heading that scrolls away takes
- * those with it.
- */
-export function Page({
-  title,
-  onBack,
-  here,
-  actions,
-  children,
-}: {
-  title: string;
-  /** Given when `title` names the list this page came from. */
-  onBack?: () => void;
-  /** What is open, when the title alone only names the section. */
-  here?: string;
-  actions?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <>
-      {/*
-        The bar's contents sit on the same column as the page's, so the section
-        name is directly above the list it names and the actions are above its
-        right edge. A full-width bar over a centred column reads as two
-        unrelated things.
-      */}
-      <header className="shrink-0 border-b border-line">
-        <div className="mx-auto flex h-11 max-w-page items-center gap-1 px-8">
-          {/*
-            The h1 is whatever the page is about: the open thing when one is
-            open, the section otherwise. It used to wrap the whole crumb, so a
-            screen reader heard "ProjectsAgent Harness" as one word — and had a
-            button inside a heading, which is two jobs in one element.
-          */}
-          <div className="flex min-w-0 items-center gap-1 text-[13px] font-[560] text-ink">
-            {onBack ? (
-              // The way back is the section's own name, which is where a back
-              // button would have taken you anyway.
-              <button
-                type="button"
-                onClick={onBack}
-                className="shrink-0 rounded-md px-1.5 py-0.5 font-[500] text-muted hover:bg-hover hover:text-ink"
-              >
-                {title}
-              </button>
-            ) : here !== undefined ? (
-              <span className="truncate">{title}</span>
-            ) : (
-              <h1 className="truncate">{title}</h1>
-            )}
-            {here !== undefined && (
-              <>
-                <ChevronRight size={13} aria-hidden className="shrink-0 text-muted" />
-                <h1 className="truncate">{here || "Untitled"}</h1>
-              </>
-            )}
-          </div>
-          {actions && <span className="ml-auto flex shrink-0 items-center gap-1">{actions}</span>}
-        </div>
-      </header>
-      <div className="logue-scroll min-h-0 flex-1">
-        <div className="mx-auto max-w-page px-8 py-6">{children}</div>
-      </div>
-    </>
-  );
-}
 
-/**
- * A section with nothing chosen yet.
- *
- * Says which section you are in and what to do, rather than a blank page or a
- * second copy of the list that is already in the rail.
- */
-export function Nothing({ section, hint }: { section: string; hint: string }) {
-  return (
-    <Page title={section}>
-      <p className="py-10 text-center text-xs text-muted">{hint}</p>
-    </Page>
-  );
-}
 
-/** A list of rows separated by hairlines, the way Notion lists anything. */
-export function Rows({ children }: { children: ReactNode }) {
-  return <div className="divide-y divide-line border-y border-line">{children}</div>;
-}
 
-export function Row({
-  onClick,
-  children,
-  className,
-}: {
-  onClick?: () => void;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onClick={onClick}
-      onKeyDown={(event) => {
-        if (onClick && (event.key === "Enter" || event.key === " ")) {
-          event.preventDefault();
-          onClick();
-        }
-      }}
-      className={cn(
-        "group flex items-center gap-3 px-1.5 py-2",
-        onClick && "cursor-pointer hover:bg-hover",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-}
 
-/** Row actions appear on hover, so a resting list shows only content. */
-export function RowActions({ children }: { children: ReactNode }) {
-  return (
-    <span className="ml-auto flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-      {children}
-    </span>
-  );
-}

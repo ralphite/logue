@@ -6,15 +6,19 @@ import {
   ErrorNote,
   Glyph,
   Input,
+  Menu,
+  MenuItem,
   OriginMark,
   Recording,
   SourceLink,
   Spinner,
+  Tooltip,
   cn,
   originOf,
 } from "@logue/ui";
 import { api, type Material, type Project } from "../api";
 import { kindOf } from "./ActivitiesPage";
+import { DetailBody, DetailHeader, DetailPane, Section } from "./panes";
 import { useAction, useHost } from "./useHost";
 
 /**
@@ -51,27 +55,24 @@ export function MaterialPanel({
   };
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
-      <header className="flex h-12 flex-none items-center gap-2.5 border-b border-line px-5">
-        {material && kind ? (
-          <>
-            <ActBadge kind={kind} />
-            <div className="min-w-0">
-              <div className="truncate text-[12px] font-[650] tracking-[-0.005em] text-ink">{ACTS[kind].label}</div>
-              <div className="mt-0.5 truncate text-[10.5px] font-[500] tabular-nums text-muted">
-                {whenOf(material.created_at)}
-                {material.capture_seconds ? ` · ${duration(material.capture_seconds)}` : ""}
-                {material.source?.domain ? ` · ${material.source.domain}` : ""}
-              </div>
-            </div>
-          </>
-        ) : (
-          <span className="text-[12px] text-muted">Source</span>
-        )}
-      </header>
+    <DetailPane>
+      {material && kind ? (
+        <DetailHeader
+          badge={<ActBadge kind={kind} />}
+          name={ACTS[kind].label}
+          sub={[
+            whenOf(material.created_at),
+            material.capture_seconds ? duration(material.capture_seconds) : "",
+            material.source?.domain ?? "",
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        />
+      ) : (
+        <DetailHeader name={<span className="font-[500] text-muted">Source</span>} />
+      )}
 
-      <div className="logue-scroll min-h-0 flex-1">
-        <div className="px-5 pt-5 pb-10">
+      <DetailBody>
           {lineage.error && <ErrorNote>{lineage.error}</ErrorNote>}
           {action.error && <ErrorNote className="mb-2">{action.error}</ErrorNote>}
           {!material || !kind ? (
@@ -206,8 +207,7 @@ export function MaterialPanel({
 
                 {/* The evidence column: origin, destination, membership. */}
                 <aside className="grid min-w-0 content-start">
-                  <section>
-                    <SectionCap>Where it came from</SectionCap>
+                  <Section cap="Where it came from" first>
                     <div className="mt-3 grid gap-[7px]">
                       {material.capture_id && (
                         <SourceCard
@@ -244,17 +244,15 @@ export function MaterialPanel({
                       )}
                     </div>
                     <Lineage title="Made from" items={lineage.data?.parents ?? []} />
-                  </section>
+                  </Section>
 
-                  <section className="mt-5 border-t border-line pt-4">
-                    <SectionCap>Where it went</SectionCap>
+                  <Section cap="Where it went">
                     <div className="mt-3">
                       <UsedIn materialId={material.id} onOpenDocument={onOpenDocument} />
                     </div>
-                  </section>
+                  </Section>
 
-                  <section className="mt-5 border-t border-line pt-4">
-                    <SectionCap>Projects</SectionCap>
+                  <Section cap="Projects">
                     <Membership
                       material={material}
                       projects={projects}
@@ -265,10 +263,9 @@ export function MaterialPanel({
                           .then((ok) => ok && refreshed())
                       }
                     />
-                  </section>
+                  </Section>
 
-                  <section className="mt-5 border-t border-line pt-4">
-                    <SectionCap>Tags</SectionCap>
+                  <Section cap="Tags">
                     <Tags
                       material={material}
                       busy={action.busy}
@@ -278,23 +275,15 @@ export function MaterialPanel({
                           .then((ok) => ok && refreshed())
                       }
                     />
-                  </section>
+                  </Section>
 
                   <HowItWasHeard applied={material.applied_context} />
                 </aside>
               </div>
             </>
           )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/** A right-column section's name: small caps, quiet, before what it names. */
-function SectionCap({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 className="text-[11px] font-[550] text-muted">{children}</h3>
+      </DetailBody>
+    </DetailPane>
   );
 }
 
@@ -354,7 +343,6 @@ function Membership({
   busy: boolean;
   onToggle: (name: string, member: boolean) => void;
 }) {
-  const [picking, setPicking] = useState(false);
   const members = material.projects;
   const others = projects.filter((one) => !members.includes(one.name));
 
@@ -378,40 +366,29 @@ function Membership({
         </span>
       ))}
       {members.length === 0 && <span className="text-xs text-muted">Not in any project.</span>}
-      {others.length > 0 &&
-        (picking ? (
-          <select
-            autoFocus
-            aria-label="Add to a project"
-            defaultValue=""
-            disabled={busy}
-            onBlur={() => setPicking(false)}
-            onChange={(event) => {
-              if (event.target.value) onToggle(event.target.value, true);
-              setPicking(false);
-            }}
-            className="h-7 appearance-none rounded-md border border-line-strong bg-surface bg-[image:var(--logue-chevron)] bg-[position:right_8px_center] bg-no-repeat pr-6 pl-2 text-[10.8px] font-[550] text-ink-soft"
-          >
-            <option value="" disabled>
-              Which project?
-            </option>
-            {others.map((one) => (
-              <option key={one.id} value={one.name}>
-                {one.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setPicking(true)}
-            className="inline-flex h-7 items-center gap-[5px] rounded-md border border-dashed border-control-line bg-surface px-[9px] text-[10.8px] font-[550] text-muted-strong hover:border-muted hover:bg-panel hover:text-ink-soft"
-          >
-            <Glyph name="plus" className="h-[12px] w-[12px]" />
-            Add project
-          </button>
-        ))}
+      {others.length > 0 && (
+        <Menu
+          label="Add to a project"
+          align="start"
+          trigger={(props) => (
+            <button
+              type="button"
+              disabled={busy}
+              {...props}
+              className="inline-flex h-7 items-center gap-[5px] rounded-md border border-dashed border-control-line bg-surface px-[9px] text-[10.8px] font-[550] text-muted-strong hover:border-muted hover:bg-panel hover:text-ink-soft"
+            >
+              <Glyph name="plus" className="h-[12px] w-[12px]" />
+              Add project
+            </button>
+          )}
+        >
+          {others.map((one) => (
+            <MenuItem key={one.id} onClick={() => onToggle(one.name, true)}>
+              {one.name}
+            </MenuItem>
+          ))}
+        </Menu>
+      )}
     </div>
   );
 }
@@ -461,14 +438,11 @@ function Transcript({
           <TextAction disabled={busy} onClick={() => setFixing(!fixing)} glyph="edit">
             Fix a word
           </TextAction>
-          <TextAction
-            disabled={busy}
-            onClick={() => again()}
-            glyph="retry"
-            title="Ask the model to transcribe the recording again"
-          >
-            {busy ? <Spinner size={12} /> : null} Transcribe again
-          </TextAction>
+          <Tooltip label="Hear the recording again, with today's corrections">
+            <TextAction disabled={busy} onClick={() => again()} glyph="retry">
+              {busy ? <Spinner size={12} /> : null} Transcribe again
+            </TextAction>
+          </Tooltip>
         </span>
       </div>
 
@@ -538,13 +512,11 @@ function TextAction({
   onClick,
   disabled,
   glyph,
-  title,
   children,
 }: {
   onClick: () => void;
   disabled?: boolean;
   glyph: "edit" | "retry";
-  title?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -552,7 +524,6 @@ function TextAction({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      title={title}
       className="inline-flex items-center gap-[5px] rounded-md px-1.5 py-1 text-[11.5px] font-[550] text-muted-strong hover:bg-hover hover:text-ink disabled:opacity-50"
     >
       <Glyph name={glyph} className="h-[13px] w-[13px]" />

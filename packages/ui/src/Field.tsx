@@ -82,7 +82,7 @@ export function Select({ className, children, ...props }: SelectHTMLAttributes<H
 export function Field({ label, children }: { label: string; children: ReactElement<{ id?: string }> }) {
   const id = useId();
   return (
-    <div className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-2">
+    <div className="grid grid-cols-[96px_minmax(0,1fr)] items-center gap-2">
       <label htmlFor={id} className="text-xs text-muted">
         {label}
       </label>

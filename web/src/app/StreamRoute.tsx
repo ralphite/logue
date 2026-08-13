@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { ActivitiesList } from "./ActivitiesPage";
 import { MaterialPanel } from "./MaterialPanel";
@@ -16,16 +16,22 @@ export function StreamRoute({
   openId,
   onOpen,
   onOpenDocument,
+  onVisibleOrder,
 }: {
   openId?: string;
   onOpen: (id: string | undefined) => void;
   onOpenDocument?: (id: string) => void;
+  /** The rows on screen, for ⌥⌘↑/↓ to step through. */
+  onVisibleOrder?: (ids: string[]) => void;
 }) {
   const [changed, setChanged] = useState(0);
   const materials = useHost(() => api.materials(), [changed]);
   const projects = useHost(() => api.projects(), []);
 
-  const items = materials.data?.materials ?? [];
+  const items = useMemo(() => materials.data?.materials ?? [], [materials.data]);
+  useEffect(() => {
+    onVisibleOrder?.(items.map((one) => one.id));
+  }, [items, onVisibleOrder]);
   // Nothing chosen means the newest thing: a detail pane that opens empty
   // beside a full list is a pane whose whole message is "pick from the list".
   const selectedId = openId && items.some((one) => one.id === openId) ? openId : items[0]?.id;
