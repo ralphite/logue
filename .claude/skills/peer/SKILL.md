@@ -1,6 +1,6 @@
 ---
 name: peer
-description: Check whether the sibling work session ("long session 1") is still running, and if it has stopped, tell it there is new work in docs/spec/tasks.md. Use when new tasks have just been queued, or when asked how the other session is doing.
+description: Check whether the sibling work session ("N4 work") is still running, and if it has stopped, tell it there is new work in docs/spec/tasks.md. Use when new tasks have just been queued, or when asked how the other session is doing.
 ---
 
 # Is the other session still working?
@@ -14,10 +14,14 @@ check that the other session is still alive to read them.
 
 ## The check
 
-Session to watch: **"long session 1"**, `local_28c0716d-8cb1-4f4f-b4b2-baf0f5ad3312`
+Session to watch: **"N4 work"**, `local_1a71e993-b0b3-45a1-993c-dde40a3e3f9c`
+
+(Until 2026-08-12 the worker was "long session 1", `local_28c0716d-…`. It
+stopped on 2026-08-10 and "N4 work" took over the queue; the old session may
+still appear in the list, stopped. It is not the one to message.)
 
 1. Call `mcp__ccd_session_mgmt__list_sessions`.
-2. Find the entry whose `title` is "long session 1". Prefer matching the title
+2. Find the entry whose `title` is "N4 work". Prefer matching the title
    over the id — a session can be recreated with a new id under the same name,
    and then the id above is the stale one, not the session.
 3. Read `isRunning` and `lastActivityAt`.
