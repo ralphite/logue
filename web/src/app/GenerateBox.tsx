@@ -1,6 +1,6 @@
 import { CornerDownLeft, FileText } from "lucide-react";
 import { useState } from "react";
-import { Answer, Button, ErrorNote, OriginMark, Select, Spinner, Textarea, originOf } from "@logue/ui";
+import { Answer, Button, Dropdown, ErrorNote, OriginMark, Spinner, Textarea, originOf } from "@logue/ui";
 import { ApiError, api, type Material, type Run, type Skill } from "../api";
 import { useAction } from "./useHost";
 
@@ -82,18 +82,13 @@ export function GenerateBox({
         aria-label="What to ask"
       />
       <div className="flex items-center gap-1">
-        <Select
+        <Dropdown
           className="w-44"
+          label="Skill"
           value={skill?.id ?? ""}
-          onChange={(event) => setSkillId(event.target.value)}
-          aria-label="Skill"
-        >
-          {usable.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </Select>
+          onChange={(next: string) => setSkillId(next)}
+          options={usable.map((item) => ({ value: item.id, label: item.name }))}
+        />
         <span className="flex-1" />
         <Button
           variant="primary"

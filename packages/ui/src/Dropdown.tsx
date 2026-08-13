@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "./cn";
 
 export interface DropdownOption<V extends string = string> {
@@ -6,20 +6,25 @@ export interface DropdownOption<V extends string = string> {
   label: string;
 }
 
+/** How long a typed prefix keeps accumulating before it starts over. */
+const TYPEAHEAD_MS = 600;
+
 /**
- * A dropdown that looks chosen rather than issued.
+ * A select that looks chosen rather than issued.
  *
  * The native control's popup belongs to the operating system; everything else
  * on the screen belongs to the product, and the mismatch reads as a seam.
- * This one opens the same quiet float every menu here opens: 24px rows, a
- * check on the current value, arrows and Enter, Escape and outside-press to
- * leave. The trigger is the standard 28px control with the standard chevron.
+ * The behaviour, though, is the native one's, kept deliberately: arrows move,
+ * Enter and click choose, Escape and Tab and an outside press leave, typing
+ * jumps to the option that starts that way, and the list flips upward when
+ * the screen ends before it does. A dropdown is not the place to invent.
  */
 export function Dropdown<V extends string>({
   value,
   onChange,
   options,
   label,
+  disabled = false,
   className,
 }: {
   value: V;
@@ -27,12 +32,16 @@ export function Dropdown<V extends string>({
   options: readonly DropdownOption<V>[];
   /** What this chooses — read by screen readers, shown by nothing. */
   label: string;
+  disabled?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  /** Which way the list opens: down until the window says otherwise. */
+  const [side, setSide] = useState<"below" | "above">("below");
   const root = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
+  const typed = useRef<{ prefix: string; at: number }>({ prefix: "", at: 0 });
   const id = useId();
 
   const current = options.find((one) => one.value === value);
@@ -49,13 +58,25 @@ export function Dropdown<V extends string>({
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
   }, [open, options, value]);
 
+  // Measured after it exists, flipped before anyone sees it wrong: a list
+  // that would run off the bottom of the window opens upward instead.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const anchor = root.current?.getBoundingClientRect();
+    const popup = list.current?.getBoundingClientRect();
+    if (!anchor || !popup) return;
+    setSide(
+      anchor.bottom + popup.height + 8 > window.innerHeight && anchor.top - popup.height - 8 > 0
+        ? "above"
+        : "below",
+    );
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     // The chosen row starts visible: a list opened to the wrong scroll
     // position asks the person to find their own current answer.
-    list.current
-      ?.querySelector(`[data-index="${active}"]`)
-      ?.scrollIntoView({ block: "nearest" });
+    list.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [open, active]);
 
   const choose = (index: number) => {
@@ -64,26 +85,55 @@ export function Dropdown<V extends string>({
     setOpen(false);
   };
 
+  /** Typing jumps to the option that starts that way — the native habit. */
+  const seek = (key: string) => {
+    const now = Date.now();
+    const prefix = (now - typed.current.at < TYPEAHEAD_MS ? typed.current.prefix : "") + key.toLowerCase();
+    typed.current = { prefix, at: now };
+    const found = options.findIndex((one) => one.label.toLowerCase().startsWith(prefix));
+    if (found >= 0) {
+      if (open) setActive(found);
+      else choose(found);
+    }
+  };
+
   const onKeyDown = (event: React.KeyboardEvent) => {
+    if (disabled) return;
     if (!open) {
-      if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         setOpen(true);
+        return;
       }
+      if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) seek(event.key);
       return;
     }
-    if (event.key === "Escape") setOpen(false);
-    else if (event.key === "ArrowDown") {
+    if (event.key === "Escape") {
+      // Ours to spend only while the list is open — a closed control lets
+      // Escape mean whatever the surface around it says.
+      event.stopPropagation();
+      setOpen(false);
+    } else if (event.key === "Tab") {
+      // Tab moves on; a list left floating over the next field would be
+      // a popup nobody is talking to.
+      setOpen(false);
+    } else if (event.key === "ArrowDown") {
       event.preventDefault();
       setActive((was) => Math.min(options.length - 1, was + 1));
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       setActive((was) => Math.max(0, was - 1));
-    } else if (event.key === "Home") setActive(0);
-    else if (event.key === "End") setActive(options.length - 1);
-    else if (event.key === "Enter" || event.key === " ") {
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setActive(0);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setActive(options.length - 1);
+    } else if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       choose(active);
+    } else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      seek(event.key);
     }
   };
 
@@ -92,12 +142,26 @@ export function Dropdown<V extends string>({
       <button
         type="button"
         role="combobox"
+        disabled={disabled}
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-controls={open ? id : undefined}
+        aria-activedescendant={open ? `${id}-${active}` : undefined}
         aria-label={label}
         onClick={() => setOpen((was) => !was)}
-        className="flex h-control w-full items-center rounded-[7px] border border-control-line bg-surface bg-[image:var(--logue-chevron)] bg-[length:12px] bg-[position:right_9px_center] bg-no-repeat pr-[26px] pl-2.5 text-left text-[12px] font-[500] text-ink-soft hover:bg-panel"
+        onBlur={(event) => {
+          // Focus left the control entirely — pointer choices inside the
+          // list keep focus here, so this only fires on a real departure.
+          if (!(event.relatedTarget instanceof Node) || !root.current?.contains(event.relatedTarget)) {
+            setOpen(false);
+          }
+        }}
+        className={cn(
+          "flex h-control w-full items-center rounded-[7px] border bg-surface bg-[image:var(--logue-chevron)] bg-[length:12px] bg-[position:right_9px_center] bg-no-repeat pr-[26px] pl-2.5 text-left text-[12px] font-[500] text-ink-soft",
+          open ? "border-accent-line" : "border-control-line hover:bg-panel",
+          "disabled:pointer-events-none disabled:bg-panel disabled:text-muted",
+          "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+        )}
       >
         <span className="min-w-0 flex-1 truncate">{current?.label ?? ""}</span>
       </button>
@@ -107,22 +171,24 @@ export function Dropdown<V extends string>({
           id={id}
           role="listbox"
           aria-label={label}
-          className="logue-scroll logue-float absolute top-[calc(100%+4px)] left-0 z-popover max-h-72 w-max max-w-72 min-w-full p-1"
+          className={cn(
+            "logue-scroll logue-float absolute left-0 z-popover max-h-72 w-max max-w-72 min-w-full p-1",
+            side === "below" ? "top-[calc(100%+4px)]" : "bottom-[calc(100%+4px)]",
+          )}
         >
           {options.map((one, index) => (
             <button
               key={one.value}
               type="button"
               role="option"
+              id={`${id}-${index}`}
               data-index={index}
+              tabIndex={-1}
               aria-selected={one.value === value}
-              // Selection happens on the pointer going down, the way native
-              // menus commit — a click that has to finish inside the row is
-              // a click that can silently miss.
-              onPointerDown={(event) => {
-                event.preventDefault();
-                choose(index);
-              }}
+              // The press must not move focus off the trigger — focus staying
+              // put is what keeps the keyboard working after a mouse visit.
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={() => choose(index)}
               onPointerEnter={() => setActive(index)}
               className={cn(
                 "flex h-6 w-full items-center gap-2 rounded-sm px-2 text-left text-xs whitespace-nowrap outline-none",

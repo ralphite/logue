@@ -63,7 +63,7 @@ export function ListPane({
   );
 }
 
-/** The 28px search field every list opens with. */
+/** The 28px search field every list opens with. Esc or the ✕ clears it. */
 export function ListSearch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
     <label className="flex h-control min-w-0 flex-1 items-center gap-1.5 rounded-[7px] border border-control-line bg-surface px-2 focus-within:border-accent-line">
@@ -71,9 +71,25 @@ export function ListSearch({ value, onChange }: { value: string; onChange: (valu
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && value) {
+            event.stopPropagation();
+            onChange("");
+          }
+        }}
         placeholder="Search"
         className="w-full bg-transparent text-[12px] text-ink outline-none placeholder:text-faint"
       />
+      {value && (
+        <button
+          type="button"
+          aria-label="Clear the search"
+          onClick={() => onChange("")}
+          className="flex h-4 w-4 flex-none items-center justify-center rounded-full text-faint hover:bg-hover hover:text-ink"
+        >
+          <Glyph name="x" className="h-[10px] w-[10px]" />
+        </button>
+      )}
     </label>
   );
 }

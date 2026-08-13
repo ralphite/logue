@@ -1,10 +1,15 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { cn } from "./cn";
 
 /**
  * The disclosure that keeps a surface calm: secondary actions live in here,
- * closed, until someone reaches for them. Closes on Escape, on outside press,
- * and after any item runs.
+ * closed, until someone reaches for them.
+ *
+ * The behaviour is the platform menu's, on purpose: opening moves focus to
+ * the first item, arrows walk the list and wrap, Enter runs, Escape and Tab
+ * and an outside press leave — and focus goes back where it came from, so
+ * the keyboard never falls off the page. The list flips upward when the
+ * window ends before it does.
  */
 export function Menu({
   trigger,
@@ -18,25 +23,74 @@ export function Menu({
   label: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [side, setSide] = useState<"below" | "above">("below");
   const root = useRef<HTMLDivElement>(null);
+  const popup = useRef<HTMLDivElement>(null);
   const id = useId();
 
   useEffect(() => {
     if (!open) return;
+    const opener = document.activeElement;
+
+    const items = () =>
+      [...(popup.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? [])];
+
+    // Focus enters the menu, the way every native menu works. Without this,
+    // arrows scroll the page behind a list that looks focused and is not.
+    items()[0]?.focus();
+
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target;
       if (target instanceof Node && root.current?.contains(target)) return;
       setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        setOpen(false);
+        return;
+      }
+      if (event.key === "Tab") {
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End")
+        return;
+      const all = items();
+      if (all.length === 0) return;
+      event.preventDefault();
+      const focused = document.activeElement;
+      const at = focused instanceof HTMLElement ? all.indexOf(focused) : -1;
+      const next =
+        event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? all.length - 1
+            : (at + (event.key === "ArrowDown" ? 1 : -1) + all.length) % all.length;
+      all[next]?.focus();
     };
     document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("keydown", onKeyDown, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("keydown", onKeyDown, true);
+      // Focus goes back where it came from — a menu that strands focus on
+      // a removed node hands the next keystroke to the page at random.
+      if (opener instanceof HTMLElement && document.contains(opener)) opener.focus();
     };
+  }, [open]);
+
+  // Flipped before anyone sees it wrong.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const anchor = root.current?.getBoundingClientRect();
+    const float = popup.current?.getBoundingClientRect();
+    if (!anchor || !float) return;
+    setSide(
+      anchor.bottom + float.height + 8 > window.innerHeight && anchor.top - float.height - 8 > 0
+        ? "above"
+        : "below",
+    );
   }, [open]);
 
   return (
@@ -44,12 +98,14 @@ export function Menu({
       {trigger({ "aria-expanded": open, "aria-haspopup": "menu", onClick: () => setOpen((v) => !v) })}
       {open && (
         <div
+          ref={popup}
           id={id}
           role="menu"
           aria-label={label}
           onClick={() => setOpen(false)}
           className={cn(
-            "logue-float absolute top-[calc(100%+4px)] z-popover min-w-44 max-w-72 p-1",
+            "logue-float absolute z-popover min-w-44 max-w-72 p-1",
+            side === "below" ? "top-[calc(100%+4px)]" : "bottom-[calc(100%+4px)]",
             align === "end" ? "right-0" : "left-0",
           )}
         >

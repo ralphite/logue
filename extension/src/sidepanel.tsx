@@ -23,7 +23,6 @@ import {
   Input,
   OriginMark,
   Recording,
-  Select,
   Spinner,
   Tag,
   Textarea,
@@ -1224,49 +1223,55 @@ export function Panel() {
           </div>
         )}
 
-        {dictation.items.map((item) => (
-          <div key={item.id} className="mb-2 rounded-lg border border-line bg-surface p-2.5">
-            {item.state === "working" ? (
-              <div className="flex items-center gap-2">
-                <Spinner size={13} className="text-muted" />
-                <span className="flex-1 text-xs text-muted" role="status">
-                  Transcribing…
-                </span>
-              </div>
-            ) : (
-              item.material?.capture_id && (
-                <Recording
-                  src={audioUrl(server, item.material.capture_id)}
-                  seconds={item.material.capture_seconds ?? item.seconds}
-                  shape={item.material.capture_id}
-                />
-              )
-            )}
-            {item.state === "failed" && (
-              <div className="mt-2 rounded-md border border-danger-line bg-danger-soft px-2 py-1.5 text-xs leading-[1.45] text-danger">
-                {item.message}
-                {item.captureId && (
-                  <button
-                    type="button"
-                    onClick={() => void dictation.again(item.id, { project, page })}
-                    className="mt-1 block font-[560] underline decoration-danger-line underline-offset-2"
-                  >
-                    Try again
-                  </button>
-                )}
-              </div>
-            )}
-            {item.take && (
-              <div className="mt-1">
-                <DictatedText
-                  take={item.take}
-                  skills={context?.skills}
-                  onApply={(takeId, skill) => void dictation.apply(item.id, takeId, skill, project)}
-                />
-              </div>
-            )}
-          </div>
-        ))}
+        {dictation.items.map((item) => {
+          // The audio to play: on the Material once the words came back, or
+          // the capture the Host kept when they did not. A failed row that
+          // shows only its message reads as "the recording is gone".
+          const captureId = item.material?.capture_id ?? item.captureId;
+          return (
+            <div key={item.id} className="mb-2 rounded-lg border border-line bg-surface p-2.5">
+              {item.state === "working" ? (
+                <div className="flex items-center gap-2">
+                  <Spinner size={13} className="text-muted" />
+                  <span className="flex-1 text-xs text-muted" role="status">
+                    Transcribing…
+                  </span>
+                </div>
+              ) : (
+                captureId && (
+                  <Recording
+                    src={audioUrl(server, captureId)}
+                    seconds={item.material?.capture_seconds ?? item.seconds}
+                    shape={captureId}
+                  />
+                )
+              )}
+              {item.state === "failed" && (
+                <div className="mt-2 rounded-md border border-danger-line bg-danger-soft px-2 py-1.5 text-xs leading-[1.45] text-danger">
+                  {item.message}
+                  {item.captureId && (
+                    <button
+                      type="button"
+                      onClick={() => void dictation.again(item.id, { project, page })}
+                      className="mt-1 block font-[560] underline decoration-danger-line underline-offset-2"
+                    >
+                      Try again
+                    </button>
+                  )}
+                </div>
+              )}
+              {item.take && (
+                <div className="mt-1">
+                  <DictatedText
+                    take={item.take}
+                    skills={context?.skills}
+                    onApply={(takeId, skill) => void dictation.apply(item.id, takeId, skill, project)}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         <Thread
           messages={thread}
@@ -1335,14 +1340,16 @@ function IntoDocument({
 
   return (
     <div className="flex items-center gap-1 border-t border-line pt-2">
-      <Select className="min-w-0 flex-1" value={into} onChange={(e) => setInto(e.target.value)} aria-label="Add to a Document">
-        <option value="">Add to a Document…</option>
-        {documents.map((document) => (
-          <option key={document.id} value={document.id}>
-            {document.title || "Untitled"}
-          </option>
-        ))}
-      </Select>
+      <Dropdown
+        className="min-w-0 flex-1"
+        label="Add to a Document"
+        value={into}
+        onChange={(next) => setInto(next)}
+        options={[
+          { value: "", label: "Add to a Document…" },
+          ...documents.map((document) => ({ value: document.id, label: document.title || "Untitled" })),
+        ]}
+      />
       <Button
         disabled={!into || busy || added}
         onClick={() => {
