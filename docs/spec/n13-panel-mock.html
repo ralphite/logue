@@ -1,0 +1,738 @@
+<meta charset="utf-8">
+<title>One List, One Composer</title>
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     Logue's own tokens (packages/ui/src/theme.css), verbatim.
+     The panel frames below are the product's colours, sizes and
+     type — not a new visual identity for a mock.
+     ───────────────────────────────────────────────────────────── */
+  :root {
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", Inter, ui-sans-serif,
+      "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+
+    --canvas: #f5f5f2;
+    --panel: #fbfbf9;
+    --surface: #ffffff;
+    --surface-muted: #f5f5f2;
+    --hover: #efefec;
+    --ink: #242423;
+    --ink-soft: #62625f;
+    --muted: #92928d;
+    --faint: #a3a39e;
+    --line: #e8e8e4;
+    --line-strong: #ddddda;
+    --control-line: #c3c4bf;
+    --accent: #6759dc;
+    --accent-soft: #f0eefc;
+    --accent-line: #ddd9f8;
+    --accent-ink: #4f43bd;
+    --danger: #a33d36;
+    --danger-soft: #fdf3f2;
+    --danger-line: #efc9c4;
+    --warning: #9a6814;
+    --success: #347847;
+    --act-voiced: #7d519c;      --act-voiced-soft: #f6eefb;
+    --act-comment: #a84965;     --act-comment-soft: #fff0f4;
+    --act-kept: #9a5b2c;        --act-kept-soft: #fff4e9;
+    --act-saved: #29775c;       --act-saved-soft: #edf8f3;
+    --act-typed: #5b5b57;       --act-typed-soft: #f0f0ed;
+    --act-generated: #267487;   --act-generated-soft: #edf8fa;
+
+    /* The page around the frames: a cooler, quieter ground so the
+       panels read as objects on a desk rather than part of the page. */
+    --ground: #e7e7e4;
+    --ground-2: #f2f2ef;
+    --page-ink: #23231f;
+    --page-soft: #5f6058;
+    --page-line: #d3d3ce;
+    --rule: #c9c9c3;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #17181a;
+      --ground-2: #1e1f22;
+      --page-ink: #e9e9e4;
+      --page-soft: #a2a39c;
+      --page-line: #303237;
+      --rule: #3a3c41;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #17181a;
+    --ground-2: #1e1f22;
+    --page-ink: #e9e9e4;
+    --page-soft: #a2a39c;
+    --page-line: #303237;
+    --rule: #3a3c41;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--page-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page { max-width: 1180px; margin: 0 auto; padding: 56px 28px 96px; }
+
+  /* ── page chrome ─────────────────────────────────────────── */
+  .eyebrow {
+    font-size: 11px; font-weight: 650; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--page-soft); margin: 0 0 10px;
+  }
+  h1 {
+    font-size: clamp(26px, 3.4vw, 38px); line-height: 1.15; letter-spacing: -0.025em;
+    font-weight: 680; margin: 0 0 14px; text-wrap: balance;
+  }
+  .lede { max-width: 62ch; font-size: 15.5px; color: var(--page-soft); margin: 0; }
+  .lede b { color: var(--page-ink); font-weight: 620; }
+
+  h2 {
+    font-size: 12px; font-weight: 680; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--page-soft); margin: 0; padding-bottom: 10px; border-bottom: 1px solid var(--rule);
+  }
+  section { margin-top: 56px; }
+  .quiet { color: var(--page-soft); }
+
+  /* ── the wall of frames ──────────────────────────────────── */
+  .wall {
+    margin-top: 22px;
+    display: grid; gap: 30px 24px;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    align-items: start;
+  }
+  .frame { display: grid; gap: 10px; }
+  .cap { display: grid; gap: 3px; }
+  .cap .n {
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.06em;
+    color: var(--page-soft);
+  }
+  .cap .t { font-size: 13.5px; font-weight: 640; letter-spacing: -0.01em; }
+  .cap .d { font-size: 12.5px; color: var(--page-soft); line-height: 1.5; }
+
+  /* ── the panel itself: 400px, the width of a side panel ──── */
+  .panel {
+    width: 400px; max-width: 100%; height: 440px;
+    background: var(--panel);
+    border: 1px solid var(--page-line);
+    border-radius: 12px;
+    box-shadow: 0 1px 2px rgb(15 15 15 / 6%), 0 12px 28px -18px rgb(15 15 15 / 30%);
+    overflow: hidden;
+    font-size: 13px; color: var(--ink);
+    display: flex; flex-direction: column;
+  }
+  .panel * { font-family: var(--font-sans); }
+
+  .p-head {
+    height: 40px; flex: none; display: flex; align-items: center; gap: 8px;
+    padding: 0 10px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  .p-mark {
+    width: 18px; height: 18px; border-radius: 5px; background: var(--accent);
+    display: grid; place-items: center; color: #fff; font-size: 10px; font-weight: 700;
+  }
+  .p-name { font-size: 12.5px; font-weight: 650; letter-spacing: -0.01em; }
+  .p-dots { margin-left: auto; color: var(--muted); letter-spacing: 1px; font-size: 13px; }
+
+  .p-body { background: var(--surface); flex: 1; min-height: 0; overflow: auto; }
+  .p-body::-webkit-scrollbar { width: 8px; }
+  .p-body::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; }
+
+  /* a record in the list */
+  .rec { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 9px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+  .badge {
+    width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center;
+  }
+  .badge svg { width: 13px; height: 13px; }
+  .verbline { display: flex; align-items: baseline; gap: 6px; }
+  .verb { font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em; }
+  .when { margin-left: auto; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .said { margin: 3px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--ink); }
+  .said.zh { font-size: 13px; }
+
+  /* the skills under every record — the point of the change */
+  .skills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+  .skill {
+    height: 22px; padding: 0 7px; border-radius: 6px; border: 1px solid var(--line-strong);
+    background: var(--surface); color: var(--ink-soft);
+    font-size: 10.5px; font-weight: 560; display: inline-flex; align-items: center; gap: 4px;
+  }
+  .skill.more { color: var(--muted); padding: 0 6px; }
+
+  /* a skill's answer, indented under the record it came from */
+  .under { margin: 8px 0 0 0; padding: 8px 9px; border-left: 2px solid var(--accent-line); background: var(--accent-soft); border-radius: 0 7px 7px 0; }
+  .under .who { display: flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 620; color: var(--accent-ink); letter-spacing: 0.02em; }
+  .under p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; }
+
+  .cite {
+    display: inline-flex; height: 16px; min-width: 16px; padding: 0 5px; align-items: center; justify-content: center;
+    border-radius: 999px; border: 1px solid var(--accent-line); background: var(--accent-soft);
+    color: var(--accent-ink); font-size: 10px; font-weight: 650; vertical-align: 1px;
+  }
+
+  /* the audio row */
+  .audio { display: flex; align-items: center; gap: 7px; margin-top: 6px; }
+  .play { width: 22px; height: 22px; border-radius: 999px; border: 1px solid var(--control-line); background: var(--surface); display: grid; place-items: center; color: var(--ink-soft); }
+  .play svg { width: 9px; height: 9px; }
+  .clock { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  /* notices, exactly as the product draws them */
+  .notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 7px; padding: 6px 8px; border-radius: 6px; font-size: 11.5px; line-height: 1.45; }
+  .notice.danger { border: 1px solid var(--danger-line); background: var(--danger-soft); color: var(--danger); }
+  .notice.warn { border: 1px solid var(--line); background: var(--surface-muted); color: var(--warning); }
+  .notice a { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+
+  .banner {
+    display: flex; align-items: center; gap: 7px; padding: 7px 12px;
+    border-bottom: 1px solid var(--line); background: var(--surface-muted);
+    font-size: 11.5px; color: var(--warning);
+  }
+  .dot { width: 6px; height: 6px; border-radius: 999px; background: currentColor; flex: none; }
+
+  .empty { padding: 26px 14px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .empty b { display: block; color: var(--ink-soft); font-weight: 600; font-size: 12.5px; margin-bottom: 3px; }
+
+  /* ── the composer: the whole proposal, in one control ────── */
+  .composer { flex: none; border-top: 1px solid var(--line); background: var(--panel); padding: 8px; }
+  .quote {
+    display: grid; grid-template-columns: minmax(0,1fr) 20px; gap: 6px; align-items: start;
+    margin-bottom: 7px; padding: 7px 8px; border-radius: 7px;
+    background: var(--surface-muted); border-left: 2px solid var(--line-strong);
+    font-size: 12px; line-height: 1.5; color: var(--ink-soft);
+  }
+  .quote .x { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; color: var(--muted); }
+  .quote .src { display: block; margin-top: 4px; font-size: 10.5px; color: var(--muted); }
+
+  .box {
+    border: 1px solid var(--control-line); border-radius: 10px; background: var(--surface);
+    padding: 8px 9px 7px; display: grid; gap: 8px;
+  }
+  .box.focus { border-color: var(--accent-line); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .text { font-size: 13px; line-height: 1.5; color: var(--ink); min-height: 34px; }
+  .text.placeholder { color: var(--faint); }
+  .caret { display: inline-block; width: 1.5px; height: 15px; background: var(--ink); vertical-align: -3px; animation: blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .caret { animation: none; } }
+
+  .row { display: flex; align-items: center; gap: 6px; }
+  .chip {
+    height: 26px; padding: 0 8px; border-radius: 7px; border: 1px solid var(--line-strong);
+    background: var(--surface); color: var(--ink-soft); font-size: 11.5px; font-weight: 550;
+    display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  }
+  .chip svg { width: 12px; height: 12px; color: var(--muted); }
+  .chip.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+  .icon-btn {
+    width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line-strong);
+    background: var(--surface); color: var(--ink-soft); display: grid; place-items: center; flex: none;
+  }
+  .icon-btn svg { width: 14px; height: 14px; }
+  .send { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: #fff; display: grid; place-items: center; flex: none; }
+  .send svg { width: 14px; height: 14px; }
+  .send.off { background: var(--surface-muted); color: var(--faint); }
+  .spacer { margin-left: auto; }
+  .hint { margin: 6px 2px 0; font-size: 10.5px; color: var(--muted); display: flex; gap: 10px; }
+  kbd {
+    display: inline-flex; min-width: 17px; padding: 0 4px; align-items: center; justify-content: center;
+    border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface);
+    font-family: var(--font-sans); font-size: 10px; color: var(--ink-soft);
+  }
+
+  /* recording: the composer becomes the recorder */
+  .recorder { display: flex; align-items: center; gap: 8px; border: 1px solid var(--accent-line); border-radius: 10px; background: var(--surface); padding: 7px 8px; }
+  .rec-dot { width: 7px; height: 7px; border-radius: 999px; background: var(--danger); flex: none; animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+  @media (prefers-reduced-motion: reduce) { .rec-dot { animation: none; } }
+  .wave { flex: 1; min-width: 0; height: 20px; }
+  .ok { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--accent-line); background: var(--accent-soft); color: var(--accent-ink); display: grid; place-items: center; flex: none; }
+  .ok svg { width: 14px; height: 14px; }
+
+  /* ── decisions ───────────────────────────────────────────── */
+  .asks { margin-top: 22px; display: grid; gap: 18px; }
+  .ask {
+    background: var(--ground-2); border: 1px solid var(--page-line); border-radius: 12px; padding: 18px 20px;
+  }
+  .ask h3 { margin: 0 0 4px; font-size: 15.5px; font-weight: 650; letter-spacing: -0.012em; }
+  .ask .his { margin: 0 0 12px; font-size: 13px; color: var(--page-soft); }
+  .opts { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .opt { border: 1px solid var(--page-line); border-radius: 9px; padding: 11px 13px; background: var(--ground); }
+  .opt.pick { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .opt .k { font-size: 11px; font-weight: 680; letter-spacing: 0.06em; text-transform: uppercase; color: var(--page-soft); }
+  .opt.pick .k { color: var(--accent); }
+  .opt p { margin: 5px 0 0; font-size: 13px; line-height: 1.55; color: var(--page-ink); }
+  .opt .why { margin-top: 7px; font-size: 12px; color: var(--page-soft); }
+
+  /* ── goes / stays ────────────────────────────────────────── */
+  .ledger { margin-top: 20px; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .col { border: 1px solid var(--page-line); border-radius: 12px; background: var(--ground-2); padding: 16px 18px; }
+  .col h3 { margin: 0 0 10px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 680; color: var(--page-soft); }
+  .col ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
+  .col li { font-size: 13.5px; line-height: 1.5; padding-left: 18px; position: relative; }
+  .col li::before { position: absolute; left: 0; top: 0; font-family: var(--font-mono); font-size: 12px; }
+  .col.out li::before { content: "−"; color: var(--danger); }
+  .col.in li::before { content: "+"; color: var(--success); }
+  .col li b { font-weight: 620; }
+
+  .note { margin-top: 14px; font-size: 12.5px; color: var(--page-soft); max-width: 74ch; }
+  a.plain { color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+</style>
+
+<div class="page">
+  <p class="eyebrow">N13 · Side panel · mock, not built</p>
+  <h1>One list, one composer</h1>
+  <p class="lede">
+    Everything you say to Logue on a page goes into <b>one box</b>, and everything that comes of it lands in
+    <b>one list</b>. Voice fills the box; it does not send. Every entry carries the same row of skills —
+    <b>Ask</b>, <b>As Markdown</b>, <b>Into English</b> — so asking is something you do <i>to</i> a note, not a
+    separate place you go. Nothing here is built: the proposal is
+    <a class="plain" href="#">docs/spec/panel-composer.md</a>, and these are its frames at the real width of a
+    side panel, 400px, in the product's own type and colour.
+  </p>
+
+  <section>
+    <h2>The panel, six states</h2>
+    <div class="wall">
+
+      <!-- 1 · at rest ------------------------------------------------ -->
+      <div class="frame">
+        <div class="cap">
+          <span class="n">01</span>
+          <span class="t">At rest, on a page you have been reading</span>
+          <span class="d">One header, one list, one box. No Record / Keep / Ask, no second recorder, no tabs.</span>
+        </div>
+        <div class="panel">
+          <div class="p-head">
+            <span class="p-mark">L</span>
+            <span class="p-name">Logue</span>
+            <span class="p-dots">···</span>
+          </div>
+          <div class="p-body">
+            <div class="rec">
+              <span class="badge" style="background: var(--act-voiced-soft); color: var(--act-voiced)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="3" width="6" height="9.5" rx="3"/><path d="M6.5 9.5a5.5 5.5 0 0 0 11 0" stroke-linecap="round"/><path d="M6 17.5h12M8.5 20.5h7" stroke-linecap="round"/></svg>
+              </span>
+              <div>
+                <div class="verbline">
+                  <span class="verb" style="color: var(--act-voiced)">Dictated</span>
+                  <span class="when">21:14</span>
+                </div>
+                <p class="said zh">这一段的重点是「先保存再插入」，写实现的时候别把顺序弄反了。</p>
+                <div class="audio">
+                  <span class="play"><svg viewBox="0 0 10 10" fill="currentColor"><path d="M2 1l7 4-7 4z"/></svg></span>
+                  <svg class="wave" viewBox="0 0 220 20" preserveAspectRatio="none" aria-hidden="true">
+                    <g stroke="var(--line-strong)" stroke-width="1.6" stroke-linecap="round">
+                      <path d="M2 12v-4M8 13v-6M14 11v-2M20 14v-8M26 12v-5M32 15v-9M38 11v-3M44 13v-7M50 12v-4M56 14v-8M62 11v-2M68 13v-6M74 15v-10M80 12v-4M86 13v-6M92 11v-3M98 14v-7M104 12v-5M110 13v-6M116 11v-2M122 14v-8M128 12v-4M134 13v-7M140 15v-9M146 11v-3M152 13v-5M158 12v-4M164 14v-8M170 11v-2M176 13v-6M182 12v-4M188 14v-7M194 11v-3M200 13v-6M206 12v-4M212 13v-5M218 11v-2" transform="translate(0,4)"/>
+                    </g>
+                  </svg>
+                  <span class="clock">0:11</span>
+                </div>
+                <div class="skills">
+                  <span class="skill">Ask</span><span class="skill">As Markdown</span><span class="skill">Into English</span><span class="skill more">···</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="rec">
+              <span class="badge" style="background: var(--act-kept-soft); color: var(--act-kept)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M6 4.5h12v15H6z"/><path d="M9 8.5h6M9 12h6M9 15.5h3.5" stroke-linecap="round"/></svg>
+              </span>
+              <div>
+                <div class="verbline">
+                  <span class="verb" style="color: var(--act-kept)">Kept a passage</span>
+                  <span class="when">20:58</span>
+                </div>
+                <p class="said">“Speech recognition is an interdisciplinary subfield of computer science…”</p>
+                <div class="skills">
+                  <span class="skill">Ask</span><span class="skill">As Markdown</span><span class="skill">Into English</span><span class="skill more">···</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="composer">
+            <div class="box">
+              <div class="text placeholder">Type here, or hold the mic and talk</div>
+              <div class="row">
+                <span class="chip">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 7h6l2 2.5h8V18H4z"/></svg>
+                  Logue
+                </span>
+                <span class="chip ghost">Into · nowhere</span>
+                <span class="spacer"></span>
+                <span class="icon-btn" title="Save this page">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M7 4h10v16l-5-4-5 4z"/></svg>
+                </span>
+                <span class="icon-btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 12a6 6 0 0 0 12 0M12 18v3" stroke-linecap="round"/></svg>
+                </span>
+                <span class="send off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2 · a passage quoted --------------------------------------- -->
+      <div class="frame">
+        <div class="cap">
+          <span class="n">02</span>
+          <span class="t">You select something on the page</span>
+          <span class="d">The passage arrives as a quote above the box, and the scope stops being “this page”. ✕ puts it back. The anchor travels with it, so the note can be found on the page again later.</span>
+        </div>
+        <div class="panel">
+          <div class="p-head">
+            <span class="p-mark">L</span><span class="p-name">Logue</span><span class="p-dots">···</span>
+          </div>
+          <div class="p-body">
+            <div class="empty">
+              <b>Nothing said about this page yet.</b>
+              Select a passage to comment on it, or just start typing.
+            </div>
+          </div>
+          <div class="composer">
+            <div class="quote">
+              <div>
+                “Speech recognition is an interdisciplinary subfield of computer science and computational
+                linguistics that develops methodologies…”
+                <span class="src">Wikipedia · Speech recognition</span>
+              </div>
+              <span class="x"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
+            </div>
+            <div class="box focus">
+              <div class="text">这段和我们第三节的说法冲突，回头核一下<span class="caret"></span></div>
+              <div class="row">
+                <span class="chip">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 7h6l2 2.5h8V18H4z"/></svg>
+                  Logue
+                </span>
+                <span class="chip ghost">Into · nowhere</span>
+                <span class="spacer"></span>
+                <span class="icon-btn" title="Save this page">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M7 4h10v16l-5-4-5 4z"/></svg>
+                </span>
+                <span class="icon-btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 12a6 6 0 0 0 12 0M12 18v3" stroke-linecap="round"/></svg>
+                </span>
+                <span class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span>
+              </div>
+            </div>
+            <div class="hint"><span><kbd>↵</kbd> send</span><span><kbd>⇧↵</kbd> new line</span><span><kbd>esc</kbd> drop the quote</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 · recording ---------------------------------------------- -->
+      <div class="frame">
+        <div class="cap">
+          <span class="n">03</span>
+          <span class="t">Talking — the box becomes the recorder</span>
+          <span class="d">Three controls, three keys, the shape chatgpt.com uses: <b>✕</b> throws it away, <b>✓</b> puts the words in the box, <b>↑</b> puts them in and sends. The mic is free the moment you stop — the words catch up in the background.</span>
+        </div>
+        <div class="panel">
+          <div class="p-head">
+            <span class="p-mark">L</span><span class="p-name">Logue</span><span class="p-dots">···</span>
+          </div>
+          <div class="p-body">
+            <div class="rec">
+              <span class="badge" style="background: var(--act-typed-soft); color: var(--act-typed)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h8"/></svg>
+              </span>
+              <div>
+                <div class="verbline"><span class="verb" style="color: var(--act-typed)">Typed a note</span><span class="when">21:20</span></div>
+                <p class="said zh">先按这个顺序做：选区通道 → composer → 录音条三键。</p>
+                <div class="skills"><span class="skill">Ask</span><span class="skill">As Markdown</span><span class="skill">Into English</span><span class="skill more">···</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="composer">
+            <div class="recorder">
+              <span class="icon-btn" title="Discard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
+              <span class="rec-dot"></span>
+              <span class="clock" style="color: var(--ink)">0:12</span>
+              <svg class="wave" viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true">
+                <g stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round">
+                  <path d="M3 14v-8M9 12v-4M15 16v-12M21 11v-2M27 15v-10M33 13v-6M39 16v-12M45 11v-3M51 14v-8M57 12v-4M63 16v-11M69 13v-6M75 15v-9M81 11v-2M87 14v-8M93 16v-12M99 12v-5M105 15v-10M111 13v-6M117 11v-2M123 16v-11M129 12v-4M135 14v-8M141 15v-10M147 11v-3M153 13v-6" transform="translate(0,3)"/>
+                </g>
+                <g stroke="var(--line-strong)" stroke-width="1.8" stroke-linecap="round">
+                  <path d="M159 12v-3M165 11v-2M171 12v-3M177 11v-2M183 12v-3M189 11v-2M195 12v-3" transform="translate(0,3)"/>
+                </g>
+              </svg>
+              <span class="ok" title="Insert the words"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l5 5L19 7"/></svg></span>
+              <span class="send" title="Insert and send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span>
+            </div>
+            <div class="hint"><span><kbd>esc</kbd> discard</span><span><kbd>↵</kbd> insert</span><span><kbd>⌘↵</kbd> insert and send</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 · inserted, not sent ------------------------------------- -->
+      <div class="frame">
+        <div class="cap">
+          <span class="n">04</span>
+          <span class="t">Said twice, sent once</span>
+          <span class="d">This is the part you asked for. <b>Inserting is not sending.</b> Two goes of talking, a typed correction in the middle, still nothing in the list — sending is its own decision.</span>
+        </div>
+        <div class="panel">
+          <div class="p-head">
+            <span class="p-mark">L</span><span class="p-name">Logue</span><span class="p-dots">···</span>
+          </div>
+          <div class="p-body">
+            <div class="empty">
+              <b>Nothing said about this page yet.</b>
+              What you send lands here, newest first.
+            </div>
+          </div>
+          <div class="composer">
+            <div class="box focus">
+              <div class="text">面板收成一个列表加一个输入框，语音只负责把字填进来。第二段：技能挂在每条记录底下，不再有单独的 Ask 按钮<span class="caret"></span></div>
+              <div class="row">
+                <span class="chip">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 7h6l2 2.5h8V18H4z"/></svg>
+                  Logue
+                </span>
+                <span class="chip">Into · Panel notes</span>
+                <span class="spacer"></span>
+                <span class="icon-btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 12a6 6 0 0 0 12 0M12 18v3" stroke-linecap="round"/></svg>
+                </span>
+                <span class="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span>
+              </div>
+            </div>
+            <div class="hint"><span>Transcribed twice, sent nothing yet.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5 · after a skill ------------------------------------------ -->
+      <div class="frame">
+        <div class="cap">
+          <span class="n">05</span>
+          <span class="t">Asking is something you do to a note</span>
+          <span class="d">Press <b>Ask</b> under an entry and the answer hangs under it, citing what it stood on. No second conversation, no separate tab — the thread is the list.</span>
+        </div>
+        <div class="panel">
+          <div class="p-head">
+            <span class="p-mark">L</span><span class="p-name">Logue</span><span class="p-dots">···</span>
+          </div>
+          <div class="p-body">
+            <div class="rec">
+              <span class="badge" style="background: var(--act-comment-soft); color: var(--act-comment)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M5 4.5h14v11H9l-4 4z"/><path d="M8.5 9h7M8.5 12h4.5" stroke-linecap="round"/></svg>
+              </span>
+              <div>
+                <div class="verbline"><span class="verb" style="color: var(--act-comment)">Voice comment</span><span class="when">21:26</span></div>
+                <p class="said zh">这段和我们第三节的说法冲突，回头核一下。</p>
+                <div class="skills"><span class="skill">Ask</span><span class="skill">As Markdown</span><span class="skill">Into English</span><span class="skill more">···</span></div>
+                <div class="under">
+                  <div class="who">
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 4l1.8 4.7L18.5 10l-4.7 1.8L12 16l-1.8-4.2L5.5 10l4.7-1.3z"/></svg>
+                    Answered
+                  </div>
+                  <p>Section 3 says the passage is saved before the model is asked <span class="cite">1</span>, and this page says the opposite <span class="cite">2</span>. Section 3 is the one the code follows.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="rec">
+              <span class="badge" style="background: var(--act-saved-soft); color: var(--act-saved)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M5 5.5h14v13H5z"/><path d="M8.5 9.5h7M8.5 13h4.5" stroke-linecap="round"/></svg>
+              </span>
+              <div>
+                <div class="verbline"><span class="verb" style="color: var(--act-saved)">Saved a page</span><span class="when">21:22</span></div>
+                <p class="said">Speech recognition — Wikipedia</p>
+                <div class="skills"><span class="skill">Ask</span><span class="skill">As Markdown</span><span class="skill">Into English</span><span class="skill more">···</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="composer">
+            <div class="box">
+              <div class="text placeholder">Type here, or hold the mic and talk</div>
+              <div class="row">
+                <span class="chip">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 7h6l2 2.5h8V18H4z"/></svg>
+                  Logue
+                </span>
+                <span class="chip ghost">Into · nowhere</span>
+                <span class="spacer"></span>
+                <span class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M7 4h10v16l-5-4-5 4z"/></svg></span>
+                <span class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 12a6 6 0 0 0 12 0M12 18v3" stroke-linecap="round"/></svg></span>
+                <span class="send off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6 · when things go wrong ----------------------------------- -->
+      <div class="frame">
+        <div class="cap">
+          <span class="n">06</span>
+          <span class="t">When Logue is not answering</span>
+          <span class="d">The queue and the failures stop being a box above the list — they are entries in it, at the time they happened. Recording still works with Logue closed; the words catch up when it opens.</span>
+        </div>
+        <div class="panel">
+          <div class="p-head">
+            <span class="p-mark">L</span><span class="p-name">Logue</span><span class="p-dots">···</span>
+          </div>
+          <div class="banner"><span class="dot"></span> Logue is not running. Recordings are kept here.</div>
+          <div class="p-body">
+            <div class="rec">
+              <span class="badge" style="background: var(--act-voiced-soft); color: var(--act-voiced)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="3" width="6" height="9.5" rx="3"/><path d="M6.5 9.5a5.5 5.5 0 0 0 11 0" stroke-linecap="round"/><path d="M6 17.5h12M8.5 20.5h7" stroke-linecap="round"/></svg>
+              </span>
+              <div>
+                <div class="verbline"><span class="verb" style="color: var(--muted)">Waiting for Logue</span><span class="when">21:31</span></div>
+                <div class="audio">
+                  <span class="play"><svg viewBox="0 0 10 10" fill="currentColor"><path d="M2 1l7 4-7 4z"/></svg></span>
+                  <svg class="wave" viewBox="0 0 220 20" preserveAspectRatio="none" aria-hidden="true">
+                    <g stroke="var(--line-strong)" stroke-width="1.6" stroke-linecap="round">
+                      <path d="M2 12v-4M10 13v-6M18 11v-2M26 14v-8M34 12v-5M42 15v-9M50 11v-3M58 13v-7M66 12v-4M74 14v-8M82 11v-2M90 13v-6M98 15v-10M106 12v-4M114 13v-6M122 11v-3M130 14v-7M138 12v-5M146 13v-6M154 11v-2M162 14v-8M170 12v-4M178 13v-7M186 15v-9M194 11v-3M202 13v-5M210 12v-4M218 13v-5" transform="translate(0,4)"/>
+                    </g>
+                  </svg>
+                  <span class="clock">0:34</span>
+                </div>
+                <div class="notice warn">Kept here. It will be transcribed when Logue starts.</div>
+              </div>
+            </div>
+
+            <div class="rec">
+              <span class="badge" style="background: var(--act-voiced-soft); color: var(--act-voiced)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="9" y="3" width="6" height="9.5" rx="3"/><path d="M6.5 9.5a5.5 5.5 0 0 0 11 0" stroke-linecap="round"/><path d="M6 17.5h12M8.5 20.5h7" stroke-linecap="round"/></svg>
+              </span>
+              <div>
+                <div class="verbline"><span class="verb" style="color: var(--act-voiced)">Dictated</span><span class="when">21:05</span></div>
+                <div class="audio">
+                  <span class="play"><svg viewBox="0 0 10 10" fill="currentColor"><path d="M2 1l7 4-7 4z"/></svg></span>
+                  <svg class="wave" viewBox="0 0 220 20" preserveAspectRatio="none" aria-hidden="true">
+                    <g stroke="var(--line-strong)" stroke-width="1.6" stroke-linecap="round">
+                      <path d="M2 12v-4M8 13v-6M14 11v-2M20 14v-8M26 12v-5M32 15v-9M38 11v-3M44 13v-7M50 12v-4M56 14v-8M62 11v-2M68 13v-6M74 15v-10M80 12v-4M86 13v-6M92 11v-3M98 14v-7M104 12v-5M110 13v-6M116 11v-2M122 14v-8M128 12v-4M134 13v-7M140 15v-9M146 11v-3M152 13v-5M158 12v-4M164 14v-8M170 11v-2M176 13v-6M182 12v-4M188 14v-7M194 11v-3M200 13v-6M206 12v-4M212 13v-5M218 11v-2" transform="translate(0,4)"/>
+                    </g>
+                  </svg>
+                  <span class="clock">1:05</span>
+                </div>
+                <div class="notice danger">The model is busy (503). The recording was kept — <a href="#">Try again</a></div>
+              </div>
+            </div>
+          </div>
+          <div class="composer">
+            <div class="box">
+              <div class="text placeholder">Type here, or hold the mic and talk</div>
+              <div class="row">
+                <span class="chip">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 7h6l2 2.5h8V18H4z"/></svg>
+                  Logue
+                </span>
+                <span class="spacer"></span>
+                <span class="icon-btn" title="Save this page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M7 4h10v16l-5-4-5 4z"/></svg></span>
+                <span class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 12a6 6 0 0 0 12 0M12 18v3" stroke-linecap="round"/></svg></span>
+                <span class="send off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></svg></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>What goes, what arrives</h2>
+    <div class="ledger">
+      <div class="col out">
+        <h3>Gone</h3>
+        <ul>
+          <li><b>Record</b>, <b>Keep</b> and <b>Ask</b> as three separate verbs</li>
+          <li>The <b>second recorder</b> — there were two, behaving differently</li>
+          <li>The <b>ask box</b> that opened under the buttons</li>
+          <li>Four lists in one panel: transcripts, conversation, kept from this page, queued</li>
+          <li>The hidden state that remembered <i>which</i> box you were talking to</li>
+        </ul>
+      </div>
+      <div class="col in">
+        <h3>In their place</h3>
+        <ul>
+          <li>One box: type or talk, quote a passage, choose where it goes</li>
+          <li>One recorder: <b>✕</b> discard · <b>✓</b> insert · <b>↑</b> insert and send</li>
+          <li>One list, newest first, every entry the same shape</li>
+          <li>Skills under <b>every</b> entry, not only under dictation</li>
+          <li>Queued and failed recordings as entries, where they happened</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note">
+      One behaviour changes and it is worth saying plainly: today <kbd>⌘⇧K</kbd> opens the panel listening, and
+      <kbd>↵</kbd> sends what you said straight into the conversation. After this, <kbd>↵</kbd> only puts the words
+      in the box — sending is <kbd>⌘↵</kbd> or the button. That is the price of being able to say a second sentence.
+    </p>
+  </section>
+
+  <section>
+    <h2>Three things only you can decide</h2>
+    <div class="asks">
+
+      <div class="ask">
+        <h3>1 · What does sending actually do?</h3>
+        <p class="his">Everything else follows from this one.</p>
+        <div class="opts">
+          <div class="opt pick">
+            <span class="k">A · recommended</span>
+            <p>Sending <b>keeps the note</b>. Answering is the <b>Ask</b> skill underneath it, when you want one.</p>
+            <p class="why">Your own words point here: “every submit has an ask under it” — so the ask comes after. One verb, and every entry has the same shape.</p>
+          </div>
+          <div class="opt">
+            <span class="k">B</span>
+            <p>Sending <b>asks the agent</b>. What you say is a question by default.</p>
+            <p class="why">Then keeping a thought without being answered needs its own button — and the three verbs come back.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ask">
+        <h3>2 · Does “into a Document” survive?</h3>
+        <p class="his">Deciding where the words land, before you say them.</p>
+        <div class="opts">
+          <div class="opt pick">
+            <span class="k">Keep it — as a chip in the box</span>
+            <p>One chip on the composer's own row: <b>Into · Panel notes</b>. Not a section, not a step.</p>
+            <p class="why">Not taste — data: of 33 things dictated into this workspace, 33 were never used again. Choosing the destination first is the one time it earned its place.</p>
+          </div>
+          <div class="opt">
+            <span class="k">Drop it</span>
+            <p>Everything lands as a Source; you file it later in the app.</p>
+            <p class="why">Fewer controls, and one fewer decision before talking.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="ask">
+        <h3>3 · Does “save this page” keep a button?</h3>
+        <p class="his">The one act that needs no words.</p>
+        <div class="opts">
+          <div class="opt pick">
+            <span class="k">A bookmark on the row</span>
+            <p>A small bookmark next to the mic — one press, page kept, entry in the list.</p>
+            <p class="why">Visible, and it costs one 28px control on a row that has room.</p>
+          </div>
+          <div class="opt">
+            <span class="k">Send an empty box</span>
+            <p>Nothing typed, nothing quoted, press send → the page is kept.</p>
+            <p class="why">One control fewer, but it is a rule nobody can see. Not recommended.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <p class="note">
+      Say <b>A / keep / bookmark</b> and it gets built in the six steps the proposal lists, each one its own
+      commit and its own check. Nothing here is code yet.
+    </p>
+  </section>
+</div>
