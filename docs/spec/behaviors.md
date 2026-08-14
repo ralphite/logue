@@ -77,6 +77,11 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   nouns stay as they are.
 - **Verification writes into the "Logue QA" Project, tagged `qa`, and deletes
   nothing.** A check that borrows a real record puts it back exactly.
+- **A check may not take away what it cannot put back.** (2026-08-13: a check
+  wrote `api_key: "mock"` over the owner's real key and "restored" the same
+  word. It passed.) Nothing hands a key out — that is deliberate — so nothing
+  may write one. Where a check cannot restore what it would change, it prints
+  why and skips that half rather than running quietly.
 - **Commit when a piece is done and checked; push whenever pushing is
   possible.** Work that sits uncommitted cannot be stepped back through when
   something turns out wrong, and one enormous commit is the same problem in

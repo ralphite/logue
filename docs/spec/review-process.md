@@ -91,3 +91,16 @@ kept at the bottom of this file so the process is answerable for itself.
   the rhythm of automatic writes; prompts producing shown text were never
   reviewed as UI; verification proved "it runs" and never "read every word".
   All three are now gates above.
+- **2026-08-13 — a check took away what it could not put back.** `f7.mjs`
+  proved the provider round trip by writing `api_key: "mock"` and "restoring"
+  `api_key: "mock"` — correct in the weeks the workspace held the stand-in key,
+  and on a real one it replaced the owner's Gemini key with the word `mock`.
+  Nothing failed; the check passed. It came back from a backup taken an hour
+  earlier for an unrelated reason, which is luck, not a process.
+  **The rule this adds:** a check may only change what it can read back and
+  write again. A key cannot be read back — no endpoint hands one out, by
+  design — so no check may write one. Where a check cannot restore, it says so
+  out loud and skips that half; a short green run must never be mistaken for a
+  complete one.
+  **And the gate:** anything that writes to `/v1/model`, `/v1/settings` or any
+  other singleton reads it first, restores it last, and asserts the restore.
