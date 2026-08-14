@@ -220,6 +220,40 @@ function Surfaces() {
     };
   }, [writing, selectionPhase]);
 
+  // -- tell the panel what is selected -----------------------------------
+  //
+  // Only this script can make an anchor, and only while the Range is alive.
+  // The panel used to reach in for the words at the moment something was
+  // pressed, which is too late for everything but the words.
+  useEffect(() => {
+    let said = "";
+    const push = () => {
+      const found = pageSelection();
+      const text = found?.text ?? "";
+      // A selection that has not changed is not news, and this fires on every
+      // caret move on the page.
+      if (text === said) return;
+      said = text;
+      void send({
+        type: "logue:selection",
+        text,
+        anchor: found?.anchor,
+        url: location.href,
+        title: document.title,
+      });
+    };
+    const schedule = coalesce(push);
+    document.addEventListener("selectionchange", schedule, true);
+    // Coming back to a page with something already selected is the same news
+    // as selecting it: the panel may have been opened in between.
+    window.addEventListener("focus", schedule);
+    schedule();
+    return () => {
+      document.removeEventListener("selectionchange", schedule, true);
+      window.removeEventListener("focus", schedule);
+    };
+  }, []);
+
   // -- keyboard shortcuts from the background ----------------------------
   useEffect(() => {
     const listener = (message: unknown, _sender: unknown, respond: (reply: unknown) => void) => {

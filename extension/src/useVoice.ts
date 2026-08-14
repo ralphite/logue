@@ -36,7 +36,10 @@ export type VoicePhase = "idle" | "starting" | "recording" | "working" | "error"
  * comes back to whoever asked for it.
  */
 export type Settled =
-  | { ok: true; text: string; material: Material }
+  /** Kept: the words and the Source they became. */
+  | { ok: true; text: string; material: Material; captureId?: string }
+  /** Heard, not kept: the words, and the recording they came from. */
+  | { ok: true; text: string; material?: undefined; captureId: string }
   | { ok: false; message: string; captureId?: string };
 
 /** What settling a recording needs to know, whichever attempt it is. */
@@ -64,6 +67,16 @@ export interface Settling {
    * twenty seconds and say nothing about why.
    */
   onRetrying?: (captureId: string, message: string) => void;
+  /**
+   * Whether the words become a Source here, or later.
+   *
+   * The panel's composer says them into a box first — voice fills the box, it
+   * does not send (N13) — so the Source is written when the person sends,
+   * with whatever they edited it into. The audio is on the Host either way:
+   * it is written before the model is asked, and a transcribed recording
+   * nobody kept is not "unfinished", it is a draft.
+   */
+  keep?: boolean;
 }
 
 function describe(cause: unknown): string {
@@ -310,6 +323,8 @@ export function useVoice() {
             capture_id,
           );
         }
+        // The words, without a Source, when the caller keeps it themselves.
+        if (options.keep === false) return { ok: true, text, captureId: capture_id };
         const { material } = await host.saveVoice({
           capture_id,
           text,

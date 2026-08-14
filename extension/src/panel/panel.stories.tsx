@@ -3,231 +3,166 @@ import { Panel } from "../sidepanel";
 import { InChrome, PAGE, type Answers } from "./chrome.stories-helper";
 
 /**
- * Page · The side panel — the real component, in a fake browser.
+ * The panel, in every state it can be in — one list and one composer.
  *
- * Not a rebuilt lookalike: this mounts `Panel` itself, with `chrome.*` and the
- * Host answered from fixtures, at exactly the width Chrome gives a side panel.
- * A lookalike drifts the day after it is written, and what it shows after that
- * is the reviewer's memory of the panel rather than the panel.
- *
- * Tabs are switched the way a person switches them — the story clicks.
+ * The real `Panel` runs here, against a fake browser and a fixture Host (see
+ * `chrome.stories-helper`). Nothing is redrawn for the story: what these show
+ * is what the extension shows, which is the only reason they are worth
+ * looking at.
  */
-
-const CONTEXT = {
-  voice_profile: { label: "Logue QA", project_name: "Logue QA", primary_language: "" },
-  projects: [
-    { id: "p1", name: "Logue QA" },
-    { id: "p2", name: "Reading" },
-  ],
-  vocabularies: [],
-  skills: [
-    { id: "en", name: "Into English", output: "insert", contexts: ["dictation"], enabled: true },
-    { id: "md", name: "As Markdown", output: "insert", contexts: ["dictation"], enabled: true },
-  ],
-};
-
-const STATUS = { model: { generation_ready: true, voice_ready: true, model: "gemini-3.5-flash-lite" } };
-
-const MATERIAL = (over: Record<string, unknown> = {}) => ({
-  id: "m1",
-  kind: "voice",
-  content: "我们今天先把面板的信息架构定下来,然后再去做 Dictation 这一块。",
-  projects: ["Logue QA"],
-  tags: ["ia"],
-  capture_id: "cap_a",
-  capture_seconds: 47,
-  created_at: "2026-08-11T11:59:00Z",
-  source: { url: PAGE.url, title: PAGE.title, domain: "en.wikipedia.org" },
-  ...over,
-});
-
-const HOST: Answers = {
-  "/v1/context": CONTEXT,
-  "/v1/status": STATUS,
-  "/v1/captures": { captures: [] },
-  "/v1/materials": { materials: [] },
-};
-
-/** A conversation on this page, stored the way the panel stores one. */
-const THREADS = {
-  "logue:threads": {
-    [`${new URL(PAGE.url).origin}${new URL(PAGE.url).pathname}`]: {
-      at: "2026-08-11T12:00:00Z",
-      messages: [
-        { from: "you", text: "这一页讲的 CTC 和 HMM 有什么关系?", at: "2026-08-11T11:58:00Z" },
-        {
-          from: "skill",
-          text: "CTC 是端到端方法绕开逐帧对齐的手段,而 HMM 属于早一代的统计框架 [Source 1]。这一页把两者都列为里程碑。",
-          at: "2026-08-11T11:58:30Z",
-          steps: [
-            { did: "searched", detail: "3 Sources about this page" },
-            { did: "read", detail: "Speech recognition — History" },
-          ],
-          sources: [MATERIAL({ id: "m9", kind: "selection", content: "CTC avoids frame-level alignment.", capture_id: undefined })],
-          proposal: null,
-        },
-        { from: "you", text: "把它存成一条笔记。", at: "2026-08-11T11:59:00Z" },
-        {
-          from: "skill",
-          text: "可以。要我把这一段以「CTC 与 HMM 的关系」存进 Logue QA 吗?",
-          at: "2026-08-11T11:59:20Z",
-          steps: [{ did: "drafted", detail: "one note", proposed: true }],
-          proposal: { id: "prop_1", tool: "save_note", title: "CTC 与 HMM 的关系" },
-          sources: [],
-        },
-      ],
-    },
-  },
-};
-
-/** The frame Chrome gives a side panel: 360 wide, full height. */
-function Frame({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="h-[100dvh] w-[360px] overflow-hidden border-r border-line-strong bg-surface text-ink">
-      {children}
-    </div>
-  );
-}
-
-
-/** Open a tab by its visible name, the way a person would. */
-const open = (label: string) => async ({ canvasElement }: { canvasElement: HTMLElement }) => {
-  // Polling, and deliberately sequential: each try must see the DOM the last
-  // one did not. The panel mounts, fetches, and only then paints its tabs.
-  // oxlint-disable-next-line no-await-in-loop
-  for (let tries = 0; tries < 40; tries += 1) {
-    const tab = [...canvasElement.querySelectorAll<HTMLElement>('[role="tab"]')].find((one) =>
-      (one.textContent ?? "").startsWith(label),
-    );
-    if (tab) {
-      tab.click();
-      return;
-    }
-    // oxlint-disable-next-line no-await-in-loop
-    await new Promise((done) => window.setTimeout(done, 100));
-  }
-};
-
 const meta = {
-  title: "Page/Side panel",
-  parameters: { layout: "fullscreen" },
+  title: "Panel/Side panel",
+  parameters: { layout: "centered" },
 } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** What the panel opens on: Dictation, empty, one control at the bottom. */
-export const Dictation: Story = {
+const CONTEXT = {
+  voice_profile: { label: "Default voice", project_name: "", primary_language: "auto" },
+  projects: [
+    { id: "p1", name: "Logue" },
+    { id: "p2", name: "Agent Harness" },
+  ],
+  vocabularies: [],
+  skills: [
+    { id: "s1", name: "As Markdown", output: "text", contexts: ["dictation"], enabled: true },
+    { id: "s2", name: "Into English", output: "text", contexts: ["dictation"], enabled: true },
+    { id: "s3", name: "Tighten", output: "text", contexts: ["dictation"], enabled: true },
+  ],
+};
+
+const STATUS = {
+  ok: true,
+  build: "storybook",
+  model: { configured: true, generation_ready: true, voice_ready: true },
+};
+
+const DOCUMENTS = {
+  documents: [
+    { id: "d1", title: "Panel notes" },
+    { id: "d2", title: "Logue 产品决策" },
+  ],
+};
+
+const kept = (over: Partial<Record<string, unknown>> = {}) => ({
+  id: `mat_${Math.random().toString(36).slice(2, 8)}`,
+  kind: "selection",
+  content: "Speech recognition is an interdisciplinary subfield of computer science.",
+  projects: [],
+  created_at: "2026-08-13T21:14:00Z",
+  source: { url: PAGE.url, title: PAGE.title, domain: "en.wikipedia.org" },
+  ...over,
+});
+
+/** The panel on a page nothing has been said about yet. */
+const EMPTY: Answers = {
+  "/v1/context": CONTEXT,
+  "/v1/status": STATUS,
+  "/v1/documents": DOCUMENTS,
+  "/v1/materials": { materials: [] },
+  "/v1/captures": { captures: [] },
+};
+
+/** A page with a morning's work on it: a note, a comment, the page itself. */
+const BUSY: Answers = {
+  ...EMPTY,
+  "/v1/materials": {
+    materials: [
+      kept({
+        id: "mat_page",
+        kind: "page",
+        content: "Speech recognition — the article, as it read when it was kept.",
+        created_at: "2026-08-13T20:58:00Z",
+      }),
+      kept({ id: "mat_quote", created_at: "2026-08-13T21:12:00Z" }),
+      kept({
+        id: "mat_note",
+        kind: "text",
+        content: "这段和我们第三节的说法冲突，回头核一下。",
+        parent_ids: ["mat_quote"],
+        created_at: "2026-08-13T21:13:00Z",
+      }),
+      kept({
+        id: "mat_voice",
+        kind: "voice",
+        content: "这一段的重点是「先保存再插入」，写实现的时候别把顺序弄反了。",
+        capture_id: "cap_1",
+        capture_seconds: 11,
+        created_at: "2026-08-13T21:14:00Z",
+      }),
+      kept({
+        id: "mat_answer",
+        kind: "derived",
+        content: "Section 3 says the passage is saved before the model is asked; this page says the opposite.",
+        parent_ids: ["mat_note"],
+        created_at: "2026-08-13T21:16:00Z",
+      }),
+    ],
+  },
+};
+
+export const Empty: Story = {
   render: () => (
-    <InChrome answers={HOST}>
-      <Frame>
+    <div className="h-[640px] w-[400px] border border-line">
+      <InChrome answers={EMPTY}>
         <Panel />
-      </Frame>
-    </InChrome>
+      </InChrome>
+    </div>
   ),
 };
 
-/** A conversation about this page: steps shown, sources cited, and a proposal
- *  waiting for a yes — the only path a change can arrive by. */
-export const ChatWithAConversation: Story = {
+/** Every kind of entry, with the Skills that can be run on each of them. */
+export const AMorningOfWork: Story = {
   render: () => (
-    <InChrome answers={HOST} storage={THREADS}>
-      <Frame>
+    <div className="h-[640px] w-[400px] border border-line">
+      <InChrome answers={BUSY}>
         <Panel />
-      </Frame>
-    </InChrome>
-  ),
-  play: open("Chat"),
-};
-
-export const ChatEmpty: Story = {
-  render: () => (
-    <InChrome answers={HOST}>
-      <Frame>
-        <Panel />
-      </Frame>
-    </InChrome>
-  ),
-  play: open("Chat"),
-};
-
-/** What has been kept from this page: a recording, a passage, their handles. */
-export const ThisPageWithKeptThings: Story = {
-  render: () => (
-    <InChrome
-      answers={{
-        ...HOST,
-        "/v1/materials": {
-          materials: [
-            MATERIAL(),
-            MATERIAL({
-              id: "m2",
-              kind: "selection",
-              content: "Speech recognition is an interdisciplinary subfield of computer science.",
-              capture_id: undefined,
-              capture_seconds: undefined,
-              anchor: { exact: "interdisciplinary subfield", before: "is an ", after: " of computer" },
-            }),
-          ],
-        },
-      }}
-    >
-      <Frame>
-        <Panel />
-      </Frame>
-    </InChrome>
-  ),
-  play: open("This page"),
-};
-
-export const ThisPageEmpty: Story = {
-  render: () => (
-    <InChrome answers={HOST}>
-      <Frame>
-        <Panel />
-      </Frame>
-    </InChrome>
-  ),
-  play: open("This page"),
-};
-
-/**
- * The scope, in the header. The Project tab is gone — which Project the
- * panel assumes is one select beside the page title, and a Project's
- * background and word list are edited in the web app, where there is room.
- */
-export const TheScopeInTheHeader: Story = {
-  render: () => (
-    <InChrome answers={HOST}>
-      <Frame>
-        <Panel />
-      </Frame>
-    </InChrome>
+      </InChrome>
+    </div>
   ),
 };
 
-
-/** The model is not connected — the one fact that disarms every control. */
-export const ModelNotConnected: Story = {
+/** No model connected: nothing can transcribe or answer, and it says so. */
+export const NoModel: Story = {
   render: () => (
-    <InChrome
-      answers={{ ...HOST, "/v1/status": { model: { generation_ready: false, voice_ready: false, model: "" } } }}
-      storage={THREADS}
-    >
-      <Frame>
+    <div className="h-[640px] w-[400px] border border-line">
+      <InChrome
+        answers={{
+          ...EMPTY,
+          "/v1/status": { ...STATUS, model: { configured: false, generation_ready: false, voice_ready: false } },
+        }}
+      >
         <Panel />
-      </Frame>
-    </InChrome>
+      </InChrome>
+    </div>
   ),
-  play: open("Chat"),
 };
 
-/** Logue is not running: the error, and the address that can be the reason. */
-export const LogueNotRunning: Story = {
+/** Logue is not running: the address form, and recording still works. */
+export const LogueIsDown: Story = {
   render: () => (
-    <InChrome answers={HOST} hostDown>
-      <Frame>
+    <div className="h-[640px] w-[400px] border border-line">
+      <InChrome answers={EMPTY} hostDown>
         <Panel />
-      </Frame>
-    </InChrome>
+      </InChrome>
+    </div>
+  ),
+};
+
+/** A recording the Host is holding that never became words. */
+export const ARecordingWithNoWords: Story = {
+  render: () => (
+    <div className="h-[640px] w-[400px] border border-line">
+      <InChrome
+        answers={{
+          ...EMPTY,
+          "/v1/captures": {
+            captures: [{ capture_id: "cap_stuck", seconds: 65, created_at: "2026-08-13T21:05:00Z" }],
+          },
+        }}
+      >
+        <Panel />
+      </InChrome>
+    </div>
   ),
 };

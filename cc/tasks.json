@@ -501,7 +501,7 @@
       "id": "N13",
       "title": "Extension 面板大幅简化:一个列表 + 一个 composer,语音按 chatgpt.com 的两键设计",
       "type": "design",
-      "status": "blocked",
+      "status": "doing",
       "priority": "P1",
       "confirmed": true,
       "tags": [
@@ -510,10 +510,13 @@
         "redesign"
       ],
       "note": "占位,计划写完后回填。",
-      "blocked_on": "等你回答 panel-composer.md 第六节的三个问题(提交=存还是问、去处留不留、存整页要不要独立按钮)",
+      "blocked_on": "等他定:提交模式要几个(Comment / Question / Task,Task 是我加的)",
       "input_ids": [
         "in_extension_composer_input",
-        "in_docs_spec_panel"
+        "in_docs_spec_panel",
+        "in_20260813",
+        "in_submit_ask_composer",
+        "in_mock_docs_spec"
       ],
       "created": "2026-08-13",
       "updated": "2026-08-13"
@@ -531,6 +534,25 @@
       "note": "audit-ext、cuj-panel、a1、x38 都是照旧面板四个 tab(Chat/Dictation/This page/Project)写的,现在面板已是一条流 + Record/Keep/Ask,四条都卡在找不到 tab。**不是产品坏了**。故意先不重写:N13 提议把面板收成「一个列表 + 一个 composer」,你还没拍板,现在重写等于白写两遍。你定了 N13 之后,一次性改完。已在 scripts/qa/README.md 里写明,免得后来的人把红色当 bug。",
       "blocked_on": "",
       "input_ids": [],
+      "created": "2026-08-13",
+      "updated": "2026-08-13"
+    },
+    {
+      "id": "F3",
+      "title": "文档编辑补齐 Vibedoc:所见即所得要完整、版本管理照 Vibedoc、支持嵌套子文档、体验向 Notion 靠",
+      "type": "feature",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "documents",
+        "vibedoc"
+      ],
+      "note": "F2 只做到第一层(CodeMirror + Markdown,光标不在的行隐藏记号),这条是把 Vibedoc 那套补完。三件事:①**所见即所得要完整** —— 对照 ~/dev2/prototypes/vibedoc 的功能清单逐条过,缺什么补什么(表格、代码块、清单、引用、图片、链接等);②**版本管理照 Vibedoc 的做法** —— 现在只有 revision 计数 + doc_revisions 流水,Vibedoc 是显式 snapshot:working copy 和 immutable version 分开,按 content_hash 去重,每个 snapshot 带一条摘要(后台异步生成,进程中断能补跑),可以 revert;③**嵌套文档** —— Vibedoc 用 parent_id + position 做树(不是 subdoc_ids),API 层再按 position 组装成树;移动/重排/删除后子节点重挂都在一个事务里。整体交互向 Notion 看齐。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_new_task_doc"
+      ],
       "created": "2026-08-13",
       "updated": "2026-08-13"
     }
@@ -712,6 +734,30 @@
       "id": "in_host_updated_at",
       "at": "2026-08-13 21:30",
       "text": "已修:两处原因 —— ① 编辑器把 Host 传来的正文当成一次按键(现在这类改动带标记,不算编辑);② 内容没变的保存仍然刷新 updated_at(现在完全不写)。刚在部署好的应用上连开四篇文档复验,时间戳一个都没动。",
+      "images": []
+    },
+    {
+      "id": "in_20260813",
+      "at": "2026-08-13 22:12",
+      "text": "A / 留 / 书签, 开始做",
+      "images": []
+    },
+    {
+      "id": "in_submit_ask_composer",
+      "at": "2026-08-13 22:12",
+      "text": "拍板:A(submit = 存下这条,问答是底下的 Ask 技能)/ 留(「记进某文档」收成 composer 一行上的 chip)/ 书签(存整页给一个图标按钮)。按 panel-composer.md 的六步做,一步一个可验证的提交。",
+      "images": []
+    },
+    {
+      "id": "in_mock_docs_spec",
+      "at": "2026-08-13 22:14",
+      "text": "mock 已画:docs/spec/shots/panel-mock.html(五帧,浏览器打开看)。按他这次的话改了三处:①提交前先选模式 —— Comment(记下来,没人回答)/ Question(要回答)/ Task(要它做事,做前给你看,Task 是我加的待他定);②「记进某个文档」删掉,他说看不懂;③「存成页」留下,做成输入框那行的书签图标。录音时输入框不换形状,只在上面多一条 ● 计时+波形,下面那行右边由 🔖🎤↑ 换成 ✕✓↑,提交键位置不动。behaviors.md 已补 3 条。",
+      "images": []
+    },
+    {
+      "id": "in_new_task_doc",
+      "at": "2026-08-13 22:21",
+      "text": "new task: doc editing must support wysiwyg for markdown. see vibedoc, must support features there. also use vibedoc's way for doc version mgmt\n\nwe should also allow nested docs. like vibedoc\n\nux should be similar to notion",
       "images": []
     }
   ]

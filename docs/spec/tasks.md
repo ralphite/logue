@@ -20,6 +20,7 @@
 
 | | 任务 | 状态 / 为什么在这 |
 |---|---|---|
+| **N13** | Extension 面板大幅简化:一个列表 + 一个 composer | `done` · P1 · 2026-08-13 你拍板 **A / 留 / 书签** 后落地。三个动词、第二个录音条、ask box、四段列表、`speaking` 隐藏状态全部删掉;语音只把字填进框(esc 扔 / ↵ 插入 / ⌘↵ 插入并发),发送=保存一条(说出来的存成带录音的 voice Source),Ask 挂在每条底下;选区由 content script 带 anchor 推给面板。菜单里跑的 Skill 答案改存成 derived Source(原来只写进浏览器存储的对话里)。方案见 [panel-composer.md](panel-composer.md),mock 见 [n13-panel-mock.html](n13-panel-mock.html),检查 `scripts/qa/n13.mjs`(11 条全过)。 |
 | **N12** | 左栏的 + 移进内容区,列表页头样式修掉 | `done` · P1 · 2026-08-13。`+` 从导航条(悬停才出现)移到 Projects / Documents / Skills 各自列表的页头右上;列表页头首行从 42px 改成 48px,和右侧详情页头对齐(实测原来是 42 对 48)。 |
 | **X3** | Settings 的 Model 框:当前模型只当 placeholder 显示 | `done` · P2 · 2026-08-13。已保存的模型名现在填进 value(表单加载时填,且不会覆盖正在打的字),placeholder 只留默认值提示。API key 仍然不显示。 |
 | **X2** | 点开文档不应该改动它的更新时间 | `done` · P2 · 2026-08-13。两处原因:编辑器把 Host 传来的正文当成按键(现在带标记不算编辑),以及内容没变的保存仍写 `updated_at`(现在完全不写)。 |

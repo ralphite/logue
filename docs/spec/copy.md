@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-501 strings across 76 files.
+490 strings across 77 files.
 
 ## extension/src/api.ts
 
@@ -15,30 +15,30 @@ state the fact, no justification, no chat register, no filler.
 
 ## extension/src/background.ts
 
-- 36: `Record the microphone for voice capture.`
-- 60: `The microphone did not come up.`
-- 198: `Save to Logue`
-- 239: `Simplify, on the passage you selected`
-- 257: `There was nothing to read.`
-- 271: `Logue could not keep this.`
-- 279: `this page`
-- 284: `The model did not answer.`
-- 292: `The model answered with nothing.`
-- 301: `Something went wrong.`
-- 309: `this page`
-- 334: `That Skill`
-- 495: `Logue is not running on this computer.`
-- 508: `Something answered there, but it is not a Logue Host.`
-- 814: `Logue could not reach the Host.`
-- 822: `That address could not be reached.`
+- 35: `Record the microphone for voice capture.`
+- 59: `The microphone did not come up.`
+- 197: `Save to Logue`
+- 238: `Simplify, on the passage you selected`
+- 246: `There was nothing to read.`
+- 260: `Logue could not keep this.`
+- 268: `this page`
+- 273: `The model did not answer.`
+- 276: `The model answered with nothing.`
+- 299: `Logue: could not run`
+- 304: `this page`
+- 329: `That Skill`
+- 490: `Logue is not running on this computer.`
+- 503: `Something answered there, but it is not a Logue Host.`
+- 809: `Logue could not reach the Host.`
+- 817: `That address could not be reached.`
 
 ## extension/src/content.tsx
 
 - 159: `Logue is not running on this Mac.`
-- 362: `Could not save.`
-- 379: `Could not reach the microphone.`
-- 399: `Could not save.`
-- 545: `That Skill`
+- 396: `Could not save.`
+- 413: `Could not reach the microphone.`
+- 433: `Could not save.`
+- 579: `That Skill`
 
 ## extension/src/editable.ts
 
@@ -54,18 +54,27 @@ state the fact, no justification, no chat register, no filler.
 - 60: `Chrome is not letting Logue use the microphone.`
 - 62: `Could not record.`
 
+## extension/src/panel/Composer.tsx
+
+- 165: `Drop the quote`
+- 223: `Say something about this passage, or send it as it is`
+- 223: `Type here, or press the mic and talk`
+- 224: `What to keep`
+- 229: `Project scope`
+- 240: `Where the words are added`
+- 251: `Keep this whole page`
+- 252: `Keep this whole page`
+- 256: `Talk — the words land in the box`
+
+## extension/src/panel/Entry.tsx
+
+- 139: `More Skills`
+
 ## extension/src/panel/chrome.stories-helper.tsx
 
 - 33: `Speech recognition - Wikipedia`
 - 64: `There is no microphone in a story.`
 - 96: `Speech recognition is an interdisciplinary subfield of computer science and computational linguistics.`
-
-## extension/src/panel/dictation.tsx
-
-- 65: `More Skills`
-- 113: `s own button shape, not a circle. ChatGPT`
-- 140: `h-9 w-full`
-- 145: `Reaching the microphone…`
 
 ## extension/src/pending.ts
 
@@ -82,47 +91,26 @@ state the fact, no justification, no chat register, no filler.
 
 ## extension/src/sidepanel.tsx
 
-- 80: `Looked through your Sources`
-- 81: `Ran a Skill`
-- 82: `Would save this page`
-- 83: `Would file this into a Project`
-- 84: `Would draft a document`
-- 119: `From this page`
-- 189: `Leave it`
-- 204: `just now`
-- 431: `Goes in when Logue is back — nothing to do`
-- 446: `Export audio`
-- 500: `That is not an address Logue can reach.`
-- 507: `Logue's background service is restarting. Try again in a moment.`
-- 541: `The address of the Host this browser talks to — this computer, another one, or a tunnel.`
-- 640: `Logue is not answering.`
-- 758: `Could not save this page.`
-- 793: `Could not keep that.`
-- 858: `Could not reach Logue.`
-- 979: `Done — it is in your workspace.`
-- 982: `Could not do that.`
-- 1034: `Open Chrome settings`
-- 1036: `Try again`
-- 1042: `Reaching the microphone…`
-- 1062: `Ask — this page and your material are in context`
-- 1063: `What to ask`
-- 1069: `Say it instead · ⌘⇧K`
-- 1101: `This page`
-- 1104: `Project scope`
-- 1114: `Panel menu`
-- 1192: `Keeps the selection if there is one, else this whole page`
-- 1336: `Kept from this page`
-- 1342: `Nothing kept from this page yet.`
-- 1350: `finishes ·`
-- 1411: `Where a recording is added`
-- 1453: `Add to a Document`
-- 1469: `Could not add it.`
-- 1563: `Open this in Logue`
-- 1569: `Copy, with the passage it is about`
-- 1687: `Found it`
-- 1746: `What it says`
-- 1823: `Add a tag`
-- 1824: `Add a tag`
+- 100: `That is not an address Logue can reach.`
+- 107: `Logue's background service is restarting. Try again in a moment.`
+- 141: `The address of the Host this browser talks to — this computer, another one, or a tunnel.`
+- 170: `Waiting for Logue`
+- 178: `Kept here. It goes in when Logue is running.`
+- 232: `No words yet`
+- 345: `Logue is not answering.`
+- 536: `This page`
+- 539: `Panel menu`
+- 588: `mt-1 block`
+- 678: `Keyboard shortcuts`
+- 681: `Open this panel and start listening`
+- 682: `Send what is in the box`
+- 683: `New line`
+- 684: `Drop the quoted passage`
+- 685: `While recording: put the words in the box`
+- 686: `While recording: put them in and send`
+- 687: `While recording: throw it away`
+- 740: `Would change your workspace`
+- 745: `Leave it`
 
 ## extension/src/surfaces/FloatingBar.tsx
 
@@ -158,22 +146,26 @@ state the fact, no justification, no chat register, no filler.
 - 146: `Ask Logue`
 - 160: `Voice options`
 
-## extension/src/useDictation.ts
+## extension/src/useEntries.ts
 
-- 134: `Could not add it to that Document.`
-- 201: `That Skill returned nothing.`
-- 217: `That Skill could not run.`
+- 54: `Could not add it to that Document.`
+- 234: `Could not keep that.`
+- 264: `Could not save this page.`
+- 328: `That Skill returned nothing.`
+- 344: `That Skill could not run.`
+- 392: `Could not reach Logue.`
+- 413: `Could not do that.`
 
 ## extension/src/useVoice.ts
 
 - 24: `The model was busy. Trying again…`
-- 71: `Something went wrong.`
-- 136: `Nothing was heard in that recording. The audio is still kept.`
-- 218: `Could not reach the microphone.`
-- 271: `Nothing was recorded.`
-- 284: `Logue did not hear anything. Check the microphone and try again.`
-- 309: `Nothing was heard in that recording. The audio was kept — you can try again.`
-- 346: `Logue is not running. The recording is kept and will be saved when it starts.`
+- 84: `Something went wrong.`
+- 149: `Nothing was heard in that recording. The audio is still kept.`
+- 231: `Could not reach the microphone.`
+- 284: `Nothing was recorded.`
+- 297: `Logue did not hear anything. Check the microphone and try again.`
+- 322: `Nothing was heard in that recording. The audio was kept — you can try again.`
+- 361: `Logue is not running. The recording is kept and will be saved when it starts.`
 
 ## packages/ui/src/Act.tsx
 

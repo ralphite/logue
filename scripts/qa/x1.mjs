@@ -14,22 +14,14 @@
  *   ./scripts/qa/browser.sh 9899 http://127.0.0.1:8787
  *   node scripts/qa/cdp.mjs 9899 ./scripts/qa/x1.mjs
  */
+import { extensionId } from "./extension-id.mjs";
+
 const PORT = process.env.LOGUE_QA_PORT ?? "9899";
 const HOST = process.env.LOGUE_HOST ?? "http://127.0.0.1:8787";
 
 function check(name, ok, detail = "") {
   console.log(`${ok ? "PASS" : "FAIL"} ${name}${detail ? ` — ${detail}` : ""}`);
   if (!ok) process.exitCode = 1;
-}
-
-async function ours() {
-  const targets = await (await fetch(`http://127.0.0.1:${PORT}/json`)).json();
-  const mine = targets.find(
-    (t) =>
-      t.url.startsWith("chrome-extension://") &&
-      (/Logue/i.test(t.title ?? "") || /sidepanel|offscreen|background/.test(t.url)),
-  );
-  return mine?.url.split("/")[2];
 }
 
 /** Everything the panel is showing, as text — no clicking, just reading. */
@@ -56,7 +48,7 @@ const post = (path, body) =>
   }).then((r) => r.json());
 
 export async function run(a) {
-  const id = process.env.LOGUE_EXTENSION_ID ?? (await ours());
+  const id = await extensionId(PORT);
   if (!id) throw new Error("no extension id — pass LOGUE_EXTENSION_ID");
   // The extension's own origin first: `chrome.storage` does not exist on an
   // ordinary page, and the address has to be set from inside the extension.

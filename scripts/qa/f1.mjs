@@ -22,28 +22,15 @@
  * Chrome's own fake microphone is enough here: the stand-in model never
  * listens to the audio, it only refuses it.
  */
+import { extensionId } from "./extension-id.mjs";
+
 const PORT = process.env.LOGUE_QA_PORT ?? "9899";
 /** The Host whose model is busy. */
 const BUSY = process.env.LOGUE_BUSY_HOST ?? "http://127.0.0.1:8796";
 /** The stand-in model itself, which can be told the spike has passed. */
 const MODEL = process.env.LOGUE_BUSY_MODEL ?? "http://127.0.0.1:8795";
 
-/**
- * Ours, not whichever extension answers first.
- *
- * Chrome runs component extensions of its own, and the first
- * `chrome-extension://` target in the list was one of them — its manifest has
- * no side panel, and the check failed on a page that was never Logue's.
- */
-async function ours() {
-  const targets = await (await fetch(`http://127.0.0.1:${PORT}/json`)).json();
-  const mine = targets.find(
-    (t) =>
-      t.url.startsWith("chrome-extension://") &&
-      (/Logue/i.test(t.title ?? "") || /sidepanel|offscreen|background/.test(t.url)),
-  );
-  return mine?.url.split("/")[2];
-}
+
 
 function check(name, ok, detail = "") {
   console.log(`${ok ? "PASS" : "FAIL"} ${name}${detail ? ` — ${detail}` : ""}`);
@@ -90,16 +77,22 @@ async function open(a, panel, at) {
   await a.sleep(2500);
 }
 
-/** Record for a few seconds, then accept it. */
+/**
+ * Talk for a few seconds, then send.
+ *
+ * The panel is one box now (N13): the mic is `Talk`, and the arrow both puts
+ * the words in the box and sends them — which is the path a recording takes
+ * when someone speaks and submits in one go.
+ */
 async function record(a, seconds = 4) {
-  await a.eval(pressLabel("Record"));
-  await until(a, (s) => s.buttons.includes("Done (Enter)"), "recording never started", 20000);
+  await a.eval(pressLabel("Talk"));
+  await until(a, (s) => s.buttons.includes("Discard (Esc)"), "recording never started", 20000);
   await a.sleep(seconds * 1000);
-  await a.eval(pressLabel("Done (Enter)"));
+  await a.eval(pressLabel("Insert and send (⌘Enter)"));
 }
 
 export async function run(a) {
-  const id = process.env.LOGUE_EXTENSION_ID ?? (await ours());
+  const id = await extensionId(PORT);
   if (!id) throw new Error("no extension id — pass LOGUE_EXTENSION_ID");
   await a.goto(`chrome-extension://${id}/manifest.json`);
   await a.sleep(300);

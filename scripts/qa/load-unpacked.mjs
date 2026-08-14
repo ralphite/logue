@@ -34,4 +34,13 @@ const call = (method, params = {}) =>
 
 const result = await call("Extensions.loadUnpacked", { path: PATH });
 console.log("loaded:", JSON.stringify(result));
+
+// Written down, because finding it again is otherwise guesswork: Chrome runs
+// component extensions of its own, their targets look like ours, and the
+// worker that would identify us is asleep most of the time. Every check reads
+// this file rather than sifting the target list.
+if (result?.id) {
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(new URL(`./.extension-${PORT}`, import.meta.url), result.id);
+}
 ws.close();

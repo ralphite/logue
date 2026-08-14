@@ -310,6 +310,21 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   the page puts that passage into the composer as a Markdown quote, with the
   anchor it was taken from, so what is written about it can be found back on
   the page later. Clearing the selection returns the scope to the whole page.
+- **Submitting says what the thing is.** One box, but the person chooses the
+  mode before they submit: **Comment** — keep it, nothing answers; **Question**
+  — answer it out of their own material. (2026-08-13, his words: "你提交的时候,
+  你可以选比如说你提交的是做什么的,比如说你这是一个 comment,问一个问题,需要
+  回答,基本上就是几个不同模式吧".) The mode changes what happens after the
+  submit, never the box itself, so changing one's mind costs a chip and not a
+  retype. The mode is visible while recording too — nobody presses submit not
+  knowing what it will make.
+- **Nothing asks in advance which Document a recording goes into.**
+  (2026-08-13: "记进某个文档这个叙述,什么叫记进某个文档我不太清楚.") A control
+  the person cannot read is a wrong control, and it is removed rather than
+  explained. Filing happens on its own afterwards and the record says where it
+  landed, undoably.
+- **Saving the whole page keeps its own one-press control** — an icon in the
+  composer's row, needing nothing typed.
 - **Every submitted record carries the Skills underneath it** — Ask, As
   Markdown, Into English, and whatever else is configured — whether it was
   typed, spoken, quoted or saved from the page. A transcript is not a special
@@ -437,6 +452,44 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   and could not be opened.
 - **A recording looks its length.** The waveform's density follows the
   duration, so a sentence and a ten-minute meeting do not draw the same picture.
+
+## The panel: one list, one composer
+
+(2026-08-13. His instruction: *"面板收成一个列表 + 一个 composer"*, and his
+ruling on the three questions it raised — **A / keep / bookmark**.)
+
+- **There is one place to say anything, and one list of what came of it.** No
+  Record / Keep / Ask across the top, no second recorder, no ask box, no
+  separate lists for dictation, conversation, what was kept, and what is
+  queued. Every entry has the same shape and the same row of Skills.
+- **Voice fills the box; it does not send.** Talking puts the words at the
+  caret. `esc` throws the recording away, `↵` puts the words in, `⌘↵` puts
+  them in and sends. This is what makes it possible to say a second sentence
+  before deciding anything — the reason the change was asked for.
+  - The behaviour this replaces, said plainly: ⌘⇧K used to open the panel
+    listening and `↵` sent what was said straight into the conversation.
+- **Sending keeps. Asking is something you do to what you kept.** One send is
+  one Source: words that came out of the microphone are kept as a voice
+  Source carrying the recording, so what was said can be played beside what it
+  became. `Ask about this` sits under each entry.
+- **A selection on the page changes the scope, not the controls.** The passage
+  arrives above the box as a quote, with the anchor the page made while the
+  selection existed, and goes in as its own Source with the note hanging off
+  it. Dropping the quote is `esc` or the ✕.
+- **Keeping this page is one press**, a bookmark beside the microphone.
+- **Where the words are added stays a chip on the composer's row** — not a
+  step, not a section. (Of 33 things dictated into this workspace, 33 were
+  never used again; deciding the destination first is the one time it earned
+  its place.)
+- **A recording nobody kept is not unfinished.** The audio stays on the Host,
+  the model answered, and it is not listed as waiting. What *is* listed is
+  trouble: a busy model, a refusal, a queue — as entries, at the time they
+  happened, with the audio playable and a way back.
+- **A Skill run from the page's menu keeps its answer as a Source**, hanging
+  off the passage it was run on, so it lands in the panel's one list and can
+  be found in the app. It used to be written into a conversation the panel
+  read from browser storage — which existed nowhere else and vanished when the
+  conversation was cleared.
 
 ## Two surfaces, one workspace
 

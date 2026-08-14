@@ -41,7 +41,20 @@ export type ToBackground =
   | { type: "logue:open-microphone-settings" }
   | { type: "logue:record-start"; sessionId: string }
   | { type: "logue:record-stop"; sessionId: string }
-  | { type: "logue:record-cancel"; sessionId: string };
+  | { type: "logue:record-cancel"; sessionId: string }
+  /**
+   * What is selected on the page, pushed as it changes.
+   *
+   * The panel used to reach into the page for this with
+   * `chrome.scripting.executeScript` at the moment something was pressed —
+   * which gets the words and nothing else. Only the page can make a
+   * `TextAnchor`, and only while the Range exists; taken later, from a string,
+   * a passage cannot say which copy of itself it was. Pushed from here, a
+   * comment on a passage can be found again on the page months later.
+   *
+   * `text` empty means the selection was cleared.
+   */
+  | { type: "logue:selection"; text: string; anchor?: TextAnchor; url: string; title: string };
 
 /**
  * The Host's answer, relayed.
@@ -63,7 +76,9 @@ export type FromBackground =
   /** What is on this page, asked for by the worker on the person's behalf. */
   | { type: "logue:read-page" }
   /** A Skill just ran on this page; the panel has something new to show. */
-  | { type: "logue:thread-changed" };
+  | { type: "logue:thread-changed" }
+  /** ⌘⇧K, when the panel is already open: start listening. */
+  | { type: "logue:listen" };
 
 /** The one place a message is narrowed; everything else receives a typed value. */
 export function tagOf(value: unknown): string | undefined {
@@ -82,6 +97,7 @@ const FROM_BACKGROUND = new Set<string>([
   "logue:start-command",
   "logue:read-page",
   "logue:thread-changed",
+  "logue:listen",
 ]);
 
 export function isFromBackground(value: unknown): value is FromBackground {

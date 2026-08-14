@@ -10,7 +10,6 @@ import { all as pendingVoice, forget, noteTry } from "./pending";
 import { noteTry as noteCaptureTry, tries as captureTries, worthRetrying, type Held } from "./unfinished";
 import { siblingOf } from "./paths";
 import { currentServer, isLoopback } from "./server";
-import { writeThread, type ThreadMessage } from "./thread";
 
 /**
  * The offscreen page sits beside this worker.
@@ -242,17 +241,7 @@ async function runSkillIntoThread(options: {
   keep: { kind: "page" | "selection"; content: string; url: string; title: string };
   project?: string;
 }): Promise<void> {
-  const { skillId, skillName, heading, keep, project } = options;
-  const say = async (messages: ThreadMessage[]) => {
-    // Filed under the page it happened on. A Skill run on an article belongs
-    // to that article, and used to be shown over every other page as well.
-    await writeThread(keep.url, messages, new Date().toISOString());
-    // The panel may already be open, on this page or another one.
-    chrome.runtime.sendMessage({ type: "logue:thread-changed" }).catch(() => undefined);
-  };
-  const at = new Date().toISOString();
-  await say([{ from: "logue", text: `Running ${skillName}…`, at }]);
-
+  const { skillId, skillName, keep, project } = options;
   try {
     if (!keep.content.trim()) throw new Error("There was nothing to read.");
 
@@ -284,24 +273,30 @@ async function runSkillIntoThread(options: {
     if (!ran.ok || ran.status >= 400) throw new Error("The model did not answer.");
     const answered: unknown = JSON.parse(ran.text);
     const output = pickString(answered, "run", "original_output").trim();
-    const failed = pickString(answered, "run", "error");
-    await say([
-      { from: "logue", text: heading, at },
-      {
-        from: "skill",
-        text: output || failed || "The model answered with nothing.",
-        at: new Date().toISOString(),
-      },
-    ]);
+    if (!output) throw new Error(pickString(answered, "run", "error") || "The model answered with nothing.");
+
+    // The answer, kept as a Source hanging off the passage it was run on.
+    //
+    // It used to be written into a storage key the panel read as a
+    // conversation — which meant it existed only there, vanished when the
+    // conversation was cleared, and could not be found in the app at all.
+    // As a derived Source it lands in the panel's one list under the thing
+    // it came from, and survives everything.
+    await relayToHost({
+      path: "/v1/materials",
+      method: "POST",
+      body: JSON.stringify({
+        kind: "derived",
+        content: output,
+        project,
+        parent_ids: sourceId ? [sourceId] : [],
+        source: { url: keep.url, title: keep.title, domain: domainOf(keep.url) },
+      }),
+    });
   } catch (cause) {
-    await say([
-      { from: "logue", text: heading, at },
-      {
-        from: "skill",
-        text: cause instanceof Error ? cause.message : "Something went wrong.",
-        at: new Date().toISOString(),
-      },
-    ]);
+    // Nothing to write the failure into but the log: the passage is kept
+    // either way, and the panel offers the Skill again on it.
+    console.warn("Logue: could not run", skillName, cause);
   }
 }
 
@@ -779,9 +774,9 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {
     case "logue:pending-send":
       // "Try now" in the panel. The periodic check would get there eventually;
       // a person watching a recording wait should not have to.
-      void Promise.all([sendPending(), retryHeld()]).then(([sent, done]) => {
-        if (sent + done > 0) void chrome.runtime.sendMessage({ type: "logue:thread-changed" }).catch(() => undefined);
-      });
+      // The panel follows the workspace on its own — see the extension's
+      // `sync.ts` — so nothing has to be told about what this finds.
+      void Promise.all([sendPending(), retryHeld()]);
       respond({ ok: true });
       return true;
     case "logue:record-stop":
