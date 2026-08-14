@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-497 strings across 76 files.
+501 strings across 76 files.
 
 ## extension/src/api.ts
 
@@ -535,18 +535,18 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/App.tsx
 
-- 291: `A newer Logue is ready. This page is running the previous one.`
+- 279: `A newer Logue is ready. This page is running the previous one.`
 
 ## web/src/app/AppShell.tsx
 
-- 140: `Open sidebar`
-- 156: `Close sidebar`
-- 173: `Find anything`
-- 235: `Logue is not running on this Mac.`
-- 238: `mt-auto justify-center`
-- 242: `Logue is not running on this Mac.`
-- 243: `Logue is not running on this Mac.`
-- 252: `Resize the sidebar`
+- 138: `Open sidebar`
+- 154: `Close sidebar`
+- 171: `Find anything`
+- 219: `Logue is not running on this Mac.`
+- 222: `mt-auto justify-center`
+- 226: `Logue is not running on this Mac.`
+- 227: `Logue is not running on this Mac.`
+- 236: `Resize the sidebar`
 
 ## web/src/app/ConfirmDelete.tsx
 
@@ -556,14 +556,15 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/DocumentsRoute.tsx
 
-- 117: `written by hand`
-- 137: `Nothing written yet — press + to start a page.`
-- 279: `New Document`
-- 287: `Rewrite the passage`
-- 287: `Select a passage first`
-- 303: `Download as Markdown`
-- 371: `Not saved yet`
-- 373: `Every version is kept`
+- 91: `New Document`
+- 119: `written by hand`
+- 139: `Nothing written yet — press + to start a page.`
+- 281: `New Document`
+- 289: `Rewrite the passage`
+- 289: `Select a passage first`
+- 305: `Download as Markdown`
+- 373: `Not saved yet`
+- 375: `Every version is kept`
 
 ## web/src/app/FindDialog.tsx
 
@@ -620,21 +621,22 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/ProjectsRoute.tsx
 
-- 105: `Mobile research`
-- 126: `No Projects yet — press + to start one.`
-- 135: `read and closed`
-- 142: `made a Document`
-- 193: `Delete this Project — its Sources stay`
-- 218: `What this Project is about`
-- 228: `Read by the filer and by every answer — click to edit`
-- 237: `Add context for this Project…`
-- 270: `underline decoration-line underline-offset-2`
-- 293: `newest first`
-- 295: `Nothing here yet — capture with the extension.`
-- 297: `mt-2 -mx-4`
-- 309: `this Mac`
-- 330: `Delete this Project`
-- 334: `Every Source stays in Activities. Only the grouping goes.`
+- 71: `New Project`
+- 107: `Mobile research`
+- 128: `No Projects yet — press + to start one.`
+- 137: `read and closed`
+- 144: `made a Document`
+- 195: `Delete this Project — its Sources stay`
+- 220: `What this Project is about`
+- 230: `Read by the filer and by every answer — click to edit`
+- 239: `Add context for this Project…`
+- 272: `underline decoration-line underline-offset-2`
+- 295: `newest first`
+- 297: `Nothing here yet — capture with the extension.`
+- 299: `mt-2 -mx-4`
+- 311: `this Mac`
+- 332: `Delete this Project`
+- 336: `Every Source stays in Activities. Only the grouping goes.`
 
 ## web/src/app/RewriteDialog.tsx
 
@@ -654,27 +656,27 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/SettingsRoute.tsx
 
-- 127: `API key`
-- 133: `Saved — enter a new key to replace`
-- 133: `Paste your key`
-- 142: `Model name`
-- 149: `Both capabilities responded. Save to use it.`
-- 150: `One capability did not respond.`
-- 225: `None yet — fix a word on a recording.`
-- 251: `Words Logue knows`
-- 252: `Spelled this way in every recording.`
-- 280: `Written by hand more than once, never heard right.`
-- 294: `You approved this from your own writing.`
-- 318: `Default Skills`
-- 344: `This Mac`
-- 368: `Restoring replaces everything here, after backing it up.`
-- 370: `None yet.`
-- 386: `Restore this backup`
-- 425: `Keyboard shortcuts`
-- 457: `Responded to the last test`
-- 457: `Run Test to check`
-- 460: `Not tested`
-- 460: `Needs attention`
+- 147: `API key`
+- 153: `Saved — enter a new key to replace`
+- 153: `Paste your key`
+- 165: `Model name`
+- 172: `Both capabilities responded. Save to use it.`
+- 173: `One capability did not respond.`
+- 248: `None yet — fix a word on a recording.`
+- 274: `Words Logue knows`
+- 275: `Spelled this way in every recording.`
+- 303: `Written by hand more than once, never heard right.`
+- 317: `You approved this from your own writing.`
+- 341: `Default Skills`
+- 367: `This Mac`
+- 391: `Restoring replaces everything here, after backing it up.`
+- 393: `None yet.`
+- 409: `Restore this backup`
+- 448: `Keyboard shortcuts`
+- 480: `Responded to the last test`
+- 480: `Run Test to check`
+- 483: `Not tested`
+- 483: `Needs attention`
 
 ## web/src/app/ShortcutsDialog.tsx
 
@@ -691,21 +693,22 @@ state the fact, no justification, no chat register, no filler.
 - 17: `Offered on anything spoken into the panel.`
 - 26: `offered nowhere`
 - 26: `no prompt yet`
-- 91: `Untitled Skill`
-- 103: `Draft a reply`
-- 123: `No Skills yet — press + to write one.`
-- 154: `This Skill is gone.`
-- 184: `Untitled Skill`
-- 185: `Built-in · `
-- 189: `Delete this Skill`
-- 213: `What this Skill produces`
-- 217: `Text to insert`
-- 223: `Used where`
-- 259: `Tell the model exactly what to produce.`
-- 264: `No prompt yet, so it is offered nowhere.`
-- 267: `Runs keep the exact revision they used`
-- 292: `Delete this Skill`
-- 296: `Runs that used it keep the exact prompt they ran with.`
+- 72: `New Skill`
+- 93: `Untitled Skill`
+- 105: `Draft a reply`
+- 125: `No Skills yet — press + to write one.`
+- 156: `This Skill is gone.`
+- 186: `Untitled Skill`
+- 187: `Built-in · `
+- 191: `Delete this Skill`
+- 215: `What this Skill produces`
+- 219: `Text to insert`
+- 225: `Used where`
+- 261: `Tell the model exactly what to produce.`
+- 266: `No prompt yet, so it is offered nowhere.`
+- 269: `Runs keep the exact revision they used`
+- 294: `Delete this Skill`
+- 298: `Runs that used it keep the exact prompt they ran with.`
 
 ## web/src/app/StreamRoute.tsx
 
@@ -717,8 +720,9 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/panes.tsx
 
-- 24: `Newest first`
-- 86: `Clear the search`
+- 27: `Newest first`
+- 39: `New Project`
+- 112: `Clear the search`
 
 ## web/src/app/shortcuts.ts
 

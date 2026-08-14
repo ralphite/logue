@@ -1,5 +1,6 @@
+import { Plus } from "lucide-react";
 import { type ReactNode } from "react";
-import { Glyph, Resizer, cn, usePersistentSize, type GlyphName } from "@logue/ui";
+import { Glyph, IconButton, Resizer, Tooltip, cn, usePersistentSize, type GlyphName } from "@logue/ui";
 
 /**
  * The three-pane grammar, said once.
@@ -11,12 +12,14 @@ import { Glyph, Resizer, cn, usePersistentSize, type GlyphName } from "@logue/ui
  */
 const LIST = { key: "logue.list.width", min: 340, max: 640, base: 486 };
 
-/** The middle pane: a 42px name row, optional controls, the scrolling list. */
+/** The middle pane: a 48px name row, optional controls, the scrolling list. */
 export function ListPane({
   title,
   count,
   corner,
   controls,
+  onNew,
+  newLabel,
   children,
 }: {
   title: string;
@@ -24,6 +27,17 @@ export function ListPane({
   /** The quiet fact in the top-right — "Newest first", nothing louder. */
   corner?: ReactNode;
   controls?: ReactNode;
+  /**
+   * Make one of these.
+   *
+   * It used to hang off the rail's own row, appearing on hover — invisible
+   * until the pointer happened to be in the right place, and nowhere near the
+   * list it adds to. His instruction, 2026-08-13: *"把 Add New 这个 button
+   * 移到里面"*.
+   */
+  onNew?: () => void;
+  /** What one of them is called, in the singular: "New Project". */
+  newLabel?: string;
   children: ReactNode;
 }) {
   const { size, setSize } = usePersistentSize({
@@ -39,15 +53,27 @@ export function ListPane({
         style={{ width: size }}
         className="flex flex-none flex-col border-r border-line bg-surface"
       >
+        {/* The same 48px first row as the detail pane's header, measured and
+            matched: the two were 42 and 48, so the two halves of one screen
+            started at different heights. */}
         <header className="flex-none border-b border-line bg-panel px-4">
-          <div className="flex h-[42px] items-baseline gap-2">
+          <div className="flex h-12 items-center gap-2">
             <h1 className="truncate text-[15px] font-[650] tracking-[-0.015em] text-ink">{title}</h1>
             {count !== undefined && (
               <span className="text-[11px] font-[550] tabular-nums text-muted">{count || ""}</span>
             )}
-            {corner && <span className="ml-auto flex-none text-[10.5px] font-[500] text-muted">{corner}</span>}
+            <span className="ml-auto flex flex-none items-center gap-1">
+              {corner && <span className="text-[10.5px] font-[500] text-muted">{corner}</span>}
+              {onNew && (
+                <Tooltip label={newLabel ?? `New ${title.replace(/s$/, "")}`}>
+                  <IconButton label={newLabel ?? `New ${title.replace(/s$/, "")}`} onClick={onNew}>
+                    <Plus size={14} />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </span>
           </div>
-          {controls && <div className="flex items-center gap-2 pb-3">{controls}</div>}
+          {controls && <div className="flex items-center gap-2 pb-2.5">{controls}</div>}
         </header>
         <div className="logue-scroll min-h-0 flex-1">{children}</div>
       </section>

@@ -443,7 +443,7 @@
       "id": "X2",
       "title": "点开文档不应该改动它的更新时间",
       "type": "bug",
-      "status": "queued",
+      "status": "done",
       "priority": "P2",
       "confirmed": true,
       "tags": [
@@ -452,7 +452,8 @@
       "note": "只是打开/查看一篇文档,却把它的 updated_at 刷新了,导致列表排序被浏览行为打乱。更新时间应该只在内容真正被修改时变化。",
       "blocked_on": "",
       "input_ids": [
-        "in_bug_clicking_on"
+        "in_bug_clicking_on",
+        "in_host_updated_at"
       ],
       "created": "2026-08-13",
       "updated": "2026-08-13"
@@ -688,6 +689,12 @@
       "id": "in_docs_spec_panel",
       "at": "2026-08-13 21:25",
       "text": "方案已写:docs/spec/panel-composer.md。三个动词(Record/Keep/Ask)收成一个 composer;选中页面文字自动以 Markdown 引用进框(带 anchor,能定位回页面);录音条三键 ✕/✓/↑,插入不等于提交,允许多次口述;四段列表合成一条流,每条带类型徽章和 Ask·As Markdown·Into English 技能条。behaviors.md 已落 5 条,tasks.md 已同步。等他回答第六节三问。",
+      "images": []
+    },
+    {
+      "id": "in_host_updated_at",
+      "at": "2026-08-13 21:30",
+      "text": "已修:两处原因 —— ① 编辑器把 Host 传来的正文当成一次按键(现在这类改动带标记,不算编辑);② 内容没变的保存仍然刷新 updated_at(现在完全不写)。刚在部署好的应用上连开四篇文档复验,时间戳一个都没动。",
       "images": []
     }
   ]

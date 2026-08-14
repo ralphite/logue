@@ -1,4 +1,4 @@
-import { PanelLeft, Plus } from "lucide-react";
+import { PanelLeft } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { Glyph, LogueLogo, LogueMark, Resizer, cn, usePersistentSize, type GlyphName } from "@logue/ui";
 import { FIND_KEYS, RAIL_KEYS } from "./shortcuts";
@@ -64,7 +64,6 @@ export function AppShell({
   children,
   offline = false,
   onFind,
-  onNew,
 }: {
   route: Route;
   onRoute: (route: Route) => void;
@@ -73,7 +72,6 @@ export function AppShell({
   offline?: boolean;
   onFind?: () => void;
   /** Sections that can make something, shown as a `+` on hover. */
-  onNew?: Partial<Record<Route, () => void>>;
 }) {
   const [collapsed, setCollapsed] = useState(wasCollapsed);
   const { size, setSize } = usePersistentSize({
@@ -190,7 +188,6 @@ export function AppShell({
         {ROUTES.map((key, index) => {
           const { label, icon } = NAV[key];
           const active = route === key;
-          const make = onNew?.[key];
           return (
             <div key={key} className="group/nav relative flex items-center">
               <button
@@ -209,20 +206,7 @@ export function AppShell({
                 </span>
                 {!collapsed && <span className="truncate">{label}</span>}
               </button>
-              {make && !collapsed && (
-                // On the section that will hold it, when the pointer is there.
-                // A permanent New button costs a row of the rail forever to
-                // save one hover.
-                <button
-                  type="button"
-                  aria-label={`New ${label.replace(/s$/, "")}`}
-                  title={`New ${label.replace(/s$/, "")}`}
-                  onClick={make}
-                  className="absolute right-1 inline-flex size-6 items-center justify-center rounded-md text-transparent group-hover/nav:text-muted hover:bg-surface-muted hover:!text-ink focus-visible:text-muted"
-                >
-                  <Plus size={14} />
-                </button>
-              )}
+
             </div>
           );
         })}

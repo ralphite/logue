@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { AppShell, DRAFT, ROUTES, type Route } from "./AppShell";
+import { AppShell, ROUTES, type Route } from "./AppShell";
 import { DocumentsRoute } from "./DocumentsRoute";
 import { FindDialog, type FindTarget } from "./FindDialog";
 import { somethingUnsaved, useNewerBuild } from "./freshness";
@@ -218,13 +218,6 @@ export function App() {
   // list that has to show it.
   const [made, setMade] = useState(0);
 
-  // Pressing `+` opens an empty one; the Host hears about it at the first
-  // keystroke. Pressing it again while a draft is open lands on that draft
-  // rather than starting a second.
-  const newProject = () => openIn("projects", DRAFT);
-  const newDocument = () => openIn("documents", DRAFT);
-  const newSkill = () => openIn("skills", DRAFT);
-
   /** A draft became real: point at it, and let the list go and find it. */
   const born = (next: Route) => (id: string) => {
     openIn(next, id);
@@ -238,11 +231,6 @@ export function App() {
         onRoute={go}
         offline={Boolean(status.error)}
         onFind={() => setFinding(true)}
-        onNew={{
-          projects: newProject,
-          documents: newDocument,
-          skills: newSkill,
-        }}
       >
         {route === "stream" && (
           <StreamRoute

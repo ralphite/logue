@@ -68,6 +68,8 @@ export function SkillsRoute({
     <div className="flex min-h-0 flex-1">
       <ListPane
         title="Skills"
+        onNew={() => onOpen(DRAFT)}
+        newLabel="New Skill"
         count={all.length}
         controls={<ListSearch value={query} onChange={setQuery} />}
       >

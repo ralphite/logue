@@ -1,5 +1,5 @@
 import { Check, Download, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Button,
   Dialog,
@@ -67,6 +67,21 @@ export function SettingsRoute() {
   const [kind, setKind] = useState("");
   const [tested, setTested] = useState<{ generation: boolean; voice: boolean; error: string }>();
   const action = useAction();
+  /** Whether anyone has typed in this form yet, so a reload cannot type over them. */
+  const touched = useRef(false);
+
+  /**
+   * The model that is saved is what the field says, not what it hints.
+   *
+   * His question: *"为什么这个模型它的文字是一个类似 tip 的方式,而不是真正的
+   * 文字 input value 呢?"* — the name was the placeholder, so the setting read
+   * as unset, and changing one character meant retyping the whole string.
+   */
+  useEffect(() => {
+    if (touched.current || !model.data) return;
+    setModelName(model.data.model ?? "");
+    setKind(model.data.provider ?? "");
+  }, [model.data]);
 
   const test = async () => {
     setTested(undefined);
@@ -90,6 +105,8 @@ export function SettingsRoute() {
     );
     if (ok) {
       setApiKey("");
+      // Saved: the form is the Host's again, so the next answer may fill it.
+      touched.current = false;
       void model.refresh();
       void status.refresh();
     }
@@ -117,7 +134,10 @@ export function SettingsRoute() {
             <Dropdown
               label="Provider"
               value={kind || model.data?.provider || "gemini"}
-              onChange={(next) => setKind(next)}
+              onChange={(next) => {
+                touched.current = true;
+                setKind(next);
+              }}
               options={[
                 { value: "gemini", label: "Gemini" },
                 { value: "openai", label: "OpenAI-compatible (Groq)" },
@@ -137,8 +157,11 @@ export function SettingsRoute() {
           <Field label="Model">
             <Input
               value={modelName}
-              onChange={(event) => setModelName(event.target.value)}
-              placeholder={model.data?.model ?? "gemini-3.6-flash"}
+              onChange={(event) => {
+                touched.current = true;
+                setModelName(event.target.value);
+              }}
+              placeholder="gemini-3.6-flash"
               aria-label="Model name"
             />
           </Field>

@@ -402,6 +402,18 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   Page, Journey. Every story belongs to exactly one.
 
 ## One vocabulary on screen
+- **Make one of these where they live.** The `+` for a Project, a Document or
+  a Skill sits in the header of the list it adds to — not on the rail, where it
+  appeared only while the pointer happened to be over the row. (2026-08-13,
+  his instruction: *"把 Add New 这个 button 移到里面"*.)
+- **Both halves of a screen start at the same height.** The list header's first
+  row and the detail header are both 48px; they were 42 and 48, so the two
+  panes of one window began at different places.
+- **A saved setting is in the field, not in the hint.** The model name is the
+  input's value, so it reads as set and one character can be changed without
+  retyping the string. (His question: *"为什么这个模型它的文字是一个类似 tip 的
+  方式,而不是真正的文字 input value 呢?"*) A key is the exception: it is never
+  shown, and its placeholder says so.
 
 - **One shape per kind of message.** A failure, a warning and a plain fact each
   have one component (`Notice`), and "nothing here" has one (`Empty`). There
