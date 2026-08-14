@@ -5,6 +5,7 @@ import { api, ApiError, type Document as DocumentRecord, type Material } from ".
 import { DRAFT } from "./AppShell";
 import { useHoldsUnsaved } from "./freshness";
 import { DOCUMENT, History } from "./History";
+import { MarkdownEditor, type MarkdownHandle } from "./MarkdownEditor";
 import {
   DetailBody,
   DetailHeader,
@@ -22,17 +23,25 @@ import { RewriteDialog } from "./RewriteDialog";
 import { timeAgo, useAction, useHost } from "./useHost";
 
 const AUTOSAVE_MS = 900;
-/** How far a title taken from the body follows it. */
+/** How far the name follows the first line. The Host cuts it the same way. */
 const TITLE_LIMIT = 50;
 
-/** The first line of the body, which is what a document is usually called. */
-function firstLine(html: string, limit = TITLE_LIMIT): string {
-  const text = (new DOMParser().parseFromString(html, "text/html").body.textContent ?? "")
-    .split("\n")
-    .map((line) => line.trim())
-    .find((line) => line.length > 0);
-  if (!text) return "";
-  return text.length > limit ? text.slice(0, limit) : text;
+/**
+ * What a document is called: its first line, with the Markdown taken off.
+ *
+ * The Host computes the same thing and stores it, so lists and links agree
+ * with the editor. This copy exists only so the header can say the new name
+ * while the words are still being typed, before the save.
+ */
+export function firstLine(text: string, limit = TITLE_LIMIT): string {
+  for (const line of (text ?? "").replace(/\r\n/g, "\n").split("\n")) {
+    const bare = line
+      .replace(/^\s*(#{1,6}\s+|>\s*|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+)/, "")
+      .replace(/(\*\*|__|\*|_|`)/g, "")
+      .trim();
+    if (bare) return bare.slice(0, limit);
+  }
+  return "";
 }
 
 /**
@@ -140,7 +149,6 @@ const BLANK: { document: DocumentRecord; sources: Material[] } = {
   document: {
     id: "",
     title: "",
-    title_state: "auto",
     content: "",
     source_ids: [],
     revision: 0,
@@ -163,7 +171,14 @@ function DocumentEditor({
   // pressing `+` and walking away leaves no trace.
   const draft = id === DRAFT;
   const loaded = useHost(() => (draft ? Promise.resolve(BLANK) : api.document(id)), [id]);
-  const [title, setTitle] = useState("");
+  /**
+   * The text, held here rather than only in the editor.
+   *
+   * A document has no name of its own any more — the first line is the name —
+   * so the header has to read the words as they are typed, not as they were
+   * last saved.
+   */
+  const [text, setText] = useState("");
   const [saved, setSaved] = useState<string>("");
   /** What this editor last saw. Sent with every save so a second writer is caught. */
   const [revision, setRevision] = useState(0);
@@ -173,55 +188,29 @@ function DocumentEditor({
   const [rewriting, setRewriting] = useState<string>();
   /** Whether there is a passage to rewrite right now, so the button can say so. */
   const [selected, setSelected] = useState(false);
-  /**
-   * Who named this: the first line, a model, or the person.
-   *
-   * One value, so two can never be true at once — and the whole point is the
-   * last one. Once someone has typed a name, the body does not overwrite it
-   * and neither does a model.
-   */
-  const [named, setNamed] = useState<"auto" | "generated" | "edited">("auto");
-  // Read inside a promise that outlives the render it started in.
-  const namedRef = useRef(named);
-  namedRef.current = named;
-  const body = useRef<HTMLDivElement>(null);
+  const editor = useRef<MarkdownHandle>(null);
+  /** Read inside the autosave, which fires after the render that queued it. */
+  const written = useRef("");
+  written.current = text;
   const timer = useRef<number>(undefined);
   const action = useAction();
   const doc = loaded.data?.document;
   const sources = loaded.data?.sources ?? [];
+  const title = firstLine(text) || (draft ? "" : doc?.title || "Untitled");
 
   useEffect(() => {
     if (!doc) return;
-    setTitle(doc.title);
-    setNamed(doc.title_state ?? (doc.title.trim() && doc.title !== "Untitled" ? "edited" : "auto"));
+    setText(doc.content);
     setRevision(doc.revision);
     setConflict(false);
-    if (body.current) body.current.innerHTML = doc.content;
   }, [doc]);
 
-  // Whether Rewrite has anything to work on. Watched rather than read on the
-  // press, because the button has to *say* it is unavailable before it is
-  // pressed — the press itself is too late to explain anything.
-  useEffect(() => {
-    const read = () => {
-      const chosen = window.getSelection();
-      const text = chosen?.toString().trim() ?? "";
-      setSelected(Boolean(text) && Boolean(chosen?.anchorNode) && Boolean(body.current?.contains(chosen!.anchorNode)));
-    };
-    document.addEventListener("selectionchange", read);
-    return () => document.removeEventListener("selectionchange", read);
-  }, []);
-
-  const write = async (
-    changes: { title?: string; content?: string; title_state?: "auto" | "generated" | "edited" },
-    force = false,
-  ) => {
+  const write = async (changes: { content?: string }, force = false) => {
     try {
       // The first save is what brings it into being.
       if (draft) {
         const { document: born } = await api.createDocument({
-          title: changes.title ?? title,
-          content: changes.content ?? body.current?.innerHTML ?? "",
+          content: changes.content ?? written.current,
         });
         onCreated(born.id);
         return;
@@ -256,11 +245,7 @@ function DocumentEditor({
   useHoldsUnsaved(waitingToSave || action.busy);
 
   /** Autosave on a pause, not on every keystroke — history should read as edits. */
-  const queueSave = (changes: {
-    title?: string;
-    content?: string;
-    title_state?: "auto" | "generated" | "edited";
-  }) => {
+  const queueSave = (changes: { content?: string }) => {
     window.clearTimeout(timer.current);
     setWaitingToSave(true);
     timer.current = window.setTimeout(() => {
@@ -268,7 +253,13 @@ function DocumentEditor({
     }, AUTOSAVE_MS);
   };
 
-  const mine = () => ({ title, content: body.current?.innerHTML ?? "" });
+  const mine = () => ({ content: written.current });
+
+  /** Every keystroke: the name follows the first line, so the header follows too. */
+  const onTyped = (next: string) => {
+    setText(next);
+    queueSave({ content: next });
+  };
 
   // A link to something that has been deleted is a normal thing to click.
   // Say so plainly rather than drawing an editor around nothing.
@@ -282,41 +273,6 @@ function DocumentEditor({
       </DetailPane>
     );
   }
-
-  /**
-   * Every document starts "Untitled" and, left alone, stays that way — which
-   * makes a list of them useless. So the title follows the first line while
-   * nobody has claimed it.
-   */
-  const onBodyInput = () => {
-    const content = body.current?.innerHTML ?? "";
-    if (named !== "auto") {
-      queueSave({ content });
-      return;
-    }
-    const following = firstLine(content);
-    setTitle(following);
-    queueSave({ content, title: following, title_state: "auto" });
-  };
-
-  /**
-   * Once, when the body is finished with: ask a model for a real title.
-   *
-   * Only while the name is still the first line's. A person who has typed one
-   * never sees it change, and a model that has already had its turn does not
-   * get a second — which is the whole reason the three states exist.
-   */
-  const nameIt = () => {
-    if (draft || named !== "auto" || !firstLine(body.current?.innerHTML ?? "")) return;
-    void action.run(async () => {
-      const { document } = await api.nameDocument(id);
-      // Someone may have started typing a name during the round trip. Theirs
-      // wins; the model's answer is dropped without a word.
-      setTitle((was) => (namedRef.current === "auto" ? document.title : was));
-      if (namedRef.current === "auto") setNamed("generated");
-      setRevision(document.revision);
-    });
-  };
 
   return (
     <DetailPane>
@@ -339,7 +295,7 @@ function DocumentEditor({
                   onClick={() => {
                     // Frozen at the press: opening a dialog steals focus, and a
                     // selection read afterwards is empty.
-                    const chosen = window.getSelection()?.toString() ?? "";
+                    const chosen = editor.current?.selection() ?? "";
                     if (chosen.trim()) setRewriting(chosen);
                   }}
                 >
@@ -393,28 +349,14 @@ function DocumentEditor({
             }
           >
             <article className="min-w-0">
-              <input
-                value={title}
-                onChange={(event) => {
-                  setTitle(event.target.value);
-                  // Typing here is the claim. Nothing renames it after this.
-                  setNamed("edited");
-                  queueSave({ title: event.target.value, title_state: "edited" });
-                }}
-                placeholder="Untitled"
-                aria-label="Document title"
-                className="mb-3 w-full border-0 bg-transparent text-[22px] leading-tight font-[700] tracking-[-0.02em] text-ink outline-0 placeholder:text-line-strong"
-              />
-              <div
-                ref={body}
-                contentEditable
-                suppressContentEditableWarning
-                role="textbox"
-                aria-multiline="true"
-                aria-label="Document body"
-                onInput={onBodyInput}
-                onBlur={nameIt}
-                className="logue-prose min-h-72 max-w-[44rem] outline-0"
+              {/* No title field: the first line is the name. Nothing sits
+                  above the text but the text. */}
+              <MarkdownEditor
+                value={text}
+                onChange={onTyped}
+                onSelection={setSelected}
+                handle={editor}
+                label="Document"
               />
 
               <footer className="mt-6 flex items-center gap-2 border-t border-line pt-2 text-xs text-muted">
@@ -465,20 +407,11 @@ function DocumentEditor({
             selection={rewriting}
             open
             onClose={() => setRewriting(undefined)}
-            onApply={(text) => {
+            onApply={(rewritten) => {
               // The selection is long gone — the dialog had focus. Replace
-              // the frozen passage in the body by matching its text, which
-              // is the passage the person chose.
-              const editor = body.current;
-              if (!editor) return;
-              const plain = editor.innerText;
-              const at = plain.indexOf(rewriting);
-              if (at >= 0) {
-                editor.innerText = plain.slice(0, at) + text + plain.slice(at + rewriting.length);
-              } else {
-                editor.innerText = plain + "\n" + text;
-              }
-              onBodyInput();
+              // the frozen passage by matching its text, which is the passage
+              // the person chose.
+              editor.current?.replace(rewriting, rewritten);
             }}
           />
         )}

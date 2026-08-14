@@ -274,12 +274,14 @@ class HostTest(Workspace, unittest.TestCase):
     # -- documents ----------------------------------------------------------
 
     def test_documents_version_on_content_change_only(self) -> None:
-        document = self.call("POST", "/v1/documents", {"title": "Notes", "content": "<p>one</p>"})["document"]
-        self.call("PATCH", f"/v1/documents/{document['id']}", {"content": "<p>two</p>"})
-        self.call("PATCH", f"/v1/documents/{document['id']}", {"title": "Renamed"})
+        document = self.call("POST", "/v1/documents", {"content": "# Notes\n\none"})["document"]
+        self.call("PATCH", f"/v1/documents/{document['id']}", {"content": "# Renamed\n\ntwo"})
+        # The same text again is not an edit, however many times it is saved:
+        # autosave fires on a pause, not on a change.
+        self.call("PATCH", f"/v1/documents/{document['id']}", {"content": "# Renamed\n\ntwo"})
         latest = self.call("GET", f"/v1/documents/{document['id']}")["document"]
         self.assertEqual(latest["revision"], 2)
-        self.assertEqual(latest["title"], "Renamed")
+        self.assertEqual(latest["title"], "Renamed", "the name followed the first line")
 
     def test_untitled_documents_say_untitled(self) -> None:
         document = self.call("POST", "/v1/documents", {"title": "   "})["document"]
@@ -340,10 +342,11 @@ class HostTest(Workspace, unittest.TestCase):
     def test_a_generated_document_arrives_as_a_document_not_as_markdown(self) -> None:
         """The last metre of the best flow in the product.
 
-        Generation answers in Markdown; the editor shows HTML. The answer used
-        to land as one wall of text with its own `#` and `- ` in it, under the
-        name "Untitled" — the editor's naming runs on the body losing focus,
-        which a document nobody has opened never does.
+        Generation answers in Markdown, and so does the editor now. What this
+        pins is the naming: the answer used to land under "Untitled", because
+        the editor's naming ran on the body losing focus and a document nobody
+        has opened never loses focus. The ask is the best name anyone has, and
+        it goes in as the first line.
         """
         self.app.store.runs.put(
             {
@@ -359,12 +362,14 @@ class HostTest(Workspace, unittest.TestCase):
 
         # Cut on a word, never through one.
         self.assertEqual(document["title"], "Turn what I said about retries into an acceptance")
-        self.assertIn("<h1>Acceptance list</h1>", document["content"])
-        self.assertIn("<li>the audio is kept</li>", document["content"])
-        self.assertIn("<strong>Try again</strong>", document["content"])
-        self.assertNotIn("# Acceptance", document["content"])
-        # And it is named by a person's words, so nothing renames it later.
-        self.assertEqual(document["title_state"], "edited")
+        # Kept exactly as the model wrote it: one format, and it is the one
+        # the editor shows, the export writes and the diff reads.
+        self.assertIn("# Acceptance list", document["content"])
+        self.assertIn("- the audio is kept", document["content"])
+        self.assertIn("**Try again**", document["content"])
+        self.assertNotIn("<h1>", document["content"])
+        # The name it was given is the first line, not a field beside the text.
+        self.assertTrue(document["content"].startswith("# Turn what I said about retries"), document["content"])
 
     def test_a_run_that_stored_whole_records_as_its_sources_is_still_readable(self) -> None:
         """How twenty finished answers in the real workspace are stored.
@@ -1317,9 +1322,9 @@ class DocumentHistory(Workspace, unittest.TestCase):
     """A document's past, and going back to it without losing the present."""
 
     def three_versions(self) -> str:
-        doc = self.call("POST", "/v1/documents", {"title": "Notes", "content": "<p>one</p>"})["document"]
-        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "<p>one</p><p>two</p>"})
-        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "<p>one</p><p>two</p><p>three</p>"})
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\ntwo"})
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\ntwo\n\nthree"})
         return doc["id"]
 
     def test_the_current_text_is_in_the_history(self) -> None:
@@ -1852,50 +1857,135 @@ class SkillHistory(Workspace, unittest.TestCase):
 
 
 class NamingADocument(Workspace, unittest.TestCase):
-    """Who is allowed to name a document, and how many times."""
+    """What a document is called: its first line, and nothing else.
 
-    def test_a_new_one_is_nobody_s_yet(self) -> None:
+    It used to carry a title beside its text, with three states recording who
+    had last claimed it. His instruction on 2026-08-13 removed the field —
+    "我们并没有专门的一个 title，它就是这个文档的第一行" — so these pin the one
+    rule that replaced all of it.
+    """
+
+    def test_an_empty_one_is_untitled(self) -> None:
         document = self.call("POST", "/v1/documents", {})["document"]
         self.assertEqual(document["title"], "Untitled")
-        self.assertEqual(document["title_state"], documents.AUTO)
+        self.assertNotIn("title_state", document, "there is no such thing as who named it any more")
 
-    def test_a_title_handed_in_is_already_someone_s(self) -> None:
-        # A generation naming its own output has decided; the body does not
-        # get to argue with it.
-        document = self.call("POST", "/v1/documents", {"title": "Pricing brief"})["document"]
-        self.assertEqual(document["title_state"], documents.EDITED)
+    def test_the_first_line_is_the_name_and_its_markup_is_not(self) -> None:
+        document = self.call("POST", "/v1/documents", {"content": "# Weekly notes\n\nThe rest."})["document"]
+        self.assertEqual(document["title"], "Weekly notes")
 
-    def test_a_model_names_one_nobody_has_named(self) -> None:
-        document = self.call("POST", "/v1/documents", {"content": "<p>Async research finishes more often.</p>"})[
-            "document"
-        ]
-        named = self.call("POST", f"/v1/documents/{document['id']}/name")["document"]
-        self.assertEqual(named["title_state"], documents.GENERATED)
-        self.assertTrue(named["title"])
+    def test_editing_the_first_line_renames_it(self) -> None:
+        document = self.call("POST", "/v1/documents", {"content": "# Draft\n\nBody."})["document"]
+        changed = self.call(
+            "PATCH", f"/v1/documents/{document['id']}", {"content": "# Pricing brief\n\nBody."}
+        )["document"]
+        self.assertEqual(changed["title"], "Pricing brief")
 
-    def test_a_model_gets_one_turn(self) -> None:
-        # A title someone has been reading must not change underneath them.
-        document = self.call("POST", "/v1/documents", {"content": "<p>Something to name.</p>"})["document"]
-        self.call("POST", f"/v1/documents/{document['id']}/name")
+    def test_a_name_cannot_be_set_beside_the_text(self) -> None:
+        # The whole point: there is no field to type a name into, so a caller
+        # that tries is told rather than quietly given a title nobody can see.
+        document = self.call("POST", "/v1/documents", {"content": "# Draft"})["document"]
         with self.assertRaises(BadRequest):
-            self.call("POST", f"/v1/documents/{document['id']}/name")
+            self.call("PATCH", f"/v1/documents/{document['id']}", {"title": "Mine"})
 
-    def test_a_name_someone_typed_is_refused_to_the_model(self) -> None:
-        document = self.call("POST", "/v1/documents", {"content": "<p>Body.</p>"})["document"]
-        self.call("PATCH", f"/v1/documents/{document['id']}", {"title": "Mine", "title_state": documents.EDITED})
-        with self.assertRaises(BadRequest):
-            self.call("POST", f"/v1/documents/{document['id']}/name")
+    def test_a_name_handed_in_becomes_the_first_line(self) -> None:
+        # A generation and the agent both arrive with a name they chose. It
+        # goes into the text, where it can be edited like any other line.
+        document = self.call("POST", "/v1/documents", {"title": "Pricing brief", "content": "Body."})["document"]
+        self.assertEqual(document["title"], "Pricing brief")
+        self.assertTrue(document["content"].startswith("# Pricing brief"), document["content"])
 
-    def test_an_empty_document_has_nothing_to_name(self) -> None:
-        document = self.call("POST", "/v1/documents", {})["document"]
-        with self.assertRaises(BadRequest):
-            self.call("POST", f"/v1/documents/{document['id']}/name")
+    def test_a_name_already_at_the_top_is_not_written_twice(self) -> None:
+        document = self.call(
+            "POST", "/v1/documents", {"title": "Pricing brief", "content": "# Pricing brief\n\nBody."}
+        )["document"]
+        self.assertEqual(document["content"].count("Pricing brief"), 1, document["content"])
 
-    def test_a_document_written_before_this_existed_keeps_its_name(self) -> None:
-        # No `title_state` on disk: an "Untitled" one was never named by
-        # anybody, anything else has a name someone chose.
-        self.assertEqual(documents.named_by({"title": "Untitled"}), documents.AUTO)
-        self.assertEqual(documents.named_by({"title": "Pricing brief"}), documents.EDITED)
+    def test_saving_the_same_text_is_not_an_edit(self) -> None:
+        # The editor sends the text it was given the moment a document opens.
+        # Counting that as a save moved every document someone had merely read
+        # to the top of their own list, which is ordered by when it changed.
+        document = self.call("POST", "/v1/documents", {"content": "# Tuesday\n\nBody."})["document"]
+        again = self.call("PATCH", f"/v1/documents/{document['id']}", {"content": "# Tuesday\n\nBody."})["document"]
+        self.assertEqual(again["updated_at"], document["updated_at"], "nothing changed, so nothing was touched")
+        self.assertEqual(again["revision"], document["revision"])
+
+    def test_appending_at_the_end_never_renames_it(self) -> None:
+        document = self.call("POST", "/v1/documents", {"content": "# Tuesday\n\nBody."})["document"]
+        added = self.call("POST", f"/v1/documents/{document['id']}/append", {"text": "One more thought."})["document"]
+        self.assertEqual(added["title"], "Tuesday")
+
+    def test_there_is_no_model_left_to_ask_for_a_name(self) -> None:
+        document = self.call("POST", "/v1/documents", {"content": "# Tuesday"})["document"]
+        self.assertIsNone(self.app.router.match("POST", f"/v1/documents/{document['id']}/name"))
+
+
+class AWorkspaceWrittenInHTML(Workspace, unittest.TestCase):
+    """The old shape, read back once — and no name lost on the way.
+
+    Documents were stored as HTML while the editor was a `contenteditable`.
+    Converting them is a rewrite of somebody's real writing, so what it must
+    not do is more important than what it does.
+    """
+
+    def written(self, title: str, content: str) -> str:
+        record = documents.create(self.app.store, content="placeholder")
+        record["title"] = title
+        record["title_state"] = "edited"
+        record["content"] = content
+        self.app.store.documents.put(record)
+        return str(record["id"])
+
+    def test_html_becomes_markdown(self) -> None:
+        one = self.written("Weekly notes", "<h1>Weekly notes</h1><p>First <strong>bold</strong>.</p><ul><li>a</li></ul>")
+        self.assertEqual(documents.to_markdown_store(self.app.store), 1)
+        after = self.app.store.documents.get(one)
+        self.assertEqual(after["content"], "# Weekly notes\n\nFirst **bold**.\n\n- a")
+        self.assertEqual(after["title"], "Weekly notes")
+
+    def test_a_name_that_is_not_in_the_text_is_written_into_it(self) -> None:
+        # A model or a generation named these, and the name is nowhere in the
+        # body. Dropping it is how this change would lose someone's work.
+        one = self.written("Pricing brief", "<p>Async research finishes more often.</p>")
+        documents.to_markdown_store(self.app.store)
+        after = self.app.store.documents.get(one)
+        self.assertTrue(after["content"].startswith("# Pricing brief"), after["content"])
+        self.assertEqual(after["title"], "Pricing brief")
+
+    def test_running_it_twice_changes_nothing_the_second_time(self) -> None:
+        self.written("Weekly notes", "<h1>Weekly notes</h1><p>Body.</p>")
+        documents.to_markdown_store(self.app.store)
+        self.assertEqual(documents.to_markdown_store(self.app.store), 0, "a second pass must not re-title anything")
+
+    def test_markup_that_starts_part_way_through_is_converted_too(self) -> None:
+        # What a `contenteditable` writes when someone types a line and then
+        # presses return: bare text, then markup. Matching only the start of
+        # the text left these half converted, which is worse than either.
+        one = self.written("abca", "a<div>next line</div><div># A</div>")
+        documents.to_markdown_store(self.app.store)
+        self.assertNotIn("<div>", self.app.store.documents.get(one)["content"])
+
+    def test_a_heading_does_not_swallow_the_paragraph_after_it(self) -> None:
+        one = self.written("需求", "## 需求<div>设计一个小的产品。</div>")
+        documents.to_markdown_store(self.app.store)
+        self.assertIn("## 需求\n\n设计一个小的产品。", self.app.store.documents.get(one)["content"])
+
+    def test_a_document_holding_the_characters_of_a_tag_is_not_converted_forever(self) -> None:
+        # `&lt;div&gt;` typed on purpose comes back as a real `<div>`, so a
+        # workspace that decided by looking would rewrite itself at every start.
+        self.written("Notes", "<p>Escaped: &lt;div&gt;</p>")
+        documents.to_markdown_store(self.app.store)
+        self.assertTrue(self.app.store.settings().get("documents_are_markdown"))
+        self.assertEqual(documents.to_markdown_store(self.app.store), 0)
+
+    def test_kept_versions_are_converted_too(self) -> None:
+        one = self.written("Weekly notes", "<h1>Weekly notes</h1><p>Body.</p>")
+        self.app.store.doc_revisions.put(
+            {"id": "rev_old", "doc_id": one, "revision": 1, "content": "<p>An older body.</p>",
+             "created_at": "2026-08-01T00:00:00Z"}
+        )
+        documents.to_markdown_store(self.app.store)
+        self.assertEqual(self.app.store.doc_revisions.get("rev_old")["content"], "An older body.")
 
 
 class VersionSummaries(Workspace, unittest.TestCase):

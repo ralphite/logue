@@ -1,7 +1,27 @@
 # Documents — declaration
 
-Status: **declared, under review** (first pass 2026-08-12). Covers the
-Documents route, its editor, autosave, and the history dialog.
+Status: **declared, under review** (first pass 2026-08-12; rewritten
+2026-08-13 for the change below). Covers the Documents route, its editor,
+autosave, and the history dialog.
+
+## What changed on 2026-08-13
+
+His words: *"一个 document 不应该有一个 title 和内容的 section。你参考一下
+Google Doc，我们并没有专门的一个 title，它就是这个文档的第一行… 我们需要真的
+支持 Markdown。现在是真的支持 Markdown 吗？为什么我们并没有所见即所得的
+Markdown 编辑？你应该参考我们另外一个项目，叫 Vibedoc 的项目"*
+
+1. **There is no title field.** A document is one piece of text and its name is
+   the first line of it, the way a Google Doc's first heading is.
+2. **The text is Markdown, and it is edited as it will read.** Headings are
+   large as you type them, bold is bold, a list is a list. What is stored is
+   Markdown, not HTML — the export, the diff and the model all read the same
+   thing the person sees.
+
+Both follow the editor in `~/dev2/prototypes/vibedoc` — CodeMirror with the
+Markdown grammar, styled in place — with one thing added: the markup on a line
+the caret is not on is hidden, so `## Tuesday` reads as **Tuesday** until you
+put the caret in it.
 
 ## What it is for
 
@@ -19,8 +39,16 @@ kept and edited, and where nothing you wrote is ever lost.
 
 **The editor** (right pane)
 
-- Header: the title, editable in place. Actions: `Rewrite`, `Export`,
-  `History`.
+- Header: the document's name — **read only**, taken from the first line.
+  Actions: `Rewrite`, `Export`, `History`.
+- The text: one Markdown editor, nothing above it. Empty, it shows
+  `Start writing. The first line is the title.`
+- **What is styled while you type**: headings (six levels), **bold**,
+  *italic*, `inline code`, fenced code, quotes, links, bulleted and numbered
+  lists, and `- [ ]` task boxes.
+- **The markup hides itself.** On the line the caret is in, the characters are
+  there to edit. Everywhere else `#`, `**`, `` ` `` and the rest are hidden and
+  only their effect is left. A selection spanning a line counts as being in it.
 - `Rewrite` acts on a selected passage. **With nothing selected it is
   disabled**, and its tooltip says `Select a passage first`.
 - Status line under the header, one of:
@@ -42,6 +70,18 @@ kept and edited, and where nothing you wrote is ever lost.
 
 ## The rhythm
 
+- **The name follows the first line, always.** It is computed where the text
+  is stored, so every list, link and export agrees with what is on screen.
+  Markdown markers are taken off it — `# Tuesday` is called `Tuesday` — and it
+  stops at 50 characters. A document with nothing in it is `Untitled`.
+- **Renaming is editing the first line.** There is nothing else that renames a
+  document: not a person typing in a field, not a model. The three-way
+  `title_state` and the "let a model name it once" step are both gone with the
+  field they existed for — a name the model invented would be a name that is
+  not in the text, which is the thing being removed.
+- **A document written for you starts with its name.** A generation or the
+  agent writes `# <the name it was given>` as the first line, so the name it
+  was given is in the text where it can be edited like any other line.
 - **Autosave** fires 900 ms after typing stops. It writes the text; it does
   **not** mint a version per save.
 - **A version is one sitting, not one save.** Saves less than 15 minutes apart
@@ -70,14 +110,20 @@ kept and edited, and where nothing you wrote is ever lost.
 - **Not asked at all when no visible line changed** — the row says `Edited`.
   A model must never be paid to say nothing happened.
 
-**The title** (`documents.NAMING`) — names a document nobody has named, once.
-Never renames one a person has named.
+**The title** — no longer a prompt. The first line is the title, so there is
+nothing for a model to name.
 
 **The rewrite** (`documents.REWRITE`) — returns only the rewritten passage,
 proposed as hunks. Nothing is written until the person accepts.
 
 ## What it must never do
 
+- Lose a name that was already there. Documents written before this change
+  keep theirs: where the stored name is not already the first line, it is
+  written into the text as `# <name>` when the workspace is converted, once,
+  with a count printed.
+- Show Markdown as a wall of `#` and `- `, or store HTML the person never
+  wrote. One format, and it is the one that is exported.
 - Lose text. Every version is kept; restore never truncates the tail.
 - Overwrite a second writer silently — the 409 stops autosave and says so.
 - Mint a version the person did not perform.

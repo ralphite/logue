@@ -46,6 +46,16 @@ RETRY_WAITS = (1.0, 2.0, 4.0)
 MAX_RETRY_AFTER = 20.0
 
 
+def _timed_out(reason: object) -> bool:
+    """Whether a failure to reach the model was the clock running out.
+
+    Everything else that stops a connection fails in milliseconds and is worth
+    another attempt. A timeout already cost the person two minutes; three more
+    of them is not a retry, it is a hang.
+    """
+    return isinstance(reason, TimeoutError) or "timed out" in str(reason).lower()
+
+
 @dataclass
 class Provider:
     api_key: str = ""
@@ -233,8 +243,14 @@ class Provider:
                 raise self._refused(error) from None
             except urllib.error.URLError as error:
                 # The network dropped or the service hung up. Nothing about the
-                # request is wrong, so it is worth asking again.
-                raise Unavailable(f"Could not reach the model: {error.reason}", retryable=True) from None
+                # request is wrong, so it is worth asking again — unless it was
+                # a timeout, where four attempts is eight minutes of a person
+                # watching a spinner.
+                raise Unavailable(
+                    f"Could not reach the model: {error.reason}", retryable=not _timed_out(error.reason)
+                ) from None
+            except TimeoutError:
+                raise Unavailable(f"The model did not answer within {TIMEOUT_SECONDS} seconds.") from None
 
         return self._asking(model, once)
 

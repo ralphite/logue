@@ -81,9 +81,9 @@ export interface Project {
 
 export interface Document {
   id: string;
+  /** The first line of the text, kept by the Host so a list need not open it. */
   title: string;
-  /** Who named it: the first line, a model, or the person. */
-  title_state?: "auto" | "generated" | "edited";
+  /** Markdown, which is what the editor holds and what the export writes. */
   content: string;
   source_ids: string[];
   revision: number;
@@ -349,17 +349,15 @@ export const api = {
 
   documents: () => request<{ documents: Document[] }>("/v1/documents"),
   document: (id: string) => request<{ document: Document; sources: Material[] }>(`/v1/documents/${id}`),
-  createDocument: (body: { title?: string; content?: string; source_ids?: string[] }) =>
+  createDocument: (body: { content?: string; source_ids?: string[] }) =>
     send<{ document: Document }>("POST", "/v1/documents", body),
   /** `expected_revision` is what the editor last saw; a mismatch comes back 409. */
   updateDocument: (
     id: string,
-    changes: Partial<Pick<Document, "title" | "content" | "source_ids" | "title_state">> & {
+    changes: Partial<Pick<Document, "content" | "source_ids">> & {
       expected_revision?: number;
     },
   ) => send<{ document: Document }>("PATCH", `/v1/documents/${id}`, changes),
-  /** Ask a model to name a document nobody has named. Refused if one has. */
-  nameDocument: (id: string) => send<{ document: Document }>("POST", `/v1/documents/${id}/name`, {}),
   deleteDocument: (id: string) => send<{ ok: true }>("DELETE", `/v1/documents/${id}`),
   documentMarkdownUrl: (id: string) => `${HOST}/v1/documents/${id}/markdown`,
 

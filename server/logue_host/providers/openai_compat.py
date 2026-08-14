@@ -18,7 +18,7 @@ from typing import Any
 
 from .. import trace
 from ..errors import Unavailable
-from .gemini import Capability, Provider
+from .gemini import _timed_out, Capability, Provider
 
 #: Groq is the reason this exists, so its addresses are the defaults.
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
@@ -54,7 +54,11 @@ class OpenAICompatProvider(Provider):
             except urllib.error.HTTPError as error:
                 raise self._refused(error) from None
             except urllib.error.URLError as error:
-                raise Unavailable(f"Could not reach the model: {error.reason}", retryable=True) from None
+                raise Unavailable(
+                    f"Could not reach the model: {error.reason}", retryable=not _timed_out(error.reason)
+                ) from None
+            except TimeoutError:
+                raise Unavailable(f"The model did not answer within {TIMEOUT_SECONDS} seconds.") from None
 
         # The same bounded "ask again" as the Gemini path: one rule about
         # busy models, not one per wire format.

@@ -226,14 +226,15 @@ def to_document(store: Store, run_id: str, title: str = "") -> Record:
     # does — so every generated document was called "Untitled" until someone
     # renamed it, and three of them ended up sharing the name.
     asked = str(run.get("instruction") or "").strip().splitlines()
-    named = title.strip() or (_shortened(asked[0]) if asked else "")
+    name = title.strip() or (_shortened(asked[0]) if asked else "")
+    # The name goes in as the first line, because that is where a document's
+    # name lives now. A name beside the text is the field this change removed.
+    if name and documents.first_line(body) != documents.first_line(name):
+        body = f"# {name}\n\n{body}"
     document: Record = {
         "id": new_id("document"),
-        "title": named or "Untitled",
-        # A name taken from the ask is one the person wrote; the body must not
-        # overwrite it, and neither should a model.
-        "title_state": documents.EDITED if named else documents.AUTO,
-        "content": documents.as_html(body),
+        "title": documents.named(body),
+        "content": body,
         "source_ids": [source_id for source_id in (_source_id(entry) for entry in run.get("sources") or []) if source_id],
         "run_id": run_id,
         "revision": 1,

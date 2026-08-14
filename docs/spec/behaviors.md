@@ -383,10 +383,28 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
 
 ## Documents
 
-- **A document names itself until someone names it.** The title follows the
-  first line while nobody has claimed it; when the body is left alone a model
-  writes a real one, once. After a person types a title, nothing changes it —
-  not the first line, not a model, not a second attempt at the same model.
+- **A document's name is its first line. There is no title field.**
+  (2026-08-13, his instruction: *"一个 document 不应该有一个 title 和内容的
+  section。你参考一下 Google Doc，我们并没有专门的一个 title，它就是这个文档的
+  第一行"*.) The markup comes off it — `# Tuesday` is called `Tuesday` — and it
+  stops at 50 characters; an empty one is `Untitled`. Renaming is editing that
+  line, and nothing else renames a document: no field, no model. A document
+  written **for** you — by a generation or the agent — starts with the name it
+  was given, as a heading, so the name is in the text like any other line.
+  (This replaces "a document names itself until someone names it", and the
+  three-way `title_state` that went with it.)
+- **A document is Markdown, and it is edited as it will read.** (Same
+  instruction: *"我们需要真的支持 Markdown… 为什么我们并没有所见即所得的
+  Markdown 编辑？"*, pointing at his own `vibedoc` project.) Headings are large
+  as they are typed, bold is bold, a list is a list — and the markup is hidden
+  on every line the caret is not in, so `## Tuesday` reads as a heading until
+  you put the caret in it. One format is stored: what the model writes, what
+  the editor holds, what the diff reads and what the export writes are the
+  same text. **Nothing stores HTML the person did not write.**
+- **Converting a workspace to Markdown loses no name and no words.** It runs
+  once, says how many documents it rewrote, and where the stored name was not
+  already the first line it writes that name in as a heading rather than
+  dropping it.
 - **Every version of a document can be read back and gone back to.** Going
   back is written forward as a new version; the ones it skipped over survive.
 - **Each version says what it changed, in words.** A model writes the line

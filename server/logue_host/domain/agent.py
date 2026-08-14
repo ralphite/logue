@@ -268,9 +268,10 @@ def accept(store: Store, proposal: dict[str, Any], *, page: dict[str, Any] | Non
 
     if tool == "draft_document":
         # Through documents.create, not by hand. A record built here missed
-        # `source_ids` and `title_state`, and the rail's preview card read
-        # `source_ids.length` — so hovering that row took the whole page down.
-        # Two writers of one kind of record is how a field goes missing.
+        # `source_ids`, and the rail's preview card read `source_ids.length` —
+        # so hovering that row took the whole page down. Two writers of one
+        # kind of record is how a field goes missing. It is also what puts the
+        # name it chose into the text, where a document's name lives.
         document = documents.create(
             store,
             title=str(proposal.get("title") or ""),

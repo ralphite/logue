@@ -77,7 +77,9 @@ export function FindDialog({
         key: `d${document.id}`,
         target: { kind: "document", id: document.id },
         title: document.title || "Untitled",
-        detail: condense(document.content.replace(/<[^>]+>/g, " ")),
+        // The words, without the Markdown that shapes them: a result row
+        // reading `## Tuesday **and** more` is markup wearing a document's name.
+        detail: condense(document.content.replace(/^\s*#{1,6}\s+|[*_`>]/gm, "")),
         icon: FileText,
       });
       if (++docs >= PER_KIND) break;

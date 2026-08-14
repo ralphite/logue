@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .app import App
 from .build import installed_web
-from .domain import organize, summaries
+from .domain import documents, organize, summaries
 from .http import serve
 
 
@@ -46,6 +46,14 @@ def main(argv: list[str] | None = None) -> int:
     resumed = organize.catch_up(app.store, app.provider())
     if resumed:
         print(f"Resuming {resumed} Sources that were still being filed.", flush=True)
+
+    # Documents were stored as HTML while the editor was a `contenteditable`.
+    # They are Markdown now — one format, the one that gets exported — and a
+    # name that was beside the text is written into it as a heading rather
+    # than dropped.
+    converted = documents.to_markdown_store(app.store)
+    if converted:
+        print(f"Rewrote {converted} documents from HTML into Markdown.", flush=True)
 
     # Same reason: a version stuck on "working out what changed" is worse than
     # the counted line it would have fallen back to.

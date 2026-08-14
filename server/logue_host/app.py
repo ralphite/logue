@@ -351,10 +351,6 @@ class App:
             store.documents.delete(request.params["id"])
             return {"ok": True}
 
-        @route("POST", "/v1/documents/{id}/name")
-        def name_document(request: Request) -> dict[str, Any]:
-            return {"document": documents.suggest_title(store, self.provider(), request.params["id"])}
-
         @route("POST", "/v1/documents/{id}/rewrite")
         def rewrite_selection(request: Request) -> dict[str, Any]:
             body = request.json()

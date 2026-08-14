@@ -438,6 +438,24 @@
       ],
       "created": "2026-08-13",
       "updated": "2026-08-13"
+    },
+    {
+      "id": "X2",
+      "title": "点开文档不应该改动它的更新时间",
+      "type": "bug",
+      "status": "queued",
+      "priority": "P2",
+      "confirmed": true,
+      "tags": [
+        "documents"
+      ],
+      "note": "只是打开/查看一篇文档,却把它的 updated_at 刷新了,导致列表排序被浏览行为打乱。更新时间应该只在内容真正被修改时变化。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_bug_clicking_on"
+      ],
+      "created": "2026-08-13",
+      "updated": "2026-08-13"
     }
   ],
   "inputs": [
@@ -581,6 +599,12 @@
       "id": "in_add_task_documents",
       "at": "2026-08-13 19:04",
       "text": "add task: 我们需要大幅改进 documents。\n\n一个 document 不应该有一个 title 和内容的 section。你参考一下 Google Doc，我们并没有专门的一个 title，它就是这个文档的第一行。\n\n当然你可以写任何东西在里面，但是默认大家都会用一个 header，比较大的一个字体。所以没关系，就第一行的第一句话作为这个 title 就好了。\n\n我们需要真的支持 Markdown。现在是真的支持 Markdown 吗？为什么我们并没有所见即所得的 Markdown 编辑？你应该参考我们另外一个项目，叫 Vibedoc 的项目，参考里面的设计和功能，来重构我们的文档支持。",
+      "images": []
+    },
+    {
+      "id": "in_bug_clicking_on",
+      "at": "2026-08-13 20:00",
+      "text": "bug: clicking on a doc should not change update time of it",
       "images": []
     }
   ]
