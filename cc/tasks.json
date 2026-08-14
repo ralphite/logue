@@ -221,9 +221,11 @@
       ],
       "note": "提案在 docs/spec/panel-ia.md,已对着今天的面板刷新过(8/10 写的时候是三个 tab,现在四个、默认开 Dictation)。刷新后:原来第 5 条「等待中的录音画两遍」N5 已经修掉,划掉;新增两条 —— 2b 两个 tab 抢同一个录音机(靠 speaking 这个裁判变量让路)、10 默认那一屏由排期决定而不是由入口决定。A:四个 tab 收成两个(这一页 + 听写),Chat 和 This page 合成一条流,Project 提到头部,全局状态收进顶部状态条。B:四个 tab 留着只按主语重排。我推荐 A。第六节三个问题,你答完我才动手。",
       "blocked_on": "等你在 docs/spec/panel-ia.md 第六节回答三个问题",
-      "input_ids": [],
+      "input_ids": [
+        "in_n13_n1b_tab"
+      ],
       "created": "2026-08-10",
-      "updated": "2026-08-11"
+      "updated": "2026-08-14"
     },
     {
       "id": "M2v",
@@ -400,7 +402,11 @@
         "ui",
         "extension"
       ],
-      "note": "他的话(2026-08-12,web 四页 impl 进行中):\"we need redesign of ext sidepanel and widgets as well. do it later\"。范围:sidepanel 三 tab(Dictation/This page/Chat)+ 页面注入件(VoiceBar/SelectionBar/hint)对齐 C2 设计语言(灰 verb、24px 徽章、28px 控件、Dropdown/Tooltip 组件、收据语言)。流程照旧:先 mock(自包含 HTML)审过再改代码。前置:web 四页 impl 落地。<br>**IA 定稿 + 面板落地**:他连发三条(one tab only / action btns on top / minimal friction / progressive)→ 方向 D(单面·动词置顶·渐进)mock 四帧过审(另有 A/B/C 三方向探索)。impl 已落:tabs 删除,Record(morph 原地)/Keep(有选区存选区,否则存整页)/Ask(点开才出输入框)置顶,单滚动流(takes+chat+kept 合并),⌘⇧K 开框即听,scope 换 Dropdown,⋯菜单加清空对话。四道门绿,QA Chrome 真机验证(三键渲染/Ask 渐进/tablist 死亡)。剩余:Insert-into-page 通道(content script)、流的时间混排(Thread 拆条)、注入件视觉对齐——排下轮。"
+      "note": "他的话(2026-08-12,web 四页 impl 进行中):\"we need redesign of ext sidepanel and widgets as well. do it later\"。范围:sidepanel 三 tab(Dictation/This page/Chat)+ 页面注入件(VoiceBar/SelectionBar/hint)对齐 C2 设计语言(灰 verb、24px 徽章、28px 控件、Dropdown/Tooltip 组件、收据语言)。流程照旧:先 mock(自包含 HTML)审过再改代码。前置:web 四页 impl 落地。<br>**IA 定稿 + 面板落地**:他连发三条(one tab only / action btns on top / minimal friction / progressive)→ 方向 D(单面·动词置顶·渐进)mock 四帧过审(另有 A/B/C 三方向探索)。impl 已落:tabs 删除,Record(morph 原地)/Keep(有选区存选区,否则存整页)/Ask(点开才出输入框)置顶,单滚动流(takes+chat+kept 合并),⌘⇧K 开框即听,scope 换 Dropdown,⋯菜单加清空对话。四道门绿,QA Chrome 真机验证(三键渲染/Ask 渐进/tablist 死亡)。剩余:Insert-into-page 通道(content script)、流的时间混排(Thread 拆条)、注入件视觉对齐——排下轮。",
+      "input_ids": [
+        "in_n11_sidepanel_n13"
+      ],
+      "updated": "2026-08-14"
     },
     {
       "id": "F1",
@@ -898,6 +904,18 @@
       "id": "in_the_wysiwyg_markdown",
       "at": "2026-08-14 00:36",
       "text": "the wysiwyg markdown editor is not complete at all. list all features we should have and add to tasks",
+      "images": []
+    },
+    {
+      "id": "in_n13_n1b_tab",
+      "at": "2026-08-14 01:07",
+      "text": "N13 落地后 N1b 已经作废:它要收的那四个 tab 现在一个都不在了,面板已是一个列表 + 一个 composer。panel-ia.md 第六节的三个问题不用再答。要不要直接关掉,你说一声。",
+      "images": []
+    },
+    {
+      "id": "in_n11_sidepanel_n13",
+      "at": "2026-08-14 01:07",
+      "text": "N11 的 sidepanel 那一半已经由 N13 + N14 做完(一个列表 + 一个 composer,三方复审后的 12 条已修并在 scripts/qa/n14.mjs 里量过)。剩下的只有页面注入件:VoiceBar / SelectionBar / hint。照旧先出 mock 再改代码。",
       "images": []
     }
   ]
