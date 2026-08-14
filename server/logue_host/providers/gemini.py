@@ -14,6 +14,7 @@ import json
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -26,6 +27,23 @@ Capability = Literal["generation", "voice"]
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_MODEL = "gemini-3.6-flash"
 TIMEOUT_SECONDS = 120
+
+# -- asking again -----------------------------------------------------------
+#
+# "This model is currently experiencing high demand" is not a refusal of the
+# request; it is the service saying "not this second". Handing that to the
+# person as an error with a button was making them do, by hand, the one thing
+# the machine can do better: wait a moment and ask again.
+
+#: Statuses that mean "ask again in a moment", never "this request is wrong".
+TRANSIENT_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
+
+#: How long to wait before each further attempt. Four attempts, ~7s of waiting.
+RETRY_WAITS = (1.0, 2.0, 4.0)
+
+#: A `Retry-After` longer than this is a queue, not a spike — stop and say so
+#: rather than holding a recording hostage for a minute with no way out.
+MAX_RETRY_AFTER = 20.0
 
 
 @dataclass
@@ -133,22 +151,92 @@ class Provider:
 
     # -- calls --------------------------------------------------------------
 
+    @staticmethod
+    def _refused(error: urllib.error.HTTPError) -> Unavailable:
+        """The model's own refusal, and whether it is worth asking again.
+
+        `retryable` travels all the way out to the surface that asked, because
+        a person who was told "the model is busy" should see it being tried
+        again rather than be handed the job.
+
+        A passing failure is said in a sentence. The service's own body for one
+        is boilerplate — `{"error":{"code":503,"message":"This model is
+        currently experiencing high demand…` — and it was being printed, braces
+        and all, in a red box beside a recording. A refusal that is *about the
+        request* keeps its detail: that is the one a person has to act on.
+        """
+        detail = error.read().decode("utf-8", "replace")[:400]
+        after = str((error.headers or {}).get("Retry-After") or "")
+        passing = error.code in TRANSIENT_STATUSES
+        said = (
+            f"The model is busy ({error.code})."
+            if error.code in {429, 503}
+            else f"The model did not answer ({error.code})."
+            if passing
+            else f"Model rejected the request ({error.code}). {detail}"
+        )
+        return Unavailable(
+            said,
+            retryable=passing,
+            # Kept off the screen but not thrown away: the Host prints it when
+            # it stops trying, which is where a failure gets looked into.
+            **({"detail": detail} if passing else {}),
+            **({"retry_after": float(after)} if after.replace(".", "", 1).isdigit() else {}),
+        )
+
+    def _asking(self, what: str, send: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+        """One model call, asked again while the failure is a passing one.
+
+        Bounded on purpose: four attempts and about seven seconds of waiting.
+        Past that it is not a spike, and the person is better served by being
+        told than by a spinner that never ends — the surfaces try again on
+        their own from there, and then they stop too.
+        """
+        for attempt, wait in enumerate(RETRY_WAITS, start=1):
+            try:
+                return send()
+            except Unavailable as failure:
+                if not failure.details.get("retryable"):
+                    raise
+                asked = failure.details.get("retry_after")
+                pause = min(float(asked), MAX_RETRY_AFTER) if isinstance(asked, (int, float)) else wait
+                print(
+                    f"Model busy on {what}; asking again in {pause:g}s "
+                    f"(attempt {attempt + 1} of {len(RETRY_WAITS) + 1}).",
+                    flush=True,
+                )
+                time.sleep(pause)
+        # The last attempt's failure is the one the person is told about. What
+        # the service actually said is printed here and nowhere else.
+        try:
+            return send()
+        except Unavailable as failure:
+            if failure.details.get("retryable"):
+                print(f"Model still busy on {what} after {len(RETRY_WAITS) + 1} attempts: "
+                      f"{failure.details.get('detail') or failure.message}", flush=True)
+            raise
+
     def _post(self, model: str, payload: dict[str, Any]) -> dict[str, Any]:
         url = f"{self.base_url}/models/{model}:generateContent"
-        request = urllib.request.Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
-                return json.loads(response.read())
-        except urllib.error.HTTPError as error:
-            detail = error.read().decode("utf-8", "replace")[:400]
-            raise Unavailable(f"Model rejected the request ({error.code}). {detail}") from None
-        except urllib.error.URLError as error:
-            raise Unavailable(f"Could not reach the model: {error.reason}") from None
+
+        def once() -> dict[str, Any]:
+            request = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+                    return json.loads(response.read())
+            except urllib.error.HTTPError as error:
+                raise self._refused(error) from None
+            except urllib.error.URLError as error:
+                # The network dropped or the service hung up. Nothing about the
+                # request is wrong, so it is worth asking again.
+                raise Unavailable(f"Could not reach the model: {error.reason}", retryable=True) from None
+
+        return self._asking(model, once)
 
     @staticmethod
     def _text_of(response: dict[str, Any]) -> str:
@@ -318,6 +406,8 @@ class MockProvider(Provider):
         # reach is a state nobody checks.
         if self._asked(prompt, "[mock:fail]"):
             raise Unavailable("[mock] The stand-in failed on request.")
+        if self._asked(prompt, "[mock:busy]"):
+            raise Unavailable("[mock] Model rejected the request (503). The model is busy.", retryable=True)
         # The agent speaks JSON, so the stand-in has to as well — otherwise the
         # one flow that cannot be walked without a key is the one with the most
         # moving parts. It still says out loud that it is a stand-in, and it
@@ -361,4 +451,11 @@ class MockProvider(Provider):
         time.sleep(0.6)
         if "[mock:fail]" in instructions:
             raise Unavailable("[mock] The stand-in failed on request.")
+        # The busy model, which a real one only produces when it feels like it.
+        # Without a way to reach this state on demand, "it tries again by
+        # itself" is a claim nobody has watched happen.
+        if "[mock:busy]" in instructions:
+            raise Unavailable(
+                "[mock] Model rejected the request (503). The model is busy.", retryable=True
+            )
         return f"[mock] A stand-in transcript; {len(audio)} bytes of {media_type} really arrived."

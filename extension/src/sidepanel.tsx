@@ -1244,21 +1244,22 @@ export function Panel() {
           const captureId = item.material?.capture_id ?? item.captureId;
           return (
             <div key={item.id} className="mb-2 rounded-lg border border-line bg-surface p-2.5">
-              {item.state === "working" ? (
-                <div className="flex items-center gap-2">
+              {/* The audio, the moment there is any — a row waiting on a busy
+                  model is holding a recording that can be played right now. */}
+              {captureId && (
+                <Recording
+                  src={audioUrl(server, captureId)}
+                  seconds={item.material?.capture_seconds ?? item.seconds}
+                  shape={captureId}
+                />
+              )}
+              {item.state === "working" && (
+                <div className={cn("flex items-center gap-2", captureId && "mt-2")}>
                   <Spinner size={13} className="text-muted" />
                   <span className="flex-1 text-xs text-muted" role="status">
-                    Transcribing…
+                    {item.message ?? "Transcribing…"}
                   </span>
                 </div>
-              ) : (
-                captureId && (
-                  <Recording
-                    src={audioUrl(server, captureId)}
-                    seconds={item.material?.capture_seconds ?? item.seconds}
-                    shape={captureId}
-                  />
-                )
               )}
               {item.state === "failed" && (
                 <div className="mt-2 rounded-md border border-danger-line bg-danger-soft px-2 py-1.5 text-xs leading-[1.45] text-danger">

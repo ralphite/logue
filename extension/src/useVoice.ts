@@ -10,6 +10,21 @@ const MAX_MS = 10 * 60 * 1000;
 /** Past a minute this is a long recording, and the bar starts saying so. */
 const LONG_MS = 60 * 1000;
 
+/**
+ * How long to wait before each further attempt on a busy model.
+ *
+ * The Host has already asked four times over about seven seconds by the time
+ * one of these failures gets here, so these waits are longer: a spike that
+ * outlives them is not a spike. Two attempts, then it waits for the person —
+ * giving up automatically and giving up are different things.
+ */
+const AUTOMATIC_WAITS_MS = [5000, 15000];
+
+/** Said while a busy model is being asked again, in place of "Transcribing…". */
+export const BUSY = "The model was busy. Trying again…";
+
+const pause = (ms: number) => new Promise((wake) => setTimeout(wake, ms));
+
 export type VoicePhase = "idle" | "starting" | "recording" | "working" | "error";
 
 /**
@@ -23,6 +38,33 @@ export type VoicePhase = "idle" | "starting" | "recording" | "working" | "error"
 export type Settled =
   | { ok: true; text: string; material: Material }
   | { ok: false; message: string; captureId?: string };
+
+/** What settling a recording needs to know, whichever attempt it is. */
+export interface Settling {
+  project?: string;
+  overrides?: VoiceOverrides;
+  source?: unknown;
+  parentIds?: string[];
+  /** What the person is writing into, so names match the page. */
+  nearby?: string;
+  /**
+   * Keep failures out of the shared phase and error.
+   *
+   * A caller that shows one recording wants them there — it is the only
+   * place it has to say so. A caller showing a list of recordings has a
+   * row per recording, and a shared error there would blame whichever one
+   * happens to be on top.
+   */
+  quiet?: boolean;
+  /**
+   * A busy model is being asked again, and this is the recording it is about.
+   *
+   * A surface with a row per recording is the only place that fact can be
+   * told truthfully; without this the row would sit on "Transcribing…" for
+   * twenty seconds and say nothing about why.
+   */
+  onRetrying?: (captureId: string, message: string) => void;
+}
 
 function describe(cause: unknown): string {
   if (cause instanceof HostError) return cause.message;
@@ -75,6 +117,70 @@ export function useVoice() {
     const timer = setInterval(() => setSeconds(Math.floor((Date.now() - startedAt.current) / 1000)), 1000);
     return () => clearInterval(timer);
   }, [phase]);
+
+  /**
+   * Transcribe the audio the Host is holding, and save what comes back.
+   *
+   * The one body shared by every attempt after the first — the automatic ones
+   * and the one behind Try again. It throws what the Host said; a recording
+   * with nothing in it is not a failure of the request, so it comes back as an
+   * answer rather than an exception.
+   */
+  const settleKept = useCallback(async (captureId: string, options: Settling): Promise<Settled> => {
+    const { text, applied_context } = await host.transcribeKept(captureId, {
+      project: options.project,
+      overrides: options.overrides,
+      nearby: options.nearby,
+    });
+    if (!text.trim()) {
+      return { ok: false, message: "Nothing was heard in that recording. The audio is still kept.", captureId };
+    }
+    const { material } = await host.saveVoice({
+      capture_id: captureId,
+      text,
+      source: options.source,
+      project: options.project,
+      parent_ids: options.parentIds,
+      applied_context,
+      // As on `stop`: the page travels with the words it spelled.
+      context: options.nearby,
+    });
+    return { ok: true, text, material };
+  }, []);
+
+  /**
+   * Ask again on a recording the model was too busy to take, without being asked to.
+   *
+   * A 503 is the service saying "not this second", and handing that to the
+   * person as a red box with a button makes them do the waiting by hand. The
+   * audio is already on the Host, so nothing is at stake but time — and the
+   * time is bounded: two attempts, then the button, which is still there.
+   */
+  // oxlint-disable no-await-in-loop -- attempts are a sequence: each waits
+  // longer than the last, and the next only happens if this one failed.
+  const automatic = useCallback(
+    async (captureId: string, options: Settling, first: string): Promise<Settled> => {
+      let last = first;
+      for (const wait of AUTOMATIC_WAITS_MS) {
+        options.onRetrying?.(captureId, BUSY);
+        await pause(wait);
+        try {
+          const settled = await settleKept(captureId, options);
+          // Heard, or heard nothing — either way the model answered, and an
+          // answer is not something to ask again about.
+          if (settled.ok) setKept(undefined);
+          return settled;
+        } catch (cause) {
+          last = describe(cause);
+          // Something else is wrong now. Say that, rather than the busy line.
+          if (!(cause instanceof HostError && cause.retryable)) break;
+        }
+      }
+      return { ok: false, message: `${last} The recording was kept — you can try again.`, captureId };
+    },
+    [settleKept],
+  );
+  // oxlint-enable no-await-in-loop
 
   /** Whether the microphone actually came up — callers place their own bar on it. */
   const start = useCallback(async (): Promise<boolean> => {
@@ -136,23 +242,7 @@ export function useVoice() {
    * caret its own recording froze, however many are in flight.
    */
   const stop = useCallback(
-    async (options: {
-      project?: string;
-      overrides?: VoiceOverrides;
-      source?: unknown;
-      parentIds?: string[];
-      /** What the person is writing into, so names match the page. */
-      nearby?: string;
-      /**
-       * Keep failures out of the shared phase and error.
-       *
-       * A caller that shows one recording wants them there — it is the only
-       * place it has to say so. A caller showing a list of recordings has a
-       * row per recording, and a shared error there would blame whichever one
-       * happens to be on top.
-       */
-      quiet?: boolean;
-    }): Promise<Settled | undefined> => {
+    async (options: Settling): Promise<Settled | undefined> => {
       const id = session.current;
       // Read the clock before the phase change resets it: this is the only
       // record of how long the recording ran, and a queued one has to be able
@@ -263,6 +353,11 @@ export function useVoice() {
         // "say it all over again".
         const onDisk = cause instanceof HostError ? cause.captureId : undefined;
         if (onDisk) setKept(onDisk);
+        // A busy model is a moment, not a decision. The waiting is ours to do.
+        if (onDisk && cause instanceof HostError && cause.retryable) {
+          const settled = await automatic(onDisk, options, describe(cause));
+          return settled.ok ? settled : failed(settled.message, onDisk);
+        }
         return failed(
           onDisk ? `${describe(cause)} The recording was kept — you can try again.` : describe(cause),
           onDisk,
@@ -271,21 +366,19 @@ export function useVoice() {
         setPending((n) => n - 1);
       }
     },
-    [seconds],
+    [seconds, automatic],
   );
 
-  /** Try the model again on the recording the Host still has. */
+  /**
+   * Try the model again on a recording the Host still has.
+   *
+   * The recording is named by the caller wherever it can name one. A surface
+   * with four failed rows has four recordings kept, and retrying "the last
+   * one" from the third row's button transcribed somebody else's audio.
+   */
   const retry = useCallback(
-    async (options: {
-      project?: string;
-      overrides?: VoiceOverrides;
-      source?: unknown;
-      parentIds?: string[];
-      nearby?: string;
-      /** As on `stop`: a caller with a row per recording says it there. */
-      quiet?: boolean;
-    }): Promise<Settled | undefined> => {
-      const captureId = kept;
+    async (options: Settling & { captureId?: string }): Promise<Settled | undefined> => {
+      const captureId = options.captureId ?? kept;
       if (!captureId) return undefined;
       const id = (session.current += 1);
       const failed = (message: string): Settled => {
@@ -298,36 +391,30 @@ export function useVoice() {
       setPhase("working");
       setError(undefined);
       try {
-        const { text, applied_context } = await host.transcribeKept(captureId, {
-          project: options.project,
-          overrides: options.overrides,
-          nearby: options.nearby,
-        });
+        const settled = await settleKept(captureId, options);
         if (session.current !== id) return undefined;
-        if (!text.trim()) {
-          return failed("Nothing was heard in that recording. The audio is still kept.");
-        }
-        const { material } = await host.saveVoice({
-          capture_id: captureId,
-          text,
-          source: options.source,
-          project: options.project,
-          parent_ids: options.parentIds,
-          applied_context,
-          // As on `stop`: the page travels with the words it spelled.
-          context: options.nearby,
-        });
-        if (session.current !== id) return undefined;
+        if (!settled.ok) return failed(settled.message);
         setKept(undefined);
         setPhase("idle");
-        return { ok: true, text, material };
+        return settled;
       } catch (cause) {
         if (session.current !== id) return undefined;
-        // The audio has not gone anywhere; it stays offered.
+        // The audio has not gone anywhere; it stays offered. A busy model is
+        // asked again here too — the person pressed the button, which is not
+        // a reason to make them press it four more times.
+        if (cause instanceof HostError && cause.retryable) {
+          const again = await automatic(captureId, options, describe(cause));
+          if (session.current !== id) return undefined;
+          if (again.ok) {
+            setPhase("idle");
+            return again;
+          }
+          return failed(again.message);
+        }
         return failed(`${describe(cause)} The recording is still kept.`);
       }
     },
-    [kept],
+    [kept, settleKept, automatic],
   );
 
   const forget = useCallback(() => setKept(undefined), []);

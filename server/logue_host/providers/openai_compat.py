@@ -41,20 +41,24 @@ class OpenAICompatProvider(Provider):
     """`/chat/completions` for words, `/audio/transcriptions` for speech."""
 
     def _request(self, path: str, *, body: bytes, content_type: str) -> dict[str, Any]:
-        request = urllib.request.Request(
-            f"{self.base_url}{path}",
-            data=body,
-            headers={"Content-Type": content_type, "Authorization": f"Bearer {self.api_key}"},
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
-                return json.loads(response.read())
-        except urllib.error.HTTPError as error:
-            detail = error.read().decode("utf-8", "replace")[:400]
-            raise Unavailable(f"Model rejected the request ({error.code}). {detail}") from None
-        except urllib.error.URLError as error:
-            raise Unavailable(f"Could not reach the model: {error.reason}") from None
+        def once() -> dict[str, Any]:
+            request = urllib.request.Request(
+                f"{self.base_url}{path}",
+                data=body,
+                headers={"Content-Type": content_type, "Authorization": f"Bearer {self.api_key}"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+                    return json.loads(response.read())
+            except urllib.error.HTTPError as error:
+                raise self._refused(error) from None
+            except urllib.error.URLError as error:
+                raise Unavailable(f"Could not reach the model: {error.reason}", retryable=True) from None
+
+        # The same bounded "ask again" as the Gemini path: one rule about
+        # busy models, not one per wire format.
+        return self._asking(path, once)
 
     def generate(self, system: str, prompt: str) -> str:
         self.require("generation")

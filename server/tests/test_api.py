@@ -1552,6 +1552,134 @@ class TheOpenAIShapedProvider(unittest.TestCase):
             self.assertNotIn("base_url", saved, "the Gemini address must not leak into the OpenAI path")
 
 
+class WhenTheModelIsBusy(unittest.TestCase):
+    """"High demand" is not a refusal of the request — it is "not this second".
+
+    Handed to the person it became a red box and a button they had to press.
+    These pin the other half: the Host asks again itself, a few times, and only
+    a failure that repeating cannot fix goes straight out.
+    """
+
+    def serving(self, answers: list[int]) -> "Provider":
+        """A model that returns these statuses in order, 200 meaning an answer."""
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        asked: list[str] = []
+
+        class Stub(BaseHTTPRequestHandler):
+            def do_POST(self) -> None:
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                status = answers[len(asked)] if len(asked) < len(answers) else answers[-1]
+                asked.append(self.path)
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                body = (
+                    {"candidates": [{"content": {"parts": [{"text": "an answer"}]}}]}
+                    if status == 200
+                    else {"error": {"code": status, "message": "This model is currently experiencing high demand."}}
+                )
+                self.wfile.write(json.dumps(body).encode())
+
+            def log_message(self, *args: object) -> None:  # noqa: ARG002
+                return
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Stub)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        self.asked = asked
+
+        from logue_host.providers import gemini
+        # The waits are real seconds in the product; a test that slept them
+        # would be seven seconds slower for nothing.
+        patched = mock.patch.object(gemini, "RETRY_WAITS", (0.0, 0.0, 0.0))
+        patched.start()
+        self.addCleanup(patched.stop)
+
+        provider = gemini.Provider.load(
+            {"api_key": "test-key", "base_url": f"http://127.0.0.1:{server.server_address[1]}"}
+        )
+        provider.record_health("generation", True)
+        provider.record_health("voice", True)
+        return provider
+
+    def test_a_busy_model_is_asked_again_until_it_answers(self) -> None:
+        provider = self.serving([503, 503, 200])
+        self.assertEqual(provider.generate("", "why async?"), "an answer")
+        self.assertEqual(len(self.asked), 3, "it asked again rather than reporting the first 503")
+
+    def test_a_recording_reaches_the_model_the_second_time_too(self) -> None:
+        provider = self.serving([429, 200])
+        self.assertEqual(provider.transcribe(b"AUDIO", "audio/webm", "verbatim"), "an answer")
+        self.assertEqual(len(self.asked), 2)
+
+    def test_a_model_that_stays_busy_gives_up_and_says_it_is_worth_retrying(self) -> None:
+        provider = self.serving([503])
+        with self.assertRaises(Unavailable) as caught:
+            provider.generate("", "why async?")
+        self.assertEqual(len(self.asked), 4, "four attempts, then the person is told")
+        self.assertTrue(
+            caught.exception.details.get("retryable"),
+            "the surface decides whether to wait on this, so it has to be told what kind of failure it was",
+        )
+
+    def test_a_busy_model_is_said_in_a_sentence_and_not_a_json_dump(self) -> None:
+        # What the person read beside their recording was the service's own
+        # body, braces and all. It says nothing they can act on.
+        provider = self.serving([503])
+        with self.assertRaises(Unavailable) as caught:
+            provider.generate("", "why async?")
+        self.assertEqual(caught.exception.message, "The model is busy (503).")
+        self.assertIn(
+            "high demand",
+            str(caught.exception.details.get("detail")),
+            "the service's own words are kept for the Host's log, not thrown away",
+        )
+
+    def test_a_request_the_model_refused_is_never_repeated(self) -> None:
+        # A bad key or a malformed request answers the same way however often
+        # it is asked; repeating it only makes the person wait longer to hear it.
+        provider = self.serving([400])
+        with self.assertRaises(Unavailable) as caught:
+            provider.generate("", "why async?")
+        self.assertEqual(len(self.asked), 1)
+        self.assertFalse(caught.exception.details.get("retryable"))
+        self.assertIn(
+            "high demand",
+            caught.exception.message,
+            "a refusal about the request keeps what the service said — that is the part to act on",
+        )
+
+    def test_the_client_is_told_both_where_the_recording_is_and_that_it_can_wait(self) -> None:
+        # The two facts a failed dictation row needs: the audio is kept, and
+        # this failure is one that passes.
+        with tempfile.TemporaryDirectory() as root:
+            app = App(Path(root), file_new_materials=False)
+            busy = FakeProvider(api_key="test-key")
+            busy.record_health("generation", True)
+            busy.record_health("voice", True)
+            busy.transcribe = lambda *_a, **_k: (_ for _ in ()).throw(  # type: ignore[method-assign]
+                Unavailable("Model rejected the request (503).", retryable=True)
+            )
+            app.provider = lambda: busy  # type: ignore[method-assign]
+            match = app.router.match("POST", "/v1/transcribe")
+            assert match
+            handler, params = match
+            with self.assertRaises(Unavailable) as caught:
+                handler(
+                    Request(
+                        method="POST",
+                        path="/v1/transcribe",
+                        query={},
+                        params=params,
+                        headers={},
+                        body=json.dumps({"audio": base64.b64encode(b"real-audio").decode()}).encode(),
+                    )
+                )
+            self.assertTrue(caught.exception.details.get("capture_id"))
+            self.assertTrue(caught.exception.details.get("retryable"))
+
+
 class TheMockModel(Workspace, unittest.TestCase):
     """The stand-in for when there is no key — honest, and reachable on demand.
 

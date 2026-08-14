@@ -20,6 +20,8 @@
 
 | | 任务 | 状态 / 为什么在这 |
 |---|---|---|
+| **F1** | 转写撞上模型过载时自己重试,别让人去点 Try again | `done` · P1 · 2026-08-13 你的原话 "add task to tasks.json: auto retry when this err",附一张 503 的截图。Host 在一次请求里重试四次(1s/2s/4s,认 `Retry-After`,上限 20s),面板再自己试两次(5s/15s),期间行里写 `The model was busy. Trying again…` 并能放录音;都失败才出错误和 Try again。**只重试会过去的失败**(408/425/429/500/502/503/504、连不上),400/401/403 一次就报。声明见 [features/busy-model.md](features/busy-model.md),真浏览器检查 `scripts/qa/f1.mjs`。 |
+| **F2** | Document 大改:第一行就是标题,Markdown 要所见即所得(参考 Vibedoc) | `in_progress` · P1 · 2026-08-13 你的原话:文档不该有独立的 title 段,像 Google Docs 一样第一行就是标题;要真的所见即所得地编辑 Markdown,参考 `~/dev2/prototypes/vibedoc` 的设计和功能。 |
 | **X1** | 扩展 sidepanel/widget 和 Web 应用的数据要保持同步 | `queued` · P1 · bug,你 2026-08-12 的原话 "ext widget/sidepanel and webapp should have data synced."。现状:两边各自从 Host 一次性拉数据(webapp 走 `useHost`,只有手动 refresh;`freshness.ts` 只轮询构建号),Host 没有事件推送 —— 在一边写入,另一边要手动刷新才看得到。坏的东西按规则排到队首。对应行为已记入 [behaviors.md](behaviors.md) 的 Data 一节。 |
 | **N10** | Web 应用整页 IA 重构:三个方向的 preview 等他选 | `in_progress` · P0 · redesign-c 分支上 C2 已落地,等你选定方向。 |
 | **N9b** | redesign 第二轮:Markdown 渲染、Notice/EmptyState 统一、浮动条不压字段 | `queued` · P1 |

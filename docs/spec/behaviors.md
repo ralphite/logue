@@ -529,6 +529,27 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   are tried again a few times on their own; past that they are listed with a
   button rather than tried forever. Giving up automatically and giving up are
   different things.
+- **A busy model is waited out, not handed over.** (2026-08-13, his report of
+  a 1:05 recording answered with `Model rejected the request (503) … high
+  demand … Please try again later.` and a `Try again` link to press.) A status
+  that means "not this second" — 429, 500, 502, 503, 504, a dropped
+  connection — is asked again by the Host itself, four attempts over about
+  seven seconds, honouring a `Retry-After` it is given up to twenty seconds.
+  If it is still busy, the surface holding the recording asks twice more, at
+  five seconds and fifteen, and says so where the recording is: **`The model
+  was busy. Trying again…`**, with the audio playable beside it. Only then
+  does the failure and its button appear. **A refusal that repeating cannot
+  fix — a bad key, a rejected request — is never repeated**: the person hears
+  it at once instead of thirty seconds later.
+- **Whether a failure is worth waiting on is the Host's to say.** The status
+  code is only visible there; every surface reads one flag and none of them
+  guesses from the wording of a message.
+- **A failure a person is shown is a sentence, not a service's JSON.** A busy
+  model reads `The model is busy (503). The recording was kept — you can try
+  again.`; the provider's own body is printed in the Host's terminal, where a
+  failure is looked into. A refusal that is **about the request** — a bad key,
+  a malformed call — keeps its detail on screen, because that is the one a
+  person has to act on.
 - **A recording the model answered about is finished, not waiting.** Silence
   was reported at the time, to the person standing there. Presenting every
   wordless recording as unfinished turns an ordinary week into fifty things

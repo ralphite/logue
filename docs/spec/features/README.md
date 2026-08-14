@@ -7,6 +7,7 @@ independent agents. The template and the rules are in
 | Feature | Declaration | Reviewed | Findings fixed |
 |---|---|---|---|
 | Documents (editor, autosave, history) | [documents.md](documents.md) | 2026-08-12 | in progress |
+| A busy model (automatic retry) | [busy-model.md](busy-model.md) | 2026-08-13 | — |
 | Activities + Source detail | — | — | — |
 | Projects | — | — | — |
 | Skills | — | — | — |

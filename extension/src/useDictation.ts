@@ -99,6 +99,9 @@ export function useDictation(voice: ReturnType<typeof useVoice>) {
         // Four recordings, four rows: a shared error could not say which one
         // it belonged to.
         quiet: true,
+        // The model was busy and is being asked again. The row says so, and
+        // picks up the kept recording so its audio can be played meanwhile.
+        onRetrying: (captureId, message) => change(id, (was) => ({ ...was, captureId, message })),
       });
       if (!settled) {
         // Cancelled while it was being captured; the row never had anything.
@@ -112,6 +115,8 @@ export function useDictation(voice: ReturnType<typeof useVoice>) {
       change(id, (was) => ({
         ...was,
         state: "ready",
+        // Whatever the row was saying while it waited is over now.
+        message: undefined,
         material: settled.material,
         seconds: settled.material.capture_seconds ?? was.seconds,
         take: { id: `${id}t`, text: settled.text, used: [], made: [] },
@@ -137,11 +142,16 @@ export function useDictation(voice: ReturnType<typeof useVoice>) {
   /** Try the model again on a recording the Host kept. */
   const again = useCallback(
     async (id: string, options: { project?: string; page?: { url?: string; title?: string } }) => {
+      // This row's recording, named. The hook remembers only the last one, and
+      // from the third failed row that is somebody else's audio.
+      const captureId = items.find((one) => one.id === id)?.captureId;
       change(id, (was) => ({ ...was, state: "working", message: undefined }));
       const settled = await voice.retry({
+        captureId,
         project: options.project,
         source: { kind: "dictation", url: options.page?.url, title: options.page?.title },
         quiet: true,
+        onRetrying: (kept, message) => change(id, (was) => ({ ...was, captureId: kept, message })),
       });
       if (!settled) return;
       if (!settled.ok) {
@@ -151,11 +161,12 @@ export function useDictation(voice: ReturnType<typeof useVoice>) {
       change(id, (was) => ({
         ...was,
         state: "ready",
+        message: undefined,
         material: settled.material,
         take: { id: `${id}t`, text: settled.text, used: [], made: [] },
       }));
     },
-    [voice, change],
+    [voice, change, items],
   );
 
   /**

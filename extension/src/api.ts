@@ -77,6 +77,13 @@ export class HostError extends Error {
      * unreachable — which is the same as lost, to the person who spoke it.
      */
     readonly captureId?: string,
+    /**
+     * The failure was a passing one — a busy model, a dropped connection —
+     * and asking again is the right answer rather than a button.
+     *
+     * Decided by the Host, which is the only place that saw the status code.
+     */
+    readonly retryable = false,
   ) {
     super(message);
   }
@@ -108,7 +115,7 @@ async function call<T>(path: string, init?: { method?: string; body?: string }):
     const message = "error" in body ? String(body.error) : `HTTP ${reply.status}`;
     // The id of what the failure kept, when it kept something.
     const kept = "capture_id" in body && typeof body.capture_id === "string" ? body.capture_id : undefined;
-    throw new HostError(message, reply.status, kept);
+    throw new HostError(message, reply.status, kept, "retryable" in body && body.retryable === true);
   }
   // The single trust boundary: the Host is ours and its route table is the contract.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion

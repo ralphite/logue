@@ -6,12 +6,12 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-495 strings across 75 files.
+497 strings across 75 files.
 
 ## extension/src/api.ts
 
-- 103: `Logue's background service is restarting. Try again in a moment.`
-- 205: `never used`
+- 110: `Logue's background service is restarting. Try again in a moment.`
+- 212: `never used`
 
 ## extension/src/background.ts
 
@@ -111,18 +111,18 @@ state the fact, no justification, no chat register, no filler.
 - 1090: `Project scope`
 - 1100: `Panel menu`
 - 1178: `Keeps the selection if there is one, else this whole page`
-- 1312: `Kept from this page`
-- 1318: `Nothing kept from this page yet.`
-- 1326: `finishes ·`
-- 1386: `Where a recording is added`
-- 1427: `Add to a Document`
-- 1443: `Could not add it.`
-- 1537: `Open this in Logue`
-- 1543: `Copy, with the passage it is about`
-- 1661: `Found it`
-- 1720: `What it says`
-- 1797: `Add a tag`
+- 1313: `Kept from this page`
+- 1319: `Nothing kept from this page yet.`
+- 1327: `finishes ·`
+- 1387: `Where a recording is added`
+- 1428: `Add to a Document`
+- 1444: `Could not add it.`
+- 1538: `Open this in Logue`
+- 1544: `Copy, with the passage it is about`
+- 1662: `Found it`
+- 1721: `What it says`
 - 1798: `Add a tag`
+- 1799: `Add a tag`
 
 ## extension/src/surfaces/FloatingBar.tsx
 
@@ -160,19 +160,20 @@ state the fact, no justification, no chat register, no filler.
 
 ## extension/src/useDictation.ts
 
-- 129: `Could not add it to that Document.`
-- 190: `That Skill returned nothing.`
-- 206: `That Skill could not run.`
+- 134: `Could not add it to that Document.`
+- 201: `That Skill returned nothing.`
+- 217: `That Skill could not run.`
 
 ## extension/src/useVoice.ts
 
-- 29: `Something went wrong.`
-- 112: `Could not reach the microphone.`
-- 181: `Nothing was recorded.`
-- 194: `Logue did not hear anything. Check the microphone and try again.`
-- 219: `Nothing was heard in that recording. The audio was kept — you can try again.`
-- 256: `Logue is not running. The recording is kept and will be saved when it starts.`
-- 308: `Nothing was heard in that recording. The audio is still kept.`
+- 24: `The model was busy. Trying again…`
+- 71: `Something went wrong.`
+- 136: `Nothing was heard in that recording. The audio is still kept.`
+- 218: `Could not reach the microphone.`
+- 271: `Nothing was recorded.`
+- 284: `Logue did not hear anything. Check the microphone and try again.`
+- 309: `Nothing was heard in that recording. The audio was kept — you can try again.`
+- 346: `Logue is not running. The recording is kept and will be saved when it starts.`
 
 ## packages/ui/src/Act.tsx
 
@@ -482,28 +483,29 @@ state the fact, no justification, no chat register, no filler.
 
 ## server/logue_host/providers/gemini.py
 
-- 100: `'ready', 'needs_attention', or 'unknown' when never checked.`
-- 129: `Connect a model in Settings first.`
-- 132: `Test the connection in Settings — this capability is not ready.`
-- 173: `The model returned nothing.`
-- 183: `Transcribe this recording verbatim. Return only the transcript.`
-- 228: `Probe the capability for real and remember the verdict.`
-- 230: `No API key.`
-- 231: `No API key.`
-- 247: `Reply with OK.`
-- 327: `Reply with one JSON object`
-- 332: `A mock draft`
-- 334: `You asked the stand-in to propose a change.`
-- 343: `You searched for`
-- 343: `already searched`
+- 118: `'ready', 'needs_attention', or 'unknown' when never checked.`
+- 147: `Connect a model in Settings first.`
+- 150: `Test the connection in Settings — this capability is not ready.`
+- 159: `the model is busy`
+- 261: `The model returned nothing.`
+- 271: `Transcribe this recording verbatim. Return only the transcript.`
+- 316: `Probe the capability for real and remember the verdict.`
+- 318: `No API key.`
+- 319: `No API key.`
+- 335: `Reply with OK.`
+- 417: `Reply with one JSON object`
+- 422: `A mock draft`
+- 424: `You asked the stand-in to propose a change.`
+- 433: `You searched for`
+- 433: `already searched`
 
 ## server/logue_host/providers/openai_compat.py
 
 - 33: `WAVEfmt `
 - 41: `'/chat/completions' for words, '/audio/transcriptions' for speech.`
-- 77: `The model returned nothing.`
-- 121: `No API key.`
-- 122: `No API key.`
+- 81: `The model returned nothing.`
+- 125: `No API key.`
+- 126: `No API key.`
 
 ## server/logue_host/store.py
 
