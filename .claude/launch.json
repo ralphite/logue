@@ -11,6 +11,11 @@
       "name": "mock",
       "url": "http://localhost:8899",
       "port": 8899
+    },
+    {
+      "name": "app",
+      "url": "http://localhost:8787",
+      "port": 8787
     }
   ]
 }

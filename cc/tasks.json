@@ -32,9 +32,12 @@
         "ia"
       ],
       "note": "他对 N9 的定性:review 选错方向 —— 「我并不 care font 等小层面的问题,需要的是整体页面和信息架构的重构」,并且明确「不要直接改代码,给我 preview,几个不同类型更好」。<br>**已交付三方向 preview**(scratchpad `ia-preview.html`,已发给他):**A · Inbox 优先**(落地页=待分拣,导航按活动分,Skills 降级进 Settings);**B · Project 优先**(Project 变真容器,里面 Stream/Documents/About 三个 tab);**C · 一条时间线**(砍第二列 rail,过滤器代替路由,详情占满全宽、正文+出处两栏)。每个都写了核心选择、编号 callout、代价;附对比表。**我的推荐:A 做骨架 + C 的焦点详情**。<br>诊断(四条结构病):导航是数据库表不是活动;「分拣」被藏成 rail chip;Project 是过滤器被当地点;第三列永远单列右侧 40% 空白。<br>**他拍板了骨架**:左栏保持 Inbox·Projects·Documents·Skills·Settings(Stream→Inbox),左栏尽量不动,其余可改。**第二版 preview 已交**(scratchpad `ia-final.html`):Web ①Inbox=待分拣卡片(建议上卡面,↵ 归档)+ 下半屏时间流,第二列 rail 取消;②焦点详情接管整页,左=话+改写 16px,右=出处+去向;③Projects 容器化(Sources/Documents/About 三 tab)。Extension:Dictation·This page·Chat 三 tab,Project tab 删除,scope 升头部一处,全局状态一条横幅,This page 合流(存的/说的/答的)=panel-ia 提案 A。迁移顺序:焦点详情→Inbox→面板→Projects,每步一个可验 PR。<br>**第三版 preview(定稿候选)已交**(`ia-complete.html`):他要求 UI 文案全英文(用户内容可以非英文)、必须完整。这版盖住:Web 五个目的地全部(Inbox 分拣+全部、焦点详情两栏、Projects 容器、Documents 渲染 Markdown + Sources 边栏、Skills/Settings 说明为何不动版面)+ Extension 四帧(Dictation 有内容、空态+录音中、This page 合流+模型横幅、Logue 掉线横幅+队列卡+Record 禁用)。落地顺序:焦点详情→Inbox→面板→Projects→Documents Markdown,每步一个可验提交。<br>**面板工艺版已交**(`panel-craft.html`,他嫌上一版丑,要求 top-notch 水准 + 交付前自审):26px 控件族、7–9px 圆角族、真 SVG 图标、tabular 计时、有疏密的波形(录音中 accent 着色)、四级字阶(13.5/12.5/11/10.5)、时间线三种角色 glyph(bookmark/mic/sparkle)、真 composer(save·speak·ask)。**自审两轮,第二轮从渲染图里抓掉 3 个矛盾**:①录音中空态还在教 Press Record 且快捷键提示出现两遍;②提示里带回了他明确砍掉的 10:00 上限;③掉线帧把 Record 画成禁用而文案说还能录(N5 的设计就是掉线可录进队列)——按钮保持可用。<br>**他点头了(ok)。开始实施**,顺序:①焦点详情(MaterialPanel 重排:左=16px 正文+改写树,右栏=WHERE IT CAME FROM / WHERE IT WENT / HOW IT WAS HEARD,归属+tags 收进头部一行)→②Inbox(Stream 改名,分拣卡置顶,第二列 rail 取消,下半屏 Everything+过滤)→③面板(删 Project tab,scope 进头部,横幅全 tab 可见,This page 合流,按 panel-craft 的规格)→④Projects 容器(Sources/Documents/About)→⑤Documents Markdown 渲染。每步:四闸 + Storybook 全量重拍 + 真机验证,一步一个提交。标准 = ia-complete.html + panel-craft.html。<br>**进度**:①焦点详情 ✅(81d97bfc,两栏:16px 正文 + 340px 证据栏 WHERE IT CAME FROM / WHERE IT WENT / HOW IT WAS HEARD / FILED UNDER);②Inbox ✅(61620007,Stream→Inbox,分拣卡置顶带 File ↵/Edit/Skip,第二列 rail 取消,Groups 过滤器带过来了;**有意延后**:旧 rail 的 pins/hover 预览/行菜单,要在列表行上补回)。**下一步:③面板**(删 Project tab、scope 进头部、横幅全 tab、This page 合流,规格=panel-craft.html),然后 ④Projects 容器(顺带删掉已不渲染的 StreamRail)、⑤Documents Markdown。<br>③面板结构 ✅(4c49f65c):Project tab 删除、scope=头部一个 select、⋯ 菜单(Open Logue/Server address)、横幅提到所有 tab 之上、This page 得到 composer(存·说·问),真机四项断言 + n4 全绿。**步骤 3 剩余**:This page 把对话按时间并进列表(kept/said/answered 一条流)+ panel-craft 的工艺视觉层。**然后**:④Projects 容器(顺带删 StreamRail 和旧 rail 的 pins/预览要在 Inbox 行上补回)、⑤Documents Markdown。<br>**redesign 第二轮(他叫停后重启)**:部署后真实数据把 Inbox 打垮(To file · 250、重复条目不合并、卡片 180px)。按他的要求改用 chatgpt.com 做多 session 设计迭代,**必须带真截图**(从 127.0.0.1:8787 现拍,系统剪贴板 ⌘V 贴入;file_upload 工具在这环境里参数被剥,不可用)。在跑的 session:①triage IA 规格+对照修订(master-detail、68px 行、320px inspector、重复堆叠、File obvious N、虚拟化+会话级 undo);②他自己的 mocks 会话;③Variant B/C 完整 HTML(Tailwind CDN,单文件)。**流程**:收 HTML→本地 8899 跑→截图→按 token 审→拼对比页给他审,**他点头前不动产品代码**。<br>**方向纠正(他的原话)**:「i dont care about to File. I dont even know what this feature is for」→ 分拣队列从落地页删除;「inbox should be named as Activities. it's a list of different actions from the user」→ 改名 Activities;「actions are different with different type and purpose / input and page translation are very different, also voice comment/dictation」→ 每行带动词区分动作(Dictated into / Dictated / Voice comment / Spoke to Logue / Kept a passage / Saved the page / Typed / Generated,靠 kind + source.kind + parent_ids)。已部署真机验证(Activities · 392,无 To file,动词逐行)。**ChatGPT 三个 session 里分拣向的产出作废**,只回收:列表密度/行结构、焦点视图右栏修法(PROJECTS·2 成员制、IP 不做主标签、建议块位置)。**待他拍板的一个产品问题**:后台 organize 还在给每条新 Source 标 needs_review(积压 250+)——要么改全自动静默归档(可撤销),要么关掉,landing 不再显示。<br>**课程修正后重启(2026-08-12)**:他毙掉 To file(「i dont care about to FIle」「no to file pls」),Inbox→Activities(动作流,按 verb 分型),归档改**全自动静默**(「全自动静默归档」)——已落地:classify 即归档、详情页收据+Undo、启动 settle_backlog 清 250+ 积压(239 归档/0 剩余),四道门绿,8d1f0046 部署并真模型 E2E 验证(gemini 归档→UI 收据→Undo 生效)。**Mock 重做中**:3 个全新 ChatGPT 会话(他要求:我只给上下文,设计决策全归他们),S1 Activities·晚间回顾 /c/6a7c2f6e,S2 Activities·快速定位 /c/6a7c3010,S3 单条录音详情 /c/6a7c3060;各附现状截图,产出=单文件 Tailwind HTML;生成后渲染+截图交他审,审过才动产品代码。<br>**Round 2(他看完 R1 三案后的收敛)**:功能冻结(现有功能就是全部,Same session/Recall map/统计图这类新发明一律不加)+ 三栏同屏结构(nav|列表|详情,无 overlay 无多层跳转)+ 工艺水准对标 R1-S3 那张截图。三个新会话同 brief 自然分化:/c/6a7cc98b、/c/6a7cc9dd、/c/6a7cca26;附现状+工艺参照拼图(ref-stacked.png)。R1 产物已交他:mock-s1-activities-evening.html(日 trail+时段分组)、mock-s2-activities-midwork.html(搜索+Recall map)、mock-s3-detail.html(overlay 详情+自然语言归档解释)。<br>**C 定稿落地(redesign-c 分支)**:token 全量换 C 色板(七动作色对入 theme.css)、Act.tsx 注册表(徽章/图标/glyph)、nav C 化(38px 项+accent 图标+圆点)、Activities 486px 中栏(日期组+行规格)、MaterialPanel C 详情(音频→收据→19px 正文+238px 右栏,membership 紫 chip+Add project,tags chip 化)。四道门绿,已部署本机(d2c4fb39→30aac10b,build 20260812T204649Z)。**mock 补齐**:sidepanel 四帧(Storybook 六状态做输入,/c/6a7cd4ed)、四页 Projects/Documents/Skills/Settings(完整功能清单+C 参照,/c/6a7cd556)——等他审,审过后按 mock 改其余页面和 extension。教训已吃:给 ChatGPT 必须喂 Storybook/mock 级的丰满素材,不能给空列表截图。<br>**C2 落地(159a22f2,redesign-c 分支,未碰 main)**:mock 定稿后照抄实现——左栏还原 28px 行/灰图标/无圆点;verb 全灰(24px 徽章独扛类型);列表 16px 单基线、控件 28px、组头小灰字;详情 48px header、单时间紧凑音频(波形 stroke-faint 可见)、收据完整换行、16px 正文、右栏 216px 行式来源、How it was heard 句式+自绘 chevron;两栏统一 24h 时钟;✕ 删除;min-w-1220。四道门绿 + 部署 + CDP 对照 mock 自检。**expand 勘察**:Projects/Documents/Skills/Settings 本就在 h-control/token 体系上,三栏一版的偏差只污染过 Activities/详情;全局件还原自动传播,四页截图验证无异常,无需侵入改动。<br>**四页 impl 落地(fd90f334)**:panes.tsx 共享文法(ListPane 带独立 resizer+共享持久宽度/RowShell/DetailHeader/Section);Dropdown+Tooltip 组件进 @logue/ui(自绘浮层、350ms 延迟翻边);Projects 容器化(overview/Ask/Answers/Sources)、Documents 编辑器+编号引用右栏、Skills 提示词编辑、Settings 去卡片化+文案精简;rails 列表退役(Rails/RailList 删除);四道门绿,五页 CDP 真机验证(修掉 documents 老记录缺 source_ids 的白屏),已部署。",
-      "input_ids": [],
+      "blocked_on": "",
+      "input_ids": [
+        "in_blocked_review_review"
+      ],
       "created": "2026-08-11",
-      "updated": "2026-08-11"
+      "updated": "2026-08-14"
     },
     {
       "id": "N9",
@@ -56,7 +59,7 @@
       "id": "N9b",
       "title": "redesign 第二轮:Markdown 渲染、Notice/EmptyState 统一、浮动条不压字段",
       "type": "design",
-      "status": "blocked",
+      "status": "queued",
       "priority": "P1",
       "confirmed": true,
       "tags": [
@@ -64,10 +67,12 @@
         "review"
       ],
       "note": "ui-review.md「值得做、这轮没做的」全列表:①Documents 正文渲染 Markdown + [Source n] 用 citation chip(现在按字面显示还被折行拆开);②Notice/EmptyState 统一组件(现存 7 种错误写法、3 种空态位置);③注入浮动条改锚定策略,不再压住正在写的字段(要真机 Notion/Docs 复验);④⌘K 选中行 1.15:1 + 键盘提示;⑤波形按时长映射宽度;⑥Delete 确认 danger 填充;⑦Settings 解释句收敛;⑧快捷键用 kbd。**一条要他裁决**:三处浮层的 ✓ 位置不一致,但「勾落在麦克风原位」是 X29 的既有决定 —— 统一方向要他选。",
-      "blocked_on": "剩两条:③ 注入浮动条锚定要在你登录着的 Notion / Google Docs 上复验(和 S3g 一起);浮层 ✓ 的位置要你裁决(与 X29 冲突)。其余六条已做完并部署。",
-      "input_ids": [],
+      "blocked_on": "",
+      "input_ids": [
+        "in_blocked_review_review"
+      ],
       "created": "2026-08-11",
-      "updated": "2026-08-13"
+      "updated": "2026-08-14"
     },
     {
       "id": "N8",
@@ -212,15 +217,15 @@
       "id": "N1b",
       "title": "按 panel-ia.md 重排面板 —— 等你选 A 还是 B",
       "type": "feature",
-      "status": "blocked",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
         "panel",
         "ui"
       ],
-      "note": "提案在 docs/spec/panel-ia.md,已对着今天的面板刷新过(8/10 写的时候是三个 tab,现在四个、默认开 Dictation)。刷新后:原来第 5 条「等待中的录音画两遍」N5 已经修掉,划掉;新增两条 —— 2b 两个 tab 抢同一个录音机(靠 speaking 这个裁判变量让路)、10 默认那一屏由排期决定而不是由入口决定。A:四个 tab 收成两个(这一页 + 听写),Chat 和 This page 合成一条流,Project 提到头部,全局状态收进顶部状态条。B:四个 tab 留着只按主语重排。我推荐 A。第六节三个问题,你答完我才动手。",
-      "blocked_on": "等你在 docs/spec/panel-ia.md 第六节回答三个问题",
+      "note": "N13 的「一个列表 + 一个 composer」重写把这份提案要解决的问题(四个 tab、两个录音机、默认屏)整个搬走了——面板已经没有 tab 可重排。6296edfb 里正式退役,A/B 两案不再需要他选。",
+      "blocked_on": "",
       "input_ids": [
         "in_n13_n1b_tab"
       ],
@@ -250,21 +255,22 @@
       "id": "S3g",
       "title": "在登录着的 Google Docs 上跑 cuj-gdocs",
       "type": "test",
-      "status": "blocked",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
         "qa",
         "gdocs"
       ],
-      "note": "S3 最后一条没做完的。干净的测试浏览器打不开需要登录的文档,而「要登录」不是跳过验证的理由。",
-      "blocked_on": "要你浏览器里的登录态",
+      "note": "跑过了,在真 Doc 上断在第 2 步:两个 live 验证的病记在 X7(bar 不跟编辑面、Starting mic… 永挂)。QA 文档 Logue QA cuj-gdocs 留在他 Drive 里,修完重跑用它。仿造页绿、真页红——旧 cuj-gdocs.mjs 对这两条没有发言权。",
+      "blocked_on": "",
       "input_ids": [
         "in_auth_browser",
-        "in_test_notion"
+        "in_test_notion",
+        "in_blocked_review_review"
       ],
       "created": "2026-08-10",
-      "updated": "2026-08-10"
+      "updated": "2026-08-14"
     },
     {
       "id": "A2",
@@ -613,7 +619,7 @@
         "process",
         "extension"
       ],
-      "note": "review-process.md 现在管的是代码落地前的三方复审(copy / behaviour / design-fidelity)。他这次要的是往前挪一步:**方案/mock 阶段就要 subagent 复审**,不是等实现完才审。理由是他截图里看到面板连续出问题(见 X5),对这条产品线的信任已经消耗得差不多,'review ext panel design. too many issues'。\\n\\n**要做两件事**:①把这条规则写进 review-process.md 和 behaviors.md,作为长期流程(方案阶段也过三镜头复审,而不只是代码落地前);②现在就用 subagent 复审一次 N13 的方案(panel-composer.md + panel-mock.html),扣着 review-process.md 的三个问题:文案是不是都在说事实、没有多余的话;自动的节奏是不是会让人淹没在噪音里;和他已经点头的部分有没有走样。",
+      "note": "已执行:三个独立 subagent(copy/behaviour/design-fidelity)复审已上线面板,29 条发现落在 docs/spec/panel-review-2026-08-14.md,修复任务是 X8。流程规则(方案阶段也过三镜头复审)已进 review-process.md 和 behaviors.md。",
       "blocked_on": "等 mode-picker 落地后复审",
       "input_ids": [
         "in_add_task_review"
@@ -623,7 +629,7 @@
     },
     {
       "id": "F4",
-      "title": "文档列表照 Vibedoc 补齐:拖拽排序/挪层级,风险项列出来等他确认排除",
+      "title": "文档列表照 Notion 的设计做:拖拽排序/挪层级、行菜单、悬停控件",
       "type": "feature",
       "status": "done",
       "priority": "P1",
@@ -632,17 +638,19 @@
         "documents",
         "vibedoc"
       ],
-      "note": "查了 vibedoc 真实源码(~/dev2/prototypes/vibedoc/src/frontend/src/components/SidebarNav.vue),不是只看设计文档。F3 已经做了树的读取/缩进/折叠/在里面新建,但**列表本身没有拖拽**——grep 了 web/src 全目录,没有 draggable/dragstart,DocumentsRoute.tsx 现在挪层级只能靠代码/API,人手动不了。\n\nvibedoc 列表真正有的:①拖拽排序 + 拖进另一个当子页(同一栏内,不能跨栏、不能拖进自己的子树);②拖到某一行时按位置分三区(插到上面/下面/拖进去当子页),UI 有对应的插入线提示;③拖到已折叠的行上悬停会自动展开;④双击行内重命名;⑤kebab 菜单里删除。以上五条**都不碰存储格式**,parent_id+position 已经是 F3 落的模型,纯前端交互,建议直接做,不用等确认。\n\n没在 vibedoc 里找到,但常见于同类产品、可能想要的:收藏/置顶、图标/emoji、复制一份、回收站(现在是硬删)。这几条**要他确认再做**,因为回收站和复制会改数据模型(要加软删除字段/复制语义),图标/emoji 要么占用文档正文第一行的语义(F2 刚把标题=正文第一行),要么要新加一个字段——两条路都得他选。",
+      "note": "他的纠正同样适用于列表:参照物是 Notion,不是 vibedoc。已在他登录的 Chrome 里实测 Notion 侧栏:悬停行出现 +(在里面建子页)和 ⋮⋮;拖拽排序/拖进别的页当子页;行菜单(Duplicate/Move to/Delete/Copy link 等);子页缩进+折叠箭头。Logue 的 F3 已有树/缩进/折叠/在里面新建,缺的是:拖拽排序+挪层级(parent_id+position 模型已在,纯前端)、行悬停控件、行菜单(重命名/复制一份/删除/移动到)。**要他确认的**:收藏/置顶、图标 emoji、回收站(软删除)——这三样改数据模型。",
       "blocked_on": "",
       "input_ids": [
-        "in_new_task_doc_2"
+        "in_new_task_doc_2",
+        "in_no_follow_notion_2",
+        "in_must_use_similar"
       ],
       "created": "2026-08-14",
       "updated": "2026-08-14"
     },
     {
       "id": "F5",
-      "title": "编辑器功能清单核实:纯 Markdown 编辑上 Logue 已经领先 Vibedoc,真正缺的是 AI 工作流功能",
+      "title": "编辑器照 Notion 的设计做:块交互层 + 选中工具条 + 斜杠菜单补齐",
       "type": "feature",
       "status": "done",
       "priority": "P1",
@@ -652,11 +660,12 @@
         "vibedoc",
         "editor"
       ],
-      "note": "用 subagent 逐行读了两边源码(不是设计文档):vibedoc 真正的编辑器组件 EditorPane.vue 只是一个朴素的 CodeMirror + Markdown 语法高亮,没有斜杠菜单、没有标记自动隐藏、没有表格/图片/复选框渲染、没有工具栏——这些 Logue 的 MarkdownEditor.tsx 反而全都有(F2 落的)。所以\"WYSIWYG 不完整\"这个判断,拿 vibedoc 当参照物是对不上的:纯编辑体验这条轴上 Logue 已经比 vibedoc 强。\n\nvibedoc 真正领先、Logue 没有的,全部是 AI 工作流功能,不是编辑器功能:\n①**行内 Agent Diff 评审**——模型改动以 hunk 形式标在正文里,逐段 Accept/Reject,评审完才整体应用,期间编辑器只读。**大工程**:要新的 diff/hunk 持久化结构、评审态、和 Logue 自己的 [Source n] 引用胶囊共存(diff 落在引用胶囊中间时两套装饰会打架)。\n②**语音口述直接插入正文**——录音排队、转写、按锚点插入、失败重试、行内状态气泡。**大工程**:要转写后端接入编辑器、任务队列、文档改动后的锚点重映射。\n③划词浮动菜单(选中文字弹出\"用某个 Agent 文档处理/问 AI\")——纯前端定位逻辑,但依赖\"Agent 文档\"这个概念,Logue 现在的技能(Skills)接近但不是一回事。\n\n便宜、自包含、不碰存储格式,建议直接做不用等确认:多光标编辑(CodeMirror 一行现成扩展)、拖放光标提示、防抖自动保存指示、查找替换(@codemirror/search 现成)、字数统计。\n\n**要他确认再做的,只有①②两条**——都是新增大功能,不是\"补齐已有功能\",而且都要新后端。③要先确认\"Agent 文档\"这个概念在 Logue 里对应什么(是不是就是 Skills)。",
+      "note": "他纠正了参照物:不是 vibedoc,是 Notion——\"Follow notion design. Use notion in my browser to understand\"。已用他登录的 Chrome 在他的 QA 页(Logue Test测试测试)上实地看过,没动他的真实内容,弹的 Business trial 推销框只按了 Esc,没碰 Upgrade/Cancel。\n\nNotion 编辑器实际长这样(2026-08-14 实测,截图在会话里):\n\n一、块交互层(Logue 完全没有,这是差距的大头)\n- 悬停块的左侧出现 +(在下面插块)和 ⋮⋮(拖拽把手)\n- 拖 ⋮⋮ 重排块,有插入位置指示\n- 点 ⋮⋮ 出块菜单:Search actions / Turn into / Color / Copy link to block / Duplicate ⌘D / Move to / Delete / Comment / Suggest edits / Ask AI / Skills,底部一行\"Last edited by 谁 何时\"\n- 空行占位符:Press space for AI or / for commands\n\n二、选中文字的浮动工具条(Logue 没有)\n- Turn into(Normal Text▸:Text/H1-4/Page/列表/Code/Quote/Callout/公式/columns)\n- 颜色、B I U、删除线、行内代码、行内公式、链接、清除格式\n- **Skills 区直接列在工具条里**(他的 Notion 里是 Translate to CN / Improve Writing / Proofread / Explain)+ Edit with AI 输入框——这正好对上 Logue 自己的 Skills 概念,选中一段→技能就在手边,和面板里\"每条记录底下挂技能\"是同一个设计语言\n\n三、斜杠菜单(Logue 有 10 种,Notion 的完整清单)\n- Basic:Text/H1/H2/H3/H4/无序/有序/待办/Toggle list/Page/Callout/Quote/Table/Divider/Link to page,右侧标注 Markdown 快捷(#/##/-/1./[]/>/---)\n- Media:Image/Video/Audio/Code/File/Web bookmark\n- Advanced:TOC/Block equation/Button/Toggle heading 1-3/2-5 columns/Code-Mermaid\n- Inline:Mention/日期/行内公式\n- 其余:AI 块、Database 视图、Embeds(Drive/Tweet/Gist/Maps/Figma)\n\n建议的落地范围(Markdown 单文本存储能干净映射的):块把手+拖拽重排+块菜单(Turn into/Duplicate/Delete)、选中工具条(格式+Turn into+Skills)、空行占位符、斜杠菜单补 Callout(映射成 > 引用变体或 admonition 语法)、TOC(从标题生成,不落盘)、行内/块公式(KaTeX,存 $..$/$$..$$)、Mermaid(存 ```mermaid 围栏)。\n\n**映射不干净、要他确认排除的**:Toggle list/Toggle heading(Markdown 没有折叠语义,存 HTML details 会破\"单一 Markdown\")、2-5 columns(同理)、Database 全家、Button、Mention 人、Embeds 全家、AI Image。Comment/Suggest edits 是协作功能,单人产品先不做。",
       "blocked_on": "",
       "input_ids": [
         "in_the_wysiwyg_markdown",
-        "in_no_follow_notion"
+        "in_no_follow_notion",
+        "in_must_use_similar"
       ],
       "created": "2026-08-14",
       "updated": "2026-08-14"
@@ -667,14 +676,74 @@
       "type": "feature",
       "status": "queued",
       "priority": "P1",
-      "confirmed": false,
+      "confirmed": true,
       "tags": [
         "documents",
         "notion"
       ],
       "note": "F6 已落地能直接做的那批(格式化快捷键、选区工具条、空行 / 提示、面包屑、粘贴链接、⌘F、多光标、字数),见 docs/spec/features/documents.md。剩下五条按代价和是否动数据模型分两组。\n\n**不动数据模型,纯前端,可以直接做**:①**块拖拽把手** —— 正文左侧的 ⋮⋮,拖动整块换位置(现在只有 ⌥↑/↓ 逐行移动)。要在 Markdown 里判块边界(段落/列表项/代码围栏/表格),中等工程量。②**目录大纲** —— 右侧列出各级标题、点击跳转、滚动高亮当前节。\n\n**要他先点头,因为会改文档是什么**:③**@ 提另一个页面** —— 存成 [标题](/documents/id) 就够,但要定 @ 菜单的检索范围、被删页面的链接怎么显示、要不要反链。④**页面图标/封面** —— 和 F2「标题就是正文第一行」冲突:要么占用正文,要么新加字段,两条路都得他选(F4 note 里已经提过)。⑤**评论** —— 要新后端(评论表、锚点、未读),是本条里最大的一件。\n\n建议顺序:①②直接做;③④⑤等他一句话。",
       "blocked_on": "",
-      "input_ids": [],
+      "input_ids": [
+        "in_blocked_review_review"
+      ],
+      "created": "2026-08-14",
+      "updated": "2026-08-14"
+    },
+    {
+      "id": "X6",
+      "title": "编辑器列表三个病:Enter 不续列表(markdownKeymap 是死代码)、无序列表没圆点没缩进、待办前面拖着 - ",
+      "type": "bug",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "documents",
+        "editor",
+        "bug"
+      ],
+      "note": "真实应用里重现并定位到行(新建了 QA lists test 文档验证,没动他的文档,按规矩没删):\n\n① **Enter 在列表行尾不续列表。** 光标在\"- two\"行尾按 Enter,新行是空的,不是\"- \"。根源:MarkdownEditor.tsx:809 把 markdownKeymap 排在 defaultKeymap 之后合进同一个数组,defaultKeymap 自己有 Enter(insertNewlineAndIndent)先接住,markdownKeymap 的 insertNewlineContinueMarkup **永远轮不到**——它的 Backspace(deleteMarkupBackward,退格删掉整个列表记号)也一样是死代码。修法:markdownKeymap 单独 keymap.of 且放在 defaultKeymap 之前(或 Prec.high)。\n\n② **无序列表就是字面横线。** MARKS 集合(MarkdownEditor.tsx:81)里没有 ListMark,\"- \"既不隐藏也没有圆点替身,没有缩进,嵌套列表也不分层。Notion 的做法:光标不在时\"- \"显示为 •,数字列表的记号灰色弱化,子列表逐级缩进。\n\n③ **待办渲染成\"- ☐ task\"。** TaskMarker 换成了勾选框(这个是好的),但它前面的 ListMark\"- \"还留在屏幕上。光标不在该行时应该连\"- \"一起藏掉,只剩勾选框+文字。\n\n验证方法记录:浏览器面板的 CDP key 注入(Return)到不了 CodeMirror,合成 KeyboardEvent 才是真的——差点把\"Enter 完全坏了\"当成 bug 报出去。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_why_list_ul"
+      ],
+      "created": "2026-08-14",
+      "updated": "2026-08-14"
+    },
+    {
+      "id": "X7",
+      "title": "真 Google Docs 两个病:voice bar 不跟编辑面(落在左上角)、录音卡在 Starting mic… 永不报错",
+      "type": "bug",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": false,
+      "tags": [
+        "extension",
+        "gdocs"
+      ],
+      "note": "2026-08-14 在他登录的 Chrome、真实新建的 Google Doc(已命名 Logue QA cuj-gdocs)上跑 S3g 发现,都是 live 验证:\n\n① **bar 不跟踪编辑面。** logue-host 注入了,但 dataset.logueTarget 一直是 null,bar 固定在 (34,183)——压在左侧大纲栏上,点进正文光标处它也不动。behaviors 明文禁止 \"parked in a corner\"。仿造页(docs-mimic)上这条是绿的:仿造页没有大纲栏,结构不同——这正是\"不许拿自制测试页当验证\"的又一实证。\n\n② **点 Voice 后卡在 \"Starting mic…\" 30 秒以上,无报错、无 Chrome 权限弹窗,只有 Cancel 能出来。** behaviors 要求麦克风打不开时给出路,不许无声地挂着。他的面板 dictation 是能录上的(有 0:01/0:02/0:14 的音频),所以不是全局权限问题,疑似 offscreen 录音路径在页面场景下的等待没有超时/错误分支。\n\n**结果:CUJ 走不完**——第 2 步就断。修完这两条 S3g 要在真 Doc 上重跑(QA 文档已在他 Drive 里,继续用它,不删)。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_s3g_2026_08"
+      ],
+      "created": "2026-08-14",
+      "updated": "2026-08-14"
+    },
+    {
+      "id": "X8",
+      "title": "面板复审 29 条发现(copy 10 / behaviour 11 / fidelity 8),修前逐条在真面板验真",
+      "type": "bug",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "extension",
+        "review"
+      ],
+      "note": "三个独立 subagent 按 review-process.md 复审已上线面板的产出,全文在 docs/spec/panel-review-2026-08-14.md,每条带文件:行号。**除 X7 那两条外没有在跑着的产品上验过**——修哪条之前先在真面板把那条读出来,验不出的写明。最重的几条:Host 关着同一条录音出两行两套说法;IME 选字的 Enter 直接把半句话发出去;分两段口述丢第一段音频;发送失败的行没有 Try again。两条要他裁决的(录音时输入框换不换形状、头部一行还是两行)已单列在报告末尾,攒进最后的 review,不挡修别的。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_add_task_review_2"
+      ],
       "created": "2026-08-14",
       "updated": "2026-08-14"
     }
@@ -940,6 +1009,42 @@
       "id": "in_no_follow_notion",
       "at": "2026-08-14 02:32",
       "text": "No. Follow notion design. Use notion in my browser to understand",
+      "images": []
+    },
+    {
+      "id": "in_no_follow_notion_2",
+      "at": "2026-08-14 02:43",
+      "text": "No. Follow notion design. Use notion in my browser to understand",
+      "images": []
+    },
+    {
+      "id": "in_must_use_similar",
+      "at": "2026-08-14 08:57",
+      "text": "must use similar design/feature as notion!",
+      "images": []
+    },
+    {
+      "id": "in_why_list_ul",
+      "at": "2026-08-14 09:04",
+      "text": "why list, ul, todo doesn't work?",
+      "images": []
+    },
+    {
+      "id": "in_blocked_review_review",
+      "at": "2026-08-14 09:31",
+      "text": "我们之前没有被 blocked，各种任务都应该去做，先把这些全部做完。后续做完之后，我们再一个个 review，包括需要我给你提供细节，或者需要我 review 的一些任务",
+      "images": []
+    },
+    {
+      "id": "in_s3g_2026_08",
+      "at": "2026-08-14 09:39",
+      "text": "(S3g 实测发现,任务本身来自他 2026-08-11 的点头)",
+      "images": []
+    },
+    {
+      "id": "in_add_task_review_2",
+      "at": "2026-08-14 09:39",
+      "text": "add task: review feature design with subagent (always). review ext panel design. too many issues",
       "images": []
     }
   ]

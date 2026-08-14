@@ -70,6 +70,16 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   to the next task the same minute — there is always work that waits on nobody.
   Arrange the work so blocking is rare: do the part that depends on no one
   first, and save up questions to ask together rather than stopping at each.
+- **"Blocked on him" is almost never real. Build it, and batch the reviews for
+  the end.** (2026-08-14, his words: *"我们之前没有被 blocked，各种任务都应该去
+  做，先把这些全部做完。后续做完之后，我们再一个个 review，包括需要我给你提供细
+  节，或者需要我 review 的一些任务"*.) A task waiting on his taste, his details
+  or his sign-off is not parked — it is done under a stated assumption, and the
+  assumption is written on the task so the review afterwards knows what to
+  check. One review pass over finished work replaces many small questions in
+  front of unstarted work. This narrows "拿不准就先问我" to what it always
+  meant: ask when two readings produce two different *builds*, not to get
+  permission to start.
 - **Start the next task the moment the last one is done.** Do not stop to
   report, do not wait to be told to carry on. Report when there is something
   worth reading, not between every item.
