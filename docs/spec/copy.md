@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-947 strings across 88 files.
+965 strings across 88 files.
 
 ## extension/src/api.ts
 
@@ -857,39 +857,50 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/DocumentsRoute.tsx
 
-- 85: `Untitled`
-- 115: `Documents`
-- 117: `New Document`
-- 140: `Untitled`
-- 145: `source`
-- 145: `sources`
-- 146: `written by hand`
-- 150: `page`
-- 150: `pages`
-- 160: `Show what is inside`
-- 160: `Fold this away`
-- 162: `Show what is inside`
-- 162: `Fold this away`
-- 176: `New page inside this one`
-- 178: `New page inside this one`
-- 210: `Documents`
-- 212: `Nothing written yet — press + to start a page.`
-- 346: `Documents`
-- 358: `New Document`
-- 358: `Untitled`
-- 366: `Rewrite the passage`
-- 366: `Select a passage first`
-- 382: `Download as Markdown`
-- 405: `Keep mine`
-- 414: `Discard mine`
-- 419: `This document changed somewhere else. Your edits are still here, unsaved.`
-- 446: `Document`
-- 450: `Not saved yet`
-- 452: `Every version is kept`
-- 467: `Mark this state as a version to come back to`
-- 478: `Version kept`
-- 478: `Keep this version`
-- 488: `Sources`
+- 218: `Untitled`
+- 248: `Documents`
+- 250: `New Document`
+- 268: `Untitled`
+- 339: `Untitled`
+- 344: `source`
+- 344: `sources`
+- 345: `written by hand`
+- 349: `page`
+- 349: `pages`
+- 359: `Show what is inside`
+- 359: `Fold this away`
+- 361: `Show what is inside`
+- 361: `Fold this away`
+- 375: `New page inside this one`
+- 377: `New page inside this one`
+- 394: `More`
+- 397: `More`
+- 418: `Delete this page`
+- 419: `Untitled`
+- 424: `page`
+- 424: `pages`
+- 428: `Every Source it cited stays in the workspace.`
+- 454: `Documents`
+- 456: `Nothing written yet — press + to start a page.`
+- 590: `Documents`
+- 602: `New Document`
+- 602: `Untitled`
+- 610: `Rewrite the passage`
+- 610: `Select a passage first`
+- 626: `Download as Markdown`
+- 649: `Keep mine`
+- 658: `Discard mine`
+- 663: `This document changed somewhere else. Your edits are still here, unsaved.`
+- 690: `Document`
+- 694: `Not saved yet`
+- 696: `Every version is kept`
+- 715: `Mark this state as a version to come back to`
+- 726: `Version kept`
+- 726: `Keep this version`
+- 736: `Sources`
+- 815: `Name`
+- 820: `Enter`
+- 821: `Escape`
 
 ## web/src/app/FindDialog.tsx
 
@@ -934,23 +945,30 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/MarkdownEditor.tsx
 
-- 169: `Enter`
-- 200: `my-1 block`
-- 208: `Image`
-- 268: `Image`
-- 283: `Link`
-- 380: `2px solid var(--color-line-strong)`
-- 459: `Bulleted list`
-- 460: `Numbered list`
-- 462: `Quote`
-- 463: `Code block`
-- 466: `Table`
-- 471: `Divider`
-- 489: `Document`
-- 583: `Enter`
-- 591: `Escape`
-- 609: `Start writing. The first line is the title.`
-- 697: `Insert a block`
+- 174: `Enter`
+- 205: `my-1 block`
+- 213: `Image`
+- 273: `Image`
+- 288: `Link`
+- 385: `2px solid var(--color-line-strong)`
+- 416: `1px solid var(--color-line)`
+- 417: `6px 8px`
+- 427: `0 7px`
+- 429: `1px solid var(--color-control-line)`
+- 437: `0 8px`
+- 439: `1px solid var(--color-control-line)`
+- 447: `0 6px`
+- 513: `Bulleted list`
+- 514: `Numbered list`
+- 516: `Quote`
+- 517: `Code block`
+- 520: `Table`
+- 525: `Divider`
+- 543: `Document`
+- 637: `Enter`
+- 645: `Escape`
+- 679: `Start writing. The first line is the title.`
+- 767: `Insert a block`
 
 ## web/src/app/MaterialPanel.tsx
 

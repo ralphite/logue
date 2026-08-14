@@ -2,13 +2,18 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/language";
+import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
 import { Annotation, EditorState, RangeSetBuilder, type Extension } from "@codemirror/state";
 import {
+  crosshairCursor,
   Decoration,
   type DecorationSet,
+  drawSelection,
+  dropCursor,
   EditorView,
   keymap,
   placeholder,
+  rectangularSelection,
   ViewPlugin,
   type ViewUpdate,
   WidgetType,
@@ -397,6 +402,55 @@ const page = EditorView.theme({
   // ⌘-click follows a link, the way it does in an editor. A plain click is
   // still a caret: this is a document, not a page.
   ".cm-link-live": { cursor: "pointer" },
+  // Find and replace. CodeMirror's panel is the right behaviour and the wrong
+  // clothes — a grey strip with system inputs sitting above a page typeset in
+  // the product's own hand. Only the surfaces are restated here; nothing about
+  // how it works is touched.
+  ".cm-panels": {
+    backgroundColor: "var(--color-panel)",
+    color: "var(--color-ink)",
+    border: "0",
+    fontFamily: "var(--font-sans)",
+    fontSize: "12px",
+  },
+  ".cm-panels.cm-panels-top": { borderBottom: "1px solid var(--color-line)" },
+  ".cm-panel.cm-search": { padding: "6px 8px", display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" },
+  ".cm-panel.cm-search label": { display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--color-muted)" },
+  ".cm-panel.cm-search .cm-textfield, .cm-panel.cm-search button": {
+    fontFamily: "var(--font-sans)",
+    fontSize: "12px",
+    margin: "0",
+  },
+  ".cm-panel.cm-search .cm-textfield": {
+    height: "26px",
+    minWidth: "8rem",
+    padding: "0 7px",
+    borderRadius: "7px",
+    border: "1px solid var(--color-control-line)",
+    backgroundColor: "var(--color-surface)",
+    color: "var(--color-ink)",
+    outline: "none",
+  },
+  ".cm-panel.cm-search .cm-textfield:focus": { borderColor: "var(--color-accent-line)" },
+  ".cm-panel.cm-search button:not([name=close])": {
+    height: "26px",
+    padding: "0 8px",
+    borderRadius: "6px",
+    border: "1px solid var(--color-control-line)",
+    backgroundColor: "var(--color-surface)",
+    backgroundImage: "none",
+    color: "var(--color-ink-soft)",
+    fontWeight: "560",
+  },
+  ".cm-panel.cm-search button[name=close]": {
+    color: "var(--color-muted)",
+    padding: "0 6px",
+    fontSize: "16px",
+    lineHeight: "1",
+  },
+  ".cm-searchMatch": { backgroundColor: "var(--color-accent-soft)" },
+  ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "var(--color-accent-pressed)" },
+  ".cm-selectionMatch": { backgroundColor: "var(--color-surface-muted)" },
 });
 
 /** The block shapes that are drawn around whole lines, not inside them. */
@@ -596,7 +650,23 @@ export function MarkdownEditor({
           },
         },
       ]),
-      keymap.of([...defaultKeymap, ...historyKeymap, ...markdownKeymap]),
+      keymap.of([...defaultKeymap, ...historyKeymap, ...markdownKeymap, ...searchKeymap]),
+      // Find and replace, ⌘F. The panel is CodeMirror's own — a document
+      // people write in for an hour needs one, and writing a second one would
+      // only be a worse version of this.
+      search({ top: true }),
+      highlightSelectionMatches(),
+      // More than one caret: ⌘D takes the next occurrence of what is selected,
+      // ⌥-click adds one, ⌥-drag selects a rectangle. The same three moves
+      // every editor has, and the reason renaming a word six times in a
+      // document is one edit rather than six.
+      EditorState.allowMultipleSelections.of(true),
+      drawSelection(),
+      rectangularSelection(),
+      crosshairCursor(),
+      // Where dragged text would land. Without it, dropping a paragraph is a
+      // guess.
+      dropCursor(),
       // GitHub's Markdown, because that is the Markdown people write:
       // tables, task lists, strikethrough, bare links.
       markdown({ base: markdownLanguage, extensions: [GFM], addKeymap: false }),

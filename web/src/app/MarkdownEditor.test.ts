@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { spliced } from "./MarkdownEditor";
-import { firstLine } from "./DocumentsRoute";
+import { firstLine, renamed, words } from "./DocumentsRoute";
 
 describe("putting a rewritten passage back", () => {
   it("keeps the newline a selected line brought with it", () => {
@@ -45,5 +45,37 @@ describe("what a document is called", () => {
 
   it("stops where the Host stops it", () => {
     expect(firstLine("x".repeat(80))).toHaveLength(50);
+  });
+});
+
+describe("renaming a page from the list", () => {
+  it("writes the first line and keeps its markup", () => {
+    expect(renamed("# Notes\n\nBody.", "Plans")).toBe("# Plans\n\nBody.");
+    expect(renamed("- one\n- two", "first")).toBe("- first\n- two");
+  });
+
+  it("skips the empty lines above the first one", () => {
+    expect(renamed("\n\n  \nOld name\nrest", "New name")).toBe("\n\n  \nNew name\nrest");
+  });
+
+  it("gives an empty document the name as its whole content", () => {
+    expect(renamed("   \n\n", "First page")).toBe("First page");
+  });
+});
+
+describe("how much has been written", () => {
+  it("counts words, not markup", () => {
+    expect(words("# A heading\n\nTwo words here.")).toBe("5 words");
+    expect(words("one")).toBe("1 word");
+    expect(words("")).toBe("0 words");
+  });
+
+  it("counts Chinese by character, because it has no spaces to count between", () => {
+    expect(words("今天写了三行")).toBe("6 words");
+    expect(words("今天 wrote three")).toBe("4 words");
+  });
+
+  it("does not count what is inside a fenced block", () => {
+    expect(words("Real words here\n\n```\nnot counted at all\n```")).toBe("3 words");
   });
 });

@@ -629,6 +629,45 @@ then measured in the real panel — see `scripts/qa/n14.mjs`.
   recorded keep pointing at prompts that exist. No model writes summary lines
   here — a person edits a prompt by hand and the diff is the story.
 
+### The list is rearranged by hand (2026-08-14)
+
+(F4. The tree landed with `parent_id` and `position` real and no way to touch
+them: moving a page meant calling the API.)
+
+- **A page is dragged where it goes.** The whole row is the handle. A quarter
+  at each end of the row it is over puts it above or below that page; the half
+  in the middle puts it inside. A line is drawn where it would land, and the
+  row it is being dropped into is ringed.
+- **Hovering over a folded page opens it**, after a moment, so what is inside
+  can be dropped into without letting go.
+- **A page cannot be dropped inside itself.** That is the one move that would
+  stop a tree being a tree, and the Host refuses it too.
+- **Dragging is off while a search is on.** A search flattens the tree, and a
+  flattened tree has no order to rearrange.
+- **Renaming writes the first line**, because the first line is the name. The
+  line's own markup is kept: `# Notes` renamed to `Plans` is `# Plans`, not a
+  heading that quietly stopped being one. Double-click a row, or Rename in
+  its ⋯.
+- **Deleting asks, and says what moves.** The pages inside the one being
+  deleted move up into its place rather than going with it, and the dialog
+  says so before the press.
+
+### The editing a page needs (2026-08-14)
+
+(F5. Read against vibedoc line by line: on plain Markdown editing Logue was
+already ahead — what was missing was ordinary editor furniture.)
+
+- **⌘F finds and replaces**, in CodeMirror's own panel wearing the product's
+  clothes. Only the surfaces are restated; nothing about how it works is
+  touched.
+- **More than one caret.** ⌘D takes the next occurrence of what is selected,
+  ⌥-click adds a caret, ⌥-drag selects a rectangle.
+- **Dragged text shows where it would land.**
+- **The footer says how much has been written and whether it is saved.** Words,
+  not characters — nobody writing a page thinks in characters — with markup
+  and fenced blocks left out, and Chinese counted by character, because a
+  Chinese sentence has no spaces to count between.
+
 ## An agent that is not ours
 
 - **A document link is all another agent needs.** Hand the URL of a document to

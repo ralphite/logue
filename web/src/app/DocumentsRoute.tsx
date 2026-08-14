@@ -1,8 +1,9 @@
-import { ChevronRight, Download, Plus, Wand2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Empty, ErrorNote, IconButton, Notice, Spinner, Tooltip } from "@logue/ui";
+import { ChevronRight, Download, MoreHorizontal, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button, cn, Empty, ErrorNote, IconButton, Menu, MenuItem, Notice, Spinner, Tooltip } from "@logue/ui";
 import { api, ApiError, type Document as DocumentRecord, type Material } from "../api";
 import { DRAFT } from "./AppShell";
+import { ConfirmDelete } from "./ConfirmDelete";
 import { useHoldsUnsaved } from "./freshness";
 import { DOCUMENT, History } from "./History";
 import { MarkdownEditor, type MarkdownHandle } from "./MarkdownEditor";
@@ -45,6 +46,41 @@ export function firstLine(text: string, limit = TITLE_LIMIT): string {
 }
 
 /**
+ * The same words, with the first line saying something else.
+ *
+ * A document has no name of its own — the first line is the name — so renaming
+ * one from the list means writing that line. The line's own markup is kept: a
+ * page whose first line is `# Notes` renamed to `Plans` is `# Plans`, not a
+ * heading that quietly stopped being one.
+ */
+export function renamed(text: string, name: string): string {
+  const lines = (text ?? "").replace(/\r\n/g, "\n").split("\n");
+  const at = lines.findIndex((line) => line.trim());
+  if (at < 0) return name;
+  const prefix = /^\s*(#{1,6}\s+|>\s*|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+)?/.exec(lines[at] ?? "")?.[0] ?? "";
+  lines[at] = `${prefix}${name}`;
+  return lines.join("\n");
+}
+
+/** Where a dragged page would land, relative to the row it is over. */
+type Zone = "above" | "into" | "below";
+
+/** How long a folded row waits under the pointer before it opens. */
+const HOVER_OPEN_MS = 700;
+
+/**
+ * Where in a row the pointer is, in the three parts a drop can mean.
+ *
+ * A quarter at each end puts the page beside this one; the half in the middle
+ * puts it inside.
+ */
+function zoneOf(event: React.DragEvent<HTMLElement>): Zone {
+  const box = event.currentTarget.getBoundingClientRect();
+  const part = (event.clientY - box.top) / box.height;
+  return part < 0.25 ? "above" : part > 0.75 ? "below" : "into";
+}
+
+/**
  * Documents, as three panes: everything written on the left, the page being
  * written on the right — with the Sources it cites down its own rail.
  */
@@ -72,7 +108,104 @@ export function DocumentsRoute({
   const [shut, setShut] = useState<Set<string>>(new Set());
   const action = useAction();
 
+  /**
+   * The page being dragged, and the row the pointer is over.
+   *
+   * Held in a ref as well as in state: `dragover` can fire in the same tick as
+   * `dragstart`, and a handler reading the state would still be reading the
+   * render before the drag began — no drop target, and the drag does nothing.
+   */
+  const [dragging, setDragging] = useState<string>();
+  const dragged = useRef<string>(undefined);
+  const [over, setOver] = useState<{ id: string; zone: Zone }>();
+  /** The row being renamed in place, and the name so far. */
+  const [renaming, setRenaming] = useState<string>();
+  const [dropping, setDropping] = useState<DocumentRecord>();
+  /** Bumped when a page is renamed from the list, to reload it if it is open. */
+  const [rewritten, setRewritten] = useState(0);
+  const opening = useRef<{ id: string; timer: number }>(undefined);
+
   const all = useMemo(() => documents.data?.documents ?? [], [documents.data]);
+
+  /** A page cannot be dropped inside itself — the one move that breaks a tree. */
+  const subtreeOf = useCallback(
+    (id: string) => {
+      const children = new Map<string, string[]>();
+      for (const one of all) {
+        const parent = one.parent_id ?? "";
+        children.set(parent, [...(children.get(parent) ?? []), one.id]);
+      }
+      const found = new Set<string>([id]);
+      const walk = (from: string) => {
+        for (const child of children.get(from) ?? []) {
+          found.add(child);
+          walk(child);
+        }
+      };
+      walk(id);
+      return found;
+    },
+    [all],
+  );
+
+  /** Put the dragged page where the pointer says, and tell the Host once. */
+  const drop = (row: DocumentRecord, zone: Zone) => {
+    const moving = dragged.current;
+    dragged.current = undefined;
+    setDragging(undefined);
+    setOver(undefined);
+    if (!moving || moving === row.id || subtreeOf(moving).has(row.id)) return;
+    const siblings = all.filter((one) => (one.parent_id ?? "") === (row.parent_id ?? ""));
+    const at = siblings.findIndex((one) => one.id === row.id);
+    const where =
+      zone === "into"
+        ? { parent_id: row.id, before: null }
+        : {
+            parent_id: row.parent_id ?? null,
+            // Above this row, or above the one after it — which is the end of
+            // the list when there is nothing after it.
+            before: zone === "above" ? row.id : (siblings[at + 1]?.id ?? null),
+          };
+    if (zone === "into") setShut((was) => new Set([...was].filter((one) => one !== row.id)));
+    void action.run(async () => {
+      await api.moveDocument(moving, where);
+      await documents.refresh();
+    });
+  };
+
+  /** Hovering over a folded page opens it, so its inside can be dropped into. */
+  const linger = (row: DocumentRecord, children: number) => {
+    if (opening.current?.id === row.id) return;
+    window.clearTimeout(opening.current?.timer);
+    if (children === 0 || !shut.has(row.id)) {
+      opening.current = undefined;
+      return;
+    }
+    opening.current = {
+      id: row.id,
+      timer: window.setTimeout(() => {
+        setShut((was) => new Set([...was].filter((one) => one !== row.id)));
+      }, HOVER_OPEN_MS),
+    };
+  };
+
+  /** Write a new first line, which is what a name is. */
+  const rename = (id: string, name: string) => {
+    setRenaming(undefined);
+    const wanted = name.trim();
+    if (!wanted) return;
+    void action.run(async () => {
+      const { document } = await api.document(id);
+      const next = renamed(document.content, wanted);
+      if (next === document.content) return;
+      await api.updateDocument(id, { content: next, expected_revision: document.revision });
+      await documents.refresh();
+      // The editor holds its own copy of the words; if this page is the one
+      // open in it, it has to read them again or its next autosave would put
+      // the old first line back.
+      if (id === openId) setRewritten((was) => was + 1);
+    });
+  };
   /**
    * The list as a tree: each row knows how deep it sits and whether anything
    * is under it. Searching flattens it — a result you cannot see because its
@@ -128,8 +261,74 @@ export function DocumentsRoute({
             <Spinner /> Loading
           </div>
         )}
-        {shown.map(({ one, depth, children }) => (
-          <div key={one.id} className="relative">
+        {shown.map(({ one, depth, children }) =>
+          renaming === one.id ? (
+            <RenameRow
+              key={one.id}
+              name={one.title || "Untitled"}
+              depth={depth}
+              onDone={(name) => rename(one.id, name)}
+              onCancel={() => setRenaming(undefined)}
+            />
+          ) : (
+          <div
+            key={one.id}
+            // Which page this row is, so a check can drop one onto another.
+            data-doc={one.id}
+            // The page being carried is faded where it came from, so a drag
+            // over a long list still says what is being moved.
+            className={cn("relative", dragging === one.id && "opacity-40")}
+            // The whole row is the handle: a page is a thing on a list, and a
+            // list you can only reorder by finding a grip is a list nobody
+            // reorders. Searching flattens the tree, and a flattened tree has
+            // no order to change — so dragging is off while a query is on.
+            draggable={!query}
+            onDragStart={(event) => {
+              dragged.current = one.id;
+              setDragging(one.id);
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", one.id);
+            }}
+            onDragEnd={() => {
+              dragged.current = undefined;
+              setDragging(undefined);
+              setOver(undefined);
+              window.clearTimeout(opening.current?.timer);
+              opening.current = undefined;
+            }}
+            onDragOver={(event) => {
+              const moving = dragged.current;
+              if (!moving || subtreeOf(moving).has(one.id)) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              const zone = zoneOf(event);
+              setOver({ id: one.id, zone });
+              if (zone === "into") linger(one, children);
+            }}
+            onDragLeave={() => {
+              window.clearTimeout(opening.current?.timer);
+              opening.current = undefined;
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              // Read off the event, not off `over`: a drop can arrive in the
+              // same tick as the dragover that set it, and the state would
+              // still be a render behind — every drop landed "into".
+              drop(one, zoneOf(event));
+            }}
+            onDoubleClick={() => setRenaming(one.id)}
+          >
+            {/* Where it would land, drawn where it would land. */}
+            {over?.id === one.id && over.zone !== "into" && (
+              <span
+                aria-hidden
+                className={`absolute inset-x-0 z-10 h-[2px] bg-accent ${over.zone === "above" ? "top-0" : "bottom-0"}`}
+                style={{ marginLeft: 16 + depth * 16 }}
+              />
+            )}
+            {over?.id === one.id && over.zone === "into" && (
+              <span aria-hidden className="pointer-events-none absolute inset-0 z-10 rounded-sm ring-2 ring-accent ring-inset" />
+            )}
             <RowShell
               badge={<IconBadge name="document" tinted={one.id === selectedId} />}
               selected={one.id === selectedId}
@@ -191,16 +390,61 @@ export function DocumentsRoute({
                   <Plus size={13} />
                 </IconButton>
               </Tooltip>
+              <Menu
+                label="More"
+                align="end"
+                trigger={(props) => (
+                  <IconButton label="More" {...props}>
+                    <MoreHorizontal size={13} />
+                  </IconButton>
+                )}
+              >
+                <MenuItem onClick={() => setRenaming(one.id)}>
+                  <Pencil size={12} /> Rename
+                </MenuItem>
+                <MenuItem onClick={() => setDropping(one)}>
+                  <Trash2 size={12} /> Delete…
+                </MenuItem>
+              </Menu>
             </span>
           </div>
-        ))}
+          ),
+        )}
       </ListPane>
+
+      {dropping && (
+        <ConfirmDelete
+          open
+          title="Delete this page"
+          what={dropping.title || "Untitled"}
+          impact={() => {
+            const under = all.filter((one) => one.parent_id === dropping.id).length;
+            return Promise.resolve(
+              under > 0
+                ? [`${under} ${under === 1 ? "page" : "pages"} inside it move up to where it was`]
+                : [],
+            );
+          }}
+          kept="Every Source it cited stays in the workspace."
+          busy={action.busy}
+          error={action.error}
+          onCancel={() => setDropping(undefined)}
+          onConfirm={() =>
+            void action.run(async () => {
+              await api.deleteDocument(dropping.id);
+              setDropping(undefined);
+              if (dropping.id === openId) onOpen(undefined);
+              await documents.refresh();
+            })
+          }
+        />
+      )}
 
       {selectedId || openId === DRAFT ? (
         <DocumentEditor
           // Remounts when the draft becomes real, which is what makes the editor
           // pick up the id without having to thread it back through itself.
-          key={openId ?? selectedId}
+          key={`${openId ?? selectedId}:${rewritten}`}
           id={openId ?? selectedId!}
           onCreated={onCreated}
           onOpenSource={onOpenSource}
@@ -459,7 +703,11 @@ function DocumentEditor({
                     </button>
                   </Tooltip>
                 )}
-                {saved && <span>Saved {timeAgo(saved)}</span>}
+                {/* Whether the words are on disk, said once and plainly. A
+                    document autosaves on a pause, and between the keystroke
+                    and the save this tab holds the only copy. */}
+                {waitingToSave ? <span>Saving…</span> : saved ? <span>Saved {timeAgo(saved)}</span> : null}
+                <span className="tabular-nums">{words(text)}</span>
                 {/* Typing keeps a working copy; this marks a state to come
                     back to. One per sitting happens on its own — this is for
                     the moments a person wants to name. */}
@@ -534,4 +782,64 @@ function DocumentEditor({
       </DetailBody>
     </DetailPane>
   );
+}
+
+/**
+ * A page's name, being typed.
+ *
+ * It replaces the row rather than sitting on top of it: an input inside the
+ * row's own button is not a thing a browser will render, and a name being
+ * changed is not a row you can also click.
+ */
+function RenameRow({
+  name,
+  depth,
+  onDone,
+  onCancel,
+}: {
+  name: string;
+  depth: number;
+  onDone: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState(name);
+  return (
+    <div
+      className="grid w-full grid-cols-[24px_minmax(0,1fr)] gap-x-[9px] border-b border-line py-[7px] pr-4 pl-4"
+      style={depth ? { paddingLeft: 16 + depth * 16 } : undefined}
+    >
+      <IconBadge name="document" tinted />
+      <input
+        // eslint-disable-next-line jsx-a11y/no-autofocus
+        autoFocus
+        aria-label="Name"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => onDone(draft)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") onDone(draft);
+          if (event.key === "Escape") onCancel();
+        }}
+        onFocus={(event) => event.target.select()}
+        className="h-5 w-full rounded-sm border border-accent-line bg-surface px-1 text-[12px] font-[600] text-ink outline-0"
+      />
+    </div>
+  );
+}
+
+/**
+ * How much has been written, in the unit people count in.
+ *
+ * Words, not characters: nobody writing a page thinks in characters. Markup
+ * is not counted — `##` is not a word — and CJK is counted by character,
+ * because a Chinese sentence has no spaces to count between.
+ */
+export function words(text: string): string {
+  const bare = (text ?? "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/[#>*_`~[\]()|-]/g, " ");
+  const cjk = bare.match(/[\u3400-\u9fff\u3040-\u30ff]/g)?.length ?? 0;
+  const latin = bare.replace(/[\u3400-\u9fff\u3040-\u30ff]/g, " ").match(/\S+/g)?.length ?? 0;
+  const total = cjk + latin;
+  return `${total} ${total === 1 ? "word" : "words"}`;
 }

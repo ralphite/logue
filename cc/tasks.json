@@ -619,7 +619,7 @@
       "id": "F4",
       "title": "文档列表照 Vibedoc 补齐:拖拽排序/挪层级,风险项列出来等他确认排除",
       "type": "feature",
-      "status": "queued",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
@@ -638,7 +638,7 @@
       "id": "F5",
       "title": "编辑器功能清单核实:纯 Markdown 编辑上 Logue 已经领先 Vibedoc,真正缺的是 AI 工作流功能",
       "type": "feature",
-      "status": "queued",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
