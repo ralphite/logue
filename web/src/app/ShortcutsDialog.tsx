@@ -1,4 +1,4 @@
-import { Dialog } from "@logue/ui";
+import { Dialog, Keys } from "@logue/ui";
 import { SHORTCUTS } from "./shortcuts";
 
 /**
@@ -10,7 +10,9 @@ export function ShortcutsList() {
     <div className="grid gap-1.5">
       {SHORTCUTS.map((shortcut) => (
         <p key={shortcut.keys} className="flex items-baseline gap-3 text-[13px]">
-          <kbd className="w-28 shrink-0 font-sans text-xs text-muted">{shortcut.keys}</kbd>
+          <span className="w-28 shrink-0">
+            <Keys>{shortcut.keys}</Keys>
+          </span>
           <span className="text-ink-soft">{shortcut.what}</span>
         </p>
       ))}

@@ -222,9 +222,7 @@ export function SettingsRoute() {
             Words Logue has misheard before. Every recording is transcribed knowing these.
           </p>
           {(corrections.data?.corrections ?? []).length === 0 ? (
-            <p className="text-xs text-muted">
-              None yet — fix a word on a recording and it will be remembered here.
-            </p>
+            <p className="text-xs text-muted">None yet — fix a word on a recording.</p>
           ) : (
             <div className="grid gap-1">
               {(corrections.data?.corrections ?? []).map((fix) => (
@@ -251,10 +249,7 @@ export function SettingsRoute() {
         </Section>
 
         <Section title="Words Logue knows">
-          <p className="text-xs text-muted">
-            Spelled exactly this way in every recording. Each one is here because you decided it —
-            nothing is learned from a transcript, which is only ever the model repeating itself.
-          </p>
+          <p className="text-xs text-muted">Spelled this way in every recording.</p>
           {(vocabulary.data?.learned ?? []).length === 0 ? (
             <p className="text-xs text-muted">
               None yet — fix a word on a recording, or approve one below.
@@ -282,10 +277,7 @@ export function SettingsRoute() {
 
           {(vocabulary.data?.candidates ?? []).length > 0 && (
             <>
-              <p className="mt-1 text-xs text-muted">
-                Written by hand more than once, and never heard right. Yours to approve — Logue does
-                not add these on its own.
-              </p>
+              <p className="mt-1 text-xs text-muted">Written by hand more than once, never heard right.</p>
               <div className="grid gap-1">
                 {(vocabulary.data?.candidates ?? []).map((maybe) => (
                   <div key={maybe.term} className="flex items-center gap-2 text-xs">
@@ -373,10 +365,7 @@ export function SettingsRoute() {
         </Section>
 
         <Section title="Backups">
-          <p className="text-xs text-muted">
-            Restoring replaces everything here with what the backup holds. What is here now is backed up
-            first.
-          </p>
+          <p className="text-xs text-muted">Restoring replaces everything here, after backing it up.</p>
           {(backups.data?.backups ?? []).length === 0 ? (
             <p className="text-xs text-muted">None yet.</p>
           ) : (

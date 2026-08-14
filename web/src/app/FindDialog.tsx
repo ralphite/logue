@@ -1,6 +1,6 @@
 import { FileText, FolderOpen, Layers, Search, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Input, Spinner, cn } from "@logue/ui";
+import { Empty, Input, Keys, Spinner, cn } from "@logue/ui";
 import { api } from "../api";
 import { useHost } from "./useHost";
 
@@ -169,13 +169,9 @@ export function FindDialog({
 
         <div ref={list} className="logue-scroll max-h-[52vh]">
           {query && hits.length === 0 && !loading && (
-            <p className="px-3 py-6 text-center text-xs text-muted">Nothing matches that.</p>
+            <Empty className="px-3">Nothing matches that.</Empty>
           )}
-          {!query && (
-            <p className="px-3 py-6 text-center text-xs text-muted">
-              Everything you have captured, written, or organised.
-            </p>
-          )}
+          {!query && <Empty className="px-3">Everything you have captured, written, or organised.</Empty>}
           {hits.map((hit, index) => {
             const Icon = hit.icon;
             return (
@@ -189,10 +185,14 @@ export function FindDialog({
                   onClose();
                 }}
                 className={cn(
-                  "flex w-full items-center gap-2.5 px-3 py-2 text-left",
-                  index === at ? "bg-active" : "hover:bg-hover",
+                  // The same "this one" as every list in the app: a soft accent
+                  // fill and an accent edge. `bg-active` on `bg-panel` measured
+                  // 1.15:1 — arrowing down moved a highlight nobody could see.
+                  "relative flex w-full items-center gap-2.5 px-3 py-2 text-left",
+                  index === at ? "bg-accent-soft" : "hover:bg-hover",
                 )}
               >
+                {index === at && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-accent" />}
                 <Icon size={14} className="shrink-0 text-muted" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[13px] text-ink">{hit.title}</span>
@@ -201,6 +201,21 @@ export function FindDialog({
               </button>
             );
           })}
+        </div>
+
+        {/* The keys are the whole point of a box like this, and nothing said
+            they existed — you could arrow through it only if you guessed. */}
+        <div className="flex items-center gap-3 border-t border-line px-3 py-1.5 text-[11px] text-muted">
+          <span className="flex items-center gap-1">
+            <Keys>↑</Keys>
+            <Keys>↓</Keys> to move
+          </span>
+          <span className="flex items-center gap-1">
+            <Keys>↵</Keys> to open
+          </span>
+          <span className="flex items-center gap-1">
+            <Keys>esc</Keys> to close
+          </span>
         </div>
       </div>
     </div>

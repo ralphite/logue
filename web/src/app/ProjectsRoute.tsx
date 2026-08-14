@@ -1,6 +1,6 @@
 import { Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { ACTS, ActBadge, Button, ErrorNote, Spinner, Textarea, Tooltip } from "@logue/ui";
+import { ACTS, ActBadge, Button, Empty, ErrorNote, Spinner, Textarea, Tooltip } from "@logue/ui";
 import { api, type Run } from "../api";
 import { kindOf } from "./ActivitiesPage";
 import { DRAFT } from "./AppShell";
@@ -292,7 +292,7 @@ function ProjectDetail({
 
             <Section cap="Sources" count={materials.length} corner="newest first">
               {materials.length === 0 ? (
-                <p className="mt-2 text-xs text-muted">Nothing here yet — capture with the extension.</p>
+                <Empty>Nothing here yet — capture with the extension.</Empty>
               ) : (
                 <div className="mt-2 -mx-4">
                   {materials.map((material) => (

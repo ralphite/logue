@@ -1,6 +1,6 @@
 import { Bookmark, Check, MessageSquarePlus, Mic, MoreHorizontal, Sparkles, X } from "lucide-react";
 import { useState, type CSSProperties, type SyntheticEvent } from "react";
-import { Button, IconButton, Menu, MenuItem, RecordingDot, Spinner } from "@logue/ui";
+import { Button, ErrorBubble, IconButton, Menu, MenuItem, RecordingDot, Spinner } from "@logue/ui";
 import { FloatingBar, type Draggable } from "./FloatingBar";
 import type { Skill } from "../api";
 
@@ -177,14 +177,10 @@ export function SelectionBar({
         </>
       )}
 
-      {error && (
-        <div
-          role="alert"
-          className="absolute right-0 bottom-[calc(100%+6px)] w-max max-w-64 rounded-lg border border-[#efc9c4] bg-white px-2 py-1.5 text-xs text-[#9b3e35]"
-        >
-          {error}
-        </div>
-      )}
+      {/* The shared bubble, not a hand-typed one: these colours were spelled
+          out here as hex, so this failure looked like a different product
+          from the same failure three inches away. */}
+      {error && <ErrorBubble className="right-0 bottom-[calc(100%+6px)]">{error}</ErrorBubble>}
     </FloatingBar>
   );
 }

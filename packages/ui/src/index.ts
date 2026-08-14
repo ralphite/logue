@@ -8,7 +8,7 @@ export { Labeled, Tooltip } from "./Tooltip";
 export { ContextMenu, MenuHeading, MenuSeparator, type MenuPoint } from "./ContextMenu";
 export { Dialog, DialogActions } from "./Dialog";
 export { Citation, OriginMark, originOf, readAnswer, type AnswerToken, type Origin } from "./Origin";
-export { Empty, ErrorBubble, ErrorNote, Loading, RecordingDot, Spinner } from "./Feedback";
+export { Empty, ErrorBubble, ErrorNote, Keys, Loading, Notice, RecordingDot, Spinner } from "./Feedback";
 export { LogueLogo, LogueMark } from "./Logo";
 export { Resizer, clampSize, usePersistentSize } from "./Resizer";
 export { Recording } from "./Recording";

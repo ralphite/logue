@@ -286,9 +286,29 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   is built; what it does for the person was already settled.
 - **⌘⇧K opens the Side Panel already recording.** One key, no aiming: the
   panel appears and the microphone is live. **Esc throws the recording away;
-  Enter takes it** and puts what was said into the panel's conversation as a
-  message. Nothing is sent until Enter — a recording nobody accepted leaves no
-  trace.
+  Enter takes it** — and, from 2026-08-13, taking it means the words land in
+  the composer, not that they are sent. (Changed by his request below; until
+  N13 ships, Enter still sends.) Nothing is kept until Esc or Enter is chosen —
+  a recording nobody accepted leaves no trace.
+- **The panel is one list and one input box.** (2026-08-13, his request — see
+  [panel-composer.md](panel-composer.md).) No verb row, no second input box, no
+  tabs, no separate sections for transcripts, chat, kept passages and queued
+  recordings. Everything the panel knows is one stream of records; everything a
+  person can put in goes through one composer.
+- **Speaking fills the box; it does not send.** The recording bar offers three
+  things and no more: **✕ throw it away**, **✓ turn it into text in the box**,
+  **↑ turn it into text and submit**. Enter is ✓, ⌘Enter is ↑, Esc is ✕. Words
+  land at the caret and never overwrite what is already typed, so one message
+  can be spoken in several goes with typing in between. Submitting is always a
+  separate, deliberate act.
+- **The page is the default scope; a selection narrows it.** Selecting text on
+  the page puts that passage into the composer as a Markdown quote, with the
+  anchor it was taken from, so what is written about it can be found back on
+  the page later. Clearing the selection returns the scope to the whole page.
+- **Every submitted record carries the Skills underneath it** — Ask, As
+  Markdown, Into English, and whatever else is configured — whether it was
+  typed, spoken, quoted or saved from the page. A transcript is not a special
+  kind of text, and rewrites sit indented under what they were made from.
 - **The panel's conversation can call the Skills already configured** —
   translate, file into a Project, and the rest — rather than offering its own
   parallel set of verbs. A Skill is defined once and reachable from everywhere.
@@ -380,6 +400,26 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   not full page??? quality too low.")
 - **The Storybook reads in levels, in order**: Foundation, Component, Feature,
   Page, Journey. Every story belongs to exactly one.
+
+## One vocabulary on screen
+
+- **One shape per kind of message.** A failure, a warning and a plain fact each
+  have one component (`Notice`), and "nothing here" has one (`Empty`). There
+  were seven spellings of the first and three placements of the second, two of
+  them with colours typed in by hand — so the same failure looked like a
+  different product depending on where it happened.
+- **A key is drawn as a key.** Shortcuts are key caps (`Keys`), not grey words.
+- **The destructive answer is the one that looks like the action.** In a "are
+  you sure" dialog, Delete is filled and Cancel is quiet; two outline buttons
+  give equal billing to both answers.
+- **Whatever is selected is visible.** A highlighted row uses the same
+  accent-soft fill and accent edge everywhere; `bg-active` on `bg-panel`
+  measured 1.15:1, so arrowing through Find moved something nobody could see.
+- **A citation is a chip you can follow, wherever it appears** — in an answer
+  and in a document. `[Source 3]` printed as three words wrapped across lines
+  and could not be opened.
+- **A recording looks its length.** The waveform's density follows the
+  duration, so a sentence and a ten-minute meeting do not draw the same picture.
 
 ## Two surfaces, one workspace
 

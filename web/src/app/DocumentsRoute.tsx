@@ -1,6 +1,6 @@
 import { Download, Wand2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, ErrorNote, Spinner, Tooltip } from "@logue/ui";
+import { Button, Empty, ErrorNote, Notice, Spinner, Tooltip } from "@logue/ui";
 import { api, ApiError, type Document as DocumentRecord, type Material } from "../api";
 import { DRAFT } from "./AppShell";
 import { useHoldsUnsaved } from "./freshness";
@@ -134,9 +134,7 @@ export function DocumentsRoute({
         <DetailPane>
           <DetailHeader name={<span className="font-[500] text-muted">Documents</span>} />
           <DetailBody>
-            {!documents.loading && (
-              <p className="text-[12.5px] text-muted">Nothing written yet — press + to start a page.</p>
-            )}
+            {!documents.loading && <Empty>Nothing written yet — press + to start a page.</Empty>}
           </DetailBody>
         </DetailPane>
       )}
@@ -314,29 +312,33 @@ function DocumentEditor({
       <DetailBody>
         {loaded.error && <ErrorNote>{loaded.error}</ErrorNote>}
         {conflict && (
-          <div
-            role="alert"
-            className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-muted px-2.5 py-2 text-xs text-ink"
+          <Notice
+            tone="quiet"
+            className="mb-3"
+            action={
+              <>
+                <Button
+                  onClick={() => {
+                    window.clearTimeout(timer.current);
+                    void action.run(() => write(mine(), true));
+                  }}
+                >
+                  Keep mine
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    window.clearTimeout(timer.current);
+                    void loaded.refresh();
+                  }}
+                >
+                  Discard mine
+                </Button>
+              </>
+            }
           >
-            <span>This document changed somewhere else. Your edits are still here, unsaved.</span>
-            <Button
-              onClick={() => {
-                window.clearTimeout(timer.current);
-                void action.run(() => write(mine(), true));
-              }}
-            >
-              Keep mine
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                window.clearTimeout(timer.current);
-                void loaded.refresh();
-              }}
-            >
-              Discard mine
-            </Button>
-          </div>
+            This document changed somewhere else. Your edits are still here, unsaved.
+          </Notice>
         )}
         {!doc ? (
           <div className="flex items-center gap-2 text-xs text-muted">
@@ -356,6 +358,12 @@ function DocumentEditor({
                 onChange={onTyped}
                 onSelection={setSelected}
                 handle={editor}
+                // A citation is a claim you can follow. `[Source 3]` printed
+                // as three words was one you could only read.
+                onCite={(n) => {
+                  const source = sources[n - 1];
+                  if (source) onOpenSource(source.id);
+                }}
                 label="Document"
               />
 

@@ -61,7 +61,7 @@ export function Recording({
     };
   }, [seconds]);
 
-  const bars = heights(shape ?? src);
+  const bars = heights(shape ?? src, seconds);
   const played = Math.round(at * bars.length);
   const length = seconds ?? 0;
   const showing = playing && length ? Math.round(at * length) : length;
@@ -170,7 +170,16 @@ function clock(seconds: number): string {
  * looked different each time it was rendered would read as a different
  * recording.
  */
-function heights(seed: string): number[] {
+/**
+ * The bars, and how many of them.
+ *
+ * The count follows the length, so a thought and a ten-minute meeting do not
+ * draw the same picture: forty bars either way said the two were the same
+ * size. Logarithmic, because the difference between 5 seconds and a minute
+ * matters more than between eight minutes and nine — and bounded, because a
+ * scrubber needs something to aim at either way.
+ */
+function heights(seed: string, seconds = 0): number[] {
   let value = 2166136261;
   for (let index = 0; index < seed.length; index += 1) {
     value = Math.imul(value ^ seed.charCodeAt(index), 16777619);
@@ -179,5 +188,6 @@ function heights(seed: string): number[] {
     value = (Math.imul(value, 1103515245) + 12345) & 0x7fffffff;
     return value / 0x7fffffff;
   };
-  return Array.from({ length: 40 }, () => 4 + Math.round(next() * 14));
+  const count = Math.min(64, Math.max(16, Math.round(16 + 12 * Math.log10(1 + Math.max(0, seconds)))));
+  return Array.from({ length: count }, () => 4 + Math.round(next() * 14));
 }

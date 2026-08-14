@@ -6,7 +6,7 @@
       "id": "X1",
       "title": "扩展 sidepanel/widget 和 Web 应用的数据要保持同步",
       "type": "bug",
-      "status": "queued",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
@@ -18,7 +18,7 @@
         "in_bugs_ext_widget"
       ],
       "created": "2026-08-12",
-      "updated": "2026-08-12"
+      "updated": "2026-08-13"
     },
     {
       "id": "N10",
@@ -494,6 +494,27 @@
       ],
       "created": "2026-08-13",
       "updated": "2026-08-13"
+    },
+    {
+      "id": "N13",
+      "title": "Extension 面板大幅简化:一个列表 + 一个 composer,语音按 chatgpt.com 的两键设计",
+      "type": "design",
+      "status": "blocked",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "extension",
+        "ui",
+        "redesign"
+      ],
+      "note": "占位,计划写完后回填。",
+      "blocked_on": "等你回答 panel-composer.md 第六节的三个问题(提交=存还是问、去处留不留、存整页要不要独立按钮)",
+      "input_ids": [
+        "in_extension_composer_input",
+        "in_docs_spec_panel"
+      ],
+      "created": "2026-08-13",
+      "updated": "2026-08-13"
     }
   ],
   "inputs": [
@@ -655,6 +676,18 @@
       "id": "in_task_tip_input",
       "at": "2026-08-13 21:09",
       "text": "task: 为什么这个模型它的文字是一个类似tip的方式，而不是真正的文字input value呢？",
+      "images": []
+    },
+    {
+      "id": "in_extension_composer_input",
+      "at": "2026-08-13 21:21",
+      "text": "我们把 extension 这边大幅改动一下。我觉得我们应该简化很多，只有一个列表，然后只有一个 composer 或者 input widget。\n\n上面的话有几个不同的类型吧，比如说有一个 comment。这 comment 你可以是输入 text 或者是 dictation 输入的。\n\n默认的话是整个页面，你可以选择一块文本。在页面里选择的时候，会在 input 里自动地用 markdown 方式引用这个文本。\n\n然后我们用类似 chatgpt.com 上面的录音设计，也可以看我们的 Agent Runner 这个项目里面的类似的设计。\n\n我们可以语音输入，语音输入可以接受或者取消。接受的话，那么只是把这个结果插入到里面。\n\n插入之后转成文字并不是说马上就会 submit，会有一个专门的 submit button。\n\n我们用 chatgpt.com 一样，录音的时候有两个 button，一个就是录音转成文字插入，另外一个是转成文字插入直接提交。这样允许用语音可以多次地输入。\n\n每一次 submit 的东西，下面的话会有一个 ask markdown into English 这种东西。\n\n你可以考虑一下，然后基于我这整个设计分析一下，把事情完善一下，写下来给我看一下计划是什么，你的理解是什么。",
+      "images": []
+    },
+    {
+      "id": "in_docs_spec_panel",
+      "at": "2026-08-13 21:25",
+      "text": "方案已写:docs/spec/panel-composer.md。三个动词(Record/Keep/Ask)收成一个 composer;选中页面文字自动以 Markdown 引用进框(带 anchor,能定位回页面);录音条三键 ✕/✓/↑,插入不等于提交,允许多次口述;四段列表合成一条流,每条带类型徽章和 Ask·As Markdown·Into English 技能条。behaviors.md 已落 5 条,tasks.md 已同步。等他回答第六节三问。",
       "images": []
     }
   ]

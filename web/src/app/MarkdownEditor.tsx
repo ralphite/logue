@@ -2,7 +2,16 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import { Annotation, EditorState, RangeSetBuilder, type Extension } from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView, keymap, placeholder, ViewPlugin, type ViewUpdate } from "@codemirror/view";
+import {
+  Decoration,
+  type DecorationSet,
+  EditorView,
+  keymap,
+  placeholder,
+  ViewPlugin,
+  type ViewUpdate,
+  WidgetType,
+} from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { useEffect, useImperativeHandle, useRef, type RefObject } from "react";
 
@@ -63,6 +72,59 @@ export interface MarkdownHandle {
  */
 const MARKS = new Set(["HeaderMark", "EmphasisMark", "CodeMark", "QuoteMark", "LinkMark", "URL"]);
 
+/** `[Source 3]`, as it is written in every document a generation produced. */
+const CITATION = /\[Source (\d+)\]/g;
+
+/**
+ * A citation, drawn the way it is drawn everywhere else in the product.
+ *
+ * The literal `[Source 3]` was not only ugly: at 44rem it wrapped, and a
+ * citation split across two lines is two pieces of punctuation rather than
+ * one chip you can follow. Same pill as `Citation` in the answer, built by
+ * hand because CodeMirror widgets are DOM, not React.
+ */
+class Cite extends WidgetType {
+  constructor(
+    readonly n: number,
+    readonly follow?: (n: number) => void,
+  ) {
+    super();
+  }
+
+  override eq(other: Cite): boolean {
+    return other.n === this.n;
+  }
+
+  toDOM(): HTMLElement {
+    const chip = document.createElement("span");
+    chip.className =
+      "inline-flex h-5 translate-y-[2px] cursor-pointer items-center rounded-full border border-accent-line " +
+      "bg-accent-soft px-1.5 text-xs font-[650] text-accent-ink hover:bg-accent-hover-soft";
+    chip.textContent = String(this.n);
+    chip.title = `Source ${this.n}`;
+    chip.setAttribute("aria-label", `Source ${this.n}`);
+    if (this.follow) {
+      chip.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        this.follow?.(this.n);
+      });
+    }
+    return chip;
+  }
+
+  /**
+   * The editor keeps its hands off the chip.
+   *
+   * With this false, CodeMirror treated a press on the pill as a press on the
+   * text under it: the caret moved, the line opened for editing, and the
+   * Source never opened. A citation you cannot follow is the one thing this
+   * product must not draw.
+   */
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
 /**
  * The lines the caret or a selection touches, which keep their markup.
  *
@@ -85,10 +147,11 @@ function open(view: EditorView): Set<number> {
   return lines;
 }
 
-function marks(view: EditorView): DecorationSet {
-  const built = new RangeSetBuilder<Decoration>();
+function marks(view: EditorView, cite?: (n: number) => void): DecorationSet {
   const editing = open(view);
   const hidden = Decoration.replace({});
+  /** Collected first, sorted after: a RangeSetBuilder wants them in order. */
+  const found: { from: number; to: number; with: Decoration }[] = [];
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(view.state).iterate({
       from,
@@ -98,32 +161,50 @@ function marks(view: EditorView): DecorationSet {
         // A URL is only noise inside a written link; a bare one is the text.
         if (node.name === "URL" && node.node.parent?.name !== "Link") return;
         if (editing.has(view.state.doc.lineAt(node.from).number)) return;
-        if (node.to > node.from) built.add(node.from, node.to, hidden);
+        if (node.to > node.from) found.push({ from: node.from, to: node.to, with: hidden });
       },
     });
+    // Citations are not part of the Markdown grammar — they are ours — so
+    // they are found in the text rather than in the tree.
+    const text = view.state.doc.sliceString(from, to);
+    for (const match of text.matchAll(CITATION)) {
+      const at = from + (match.index ?? 0);
+      if (editing.has(view.state.doc.lineAt(at).number)) continue;
+      found.push({
+        from: at,
+        to: at + match[0].length,
+        with: Decoration.replace({ widget: new Cite(Number(match[1]), cite) }),
+      });
+    }
+  }
+  const built = new RangeSetBuilder<Decoration>();
+  for (const one of found.toSorted((a, b) => a.from - b.from || a.to - b.to)) {
+    built.add(one.from, one.to, one.with);
   }
   return built.finish();
 }
 
-const livePreview = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
+function livePreview(cite?: (n: number) => void) {
+  return ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
 
-    constructor(view: EditorView) {
-      this.decorations = marks(view);
-    }
-
-    update(update: ViewUpdate) {
-      // The caret moving is the whole point: it is what puts the markup of one
-      // line back and takes the last one's away. Focus counts as a move —
-      // clicking in and clicking away change which lines are being edited.
-      if (update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged) {
-        this.decorations = marks(update.view);
+      constructor(view: EditorView) {
+        this.decorations = marks(view, cite);
       }
-    }
-  },
-  { decorations: (plugin) => plugin.decorations },
-);
+
+      update(update: ViewUpdate) {
+        // The caret moving is the whole point: it is what puts the markup of
+        // one line back and takes the last one's away. Focus counts as a move
+        // — clicking in and clicking away change which lines are being edited.
+        if (update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged) {
+          this.decorations = marks(update.view, cite);
+        }
+      }
+    },
+    { decorations: (plugin) => plugin.decorations },
+  );
+}
 
 /** Everything the type system already decides, said in the type system's terms. */
 const written = HighlightStyle.define([
@@ -222,6 +303,7 @@ export function MarkdownEditor({
   onChange,
   onSelection,
   handle,
+  onCite,
   label = "Document",
 }: {
   /** The text as it stands on the Host. Sent in again only when it really changed. */
@@ -230,13 +312,15 @@ export function MarkdownEditor({
   /** Whether there is a passage to act on, so Rewrite can say it is unavailable. */
   onSelection?: (has: boolean) => void;
   handle?: RefObject<MarkdownHandle | null>;
+  /** A citation was pressed. `n` is the number as written in the text. */
+  onCite?: (n: number) => void;
   label?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(null);
   // Read inside CodeMirror's own callbacks, which outlive the render that made them.
-  const latest = useRef({ onChange, onSelection });
-  latest.current = { onChange, onSelection };
+  const latest = useRef({ onChange, onSelection, onCite });
+  latest.current = { onChange, onSelection, onCite };
 
   useEffect(() => {
     if (!host.current) return;
@@ -245,7 +329,7 @@ export function MarkdownEditor({
       keymap.of([...defaultKeymap, ...historyKeymap, ...markdownKeymap]),
       markdown({ base: markdownLanguage, addKeymap: false }),
       syntaxHighlighting(written),
-      livePreview,
+      livePreview((n) => latest.current.onCite?.(n)),
       shapes,
       page,
       EditorView.lineWrapping,

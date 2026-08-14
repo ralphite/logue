@@ -24,15 +24,20 @@
 | 12 | 面板头部 "Open Logue web app" 吃掉标题的宽度(C/B) | 改 "Open Logue",页面标题拿回空间 |
 | 13 | 归属 chip 实心 accent 长得像主按钮,accent 语义过载(A6/B7) | 选中改勾 + 中性底;accent 只留 primary 按钮和 citation |
 
-## 值得做、这轮没做的(已开 N9b 排队)
+## 值得做、这轮没做的(N9b)—— 2026-08-13 已做掉六条
 
-- **Documents 正文不渲染 Markdown**,`#`、`-`、`[Source 1]` 按字面显示还被折行拆开(A-2)—— 需要一个渲染器 + citation chip 复用,单独做。
-- **Notice / EmptyState 统一组件**(A8):现存七种错误写法、三种空态位置 —— 收敛是一次跨三包的机械替换。
-- **注入浮动条压住正在写的字段**(A7):要改 position.ts 的锚定策略,必须真机 Notion/Docs 复验,单独做。
-- **⌘K Find 选中行 1.15:1** + 无键盘提示(A17)。
-- **波形疏密不随时长变化**(A14);**Delete 确认里 Delete 与 Cancel 等重**(A10);**Settings 六段长解释违反自家规则 4**(A13);**快捷键不用 kbd**(A20)。
-- **mode/scope 混在一排 tab**(B9)—— 这就是 N1b,等 A/B 拍板,不在这里重复。
-- 浮层 ✓ 的位置三处不一致(A9)—— 与 X29"勾落在麦克风原位"的既有决定冲突,**需要你裁决**再动。
+| # | 项 | 状态 |
+|---|---|---|
+| ① | Documents 正文渲染 Markdown + citation chip(A-2) | **done**:编辑器换成 Markdown 所见即所得(F2),`[Source n]` 现在是可点的 chip,点开就是那条 Source |
+| ② | Notice / EmptyState 统一组件(A8) | **done**:新 `Notice`(danger/warning/quiet 三态)+ `Empty` 统一四处空态;两处手写的十六进制颜色改用 `ErrorBubble` |
+| ④ | ⌘K 选中行 1.15:1 + 无键盘提示(A17) | **done**:选中行改成和全站列表一致的 accent-soft + 左侧 accent 边;底部加 `↑↓ 移动 · ↵ 打开 · esc 关闭` |
+| ⑤ | 波形疏密不随时长变化(A14) | **done**:条数按时长对数映射(16–64),一句话和十分钟不再长得一样 |
+| ⑥ | Delete 与 Cancel 等重(A10) | **done**:`danger` 变实心填充,和 `primary` 同重量 |
+| ⑦ | Settings 长解释违反规则 4(A13) | **done**:四段收成一句 |
+| ⑧ | 快捷键不用 kbd(A20) | **done**:新 `Keys` 组件(键帽样式),快捷键面板和面板提示都用它 |
+| ③ | 注入浮动条压住正在写的字段(A7) | **待办**:要改 position.ts 锚定策略,**必须在你登录着的 Notion / Google Docs 上复验**,和 S3g 一起做 |
+| — | mode/scope 混在一排 tab(B9) | 就是 N1b,等你在 panel-ia.md 里拍 A/B |
+| — | 浮层 ✓ 位置三处不一致(A9) | **等你裁决**:与 X29「勾落在麦克风原位」的既有决定冲突 |
 
 ## 三件被点名"不要改坏"的(A)
 

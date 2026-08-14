@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-493 strings across 76 files.
+497 strings across 76 files.
 
 ## extension/src/api.ts
 
@@ -82,47 +82,47 @@ state the fact, no justification, no chat register, no filler.
 
 ## extension/src/sidepanel.tsx
 
-- 78: `Looked through your Sources`
-- 79: `Ran a Skill`
-- 80: `Would save this page`
-- 81: `Would file this into a Project`
-- 82: `Would draft a document`
-- 117: `From this page`
-- 187: `Leave it`
-- 202: `just now`
-- 429: `Goes in when Logue is back — nothing to do`
-- 444: `Export audio`
-- 498: `That is not an address Logue can reach.`
-- 505: `Logue's background service is restarting. Try again in a moment.`
-- 539: `The address of the Host this browser talks to — this computer, another one, or a tunnel.`
-- 638: `Logue is not answering.`
-- 756: `Could not save this page.`
-- 791: `Could not keep that.`
-- 856: `Could not reach Logue.`
-- 977: `Done — it is in your workspace.`
-- 980: `Could not do that.`
-- 1032: `Open Chrome settings`
-- 1034: `Try again`
-- 1040: `Reaching the microphone…`
-- 1060: `Ask — this page and your material are in context`
-- 1061: `What to ask`
-- 1067: `Say it instead · ⌘⇧K`
-- 1099: `This page`
-- 1102: `Project scope`
-- 1112: `Panel menu`
-- 1190: `Keeps the selection if there is one, else this whole page`
-- 1325: `Kept from this page`
-- 1331: `Nothing kept from this page yet.`
-- 1339: `finishes ·`
-- 1400: `Where a recording is added`
-- 1442: `Add to a Document`
-- 1458: `Could not add it.`
-- 1552: `Open this in Logue`
-- 1558: `Copy, with the passage it is about`
-- 1676: `Found it`
-- 1735: `What it says`
-- 1812: `Add a tag`
-- 1813: `Add a tag`
+- 80: `Looked through your Sources`
+- 81: `Ran a Skill`
+- 82: `Would save this page`
+- 83: `Would file this into a Project`
+- 84: `Would draft a document`
+- 119: `From this page`
+- 189: `Leave it`
+- 204: `just now`
+- 431: `Goes in when Logue is back — nothing to do`
+- 446: `Export audio`
+- 500: `That is not an address Logue can reach.`
+- 507: `Logue's background service is restarting. Try again in a moment.`
+- 541: `The address of the Host this browser talks to — this computer, another one, or a tunnel.`
+- 640: `Logue is not answering.`
+- 758: `Could not save this page.`
+- 793: `Could not keep that.`
+- 858: `Could not reach Logue.`
+- 979: `Done — it is in your workspace.`
+- 982: `Could not do that.`
+- 1034: `Open Chrome settings`
+- 1036: `Try again`
+- 1042: `Reaching the microphone…`
+- 1062: `Ask — this page and your material are in context`
+- 1063: `What to ask`
+- 1069: `Say it instead · ⌘⇧K`
+- 1101: `This page`
+- 1104: `Project scope`
+- 1114: `Panel menu`
+- 1192: `Keeps the selection if there is one, else this whole page`
+- 1336: `Kept from this page`
+- 1342: `Nothing kept from this page yet.`
+- 1350: `finishes ·`
+- 1411: `Where a recording is added`
+- 1453: `Add to a Document`
+- 1469: `Could not add it.`
+- 1563: `Open this in Logue`
+- 1569: `Copy, with the passage it is about`
+- 1687: `Found it`
+- 1746: `What it says`
+- 1823: `Add a tag`
+- 1824: `Add a tag`
 
 ## extension/src/surfaces/FloatingBar.tsx
 
@@ -557,14 +557,13 @@ state the fact, no justification, no chat register, no filler.
 ## web/src/app/DocumentsRoute.tsx
 
 - 117: `written by hand`
-- 138: `Nothing written yet — press + to start a page.`
-- 281: `New Document`
-- 289: `Rewrite the passage`
-- 289: `Select a passage first`
-- 305: `Download as Markdown`
-- 321: `This document changed somewhere else. Your edits are still here, unsaved.`
-- 363: `Not saved yet`
-- 365: `Every version is kept`
+- 137: `Nothing written yet — press + to start a page.`
+- 279: `New Document`
+- 287: `Rewrite the passage`
+- 287: `Select a passage first`
+- 303: `Download as Markdown`
+- 371: `Not saved yet`
+- 373: `Every version is kept`
 
 ## web/src/app/FindDialog.tsx
 
@@ -573,6 +572,7 @@ state the fact, no justification, no chat register, no filler.
 - 145: `Find anything`
 - 146: `Find a Source, a Document, a Project`
 - 172: `Nothing matches that.`
+- 174: `Everything you have captured, written, or organised.`
 
 ## web/src/app/GenerateBox.tsx
 
@@ -587,7 +587,7 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/MarkdownEditor.tsx
 
-- 253: `Start writing. The first line is the title.`
+- 337: `Start writing. The first line is the title.`
 
 ## web/src/app/MaterialPanel.tsx
 
@@ -660,21 +660,25 @@ state the fact, no justification, no chat register, no filler.
 - 142: `Model name`
 - 149: `Both capabilities responded. Save to use it.`
 - 150: `One capability did not respond.`
-- 253: `Words Logue knows`
-- 302: `You approved this from your own writing.`
-- 326: `Default Skills`
-- 352: `This Mac`
-- 381: `None yet.`
-- 397: `Restore this backup`
-- 436: `Keyboard shortcuts`
-- 468: `Responded to the last test`
-- 468: `Run Test to check`
-- 471: `Not tested`
-- 471: `Needs attention`
+- 225: `None yet — fix a word on a recording.`
+- 251: `Words Logue knows`
+- 252: `Spelled this way in every recording.`
+- 280: `Written by hand more than once, never heard right.`
+- 294: `You approved this from your own writing.`
+- 318: `Default Skills`
+- 344: `This Mac`
+- 368: `Restoring replaces everything here, after backing it up.`
+- 370: `None yet.`
+- 386: `Restore this backup`
+- 425: `Keyboard shortcuts`
+- 457: `Responded to the last test`
+- 457: `Run Test to check`
+- 460: `Not tested`
+- 460: `Needs attention`
 
 ## web/src/app/ShortcutsDialog.tsx
 
-- 24: `Keyboard shortcuts`
+- 26: `Keyboard shortcuts`
 
 ## web/src/app/SkillsRoute.tsx
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ACTS, ActBadge, Dropdown, ErrorNote, Glyph, Spinner, type ActKind } from "@logue/ui";
+import { ACTS, ActBadge, Dropdown, Empty, ErrorNote, Glyph, Spinner, type ActKind } from "@logue/ui";
 import { api, type Material } from "../api";
 import { ListPane, ListSearch, RowMeta, RowName, RowShell } from "./panes";
 
@@ -108,11 +108,11 @@ export function ActivitiesList({
           </div>
         )}
         {!loading && !error && shown.length === 0 && (
-          <p className="p-4 text-xs leading-relaxed text-muted">
+          <Empty>
             {items.length === 0
               ? "Nothing here yet. Speak into the side panel, or save a passage from any page."
               : "Nothing matches. Clear the search or the filter to see everything again."}
-          </p>
+          </Empty>
         )}
         {/* Offered whenever the words could have been written another way,
             not only when nothing matched: five results in English can still

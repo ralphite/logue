@@ -18,7 +18,10 @@ const variants: Record<ButtonVariant, string> = {
   default: "border border-control-line bg-surface text-ink-soft hover:bg-surface-muted hover:text-ink",
   primary: "bg-accent text-white hover:bg-accent-hover",
   ghost: "text-ink-soft hover:bg-surface-muted hover:text-ink",
-  danger: "border border-control-line bg-surface text-danger hover:bg-danger-soft",
+  // Filled, like `primary`, because it is the action of the dialog it stands
+  // in. As an outline it weighed exactly what Cancel weighed, so a dialog
+  // whose whole job is "are you sure" gave equal billing to both answers.
+  danger: "bg-danger text-white hover:brightness-110",
 };
 
 export function Button({

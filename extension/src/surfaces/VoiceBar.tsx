@@ -1,6 +1,6 @@
 import { Check, ChevronDown, Mic, Sparkles, Undo2, X } from "lucide-react";
 import { useState, type CSSProperties } from "react";
-import { IconButton, RecordingDot, Spinner, cn } from "@logue/ui";
+import { ErrorBubble, IconButton, RecordingDot, Spinner, cn } from "@logue/ui";
 import { FloatingBar, type Draggable } from "./FloatingBar";
 import { ProfilePicker } from "./ProfilePicker";
 import type { Context } from "../api";
@@ -174,23 +174,22 @@ export function VoiceBar({
         </div>
       )}
 
+      {/* The shared bubble, not a hand-typed one — same failure, same shape,
+          wherever it happens. */}
       {error && (
-        <div
-          role="alert"
-          className="absolute right-0 bottom-[calc(100%+6px)] w-max max-w-64 rounded-lg border border-[#efc9c4] bg-white px-2 py-1.5 text-xs leading-[1.4] text-[#9b3e35] shadow-[0_6px_18px_rgb(15_15_15/10%)]"
-        >
+        <ErrorBubble className="right-0 bottom-[calc(100%+6px)]">
           {error}
           {keptCapture && onRetry && (
             <button
               type="button"
               onPointerDown={keepFocus}
               onClick={onRetry}
-              className="mt-1 block rounded-md font-[560] underline decoration-[#efc9c4] underline-offset-2 hover:text-[#7d3129]"
+              className="mt-1 block rounded-md font-[560] underline decoration-danger-line underline-offset-2 hover:text-ink"
             >
               Try again on the kept recording
             </button>
           )}
-        </div>
+        </ErrorBubble>
       )}
     </FloatingBar>
   );

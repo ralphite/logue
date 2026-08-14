@@ -24,6 +24,7 @@
 | **F2** | Document 大改:第一行就是标题,Markdown 要所见即所得(参考 Vibedoc) | `done` · P1 · 2026-08-13 你的原话:文档不该有独立的 title 段,像 Google Docs 一样第一行就是标题;要真的所见即所得地编辑 Markdown,参考 `~/dev2/prototypes/vibedoc` 的设计和功能。已落地:标题输入框删掉,名字=第一行(去掉 Markdown 记号,50 字截断);编辑器换成 CodeMirror + Markdown,标题就是大字、粗体就是粗体,**光标不在的那一行记号自动隐藏**;存的就是 Markdown(不再存 HTML),导出/diff/模型读的是同一份文本;旧工作区开机时转换一次,原来的名字写成第一行标题,一条都不丢。**顺带砍掉**:模型给文档起名那一步(名字现在就在正文里)。声明见 [features/documents.md](features/documents.md)。 |
 | **X1** | 扩展 sidepanel/widget 和 Web 应用的数据要保持同步 | `done` · P1 · 2026-08-13 落地:Host 记一份「写了多少次」的计数(按种类分),`GET /v1/changes` 不读任何文件;面板和 Web 应用各自每 1.5 秒问一次,数字变了就**静默重载**(不转圈、不弹条、不加按钮)。**正在打字没保存的地方不重载**。看不见的面板不问。真浏览器检查 `scripts/qa/x1.mjs`:面板开着,从别处建一个 Project,不点任何东西它就出现了。声明见 [features/in-step.md](features/in-step.md)。 |
 | **N10** | Web 应用整页 IA 重构:三个方向的 preview 等他选 | `in_progress` · P0 · redesign-c 分支上 C2 已落地,等你选定方向。 |
+| **N13** | Extension 面板收成「一个列表 + 一个输入框」 | `blocked` · P1 · **等你回答三个问题**,在 [panel-composer.md](panel-composer.md) 第六节。三个动词收成一个输入框;选中页面文字自动以 Markdown 引用进框;录音条三键(✕ 丢弃 / ✓ 转文字插入 / ↑ 插入并提交),**插入不等于提交**,允许多次口述;提交出来的每条记录底下挂 Ask · As Markdown · Into English。**你点头前一行产品代码都不动。** |
 | **N9b** | redesign 第二轮:Markdown 渲染、Notice/EmptyState 统一、浮动条不压字段 | `queued` · P1 |
 | **N11** | Extension sidepanel + 注入 widgets 按 C2 语言重设计 | `queued` · P1 |
 | **N1b** | 按 [panel-ia.md](panel-ia.md) 重排面板 | `blocked` · P1 · **等你在提案第六节回答三个问题**。提案已对着今天的面板刷新过(8/10 写的时候三个 tab,现在四个、默认开 Dictation):原第 5 条 N5 已修掉,新增 2b(两个 tab 抢同一个录音机)和 10(默认屏由排期决定,不由入口决定)。A:四个 tab 收成两个,Chat 和 This page 合成一条流。B:四个留着只按主语重排。**我推荐 A。你点头之前一行代码都不动。** |

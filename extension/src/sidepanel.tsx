@@ -19,6 +19,8 @@ import {
   Menu,
   MenuItem,
   ErrorNote,
+  Keys,
+  Notice,
   IconButton,
   Input,
   OriginMark,
@@ -1224,14 +1226,19 @@ export function Panel() {
         */}
         {!recordingHere && <IntoDestination value={into} onChange={setInto} />}
         {speaking === "dictation" && voice.error && (
-          <div className="mt-1.5 flex items-center gap-2 rounded-md border border-line bg-surface-muted px-2 py-1.5">
-            <span className="flex-1 text-xs text-warning">{voice.error}</span>
-            {voice.needsMicrophone && (
-              <Button onClick={() => void send({ type: "logue:open-microphone-settings" })}>
-                Open Chrome settings
-              </Button>
-            )}
-          </div>
+          <Notice
+            tone="warning"
+            className="mt-1.5"
+            action={
+              voice.needsMicrophone ? (
+                <Button onClick={() => void send({ type: "logue:open-microphone-settings" })}>
+                  Open Chrome settings
+                </Button>
+              ) : undefined
+            }
+          >
+            {voice.error}
+          </Notice>
         )}
       </div>
 
@@ -1274,18 +1281,22 @@ export function Panel() {
                 </div>
               )}
               {item.state === "failed" && (
-                <div className="mt-2 rounded-md border border-danger-line bg-danger-soft px-2 py-1.5 text-xs leading-[1.45] text-danger">
+                <Notice
+                  className="mt-2"
+                  action={
+                    item.captureId ? (
+                      <button
+                        type="button"
+                        onClick={() => void dictation.again(item.id, { project, page })}
+                        className="font-[560] underline decoration-danger-line underline-offset-2"
+                      >
+                        Try again
+                      </button>
+                    ) : undefined
+                  }
+                >
                   {item.message}
-                  {item.captureId && (
-                    <button
-                      type="button"
-                      onClick={() => void dictation.again(item.id, { project, page })}
-                      className="mt-1 block font-[560] underline decoration-danger-line underline-offset-2"
-                    >
-                      Try again
-                    </button>
-                  )}
-                </div>
+                </Notice>
               )}
               {item.take && (
                 <div className="mt-1">
@@ -1336,7 +1347,7 @@ export function Panel() {
           <NothingYet>
             Record speaks · Keep saves this page · Ask answers from your material.
             <span className="mt-1.5 block text-muted">
-              While recording: <kbd>↵</kbd> finishes · <kbd>Esc</kbd> discards
+              While recording: <Keys>↵</Keys> finishes · <Keys>Esc</Keys> discards
             </span>
           </NothingYet>
         )}
