@@ -542,7 +542,7 @@
       "id": "F3",
       "title": "文档编辑补齐 Vibedoc:所见即所得要完整、版本管理照 Vibedoc、支持嵌套子文档、体验向 Notion 靠",
       "type": "feature",
-      "status": "doing",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
@@ -555,7 +555,7 @@
         "in_new_task_doc"
       ],
       "created": "2026-08-13",
-      "updated": "2026-08-13"
+      "updated": "2026-08-14"
     },
     {
       "id": "X4",

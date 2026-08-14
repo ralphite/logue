@@ -36,3 +36,31 @@ describe("what the worker retries by itself", () => {
     expect(exhausted.captureId).toBe("stubborn");
   });
 });
+
+describe("a model that was merely busy", () => {
+  const busy = (id: string, agoMs: number): Held => ({
+    ...held(id, agoMs),
+    message: "The model is busy (503).",
+  });
+
+  it("is kept trying long after a real refusal would have been left alone", () => {
+    // Three recordings sat saying "the words did not come back" while the log
+    // filled with 503s. Nobody decided anything about them — nobody managed to
+    // ask yet, which is a different thing.
+    const hour = 60 * 60 * 1000;
+    expect(worthRetrying([busy("a", 2 * hour)], {}, NOW).map((one) => one.captureId)).toEqual(["a"]);
+    expect(worthRetrying([held("b", 2 * hour)], {}, NOW)).toEqual([]);
+  });
+
+  it("still stops eventually, rather than asking forever", () => {
+    expect(worthRetrying([busy("a", 1000)], { a: 12 }, NOW)).toEqual([]);
+    expect(worthRetrying([busy("a", 1000)], { a: 11 }, NOW)).toHaveLength(1);
+  });
+
+  it("reads the failure, not the wording of the row", () => {
+    expect(worthRetrying([{ ...held("a", 60 * 60 * 1000), message: "high demand" }], {}, NOW)).toHaveLength(1);
+    expect(worthRetrying([{ ...held("b", 60 * 60 * 1000), message: "Connect a model in Settings." }], {}, NOW)).toEqual(
+      [],
+    );
+  });
+});

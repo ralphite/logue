@@ -237,7 +237,12 @@ function HeldRow({ one, server, onChanged }: { one: Held; server: string; onChan
         <div className="mt-1.5">
           <Recording src={audioUrl(server, one.captureId)} seconds={one.seconds} shape={one.captureId} />
         </div>
-        <Notice className="mt-1.5">Logue has this recording; the words did not come back.</Notice>
+        {/* What the model said, when it said anything: "the words did not
+            come back" alone reads as Logue losing them, and three recordings
+            said that on an evening the model was answering 503. */}
+        <Notice className="mt-1.5">
+          {one.message || "Logue has this recording; the words did not come back."}
+        </Notice>
         <div className="mt-1.5 flex flex-wrap gap-1">
           <Button
             disabled={busy}

@@ -146,7 +146,9 @@ export const host = {
    * id was the tab that made it.
    */
   captures: () =>
-    call<{ captures: { capture_id: string; seconds?: number; created_at: string }[] }>("/v1/captures"),
+    call<{
+      captures: { capture_id: string; seconds?: number; created_at: string; message?: string }[];
+    }>("/v1/captures"),
 
   /**
    * Whether the workspace has moved, and what kind of thing moved in it.

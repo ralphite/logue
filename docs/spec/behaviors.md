@@ -429,6 +429,18 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   Page, Journey. Every story belongs to exactly one.
 
 ## One vocabulary on screen
+- **A popup stays on the screen, and all of it can be pressed.** (2026-08-13,
+  his report: *"dropdown/popup position. should fix base component to handle
+  all cases"*.) Anything that floats over a trigger is placed by one rule —
+  fixed, measured, clamped to the window on both axes, re-measured when its
+  contents or the window change. Never by each component's own guess: an
+  ancestor that scrolls clips an absolutely-placed panel, and the hidden half
+  stops taking clicks as well as stops being visible.
+- **A recording that failed says what the model said.** "The words did not come
+  back" alone reads as Logue losing them; on 2026-08-13 three recordings said
+  that while the log filled with 503s. And a failure that passes is kept being
+  tried for hours rather than half an hour — nobody decided anything about
+  those recordings, nobody has managed to ask yet.
 - **Make one of these where they live.** The `+` for a Project, a Document or
   a Skill sits in the header of the list it adds to — not on the rail, where it
   appeared only while the pointer happened to be over the row. (2026-08-13,

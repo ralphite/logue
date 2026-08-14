@@ -1,5 +1,6 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { cn } from "./cn";
+import { floatingStyle, usePlacement } from "./floating";
 
 /**
  * The disclosure that keeps a surface calm: secondary actions live in here,
@@ -23,9 +24,11 @@ export function Menu({
   label: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [side, setSide] = useState<"below" | "above">("below");
   const root = useRef<HTMLDivElement>(null);
   const popup = useRef<HTMLDivElement>(null);
+  // One placement rule for everything that floats over a trigger — fixed,
+  // measured, clamped to the window. See `floating.ts`.
+  const { at: placed } = usePlacement({ open, anchor: root, panel: popup, align });
   const id = useId();
 
   useEffect(() => {
@@ -80,19 +83,6 @@ export function Menu({
     };
   }, [open]);
 
-  // Flipped before anyone sees it wrong.
-  useLayoutEffect(() => {
-    if (!open) return;
-    const anchor = root.current?.getBoundingClientRect();
-    const float = popup.current?.getBoundingClientRect();
-    if (!anchor || !float) return;
-    setSide(
-      anchor.bottom + float.height + 8 > window.innerHeight && anchor.top - float.height - 8 > 0
-        ? "above"
-        : "below",
-    );
-  }, [open]);
-
   return (
     <div ref={root} className="relative inline-flex">
       {trigger({ "aria-expanded": open, "aria-haspopup": "menu", onClick: () => setOpen((v) => !v) })}
@@ -103,11 +93,8 @@ export function Menu({
           role="menu"
           aria-label={label}
           onClick={() => setOpen(false)}
-          className={cn(
-            "logue-float absolute z-popover min-w-44 max-w-72 p-1",
-            side === "below" ? "top-[calc(100%+4px)]" : "bottom-[calc(100%+4px)]",
-            align === "end" ? "right-0" : "left-0",
-          )}
+          style={floatingStyle(placed)}
+          className={cn("logue-scroll logue-float z-popover min-w-44 max-w-[min(18rem,calc(100vw-16px))] p-1")}
         >
           {children}
         </div>

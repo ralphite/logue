@@ -14,4 +14,5 @@ export { Resizer, clampSize, usePersistentSize } from "./Resizer";
 export { Recording } from "./Recording";
 export { SourceLink } from "./SourceLink";
 export { Tag } from "./Tag";
+export { floatingStyle, usePlacement, type Placement } from "./floating";
 export { cn } from "./cn";

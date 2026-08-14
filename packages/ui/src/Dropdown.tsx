@@ -1,5 +1,6 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "./cn";
+import { floatingStyle, usePlacement } from "./floating";
 
 export interface DropdownOption<V extends string = string> {
   value: V;
@@ -37,10 +38,11 @@ export function Dropdown<V extends string>({
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  /** Which way the list opens: down until the window says otherwise. */
-  const [side, setSide] = useState<"below" | "above">("below");
   const root = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
+  // Where the list goes is one problem, solved once, for everything that
+  // floats over a trigger — see `floating.ts`.
+  const { at, width } = usePlacement({ open, anchor: root, panel: list, match: true });
   const typed = useRef<{ prefix: string; at: number }>({ prefix: "", at: 0 });
   const id = useId();
 
@@ -57,20 +59,6 @@ export function Dropdown<V extends string>({
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
   }, [open, options, value]);
-
-  // Measured after it exists, flipped before anyone sees it wrong: a list
-  // that would run off the bottom of the window opens upward instead.
-  useLayoutEffect(() => {
-    if (!open) return;
-    const anchor = root.current?.getBoundingClientRect();
-    const popup = list.current?.getBoundingClientRect();
-    if (!anchor || !popup) return;
-    setSide(
-      anchor.bottom + popup.height + 8 > window.innerHeight && anchor.top - popup.height - 8 > 0
-        ? "above"
-        : "below",
-    );
-  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -171,10 +159,8 @@ export function Dropdown<V extends string>({
           id={id}
           role="listbox"
           aria-label={label}
-          className={cn(
-            "logue-scroll logue-float absolute left-0 z-popover max-h-72 w-max max-w-72 min-w-full p-1",
-            side === "below" ? "top-[calc(100%+4px)]" : "bottom-[calc(100%+4px)]",
-          )}
+          style={floatingStyle(at, width)}
+          className="logue-scroll logue-float z-popover w-max max-w-[min(20rem,calc(100vw-16px))] p-1"
         >
           {options.map((one, index) => (
             <button

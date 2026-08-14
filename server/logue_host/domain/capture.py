@@ -115,6 +115,10 @@ def unclaimed(store: Store, limit: int = 50) -> list[dict[str, Any]]:
                 "seconds": applied.get("seconds") or 0,
                 "created_at": arrived.isoformat().replace("+00:00", "Z"),
                 "outcome": outcome or "unknown",
+                # What the model actually said. Without it every one of these
+                # reads as "Logue lost your words", when the truth — three of
+                # them on 2026-08-13 — was a model answering 503 all evening.
+                "message": str(applied.get("outcome_message") or ""),
                 "applied_context": applied,
             }
         )

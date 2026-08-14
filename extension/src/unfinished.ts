@@ -21,8 +21,23 @@
 
 import { host } from "./api";
 
-/** How many times the worker will try a recording on its own before leaving it. */
+/**
+ * How many times the worker will try a recording on its own before leaving it.
+ *
+ * Three was written for a model that refuses for a reason. A model that is
+ * *busy* refuses for the evening: on 2026-08-13 three recordings sat there
+ * saying "the words did not come back" while the log filled with 503s. The
+ * audio is safe either way, so for a failure that passes, the worker keeps
+ * asking for about an hour — twelve turns of the five-minute alarm — before
+ * it leaves the recording to the person.
+ */
 export const AUTOMATIC_TRIES = 3;
+export const TRIES_WHILE_BUSY = 12;
+
+/** Whether the failure is the kind that passes on its own. */
+export function passing(message?: string): boolean {
+  return /\b(429|500|502|503|504)\b|busy|high demand|unavailable|overload/i.test(message ?? "");
+}
 
 /**
  * Only a recording made in the last half hour is retried without being asked.
@@ -34,6 +49,14 @@ export const AUTOMATIC_TRIES = 3;
  */
 export const RECENT_MS = 30 * 60 * 1000;
 
+/**
+ * And this long when the model was merely busy.
+ *
+ * A recording that failed because the service was overloaded is not a
+ * recording anybody decided about — it is one nobody has managed to ask yet.
+ */
+export const BUSY_MS = 6 * 60 * 60 * 1000;
+
 const TRIES_KEY = "logue:capture-tries";
 
 /** A recording the Host is holding, with no words yet. */
@@ -41,6 +64,8 @@ export interface Held {
   captureId: string;
   seconds: number;
   createdAt: string;
+  /** What the model said when it refused, when it said anything. */
+  message?: string;
 }
 
 export async function held(): Promise<Held[]> {
@@ -49,6 +74,7 @@ export async function held(): Promise<Held[]> {
     captureId: one.capture_id,
     seconds: one.seconds ?? 0,
     createdAt: one.created_at,
+    message: one.message,
   }));
 }
 
@@ -88,7 +114,7 @@ export async function noteTry(captureId: string): Promise<void> {
  */
 export function worthRetrying(items: Held[], counted: Record<string, number>, now: number): Held[] {
   return items
-    .filter((one) => now - Date.parse(one.createdAt) < RECENT_MS)
-    .filter((one) => (counted[one.captureId] ?? 0) < AUTOMATIC_TRIES)
+    .filter((one) => now - Date.parse(one.createdAt) < (passing(one.message) ? BUSY_MS : RECENT_MS))
+    .filter((one) => (counted[one.captureId] ?? 0) < (passing(one.message) ? TRIES_WHILE_BUSY : AUTOMATIC_TRIES))
     .toSorted((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
