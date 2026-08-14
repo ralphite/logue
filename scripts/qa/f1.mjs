@@ -86,9 +86,9 @@ async function open(a, panel, at) {
  */
 async function record(a, seconds = 4) {
   await a.eval(pressLabel("Talk"));
-  await until(a, (s) => s.buttons.includes("Discard (Esc)"), "recording never started", 20000);
+  await until(a, (s) => s.buttons.includes("Discard"), "recording never started", 20000);
   await a.sleep(seconds * 1000);
-  await a.eval(pressLabel("Insert and send (⌘Enter)"));
+  await a.eval(pressLabel("Insert and send"));
 }
 
 export async function run(a) {

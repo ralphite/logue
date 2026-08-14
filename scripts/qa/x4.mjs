@@ -72,7 +72,7 @@ export async function run(a) {
   await a.goto(`chrome-extension://${id}/sidepanel.html`);
   await a.sleep(2500);
 
-  for (const label of ["Where the words are added", "Project scope", "More"]) {
+  for (const label of ["Document", "Project", "More"]) {
     const seen = JSON.parse(await a.eval(OPEN(label)));
     if (!seen.found) {
       console.log(`SKIP  ${label} — not on this panel`);

@@ -8,14 +8,25 @@
  * the ones that follow it.
  */
 
-import type { Skill } from "./api";
+import type { Material, Skill } from "./api";
 
 /** One piece of text, and everything made from it. */
 export interface Take {
   id: string;
+  /**
+   * The Source this text *is*, once the Host holds it.
+   *
+   * Absent while a send is still in flight, and on words that were never
+   * kept. Anything made from this text hangs off this id — without it a
+   * rewrite has nothing to point back at, and would be gone the next time
+   * the panel opened.
+   */
+  materialId?: string;
   /** The Skill that produced this text. Absent on a transcript. */
   from?: string;
   text: string;
+  /** What an answer stood on, so `[Source n]` can be followed. */
+  sources?: Material[];
   /** Skill ids already run on *this* text, so none is offered on it twice. */
   used: string[];
   /** A Skill running on this text right now — its name, for the row to show. */
@@ -40,9 +51,23 @@ export function find(take: Take, id: string): Take | undefined {
   return undefined;
 }
 
-/** The Skills offered on one text: those meant for dictation, minus the used. */
+/**
+ * Where in the product this panel is, as a Skill's contexts name it.
+ *
+ * `dictation` alone was the filter until 2026-08-14, which meant what you
+ * could do to a sentence still depended on how it had arrived: a saved page
+ * and a kept passage were offered nothing, because nobody had said the word
+ * "dictation" over them. The panel is the browser, so it offers every Skill
+ * the browser can reach.
+ */
+const IN_THE_BROWSER = new Set(["dictation", "selection", "page"]);
+
+/** The Skills offered on one text: those the panel can run, minus the used. */
 export function offered(skills: Skill[] | undefined, take: Take): Skill[] {
   return (skills ?? []).filter(
-    (skill) => skill.enabled && skill.contexts.includes("dictation") && !take.used.includes(skill.id),
+    (skill) =>
+      skill.enabled &&
+      skill.contexts.some((where) => IN_THE_BROWSER.has(where)) &&
+      !take.used.includes(skill.id),
   );
 }

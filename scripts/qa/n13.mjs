@@ -103,7 +103,7 @@ export async function run(a) {
   check("N13a — one composer, no Record / Keep / Ask", !opened.buttons.some((b) => /^(Record|Keep|Ask)$/.test(b)),
     opened.buttons.join(" · "));
   check("N13b — the box, the mic, the bookmark and send are the row",
-    ["Talk", "Send", "Keep this whole page"].every((one) => opened.buttons.includes(one)),
+    ["Talk", "Send", "Save this page"].every((one) => opened.buttons.includes(one)),
     opened.buttons.join(" · "));
 
   // ---------- the passage the page pushes ----------
@@ -129,7 +129,7 @@ export async function run(a) {
   const before = (await (await fetch(`${HOST}/v1/materials?q=${encodeURIComponent(ARTICLE)}`)).json()).materials.length;
   const note = `QA n13 ${Date.now().toString().slice(-6)}`;
   await panel.eval(`(() => {
-    const box = document.querySelector('textarea[aria-label="What to keep"]');
+    const box = document.querySelector('textarea[aria-label="What to send"]');
     const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
     setter.call(box, ${JSON.stringify(note)});
     box.dispatchEvent(new Event('input', { bubbles: true }));

@@ -115,7 +115,16 @@ export const AnEntry: Story = {
   render: () => (
     <Frame>
       <div className="bg-surface">
-        <EntryRow entry={ENTRY} server="http://127.0.0.1:8787" skills={SKILLS} onApply={() => undefined} onRetry={() => undefined} />
+        <EntryRow
+          entry={ENTRY}
+          server="http://127.0.0.1:8787"
+          skills={SKILLS}
+          onApply={() => undefined}
+          onRetry={() => undefined}
+          onAsk={() => undefined}
+          onAccept={() => undefined}
+          onLeave={() => undefined}
+        />
       </div>
     </Frame>
   ),
@@ -140,6 +149,9 @@ export const AnEntryThatFailed: Story = {
           skills={SKILLS}
           onApply={() => undefined}
           onRetry={() => undefined}
+        onAsk={() => undefined}
+        onAccept={() => undefined}
+        onLeave={() => undefined}
         />
       </div>
     </Frame>
@@ -164,6 +176,9 @@ export const AnEntryAboutAPassage: Story = {
           skills={SKILLS}
           onApply={() => undefined}
           onRetry={() => undefined}
+        onAsk={() => undefined}
+        onAccept={() => undefined}
+        onLeave={() => undefined}
         />
       </div>
     </Frame>

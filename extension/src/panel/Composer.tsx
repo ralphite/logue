@@ -45,6 +45,7 @@ const FOLD = 600;
 export function Composer({
   handle,
   quote,
+  source,
   onDropQuote,
   project,
   projects,
@@ -65,6 +66,8 @@ export function Composer({
   handle?: RefObject<ComposerHandle | null>;
   /** The passage selected on the page, pushed by the content script. */
   quote?: Quote;
+  /** Where that passage is from, in a line: the page it was selected on. */
+  source?: string;
   onDropQuote: () => void;
   project: string;
   projects: { id: string; name: string }[];
@@ -80,8 +83,12 @@ export function Composer({
   onDiscard: () => void;
   /** Stop, transcribe, and put the words in the box. */
   onInsert: () => void;
-  /** Send what is in the box. With a recording running: insert it, then send. */
-  onSend: () => void;
+  /**
+   * Send what is in the box. With a recording running: insert it, then send.
+   *
+   * Answers `false` when nothing was kept, so the words stay where they are.
+   */
+  onSend: () => void | boolean | Promise<void | boolean>;
   onKeepPage: () => void;
   /** Something the box itself has to say — a microphone that will not open. */
   notice?: React.ReactNode;
@@ -118,11 +125,21 @@ export function Composer({
     [text],
   );
 
-  // Sending empties the box. Held here rather than by the caller so that the
-  // caller cannot forget, and so a failed send leaves the words where they are.
+  /**
+   * Sending empties the box — *after* it has been kept, never before.
+   *
+   * This cleared first and awaited nothing, so a send that failed (a Host that
+   * was not running, most of all) took the words with it: the box was empty,
+   * the entry that appeared had no text on it, and there was nowhere left to
+   * read what had been typed. The words are the one thing this product must
+   * not drop.
+   */
   const send = () => {
-    onSend();
-    setText("");
+    const words = text;
+    void Promise.resolve(onSend()).then((ok) => {
+      if (ok !== false) setText("");
+      else if (text === "") setText(words);
+    });
   };
 
   // The keys, while a recording is running. They are on the window because the
@@ -130,13 +147,24 @@ export function Composer({
   useEffect(() => {
     if (!recording) return;
     const onKey = (event: KeyboardEvent) => {
+      // Not while something else is listening. Escape belongs to the menu that
+      // is open, and Enter to the field being typed in — a recording thrown
+      // away by closing a menu is a recording nobody chose to throw away.
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.closest("input, textarea, select, [contenteditable='true']") ||
+          target.closest("[role='menu'], [role='dialog'], [role='listbox']"))
+      ) {
+        return;
+      }
       if (event.key === "Escape") {
         event.preventDefault();
         onDiscard();
       }
       if (event.key === "Enter") {
         event.preventDefault();
-        if (event.metaKey || event.ctrlKey) onSend();
+        if (event.metaKey || event.ctrlKey) void onSend();
         else onInsert();
       }
     };
@@ -150,6 +178,9 @@ export function Composer({
     <div className="shrink-0 border-t border-line bg-panel p-2">
       {quote && (
         <div className="mb-1.5 grid grid-cols-[minmax(0,1fr)_20px] items-start gap-1.5 rounded-md border-l-2 border-line-strong bg-surface-muted px-2 py-1.5">
+          {/* Where the passage is from. A quote with no source above it is
+              indistinguishable from something the person typed. */}
+          {source && <div className="col-span-2 mb-0.5 truncate text-[10.5px] font-[600] text-muted">{source}</div>}
           <p className="text-[12px] leading-[1.5] text-ink-soft">
             {open || quote.text.length <= FOLD ? quote.text : `${quote.text.slice(0, FOLD)}…`}
             {quote.text.length > FOLD && (
@@ -172,7 +203,7 @@ export function Composer({
         // The box becomes the recorder, in place. Three controls, three keys:
         // throw it away, put the words in, put them in and send.
         <div className="flex items-center gap-2 rounded-[10px] border border-accent-line bg-surface px-2 py-1.5">
-          <IconButton label="Discard (Esc)" onClick={onDiscard}>
+          <IconButton variant="default" label="Discard" onClick={onDiscard}>
             <X size={14} />
           </IconButton>
           <span
@@ -184,14 +215,14 @@ export function Composer({
           </span>
           <Waveform seconds={seconds} />
           <IconButton
-            label="Insert the words (Enter)"
+            label="Insert the words"
             className="border border-accent-line bg-accent-soft text-accent-ink"
             onClick={onInsert}
           >
             <Check />
           </IconButton>
           <IconButton
-            label="Insert and send (⌘Enter)"
+            label="Insert and send"
             className="border-0 bg-accent text-white hover:bg-accent-hover"
             onClick={onSend}
           >
@@ -202,7 +233,7 @@ export function Composer({
         <div
           className={cn(
             "grid gap-2 rounded-[10px] border border-control-line bg-surface px-2 pt-1.5 pb-1.5",
-            "focus-within:border-accent-line",
+            "focus-within:border-accent-line focus-within:ring-[3px] focus-within:ring-accent-soft",
           )}
         >
           <textarea
@@ -221,12 +252,12 @@ export function Composer({
             }}
             rows={2}
             placeholder={quote ? "Say something about this passage, or send it as it is" : "Type here, or press the mic and talk"}
-            aria-label="What to keep"
+            aria-label="What to send"
             className="min-h-[34px] w-full resize-none bg-transparent text-[13px] leading-[1.5] text-ink outline-0 placeholder:text-faint"
           />
           <div className="flex items-center gap-1.5">
             <Dropdown
-              label="Project scope"
+              label="Project"
               className="w-[104px] shrink-0"
               value={project}
               onChange={onProject}
@@ -237,7 +268,7 @@ export function Composer({
             />
             {documents.length > 0 && (
               <Dropdown
-                label="Where the words are added"
+                label="Document"
                 className="min-w-0 flex-1"
                 value={into?.id ?? ""}
                 onChange={(next) => onInto(documents.find((one) => one.id === next))}
@@ -248,13 +279,18 @@ export function Composer({
               />
             )}
             <span className="ml-auto flex items-center gap-1">
-              <Tooltip label="Keep this whole page">
-                <IconButton label="Keep this whole page" disabled={busy} onClick={onKeepPage}>
+              <Tooltip label="Save this page">
+                <IconButton variant="default" label="Save this page" disabled={busy} onClick={onKeepPage}>
                   <Bookmark size={14} />
                 </IconButton>
               </Tooltip>
-              <Tooltip label="Talk — the words land in the box">
-                <IconButton label="Talk" disabled={phase === "working" && busy} onClick={onRecord}>
+              <Tooltip label="Talk" keys="⌘⇧K">
+                <IconButton
+                  variant="default"
+                  label="Talk"
+                  disabled={phase === "working" && busy}
+                  onClick={onRecord}
+                >
                   <Mic size={14} />
                 </IconButton>
               </Tooltip>
@@ -262,8 +298,10 @@ export function Composer({
                 label="Send"
                 disabled={nothingToSend || busy}
                 className={cn(
-                  "border-0",
-                  nothingToSend || busy ? "bg-surface-muted text-faint" : "bg-accent text-white hover:bg-accent-hover",
+                  "border-0 disabled:border-0",
+                  nothingToSend || busy
+                    ? "bg-surface-muted text-faint disabled:bg-surface-muted disabled:text-faint"
+                    : "bg-accent text-white hover:bg-accent-hover",
                 )}
                 onClick={send}
               >

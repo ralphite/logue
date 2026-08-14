@@ -27,23 +27,36 @@ const OUT = join(ROOT, "docs/spec/copy.md");
 const ROOTS = ["web/src", "extension/src", "packages/ui/src", "server/logue_host"];
 const SKIP = /(\.test\.|\.stories\.|storybook-static|node_modules|__pycache__|\/dist\/)/;
 
-/** A string is copy if it reads like a sentence a person could be shown. */
+/**
+ * A string is copy if it reads like something a person could be shown.
+ *
+ * Widened on 2026-08-14, after the copy review found that most of the new
+ * panel's words were invisible to this gate — which is the gate's whole job:
+ *
+ *  * **One-word labels.** `Send`, `Talk`, `Copy`, `Delete` were dropped by a
+ *    lowercase-word rule meant for class names and ids. They are the most-read
+ *    words in the product.
+ *  * **Anything with brackets.** `Discard (Esc)` was dropped by a rule meant
+ *    to catch code. A shortcut in a label is not code.
+ */
 function looksLikeCopy(text) {
-  if (text.length < 3 || text.length > 400) return false;
-  if (!/[a-z]{2}/.test(text)) return false;
+  if (text.length < 2 || text.length > 400) return false;
+  if (!/[a-z]{2}/i.test(text)) return false;
   // Machinery: class lists, ids, urls, keys, formats, imports.
-  if (/^[a-z0-9_-]+$/i.test(text)) return false;
+  if (/^[a-z][a-z0-9]*([-_][a-z0-9]+)+$/i.test(text)) return false;
   if (/[<>{}$#]|\.\.\/|https?:|^\/|^[a-z-]+:[a-z-]+$/.test(text)) return false;
   if (/(^|\s)(flex|grid|rounded|border|text-|bg-|px-|py-|min-w|max-w|shrink|gap-)/.test(text)) return false;
   if (/^[A-Z_]+$/.test(text)) return false;
   // Code caught in a string: signatures, operators, keyword soup. A sentence
-  // shown to a person has none of these.
-  if (/[()[\]=|&;]|=>|\bconst\b|\bfunction\b|\breturn\b|\bawait\b/.test(text)) return false;
+  // shown to a person has none of these — but `(Esc)` and `+1 −1` are words.
+  if (/[[\]=|&;]|=>|\bconst\b|\bfunction\b|\breturn\b|\bawait\b/.test(text)) return false;
+  if (/\(\s*\)|\(.*[.=:].*\)/.test(text)) return false;
   // A fragment, not a sentence: begins or ends on punctuation that only makes
   // sense glued to something else.
   if (/^[\s,.:;+*/-]|[,:;+*/\\-]\s*$/.test(text)) return false;
-  // A phrase has a space, or is a capitalised word standing as a label.
-  return /\s/.test(text) || /^[A-Z][a-z]+$/.test(text);
+  // A phrase, or a word standing as a label. A label is capitalised or is one
+  // of the few lowercase ones the product deliberately uses.
+  return /\s/.test(text) || /^[A-Z][a-z]+$/.test(text) || /^(esc|kept|current|sources?|pages?)$/.test(text);
 }
 
 function walk(dir, found = []) {
@@ -68,9 +81,23 @@ function stringsIn(source, path) {
       if (looksLikeCopy(text)) found.push({ at: index + 1, text });
     }
     // JSX text between tags: >Some words<
-    for (const match of code.matchAll(/>([^<>{}\n]{3,200})</g)) {
+    for (const match of code.matchAll(/>([^<>{}\n]{2,200})</g)) {
       const text = match[1].trim();
       if (text && looksLikeCopy(text)) found.push({ at: index + 1, text });
+    }
+    // JSX text that runs onto its own line, which is how anything longer than
+    // a few words is written:
+    //
+    //     <Empty>
+    //       Nothing said about this page yet.
+    //     </Empty>
+    //
+    // Matching only `>…<` on one line missed every sentence in the panel.
+    if (!/[<>{}]/.test(code)) {
+      const text = code.trim();
+      const opensAbove = /[>}]\s*$/.test(lines[index - 1] ?? "");
+      const closesBelow = /^\s*(<\/|\{)/.test(lines[index + 1] ?? "");
+      if (text && opensAbove && closesBelow && looksLikeCopy(text)) found.push({ at: index + 1, text });
     }
   });
   return found.map((one) => ({ ...one, file: relative(ROOT, path) }));

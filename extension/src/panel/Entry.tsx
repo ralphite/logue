@@ -1,9 +1,31 @@
-import { Check, Copy, MoreHorizontal } from "lucide-react";
-import { useState } from "react";
-import { ACTS, ActBadge, Button, IconButton, Notice, Recording, Spinner } from "@logue/ui";
+import { Check, Copy, MoreHorizontal, X } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import {
+  ACTS,
+  ActBadge,
+  Answer,
+  Button,
+  IconButton,
+  Notice,
+  OriginMark,
+  Recording,
+  Spinner,
+  cn,
+  originOf,
+} from "@logue/ui";
 import { audioUrl, type Skill } from "../api";
 import type { Entry } from "../entries";
 import { offered, type Take } from "../takes";
+
+/**
+ * How much of a text a row shows before it folds.
+ *
+ * A 4:14 dictation printed in full made one entry 1077 pixels tall — the whole
+ * panel was one transcript, and its own Skills row was a thousand pixels below
+ * the words it belonged to. Six lines is what the mock shows and what a list
+ * of things that happened can be read as a list.
+ */
+const FOLD = 420;
 
 /**
  * One thing that happened on this page.
@@ -20,12 +42,19 @@ export function EntryRow({
   skills,
   onApply,
   onRetry,
+  onAsk,
+  onAccept,
+  onLeave,
 }: {
   entry: Entry;
   server: string;
   skills?: Skill[];
   onApply: (takeId: string, skill: Skill) => void;
   onRetry: () => void;
+  /** Ask about this entry — a Skill like the others, and on the same row. */
+  onAsk: () => void;
+  onAccept: () => void;
+  onLeave: () => void;
 }) {
   // The audio to play: on the Source once the words came back, or the capture
   // the Host kept when they did not. An entry that shows only its failure
@@ -42,11 +71,7 @@ export function EntryRow({
         </div>
 
         {/* What it was said about, when it was said about something. */}
-        {entry.quote && (
-          <p className="mt-1.5 border-l-2 border-line-strong pl-2 text-[11.5px] leading-[1.5] text-muted">
-            {entry.quote.length > 220 ? `${entry.quote.slice(0, 220)}…` : entry.quote}
-          </p>
-        )}
+        {entry.quote && <Folded className="mt-1.5 border-l-2 border-line-strong pl-2 text-[11.5px] leading-[1.5] text-muted" text={entry.quote} />}
 
         {captureId && (
           <div className="mt-1.5">
@@ -62,7 +87,7 @@ export function EntryRow({
           <div className="mt-1.5 flex items-center gap-2">
             <Spinner size={13} className="text-muted" />
             <span className="flex-1 text-xs text-muted" role="status">
-              {entry.message ?? "Keeping…"}
+              {entry.message ?? "Saving…"}
             </span>
           </div>
         )}
@@ -86,7 +111,47 @@ export function EntryRow({
           </Notice>
         )}
 
-        {entry.take && <TakeText take={entry.take} skills={skills} onApply={onApply} />}
+        {/* Something went wrong *after* the words were safe: a Skill that
+            would not run, an answer that never came, a Document that would not
+            take them. It was written onto the entry and shown by nothing —
+            asking a busy model looked exactly like not having asked. */}
+        {entry.state === "ready" && entry.message && (
+          <Notice tone="warning" className="mt-1.5">
+            {entry.message}
+          </Notice>
+        )}
+
+        {entry.take && (
+          <TakeText
+            take={entry.take}
+            skills={skills}
+            onApply={onApply}
+            // Asking stands at the head of the Skills row, on the text it is
+            // about — not on a strip of its own below the entry, which drew a
+            // second divider through every row.
+            lead={
+              entry.state === "ready" && !entry.take.running ? (
+                <Button onClick={onAsk}>
+                  <Sparkle /> Ask
+                </Button>
+              ) : undefined
+            }
+          />
+        )}
+
+        {/* Nothing has happened yet. A change is a proposal until someone says
+            yes — the line between this and every other assistant. */}
+        {entry.proposal && proposed(entry.proposal) && (
+          <div className="mt-1.5 flex items-center gap-1 rounded-md border border-accent-line bg-accent-soft px-2 py-1.5">
+            <span className="flex-1 text-xs text-ink">{proposed(entry.proposal)}</span>
+            <Button variant="primary" onClick={onAccept}>
+              Do it
+            </Button>
+            <IconButton label="Leave it" onClick={onLeave}>
+              <X size={13} />
+            </IconButton>
+          </div>
+        )}
 
         {/* The one fact an entry exists to report once it has one: the words
             are not only kept, they are somewhere. */}
@@ -113,22 +178,45 @@ export function TakeText({
   take,
   skills,
   onApply,
+  lead,
 }: {
   take: Take;
   skills?: Skill[];
   onApply: (takeId: string, skill: Skill) => void;
+  /** Something that belongs at the head of this text's Skills row. */
+  lead?: ReactNode;
 }) {
   const [copied, setCopied] = useState(false);
   const [all, setAll] = useState(false);
+  const [cited, setCited] = useState<number>();
   const usable = offered(skills, take);
-  // Two, and the rest behind the ⋯ — a 400-pixel row fits two names.
-  const shown = all ? usable : usable.slice(0, 2);
+  // Three, and the rest behind the ⋯ — what the mock shows, and what a
+  // 400-pixel row fits beside the copy button.
+  const shown = all ? usable : usable.slice(0, lead ? 2 : 3);
+  const source = cited === undefined ? undefined : take.sources?.[cited - 1];
 
   return (
     <div>
       {take.from && <div className="mt-1 text-[10.5px] font-[600] text-ai">{take.from}</div>}
-      <p className="mt-1 text-[12.5px] leading-[1.55] whitespace-pre-wrap text-ink">{take.text}</p>
+      <Folded
+        className="mt-1 text-[12.5px] leading-[1.55] whitespace-pre-wrap text-ink"
+        text={take.text}
+        // An answer's citations are chips that open what they stand on. Printed
+        // as text, `[Source 1]` is a claim nobody can follow.
+        render={
+          take.sources
+            ? (text) => <Answer text={text} open={cited} onCite={setCited} sources={take.sources} />
+            : undefined
+        }
+      />
+      {source && (
+        <div className="mt-1.5 rounded-md bg-surface-muted p-2">
+          <OriginMark origin={originOf(source.kind)} detail={source.source?.domain || "This Mac"} />
+          <p className="mt-1 line-clamp-6 text-[11.5px] leading-[1.5] text-ink-soft">{source.content}</p>
+        </div>
+      )}
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
+        {lead}
         {shown.map((skill) => (
           <Button key={skill.id} disabled={Boolean(take.running)} onClick={() => onApply(take.id, skill)}>
             {take.running === skill.name && <Spinner size={11} />}
@@ -141,6 +229,10 @@ export function TakeText({
           </IconButton>
         )}
         <IconButton
+          // Pushed to the end of the row: the Skills are a list that can wrap,
+          // and copying is not one of them. Without this it wrapped onto a
+          // line of its own and read as a control nobody had placed.
+          className="ml-auto"
           label={copied ? "Copied" : "Copy"}
           onClick={() => {
             void navigator.clipboard.writeText(take.text).then(() => {
@@ -168,6 +260,74 @@ export function TakeText({
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * A passage of text that a list can hold: six lines, then "More".
+ *
+ * One rule for both texts a row shows. They had two, in opposite directions —
+ * a quote cut at 220 characters with no way back, and a transcript printed
+ * whole however long it ran.
+ */
+function Folded({
+  text,
+  className,
+  render,
+}: {
+  text: string;
+  className?: string;
+  /** How to draw the words, when they are more than words. */
+  render?: (text: string) => ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const long = text.length > FOLD || text.split("\n").length > 8;
+  return (
+    <div>
+      <p className={cn(className, long && !open && "line-clamp-6")}>{render ? render(text) : text}</p>
+      {long && (
+        <button
+          type="button"
+          onClick={() => setOpen((was) => !was)}
+          className="mt-0.5 text-[11px] font-[560] text-muted underline decoration-line-strong underline-offset-2 hover:text-ink"
+        >
+          {open ? "Less" : "More"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What the agent is asking to be allowed to do, in the words the panel uses
+ * for it elsewhere.
+ *
+ * Never "would change your workspace": agreeing to something unnamed is not
+ * agreement. A proposal whose act we cannot name does not get a button.
+ */
+export function proposed(proposal: { tool: string; title?: string }): string {
+  if (proposal.title) return `Would draft “${proposal.title}”`;
+  const said: Record<string, string> = {
+    draft_document: "Would draft a document",
+    save_page: "Would save this page",
+    add_to_project: "Would file this into a Project",
+  };
+  return said[proposal.tool] ?? "";
+}
+
+function Sparkle() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinejoin="round"
+    >
+      <path d="M12 4l1.8 4.7L18.5 10l-4.7 1.8L12 16l-1.8-4.2L5.5 10l4.7-1.3z" />
+    </svg>
   );
 }
 

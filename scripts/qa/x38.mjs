@@ -1,23 +1,50 @@
-// X38 — one conversation per page, and the tab is called Chat.
-//
-// There was exactly one conversation, under a fixed key, with nothing tying it
-// to where you were. A question asked about an article stayed on screen over a
-// Google Doc, above an unrelated answer.
+/**
+ * X38 — what you said on one page stays on that page.
+ *
+ * There was exactly one conversation, under a fixed key, with nothing tying it
+ * to where you were: a question asked about an article stayed on screen over a
+ * Google Doc, above an unrelated answer.
+ *
+ * Rewritten on 2026-08-14 for the panel N13 left behind. The old check read
+ * `logue:threads` in the extension's own storage and looked for a tab called
+ * Chat; there are no tabs now, and no conversation of its own — the list is
+ * the page's Sources, held by the Host. The question it was asking is the one
+ * that still matters, so it is asked of the thing that answers it now.
+ *
+ *   ./scripts/qa/browser.sh 9899 http://127.0.0.1:8787
+ *   LOGUE_QA_PORT=9899 node scripts/qa/cdp.mjs 9899 ./scripts/qa/x38.mjs
+ */
+import { extensionId } from "./extension-id.mjs";
+
+const PORT = process.env.LOGUE_QA_PORT ?? "9899";
+const HOST = process.env.LOGUE_HOST ?? "http://127.0.0.1:8787";
+
 const results = [];
 const check = (name, ok, detail = "") => {
   results.push({ name, ok });
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}${detail ? "  — " + detail : ""}`);
 };
 
-const HOST = "http://127.0.0.1:8787";
+const say = (words) => `(() => {
+  const box = document.querySelector('textarea');
+  if (!box) return 'no box';
+  const set = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+  set.call(box, ${JSON.stringify(words)});
+  box.dispatchEvent(new Event('input', { bubbles: true }));
+  const send = [...document.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === 'Send');
+  if (!send) return 'no send';
+  send.click();
+  return 'ok';
+})()`;
 
 export async function run(api) {
-  await api.goto(`${HOST}/stream`);
-  await api.sleep(2000);
-  const targets = await (await fetch("http://127.0.0.1:9899/json")).json();
-  const worker = targets.find((t) => t.url.endsWith("/background.js"));
-  if (!worker) throw new Error("the extension's worker is not running");
-  const panelUrl = `chrome-extension://${new URL(worker.url).host}/sidepanel.html`;
+  const id = await extensionId(PORT);
+  if (!id) throw new Error("no extension id");
+  const panelUrl = `chrome-extension://${id}/sidepanel.html`;
+
+  await api.goto(panelUrl);
+  await api.sleep(1000);
+  await api.eval(`chrome.storage.local.set({ "logue:server": ${JSON.stringify(HOST)} }).then(() => "ok")`);
 
   // Two real pages in the owner's own app: a Source and a Project.
   const where = JSON.parse(
@@ -31,13 +58,11 @@ export async function run(api) {
   );
   check("two real pages to talk about", Boolean(where.a && where.b), JSON.stringify(where));
 
-  await api.goto(panelUrl);
-  await api.sleep(2000);
-
-  // Start clean, and leave the legacy global conversation behind to prove it
-  // is dropped rather than shown on every page.
-  await api.eval(`chrome.storage.local.set({ 'logue:thread': [{ from: 'you', text: 'ASKED SOMEWHERE, SHOWN EVERYWHERE', at: '2026-01-01T00:00:00Z' }] })
-    .then(() => chrome.storage.local.remove('logue:threads'))`);
+  // The one conversation that used to be shown everywhere. Left in storage on
+  // purpose: it must never appear again, on any page.
+  await api.eval(
+    `chrome.storage.local.set({ 'logue:thread': [{ from: 'you', text: 'ASKED SOMEWHERE, SHOWN EVERYWHERE', at: '2026-01-01T00:00:00Z' }] }).then(() => "ok")`,
+  );
 
   const openPage = async (url) =>
     Number(
@@ -50,82 +75,57 @@ export async function run(api) {
   const tabA = await openPage(where.a);
   const tabB = await openPage(where.b);
 
-  // Run a Skill on each page, which is what writes a conversation.
-  const runOn = async (tabId, url, label) =>
-    JSON.parse(
-      await api.eval(`(async () => {
-      const context = await fetch('${HOST}/v1/context?project=').then(r => r.json());
-      const skill = (context.skills ?? []).find(s => s.enabled && (s.contexts ?? []).includes('selection'));
-      const answer = await chrome.runtime.sendMessage({
-        type: 'logue:run-skill-on-selection', skillId: skill.id, skillName: ${JSON.stringify("SKILL")},
-        text: ${JSON.stringify(label)}, url: ${JSON.stringify(url)}, title: ${JSON.stringify(label)},
-      }).catch(e => ({ error: String(e) }));
-      return JSON.stringify({ sent: Boolean(answer?.ok), skill: skill.name });
-    })()`),
-    );
-  const first = await runOn(tabA, where.a, "A passage that belongs to the first page and nowhere else.");
-  check("a Skill ran on the first page", first.sent === true, JSON.stringify(first));
-  await api.sleep(12000);
-  const second = await runOn(tabB, where.b, "A different passage, belonging only to the second page.");
-  check("a Skill ran on the second page", second.sent === true, JSON.stringify(second));
-  await api.sleep(12000);
-
-  const stored = JSON.parse(
-    await api.eval(`(async () => {
-    const bag = await chrome.storage.local.get(['logue:threads', 'logue:thread']);
-    const threads = bag['logue:threads'] ?? {};
-    const at = (url) => { const u = new URL(url); return u.origin + u.pathname + u.search; };
-    const of = (url) => (threads[at(url)]?.messages ?? []).map(m => (m.text ?? '').slice(0, 60));
-    return JSON.stringify({
-      pages: Object.keys(threads).length,
-      a: of(${JSON.stringify(where.a)}),
-      b: of(${JSON.stringify(where.b)}),
-      legacyStillThere: bag['logue:thread'] !== undefined,
-    });
-  })()`),
-  );
-  check("each page has its own conversation", stored.pages >= 2, `${stored.pages} pages have one`);
-  check(
-    "the first page's conversation is about the first page",
-    stored.a.some((t) => /first page/i.test(t)) && !stored.a.some((t) => /second page/i.test(t)),
-    JSON.stringify(stored.a),
-  );
-  check(
-    "…and the second page's is about the second",
-    stored.b.some((t) => /second page/i.test(t)) && !stored.b.some((t) => /first page/i.test(t)),
-    JSON.stringify(stored.b),
-  );
-  check("the one global conversation is gone", stored.legacyStillThere === false, String(stored.legacyStillThere));
-
-  // What the panel shows depends on which tab is in front.
-  const shownOn = async (tabId) => {
-    await api.eval(`chrome.tabs.update(${tabId}, { active: true })`);
-    await api.sleep(2500);
+  /** Make the panel be about one page, and read what it shows. */
+  const on = async (tabId) => {
+    await api.eval(`chrome.tabs.update(${tabId}, { active: true }).then(() => "ok")`);
+    await api.sleep(1200);
     await api.eval(`location.reload()`);
-    await api.sleep(2500);
+    await api.sleep(3500);
     return await api.eval(`document.body.innerText`);
   };
-  const onA = await shownOn(tabA);
-  check("on the first page, the panel shows the first page's words", /first page/i.test(onA) && !/second page/i.test(onA),
-    `first: ${/first page/i.test(onA)}, second: ${/second page/i.test(onA)}`);
-  const onB = await shownOn(tabB);
-  check("on the second page, the second page's", /second page/i.test(onB) && !/first page/i.test(onB),
-    `first: ${/first page/i.test(onB)}, second: ${/second page/i.test(onB)}`);
-  check("nothing from the global conversation is on screen", !/ASKED SOMEWHERE/i.test(onA + onB));
 
-  // The rename.
-  const named = JSON.parse(
-    await api.eval(`(() => {
-    const tabs = [...document.querySelectorAll('[role="tab"]')].map(b => b.textContent.trim());
-    const heading = document.querySelector('h1')?.textContent ?? '';
-    return JSON.stringify({ tabs, heading, anyTalk: /talk/i.test(document.body.innerText) });
-  })()`),
+  // -- said on the first page ----------------------------------------------
+  await on(tabA);
+  check("the panel is about the first page", (await api.eval(say(A_WORDS))) === "ok");
+  await api.sleep(3500);
+
+  await on(tabB);
+  check("the panel is about the second page", (await api.eval(say(B_WORDS))) === "ok");
+  await api.sleep(3500);
+
+  const onA = await on(tabA);
+  check(
+    "on the first page, the panel shows the first page's words",
+    onA.includes(A_WORDS) && !onA.includes(B_WORDS),
+    `first: ${onA.includes(A_WORDS)}, second: ${onA.includes(B_WORDS)}`,
   );
-  check("the tab is called Chat", named.tabs.includes("Chat"), JSON.stringify(named.tabs));
-  check("…and the word Talk is nowhere in the panel", named.anyTalk === false, named.heading);
+  const onB = await on(tabB);
+  check(
+    "on the second page, the second page's",
+    onB.includes(B_WORDS) && !onB.includes(A_WORDS),
+    `first: ${onB.includes(A_WORDS)}, second: ${onB.includes(B_WORDS)}`,
+  );
+  check("nothing from the one global conversation is on screen", !/ASKED SOMEWHERE/i.test(onA + onB));
 
-  await api.eval(`chrome.tabs.remove([${tabA}, ${tabB}])`);
+  // -- and the Host is where they live -------------------------------------
+  const kept = await (await fetch(`${HOST}/v1/materials?q=${encodeURIComponent(MARK)}`)).json();
+  check("both are Sources, each on its own page", kept.materials.length === 2, `${kept.materials.length}`);
+  const pages = new Set(kept.materials.map((one) => one.source?.url));
+  check("filed against the page each was said on", pages.size === 2, [...pages].join(" · "));
+
+  // What this check made, it takes away again.
+  for (const one of kept.materials) {
+    await fetch(`${HOST}/v1/materials/${one.id}`, { method: "DELETE", headers: { "X-Logue-Client": "web" } });
+  }
+  await api.eval(`chrome.tabs.remove([${tabA}, ${tabB}]).then(() => "ok")`);
+  await api.eval(`chrome.storage.local.remove('logue:thread').then(() => "ok")`);
+
   const failed = results.filter((r) => !r.ok).length;
   console.log(`\n${results.length - failed}/${results.length} passed`);
   if (failed > 0) throw new Error(`${failed} checks failed`);
 }
+
+/** Findable afterwards, and unmistakable for anything else in the workspace. */
+const MARK = "x38mark";
+const A_WORDS = `A note that belongs to the first page and nowhere else ${MARK}`;
+const B_WORDS = `A different note, belonging only to the second page ${MARK}`;

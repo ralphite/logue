@@ -1,5 +1,5 @@
-import { Download, ExternalLink, MoreHorizontal, Settings2, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Bookmark, Download, ExternalLink, MoreHorizontal, Settings2, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Dialog,
@@ -13,10 +13,9 @@ import {
   Notice,
   Recording,
   Spinner,
-  cn,
 } from "@logue/ui";
 import { audioUrl, host, HostError, type Context, type Material } from "./api";
-import { entriesOf, merge, type Entry } from "./entries";
+import { entriesOf, merge } from "./entries";
 import { send, tagOf } from "./messages";
 import { readablePageText } from "./readable";
 import { currentServer, DEFAULT_SERVER, readAddress, rememberServer, whenServerChanges } from "./server";
@@ -138,7 +137,7 @@ function WhereLogueIs({ server, onConnected }: { server: string; onConnected: (s
         <ErrorNote>{failed}</ErrorNote>
       ) : (
         <p className="text-xs text-muted">
-          {note || "The address of the Host this browser talks to — this computer, another one, or a tunnel."}
+          {note || "Where Logue is running."}
         </p>
       )}
     </div>
@@ -154,6 +153,7 @@ function WhereLogueIs({ server, onConnected }: { server: string; onConnected: (s
  */
 function WaitingRow({ one, onChanged }: { one: Waiting; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
+  const [dropping, setDropping] = useState(false);
   const failed = (one.tries ?? 0) > 0;
 
   return (
@@ -174,10 +174,10 @@ function WaitingRow({ one, onChanged }: { one: Waiting; onChanged: () => void })
         </div>
         <Notice tone={failed ? "danger" : "warning"} className="mt-1.5">
           {failed
-            ? `Tried ${one.tries} time${one.tries === 1 ? "" : "s"}. The recording is kept here.`
-            : "Kept here. It goes in when Logue is running."}
+            ? `${one.tries} attempt${one.tries === 1 ? "" : "s"} so far. The recording is kept here.`
+            : "Kept here. It will be transcribed when Logue starts."}
         </Notice>
-        <div className="mt-1.5 flex flex-wrap gap-1">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
           <Button
             disabled={busy}
             onClick={() => {
@@ -193,23 +193,48 @@ function WaitingRow({ one, onChanged }: { one: Waiting; onChanged: () => void })
                 );
             }}
           >
-            {busy ? <Spinner size={11} /> : null} Try now
+            {busy ? <Spinner size={11} /> : null} Try again
           </Button>
-          <Button onClick={() => download(one)}>
-            <Download size={12} /> Export audio
-          </Button>
-          <Button
-            onClick={() => {
-              void chrome.storage.local.get(PENDING_KEY).then((stored) => {
-                const found: unknown = stored[PENDING_KEY];
-                const rest = (Array.isArray(found) ? found.filter(isWaiting) : []).filter((x) => x.id !== one.id);
-                void chrome.storage.local.set({ [PENDING_KEY]: rest }).then(onChanged);
-              });
-            }}
+          {/* Taking the audio away and throwing it away are not the ordinary
+              thing to do to a recording, and one of them cannot be undone. */}
+          <Menu
+            label="More"
+            align="end"
+            trigger={(props) => (
+              <IconButton label="More" {...props}>
+                <MoreHorizontal size={14} />
+              </IconButton>
+            )}
           >
-            <Trash2 size={12} /> Delete
-          </Button>
+            <MenuItem onClick={() => download(one)}>
+              <Download size={12} /> Export audio
+            </MenuItem>
+            <MenuItem onClick={() => setDropping(true)}>
+              <Trash2 size={12} /> Delete recording…
+            </MenuItem>
+          </Menu>
         </div>
+        <Dialog open={dropping} onClose={() => setDropping(false)} title="Delete this recording?">
+          <p className="text-[13px] text-ink-soft">
+            The audio is only in this browser. Deleting it cannot be undone.
+          </p>
+          <div className="mt-3 flex justify-end gap-1.5">
+            <Button onClick={() => setDropping(false)}>Keep it</Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setDropping(false);
+                void chrome.storage.local.get(PENDING_KEY).then((stored) => {
+                  const found: unknown = stored[PENDING_KEY];
+                  const rest = (Array.isArray(found) ? found.filter(isWaiting) : []).filter((x) => x.id !== one.id);
+                  void chrome.storage.local.set({ [PENDING_KEY]: rest }).then(onChanged);
+                });
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        </Dialog>
       </div>
     </article>
   );
@@ -229,7 +254,7 @@ function HeldRow({ one, server, onChanged }: { one: Held; server: string; onChan
       </span>
       <div className="min-w-0">
         <div className="flex items-baseline gap-2">
-          <span className="text-[10.5px] font-[600] text-muted">No words yet</span>
+          <span className="text-[10.5px] font-[600] text-act-voiced">Dictated</span>
           <span className="ml-auto text-[10.5px] tabular-nums text-muted">
             {new Date(one.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}
           </span>
@@ -317,6 +342,9 @@ export function Panel() {
   const [shortcuts, setShortcuts] = useState(false);
   const composer = useRef<ComposerHandle>(null);
   const voice = useVoice();
+  /** Read inside listeners that were made before this recording started. */
+  const recording = useRef(false);
+  recording.current = voice.phase === "recording" || voice.phase === "starting";
   const entries = useEntries(voice);
   /** The workspace moving, from anywhere — see `sync.ts`. */
   const written = useWatermark();
@@ -388,7 +416,12 @@ export function Panel() {
       if (typeof message !== "object" || message === null || !("text" in message)) return;
       const text = typeof message.text === "string" ? message.text : "";
       const anchor = "anchor" in message ? message.anchor : undefined;
-      setQuote(text ? { text, anchor } : undefined);
+      // A new selection replaces the quote; an empty one does not remove it.
+      // Clicking back on the page to keep reading collapses the highlight, and
+      // a quote that vanished then took the anchor with it — the comment was
+      // saved against nothing, which is the one thing this channel exists to
+      // prevent. It goes when the person drops it, or when it is sent.
+      if (text) setQuote({ text, anchor });
     };
     chrome.runtime.onMessage.addListener(onMessage);
     return () => chrome.runtime.onMessage.removeListener(onMessage);
@@ -463,10 +496,15 @@ export function Panel() {
     async (text: string) => {
       setBusy(true);
       const options = await sending();
-      await entries.submit(text, { ...options, captureId: spoken.current });
+      const kept = await entries.submit(text, { ...options, captureId: spoken.current });
+      setBusy(false);
+      // Only what was kept is cleared away. A send that failed leaves the
+      // words in the box and the passage above it, because there is nowhere
+      // else for either of them to be.
+      if (!kept) return false;
       spoken.current = undefined;
       setQuote(undefined);
-      setBusy(false);
+      return true;
     },
     [entries, sending],
   );
@@ -482,11 +520,17 @@ export function Panel() {
   /** Insert and send, in one act — ⌘↵, or the arrow on the recorder. */
   const insertAndSend = useCallback(async () => {
     const heard = await entries.hear(await sending());
-    if (!heard) return;
+    // Nothing heard: the box keeps whatever was already in it, and the entry
+    // that failed carries the recording.
+    if (!heard) return false;
     const typed = composer.current?.text() ?? "";
     spoken.current = heard.captureId;
-    await submit([typed, heard.text].filter(Boolean).join(typed && !/\s$/.test(typed) ? " " : ""));
-    composer.current?.clear();
+    const kept = await submit([typed, heard.text].filter(Boolean).join(typed && !/\s$/.test(typed) ? " " : ""));
+    // Kept: the box is empty. Not kept: the words the microphone heard are put
+    // in it, so nothing said is only in a failed row.
+    if (kept) composer.current?.clear();
+    else composer.current?.insert(heard.text);
+    return kept;
   }, [entries, sending, submit]);
 
   const keepPage = useCallback(async () => {
@@ -505,6 +549,11 @@ export function Panel() {
       void chrome.storage.local.get(LISTEN).then((stored) => {
         if (!stored[LISTEN]) return;
         void chrome.storage.local.remove(LISTEN);
+        // Already listening: pressing the shortcut again — because the panel
+        // did not look focused — used to start a second recording, and
+        // starting one cancels the one running. Nobody chose to throw that
+        // away.
+        if (recording.current) return;
         void listen();
       });
     };
@@ -531,13 +580,35 @@ export function Panel() {
   const mine = new Set(entries.items.map((one) => one.captureId).filter(Boolean));
   const elsewhere = stuck.filter((one) => !mine.has(one.captureId));
 
-  const empty = shown.length === 0 && waiting.length === 0 && elsewhere.length === 0;
+  /**
+   * All three kinds of row, in the order they happened.
+   *
+   * They used to be three blocks stacked above each other, so yesterday's
+   * unfinished recording sat permanently above everything written today. A
+   * recording waiting for Logue is a thing that happened at a time, like the
+   * rest of the list.
+   */
+  const rows = useMemo(() => {
+    const all = [
+      ...shown.map((one) => ({ what: "entry" as const, key: one.id, at: one.at, one })),
+      ...waiting.map((one) => ({ what: "waiting" as const, key: one.id, at: one.at, one })),
+      ...elsewhere.map((one) => ({ what: "held" as const, key: one.captureId, at: one.createdAt, one })),
+    ];
+    return all.toSorted((a, b) => (a.at < b.at ? 1 : -1));
+    // `elsewhere` is derived from `stuck` on every render; its identity is not
+    // the thing that changed when it did.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown, waiting, stuck]);
+
+  const empty = rows.length === 0;
 
   return (
     <div className="flex h-screen flex-col bg-panel">
       <header className="shrink-0 border-b border-line bg-panel">
         <div className="flex min-w-0 items-center gap-2 px-2.5 py-1.5">
-          <span className="min-w-0 flex-1 truncate text-[12.5px] font-[600] text-ink" title={page?.title}>
+          <Mark />
+          <span className="shrink-0 text-[12.5px] font-[650] text-ink">Logue</span>
+          <span className="min-w-0 flex-1 truncate text-[11.5px] text-muted" title={page?.title}>
             {page?.title || "This page"}
           </span>
           <Menu
@@ -560,9 +631,7 @@ export function Panel() {
             </MenuItem>
           </Menu>
         </div>
-        {(changingServer || unreachable) && (
-          <WhereLogueIs server={server} onConnected={() => setChangingServer(false)} />
-        )}
+        {changingServer && <WhereLogueIs server={server} onConnected={() => setChangingServer(false)} />}
       </header>
 
       <h1 className="sr-only">Logue</h1>
@@ -571,7 +640,14 @@ export function Panel() {
           the list rather than inside it. */}
       {(error || !modelReady) && (
         <div className="grid shrink-0 gap-1.5 border-b border-line bg-surface px-2 py-2">
-          {error && <ErrorNote>{error}</ErrorNote>}
+          {/* Logue not running is not an error the person made, and nothing is
+              lost when it happens — the recordings stay in this browser until
+              it is back. A red box with the fetch's own words said neither. */}
+          {error && (
+            <Notice tone={unreachable ? "warning" : "danger"}>
+              {unreachable ? "Logue is not running. Recordings are kept here." : error}
+            </Notice>
+          )}
           {!modelReady && !error && (
             <a
               href={`${server}/settings`}
@@ -580,7 +656,7 @@ export function Panel() {
               className="flex items-center gap-1.5 rounded-md border border-line bg-surface-muted px-2 py-1.5 text-xs text-warning hover:text-ink"
             >
               <Settings2 size={12} />
-              No model connected — nothing can transcribe or answer. Open Settings.
+              No model connected. Open Settings.
             </a>
           )}
         </div>
@@ -589,44 +665,52 @@ export function Panel() {
       <div className="logue-scroll min-h-0 flex-1 bg-surface">
         {empty ? (
           <Empty>
-            Nothing said about this page yet.
-            <span className="mt-1 block">
-              Type or talk below. What you send is kept, and every entry can be asked about.
-            </span>
+            <b className="font-[600] text-ink-soft">Nothing said about this page yet.</b>
+            <span className="mt-1 block">Select a passage to comment on it, or just start typing.</span>
+            <Button className="mt-2.5" onClick={() => void keepPage()}>
+              <Bookmark size={12} /> Save this page
+            </Button>
           </Empty>
         ) : (
           <>
-            {waiting.map((one) => (
-              <WaitingRow key={one.id} one={one} onChanged={readWaiting} />
-            ))}
-            {elsewhere.map((one) => (
-              <HeldRow key={one.captureId} one={one} server={server} onChanged={readWaiting} />
-            ))}
-            {shown.map((entry) => (
-              <div key={entry.id}>
+            {rows.map((row) =>
+              row.what === "waiting" ? (
+                <WaitingRow key={row.key} one={row.one} onChanged={readWaiting} />
+              ) : row.what === "held" ? (
+                <HeldRow key={row.key} one={row.one} server={server} onChanged={readWaiting} />
+              ) : (
                 <EntryRow
-                  entry={entry}
+                  key={row.key}
+                  entry={row.one}
                   server={server}
                   skills={context?.skills}
-                  onApply={(takeId, skill) => void entries.apply(entry.id, takeId, skill, project)}
-                  onRetry={() =>
-                    void entries.again(entry.id, { project, page: { url: page?.url, title: page?.title } })
-                  }
-                />
-                <AskRow
-                  entry={entry}
-                  onAsk={async () =>
-                    void entries.ask(entry.id, {
+                  onApply={(takeId, skill) =>
+                    void entries.apply(row.one.id, takeId, skill, {
                       project,
                       page: { url: page?.url, title: page?.title },
-                      pageText: await pageText(),
                     })
                   }
-                  onAccept={() => void entries.carryOut(entry.id, { url: page?.url, title: page?.title })}
-                  onLeave={() => entries.leaveIt(entry.id)}
+                  onRetry={() =>
+                    void entries
+                      .again(row.one.id, { project, page: { url: page?.url, title: page?.title } })
+                      .then((words) => {
+                        if (words) composer.current?.insert(words);
+                      })
+                  }
+                  onAsk={() => {
+                    void pageText().then((text) =>
+                      entries.ask(row.one.id, {
+                        project,
+                        page: { url: page?.url, title: page?.title },
+                        pageText: text,
+                      }),
+                    );
+                  }}
+                  onAccept={() => void entries.carryOut(row.one.id, { url: page?.url, title: page?.title })}
+                  onLeave={() => entries.leaveIt(row.one.id)}
                 />
-              </div>
-            ))}
+              ),
+            )}
           </>
         )}
       </div>
@@ -634,6 +718,7 @@ export function Panel() {
       <Composer
         handle={composer}
         quote={quote}
+        source={[page?.title, domainOf(page?.url)].filter(Boolean).join(" · ")}
         onDropQuote={() => setQuote(undefined)}
         project={project}
         projects={context?.projects ?? []}
@@ -650,10 +735,11 @@ export function Panel() {
         onRecord={() => void voice.start()}
         onDiscard={() => voice.cancel()}
         onInsert={() => void insert()}
-        onSend={() => {
-          if (voice.phase === "recording" || voice.phase === "starting") void insertAndSend();
-          else void submit(composer.current?.text() ?? "");
-        }}
+        onSend={() =>
+          voice.phase === "recording" || voice.phase === "starting"
+            ? insertAndSend()
+            : submit(composer.current?.text() ?? "")
+        }
         onKeepPage={() => void keepPage()}
         notice={
           voice.error ? (
@@ -673,7 +759,7 @@ export function Panel() {
           ) : voice.pending > 0 ? (
             <Notice tone="quiet" className="mt-1.5">
               <span className="flex items-center gap-2">
-                <Spinner size={12} /> {voice.pending} still transcribing — you can keep going
+                <Spinner size={12} /> {voice.pending} still transcribing
               </span>
             </Notice>
           ) : undefined
@@ -683,13 +769,13 @@ export function Panel() {
       <Dialog open={shortcuts} onClose={() => setShortcuts(false)} title="Keyboard shortcuts">
         <div className="grid gap-1.5 text-[13px]">
           {[
-            ["⌘⇧K", "Open this panel and start listening"],
-            ["↵", "Send what is in the box"],
+            ["⌘⇧K", "Open this panel and start talking"],
+            ["↵", "Send"],
             ["⇧↵", "New line"],
-            ["esc", "Drop the quoted passage"],
-            ["↵", "While recording: put the words in the box"],
-            ["⌘↵", "While recording: put them in and send"],
-            ["esc", "While recording: throw it away"],
+            ["esc", "Drop the quote"],
+            ["↵", "While recording: insert"],
+            ["⌘↵", "While recording: insert and send"],
+            ["esc", "While recording: discard"],
           ].map(([key, what]) => (
             <p key={`${key}${what}`} className="flex items-baseline gap-3">
               <span className="w-14 shrink-0">
@@ -704,55 +790,31 @@ export function Panel() {
   );
 }
 
+/** The host name a quote came from, when the address is one. */
+function domainOf(url?: string): string {
+  if (!url) return "";
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
 /** Written by ⌘⇧K before the panel opens; read here on arrival. */
 const LISTEN = "logue:listen-at";
 
-/**
- * Ask about this entry, and whatever the agent would like to do about it.
- *
- * Sending keeps; asking is a thing you do to something kept. It sits under
- * the entry rather than in a box of its own, so the question and the thing
- * it is about are never in two places.
- */
-function AskRow({
-  entry,
-  onAsk,
-  onAccept,
-  onLeave,
-}: {
-  entry: Entry;
-  onAsk: () => void;
-  onAccept: () => void;
-  onLeave: () => void;
-}): ReactNode {
-  if (entry.state !== "ready" || !entry.take) return null;
+/** Logue's own mark, so the panel says whose it is. */
+function Mark() {
   return (
-    <div className={cn("border-b border-line px-3 pb-2.5", entry.proposal ? "" : "-mt-1.5")}>
-      <div className="ml-[34px]">
-        {!entry.take.running && (
-          <Button onClick={onAsk}>
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
-              <path d="M12 4l1.8 4.7L18.5 10l-4.7 1.8L12 16l-1.8-4.2L5.5 10l4.7-1.3z" />
-            </svg>
-            Ask about this
-          </Button>
-        )}
-        {entry.proposal && (
-          // Nothing has happened yet. A change is a proposal until someone
-          // says yes — the line between this and every other assistant.
-          <div className="mt-1.5 flex items-center gap-1 rounded-md border border-accent-line bg-accent-soft px-2 py-1.5">
-            <span className="flex-1 text-xs text-ink">
-              {entry.proposal.title ? `Would draft “${entry.proposal.title}”` : "Would change your workspace"}
-            </span>
-            <Button variant="primary" onClick={onAccept}>
-              Do it
-            </Button>
-            <IconButton label="Leave it" onClick={onLeave}>
-              <X size={13} />
-            </IconButton>
-          </div>
-        )}
-      </div>
-    </div>
+    <span
+      aria-hidden
+      className="flex size-[18px] shrink-0 items-center justify-center rounded-[5px] bg-accent text-white"
+    >
+      <svg viewBox="0 0 24 24" className="h-[11px] w-[11px]" fill="none" stroke="currentColor" strokeWidth="2.1">
+        <rect x="9.5" y="3.5" width="5" height="9" rx="2.5" />
+        <path d="M6.5 10a5.5 5.5 0 0 0 11 0" strokeLinecap="round" />
+        <path d="M12 15.5V20" strokeLinecap="round" />
+      </svg>
+    </span>
   );
 }

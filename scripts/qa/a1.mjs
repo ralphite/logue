@@ -1,5 +1,9 @@
 // A1 — the panel audited the way the web routes were: computed styles, real
-// content, every tab. Not "looks fine".
+// content. Not "looks fine".
+//
+// It used to walk three tabs. The panel is one list and one composer now
+// (N13), so there is one surface to measure — and it is measured with
+// something in it, because an empty panel measures its empty state.
 export async function run(api) {
   await api.goto("http://127.0.0.1:8787/stream");
   await api.sleep(1500);
@@ -34,12 +38,19 @@ export async function run(api) {
     };
   })()`;
 
-  for (const tab of ["Chat", "This page", "Project"]) {
-    await api.goto(panel);
-    await api.sleep(2200);
-    await api.eval(`[...document.querySelectorAll('[role="tab"]')].find(b => b.textContent.includes(${JSON.stringify(tab)}))?.click()`);
-    await api.sleep(1200);
-    console.log(`\n── ${tab} ──`);
-    console.log(JSON.stringify(await api.eval(MEASURE), null, 1));
-  }
+  await api.goto(panel);
+  await api.sleep(2500);
+  // Something in the box and something in the list: a panel measured empty is
+  // a measurement of its empty state.
+  await api.eval(`(() => {
+    const box = document.querySelector('textarea[aria-label="What to send"]');
+    if (!box) return 'no composer';
+    const set = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+    set.call(box, 'A1 audit — something in the box, so the control states are the ones in use.');
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    return 'typed';
+  })()`);
+  await api.sleep(600);
+  console.log("\n── the panel ──");
+  console.log(JSON.stringify(await api.eval(MEASURE), null, 1));
 }

@@ -510,14 +510,15 @@
         "redesign"
       ],
       "note": "占位,计划写完后回填。",
-      "blocked_on": "等你说清楚:mode-picker(Comment/Question/Task)和'记进文档删掉'这两条,是要加在已上线版本上,还是 22:12 的裁决(A/留/书签)就是最终版本",
+      "blocked_on": "",
       "input_ids": [
         "in_extension_composer_input",
         "in_docs_spec_panel",
         "in_20260813",
         "in_submit_ask_composer",
         "in_mock_docs_spec",
-        "in_n13_done_commit"
+        "in_n13_done_commit",
+        "in_mode_picker_22"
       ],
       "created": "2026-08-13",
       "updated": "2026-08-14"
@@ -526,7 +527,7 @@
       "id": "T1",
       "title": "面板的四条浏览器检查按新面板重写(等 N13 定了再动)",
       "type": "test",
-      "status": "queued",
+      "status": "done",
       "priority": "P2",
       "confirmed": false,
       "tags": [
@@ -536,7 +537,7 @@
       "blocked_on": "",
       "input_ids": [],
       "created": "2026-08-13",
-      "updated": "2026-08-13"
+      "updated": "2026-08-14"
     },
     {
       "id": "F3",
@@ -561,7 +562,7 @@
       "id": "X4",
       "title": "Dropdown/Menu 弹层定位:base 组件要处理所有情况,不是挨个补",
       "type": "bug",
-      "status": "queued",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
@@ -574,13 +575,13 @@
         "in_bug_dropdown_popup"
       ],
       "created": "2026-08-13",
-      "updated": "2026-08-13"
+      "updated": "2026-08-14"
     },
     {
       "id": "X5",
       "title": "口述连续失败:0:01/0:02/0:14 三条录音都'the words did not come back'",
       "type": "bug",
-      "status": "queued",
+      "status": "done",
       "priority": "P2",
       "confirmed": false,
       "tags": [
@@ -593,13 +594,13 @@
         "in_no_words_yet"
       ],
       "created": "2026-08-13",
-      "updated": "2026-08-13"
+      "updated": "2026-08-14"
     },
     {
       "id": "N14",
       "title": "设计类任务标配 subagent 复审:先复审 N13 Extension 面板设计",
       "type": "design",
-      "status": "blocked",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
@@ -607,11 +608,50 @@
         "extension"
       ],
       "note": "review-process.md 现在管的是代码落地前的三方复审(copy / behaviour / design-fidelity)。他这次要的是往前挪一步:**方案/mock 阶段就要 subagent 复审**,不是等实现完才审。理由是他截图里看到面板连续出问题(见 X5),对这条产品线的信任已经消耗得差不多,'review ext panel design. too many issues'。\\n\\n**要做两件事**:①把这条规则写进 review-process.md 和 behaviors.md,作为长期流程(方案阶段也过三镜头复审,而不只是代码落地前);②现在就用 subagent 复审一次 N13 的方案(panel-composer.md + panel-mock.html),扣着 review-process.md 的三个问题:文案是不是都在说事实、没有多余的话;自动的节奏是不是会让人淹没在噪音里;和他已经点头的部分有没有走样。",
-      "blocked_on": "先等 N13 的分歧定了,再决定要不要继续复审(复审对象可能整个变掉)",
+      "blocked_on": "等 mode-picker 落地后复审",
       "input_ids": [
         "in_add_task_review"
       ],
       "created": "2026-08-13",
+      "updated": "2026-08-14"
+    },
+    {
+      "id": "F4",
+      "title": "文档列表照 Vibedoc 补齐:拖拽排序/挪层级,风险项列出来等他确认排除",
+      "type": "feature",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "documents",
+        "vibedoc"
+      ],
+      "note": "查了 vibedoc 真实源码(~/dev2/prototypes/vibedoc/src/frontend/src/components/SidebarNav.vue),不是只看设计文档。F3 已经做了树的读取/缩进/折叠/在里面新建,但**列表本身没有拖拽**——grep 了 web/src 全目录,没有 draggable/dragstart,DocumentsRoute.tsx 现在挪层级只能靠代码/API,人手动不了。\n\nvibedoc 列表真正有的:①拖拽排序 + 拖进另一个当子页(同一栏内,不能跨栏、不能拖进自己的子树);②拖到某一行时按位置分三区(插到上面/下面/拖进去当子页),UI 有对应的插入线提示;③拖到已折叠的行上悬停会自动展开;④双击行内重命名;⑤kebab 菜单里删除。以上五条**都不碰存储格式**,parent_id+position 已经是 F3 落的模型,纯前端交互,建议直接做,不用等确认。\n\n没在 vibedoc 里找到,但常见于同类产品、可能想要的:收藏/置顶、图标/emoji、复制一份、回收站(现在是硬删)。这几条**要他确认再做**,因为回收站和复制会改数据模型(要加软删除字段/复制语义),图标/emoji 要么占用文档正文第一行的语义(F2 刚把标题=正文第一行),要么要新加一个字段——两条路都得他选。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_new_task_doc_2"
+      ],
+      "created": "2026-08-14",
+      "updated": "2026-08-14"
+    },
+    {
+      "id": "F5",
+      "title": "编辑器功能清单核实:纯 Markdown 编辑上 Logue 已经领先 Vibedoc,真正缺的是 AI 工作流功能",
+      "type": "feature",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "documents",
+        "vibedoc",
+        "editor"
+      ],
+      "note": "用 subagent 逐行读了两边源码(不是设计文档):vibedoc 真正的编辑器组件 EditorPane.vue 只是一个朴素的 CodeMirror + Markdown 语法高亮,没有斜杠菜单、没有标记自动隐藏、没有表格/图片/复选框渲染、没有工具栏——这些 Logue 的 MarkdownEditor.tsx 反而全都有(F2 落的)。所以\"WYSIWYG 不完整\"这个判断,拿 vibedoc 当参照物是对不上的:纯编辑体验这条轴上 Logue 已经比 vibedoc 强。\n\nvibedoc 真正领先、Logue 没有的,全部是 AI 工作流功能,不是编辑器功能:\n①**行内 Agent Diff 评审**——模型改动以 hunk 形式标在正文里,逐段 Accept/Reject,评审完才整体应用,期间编辑器只读。**大工程**:要新的 diff/hunk 持久化结构、评审态、和 Logue 自己的 [Source n] 引用胶囊共存(diff 落在引用胶囊中间时两套装饰会打架)。\n②**语音口述直接插入正文**——录音排队、转写、按锚点插入、失败重试、行内状态气泡。**大工程**:要转写后端接入编辑器、任务队列、文档改动后的锚点重映射。\n③划词浮动菜单(选中文字弹出\"用某个 Agent 文档处理/问 AI\")——纯前端定位逻辑,但依赖\"Agent 文档\"这个概念,Logue 现在的技能(Skills)接近但不是一回事。\n\n便宜、自包含、不碰存储格式,建议直接做不用等确认:多光标编辑(CodeMirror 一行现成扩展)、拖放光标提示、防抖自动保存指示、查找替换(@codemirror/search 现成)、字数统计。\n\n**要他确认再做的,只有①②两条**——都是新增大功能,不是\"补齐已有功能\",而且都要新后端。③要先确认\"Agent 文档\"这个概念在 Logue 里对应什么(是不是就是 Skills)。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_the_wysiwyg_markdown"
+      ],
+      "created": "2026-08-14",
       "updated": "2026-08-14"
     }
   ],
@@ -840,6 +880,24 @@
       "id": "in_n13_done_commit",
       "at": "2026-08-14 00:01",
       "text": "发现:N13 已经被另一个会话实现并标记 done(commit ad08789b, feat: the panel is one list and one composer)。它是照你 22:12 给它的裁决做的——'A/留/书签':submit=存下这条,问答是之后再跑的 Ask 技能;'记进某文档' 留下,收成 composer 一行上的一个 chip;存整页留书签图标。这个裁决和你在这个会话里跟我说的(要一个提交前选模式的选择器 Comment/Question/Task;'记进某个文档看不懂,要删掉')不是一回事——我不确定这两次是先后关系还是你后来改了主意。已核实:你刚报的 dropdown 定位 bug(X4)就是这个已经上线的 'Into a Document' 下拉框(extension/src/panel/Composer.tsx:238-249)。等你说要不要在已上线的基础上继续加模式选择器,还是 22:12 那个裁决就是最终版本、我把 mode-picker 这条分支撤掉。查了 list_sessions:那个干活的会话现在显示在跑(isRunning true,刚刚 07:01 有动作),按 /peer 的规矩不打扰在跑的会话,所以没给它发消息——等你定了直接告诉我或者告诉它都行。",
+      "images": []
+    },
+    {
+      "id": "in_mode_picker_22",
+      "at": "2026-08-14 00:31",
+      "text": "拍板:mode-picker 要,加在已上线版本上面。「记进某个文档」不动,继续按 22:12 的裁决留着——这次只加 mode-picker。方案已更新:docs/spec/panel-composer.md 第五~八节。Task 这个模式是我加的、还没确认,先按三个做,做完给他看一眼再定去留。",
+      "images": []
+    },
+    {
+      "id": "in_new_task_doc_2",
+      "at": "2026-08-14 00:35",
+      "text": "new task: doc list must have all features of vibedoc! drag to reorder etc. most features should be there except the ones that will cause issue (ask me to confirm for the ones to exclude)",
+      "images": []
+    },
+    {
+      "id": "in_the_wysiwyg_markdown",
+      "at": "2026-08-14 00:36",
+      "text": "the wysiwyg markdown editor is not complete at all. list all features we should have and add to tasks",
       "images": []
     }
   ]

@@ -108,10 +108,16 @@ export function entriesOf(materials: Material[]): Entry[] {
         .find((one) => one?.kind === "selection")?.content,
       take: {
         id: material.id,
+        materialId: material.id,
         text: material.content,
         used: [],
+        // What a Skill made, named by the Skill that made it — the name was
+        // written onto the derived Source when it was kept, because "Answered"
+        // and "As Markdown" are not the same thing to read.
         made: (children.get(material.id) ?? []).map((child) => ({
           id: child.id,
+          materialId: child.id,
+          from: child.source?.made_by,
           text: child.content,
           used: [],
           made: [],

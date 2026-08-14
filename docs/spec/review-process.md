@@ -85,6 +85,8 @@ Before any of this reaches the owner's machine:
    is performed and every line on screen is read. A screenshot is the proof.
 4. The behaviour goes into `behaviors.md`; anything a script can assert gets
    a check under `scripts/qa/`.
+5. **The proposal was reviewed before the code was written.** A feature that
+   reaches this list without that pass has skipped the cheap half.
 
 ## Reflection — does the process itself work
 
@@ -114,3 +116,27 @@ kept at the bottom of this file so the process is answerable for itself.
   complete one.
   **And the gate:** anything that writes to `/v1/model`, `/v1/settings` or any
   other singleton reads it first, restores it last, and asserts the restore.
+- **2026-08-14 — the mock was reviewed, and the build drifted from it anyway.**
+  The panel's proposal went through the three questions before it was built;
+  the design-fidelity pass on the shipped panel then found twelve deviations,
+  two of them serious — every answer and every rewrite was thrown away when the
+  side panel closed, and a whole-article entry filled the panel so its own
+  Skills row sat a thousand pixels below the words.
+  **The rule this adds:** a reviewed proposal does not retire the fidelity
+  pass on the built thing, and that pass is **measured, not looked at** —
+  computed styles, element heights, whether a control is on screen and can be
+  pressed. Every finding of it that a script can hold becomes one, so the
+  panel cannot drift back (`scripts/qa/n14.mjs`).
+  **And the second rule:** anything a surface shows must survive the surface
+  being closed, and the check says so by closing it. A side panel is closed
+  more often than it is reloaded, and nothing that lives only in its memory is
+  kept.
+- **2026-08-14 — the copy gate could not see most of the copy.** The inventory
+  dropped one-word labels (`Send`, `Talk`, `Copy`), anything with brackets
+  (`Discard (Esc)`), and every JSX sentence written across more than one line —
+  which is how anything longer than a few words is written. So the panel's most
+  read strings were never in the file the review reads, and the review found
+  them by opening the product instead.
+  **The rule this adds:** when a review finds a string the inventory does not
+  hold, the extractor is the defect. It is widened in the same change, and the
+  count in `copy.md` moving is part of the diff.

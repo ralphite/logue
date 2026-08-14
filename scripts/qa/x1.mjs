@@ -67,7 +67,7 @@ export async function run(a) {
   // Nothing is clicked here. If this needs a click, the bug is not fixed.
   await a.eval(`(() => {
     const scope = [...document.querySelectorAll('button')].find(
-      (b) => (b.getAttribute('aria-label') || '').trim() === 'Project scope'
+      (b) => (b.getAttribute('aria-label') || '').trim() === 'Project'
     );
     if (scope) scope.click();
     return 'ok';

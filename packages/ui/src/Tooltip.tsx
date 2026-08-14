@@ -35,6 +35,15 @@ interface AnchorProps {
   "aria-describedby"?: string;
   ref?: Ref<HTMLElement>;
   disabled?: boolean;
+  /**
+   * The browser's own tooltip.
+   *
+   * Cleared on anything this component wraps: an `IconButton` sets `title`
+   * from its label, so a wrapped one showed the product's black label and the
+   * operating system's yellow strip at the same time, saying two different
+   * things about one button. The word is this component's job while it is on.
+   */
+  title?: string;
 }
 
 export function Tooltip({
@@ -109,7 +118,7 @@ export function Tooltip({
    */
   const child =
     isValidElement(children) && children.props.disabled ? (
-      <span className="inline-flex">{children}</span>
+      <span className="inline-flex">{cloneElement(children, { title: undefined })}</span>
     ) : (
       children
     );
@@ -149,6 +158,7 @@ export function Tooltip({
       hide();
     },
     "aria-describedby": at ? id : undefined,
+    title: undefined,
   };
 
   return (

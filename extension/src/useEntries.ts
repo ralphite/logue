@@ -169,10 +169,10 @@ export function useEntries(voice: ReturnType<typeof useVoice>) {
    * so what was said can be played back beside what it became.
    */
   const submit = useCallback(
-    async (text: string, options: Sending & { captureId?: string }) => {
+    async (text: string, options: Sending & { captureId?: string }): Promise<boolean> => {
       const words = text.trim();
       const quote = options.quote?.text.trim();
-      if (!words && !quote) return;
+      if (!words && !quote) return false;
       const id = nextId();
       const at = new Date().toISOString();
       // A passage with nothing said about it is a passage kept; words that came
@@ -224,16 +224,22 @@ export function useEntries(voice: ReturnType<typeof useVoice>) {
           ...was,
           state: "ready",
           material,
-          take: { id: `${id}t`, text: material.content, used: [], made: [] },
+          take: { id: `${id}t`, materialId: material.id, text: material.content, used: [], made: [] },
         }));
         await landed(id, material, words || quote || "", options);
       } catch (cause) {
+        // The words go onto the entry even though nothing was kept: a failed
+        // send that shows only its error is a failed send that ate a
+        // paragraph. From here they can be read, copied, and sent again.
         change(id, (was) => ({
           ...was,
           state: "failed",
           message: cause instanceof Error ? cause.message : "Could not keep that.",
+          take: words ? { id: `${id}t`, text: words, used: [], made: [] } : was.take,
         }));
+        return false;
       }
+      return true;
     },
     [change, landed],
   );
@@ -255,7 +261,7 @@ export function useEntries(voice: ReturnType<typeof useVoice>) {
           ...was,
           state: "ready",
           material,
-          take: { id: `${id}t`, text: material.content, used: [], made: [] },
+          take: { id: `${id}t`, materialId: material.id, text: material.content, used: [], made: [] },
         }));
       } catch (cause) {
         change(id, (was) => ({
@@ -268,9 +274,16 @@ export function useEntries(voice: ReturnType<typeof useVoice>) {
     [change],
   );
 
-  /** Try the model again on a recording the Host kept. */
+  /**
+   * Try the model again on a recording the Host kept.
+   *
+   * The words go where they would have gone the first time: into the box, for
+   * the person to send or not. Trying again used to file them as a Source
+   * instead — the same recording behaving one way when it worked and the
+   * opposite way when it had failed once.
+   */
   const again = useCallback(
-    async (id: string, options: Sending) => {
+    async (id: string, options: Sending): Promise<string | undefined> => {
       const captureId = items.find((one) => one.id === id)?.captureId;
       change(id, (was) => ({ ...was, state: "working", message: undefined }));
       const settled = await voice.retry({
@@ -278,23 +291,64 @@ export function useEntries(voice: ReturnType<typeof useVoice>) {
         project: options.project,
         source: { kind: "dictation", url: options.page?.url, title: options.page?.title },
         quiet: true,
+        keep: false,
         onRetrying: (kept, message) => change(id, (was) => ({ ...was, captureId: kept, message })),
       });
-      if (!settled) return;
+      if (!settled) return undefined;
       if (!settled.ok) {
         change(id, (was) => ({ ...was, state: "failed", message: settled.message }));
-        return;
+        return undefined;
       }
+      // Heard at last. The entry becomes the words, and the words are also in
+      // the box: what is kept is still the person's decision.
       change(id, (was) => ({
         ...was,
         state: "ready",
         message: undefined,
         material: settled.material,
-        take: { id: `${id}t`, text: settled.text, used: [], made: [] },
+        take: { id: `${id}t`, materialId: settled.material?.id, text: settled.text, used: [], made: [] },
       }));
+      return settled.text;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [voice, change, items],
+  );
+
+  /**
+   * Keep what a Skill wrote, as a Source hanging off the text it was made from.
+   *
+   * Until 2026-08-14 nothing did this: an answer and every rewrite lived in
+   * React state alone, so closing the side panel — the ordinary way a side
+   * panel ends — threw them away. The panel rebuilds its list from the Host,
+   * and what the Host never heard about cannot come back.
+   *
+   * A text with no Source behind it (a send that failed) has nothing to hang
+   * off, and the rewrite stays local rather than floating free of its
+   * evidence. That is the rule in `domain/materials.py`, kept here too.
+   */
+  const keepDerived = useCallback(
+    async (parentId: string | undefined, made: string, text: string, options: Sending) => {
+      if (!parentId) return undefined;
+      try {
+        const { material } = await host.saveMaterial({
+          kind: "derived",
+          content: text,
+          // The page it happened on as well as the Skill that made it: the
+          // panel finds this page's work by searching for the address, and a
+          // rewrite filed without one came back nowhere — it was on the Host
+          // and off the list, which is the same as gone.
+          source: { kind: "skill", made_by: made, url: options.page?.url, title: options.page?.title },
+          projects: options.project ? [options.project] : [],
+          parent_ids: [parentId],
+        });
+        return material.id;
+      } catch {
+        // The words are on screen either way. A rewrite that could not be
+        // kept is not worth an error over the answer it is showing.
+        return undefined;
+      }
+    },
+    [],
   );
 
   /**
@@ -305,13 +359,15 @@ export function useEntries(voice: ReturnType<typeof useVoice>) {
    * which is what makes sending mean *keep* rather than *ask*.
    */
   const apply = useCallback(
-    async (id: string, takeId: string, skill: Skill, project?: string) => {
+    async (id: string, takeId: string, skill: Skill, options: Sending) => {
       const item = items.find((one) => one.id === id);
       const target = item?.take && find(item.take, takeId);
       if (!item || !target || target.running) return;
 
+      // Whatever went wrong last time is not what is happening now.
       change(id, (was) => ({
         ...was,
+        message: undefined,
         take: was.take && edit(was.take, takeId, (found) => ({ ...found, running: skill.name })),
       }));
       try {
@@ -320,12 +376,13 @@ export function useEntries(voice: ReturnType<typeof useVoice>) {
           // The text to work on, not a request — the Skill's own prompt is the
           // request, and there is nothing else being asked for.
           input: target.text,
-          project,
+          project: options.project,
           source_ids: [],
           origin_id: item.material?.id,
         });
         const text = (run.original_output ?? "").trim();
         if (!text) throw new Error(run.error || "That Skill returned nothing.");
+        const materialId = await keepDerived(target.materialId, skill.name, text, options);
         change(id, (was) => ({
           ...was,
           take:
@@ -334,7 +391,10 @@ export function useEntries(voice: ReturnType<typeof useVoice>) {
               ...found,
               running: undefined,
               used: [...found.used, skill.id],
-              made: [...found.made, { id: `${found.id}-${skill.id}`, from: skill.name, text, used: [], made: [] }],
+              made: [
+                ...found.made,
+                { id: materialId ?? `${found.id}-${skill.id}`, materialId, from: skill.name, text, used: [], made: [] },
+              ],
             })),
         }));
       } catch (cause) {
@@ -345,7 +405,7 @@ export function useEntries(voice: ReturnType<typeof useVoice>) {
         }));
       }
     },
-    [items, change],
+    [items, change, keepDerived],
   );
 
   /**
@@ -363,6 +423,7 @@ export function useEntries(voice: ReturnType<typeof useVoice>) {
       if (!item || !take || take.running) return;
       change(id, (was) => ({
         ...was,
+        message: undefined,
         take: was.take && edit(was.take, take.id, (found) => ({ ...found, running: "Answering" })),
       }));
       try {
@@ -373,6 +434,7 @@ export function useEntries(voice: ReturnType<typeof useVoice>) {
             ? { url: options.page.url, title: options.page.title, text: options.pageText }
             : undefined,
         });
+        const materialId = await keepDerived(take.materialId, "Answered", turn.answer, options);
         change(id, (was) => ({
           ...was,
           proposal: turn.proposal,
@@ -382,7 +444,21 @@ export function useEntries(voice: ReturnType<typeof useVoice>) {
             edit(was.take, take.id, (found) => ({
               ...found,
               running: undefined,
-              made: [...found.made, { id: `${found.id}-ask-${found.made.length}`, from: "Answered", text: turn.answer, used: [], made: [] }],
+              made: [
+                ...found.made,
+                {
+                  id: materialId ?? `${found.id}-ask-${found.made.length}`,
+                  materialId,
+                  from: "Answered",
+                  text: turn.answer,
+                  // What the answer stood on, kept on the answer rather than
+                  // on the entry: a second question would otherwise renumber
+                  // the citations under the first one's answer.
+                  sources: turn.sources,
+                  used: [],
+                  made: [],
+                },
+              ],
             })),
         }));
       } catch (cause) {
@@ -393,7 +469,7 @@ export function useEntries(voice: ReturnType<typeof useVoice>) {
         }));
       }
     },
-    [items, change],
+    [items, change, keepDerived],
   );
 
   /** A person said yes. This is the only path a change can arrive by. */

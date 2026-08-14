@@ -148,6 +148,11 @@ export function useVoice() {
     if (!text.trim()) {
       return { ok: false, message: "Nothing was heard in that recording. The audio is still kept.", captureId };
     }
+    // The same rule as the first attempt: a caller that keeps its own words
+    // gets them back. This path ignored `keep` — so a recording the person had
+    // only inserted into the box, and never sent, was quietly filed as a
+    // Source the moment a busy model came back. One thought, two Sources.
+    if (options.keep === false) return { ok: true, text, captureId };
     const { material } = await host.saveVoice({
       capture_id: captureId,
       text,

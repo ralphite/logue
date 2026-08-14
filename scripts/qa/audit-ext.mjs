@@ -44,68 +44,43 @@ export async function run(api) {
   await api.goto(panel);
   await api.sleep(3000);
 
-  /** Click a tab by its label and let it render. */
-  const showTab = async (label) => {
-    const clicked = await api.eval(`(() => {
-      const tab = [...document.querySelectorAll('[role="tab"]')]
-        .find(b => b.textContent.trim().startsWith(${JSON.stringify(label)}));
-      if (!tab) return 'no such tab';
-      tab.click();
-      return 'shown';
-    })()`);
-    await api.sleep(1200);
-    return clicked;
-  };
-
-  // Chat gets a real conversation first — an empty tab measures its empty
-  // state, which is not what the panel looks like in use.
-  const opened = await showTab("Chat");
-  if (opened !== "shown") throw new Error(`the Chat tab is not there: ${opened}`);
+  // Something in the box and something in the list, so what is measured is
+  // the panel in use rather than its empty state. One surface now (N13): the
+  // tabs this audit used to walk are gone, and with them the tab-by-tab
+  // comparison — a font size that exists on one tab and nowhere else was the
+  // inconsistency it was looking for, and there is only one tab left.
   await api.eval(`(() => {
-    const box = document.querySelector('textarea');
-    if (!box) return 'no ask box';
+    const box = document.querySelector('textarea[aria-label="What to send"]');
+    if (!box) return 'no composer';
     const set = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-    set.call(box, 'what do my notes say about Logue?');
+    set.call(box, 'audit-ext — the panel with something in it.');
     box.dispatchEvent(new Event('input', { bubbles: true }));
-    [...document.querySelectorAll('button')].find(b => /^Ask$/.test(b.textContent.trim())).click();
-    return 'asked';
+    return 'typed';
   })()`);
-  for (let i = 0; i < 40; i++) {
-    await api.sleep(1000);
-    if (await api.eval(`/stand-in|Sources/.test(document.body.textContent)`)) break;
-  }
+  await api.sleep(800);
 
-  const tabs = ["Chat", "Dictation", "This page", "Project"];
-  const perTab = {};
-  for (const label of tabs) {
-    const state = await showTab(label);
-    if (state !== "shown") {
-      console.log(`PANEL · ${label}: NOT FOUND — the tab this audit expects is gone`);
-      continue;
-    }
-    perTab[label] = JSON.parse(await api.eval(`JSON.stringify((${MEASURE})(document.body))`));
-    console.log(`PANEL · ${label}:`, JSON.stringify(perTab[label], null, 1));
-  }
-
-  // The two rules the audit set for the whole product, checked across tabs
-  // rather than inside one: a font size that exists on one tab and nowhere
-  // else is the same inconsistency as one that differs between routes.
-  const everySize = new Set(Object.keys(perTab).flatMap((k) => Object.keys(perTab[k].sizes ?? {})));
-  const everySmall = Object.entries(perTab).flatMap(([k, v]) => (v.small ?? []).map((s) => `${k}: ${s}`));
+  const panelSeen = JSON.parse(await api.eval(`JSON.stringify((${MEASURE})(document.body))`));
+  console.log("PANEL:", JSON.stringify(panelSeen, null, 1));
   console.log("\nACROSS THE PANEL");
-  console.log("  font sizes in use:", [...everySize].sort().join(", "));
-  console.log("  click targets under 24px:", everySmall.length ? everySmall.join(" | ") : "none");
+  console.log("  font sizes in use:", Object.keys(panelSeen.sizes ?? {}).sort().join(", "));
+  console.log(
+    "  click targets under 24px:",
+    (panelSeen.small ?? []).length ? (panelSeen.small ?? []).join(" | ") : "none",
+  );
 
   // -- the injected overlays, on the app's own long document -------------
   const docId = await api.eval(`fetch('http://127.0.0.1:8787/v1/documents', { headers: { 'X-Logue-Client': 'extension' } }).then(r => r.json()).then(d => { const rich = d.documents.filter(x => (x.content ?? '').length > 800); return (rich[0] ?? d.documents[0])?.id; })`);
   await api.goto(`http://127.0.0.1:8787/documents/${docId}`);
   await api.sleep(3000);
   await api.eval(`(() => {
-    const editor = document.querySelector('main [contenteditable="true"]');
+    // The editor is CodeMirror now (F2): its editable element is .cm-content.
+    const editor = document.querySelector('main .cm-content');
+    if (!editor) return 'no editor';
     editor.focus();
     const range = document.createRange();
     range.selectNodeContents(editor); range.collapse(false);
     const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    return 'placed';
   })()`);
   await api.sleep(2500);
   const bar = await api.eval(`(() => {
@@ -117,12 +92,14 @@ export async function run(api) {
 
   // Selection: the toolbar over a real paragraph.
   await api.eval(`(() => {
-    const editor = document.querySelector('main [contenteditable="true"]');
-    const target = [...editor.querySelectorAll('p')].find(p => p.textContent.trim().length > 40) ?? editor;
+    const editor = document.querySelector('main .cm-content');
+    if (!editor) return 'no editor';
+    const target = [...editor.querySelectorAll('.cm-line')].find((l) => l.textContent.trim().length > 40) ?? editor;
     const range = document.createRange();
     range.selectNodeContents(target);
     const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    return 'selected';
   })()`);
   await api.sleep(2000);
   const selection = await api.eval(`(() => {

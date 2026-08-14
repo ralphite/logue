@@ -39,7 +39,15 @@ export interface Material {
   /** How long that recording ran. Measured when it was made. */
   capture_seconds?: number;
   created_at: string;
-  source?: { url?: string; title?: string; domain?: string };
+  source?: {
+    url?: string;
+    title?: string;
+    domain?: string;
+    /** How it was made: `skill` on anything a Skill wrote. */
+    kind?: string;
+    /** Which Skill wrote it — "Answered", "As Markdown". */
+    made_by?: string;
+  };
   /** Where on the page this passage was, and what has happened to that since. */
   anchor?: {
     exact: string;

@@ -21,6 +21,13 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   any work on it — a request that lives only in a reply is not queued.
 - **Verify in a real browser, against the real Host and a real model.** Unit
   tests are necessary and never sufficient. No mocks standing in for a run.
+- **A design is reviewed by three agents before it is built, not only after.**
+  (2026-08-13: *"review feature design with subagent (always). review ext panel
+  design. too many issues"*.) The same three questions — does every string say
+  a fact, does the rhythm make sense to a person, does it match what was
+  approved — asked of the proposal and the mock while changing them is still
+  cheap, and asked again of the code. Findings are verified on the running
+  product before they are acted on; nothing is dismissed silently.
 - **Where a check needs an account, it runs in the person's own browser.** A
   clean throwaway profile cannot open Notion or a Google Doc, and "it needed a
   login" is not a reason to skip the check or to swap in a page that does not
@@ -490,7 +497,7 @@ ruling on the three questions it raised — **A / keep / bookmark**.)
 - **Sending keeps. Asking is something you do to what you kept.** One send is
   one Source: words that came out of the microphone are kept as a voice
   Source carrying the recording, so what was said can be played beside what it
-  became. `Ask about this` sits under each entry.
+  became. `Ask` sits on each entry's own Skills row.
 - **A selection on the page changes the scope, not the controls.** The passage
   arrives above the box as a quote, with the anchor the page made while the
   selection existed, and goes in as its own Source with the note hanging off
@@ -509,6 +516,53 @@ ruling on the three questions it raised — **A / keep / bookmark**.)
   be found in the app. It used to be written into a conversation the panel
   read from browser storage — which existed nowhere else and vanished when the
   conversation was cleared.
+
+### What the three reviews changed (2026-08-14)
+
+Every one of these is a deviation between the panel that shipped and the mock
+he confirmed, found by the copy, behaviour and design-fidelity reviewers and
+then measured in the real panel — see `scripts/qa/n14.mjs`.
+
+- **An answer is a Source, hanging off what was asked about.** Every answer and
+  every rewrite is kept as a `derived` Source, filed against the page it
+  happened on and pointing at the text it came from. Until this, they lived in
+  the panel's memory alone: asking a question and then closing the side panel —
+  the ordinary way a side panel ends — threw the answer away, and the panel
+  rebuilds its list from the Host. A text with no Source behind it (a send that
+  failed) has nothing to hang off, and its rewrite stays on screen only, by the
+  rule that nothing generated floats free of its evidence.
+- **`[Source n]` is a chip you can press**, showing the passage it stands on,
+  the same component the app uses. Printed as text it is a claim nobody can
+  follow.
+- **Asking is a Skill, on the Skills row**, not a strip below the entry. The
+  strip drew a second divider through every row and the first one broke around
+  the button.
+- **A long entry folds at six lines.** One 4:14 dictation filled the whole
+  panel — its own Skills row was a thousand pixels below the words it belonged
+  to. One rule for both texts a row shows: the quote used to be cut at 220
+  characters with no way back, the transcript printed whole however long.
+- **Logue not running is not an error the person made.** A quiet line —
+  *Logue is not running. Recordings are kept here.* — instead of the fetch's
+  own words in red, and the server address form no longer opens itself on the
+  first failed call. It is opened from the menu, by someone who thinks the
+  address is wrong.
+- **What is offered on a text does not depend on how the text arrived.** The
+  Skills row filtered on the `dictation` context, so a saved page and a kept
+  passage were offered nothing. The panel is the browser: it offers every Skill
+  the browser can reach.
+- **A recording waiting for Logue is a row in the list, at the time it
+  happened** — not a block pinned above everything, where yesterday's queue sat
+  permanently on top of today's work. Its one ordinary action is *Try again*;
+  exporting the audio and deleting it are behind the ⋯, and deleting asks
+  first, because the audio is only in this browser.
+- **Anything that goes wrong after the words are safe still gets said.** A
+  Skill that would not run, an answer that never came, a Document that would
+  not take the words: the message was written onto the entry and shown by
+  nothing, so asking a busy model looked exactly like not having asked.
+- **The things you press have edges**, and say their word once. A product
+  tooltip now clears the browser's own — a wrapped icon button was showing the
+  black label and the yellow strip at the same time, saying two different
+  things about one button.
 
 ## Two surfaces, one workspace
 
