@@ -33,3 +33,6 @@ scripts/qa/spoken-loop.wav
 # the Host's own interpreter: the Host has no third-party packages and this
 # does not give it one.
 .phoenix-venv/
+
+# Which extension the test browser loaded, written at install time.
+scripts/qa/.extension-*
