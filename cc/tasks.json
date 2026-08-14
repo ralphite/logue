@@ -655,8 +655,26 @@
       "note": "用 subagent 逐行读了两边源码(不是设计文档):vibedoc 真正的编辑器组件 EditorPane.vue 只是一个朴素的 CodeMirror + Markdown 语法高亮,没有斜杠菜单、没有标记自动隐藏、没有表格/图片/复选框渲染、没有工具栏——这些 Logue 的 MarkdownEditor.tsx 反而全都有(F2 落的)。所以\"WYSIWYG 不完整\"这个判断,拿 vibedoc 当参照物是对不上的:纯编辑体验这条轴上 Logue 已经比 vibedoc 强。\n\nvibedoc 真正领先、Logue 没有的,全部是 AI 工作流功能,不是编辑器功能:\n①**行内 Agent Diff 评审**——模型改动以 hunk 形式标在正文里,逐段 Accept/Reject,评审完才整体应用,期间编辑器只读。**大工程**:要新的 diff/hunk 持久化结构、评审态、和 Logue 自己的 [Source n] 引用胶囊共存(diff 落在引用胶囊中间时两套装饰会打架)。\n②**语音口述直接插入正文**——录音排队、转写、按锚点插入、失败重试、行内状态气泡。**大工程**:要转写后端接入编辑器、任务队列、文档改动后的锚点重映射。\n③划词浮动菜单(选中文字弹出\"用某个 Agent 文档处理/问 AI\")——纯前端定位逻辑,但依赖\"Agent 文档\"这个概念,Logue 现在的技能(Skills)接近但不是一回事。\n\n便宜、自包含、不碰存储格式,建议直接做不用等确认:多光标编辑(CodeMirror 一行现成扩展)、拖放光标提示、防抖自动保存指示、查找替换(@codemirror/search 现成)、字数统计。\n\n**要他确认再做的,只有①②两条**——都是新增大功能,不是\"补齐已有功能\",而且都要新后端。③要先确认\"Agent 文档\"这个概念在 Logue 里对应什么(是不是就是 Skills)。",
       "blocked_on": "",
       "input_ids": [
-        "in_the_wysiwyg_markdown"
+        "in_the_wysiwyg_markdown",
+        "in_no_follow_notion"
       ],
+      "created": "2026-08-14",
+      "updated": "2026-08-14"
+    },
+    {
+      "id": "F6",
+      "title": "Notion 对齐剩下的五条:块拖拽把手、目录大纲、@ 提页面、图标/封面、评论",
+      "type": "feature",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": false,
+      "tags": [
+        "documents",
+        "notion"
+      ],
+      "note": "F6 已落地能直接做的那批(格式化快捷键、选区工具条、空行 / 提示、面包屑、粘贴链接、⌘F、多光标、字数),见 docs/spec/features/documents.md。剩下五条按代价和是否动数据模型分两组。\n\n**不动数据模型,纯前端,可以直接做**:①**块拖拽把手** —— 正文左侧的 ⋮⋮,拖动整块换位置(现在只有 ⌥↑/↓ 逐行移动)。要在 Markdown 里判块边界(段落/列表项/代码围栏/表格),中等工程量。②**目录大纲** —— 右侧列出各级标题、点击跳转、滚动高亮当前节。\n\n**要他先点头,因为会改文档是什么**:③**@ 提另一个页面** —— 存成 [标题](/documents/id) 就够,但要定 @ 菜单的检索范围、被删页面的链接怎么显示、要不要反链。④**页面图标/封面** —— 和 F2「标题就是正文第一行」冲突:要么占用正文,要么新加字段,两条路都得他选(F4 note 里已经提过)。⑤**评论** —— 要新后端(评论表、锚点、未读),是本条里最大的一件。\n\n建议顺序:①②直接做;③④⑤等他一句话。",
+      "blocked_on": "",
+      "input_ids": [],
       "created": "2026-08-14",
       "updated": "2026-08-14"
     }
@@ -916,6 +934,12 @@
       "id": "in_n11_sidepanel_n13",
       "at": "2026-08-14 01:07",
       "text": "N11 的 sidepanel 那一半已经由 N13 + N14 做完(一个列表 + 一个 composer,三方复审后的 12 条已修并在 scripts/qa/n14.mjs 里量过)。剩下的只有页面注入件:VoiceBar / SelectionBar / hint。照旧先出 mock 再改代码。",
+      "images": []
+    },
+    {
+      "id": "in_no_follow_notion",
+      "at": "2026-08-14 02:32",
+      "text": "No. Follow notion design. Use notion in my browser to understand",
       "images": []
     }
   ]

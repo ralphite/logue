@@ -629,6 +629,26 @@ then measured in the real panel — see `scripts/qa/n14.mjs`.
   recorded keep pointing at prompts that exist. No model writes summary lines
   here — a person edits a prompt by hand and the diff is the story.
 
+### The habits of a person who writes (2026-08-14)
+
+(F6, from *"ux should be similar to notion"*. Everything here writes Markdown;
+the file is not a different thing from the page.)
+
+- **The formatting keys are the ones every editor has**, and each one toggles.
+  ⌘B, ⌘I, ⌘E, ⌘⇧X, ⌘K. A key that only ever adds is a key you can press once.
+- **A link is made where the caret already is.** ⌘K wraps the selection and
+  lands the caret in the half that is missing; an address pasted over a
+  passage makes that passage a link.
+- **What can be done to a passage appears on the passage.** Bold, italic,
+  code, link, and Rewrite, in a bar above the selection. Rewrite used to be a
+  button in the page header, disabled whenever nothing was selected and
+  explaining its own disabled-ness — an action parked where the thing it acts
+  on never is.
+- **An empty line offers the block menu.** `Type / for commands`, on the line
+  the caret is in. The one habit this editor borrowed from Notion was
+  otherwise findable only by someone who already knew it.
+- **A page inside another page says so**, in the header, each step a link.
+
 ### The list is rearranged by hand (2026-08-14)
 
 (F4. The tree landed with `parent_id` and `position` real and no way to touch

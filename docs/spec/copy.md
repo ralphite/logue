@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-965 strings across 88 files.
+971 strings across 88 files.
 
 ## extension/src/api.ts
 
@@ -858,49 +858,48 @@ state the fact, no justification, no chat register, no filler.
 ## web/src/app/DocumentsRoute.tsx
 
 - 218: `Untitled`
-- 248: `Documents`
-- 250: `New Document`
-- 268: `Untitled`
-- 339: `Untitled`
-- 344: `source`
-- 344: `sources`
-- 345: `written by hand`
-- 349: `page`
-- 349: `pages`
-- 359: `Show what is inside`
-- 359: `Fold this away`
-- 361: `Show what is inside`
-- 361: `Fold this away`
-- 375: `New page inside this one`
-- 377: `New page inside this one`
-- 394: `More`
-- 397: `More`
-- 418: `Delete this page`
-- 419: `Untitled`
-- 424: `page`
-- 424: `pages`
-- 428: `Every Source it cited stays in the workspace.`
-- 454: `Documents`
-- 456: `Nothing written yet — press + to start a page.`
-- 590: `Documents`
-- 602: `New Document`
-- 602: `Untitled`
-- 610: `Rewrite the passage`
-- 610: `Select a passage first`
-- 626: `Download as Markdown`
-- 649: `Keep mine`
-- 658: `Discard mine`
-- 663: `This document changed somewhere else. Your edits are still here, unsaved.`
-- 690: `Document`
-- 694: `Not saved yet`
-- 696: `Every version is kept`
-- 715: `Mark this state as a version to come back to`
-- 726: `Version kept`
-- 726: `Keep this version`
-- 736: `Sources`
-- 815: `Name`
-- 820: `Enter`
-- 821: `Escape`
+- 266: `Documents`
+- 268: `New Document`
+- 286: `Untitled`
+- 357: `Untitled`
+- 362: `source`
+- 362: `sources`
+- 363: `written by hand`
+- 367: `page`
+- 367: `pages`
+- 377: `Show what is inside`
+- 377: `Fold this away`
+- 379: `Show what is inside`
+- 379: `Fold this away`
+- 393: `New page inside this one`
+- 395: `New page inside this one`
+- 412: `More`
+- 415: `More`
+- 436: `Delete this page`
+- 437: `Untitled`
+- 442: `page`
+- 442: `pages`
+- 446: `Every Source it cited stays in the workspace.`
+- 474: `Documents`
+- 476: `Nothing written yet — press + to start a page.`
+- 616: `Documents`
+- 638: `Untitled`
+- 643: `New Document`
+- 643: `Untitled`
+- 657: `Download as Markdown`
+- 680: `Keep mine`
+- 689: `Discard mine`
+- 694: `This document changed somewhere else. Your edits are still here, unsaved.`
+- 723: `Document`
+- 727: `Not saved yet`
+- 729: `Every version is kept`
+- 748: `Mark this state as a version to come back to`
+- 759: `Version kept`
+- 759: `Keep this version`
+- 769: `Sources`
+- 848: `Name`
+- 853: `Enter`
+- 854: `Escape`
 
 ## web/src/app/FindDialog.tsx
 
@@ -945,30 +944,37 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/MarkdownEditor.tsx
 
-- 174: `Enter`
-- 205: `my-1 block`
-- 213: `Image`
-- 273: `Image`
-- 288: `Link`
-- 385: `2px solid var(--color-line-strong)`
-- 416: `1px solid var(--color-line)`
-- 417: `6px 8px`
-- 427: `0 7px`
-- 429: `1px solid var(--color-control-line)`
-- 437: `0 8px`
-- 439: `1px solid var(--color-control-line)`
-- 447: `0 6px`
-- 513: `Bulleted list`
-- 514: `Numbered list`
-- 516: `Quote`
-- 517: `Code block`
-- 520: `Table`
-- 525: `Divider`
-- 543: `Document`
-- 637: `Enter`
-- 645: `Escape`
-- 679: `Start writing. The first line is the title.`
-- 767: `Insert a block`
+- 175: `Enter`
+- 206: `my-1 block`
+- 214: `Image`
+- 274: `Image`
+- 289: `Link`
+- 389: `2px solid var(--color-line-strong)`
+- 420: `1px solid var(--color-line)`
+- 421: `6px 8px`
+- 431: `0 7px`
+- 433: `1px solid var(--color-control-line)`
+- 441: `0 8px`
+- 443: `1px solid var(--color-control-line)`
+- 451: `0 6px`
+- 517: `Bulleted list`
+- 518: `Numbered list`
+- 520: `Quote`
+- 521: `Code block`
+- 524: `Table`
+- 529: `Divider`
+- 618: `Type / for commands`
+- 670: `Document`
+- 784: `Enter`
+- 792: `Escape`
+- 835: `Start writing. The first line is the title.`
+- 937: `Format the selected passage`
+- 941: `Bold`
+- 944: `Italic`
+- 945: `font-serif italic`
+- 947: `Code`
+- 950: `Link`
+- 977: `Insert a block`
 
 ## web/src/app/MaterialPanel.tsx
 

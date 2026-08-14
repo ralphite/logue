@@ -1,4 +1,4 @@
-import { ChevronRight, Download, MoreHorizontal, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
+import { ChevronRight, Download, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, cn, Empty, ErrorNote, IconButton, Menu, MenuItem, Notice, Spinner, Tooltip } from "@logue/ui";
 import { api, ApiError, type Document as DocumentRecord, type Material } from "../api";
@@ -242,6 +242,24 @@ export function DocumentsRoute({
 
   const selectedId = openId && openId !== DRAFT ? openId : openId === DRAFT ? undefined : shown[0]?.one.id;
 
+  /**
+   * The pages this one sits inside, outermost first.
+   *
+   * Documents nest now, and a page opened from a search or a link arrives with
+   * nothing saying where it is. The trail is that, and each step opens.
+   */
+  const trail = useMemo(() => {
+    const byId = new Map(all.map((one) => [one.id, one]));
+    const steps: DocumentRecord[] = [];
+    let at = byId.get(selectedId ?? "")?.parent_id ?? undefined;
+    while (at && byId.has(at) && steps.length < 8) {
+      const parent = byId.get(at)!;
+      steps.unshift(parent);
+      at = parent.parent_id ?? undefined;
+    }
+    return steps;
+  }, [all, selectedId]);
+
   return (
     <div className="flex min-h-0 flex-1">
       <ListPane
@@ -448,6 +466,8 @@ export function DocumentsRoute({
           id={openId ?? selectedId!}
           onCreated={onCreated}
           onOpenSource={onOpenSource}
+          trail={trail}
+          onOpen={onOpen}
         />
       ) : (
         <DetailPane>
@@ -460,6 +480,9 @@ export function DocumentsRoute({
     </div>
   );
 }
+
+/** A page at the top of the tree sits inside nothing. One array, not one a render. */
+const NO_TRAIL: { id: string; title: string }[] = [];
 
 /** A document that does not exist yet, so the editor has something to show. */
 const BLANK: { document: DocumentRecord; sources: Material[] } = {
@@ -479,10 +502,15 @@ function DocumentEditor({
   id,
   onCreated,
   onOpenSource,
+  trail = NO_TRAIL,
+  onOpen,
 }: {
   id: string;
   onCreated: (id: string) => void;
   onOpenSource: (id: string) => void;
+  /** The pages this one sits inside, outermost first. */
+  trail?: { id: string; title: string }[];
+  onOpen?: (id: string) => void;
 }) {
   // Nothing is in the workspace yet. It goes in at the first keystroke, so
   // pressing `+` and walking away leaves no trace.
@@ -507,8 +535,6 @@ function DocumentEditor({
   const editing = useAction();
   /** The selected passage, frozen when Rewrite was pressed. */
   const [rewriting, setRewriting] = useState<string>();
-  /** Whether there is a passage to rewrite right now, so the button can say so. */
-  const [selected, setSelected] = useState(false);
   const editor = useRef<MarkdownHandle>(null);
   /** Read inside the autosave, which fires after the render that queued it. */
   const written = useRef("");
@@ -599,7 +625,24 @@ function DocumentEditor({
     <DetailPane>
       <DetailHeader
         badge={<IconBadge name="document" tinted />}
-        name={draft ? "New Document" : title || "Untitled"}
+        name={
+          <span className="flex min-w-0 items-center">
+            {/* Where this page sits, when it sits inside another. */}
+            {trail.map((step) => (
+              <span key={step.id} className="flex min-w-0 items-center">
+                <button
+                  type="button"
+                  onClick={() => onOpen?.(step.id)}
+                  className="max-w-[10rem] truncate font-[500] text-muted hover:text-ink"
+                >
+                  {step.title || "Untitled"}
+                </button>
+                <ChevronRight size={11} className="mx-1 flex-none text-faint" />
+              </span>
+            ))}
+            <span className="truncate">{draft ? "New Document" : title || "Untitled"}</span>
+          </span>
+        }
         // What it is made of. Whether it is saved is the footer's line, and
         // saying it twice on one screen — once lower case, once capitalised —
         // was the screen disagreeing with itself.
@@ -607,22 +650,10 @@ function DocumentEditor({
         actions={
           draft ? undefined : (
             <>
-              <Tooltip label={selected ? "Rewrite the passage" : "Select a passage first"}>
-                <Button
-                  // A button that answers a press by doing nothing is broken,
-                  // however good its reason: with no passage selected there is
-                  // nothing to rewrite, and it says so instead of going quiet.
-                  disabled={!selected}
-                  onClick={() => {
-                    // Frozen at the press: opening a dialog steals focus, and a
-                    // selection read afterwards is empty.
-                    const chosen = editor.current?.selection() ?? "";
-                    if (chosen.trim()) setRewriting(chosen);
-                  }}
-                >
-                  <Wand2 size={13} /> Rewrite
-                </Button>
-              </Tooltip>
+              {/* Rewrite is on the passage now — see the toolbar in
+                  MarkdownEditor. A button in the header that is disabled
+                  whenever nothing is selected is an action parked where the
+                  thing it acts on never is. */}
               <Tooltip label="Download as Markdown">
                 <Button onClick={() => window.open(api.documentMarkdownUrl(id), "_blank")}>
                   <Download size={13} /> Export
@@ -679,8 +710,10 @@ function DocumentEditor({
               <MarkdownEditor
                 value={text}
                 onChange={onTyped}
-                onSelection={setSelected}
                 handle={editor}
+                // Frozen at the press: opening a dialog steals focus, and a
+                // selection read afterwards is empty.
+                onRewrite={(passage) => setRewriting(passage)}
                 // A citation is a claim you can follow. `[Source 3]` printed
                 // as three words was one you could only read.
                 onCite={(n) => {

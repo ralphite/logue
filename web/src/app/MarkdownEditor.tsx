@@ -3,8 +3,9 @@ import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-mar
 import { GFM } from "@lezer/markdown";
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
-import { Annotation, EditorState, RangeSetBuilder, type Extension } from "@codemirror/state";
+import { Annotation, EditorSelection, EditorState, RangeSetBuilder, type Extension } from "@codemirror/state";
 import {
+  type Command,
   crosshairCursor,
   Decoration,
   type DecorationSet,
@@ -380,6 +381,9 @@ const page = EditorView.theme({
     backgroundColor: "var(--color-accent-soft)",
   },
   ".cm-placeholder": { color: "var(--color-line-strong)" },
+  // The same weight as the whole-document placeholder: a hint, not a line of
+  // the document.
+  ".cm-hint": { color: "var(--color-line-strong)", pointerEvents: "none", userSelect: "none" },
   // A quote and a fenced block are the two shapes that need more than type.
   ".cm-quote-line": {
     borderLeft: "2px solid var(--color-line-strong)",
@@ -525,6 +529,128 @@ const BLOCKS: { key: string; label: string; hint: string; insert: string; caret?
   { key: "rule", label: "Divider", hint: "---", insert: "---\n" },
 ];
 
+/**
+ * Put a mark around what is selected, or take it off again.
+ *
+ * ⌘B on bold text un-bolds it — a formatting key that only ever adds is a key
+ * you can press once. The marks are Markdown's own, because Markdown is what
+ * is stored: `**` is bold in the file as well as on the screen.
+ */
+export function wrap(mark: string): Command {
+  return (view) => {
+    view.dispatch(
+      view.state.changeByRange((range) => {
+        const { from, to } = range;
+        const before = view.state.sliceDoc(Math.max(0, from - mark.length), from);
+        const after = view.state.sliceDoc(to, Math.min(view.state.doc.length, to + mark.length));
+        if (before === mark && after === mark) {
+          return {
+            changes: [
+              { from: from - mark.length, to: from },
+              { from: to, to: to + mark.length },
+            ],
+            range: EditorSelection.range(from - mark.length, to - mark.length),
+          };
+        }
+        return {
+          changes: [
+            { from, insert: mark },
+            { from: to, insert: mark },
+          ],
+          range: EditorSelection.range(from + mark.length, to + mark.length),
+        };
+      }),
+    );
+    view.focus();
+    return true;
+  };
+}
+
+/** Whether a piece of text is an address rather than words. */
+const isUrl = (text: string) => /^(https?:\/\/|www\.)\S+$/i.test(text.trim());
+
+/**
+ * ⌘K: make what is selected a link, and put the caret where the missing half
+ * goes.
+ *
+ * Selected an address, and the words are missing; selected words, and the
+ * address is. Either way the caret lands in the empty half, so the next thing
+ * typed is the thing that was not there.
+ */
+export const link: Command = (view) => {
+  const { from, to } = view.state.selection.main;
+  const chosen = view.state.sliceDoc(from, to);
+  const [text, url] = isUrl(chosen) ? ["", chosen.trim()] : [chosen, ""];
+  const made = `[${text}](${url})`;
+  const caret = from + (url ? 1 : text.length + 3);
+  view.dispatch({ changes: { from, to, insert: made }, selection: { anchor: caret } });
+  view.focus();
+  return true;
+};
+
+/**
+ * An address pasted over a passage makes that passage a link.
+ *
+ * The one paste everybody has muscle memory for, from every editor that has
+ * it. Any other paste is left to the editor.
+ */
+const pasteAsLink = EditorView.domEventHandlers({
+  paste(event, view) {
+    const pasted = event.clipboardData?.getData("text/plain") ?? "";
+    const { from, to } = view.state.selection.main;
+    if (!isUrl(pasted) || from === to) return false;
+    const chosen = view.state.sliceDoc(from, to);
+    if (isUrl(chosen)) return false;
+    event.preventDefault();
+    view.dispatch({
+      changes: { from, to, insert: `[${chosen}](${pasted.trim()})` },
+      selection: { anchor: from + chosen.length + pasted.trim().length + 4 },
+    });
+    return true;
+  },
+});
+
+/** The hint on the empty line the caret is in — Notion's, and it is true here. */
+class Hint extends WidgetType {
+  toDOM(): HTMLElement {
+    const said = document.createElement("span");
+    said.className = "cm-hint";
+    said.textContent = "Type / for commands";
+    return said;
+  }
+
+  override ignoreEvent(): boolean {
+    return false;
+  }
+}
+
+/**
+ * The block menu, offered where it can be used.
+ *
+ * The whole-document placeholder says what to do on an empty page and then is
+ * never seen again, so the one habit this editor borrowed from Notion was
+ * findable only by someone who already knew it.
+ */
+const hint = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = this.read(view);
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.selectionSet || update.focusChanged) this.decorations = this.read(update.view);
+    }
+    read(view: EditorView): DecorationSet {
+      const cursor = view.state.selection.main;
+      if (!view.hasFocus || !cursor.empty || view.state.doc.length === 0) return Decoration.none;
+      const line = view.state.doc.lineAt(cursor.head);
+      if (line.text.trim()) return Decoration.none;
+      return Decoration.set([Decoration.widget({ widget: new Hint(), side: 1 }).range(line.from)]);
+    }
+  },
+  { decorations: (plugin) => plugin.decorations },
+);
+
 /** Where the slash menu sits, and what it is filtering on. */
 interface Slash {
   /** Where the `/` is, so the menu can replace it with the block. */
@@ -540,6 +666,7 @@ export function MarkdownEditor({
   onSelection,
   handle,
   onCite,
+  onRewrite,
   label = "Document",
 }: {
   /** The text as it stands on the Host. Sent in again only when it really changed. */
@@ -550,10 +677,14 @@ export function MarkdownEditor({
   handle?: RefObject<MarkdownHandle | null>;
   /** A citation was pressed. `n` is the number as written in the text. */
   onCite?: (n: number) => void;
+  /** Rewrite this passage — the toolbar's one act that is not formatting. */
+  onRewrite?: (passage: string) => void;
   label?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(null);
+  /** The toolbar over a selected passage, when something is selected. */
+  const [bar, setBar] = useState<{ left: number; top: number }>();
   /** The slash menu, when there is one. */
   const [slash, setSlash] = useState<Slash>();
   const [at, setAt] = useState(0);
@@ -566,8 +697,8 @@ export function MarkdownEditor({
   const slashOpen = useRef(false);
   const chosen = useRef<() => void>(undefined);
   // Read inside CodeMirror's own callbacks, which outlive the render that made them.
-  const latest = useRef({ onChange, onSelection, onCite });
-  latest.current = { onChange, onSelection, onCite };
+  const latest = useRef({ onChange, onSelection, onCite, onRewrite });
+  latest.current = { onChange, onSelection, onCite, onRewrite };
 
   /**
    * Watch for `/` at the start of an empty line, and for what is typed after it.
@@ -592,6 +723,22 @@ export function MarkdownEditor({
       left: box.left - frame.left,
       top: box.bottom - frame.top + 4,
     });
+  };
+
+  /**
+   * Where the toolbar over a selection goes, when there is one.
+   *
+   * Above the passage and starting at it, which is where every editor with one
+   * puts it. It is hidden while the block menu is open — two popovers arguing
+   * over one caret is not a thing to solve, it is a thing to not do.
+   */
+  const readBar = (made: EditorView) => {
+    const passage = made.state.selection.main;
+    if (passage.empty || !made.hasFocus) return setBar(undefined);
+    const box = made.coordsAtPos(passage.from);
+    const frame = made.dom.getBoundingClientRect();
+    if (!box) return setBar(undefined);
+    return setBar({ left: Math.max(0, box.left - frame.left), top: box.top - frame.top - 38 });
   };
 
   /** Write the block, replacing the `/…` that asked for it. */
@@ -650,6 +797,15 @@ export function MarkdownEditor({
           },
         },
       ]),
+      // The formatting keys every editor has. They write Markdown, because
+      // Markdown is what is stored — ⌘B puts `**` around the words.
+      keymap.of([
+        { key: "Mod-b", run: wrap("**") },
+        { key: "Mod-i", run: wrap("*") },
+        { key: "Mod-e", run: wrap("`") },
+        { key: "Mod-Shift-x", run: wrap("~~") },
+        { key: "Mod-k", run: link },
+      ]),
       keymap.of([...defaultKeymap, ...historyKeymap, ...markdownKeymap, ...searchKeymap]),
       // Find and replace, ⌘F. The panel is CodeMirror's own — a document
       // people write in for an hour needs one, and writing a second one would
@@ -677,12 +833,15 @@ export function MarkdownEditor({
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({ "aria-label": label }),
       placeholder("Start writing. The first line is the title."),
+      hint,
+      pasteAsLink,
       EditorView.updateListener.of((update) => {
         const mine = !update.transactions.some((one) => one.annotation(fromTheHost));
         if (update.docChanged && mine) latest.current.onChange(update.state.doc.toString());
-        if (update.selectionSet || update.docChanged) {
+        if (update.selectionSet || update.docChanged || update.focusChanged) {
           latest.current.onSelection?.(!update.state.selection.main.empty);
           readSlash(update.view);
+          readBar(update.view);
         }
       }),
       // ⌘-click follows a link. A plain click is a caret: this is a document,
@@ -758,9 +917,60 @@ export function MarkdownEditor({
     if (block) put(block);
   };
 
+  /** One of the toolbar's buttons, pressed. The caret never leaves the text. */
+  const run = (command: Command) => (event: React.MouseEvent) => {
+    event.preventDefault();
+    const made = view.current;
+    if (made) command(made);
+  };
+
   return (
     <div className="relative">
       <div ref={host} className="min-h-72" />
+      {/* What can be done to a passage, where the passage is. It used to be one
+          button in the page header, disabled whenever nothing was selected and
+          explaining its own disabled-ness in a tooltip — an action parked
+          where the thing it acts on never is. */}
+      {bar && !slash && (
+        <div
+          role="toolbar"
+          aria-label="Format the selected passage"
+          style={{ left: bar.left, top: bar.top }}
+          className="logue-float absolute z-popover flex items-center gap-0.5 p-0.5"
+        >
+          <Key label="Bold" keys="⌘B" onMouseDown={run(wrap("**"))}>
+            <span className="font-[750]">B</span>
+          </Key>
+          <Key label="Italic" keys="⌘I" onMouseDown={run(wrap("*"))}>
+            <span className="font-serif italic">I</span>
+          </Key>
+          <Key label="Code" keys="⌘E" onMouseDown={run(wrap("`"))}>
+            <span className="font-mono text-[11px]">{"</>"}</span>
+          </Key>
+          <Key label="Link" keys="⌘K" onMouseDown={run(link)}>
+            <LinkMark />
+          </Key>
+          {onRewrite && (
+            <>
+              <span aria-hidden className="mx-0.5 h-4 w-px bg-line" />
+              <button
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  const made = view.current;
+                  if (!made) return;
+                  const { from, to } = made.state.selection.main;
+                  const passage = made.state.sliceDoc(from, to);
+                  if (passage.trim()) latest.current.onRewrite?.(passage);
+                }}
+                className="flex h-6 items-center gap-1 rounded-[5px] px-1.5 text-[11.5px] font-[560] text-ai hover:bg-hover"
+              >
+                <Wand /> Rewrite
+              </button>
+            </>
+          )}
+        </div>
+      )}
       {slash && shown.length > 0 && (
         <div
           role="listbox"
@@ -793,5 +1003,47 @@ export function MarkdownEditor({
         </div>
       )}
     </div>
+  );
+}
+
+/** One key on the passage toolbar: a letter, and the shortcut it doubles. */
+function Key({
+  label,
+  keys,
+  onMouseDown,
+  children,
+}: {
+  label: string;
+  keys: string;
+  onMouseDown: (event: React.MouseEvent) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={`${label}  ${keys}`}
+      onMouseDown={onMouseDown}
+      className="flex h-6 w-6 items-center justify-center rounded-[5px] text-[12.5px] text-ink-soft hover:bg-hover hover:text-ink"
+    >
+      {children}
+    </button>
+  );
+}
+
+function LinkMark() {
+  return (
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
+      <path d="M10 13.5a4 4 0 0 0 5.7 0l2.8-2.8a4 4 0 0 0-5.7-5.7l-1.3 1.3" />
+      <path d="M14 10.5a4 4 0 0 0-5.7 0l-2.8 2.8a4 4 0 0 0 5.7 5.7l1.3-1.3" />
+    </svg>
+  );
+}
+
+function Wand() {
+  return (
+    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+      <path d="M12 4l1.8 4.7L18.5 10l-4.7 1.8L12 16l-1.8-4.2L5.5 10l4.7-1.3z" />
+    </svg>
   );
 }

@@ -4,6 +4,38 @@ Status: **declared, under review** (first pass 2026-08-12; rewritten
 2026-08-13 for the change below). Covers the Documents route, its editor,
 autosave, and the history dialog.
 
+## What changed on 2026-08-14 (the Notion habits)
+
+His words on the same task: *"ux should be similar to notion"*. F3 brought the
+block menu; this is the rest of what someone who writes in Notion reaches for
+without thinking. Nothing here changes what is stored — every one of them
+writes Markdown, because Markdown is the file.
+
+1. **The formatting keys.** ⌘B, ⌘I, ⌘E (code), ⌘⇧X (strikethrough), ⌘K (link).
+   Each one toggles: pressing ⌘B on bold text un-bolds it. ⌘K puts the caret in
+   whichever half of the link is missing — the address when words were
+   selected, the words when an address was.
+2. **An address pasted over a passage makes that passage a link.**
+3. **A toolbar over the selected passage**: `Bold` `Italic` `Code` `Link`,
+   then `Rewrite`. It appears above the passage as soon as something is
+   selected and goes when the selection does.
+   - **`Rewrite` has left the header.** It was a button that was disabled
+     whenever nothing was selected, with a tooltip explaining its own
+     disabled-ness — an action parked where the thing it acts on never is.
+   - The toolbar is hidden while the block menu is open. Two popovers arguing
+     over one caret is not a thing to solve; it is a thing not to do.
+4. **The empty line the caret is on says `Type / for commands`.** The block
+   menu was findable only by someone who already knew it: the whole-document
+   placeholder says what to do on an empty page and is then never seen again.
+5. **A nested page says where it sits.** The header carries the pages above
+   it, outermost first, each one a link.
+
+**Still Notion and still missing**, listed so the gap is written down rather
+than remembered: a drag handle in the gutter to move a block (⌥↑/⌥↓ move a
+line today), an outline of the headings, `@` to mention another page, page
+icons and covers, and comments. The last three change what a document *is* —
+they need his word before any of them is built.
+
 ## What changed on 2026-08-14 (F3)
 
 His words: *"doc editing must support wysiwyg for markdown. see vibedoc, must
