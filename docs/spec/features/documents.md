@@ -4,6 +4,30 @@ Status: **declared, under review** (first pass 2026-08-12; rewritten
 2026-08-13 for the change below). Covers the Documents route, its editor,
 autosave, and the history dialog.
 
+## What changed on 2026-08-14 (F3)
+
+His words: *"doc editing must support wysiwyg for markdown. see vibedoc, must
+support features there. also use vibedoc's way for doc version mgmt … we
+should also allow nested docs. like vibedoc … ux should be similar to notion"*
+
+1. **The editor reads as the document it is.** GitHub Markdown, so tables,
+   task lists, strikethrough and bare links are understood; a task box is a box
+   you press; an image is the image; a table and a fenced block are blocks. `/`
+   on an empty line opens the block menu — the one Notion habit that transfers
+   to Markdown without pretending to be something else, because what it writes
+   is Markdown. ⌘-click follows a link.
+2. **Versions the way vibedoc does them.** The document is a working copy that
+   autosave writes freely; a *version* is a state you can go back to. One per
+   sitting, one whenever a person presses **Keep this version**, and never two
+   saying the same thing — each carries a hash of what it holds, so going back
+   to what a version already says does not mint another. A version a person
+   marked says so in the history.
+3. **Documents nest.** Each one carries `parent_id` and its `position` among
+   its siblings, and the tree is assembled when it is read — vibedoc's shape,
+   because a list of children on the parent is the same fact in two places and
+   they disagree the first time a move half fails. Deleting a page moves its
+   children up into its place; nothing can be moved inside itself.
+
 ## What changed on 2026-08-13
 
 His words: *"一个 document 不应该有一个 title 和内容的 section。你参考一下

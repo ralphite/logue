@@ -83,6 +83,10 @@ export interface Document {
   id: string;
   /** The first line of the text, kept by the Host so a list need not open it. */
   title: string;
+  /** Where it sits: under another document, or at the top. */
+  parent_id?: string | null;
+  /** Its place among its siblings. */
+  position?: number;
   /** Markdown, which is what the editor holds and what the export writes. */
   content: string;
   source_ids: string[];
@@ -138,6 +142,8 @@ export interface Version {
   added: number;
   removed: number;
   current?: boolean;
+  /** Who marked this state: the sitting, or a person. */
+  kind?: "autosave" | "manual";
   /** What changed, in words. Written by a model, so it arrives late — documents only. */
   summary?: string;
   summary_state?: "pending" | "ready" | "failed";
@@ -354,9 +360,19 @@ export const api = {
   deleteProject: (id: string) => send<{ ok: true }>("DELETE", `/v1/projects/${id}`),
 
   documents: () => request<{ documents: Document[] }>("/v1/documents"),
+  /** The same documents, ordered by where they sit rather than when they changed. */
+  documentTree: () => request<{ documents: Document[] }>("/v1/documents?tree=1"),
   document: (id: string) => request<{ document: Document; sources: Material[] }>(`/v1/documents/${id}`),
-  createDocument: (body: { content?: string; source_ids?: string[] }) =>
+  createDocument: (body: { content?: string; source_ids?: string[]; parent_id?: string }) =>
     send<{ document: Document }>("POST", "/v1/documents", body),
+  /** Under another document, or back to the top — and where among its siblings. */
+  moveDocument: (id: string, body: { parent_id?: string | null; before?: string | null }) =>
+    send<{ document: Document }>("POST", `/v1/documents/${id}/move`, body),
+  reorderDocuments: (parent: string | null, order: string[]) =>
+    send<{ documents: Document[] }>("POST", "/v1/documents/reorder", { parent_id: parent, order }),
+  /** Mark this state as a version, and end the sitting. */
+  keepVersion: (id: string) =>
+    send<{ version: { id: string; revision: number; kind: string } }>("POST", `/v1/documents/${id}/versions`, {}),
   /** `expected_revision` is what the editor last saw; a mismatch comes back 409. */
   updateDocument: (
     id: string,

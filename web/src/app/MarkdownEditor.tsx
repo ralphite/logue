@@ -1,5 +1,6 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown";
+import { GFM } from "@lezer/markdown";
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import { Annotation, EditorState, RangeSetBuilder, type Extension } from "@codemirror/state";
 import {
@@ -13,7 +14,8 @@ import {
   WidgetType,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import { useEffect, useImperativeHandle, useRef, type RefObject } from "react";
+import { cn } from "@logue/ui";
+import { useEffect, useImperativeHandle, useRef, useState, type RefObject } from "react";
 
 /**
  * The editor a document is written in: Markdown, shown as it will read.
@@ -126,6 +128,96 @@ class Cite extends WidgetType {
 }
 
 /**
+ * A task box, as a box you can press.
+ *
+ * `- [ ] buy milk` is a checkbox to everyone who has ever written Markdown,
+ * and it was two brackets and a space. Pressing it writes the other state
+ * into the text, which is the only place the state lives.
+ */
+class Task extends WidgetType {
+  constructor(
+    readonly done: boolean,
+    readonly at: number,
+    readonly toggle: (at: number, done: boolean) => void,
+  ) {
+    super();
+  }
+
+  override eq(other: Task): boolean {
+    return other.done === this.done && other.at === this.at;
+  }
+
+  toDOM(): HTMLElement {
+    const box = document.createElement("span");
+    box.setAttribute("role", "checkbox");
+    box.setAttribute("aria-checked", String(this.done));
+    box.tabIndex = 0;
+    box.className =
+      "mr-1 inline-flex size-[14px] translate-y-[2px] cursor-pointer items-center justify-center rounded-[4px] border " +
+      (this.done ? "border-accent bg-accent text-white" : "border-control-line bg-surface");
+    if (this.done) {
+      box.innerHTML =
+        '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3.4" ' +
+        'stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l5 5L19 7"/></svg>';
+    }
+    const flip = (event: Event) => {
+      event.preventDefault();
+      this.toggle(this.at, this.done);
+    };
+    box.addEventListener("mousedown", flip);
+    box.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") flip(event);
+    });
+    return box;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+/**
+ * An image, shown rather than described.
+ *
+ * `![a chart](https://…)` is the one piece of Markdown whose whole purpose is
+ * to be looked at, and it was a line of punctuation. Shown only away from the
+ * caret, like every other mark here, so the address stays editable.
+ */
+class Picture extends WidgetType {
+  constructor(
+    readonly url: string,
+    readonly alt: string,
+  ) {
+    super();
+  }
+
+  override eq(other: Picture): boolean {
+    return other.url === this.url && other.alt === this.alt;
+  }
+
+  toDOM(): HTMLElement {
+    const frame = document.createElement("span");
+    frame.className = "my-1 block";
+    const image = document.createElement("img");
+    image.src = this.url;
+    image.alt = this.alt;
+    image.className = "max-h-80 max-w-full rounded-md border border-line";
+    // A picture that will not load must not leave a broken glyph in a
+    // sentence: the text comes back, which is what it was written as.
+    image.addEventListener("error", () => {
+      frame.textContent = `${this.alt || "Image"} — ${this.url}`;
+      frame.className = "my-1 block text-xs text-muted";
+    });
+    frame.append(image);
+    return frame;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+/**
  * The lines the caret or a selection touches, which keep their markup.
  *
  * Only while the editor has focus. A document nobody is typing in has its
@@ -147,7 +239,11 @@ function open(view: EditorView): Set<number> {
   return lines;
 }
 
-function marks(view: EditorView, cite?: (n: number) => void): DecorationSet {
+function marks(
+  view: EditorView,
+  cite?: (n: number) => void,
+  toggle: (at: number, done: boolean) => void = () => undefined,
+): DecorationSet {
   const editing = open(view);
   const hidden = Decoration.replace({});
   /** Collected first, sorted after: a RangeSetBuilder wants them in order. */
@@ -157,11 +253,37 @@ function marks(view: EditorView, cite?: (n: number) => void): DecorationSet {
       from,
       to,
       enter(node) {
-        if (!MARKS.has(node.name)) return;
+        // A task box is a box wherever the caret is: a checkbox you cannot
+        // press while you happen to be on its line is not a checkbox.
+        if (node.name === "TaskMarker") {
+          const done = /[xX]/.test(view.state.doc.sliceString(node.from, node.to));
+          found.push({
+            from: node.from,
+            to: node.to,
+            with: Decoration.replace({ widget: new Task(done, node.from, toggle) }),
+          });
+          return undefined;
+        }
+        // A picture is shown where it is written, away from the caret.
+        if (node.name === "Image" && !editing.has(view.state.doc.lineAt(node.from).number)) {
+          const written = view.state.doc.sliceString(node.from, node.to);
+          const parts = /^!\[([^\]]*)\]\(([^)\s]+)/.exec(written);
+          if (parts?.[2]) {
+            found.push({
+              from: node.from,
+              to: node.to,
+              with: Decoration.replace({ widget: new Picture(parts[2], parts[1] ?? "") }),
+            });
+            return false;
+          }
+          return undefined;
+        }
+        if (!MARKS.has(node.name)) return undefined;
         // A URL is only noise inside a written link; a bare one is the text.
-        if (node.name === "URL" && node.node.parent?.name !== "Link") return;
-        if (editing.has(view.state.doc.lineAt(node.from).number)) return;
+        if (node.name === "URL" && node.node.parent?.name !== "Link") return undefined;
+        if (editing.has(view.state.doc.lineAt(node.from).number)) return undefined;
         if (node.to > node.from) found.push({ from: node.from, to: node.to, with: hidden });
+        return undefined;
       },
     });
     // Citations are not part of the Markdown grammar — they are ours — so
@@ -189,16 +311,23 @@ function livePreview(cite?: (n: number) => void) {
     class {
       decorations: DecorationSet;
 
-      constructor(view: EditorView) {
-        this.decorations = marks(view, cite);
+      constructor(readonly view: EditorView) {
+        this.decorations = marks(view, cite, this.toggle);
       }
+
+      /** Pressing a task box writes the other state where the state lives. */
+      toggle = (at: number, done: boolean) => {
+        const marker = this.view.state.doc.sliceString(at, at + 3);
+        const next = done ? marker.replace(/[xX]/, " ") : marker.replace(/\s(?=\])/, "x");
+        this.view.dispatch({ changes: { from: at, to: at + 3, insert: next } });
+      };
 
       update(update: ViewUpdate) {
         // The caret moving is the whole point: it is what puts the markup of
         // one line back and takes the last one's away. Focus counts as a move
         // — clicking in and clicking away change which lines are being edited.
         if (update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged) {
-          this.decorations = marks(update.view, cite);
+          this.decorations = marks(update.view, cite, this.toggle);
         }
       }
     },
@@ -258,25 +387,42 @@ const page = EditorView.theme({
     paddingLeft: "0.6em",
     paddingRight: "0.6em",
   },
+  ".cm-table-line": {
+    fontFamily: "var(--font-mono)",
+    fontSize: "0.88em",
+    backgroundColor: "var(--color-surface-muted)",
+    paddingLeft: "0.6em",
+    paddingRight: "0.6em",
+  },
+  // ⌘-click follows a link, the way it does in an editor. A plain click is
+  // still a caret: this is a document, not a page.
+  ".cm-link-live": { cursor: "pointer" },
 });
 
-/** The two block shapes that are drawn around whole lines, not inside them. */
+/** The block shapes that are drawn around whole lines, not inside them. */
 function blocks(view: EditorView): DecorationSet {
   const built = new RangeSetBuilder<Decoration>();
-  const quote = Decoration.line({ class: "cm-quote-line" });
-  const code = Decoration.line({ class: "cm-code-line" });
+  const of: Record<string, Decoration> = {
+    Blockquote: Decoration.line({ class: "cm-quote-line" }),
+    FencedCode: Decoration.line({ class: "cm-code-line" }),
+    // A pipe table lines up in a monospace column and nowhere else. The rule
+    // above it and the shading behind it are what make it read as a table
+    // while every cell stays a piece of text you can edit.
+    Table: Decoration.line({ class: "cm-table-line" }),
+  };
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(view.state).iterate({
       from,
       to,
       enter(node) {
-        if (node.name !== "Blockquote" && node.name !== "FencedCode") return;
+        const line = of[node.name];
+        if (!line) return undefined;
         const first = view.state.doc.lineAt(node.from).number;
         const last = view.state.doc.lineAt(node.to).number;
-        for (let line = first; line <= last; line += 1) {
-          built.add(view.state.doc.line(line).from, view.state.doc.line(line).from,
-            node.name === "Blockquote" ? quote : code);
+        for (let at = first; at <= last; at += 1) {
+          built.add(view.state.doc.line(at).from, view.state.doc.line(at).from, line);
         }
+        return undefined;
       },
     });
   }
@@ -298,6 +444,42 @@ const shapes = ViewPlugin.fromClass(
   { decorations: (plugin) => plugin.decorations },
 );
 
+/**
+ * The blocks the slash menu inserts.
+ *
+ * Typing `/` on an empty line is how a page is built in Notion, and it is the
+ * one Notion habit that transfers to a Markdown editor without pretending to
+ * be something else: the menu writes Markdown, and what it wrote stays
+ * editable as text.
+ */
+const BLOCKS: { key: string; label: string; hint: string; insert: string; caret?: number }[] = [
+  { key: "h1", label: "Heading 1", hint: "#", insert: "# " },
+  { key: "h2", label: "Heading 2", hint: "##", insert: "## " },
+  { key: "h3", label: "Heading 3", hint: "###", insert: "### " },
+  { key: "list", label: "Bulleted list", hint: "-", insert: "- " },
+  { key: "numbers", label: "Numbered list", hint: "1.", insert: "1. " },
+  { key: "task", label: "To-do", hint: "[ ]", insert: "- [ ] " },
+  { key: "quote", label: "Quote", hint: ">", insert: "> " },
+  { key: "code", label: "Code block", hint: "```", insert: "```\n\n```", caret: 4 },
+  {
+    key: "table",
+    label: "Table",
+    hint: "|",
+    insert: "| Column | Column |\n| --- | --- |\n|  |  |",
+    caret: 2,
+  },
+  { key: "rule", label: "Divider", hint: "---", insert: "---\n" },
+];
+
+/** Where the slash menu sits, and what it is filtering on. */
+interface Slash {
+  /** Where the `/` is, so the menu can replace it with the block. */
+  at: number;
+  query: string;
+  left: number;
+  top: number;
+}
+
 export function MarkdownEditor({
   value,
   onChange,
@@ -318,16 +500,106 @@ export function MarkdownEditor({
 }) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(null);
+  /** The slash menu, when there is one. */
+  const [slash, setSlash] = useState<Slash>();
+  const [at, setAt] = useState(0);
+  /**
+   * The menu, as the keymap sees it.
+   *
+   * The editor is built once; the menu is state. A keymap closed over the
+   * first render would answer for a menu that had long since changed.
+   */
+  const slashOpen = useRef(false);
+  const chosen = useRef<() => void>(undefined);
   // Read inside CodeMirror's own callbacks, which outlive the render that made them.
   const latest = useRef({ onChange, onSelection, onCite });
   latest.current = { onChange, onSelection, onCite };
+
+  /**
+   * Watch for `/` at the start of an empty line, and for what is typed after it.
+   *
+   * Read from the document rather than from keystrokes, so it survives paste,
+   * undo and the caret being moved by anything at all.
+   */
+  const readSlash = (made: EditorView) => {
+    const cursor = made.state.selection.main;
+    if (!cursor.empty) return setSlash(undefined);
+    const line = made.state.doc.lineAt(cursor.head);
+    const before = made.state.doc.sliceString(line.from, cursor.head);
+    const opened = /^\/(\w*)$/.exec(before);
+    if (!opened) return setSlash(undefined);
+    const box = made.coordsAtPos(line.from);
+    const frame = made.dom.getBoundingClientRect();
+    if (!box) return setSlash(undefined);
+    setAt(0);
+    return setSlash({
+      at: line.from,
+      query: opened[1] ?? "",
+      left: box.left - frame.left,
+      top: box.bottom - frame.top + 4,
+    });
+  };
+
+  /** Write the block, replacing the `/…` that asked for it. */
+  const put = (block: (typeof BLOCKS)[number]) => {
+    const made = view.current;
+    if (!made || !slash) return;
+    const to = made.state.selection.main.head;
+    made.dispatch({
+      changes: { from: slash.at, to, insert: block.insert },
+      selection: { anchor: slash.at + (block.caret ?? block.insert.length) },
+    });
+    setSlash(undefined);
+    made.focus();
+  };
+
+  const shown = slash
+    ? BLOCKS.filter((one) => !slash.query || one.label.toLowerCase().includes(slash.query.toLowerCase()))
+    : [];
 
   useEffect(() => {
     if (!host.current) return;
     const extensions: Extension[] = [
       history(),
+      // The menu owns these while it is open, and nothing else changes.
+      keymap.of([
+        {
+          key: "ArrowDown",
+          run: () => {
+            if (!slashOpen.current) return false;
+            setAt((was) => was + 1);
+            return true;
+          },
+        },
+        {
+          key: "ArrowUp",
+          run: () => {
+            if (!slashOpen.current) return false;
+            setAt((was) => Math.max(0, was - 1));
+            return true;
+          },
+        },
+        {
+          key: "Enter",
+          run: () => {
+            if (!slashOpen.current) return false;
+            chosen.current?.();
+            return true;
+          },
+        },
+        {
+          key: "Escape",
+          run: () => {
+            if (!slashOpen.current) return false;
+            setSlash(undefined);
+            return true;
+          },
+        },
+      ]),
       keymap.of([...defaultKeymap, ...historyKeymap, ...markdownKeymap]),
-      markdown({ base: markdownLanguage, addKeymap: false }),
+      // GitHub's Markdown, because that is the Markdown people write:
+      // tables, task lists, strikethrough, bare links.
+      markdown({ base: markdownLanguage, extensions: [GFM], addKeymap: false }),
       syntaxHighlighting(written),
       livePreview((n) => latest.current.onCite?.(n)),
       shapes,
@@ -340,7 +612,28 @@ export function MarkdownEditor({
         if (update.docChanged && mine) latest.current.onChange(update.state.doc.toString());
         if (update.selectionSet || update.docChanged) {
           latest.current.onSelection?.(!update.state.selection.main.empty);
+          readSlash(update.view);
         }
+      }),
+      // ⌘-click follows a link. A plain click is a caret: this is a document,
+      // not a page, and the address stays editable.
+      EditorView.domEventHandlers({
+        mousedown(event, made) {
+          if (!event.metaKey && !event.ctrlKey) return false;
+          const pressed = made.posAtCoords({ x: event.clientX, y: event.clientY });
+          if (pressed === null) return false;
+          const line = made.state.doc.lineAt(pressed);
+          for (const match of line.text.matchAll(/\[[^\]]*\]\(([^)\s]+)\)|(https?:\/\/\S+)/g)) {
+            const from = line.from + (match.index ?? 0);
+            if (pressed < from || pressed > from + match[0].length) continue;
+            const url = match[1] ?? match[2];
+            if (!url) continue;
+            event.preventDefault();
+            window.open(url, "_blank", "noreferrer");
+            return true;
+          }
+          return false;
+        },
       }),
     ];
     const made = new EditorView({
@@ -389,5 +682,46 @@ export function MarkdownEditor({
     [],
   );
 
-  return <div ref={host} className="min-h-72" />;
+  slashOpen.current = Boolean(slash) && shown.length > 0;
+  chosen.current = () => {
+    const block = shown[Math.min(at, shown.length - 1)];
+    if (block) put(block);
+  };
+
+  return (
+    <div className="relative">
+      <div ref={host} className="min-h-72" />
+      {slash && shown.length > 0 && (
+        <div
+          role="listbox"
+          aria-label="Insert a block"
+          style={{ left: slash.left, top: slash.top }}
+          className="logue-float absolute z-popover w-56 overflow-hidden py-1"
+        >
+          {shown.map((block, index) => (
+            <button
+              key={block.key}
+              type="button"
+              role="option"
+              aria-selected={index === Math.min(at, shown.length - 1)}
+              // The caret must not leave the editor: the menu is a menu, not
+              // a place the text goes.
+              onMouseDown={(event) => {
+                event.preventDefault();
+                put(block);
+              }}
+              onMouseEnter={() => setAt(index)}
+              className={cn(
+                "flex w-full items-center gap-2 px-2.5 py-1 text-left text-[12.5px]",
+                index === Math.min(at, shown.length - 1) ? "bg-accent-soft text-ink" : "text-ink-soft hover:bg-hover",
+              )}
+            >
+              <span className="flex-1">{block.label}</span>
+              <span className="font-mono text-[10.5px] text-muted">{block.hint}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }

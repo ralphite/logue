@@ -1322,21 +1322,67 @@ class DocumentHistory(Workspace, unittest.TestCase):
     """A document's past, and going back to it without losing the present."""
 
     def three_versions(self) -> str:
+        """Three states you can go back to.
+
+        Marked deliberately, because that is what a version is now: the
+        autosave keeps one per sitting, and three saves a second apart are one
+        sitting — which is the whole point of the change. Pressing "keep this
+        version" is how a test, or a person, says otherwise.
+        """
         doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        self.call("POST", f"/v1/documents/{doc['id']}/versions", {})
         self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\ntwo"})
+        self.call("POST", f"/v1/documents/{doc['id']}/versions", {})
         self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\ntwo\n\nthree"})
         return doc["id"]
 
     def test_the_current_text_is_in_the_history(self) -> None:
         versions = self.call("GET", f"/v1/documents/{self.three_versions()}/versions")["versions"]
-        self.assertEqual([v["revision"] for v in versions], [3, 2, 1], "newest first")
+        self.assertEqual(len(versions), 3, "two marked versions and the document itself")
         self.assertTrue(versions[0]["current"], "the newest version is the document itself")
+        self.assertGreater(versions[0]["revision"], versions[1]["revision"], "newest first")
 
     def test_each_version_says_what_it_changed(self) -> None:
         versions = self.call("GET", f"/v1/documents/{self.three_versions()}/versions")["versions"]
-        by_revision = {v["revision"]: v for v in versions}
-        self.assertEqual((by_revision[3]["added"], by_revision[3]["removed"]), (1, 0))
-        self.assertEqual((by_revision[1]["added"], by_revision[1]["removed"]), (1, 0), "the first version is all new")
+        self.assertEqual((versions[0]["added"], versions[0]["removed"]), (1, 0), "one line added since the last")
+        self.assertEqual((versions[-1]["added"], versions[-1]["removed"]), (1, 0), "the first version is all new")
+
+    def test_a_sitting_is_one_version_however_many_saves(self) -> None:
+        # A sentence typed in one go used to produce v2..v7. The autosave is a
+        # working copy; a version is a state you can go back to.
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        for words in ["one t", "one tw", "one two", "one two three"]:
+            self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": words})
+        versions = self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"]
+        self.assertEqual(len(versions), 2, f"one sitting and the document: {[v['revision'] for v in versions]}")
+
+    def test_the_same_words_again_are_not_another_version(self) -> None:
+        # vibedoc's content_hash dedup, for the same reason: a history that
+        # repeats itself cannot be read.
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        first = self.call("POST", f"/v1/documents/{doc['id']}/versions", {})["version"]
+        again = self.call("POST", f"/v1/documents/{doc['id']}/versions", {})["version"]
+        self.assertEqual(first["id"], again["id"], "the same state is the same version")
+
+    def test_a_version_a_person_marked_says_so(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        self.call("POST", f"/v1/documents/{doc['id']}/versions", {})
+        marked = [v for v in self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"] if not v.get("current")]
+        self.assertEqual(marked[0]["kind"], "manual")
+
+    def test_and_the_next_edit_starts_a_new_sitting(self) -> None:
+        # Marking a version closes the sitting, so the edit after it is a new
+        # one — and the state it started from is already the marked version, so
+        # nothing is written twice.
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        self.call("POST", f"/v1/documents/{doc['id']}/versions", {})
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\ntwo"})
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\ntwo\n\nthree"})
+        versions = self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"]
+        self.assertEqual(len(versions), 3, "the marked one, the sitting that followed it, and the document")
+        # And the first edit after the mark wrote nothing of its own: the state
+        # it started from is the version that was just marked.
+        self.assertEqual([v.get("kind") for v in versions if not v.get("current")], ["autosave", "manual"])
 
     def test_the_diff_is_of_the_words_not_the_markup(self) -> None:
         document = self.call("POST", "/v1/documents", {"content": "<p>kept</p>"})["document"]
@@ -1346,21 +1392,25 @@ class DocumentHistory(Workspace, unittest.TestCase):
         self.assertEqual([line["kind"] for line in lines], ["same"])
 
     def test_the_diff_marks_both_sides(self) -> None:
-        lines = self.call("GET", f"/v1/documents/{self.three_versions()}/versions/3/diff")["lines"]
+        document_id = self.three_versions()
+        newest = self.call("GET", f"/v1/documents/{document_id}/versions")["versions"][0]
+        lines = self.call("GET", f"/v1/documents/{document_id}/versions/{newest['revision']}/diff")["lines"]
         self.assertIn("added", [line["kind"] for line in lines])
         self.assertEqual([line["text"] for line in lines if line["kind"] == "added"], ["three"])
 
     def test_restoring_keeps_the_versions_it_skipped_over(self) -> None:
         document_id = self.three_versions()
-        self.call("POST", f"/v1/documents/{document_id}/versions/1/restore")
+        was = self.call("GET", f"/v1/documents/{document_id}")["document"]["revision"]
+        oldest = self.call("GET", f"/v1/documents/{document_id}/versions")["versions"][-1]
+        self.call("POST", f"/v1/documents/{document_id}/versions/{oldest['revision']}/restore")
 
         after = self.call("GET", f"/v1/documents/{document_id}")["document"]
-        self.assertEqual(after["revision"], 4, "going back is itself an edit")
+        self.assertGreater(after["revision"], was, "going back is itself an edit")
         self.assertIn("one", after["content"])
         self.assertNotIn("three", after["content"])
 
-        revisions = [v["revision"] for v in self.call("GET", f"/v1/documents/{document_id}/versions")["versions"]]
-        self.assertEqual(revisions, [4, 3, 2, 1], "nothing was thrown away to make room")
+        versions = self.call("GET", f"/v1/documents/{document_id}/versions")["versions"]
+        self.assertGreaterEqual(len(versions), 3, "nothing was thrown away to make room")
 
     def test_asking_for_a_version_that_never_existed_says_so(self) -> None:
         document_id = self.three_versions()
@@ -1603,6 +1653,71 @@ class TwoSurfacesOneWorkspace(Workspace, unittest.TestCase):
         for _ in range(200):
             self.call("GET", "/v1/changes")
         self.assertLess(time.perf_counter() - start, 0.5, "200 heartbeats should cost nothing")
+
+
+class DocumentsInATree(Workspace, unittest.TestCase):
+    """Nested documents, vibedoc's way: parent_id and position, assembled on read.
+
+    His instruction, 2026-08-13: *"we should also allow nested docs. like
+    vibedoc"*. What these pin is the half that goes wrong quietly — moving,
+    reordering, and deleting something with pages under it.
+    """
+
+    def page(self, content: str, parent: str | None = None) -> str:
+        body = {"content": content}
+        if parent:
+            body["parent_id"] = parent
+        return str(self.call("POST", "/v1/documents", body)["document"]["id"])
+
+    def test_a_page_can_be_made_inside_another(self) -> None:
+        parent = self.page("# Trip")
+        child = self.page("# Flights", parent)
+        found = {one["id"]: one for one in self.call("GET", "/v1/documents", query={"tree": "1"})["documents"]}
+        self.assertEqual(found[child]["parent_id"], parent)
+        self.assertIsNone(found[parent]["parent_id"])
+
+    def test_children_keep_the_order_they_are_put_in(self) -> None:
+        parent = self.page("# Trip")
+        first = self.page("# Flights", parent)
+        second = self.page("# Hotels", parent)
+        self.call("POST", "/v1/documents/reorder", {"parent_id": parent, "order": [second, first]})
+        under = [
+            one["id"]
+            for one in self.call("GET", "/v1/documents", query={"tree": "1"})["documents"]
+            if one.get("parent_id") == parent
+        ]
+        self.assertEqual(under, [second, first])
+
+    def test_a_page_can_be_moved_under_another(self) -> None:
+        one = self.page("# Trip")
+        two = self.page("# Notes")
+        self.call("POST", f"/v1/documents/{two}/move", {"parent_id": one})
+        moved = self.call("GET", f"/v1/documents/{two}")["document"]
+        self.assertEqual(moved["parent_id"], one)
+
+    def test_a_page_cannot_be_moved_inside_itself(self) -> None:
+        # The one move that stops a tree being a tree, and orphans everything
+        # below it without a word.
+        parent = self.page("# Trip")
+        child = self.page("# Flights", parent)
+        with self.assertRaises(BadRequest):
+            self.call("POST", f"/v1/documents/{parent}/move", {"parent_id": child})
+        with self.assertRaises(BadRequest):
+            self.call("POST", f"/v1/documents/{parent}/move", {"parent_id": parent})
+
+    def test_deleting_a_page_moves_its_children_up(self) -> None:
+        # Never a page nobody meant to delete.
+        top = self.page("# Trip")
+        middle = self.page("# Bookings", top)
+        leaf = self.page("# Flights", middle)
+        self.call("DELETE", f"/v1/documents/{middle}")
+        self.assertEqual(self.call("GET", f"/v1/documents/{leaf}")["document"]["parent_id"], top)
+
+    def test_the_flat_list_still_answers_for_the_panel(self) -> None:
+        # The panel's "add to a Document" and Find read a list, not a tree.
+        self.page("# Trip")
+        listed = self.call("GET", "/v1/documents")["documents"]
+        self.assertTrue(listed and "title" in listed[0])
 
 
 class WhenTheModelIsBusy(unittest.TestCase):

@@ -510,16 +510,17 @@
         "redesign"
       ],
       "note": "占位,计划写完后回填。",
-      "blocked_on": "等他定:提交模式要几个(Comment / Question / Task,Task 是我加的)",
+      "blocked_on": "等你说清楚:mode-picker(Comment/Question/Task)和'记进文档删掉'这两条,是要加在已上线版本上,还是 22:12 的裁决(A/留/书签)就是最终版本",
       "input_ids": [
         "in_extension_composer_input",
         "in_docs_spec_panel",
         "in_20260813",
         "in_submit_ask_composer",
-        "in_mock_docs_spec"
+        "in_mock_docs_spec",
+        "in_n13_done_commit"
       ],
       "created": "2026-08-13",
-      "updated": "2026-08-13"
+      "updated": "2026-08-14"
     },
     {
       "id": "T1",
@@ -541,7 +542,7 @@
       "id": "F3",
       "title": "文档编辑补齐 Vibedoc:所见即所得要完整、版本管理照 Vibedoc、支持嵌套子文档、体验向 Notion 靠",
       "type": "feature",
-      "status": "queued",
+      "status": "doing",
       "priority": "P1",
       "confirmed": true,
       "tags": [
@@ -555,6 +556,63 @@
       ],
       "created": "2026-08-13",
       "updated": "2026-08-13"
+    },
+    {
+      "id": "X4",
+      "title": "Dropdown/Menu 弹层定位:base 组件要处理所有情况,不是挨个补",
+      "type": "bug",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "ui",
+        "bug"
+      ],
+      "note": "截图是面板里 IntoDestination 用的 Dropdown('Into · TODO'),弹出的列表被截断/跑出可视区。读了代码:packages/ui/src/Dropdown.tsx 和 Menu.tsx 只做了**垂直翻转**(anchor.bottom+popup.height 超出 window.innerHeight 就翻上去),没做:①水平方向的 clamp,只会在 left-0/right-0 之间二选一,列表本身比触发器宽就会跑出视口;②没考虑触发器所在的祖先有 overflow(比如侧边面板的滚动区)会把弹层截断——ContextMenu.tsx 已经用 fixed + 实际测量解决了这个问题(见该文件 120 行注释),Dropdown 和 Menu 用的还是 absolute,同一个坑复现了两次。建议把 ContextMenu 那套定位逻辑收成一个共享 hook/工具,Dropdown、Menu 都改用它,而不是各自修一次。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_bug_dropdown_popup"
+      ],
+      "created": "2026-08-13",
+      "updated": "2026-08-13"
+    },
+    {
+      "id": "X5",
+      "title": "口述连续失败:0:01/0:02/0:14 三条录音都'the words did not come back'",
+      "type": "bug",
+      "status": "queued",
+      "priority": "P2",
+      "confirmed": false,
+      "tags": [
+        "extension",
+        "dictation"
+      ],
+      "note": "你贴的截图里,面板上连续三条录音(0:01、0:02、0:14)全部转写失败,都是同一句 'Logue has this recording; the words did not come back.'。三条连坐、时长跨度很大(1 秒到 14 秒)还都失败,不太像单条偶发,值得单独查一下是模型侧问题还是转写管线的问题。我没有确认过你是不是把这个当 bug 报——先记下来,你确认了我再深挖。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_no_words_yet"
+      ],
+      "created": "2026-08-13",
+      "updated": "2026-08-13"
+    },
+    {
+      "id": "N14",
+      "title": "设计类任务标配 subagent 复审:先复审 N13 Extension 面板设计",
+      "type": "design",
+      "status": "blocked",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "process",
+        "extension"
+      ],
+      "note": "review-process.md 现在管的是代码落地前的三方复审(copy / behaviour / design-fidelity)。他这次要的是往前挪一步:**方案/mock 阶段就要 subagent 复审**,不是等实现完才审。理由是他截图里看到面板连续出问题(见 X5),对这条产品线的信任已经消耗得差不多,'review ext panel design. too many issues'。\\n\\n**要做两件事**:①把这条规则写进 review-process.md 和 behaviors.md,作为长期流程(方案阶段也过三镜头复审,而不只是代码落地前);②现在就用 subagent 复审一次 N13 的方案(panel-composer.md + panel-mock.html),扣着 review-process.md 的三个问题:文案是不是都在说事实、没有多余的话;自动的节奏是不是会让人淹没在噪音里;和他已经点头的部分有没有走样。",
+      "blocked_on": "先等 N13 的分歧定了,再决定要不要继续复审(复审对象可能整个变掉)",
+      "input_ids": [
+        "in_add_task_review"
+      ],
+      "created": "2026-08-13",
+      "updated": "2026-08-14"
     }
   ],
   "inputs": [
@@ -758,6 +816,30 @@
       "id": "in_new_task_doc",
       "at": "2026-08-13 22:21",
       "text": "new task: doc editing must support wysiwyg for markdown. see vibedoc, must support features there. also use vibedoc's way for doc version mgmt\n\nwe should also allow nested docs. like vibedoc\n\nux should be similar to notion",
+      "images": []
+    },
+    {
+      "id": "in_bug_dropdown_popup",
+      "at": "2026-08-13 23:47",
+      "text": "bug: dropdown/popup position. should fix base component to handle all cases",
+      "images": []
+    },
+    {
+      "id": "in_no_words_yet",
+      "at": "2026-08-13 23:48",
+      "text": "(截图,面板里连续三条 No words yet / Logue has this recording; the words did not come back.)",
+      "images": []
+    },
+    {
+      "id": "in_add_task_review",
+      "at": "2026-08-13 23:48",
+      "text": "add task: review feature design with subagent (always). review ext panel design. too many issues",
+      "images": []
+    },
+    {
+      "id": "in_n13_done_commit",
+      "at": "2026-08-14 00:01",
+      "text": "发现:N13 已经被另一个会话实现并标记 done(commit ad08789b, feat: the panel is one list and one composer)。它是照你 22:12 给它的裁决做的——'A/留/书签':submit=存下这条,问答是之后再跑的 Ask 技能;'记进某文档' 留下,收成 composer 一行上的一个 chip;存整页留书签图标。这个裁决和你在这个会话里跟我说的(要一个提交前选模式的选择器 Comment/Question/Task;'记进某个文档看不懂,要删掉')不是一回事——我不确定这两次是先后关系还是你后来改了主意。已核实:你刚报的 dropdown 定位 bug(X4)就是这个已经上线的 'Into a Document' 下拉框(extension/src/panel/Composer.tsx:238-249)。等你说要不要在已上线的基础上继续加模式选择器,还是 22:12 那个裁决就是最终版本、我把 mode-picker 这条分支撤掉。查了 list_sessions:那个干活的会话现在显示在跑(isRunning true,刚刚 07:01 有动作),按 /peer 的规矩不打扰在跑的会话,所以没给它发消息——等你定了直接告诉我或者告诉它都行。",
       "images": []
     }
   ]

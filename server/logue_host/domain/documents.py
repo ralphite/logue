@@ -6,7 +6,9 @@ records edits rather than keystrokes.
 
 from __future__ import annotations
 
+import hashlib
 import re
+from datetime import UTC, datetime
 from typing import Any
 
 from ..errors import BadRequest, Conflict, NotFound
@@ -53,7 +55,14 @@ def named(content: str) -> str:
     return first_line(content) or "Untitled"
 
 
-def create(store: Store, *, title: str = "", content: str = "", source_ids: list[str] | None = None) -> Record:
+def create(
+    store: Store,
+    *,
+    title: str = "",
+    content: str = "",
+    source_ids: list[str] | None = None,
+    parent: str | None = None,
+) -> Record:
     """A new document. A name handed in becomes its first line, not a field.
 
     Generations and the agent both arrive with a name they chose — and that
@@ -64,12 +73,18 @@ def create(store: Store, *, title: str = "", content: str = "", source_ids: list
     body = str(content or "")
     if title.strip() and first_line(body) != first_line(title):
         body = f"# {title.strip()}\n\n{body}" if body.strip() else f"# {title.strip()}"
+    if parent:
+        store.documents.get(parent)
     return store.documents.put(
         {
             "id": new_id("document"),
             "title": named(body),
             "content": body,
             "source_ids": source_ids or [],
+            # Where it sits. At the top of wherever it was made: a list read
+            # newest-first would otherwise put the page you just made last.
+            "parent_id": parent,
+            "position": 0,
             "revision": 1,
             "created_at": timestamp,
             "updated_at": timestamp,
@@ -108,18 +123,7 @@ def update(
         return document
 
     if "content" in changes:
-        store.doc_revisions.put(
-            {
-                "id": new_id("revision"),
-                "doc_id": document_id,
-                "revision": document.get("revision", 1),
-                "content": document.get("content"),
-                "created_at": now(),
-                # The line saying what this changed is written afterwards, by
-                # a model, so the save itself stays instant.
-                "summary_state": "pending",
-            }
-        )
+        _mark_sitting(store, document)
         document["revision"] = document.get("revision", 1) + 1
 
     document.update(changes)
@@ -157,6 +161,126 @@ def append(store: Store, document_id: str, text: str, source_ids: list[str] | No
     document["title"] = named(str(document.get("content") or ""))
     document["updated_at"] = now()
     return store.documents.put(document)
+
+
+# -- a tree of documents ----------------------------------------------------
+#
+# His instruction of 2026-08-13: *"we should also allow nested docs. like
+# vibedoc"*. Vibedoc's shape, because it is the one that survives contact with
+# moving things around: each document holds its own `parent_id` and its
+# `position` among its siblings, and the tree is assembled when it is read.
+# The alternative — a list of child ids on the parent — has the same fact
+# written in two places, and they disagree the first time a move half fails.
+
+
+def _siblings(store: Store, parent: str | None) -> list[Record]:
+    """The children of one parent, in the order they are shown.
+
+    Nothing placed by hand yet means every position is 0, and the tie is
+    broken by *newest first* — the order this list has always been read in.
+    A workspace that suddenly showed its oldest page at the top would have
+    been the price of nesting, and nobody asked for that.
+    """
+    rows = [one for one in store.documents.all() if str(one.get("parent_id") or "") == str(parent or "")]
+    return sorted(rows, key=lambda one: (int(one.get("position") or 0), _newest_first(one)))
+
+
+def _newest_first(one: Record) -> str:
+    """A sort key that puts later timestamps first."""
+    stamp = str(one.get("updated_at") or one.get("created_at") or "")
+    return "".join(chr(0x10FFFD - ord(ch)) if ord(ch) < 0x10FFFD else ch for ch in stamp)
+
+
+def _renumber(store: Store, parent: str | None, order: list[str] | None = None) -> None:
+    """Give one parent's children positions 0…n, in `order` if one is given."""
+    rows = _siblings(store, parent)
+    if order:
+        rows.sort(key=lambda one: order.index(str(one["id"])) if str(one["id"]) in order else len(order))
+    for at, one in enumerate(rows):
+        if int(one.get("position") or 0) != at:
+            one["position"] = at
+            store.documents.put(one)
+
+
+def _descendants(store: Store, document_id: str) -> set[str]:
+    """Everything under a document, so nothing can be moved inside itself."""
+    below: set[str] = set()
+    edge = [document_id]
+    while edge:
+        parent = edge.pop()
+        for child in _siblings(store, parent):
+            child_id = str(child["id"])
+            if child_id in below:
+                continue
+            below.add(child_id)
+            edge.append(child_id)
+    return below
+
+
+def tree(store: Store) -> list[Record]:
+    """Every document, each carrying where it sits.
+
+    Flat on the wire, with `parent_id` and `position` on every row: a client
+    that wants a tree builds one, and a client that wants a list — the panel's
+    "add to a Document", Find — is not made to walk one.
+    """
+    rows = list(store.documents.all())
+    for one in rows:
+        one.setdefault("parent_id", None)
+        one.setdefault("position", 0)
+    return sorted(
+        rows,
+        key=lambda one: (str(one.get("parent_id") or ""), int(one.get("position") or 0), _newest_first(one)),
+    )
+
+
+def move(store: Store, document_id: str, *, parent: str | None, before: str | None = None) -> Record:
+    """Put a document under another one, or at the top, in one write.
+
+    Refuses a move into the document's own subtree — the one move that would
+    make a tree stop being a tree, and silently orphan everything below it.
+    """
+    document = store.documents.get(document_id)
+    was = document.get("parent_id") or None
+    if parent:
+        store.documents.get(parent)
+        if parent == document_id or parent in _descendants(store, document_id):
+            raise BadRequest("A document cannot be moved inside itself.")
+
+    document["parent_id"] = parent
+    document["updated_at"] = now()
+    store.documents.put(document)
+
+    order = [str(one["id"]) for one in _siblings(store, parent) if str(one["id"]) != document_id]
+    at = order.index(before) if before and before in order else len(order)
+    order.insert(at, document_id)
+    _renumber(store, parent, order)
+    if was != parent:
+        _renumber(store, was)
+    return store.documents.get(document_id)
+
+
+def reorder(store: Store, parent: str | None, order: list[str]) -> list[Record]:
+    """Set the order of one parent's children, and answer with it."""
+    _renumber(store, parent, [str(one) for one in order])
+    return _siblings(store, parent)
+
+
+def remove(store: Store, document_id: str) -> None:
+    """Delete a document without taking its children with it.
+
+    They move up to where it was, in its place — vibedoc's rule, and the only
+    one that cannot lose a page nobody meant to delete.
+    """
+    document = store.documents.get(document_id)
+    parent = document.get("parent_id") or None
+    children = _siblings(store, document_id)
+    for child in children:
+        child["parent_id"] = parent
+        child["updated_at"] = now()
+        store.documents.put(child)
+    store.documents.delete(document_id)
+    _renumber(store, parent)
 
 
 def sources_of(store: Store, document_id: str) -> list[Record]:
@@ -282,6 +406,124 @@ def to_markdown_store(store: Store) -> int:
     return changed
 
 
+# -- versions -------------------------------------------------------------
+#
+# Two things, kept apart, which is the whole of what he asked for on
+# 2026-08-13: *"版本管理照 Vibedoc 的做法"*.
+#
+#  * The **working copy** is the document. Autosave writes it and nothing else,
+#    so typing costs one file write and leaves no trail to wade through.
+#  * A **version** is a state you can go back to. One per sitting, and one
+#    whenever a person says so — never one per save, which is how a single
+#    sentence used to produce `v2..v7`.
+#
+# Each version carries a hash of what it holds, so going back to what a version
+# already says does not mint another identical one — vibedoc's `content_hash`
+# dedup, for the same reason: a history that repeats itself cannot be read.
+
+#: Two saves this far apart are two sittings, and two versions.
+SITTING_SECONDS = 15 * 60
+
+#: Written by the autosave, and by a person.
+AUTOSAVE = "autosave"
+MANUAL = "manual"
+
+
+def content_hash(content: str) -> str:
+    return hashlib.sha256(str(content or "").encode("utf-8")).hexdigest()
+
+
+def _seconds_since(iso: str) -> float:
+    try:
+        when = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+    except ValueError:
+        return SITTING_SECONDS + 1
+    return (datetime.now(tz=UTC) - when).total_seconds()
+
+
+def _mark_sitting(store: Store, document: Record) -> Record | None:
+    """Keep the state this sitting started from, once per sitting.
+
+    Called with the document as it stands *before* the edit, which is what a
+    person means by "go back": the version holds where you were, and the
+    document holds where you are.
+    """
+    document_id = str(document["id"])
+    rows = _kept(store, document_id)
+    newest = rows[-1] if rows else None
+    before = str(document.get("content") or "")
+
+    if newest is not None:
+        # Already inside a sitting, and not one a person closed: nothing new to
+        # be able to go back to.
+        if not newest.get("closed") and _seconds_since(str(newest.get("created_at") or "")) < SITTING_SECONDS:
+            return None
+        # The same words again — going back here would go nowhere.
+        if str(newest.get("content_hash") or "") == content_hash(before):
+            return None
+        # The sitting that just ended can be described now that it is finished.
+        newest["summary_state"] = "pending"
+        store.doc_revisions.put(newest)
+
+    return store.doc_revisions.put(
+        {
+            "id": new_id("revision"),
+            "doc_id": document_id,
+            "revision": document.get("revision", 1),
+            "content": before,
+            "content_hash": content_hash(before),
+            "kind": AUTOSAVE,
+            "created_at": now(),
+            # The line saying what this changed is written afterwards, by
+            # a model, so the save itself stays instant.
+            "summary_state": "pending",
+        }
+    )
+
+
+def keep_version(store: Store, document_id: str) -> Record:
+    """Mark this state as a version, because a person said so.
+
+    It holds the document as it reads now — press it and this is what "go
+    back" comes back to — and it ends the sitting, so the next edit starts a
+    new one. Refused when the newest version already says the same thing:
+    pressing it twice is not two versions.
+    """
+    document = store.documents.get(document_id)
+    content = str(document.get("content") or "")
+    rows = _kept(store, document_id)
+    newest = rows[-1] if rows else None
+    if newest is not None and str(newest.get("content_hash") or "") == content_hash(content):
+        newest["kind"] = MANUAL
+        newest["closed"] = True
+        return store.doc_revisions.put(newest)
+
+    if newest is not None:
+        newest["summary_state"] = "pending"
+        store.doc_revisions.put(newest)
+
+    kept = store.doc_revisions.put(
+        {
+            "id": new_id("revision"),
+            "doc_id": document_id,
+            "revision": int(document.get("revision") or 1),
+            "content": content,
+            "content_hash": content_hash(content),
+            "kind": MANUAL,
+            "closed": True,
+            "created_at": now(),
+            "summary_state": "pending",
+        }
+    )
+    # The document moves on so the version is behind it rather than beside it:
+    # a version and a working copy holding the same revision number would make
+    # the next edit's concurrency check meaningless.
+    document["revision"] = int(document.get("revision") or 1) + 1
+    document["updated_at"] = now()
+    store.documents.put(document)
+    return kept
+
+
 # -- history --------------------------------------------------------------
 
 
@@ -322,6 +564,8 @@ def versions(store: Store, document_id: str) -> list[Record]:
                     "created_at": r.get("created_at"),
                     "summary": r.get("summary"),
                     "summary_state": r.get("summary_state"),
+                    # Whether a person marked this state or the sitting did.
+                    "kind": str(r.get("kind") or AUTOSAVE),
                 }
                 for r in _kept(store, document_id)
             ],

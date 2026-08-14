@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-490 strings across 77 files.
+511 strings across 77 files.
 
 ## extension/src/api.ts
 
@@ -229,16 +229,16 @@ state the fact, no justification, no chat register, no filler.
 - 91: `Read from disk each time so Settings changes take effect at once.`
 - 102: `say it and carry on`
 - 232: `What breaks if this Source goes away.`
-- 445: `instruction is required`
-- 515: `audio is required`
-- 519: `audio must be base64`
-- 564: `Every recording here that never became words, so it can be tried again.`
-- 569: `What shaped a transcription, including one that produced nothing.`
-- 621: `a proposal is required`
-- 660: `That recording is no longer available.`
-- 736: `Default voice`
-- 874: `backup_id or bundle is required`
-- 891: `Unnamed device`
+- 482: `instruction is required`
+- 552: `audio is required`
+- 556: `audio must be base64`
+- 601: `Every recording here that never became words, so it can be tried again.`
+- 606: `What shaped a transcription, including one that produced nothing.`
+- 658: `a proposal is required`
+- 697: `That recording is no longer available.`
+- 773: `Default voice`
+- 911: `backup_id or bundle is required`
+- 928: `Unnamed device`
 
 ## server/logue_host/build.py
 
@@ -303,19 +303,26 @@ state the fact, no justification, no chat register, no filler.
 
 ## server/logue_host/domain/documents.py
 
-- 52: `The name to store, including the one an empty document gets.`
-- 141: `there is nothing to add`
-- 184: `next line`
-- 312: `the old ones`
-- 341: `What one version changed, line by line, against the one before it.`
-- 355: `The most recent version still waiting for its line, if there is one.`
-- 377: `Rewrite the passage below as instructed. Return only the rewritten passage — `
-- 378: `no preamble, no commentary, no quotation marks around it. Keep the meaning `
-- 379: `unless the instruction says otherwise, and keep the original language.`
-- 392: `why does it say this now`
-- 396: `Select the passage to rewrite first.`
-- 398: `Say how it should change.`
-- 433: `This Mac`
+- 54: `The name to store, including the one an empty document gets.`
+- 145: `there is nothing to add`
+- 189: `A sort key that puts later timestamps first.`
+- 195: `Give one parent's children positions 0…n, in 'order' if one is given.`
+- 206: `Everything under a document, so nothing can be moved inside itself.`
+- 225: `add to a Document`
+- 248: `A document cannot be moved inside itself.`
+- 264: `Set the order of one parent's children, and answer with it.`
+- 308: `next line`
+- 448: `go back`
+- 554: `the old ones`
+- 585: `What one version changed, line by line, against the one before it.`
+- 599: `The most recent version still waiting for its line, if there is one.`
+- 621: `Rewrite the passage below as instructed. Return only the rewritten passage — `
+- 622: `no preamble, no commentary, no quotation marks around it. Keep the meaning `
+- 623: `unless the instruction says otherwise, and keep the original language.`
+- 636: `why does it say this now`
+- 640: `Select the passage to rewrite first.`
+- 642: `Say how it should change.`
+- 677: `This Mac`
 
 ## server/logue_host/domain/finding.py
 
@@ -514,7 +521,7 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/api.ts
 
-- 251: `Logue is not running on this Mac.`
+- 257: `Logue is not running on this Mac.`
 
 ## web/src/app/ActivitiesPage.tsx
 
@@ -548,15 +555,24 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/DocumentsRoute.tsx
 
-- 91: `New Document`
-- 119: `written by hand`
-- 139: `Nothing written yet — press + to start a page.`
-- 281: `New Document`
-- 289: `Rewrite the passage`
-- 289: `Select a passage first`
-- 305: `Download as Markdown`
-- 373: `Not saved yet`
-- 375: `Every version is kept`
+- 117: `New Document`
+- 146: `written by hand`
+- 160: `Show what is inside`
+- 160: `Fold this away`
+- 162: `Show what is inside`
+- 162: `Fold this away`
+- 176: `New page inside this one`
+- 178: `New page inside this one`
+- 212: `Nothing written yet — press + to start a page.`
+- 358: `New Document`
+- 366: `Rewrite the passage`
+- 366: `Select a passage first`
+- 382: `Download as Markdown`
+- 450: `Not saved yet`
+- 452: `Every version is kept`
+- 467: `Mark this state as a version to come back to`
+- 478: `Version kept`
+- 478: `Keep this version`
 
 ## web/src/app/FindDialog.tsx
 
@@ -575,12 +591,17 @@ state the fact, no justification, no chat register, no filler.
 ## web/src/app/History.tsx
 
 - 26: `Restoring writes a new version.`
-- 95: `No visible change.`
-- 217: `logue-scroll -mx-1 max-h-80`
+- 102: `No visible change.`
+- 224: `logue-scroll -mx-1 max-h-80`
 
 ## web/src/app/MarkdownEditor.tsx
 
-- 337: `Start writing. The first line is the title.`
+- 200: `my-1 block`
+- 459: `Bulleted list`
+- 460: `Numbered list`
+- 463: `Code block`
+- 609: `Start writing. The first line is the title.`
+- 697: `Insert a block`
 
 ## web/src/app/MaterialPanel.tsx
 

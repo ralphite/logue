@@ -1,6 +1,6 @@
-import { Download, Wand2 } from "lucide-react";
+import { ChevronRight, Download, Plus, Wand2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Button, Empty, ErrorNote, Notice, Spinner, Tooltip } from "@logue/ui";
+import { Button, Empty, ErrorNote, IconButton, Notice, Spinner, Tooltip } from "@logue/ui";
 import { api, ApiError, type Document as DocumentRecord, type Material } from "../api";
 import { DRAFT } from "./AppShell";
 import { useHoldsUnsaved } from "./freshness";
@@ -66,22 +66,48 @@ export function DocumentsRoute({
   /** The rows on screen, for ⌥⌘↑/↓ to step through. */
   onVisibleOrder?: (ids: string[]) => void;
 }) {
-  const documents = useHost(() => api.documents(), [made, openId]);
+  const documents = useHost(() => api.documentTree(), [made, openId]);
   const [query, setQuery] = useState("");
+  /** Which pages are folded shut, by id. Everything starts open. */
+  const [shut, setShut] = useState<Set<string>>(new Set());
+  const action = useAction();
 
   const all = useMemo(() => documents.data?.documents ?? [], [documents.data]);
+  /**
+   * The list as a tree: each row knows how deep it sits and whether anything
+   * is under it. Searching flattens it — a result you cannot see because its
+   * parent is folded is a result that did not answer.
+   */
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    const sorted = all.toSorted((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
-    if (!needle) return sorted;
-    return sorted.filter((one) => (one.title || "Untitled").toLowerCase().includes(needle));
-  }, [all, query]);
+    if (needle) {
+      return all
+        .filter((one) => (one.title || "Untitled").toLowerCase().includes(needle))
+        .toSorted((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
+        .map((one) => ({ one, depth: 0, children: 0 }));
+    }
+    const under = new Map<string, DocumentRecord[]>();
+    for (const one of all) {
+      const parent = one.parent_id ?? "";
+      under.set(parent, [...(under.get(parent) ?? []), one]);
+    }
+    const rows: { one: DocumentRecord; depth: number; children: number }[] = [];
+    const walk = (parent: string, depth: number) => {
+      for (const one of under.get(parent) ?? []) {
+        const children = (under.get(one.id) ?? []).length;
+        rows.push({ one, depth, children });
+        if (!shut.has(one.id)) walk(one.id, depth + 1);
+      }
+    };
+    walk("", 0);
+    return rows;
+  }, [all, query, shut]);
 
   useEffect(() => {
-    onVisibleOrder?.(shown.map((one) => one.id));
+    onVisibleOrder?.(shown.map((row) => row.one.id));
   }, [shown, onVisibleOrder]);
 
-  const selectedId = openId && openId !== DRAFT ? openId : openId === DRAFT ? undefined : shown[0]?.id;
+  const selectedId = openId && openId !== DRAFT ? openId : openId === DRAFT ? undefined : shown[0]?.one.id;
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -102,24 +128,71 @@ export function DocumentsRoute({
             <Spinner /> Loading
           </div>
         )}
-        {shown.map((one) => (
-          <RowShell
-            key={one.id}
-            badge={<IconBadge name="document" tinted={one.id === selectedId} />}
-            selected={one.id === selectedId}
-            onSelect={() => onOpen(one.id)}
-          >
-            <RowName edge={one.updated_at ? timeAgo(one.updated_at) : undefined}>
-              {one.title || "Untitled"}
-            </RowName>
-            <RowMeta>
-              <span className="flex-none tabular-nums">
-                {(one.source_ids?.length ?? 0) > 0
-                  ? `${one.source_ids.length} ${one.source_ids.length === 1 ? "source" : "sources"}`
-                  : "written by hand"}
-              </span>
-            </RowMeta>
-          </RowShell>
+        {shown.map(({ one, depth, children }) => (
+          <div key={one.id} className="relative">
+            <RowShell
+              badge={<IconBadge name="document" tinted={one.id === selectedId} />}
+              selected={one.id === selectedId}
+              onSelect={() => onOpen(one.id)}
+              indent={depth}
+            >
+              <RowName edge={one.updated_at ? timeAgo(one.updated_at) : undefined}>
+                {one.title || "Untitled"}
+              </RowName>
+              <RowMeta>
+                <span className="flex-none tabular-nums">
+                  {(one.source_ids?.length ?? 0) > 0
+                    ? `${one.source_ids.length} ${one.source_ids.length === 1 ? "source" : "sources"}`
+                    : "written by hand"}
+                </span>
+                {children > 0 && (
+                  <span className="flex-none tabular-nums">
+                    · {children} {children === 1 ? "page" : "pages"}
+                  </span>
+                )}
+              </RowMeta>
+            </RowShell>
+            {/* The fold, and the way to put a page inside this one. Both sit on
+                the row they act on, because that is the only place they mean
+                anything. */}
+            <span className="absolute inset-y-0 right-3 flex items-center gap-0.5 opacity-0 focus-within:opacity-100 hover:opacity-100 [div:hover>&]:opacity-100">
+              {children > 0 && (
+                <Tooltip label={shut.has(one.id) ? "Show what is inside" : "Fold this away"}>
+                  <IconButton
+                    label={shut.has(one.id) ? "Show what is inside" : "Fold this away"}
+                    onClick={() =>
+                      setShut((was) => {
+                        const next = new Set(was);
+                        if (next.has(one.id)) next.delete(one.id);
+                        else next.add(one.id);
+                        return next;
+                      })
+                    }
+                  >
+                    <ChevronRight size={13} className={shut.has(one.id) ? undefined : "rotate-90"} />
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Tooltip label="New page inside this one">
+                <IconButton
+                  label="New page inside this one"
+                  onClick={() =>
+                    void action.run(async () => {
+                      const { document } = await api.createDocument({ parent_id: one.id, content: "" });
+                      setShut((was) => {
+                        const next = new Set(was);
+                        next.delete(one.id);
+                        return next;
+                      });
+                      onCreated(document.id);
+                    })
+                  }
+                >
+                  <Plus size={13} />
+                </IconButton>
+              </Tooltip>
+            </span>
+          </div>
         ))}
       </ListPane>
 
@@ -184,6 +257,10 @@ function DocumentEditor({
   const [revision, setRevision] = useState(0);
   const [conflict, setConflict] = useState(false);
   const [looking, setLooking] = useState(false);
+  /** When a version was last marked by hand, so the control can say so. */
+  const [kept, setKept] = useState<string>();
+  /** Marking a version is its own act; it must not blank the editor's spinner. */
+  const editing = useAction();
   /** The selected passage, frozen when Rewrite was pressed. */
   const [rewriting, setRewriting] = useState<string>();
   /** Whether there is a passage to rewrite right now, so the button can say so. */
@@ -383,6 +460,25 @@ function DocumentEditor({
                   </Tooltip>
                 )}
                 {saved && <span>Saved {timeAgo(saved)}</span>}
+                {/* Typing keeps a working copy; this marks a state to come
+                    back to. One per sitting happens on its own — this is for
+                    the moments a person wants to name. */}
+                {!draft && (
+                  <Tooltip label="Mark this state as a version to come back to">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void editing.run(async () => {
+                          await api.keepVersion(id);
+                          setKept(new Date().toISOString());
+                        })
+                      }
+                      className="-my-1 ml-auto inline-flex min-h-6 items-center gap-1 rounded-md py-1 text-xs text-muted underline decoration-line underline-offset-2 hover:text-ink"
+                    >
+                      {kept ? "Version kept" : "Keep this version"}
+                    </button>
+                  </Tooltip>
+                )}
                 {action.busy && <Spinner size={11} />}
               </footer>
             </article>

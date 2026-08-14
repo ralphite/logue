@@ -82,6 +82,13 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   word. It passed.) Nothing hands a key out — that is deliberate — so nothing
   may write one. Where a check cannot restore what it would change, it prints
   why and skips that half rather than running quietly.
+- **A design proposal is reviewed by an independent agent before it is shown,
+  not only the code once it lands.** (2026-08-13, his words: "review feature
+  design with subagent (always)".) The three questions in
+  [review-process.md](review-process.md) — plain copy, sane rhythm, faithful
+  to what was approved — apply to a mock and a written plan as much as to
+  shipped code, because a mistake caught in a plan costs a rewrite of a
+  document and a mistake caught after costs a rewrite of the feature.
 - **Commit when a piece is done and checked; push whenever pushing is
   possible.** Work that sits uncommitted cannot be stepped back through when
   something turns out wrong, and one enormous commit is the same problem in
@@ -531,6 +538,19 @@ ruling on the three questions it raised — **A / keep / bookmark**.)
   once, says how many documents it rewrote, and where the stored name was not
   already the first line it writes that name in as a heading rather than
   dropping it.
+- **A document is Markdown as it will read.** (2026-08-14, his words: *"doc
+  editing must support wysiwyg for markdown. see vibedoc… ux should be similar
+  to notion"*.) Tables, task lists, strikethrough and bare links are
+  understood; a task box is pressed rather than typed; an image is shown;
+  `/` on an empty line offers the blocks, and what it writes is Markdown.
+- **The document is a working copy; a version is a state you can go back to.**
+  Autosave writes the working copy and nothing else. A version is kept once
+  per sitting, and whenever a person says so — never one per save, which is
+  how one sentence used to produce `v2..v7`. Two versions never say the same
+  thing: each carries a hash of what it holds.
+- **Documents nest, and nothing is lost by moving them.** Each holds its own
+  parent and its place among its siblings. Deleting a page moves its children
+  up into its place; a page cannot be moved inside itself.
 - **Every version of a document can be read back and gone back to.** Going
   back is written forward as a new version; the ones it skipped over survive.
 - **Each version says what it changed, in words.** A model writes the line

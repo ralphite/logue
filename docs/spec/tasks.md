@@ -20,6 +20,7 @@
 
 | | 任务 | 状态 / 为什么在这 |
 |---|---|---|
+| **F3** | 文档编辑补齐 Vibedoc:所见即所得、版本管理、嵌套文档 | `done` · P1 · 2026-08-14。①编辑器:GFM(表格/任务清单/删除线/裸链接)、任务框能点、图片直接显示、表格和代码块是块、`/` 开块菜单(十种)、⌘+点击打开链接;②版本:文档=工作副本,**版本=能回去的状态** —— 一次 sitting 一条 + 手动「Keep this version」,按 content_hash 去重,手动标的在历史里有 `kept` 标;③嵌套:`parent_id` + `position`,读的时候组装成树,删父页子页升到它的位置,不能移进自己里;列表按树缩进、可折叠、行上有「在里面新建」。 |
 | **N13** | Extension 面板大幅简化:一个列表 + 一个 composer | `done` · P1 · 2026-08-13 你拍板 **A / 留 / 书签** 后落地。三个动词、第二个录音条、ask box、四段列表、`speaking` 隐藏状态全部删掉;语音只把字填进框(esc 扔 / ↵ 插入 / ⌘↵ 插入并发),发送=保存一条(说出来的存成带录音的 voice Source),Ask 挂在每条底下;选区由 content script 带 anchor 推给面板。菜单里跑的 Skill 答案改存成 derived Source(原来只写进浏览器存储的对话里)。方案见 [panel-composer.md](panel-composer.md),mock 见 [n13-panel-mock.html](n13-panel-mock.html),检查 `scripts/qa/n13.mjs`(11 条全过)。 |
 | **N12** | 左栏的 + 移进内容区,列表页头样式修掉 | `done` · P1 · 2026-08-13。`+` 从导航条(悬停才出现)移到 Projects / Documents / Skills 各自列表的页头右上;列表页头首行从 42px 改成 48px,和右侧详情页头对齐(实测原来是 42 对 48)。 |
 | **X3** | Settings 的 Model 框:当前模型只当 placeholder 显示 | `done` · P2 · 2026-08-13。已保存的模型名现在填进 value(表单加载时填,且不会覆盖正在打的字),placeholder 只留默认值提示。API key 仍然不显示。 |

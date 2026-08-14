@@ -129,12 +129,15 @@ export function RowShell({
   selected,
   onSelect,
   title,
+  indent = 0,
   children,
 }: {
   badge: ReactNode;
   selected?: boolean;
   onSelect?: () => void;
   title?: string;
+  /** How deep this row sits in a tree. Documents nest; nothing else does yet. */
+  indent?: number;
   children: ReactNode;
 }) {
   return (
@@ -143,6 +146,9 @@ export function RowShell({
       title={title}
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
+      // The step is 16px because the badge is 24: any less and a child looks
+      // like a sibling that happens to be drawn badly.
+      style={indent ? { paddingLeft: 16 + indent * 16 } : undefined}
       className={cn(
         "relative grid w-full grid-cols-[24px_minmax(0,1fr)] gap-x-[9px] border-b border-line py-[7px] pr-4 pl-4 text-left transition-colors",
         selected ? "bg-accent-soft" : "hover:bg-hover-soft",

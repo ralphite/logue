@@ -74,6 +74,13 @@ function Entry({ version, onOpen }: { version: Version; onOpen: () => void }) {
         {version.created_at && <span className="text-xs text-muted">{timeAgo(version.created_at)}</span>}
       </span>
       <Change added={version.added} removed={version.removed} />
+      {/* A version somebody chose to keep, told apart from the ones a sitting
+          left behind: the whole reason for marking one. */}
+      {version.kind === "manual" && !version.current && (
+        <span className="shrink-0 rounded-full border border-accent-line bg-accent-soft px-1.5 text-[10px] font-[650] text-accent-ink">
+          kept
+        </span>
+      )}
       {version.current && <span className="shrink-0 text-xs text-muted">current</span>}
     </button>
   );

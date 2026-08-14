@@ -44,10 +44,20 @@ One Markdown file per feature under `docs/spec/features/<name>.md`, written
 - **What it must never do** — the failure this design exists to prevent.
 - **Open questions** — anything the owner must rule on. Never guessed.
 
+## The review starts at the proposal, not the code
+
+Added 2026-08-13, his words: *"review feature design with subagent (always).
+review ext panel design. too many issues."* A mock and a written plan are
+declarations too — the three questions below apply to them before a line of
+product code exists, not only to the finished feature. Skipping straight to
+code review meant the first read of a design was also the last chance to
+change it cheaply.
+
 ## The review
 
-Three independent agents read the declaration against the code. They do not
-coordinate, and none of them wrote it. Each returns findings, or nothing.
+Three independent agents read the declaration — a proposal doc, a mock, or
+the shipped code — against what it claims to do. They do not coordinate, and
+none of them wrote it. Each returns findings, or nothing.
 
 | Reviewer | The single question it asks |
 |---|---|

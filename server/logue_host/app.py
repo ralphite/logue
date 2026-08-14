@@ -302,7 +302,12 @@ class App:
         # -- documents ------------------------------------------------------
 
         @route("GET", "/v1/documents")
-        def list_documents(_: Request) -> dict[str, Any]:
+        def list_documents(request: Request) -> dict[str, Any]:
+            # By where they sit when a tree is being drawn, by when they
+            # changed when a list is. One endpoint, because a caller that
+            # wants the other order should not have to know a second address.
+            if request.query.get("tree"):
+                return {"documents": documents.tree(store)}
             return {"documents": store.documents.list(sort_key="updated_at")}
 
         @route("POST", "/v1/documents")
@@ -314,6 +319,7 @@ class App:
                     title=str(body.get("title") or ""),
                     content=str(body.get("content") or ""),
                     source_ids=body.get("source_ids"),
+                    parent=str(body.get("parent_id") or "") or None,
                 )
             }
 
@@ -355,10 +361,29 @@ class App:
             _describe_new_version(request.params["id"])
             return {"document": document}
 
+        @route("POST", "/v1/documents/{id}/move")
+        def move_document(request: Request) -> dict[str, Any]:
+            """Under another document, or back to the top, and where among its
+            siblings. One call, because half a move is a lost page."""
+            body = request.json()
+            moved = documents.move(
+                store,
+                request.params["id"],
+                parent=str(body.get("parent_id") or "") or None,
+                before=str(body.get("before") or "") or None,
+            )
+            return {"document": moved}
+
+        @route("POST", "/v1/documents/reorder")
+        def reorder_documents(request: Request) -> dict[str, Any]:
+            body = request.json()
+            order = [str(one) for one in (body.get("order") or [])]
+            return {"documents": documents.reorder(store, str(body.get("parent_id") or "") or None, order)}
+
         @route("DELETE", "/v1/documents/{id}")
         def delete_document(request: Request) -> dict[str, Any]:
-            store.documents.get(request.params["id"])
-            store.documents.delete(request.params["id"])
+            # Its children move up into its place rather than going with it.
+            documents.remove(store, request.params["id"])
             return {"ok": True}
 
         @route("POST", "/v1/documents/{id}/rewrite")
@@ -371,6 +396,18 @@ class App:
                 selection=str(body.get("selection") or ""),
                 instruction=str(body.get("instruction") or ""),
             )
+
+        @route("POST", "/v1/documents/{id}/versions")
+        def keep_version(request: Request) -> dict[str, Any]:
+            """Mark this state as a version, because a person said so.
+
+            The autosave keeps one version per sitting on its own; this is the
+            other half of vibedoc's model — a point somebody chose, which also
+            ends the sitting so the next edit starts a new one.
+            """
+            kept = documents.keep_version(store, request.params["id"])
+            summaries.in_background(store, self.provider(), str(kept["id"]))
+            return {"version": {"id": kept["id"], "revision": kept["revision"], "kind": kept.get("kind")}}
 
         @route("GET", "/v1/documents/{id}/versions")
         def document_versions(request: Request) -> dict[str, Any]:
