@@ -12,6 +12,7 @@ import json
 import os
 import shutil
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -60,13 +61,47 @@ def read_json(path: Path, default: Any = None) -> Any:
         return default
 
 
+class Changes:
+    """How many times each kind of record has been written.
+
+    Two surfaces read this workspace — the side panel and the app — and until
+    now each pulled once and then believed itself. Saying something in the
+    panel and looking at the app showed yesterday's list until someone
+    reloaded, which is not something a person should have to know about.
+
+    Kept in memory rather than on disk. Nobody needs the numbers to mean
+    anything; they need them to *move*. A Host that has restarted hands out
+    fresh ones, which reads as "everything changed" — after a restart that is
+    the honest answer. Locked because the Host answers on many threads.
+    """
+
+    def __init__(self) -> None:
+        self._counts: dict[str, int] = {}
+        self._at = 0
+        self._lock = threading.Lock()
+
+    def wrote(self, kind: str) -> None:
+        with self._lock:
+            self._at += 1
+            self._counts[kind] = self._counts.get(kind, 0) + 1
+
+    def snapshot(self) -> dict[str, Any]:
+        """One number for "anything at all", and one per kind for the rest."""
+        with self._lock:
+            return {"at": self._at, "kinds": dict(self._counts)}
+
+
 class Collection:
     """A directory of `<id>.json` records."""
 
-    def __init__(self, root: Path, name: str) -> None:
+    def __init__(self, root: Path, name: str, changes: Changes | None = None, kind: str = "") -> None:
         self.name = name
         self.path = root / name
         self.path.mkdir(parents=True, exist_ok=True)
+        # Every write to this collection goes through `put` and `delete`, so
+        # counting them here is the one place it cannot be forgotten.
+        self.changes = changes
+        self.kind = kind or name
 
     def _file(self, record_id: str) -> Path:
         if "/" in record_id or record_id in ("", ".", ".."):
@@ -89,10 +124,14 @@ class Collection:
 
     def put(self, record: Record) -> Record:
         write_json(self._file(record["id"]), record)
+        if self.changes:
+            self.changes.wrote(self.kind)
         return record
 
     def delete(self, record_id: str) -> None:
         self._file(record_id).unlink(missing_ok=True)
+        if self.changes:
+            self.changes.wrote(self.kind)
 
     def all(self) -> Iterator[Record]:
         for path in self.path.glob("*.json"):
@@ -115,19 +154,29 @@ class Store:
     def __init__(self, root: Path) -> None:
         self.root = root
         root.mkdir(parents=True, exist_ok=True)
-        self.materials = Collection(root, "items")
-        self.projects = Collection(root, "projects")
-        self.documents = Collection(root, "docs")
-        self.skills = Collection(root, "skills")
-        self.runs = Collection(root, "skill-runs")
-        self.topics = Collection(root, "topics")
-        self.vocabularies = Collection(root, "topic-vocabularies")
-        self.clients = Collection(root, "clients")
-        self.doc_revisions = Collection(root, "doc-revisions")
-        self.transcript_revisions = Collection(root, "transcript-revisions")
-        self.skill_revisions = Collection(root, "skill-revisions")
+        #: What has been written since this Host started, counted per kind, so
+        #: a surface can tell whether the workspace has moved under it.
+        self.changes = Changes()
+
+        def collection(name: str, kind: str) -> Collection:
+            # The kind is the word the API uses, not the directory's name: the
+            # client asking "has anything happened to documents" should not
+            # have to know they are filed under `docs`.
+            return Collection(root, name, self.changes, kind)
+
+        self.materials = collection("items", "materials")
+        self.projects = collection("projects", "projects")
+        self.documents = collection("docs", "documents")
+        self.skills = collection("skills", "skills")
+        self.runs = collection("skill-runs", "runs")
+        self.topics = collection("topics", "topics")
+        self.vocabularies = collection("topic-vocabularies", "vocabulary")
+        self.clients = collection("clients", "clients")
+        self.doc_revisions = collection("doc-revisions", "documents")
+        self.transcript_revisions = collection("transcript-revisions", "materials")
+        self.skill_revisions = collection("skill-revisions", "skills")
         #: What a search query is also called, so the model is asked once.
-        self.search_wordings = Collection(root, "search-wordings")
+        self.search_wordings = collection("search-wordings", "search-wordings")
         self.audio = root / "audio"
         self.audio.mkdir(parents=True, exist_ok=True)
         self.backups = root / "backups"
@@ -140,6 +189,7 @@ class Store:
 
     def save_settings(self, settings: Record) -> Record:
         write_json(self.root / "settings.json", settings)
+        self.changes.wrote("settings")
         return settings
 
     def provider(self) -> Record:
@@ -147,6 +197,7 @@ class Store:
 
     def save_provider(self, provider: Record) -> Record:
         write_json(self.root / "ai-provider.json", provider)
+        self.changes.wrote("model")
         return provider
 
     # -- audio --------------------------------------------------------------
@@ -155,6 +206,9 @@ class Store:
         suffix = {"audio/webm": ".webm", "audio/mp4": ".mp4", "audio/wav": ".wav"}.get(media_type, ".bin")
         path = self.audio / f"{capture_id}{suffix}"
         path.write_bytes(data)
+        # A recording the Host is holding is something a panel lists, whether
+        # or not it ever becomes a Source.
+        self.changes.wrote("captures")
         return path
 
     def audio_path(self, capture_id: str) -> Path | None:

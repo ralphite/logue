@@ -271,6 +271,12 @@ export const api = {
   host: HOST,
   status: () => request<HostStatus>("/v1/status"),
 
+  /**
+   * Whether the workspace has moved. Asked on a short timer by every surface,
+   * so it reads no files — see `sync.ts`.
+   */
+  changes: () => request<{ at: number; kinds: Record<string, number> }>("/v1/changes"),
+
   materials: (query?: { q?: string; project?: string; kind?: string }) =>
     request<{ materials: Material[] }>(`/v1/materials?${new URLSearchParams(query ?? {})}`),
   /**

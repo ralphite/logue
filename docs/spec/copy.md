@@ -6,12 +6,12 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-491 strings across 76 files.
+493 strings across 76 files.
 
 ## extension/src/api.ts
 
 - 110: `Logue's background service is restarting. Try again in a moment.`
-- 212: `never used`
+- 220: `never used`
 
 ## extension/src/background.ts
 
@@ -82,47 +82,47 @@ state the fact, no justification, no chat register, no filler.
 
 ## extension/src/sidepanel.tsx
 
-- 77: `Looked through your Sources`
-- 78: `Ran a Skill`
-- 79: `Would save this page`
-- 80: `Would file this into a Project`
-- 81: `Would draft a document`
-- 116: `From this page`
-- 186: `Leave it`
-- 201: `just now`
-- 428: `Goes in when Logue is back — nothing to do`
-- 443: `Export audio`
-- 497: `That is not an address Logue can reach.`
-- 504: `Logue's background service is restarting. Try again in a moment.`
-- 538: `The address of the Host this browser talks to — this computer, another one, or a tunnel.`
-- 629: `Logue is not answering.`
-- 744: `Could not save this page.`
-- 779: `Could not keep that.`
-- 844: `Could not reach Logue.`
-- 965: `Done — it is in your workspace.`
-- 968: `Could not do that.`
-- 1020: `Open Chrome settings`
-- 1022: `Try again`
-- 1028: `Reaching the microphone…`
-- 1048: `Ask — this page and your material are in context`
-- 1049: `What to ask`
-- 1055: `Say it instead · ⌘⇧K`
-- 1087: `This page`
-- 1090: `Project scope`
-- 1100: `Panel menu`
-- 1178: `Keeps the selection if there is one, else this whole page`
-- 1313: `Kept from this page`
-- 1319: `Nothing kept from this page yet.`
-- 1327: `finishes ·`
-- 1387: `Where a recording is added`
-- 1428: `Add to a Document`
-- 1444: `Could not add it.`
-- 1538: `Open this in Logue`
-- 1544: `Copy, with the passage it is about`
-- 1662: `Found it`
-- 1721: `What it says`
-- 1798: `Add a tag`
-- 1799: `Add a tag`
+- 78: `Looked through your Sources`
+- 79: `Ran a Skill`
+- 80: `Would save this page`
+- 81: `Would file this into a Project`
+- 82: `Would draft a document`
+- 117: `From this page`
+- 187: `Leave it`
+- 202: `just now`
+- 429: `Goes in when Logue is back — nothing to do`
+- 444: `Export audio`
+- 498: `That is not an address Logue can reach.`
+- 505: `Logue's background service is restarting. Try again in a moment.`
+- 539: `The address of the Host this browser talks to — this computer, another one, or a tunnel.`
+- 638: `Logue is not answering.`
+- 756: `Could not save this page.`
+- 791: `Could not keep that.`
+- 856: `Could not reach Logue.`
+- 977: `Done — it is in your workspace.`
+- 980: `Could not do that.`
+- 1032: `Open Chrome settings`
+- 1034: `Try again`
+- 1040: `Reaching the microphone…`
+- 1060: `Ask — this page and your material are in context`
+- 1061: `What to ask`
+- 1067: `Say it instead · ⌘⇧K`
+- 1099: `This page`
+- 1102: `Project scope`
+- 1112: `Panel menu`
+- 1190: `Keeps the selection if there is one, else this whole page`
+- 1325: `Kept from this page`
+- 1331: `Nothing kept from this page yet.`
+- 1339: `finishes ·`
+- 1400: `Where a recording is added`
+- 1442: `Add to a Document`
+- 1458: `Could not add it.`
+- 1552: `Open this in Logue`
+- 1558: `Copy, with the passage it is about`
+- 1676: `Found it`
+- 1735: `What it says`
+- 1812: `Add a tag`
+- 1813: `Add a tag`
 
 ## extension/src/surfaces/FloatingBar.tsx
 
@@ -236,17 +236,17 @@ state the fact, no justification, no chat register, no filler.
 
 - 91: `Read from disk each time so Settings changes take effect at once.`
 - 102: `say it and carry on`
-- 222: `What breaks if this Source goes away.`
-- 435: `instruction is required`
-- 505: `audio is required`
-- 509: `audio must be base64`
-- 554: `Every recording here that never became words, so it can be tried again.`
-- 559: `What shaped a transcription, including one that produced nothing.`
-- 611: `a proposal is required`
-- 650: `That recording is no longer available.`
-- 726: `Default voice`
-- 864: `backup_id or bundle is required`
-- 881: `Unnamed device`
+- 232: `What breaks if this Source goes away.`
+- 445: `instruction is required`
+- 515: `audio is required`
+- 519: `audio must be base64`
+- 564: `Every recording here that never became words, so it can be tried again.`
+- 569: `What shaped a transcription, including one that produced nothing.`
+- 621: `a proposal is required`
+- 660: `That recording is no longer available.`
+- 736: `Default voice`
+- 874: `backup_id or bundle is required`
+- 891: `Unnamed device`
 
 ## server/logue_host/build.py
 
@@ -504,10 +504,12 @@ state the fact, no justification, no chat register, no filler.
 
 ## server/logue_host/store.py
 
-- 36: `Replace *path* atomically: write a neighbour file, then rename over.`
-- 78: `Errors reach the user's screen, so they name the thing, not its id.`
-- 113: `Every collection plus the singleton documents, rooted at one directory.`
-- 201: `Copy the whole workspace, for a backup taken before a risky change.`
+- 37: `Replace *path* atomically: write a neighbour file, then rename over.`
+- 74: `everything changed`
+- 89: `One number for `
+- 113: `Errors reach the user's screen, so they name the thing, not its id.`
+- 152: `Every collection plus the singleton documents, rooted at one directory.`
+- 255: `Copy the whole workspace, for a backup taken before a risky change.`
 
 ## server/logue_host/trace.py
 
@@ -723,6 +725,6 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/useHost.ts
 
-- 20: `Something went wrong.`
-- 46: `Something went wrong.`
-- 60: `just now`
+- 32: `Something went wrong.`
+- 70: `Something went wrong.`
+- 84: `just now`

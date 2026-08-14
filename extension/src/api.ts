@@ -148,6 +148,14 @@ export const host = {
   captures: () =>
     call<{ captures: { capture_id: string; seconds?: number; created_at: string }[] }>("/v1/captures"),
 
+  /**
+   * Whether the workspace has moved, and what kind of thing moved in it.
+   *
+   * Asked on a short timer by whatever is on screen, so it reads no files —
+   * see `sync.ts`.
+   */
+  changes: () => call<{ at: number; kinds: Record<string, number> }>("/v1/changes"),
+
   /** Try again on a recording the Host already has — the way back from a failed model call. */
   transcribeKept: (
     captureId: string,

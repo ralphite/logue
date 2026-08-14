@@ -116,6 +116,16 @@ class App:
         route = self.router.route
         store = self.store
 
+        @route("GET", "/v1/changes")
+        def changes(_: Request) -> dict[str, Any]:
+            """Has anything moved, and what kind of thing.
+
+            Asked by every open surface on a short timer, so it touches no
+            files and reads nothing: two surfaces on one workspace is the
+            point, and a person should never have to know a reload exists.
+            """
+            return store.changes.snapshot()
+
         @route("GET", "/v1/status")
         def status(_: Request) -> dict[str, Any]:
             provider = self.provider()

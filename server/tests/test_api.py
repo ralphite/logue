@@ -1557,6 +1557,54 @@ class TheOpenAIShapedProvider(unittest.TestCase):
             self.assertNotIn("base_url", saved, "the Gemini address must not leak into the OpenAI path")
 
 
+class TwoSurfacesOneWorkspace(Workspace, unittest.TestCase):
+    """What the panel and the app both watch to stay in step.
+
+    His report: "ext widget/sidepanel and webapp should have data synced."
+    Both pulled once and then believed themselves. These pin the one thing
+    they now share — a counter that moves whenever anything is written.
+    """
+
+    def test_a_write_moves_the_number(self) -> None:
+        before = self.call("GET", "/v1/changes")["at"]
+        self.call("POST", "/v1/documents", {"content": "# Tuesday"})
+        self.assertGreater(self.call("GET", "/v1/changes")["at"], before)
+
+    def test_reading_moves_nothing(self) -> None:
+        # Asked every second and a half by everything on screen. A question
+        # that counted as an answer would make every surface reload forever.
+        self.call("POST", "/v1/documents", {"content": "# Tuesday"})
+        at = self.call("GET", "/v1/changes")["at"]
+        self.call("GET", "/v1/documents")
+        self.call("GET", "/v1/changes")
+        self.assertEqual(self.call("GET", "/v1/changes")["at"], at)
+
+    def test_it_says_which_kind_moved(self) -> None:
+        # So a surface showing Documents does not reload because a recording
+        # was saved somewhere else.
+        self.call("POST", "/v1/documents", {"content": "# Tuesday"})
+        kinds = self.call("GET", "/v1/changes")["kinds"]
+        self.assertGreaterEqual(kinds.get("documents", 0), 1)
+        self.assertEqual(kinds.get("projects", 0), 0)
+
+    def test_a_deletion_counts_as_much_as_a_write(self) -> None:
+        document = self.call("POST", "/v1/documents", {"content": "# Tuesday"})["document"]
+        at = self.call("GET", "/v1/changes")["at"]
+        self.call("DELETE", f"/v1/documents/{document['id']}")
+        self.assertGreater(self.call("GET", "/v1/changes")["at"], at, "a row that vanished is a change")
+
+    def test_it_reads_no_files(self) -> None:
+        # The reason it can be asked on a short timer at all. `/v1/status`
+        # walks the workspace; this must never grow into that.
+        import time
+
+        self.call("POST", "/v1/documents", {"content": "# Tuesday"})
+        start = time.perf_counter()
+        for _ in range(200):
+            self.call("GET", "/v1/changes")
+        self.assertLess(time.perf_counter() - start, 0.5, "200 heartbeats should cost nothing")
+
+
 class WhenTheModelIsBusy(unittest.TestCase):
     """"High demand" is not a refusal of the request — it is "not this second".
 

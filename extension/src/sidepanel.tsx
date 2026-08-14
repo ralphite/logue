@@ -39,6 +39,7 @@ import { clearThread, readThread, writeThread } from "./thread";
 import { DictatedText, RecordControl } from "./panel/dictation";
 import { useDictation } from "./useDictation";
 import { held, type Held } from "./unfinished";
+import { useWatermark } from "./sync";
 import { useVoice } from "./useVoice";
 
 
@@ -583,6 +584,14 @@ export function Panel() {
   const [speaking, setSpeaking] = useState<"chat" | "dictation">("chat");
   /** The Document the next recording is added to, or nowhere. */
   const [into, setInto] = useState<{ id: string; title: string }>();
+  /**
+   * How many times the workspace has been written to, from anywhere.
+   *
+   * One workspace, two surfaces: a Project made in the app, a Source saved
+   * from another tab, a recording the worker finished. Read here and put in
+   * the dependencies of everything this panel loads — see `sync.ts`.
+   */
+  const written = useWatermark();
 
   // Read before anything is asked of the Host, and followed afterwards: the
   // address can be changed from another panel, and a panel still calling the
@@ -701,7 +710,9 @@ export function Panel() {
     };
     chrome.storage.local.onChanged.addListener(onStorage);
     return () => chrome.storage.local.onChanged.removeListener(onStorage);
-  }, [readWaiting]);
+    // `written`: a recording the worker finished, or one transcribed in the
+    // app, stops being something this panel should still be offering.
+  }, [readWaiting, written]);
 
   useEffect(() => {
     void load();
@@ -714,8 +725,9 @@ export function Panel() {
     };
     // `server` is not read here, but everything `load` asks for is fetched from
     // it — a panel that kept the failure from the old address would say Logue
-    // is down while it is answering at the new one.
-  }, [load, server]);
+    // is down while it is answering at the new one. `written` is the workspace
+    // moving: a Project made in the app, a Source saved from another tab.
+  }, [load, server, written]);
 
   const capture = async () => {
     if (!page?.url || page.id === undefined) return;
@@ -1357,12 +1369,13 @@ function IntoDestination({
 }) {
   const [documents, setDocuments] = useState<{ id: string; title: string }[]>([]);
 
+  const written = useWatermark();
   useEffect(() => {
     void host.documents().then(
       (found) => setDocuments(found.documents.slice(0, 20)),
       () => setDocuments([]),
     );
-  }, []);
+  }, [written]);
 
   // Chosen once, kept — including across the panel being closed, which is the
   // common way a side panel ends.
@@ -1412,12 +1425,13 @@ function IntoDocument({
   const [added, setAdded] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const written = useWatermark();
   useEffect(() => {
     void host.documents().then(
       (found) => setDocuments(found.documents.slice(0, 20)),
       () => setDocuments([]),
     );
-  }, []);
+  }, [written]);
 
   if (documents.length === 0) return null;
 

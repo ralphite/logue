@@ -424,7 +424,7 @@
       "id": "F2",
       "title": "Document 大改:第一行就是标题,Markdown 要所见即所得(参考 Vibedoc)",
       "type": "feature",
-      "status": "doing",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
@@ -453,6 +453,44 @@
       "blocked_on": "",
       "input_ids": [
         "in_bug_clicking_on"
+      ],
+      "created": "2026-08-13",
+      "updated": "2026-08-13"
+    },
+    {
+      "id": "N12",
+      "title": "左栏的 + 移进内容区,Projects/Documents/Skills 页头样式修掉",
+      "type": "design",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "ui",
+        "redesign"
+      ],
+      "note": "截图指的是 Projects:左侧导航项上挂着的 + (Add New) 要移到右侧内容区里面去;同时内容区顶部的 header(标题 + 计数)样式有问题,要修。Documents、Skills 两页做同样的改动。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_add_task_add"
+      ],
+      "created": "2026-08-13",
+      "updated": "2026-08-13"
+    },
+    {
+      "id": "X3",
+      "title": "Settings 的 Model 框:当前模型只当 placeholder 显示,不是真的 value",
+      "type": "bug",
+      "status": "queued",
+      "priority": "P2",
+      "confirmed": true,
+      "tags": [
+        "ui",
+        "settings"
+      ],
+      "note": "SettingsRoute.tsx:141 把 model.data?.model 放在 placeholder 上,modelName 这个 state 是空的,所以 gemini-3.7-flash 显示成灰色提示而不是可编辑的输入值。看起来像没设置,改一个字还得整串重打。应该把已保存的模型名填进 value(表单加载时 setModelName)。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_task_tip_input"
       ],
       "created": "2026-08-13",
       "updated": "2026-08-13"
@@ -605,6 +643,18 @@
       "id": "in_bug_clicking_on",
       "at": "2026-08-13 20:00",
       "text": "bug: clicking on a doc should not change update time of it",
+      "images": []
+    },
+    {
+      "id": "in_add_task_add",
+      "at": "2026-08-13 21:04",
+      "text": "add task: 把 Add New 这个 button 移到里面，然后把 header 这个地方给改一下，把它 style 问题给修复。同样的 documents、skills 也要做类似的改动。",
+      "images": []
+    },
+    {
+      "id": "in_task_tip_input",
+      "at": "2026-08-13 21:09",
+      "text": "task: 为什么这个模型它的文字是一个类似tip的方式，而不是真正的文字input value呢？",
       "images": []
     }
   ]

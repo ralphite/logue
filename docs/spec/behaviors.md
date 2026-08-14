@@ -381,6 +381,22 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
 - **The Storybook reads in levels, in order**: Foundation, Component, Feature,
   Page, Journey. Every story belongs to exactly one.
 
+## Two surfaces, one workspace
+
+- **What one surface writes, the others show — without being reloaded.**
+  (2026-08-12, his report: *"bugs: ext widget/sidepanel and webapp should have
+  data synced."*) The panel, the on-page controls and the app read one Host,
+  and each asks it every second and a half whether anything has been written.
+  When something has, whatever shows that kind of thing loads again. There is
+  no refresh button, and needing one is a bug in this.
+- **Following costs nothing and is never noticed.** The question reads no
+  files. The answer arrives without a spinner — a row appearing must not blank
+  the pane it appears in — and a surface nobody is looking at does not ask at
+  all.
+- **Nothing reloads over words that are not saved yet.** An editor holding
+  something unsaved is left alone until it is saved; the next change picks it
+  up. A reload that costs a paragraph is worse than the staleness it fixes.
+
 ## Documents
 
 - **A document's name is its first line. There is no title field.**
