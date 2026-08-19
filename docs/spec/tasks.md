@@ -20,7 +20,7 @@
 
 | | 任务 | 状态 / 为什么在这 |
 |---|---|---|
-| **N17** | 侧栏照 chatgpt.com 的设计(字体/间距,含收起态) | `queued` · P1 · 2026-08-19 他给了两张参考截图,原话 "use same design as chatgpt.com (font, space etc) / do it at the end"。 |
+| **N17** | 侧栏照 chatgpt.com 的设计(字体/间距,含收起态) | `done` · P1 · 2026-08-19 他给了两张参考截图并说 "do it at the end"。在他登录的 Chrome 里实测 chatgpt.com:展开 240px、行高 36、字 14px/400、圆角 10px(=radius-lg token)、图标 20px、行间 0、收起 52px 图标栏(我们本就是 52 ✓)。照数落地:h-9 / text-sm / rounded-lg / 20px Glyph / gap-0 / 默认宽 240(存储键换 `logue.rail.width.2` 让新默认生效,仍可拖);active 行照参考改为只用底色+墨色区分,不再加粗。图标尺寸首次没生效——`cn` 是纯拼接不做 tailwind-merge,Glyph 自带 `h-[11px]`,预设类 `h-5` 在层序里输给它,换 `h-[20px]` 任意值才压得住(15px 时代同理,记住这个坑)。部署后实测:240/36/14px/400/10px/20px/52 全对,两态截图核过。 |
 | **X12** | 编辑器里的麦克风"不工作" | `done` · P0 · 2026-08-19。真机全链路复现(harness + 假麦克风喂真语音 + 真 Host 真模型):录音、转写、插入光标**功能本身是通的**(15 字符落进文档+Undo)。他撞上的是两件事叠加:①Gemini 当天在 503 忙碌(Host 日志可见,X5 同款,会过去);②**接受转写后结算期的唯一反馈是一个裸数字"1"**——正是他禁掉的无字状态点,模型忙时 10-30 秒里产品看起来就是死的。修:VoiceBar 的结算指示改成 `Transcribing…`(多条时 `Transcribing 2…`),覆盖含自动重试的整个等待期,真机验过全程在场。顺带修了测试台:browser.sh 缺 `--disable-features=AudioServiceSandbox`,假麦克风一直在喂静音(mic-level 抓到)。 |
 | **X11** | `# A` 渲染时 # 后的空格没随标记隐藏 | `done` · P1 · 2026-08-19。Lezer 的 HeaderMark 只含 `#` 不含后随空格,隐藏范围没吃掉它,每个标题渲染都缩进一个空格;QuoteMark 同病。修:这两类标记的隐藏范围延伸过后随空白。在他登录的真 Notion 上核对过参照(标题首字符≈盒左缘,无缩进);部署后真机断言**没有任何渲染行以空格开头**。 |
 | **X10** | 编辑器块悬停 +/⠿ 按钮位置漂移 | `done` · P1 · 2026-08-19。根因:rail 锚定 `.cm-editor` 左缘,而新版把 720px 正文栏用 auto margin 居中在 `.cm-content` 里——宽窗口下 editor 撑满 pane,rail 画到 `editor.left−46`,实测 2000px 窗口偏离正文 318px(670 vs 应为 942),与他截图一致。修:rail 与拖拽探测全部锚定 `contentDOM`(窄窗口两者重合,不回归)。部署后宽窗实测 rail left=942=期望值。 |

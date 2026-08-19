@@ -27,7 +27,8 @@ const NAV: Record<Route, { label: string; icon: GlyphName }> = {
   settings: { label: "Settings", icon: "settings" },
 };
 
-const RAIL = { key: "logue.rail.width", min: 180, max: 320, base: 208 };
+// 240 is chatgpt.com's sidebar, measured 2026-08-19 — his reference.
+const RAIL = { key: "logue.rail.width.2", min: 180, max: 320, base: 240 };
 const COLLAPSED_KEY = "logue.rail.collapsed";
 /**
  * Chosen so the icons do not move.
@@ -132,11 +133,11 @@ export function AppShell({
       <nav
         aria-label="Sections"
         style={{ width: collapsed ? COLLAPSED_WIDTH : size }}
-        className="group/rail flex shrink-0 flex-col gap-0.5 bg-nav p-1.5"
+        className="group/rail flex shrink-0 flex-col gap-0 bg-nav p-1.5"
       >
         {/* The mark sits in the same slot as every other icon, so the whole
             rail reads as one column of icons with words beside them. */}
-        <div className="mb-1 flex h-control items-center gap-2 px-2">
+        <div className="mb-1 flex h-9 items-center gap-2 px-2">
           {collapsed ? (
             <button
               type="button"
@@ -176,10 +177,10 @@ export function AppShell({
             aria-label="Find anything"
             title={`Find anything · ${FIND_KEYS}`}
             onClick={onFind}
-            className="flex h-control items-center gap-2 rounded-md px-2 text-left text-[13px] font-[500] text-ink-soft hover:bg-hover hover:text-ink"
+            className="flex h-9 items-center gap-2 rounded-lg px-2 text-left text-sm text-ink-soft hover:bg-hover hover:text-ink"
           >
             <span className={ICON_SLOT}>
-              <Glyph name="search" className="h-[15px] w-[15px] text-muted-strong" />
+              <Glyph name="search" className="h-[20px] w-[20px] text-muted-strong" />
             </span>
             {!collapsed && (
               <>
@@ -202,12 +203,15 @@ export function AppShell({
                 title={collapsed ? `${label} · ⌘${index + 1}` : undefined}
                 onClick={() => onRoute(key)}
                 className={cn(
-                  "flex h-control min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-[13px]",
-                  active ? "bg-active font-[600] text-ink" : "font-[500] text-ink-soft hover:bg-hover hover:text-ink",
+                  // chatgpt.com's row, measured: 36px tall, 14px/400, 10px corner,
+                  // 20px icon — the selected row says so by ground and ink
+                  // alone, the way the reference does.
+                  "flex h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-2 text-left text-sm",
+                  active ? "bg-active text-ink" : "text-ink-soft hover:bg-hover hover:text-ink",
                 )}
               >
                 <span className={ICON_SLOT}>
-                  <Glyph name={icon} className="h-[15px] w-[15px] text-muted-strong" />
+                  <Glyph name={icon} className="h-[20px] w-[20px] text-muted-strong" />
                 </span>
                 {!collapsed && <span className="truncate">{label}</span>}
               </button>
