@@ -15,7 +15,6 @@ import {
   ListPane,
   ListSearch,
   QuietRow,
-  RowMeta,
   RowName,
   RowShell,
   Section,
@@ -352,44 +351,45 @@ export function DocumentsRoute({
               selected={one.id === selectedId}
               onSelect={() => onOpen(one.id)}
               indent={depth}
+              /* One page, one line — his instruction of 2026-08-19, with
+                 Notion's sidebar beside it. The second line said "written by
+                 hand" under almost every row and cost half the height of the
+                 list to say nothing: what a page is made of belongs in the
+                 page, and the time it changed is in its footer. Twice as many
+                 pages now fit on a screen, which is what a list is for. */
+              dense
             >
-              <RowName edge={one.updated_at ? timeAgo(one.updated_at) : undefined}>
-                {one.title || "Untitled"}
-              </RowName>
-              <RowMeta>
-                <span className="flex-none tabular-nums">
-                  {(one.source_ids?.length ?? 0) > 0
-                    ? `${one.source_ids.length} ${one.source_ids.length === 1 ? "source" : "sources"}`
-                    : "written by hand"}
-                </span>
-                {children > 0 && (
-                  <span className="flex-none tabular-nums">
-                    · {children} {children === 1 ? "page" : "pages"}
-                  </span>
-                )}
-              </RowMeta>
+              <RowName>{one.title || "Untitled"}</RowName>
             </RowShell>
-            {/* The fold, and the way to put a page inside this one. Both sit on
-                the row they act on, because that is the only place they mean
-                anything. */}
-            <span className="absolute inset-y-0 right-3 flex items-center gap-0.5 opacity-0 focus-within:opacity-100 hover:opacity-100 [div:hover>&]:opacity-100">
+            {/* The fold, on the left where the tree is, and never moving the
+                title: the space it needs is always there, and only the arrow
+                comes and goes. A control that appears and shoves the words
+                sideways is read as the list twitching. */}
+            <span
+              className="pointer-events-none absolute inset-y-0 flex items-center"
+              style={{ left: 16 + depth * 16 - 15 }}
+            >
               {children > 0 && (
-                <Tooltip label={shut.has(one.id) ? "Show what is inside" : "Fold this away"}>
-                  <IconButton
-                    label={shut.has(one.id) ? "Show what is inside" : "Fold this away"}
-                    onClick={() =>
-                      setShut((was) => {
-                        const next = new Set(was);
-                        if (next.has(one.id)) next.delete(one.id);
-                        else next.add(one.id);
-                        return next;
-                      })
-                    }
-                  >
-                    <ChevronRight size={13} className={shut.has(one.id) ? undefined : "rotate-90"} />
-                  </IconButton>
-                </Tooltip>
+                <button
+                  type="button"
+                  aria-label={shut.has(one.id) ? "Show what is inside" : "Fold this away"}
+                  title={shut.has(one.id) ? "Show what is inside" : "Fold this away"}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setShut((was) => {
+                      const next = new Set(was);
+                      if (next.has(one.id)) next.delete(one.id);
+                      else next.add(one.id);
+                      return next;
+                    });
+                  }}
+                  className="pointer-events-auto flex size-[15px] items-center justify-center rounded-[4px] text-muted opacity-0 hover:bg-hover hover:text-ink focus-visible:opacity-100 [div:hover>&]:opacity-100"
+                >
+                  <ChevronRight size={12} className={shut.has(one.id) ? undefined : "rotate-90"} />
+                </button>
               )}
+            </span>
+            <span className="absolute inset-y-0 right-3 flex items-center gap-0.5 opacity-0 focus-within:opacity-100 hover:opacity-100 [div:hover>&]:opacity-100">
               <Tooltip label="New page inside this one">
                 <IconButton
                   label="New page inside this one"

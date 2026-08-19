@@ -115,7 +115,18 @@ export function isFromBackground(value: unknown): value is FromBackground {
  * worker that is merely asleep (normal, ignore it) and one that is gone.
  */
 export function orphaned(): boolean {
-  return chrome.runtime?.id === undefined;
+  // Reading `id` on an invalidated context does not answer `undefined` — it
+  // throws. So the check written to detect orphaning was the thing that broke
+  // on it: `send` caught the failed `sendMessage`, called this, and threw
+  // again from inside its own catch. The promise rejected instead of
+  // resolving, every `.then` waiting on a reply never ran, and the handler
+  // that removes the dead bar from the page never ran either. The page kept a
+  // Logue surface whose every button reached nothing, and nothing said why.
+  try {
+    return chrome.runtime?.id === undefined;
+  } catch {
+    return true;
+  }
 }
 
 let onOrphaned: (() => void) | undefined;
@@ -162,7 +173,15 @@ export async function send<T = unknown>(
     // The worker restarts freely, so a dropped message is not worth showing —
     // unless there is no extension left to restart, which is not a dropped
     // message but the end of this script.
-    checkOrphaned();
+    //
+    // Nothing here may throw: this is the path every caller falls back to,
+    // and a throw from inside it turns "no answer" into a rejected promise
+    // that silently strands whoever was waiting.
+    try {
+      checkOrphaned();
+    } catch {
+      // Already gone, and there is nothing left to tell.
+    }
     return undefined;
   }
 }

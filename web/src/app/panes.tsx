@@ -130,6 +130,7 @@ export function RowShell({
   onSelect,
   title,
   indent = 0,
+  dense = false,
   children,
 }: {
   badge: ReactNode;
@@ -138,6 +139,13 @@ export function RowShell({
   title?: string;
   /** How deep this row sits in a tree. Documents nest; nothing else does yet. */
   indent?: number;
+  /**
+   * One line, for a list whose rows carry only a name.
+   *
+   * A second line is worth the height when it says something different on
+   * every row. Documents' said "written by hand" under almost all of them.
+   */
+  dense?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -150,7 +158,8 @@ export function RowShell({
       // like a sibling that happens to be drawn badly.
       style={indent ? { paddingLeft: 16 + indent * 16 } : undefined}
       className={cn(
-        "relative grid w-full grid-cols-[24px_minmax(0,1fr)] gap-x-[9px] border-b border-line py-[7px] pr-4 pl-4 text-left transition-colors",
+        "relative grid w-full grid-cols-[24px_minmax(0,1fr)] items-center gap-x-[9px] border-b border-line pr-4 pl-4 text-left transition-colors",
+        dense ? "py-[5px]" : "py-[7px]",
         selected ? "bg-accent-soft" : "hover:bg-hover-soft",
       )}
     >
