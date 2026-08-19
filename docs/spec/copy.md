@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-1193 strings across 91 files.
+1183 strings across 91 files.
 
 ## extension/src/api.ts
 
@@ -993,18 +993,18 @@ state the fact, no justification, no chat register, no filler.
 - 25: `Documents`
 - 26: `Skills`
 - 27: `Settings`
-- 130: `Skip to what is open`
-- 133: `Sections`
-- 143: `Open sidebar`
-- 159: `Close sidebar`
-- 176: `Find anything`
-- 186: `Find`
-- 200: `page`
-- 224: `Logue is not running on this Mac.`
-- 227: `mt-auto justify-center`
-- 231: `Logue is not running on this Mac.`
-- 232: `Logue is not running on this Mac.`
-- 241: `Resize the sidebar`
+- 132: `Skip to what is open`
+- 135: `Sections`
+- 145: `Open sidebar`
+- 161: `Close sidebar`
+- 178: `Find anything`
+- 188: `Find`
+- 202: `page`
+- 229: `Logue is not running on this Mac.`
+- 232: `mt-auto justify-center`
+- 236: `Logue is not running on this Mac.`
+- 237: `Logue is not running on this Mac.`
+- 246: `Resize the sidebar`
 
 ## web/src/app/ConfirmDelete.tsx
 
@@ -1124,59 +1124,49 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/MarkdownEditor.tsx
 
-- 189: `Enter`
-- 220: `my-1 block`
-- 228: `Image`
-- 288: `Image`
-- 311: `Link`
-- 432: `2px solid var(--color-line-strong)`
-- 463: `1px solid var(--color-line)`
-- 464: `6px 8px`
-- 474: `0 7px`
-- 476: `1px solid var(--color-control-line)`
-- 484: `0 8px`
-- 486: `1px solid var(--color-control-line)`
-- 494: `0 6px`
-- 589: `Bulleted list`
-- 590: `Numbered list`
-- 592: `Quote`
-- 593: `Code block`
-- 596: `Table`
-- 601: `Divider`
-- 606: `Callout`
-- 607: `Equation`
-- 608: `Diagram`
-- 611: `Image`
-- 769: `Text`
-- 773: `Bulleted list`
-- 774: `Numbered list`
-- 776: `Quote`
-- 921: `Edit`
-- 929: `Unlink`
-- 944: `Type / for commands`
-- 1011: `Document`
-- 1168: `Enter`
-- 1176: `Escape`
-- 1207: `Tab`
-- 1251: `Start writing. The first line is the title.`
-- 1347: `s left edge is the pane`
-- 1401: `Escape`
-- 1459: `Add a block below`
-- 1460: `Add a block below`
-- 1472: `Move or change this block`
-- 1473: `Drag to move · click for options`
-- 1505: `Format the selected passage`
-- 1509: `Bold`
-- 1512: `Italic`
-- 1513: `font-serif italic`
-- 1515: `Code`
-- 1518: `Link`
-- 1536: `Rewrite`
-- 1549: `This block`
-- 1554: `Duplicate`
-- 1555: `Delete`
-- 1574: `Turn into`
-- 1607: `Insert a block`
+- 188: `Enter`
+- 219: `my-1 block`
+- 227: `Image`
+- 287: `Image`
+- 310: `Link`
+- 431: `2px solid var(--color-line-strong)`
+- 462: `1px solid var(--color-line)`
+- 463: `6px 8px`
+- 473: `0 7px`
+- 475: `1px solid var(--color-control-line)`
+- 483: `0 8px`
+- 485: `1px solid var(--color-control-line)`
+- 493: `0 6px`
+- 588: `Bulleted list`
+- 589: `Numbered list`
+- 591: `Quote`
+- 592: `Code block`
+- 595: `Table`
+- 600: `Divider`
+- 605: `Callout`
+- 606: `Equation`
+- 607: `Diagram`
+- 610: `Image`
+- 768: `Text`
+- 772: `Bulleted list`
+- 773: `Numbered list`
+- 775: `Quote`
+- 920: `Edit`
+- 928: `Unlink`
+- 943: `Type / for commands`
+- 1010: `Document`
+- 1155: `Enter`
+- 1163: `Escape`
+- 1194: `Tab`
+- 1238: `Start writing. The first line is the title.`
+- 1369: `Format the selected passage`
+- 1373: `Bold`
+- 1376: `Italic`
+- 1377: `font-serif italic`
+- 1379: `Code`
+- 1382: `Link`
+- 1400: `Rewrite`
+- 1413: `Insert a block`
 
 ## web/src/app/MaterialPanel.tsx
 
@@ -1449,11 +1439,11 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/panes.tsx
 
-- 27: `Newest first`
-- 39: `New Project`
-- 101: `Escape`
-- 106: `Search`
-- 112: `Clear the search`
+- 29: `Newest first`
+- 41: `New Project`
+- 103: `Escape`
+- 108: `Search`
+- 114: `Clear the search`
 
 ## web/src/app/pins.tsx
 

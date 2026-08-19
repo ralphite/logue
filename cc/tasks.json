@@ -909,6 +909,38 @@
       ],
       "created": "2026-08-19",
       "updated": "2026-08-19"
+    },
+    {
+      "id": "N18",
+      "title": "去掉编辑器块悬停的 +/⠿ 按钮",
+      "type": "design",
+      "status": "done",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [],
+      "note": "",
+      "blocked_on": "",
+      "input_ids": [
+        "in_we_dont_need"
+      ],
+      "created": "2026-08-19",
+      "updated": "2026-08-19"
+    },
+    {
+      "id": "N19",
+      "title": "允许文档列表栏调得更窄",
+      "type": "design",
+      "status": "done",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [],
+      "note": "",
+      "blocked_on": "",
+      "input_ids": [
+        "in_we_dont_need_2"
+      ],
+      "created": "2026-08-19",
+      "updated": "2026-08-19"
     }
   ],
   "inputs": [
@@ -1286,6 +1318,18 @@
       "id": "in_use_same_design",
       "at": "2026-08-19 12:25",
       "text": "use same design as chatgpt.com (font, space etc)\n\ndo it at the end",
+      "images": []
+    },
+    {
+      "id": "in_we_dont_need",
+      "at": "2026-08-19 12:51",
+      "text": "we dont need the hover btns for add and drag here.\n\nalso allow smaller width of doc list panel",
+      "images": []
+    },
+    {
+      "id": "in_we_dont_need_2",
+      "at": "2026-08-19 12:51",
+      "text": "we dont need the hover btns for add and drag here.\n\nalso allow smaller width of doc list panel",
       "images": []
     }
   ]

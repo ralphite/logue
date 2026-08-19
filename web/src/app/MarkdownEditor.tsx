@@ -2,7 +2,6 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown";
 import { languages as codeLanguages } from "./codeLanguages";
 import { htmlToMarkdown } from "./htmlToMarkdown";
-import { blockAt, blocks as blockList, duplicateBlock, insertAfter, moveBlock, removeBlock, type Block } from "./blockHandles";
 import { GFM } from "@lezer/markdown";
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
@@ -1045,21 +1044,9 @@ export function MarkdownEditor({
    * and clipped whenever the passage was in the first two lines. That is the
    * third and fourth place the bug X4 fixed had been written out by hand.
    */
-  /**
-   * The rail beside the block the pointer is over: ＋ and ⠿.
-   *
-   * Notion's, and the one part of it people miss most in a plain Markdown
-   * editor — not because dragging is faster than cutting and pasting, but
-   * because it is the only way to move a paragraph without first working out
-   * where it ends.
-   */
-  const [rail, setRail] = useState<{ block: Block; top: number; left: number }>();
-  /** The block being dragged, and the line its drop line is drawn at. */
-  const [dragging, setDragging] = useState<{ block: Block; overLine: number; y: number }>();
-  const [blockMenu, setBlockMenu] = useState<{ block: Block; spot: Spot }>();
-  const handleRail = useRef<HTMLDivElement>(null);
-  const blockMenuAnchor = useRef<HTMLSpanElement>(null);
-  const blockMenuPanel = useRef<HTMLDivElement>(null);
+  // The ＋/⠿ rail that used to follow the pointer down the margin is gone —
+  // 2026-08-19, his word: "we dont need the hover btns for add and drag".
+  // Blocks are added with `/` and moved the way text moves.
   const slashAnchor = useRef<HTMLSpanElement>(null);
   const slashPanel = useRef<HTMLDivElement>(null);
   const barAnchor = useRef<HTMLSpanElement>(null);
@@ -1340,82 +1327,6 @@ export function MarkdownEditor({
     [],
   );
 
-  /** Which block the pointer is beside, tracked on the editor as a whole.
-
-      Anchored to the text column (`contentDOM`), never the editor frame: the
-      page is a centred column inside a wider editor, so in a wide window the
-      frame's left edge is the pane's, and a rail measured from it drew a
-      screen-width away from the words it belongs to. */
-  const overBlock = (event: React.PointerEvent) => {
-    const made = view.current;
-    if (!made || dragging) return;
-    const column = made.contentDOM.getBoundingClientRect();
-    const inside = made.posAtCoords({ x: column.left + 20, y: event.clientY });
-    if (inside === null) return setRail(undefined);
-    const block = blockAt(made.state, inside);
-    const box = made.coordsAtPos(block.from);
-    if (!box) return setRail(undefined);
-    return setRail({ block, top: box.top, left: column.left });
-  };
-
-  const onDrag = (event: React.PointerEvent) => {
-    const made = view.current;
-    if (!made || !rail) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const block = rail.block;
-    const move = (moved: PointerEvent) => {
-      const under = made.posAtCoords({ x: made.contentDOM.getBoundingClientRect().left + 20, y: moved.clientY });
-      if (under === null) return;
-      const over = blockAt(made.state, under);
-      const box = made.coordsAtPos(over.from);
-      setDragging({ block, overLine: made.state.doc.lineAt(over.from).number, y: box?.top ?? moved.clientY });
-    };
-    const drop = (ended: PointerEvent) => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", drop);
-      const under = made.posAtCoords({ x: made.contentDOM.getBoundingClientRect().left + 20, y: ended.clientY });
-      setDragging(undefined);
-      setRail(undefined);
-      if (under === null) return;
-      const over = blockAt(made.state, under);
-      if (over.from === block.from) return;
-      // Below the block it is over, unless it is the first one on screen.
-      const all = blockList(made.state);
-      const index = all.findIndex((one) => one.from === over.from);
-      const landing = over.from > block.from ? made.state.doc.lineAt(over.to).number + 1 : made.state.doc.lineAt(over.from).number;
-      moveBlock(made, block, index === 0 && over.from < block.from ? 1 : landing);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", drop);
-  };
-
-  // A menu that only closes by choosing something is a menu you are stuck in.
-  useEffect(() => {
-    if (!blockMenu) return;
-    const away = (event: PointerEvent) => {
-      if (event.target instanceof Node && blockMenuPanel.current?.contains(event.target)) return;
-      setBlockMenu(undefined);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.stopPropagation();
-      setBlockMenu(undefined);
-      view.current?.focus();
-    };
-    document.addEventListener("pointerdown", away, true);
-    document.addEventListener("keydown", escape, true);
-    return () => {
-      document.removeEventListener("pointerdown", away, true);
-      document.removeEventListener("keydown", escape, true);
-    };
-  }, [blockMenu]);
-
-  const { at: blockMenuAt } = usePlacement({
-    open: Boolean(blockMenu),
-    anchor: blockMenuAnchor,
-    panel: blockMenuPanel,
-  });
   const { at: slashAt } = usePlacement({
     open: Boolean(slash) && shown.length > 0,
     anchor: slashAnchor,
@@ -1443,55 +1354,8 @@ export function MarkdownEditor({
   };
 
   return (
-    <div className="relative" onPointerMove={overBlock} onPointerLeave={() => !dragging && setRail(undefined)}>
+    <div className="relative">
       <div ref={host} className="min-h-72" />
-      {/* The rail, outside the text so it never reflows a line. It follows the
-          pointer down the page rather than being drawn on every block: a
-          margin full of controls is a margin nobody reads next to. */}
-      {rail && !dragging && (
-        <div
-          ref={handleRail}
-          style={{ position: "fixed", left: rail.left - 46, top: rail.top }}
-          className="z-popover flex items-center gap-0.5"
-        >
-          <button
-            type="button"
-            aria-label="Add a block below"
-            title="Add a block below"
-            onMouseDown={(event) => {
-              event.preventDefault();
-              const made = view.current;
-              if (made) insertAfter(made, rail.block);
-            }}
-            className="flex size-5 items-center justify-center rounded-[5px] text-muted hover:bg-hover hover:text-ink"
-          >
-            <Plus />
-          </button>
-          <button
-            type="button"
-            aria-label="Move or change this block"
-            title="Drag to move · click for options"
-            onPointerDown={onDrag}
-            onClick={() => {
-              const made = view.current;
-              const box = made?.coordsAtPos(rail.block.from);
-              if (box) setBlockMenu({ block: rail.block, spot: { left: box.left - 46, top: box.top, bottom: box.bottom } });
-            }}
-            className="flex size-5 cursor-grab items-center justify-center rounded-[5px] text-muted hover:bg-hover hover:text-ink"
-          >
-            <Grip />
-          </button>
-        </div>
-      )}
-      {/* Where it would land. A block that jumps to a new place with no line
-          drawn first is a block you have to undo to find out about. */}
-      {dragging && (
-        <div
-          aria-hidden
-          style={{ position: "fixed", left: (rail?.left ?? 0) - 8, top: dragging.y - 1, width: "44rem" }}
-          className="z-popover h-0.5 rounded-full bg-accent"
-        />
-      )}
       {/* What can be done to a passage, where the passage is. It used to be one
           button in the page header, disabled whenever nothing was selected and
           explaining its own disabled-ness in a tooltip — an action parked
@@ -1538,64 +1402,6 @@ export function MarkdownEditor({
             </>
           )}
         </div>
-        </>
-      )}
-      {blockMenu && (
-        <>
-          <span aria-hidden ref={blockMenuAnchor} style={spotStyle(blockMenu.spot)} />
-          <div
-            ref={blockMenuPanel}
-            role="menu"
-            aria-label="This block"
-            style={floatingStyle(blockMenuAt)}
-            className="logue-float z-popover w-52 overflow-y-auto py-1"
-          >
-            {[
-              { label: "Duplicate", run: (made: EditorView) => duplicateBlock(made, blockMenu.block) },
-              { label: "Delete", run: (made: EditorView) => removeBlock(made, blockMenu.block) },
-            ].map((one) => (
-              <button
-                key={one.label}
-                type="button"
-                role="menuitem"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  const made = view.current;
-                  if (made) one.run(made);
-                  setBlockMenu(undefined);
-                  setRail(undefined);
-                }}
-                className="flex w-full items-center px-2.5 py-1 text-left text-[12.5px] text-ink-soft hover:bg-hover"
-              >
-                {one.label}
-              </button>
-            ))}
-            <div role="separator" className="my-1 h-px bg-line" />
-            <p className="px-2.5 py-0.5 text-[10.5px] font-[560] tracking-[0.04em] text-muted uppercase">Turn into</p>
-            {TURNS.map((one) => (
-              <button
-                key={one.key}
-                type="button"
-                role="menuitem"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  const made = view.current;
-                  if (!made) return;
-                  // The command works on the selection, so the block is put
-                  // under it first — a menu acting on a different line than
-                  // the one it opened over would be the worst kind of surprise.
-                  made.dispatch({ selection: { anchor: blockMenu.block.from, head: blockMenu.block.to } });
-                  turn(one.mark)(made);
-                  setBlockMenu(undefined);
-                  setRail(undefined);
-                }}
-                className="flex w-full items-center gap-2 px-2.5 py-1 text-left text-[12.5px] text-ink-soft hover:bg-hover"
-              >
-                <span className="flex-1">{one.label}</span>
-                <span className="font-mono text-[10.5px] text-muted">{one.mark.trim() || "¶"}</span>
-              </button>
-            ))}
-          </div>
         </>
       )}
       {slash && shown.length > 0 && (
@@ -1664,27 +1470,6 @@ function Key({
     >
       {children}
     </button>
-  );
-}
-
-function Plus() {
-  return (
-    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function Grip() {
-  return (
-    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden>
-      <circle cx="9" cy="6" r="1.4" />
-      <circle cx="15" cy="6" r="1.4" />
-      <circle cx="9" cy="12" r="1.4" />
-      <circle cx="15" cy="12" r="1.4" />
-      <circle cx="9" cy="18" r="1.4" />
-      <circle cx="15" cy="18" r="1.4" />
-    </svg>
   );
 }
 

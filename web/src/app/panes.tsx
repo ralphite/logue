@@ -10,7 +10,9 @@ import { Glyph, IconButton, Resizer, Tooltip, cn, usePersistentSize, type GlyphN
  * its nouns. One persistent width serves all the lists: five sections that
  * remember five widths read as five applications.
  */
-const LIST = { key: "logue.list.width", min: 340, max: 640, base: 486 };
+// The floor moved 340 -> 240 on 2026-08-19, his word: "allow smaller width
+// of doc list panel". The base stays; only how far it can be squeezed moves.
+const LIST = { key: "logue.list.width", min: 240, max: 640, base: 486 };
 
 /** The middle pane: a 48px name row, optional controls, the scrolling list. */
 export function ListPane({

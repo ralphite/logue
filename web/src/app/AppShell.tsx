@@ -117,10 +117,11 @@ export function AppShell({
   }, [onRoute]);
 
   return (
-    // 1220 is the floor under three panes: the rail's minimum, the list, and
-    // a detail column that can still hold its evidence rail. Below it the
-    // window scrolls sideways rather than crushing the panes into each other.
-    <div className="flex h-screen min-w-[1220px]">
+    // The floor under three panes: the rail's minimum, the list's (240 since
+    // 2026-08-19), and a detail column that can still hold its evidence rail.
+    // Below it the window scrolls sideways rather than crushing the panes
+    // into each other.
+    <div className="flex h-screen min-w-[1120px]">
       {/* First thing a Tab reaches. The rail holds nearly every tab stop in
           the app, so without this a keyboard user walks the whole list before
           reaching the thing they opened. */}
