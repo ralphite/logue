@@ -75,12 +75,29 @@ export async function run(api) {
   const tabA = await openPage(where.a);
   const tabB = await openPage(where.b);
 
-  /** Make the panel be about one page, and read what it shows. */
-  const on = async (tabId) => {
+  /**
+   * Make the panel be about one page, and read what it shows.
+   *
+   * Waits for the list to arrive rather than sleeping a fixed time. The
+   * entries come from the Host after the panel reloads, and a fixed 3.5s was
+   * sometimes enough and sometimes not: the check disagreed with itself
+   * between two runs on the same build, which is worse than a red check —
+   * it makes every future red one arguable.
+   */
+  const on = async (tabId, expect) => {
     await api.eval(`chrome.tabs.update(${tabId}, { active: true }).then(() => "ok")`);
     await api.sleep(1200);
     await api.eval(`location.reload()`);
+    // The panel has to finish deciding which page it is about before anything
+    // is said into it — otherwise the words are filed against whichever page
+    // it still thought it was on, which is the very thing this check is for.
     await api.sleep(3500);
+    if (!expect) return await api.eval(`document.body.innerText`);
+    for (let tries = 0; tries < 24; tries += 1) {
+      const text = await api.eval(`document.body.innerText`);
+      if (text.includes(expect)) return text;
+      await api.sleep(500);
+    }
     return await api.eval(`document.body.innerText`);
   };
 
@@ -93,13 +110,13 @@ export async function run(api) {
   check("the panel is about the second page", (await api.eval(say(B_WORDS))) === "ok");
   await api.sleep(3500);
 
-  const onA = await on(tabA);
+  const onA = await on(tabA, A_WORDS);
   check(
     "on the first page, the panel shows the first page's words",
     onA.includes(A_WORDS) && !onA.includes(B_WORDS),
     `first: ${onA.includes(A_WORDS)}, second: ${onA.includes(B_WORDS)}`,
   );
-  const onB = await on(tabB);
+  const onB = await on(tabB, B_WORDS);
   check(
     "on the second page, the second page's",
     onB.includes(B_WORDS) && !onB.includes(A_WORDS),
