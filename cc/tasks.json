@@ -714,39 +714,39 @@
       "id": "X7",
       "title": "真 Google Docs 两个病:voice bar 不跟编辑面(落在左上角)、录音卡在 Starting mic… 永不报错",
       "type": "bug",
-      "status": "queued",
+      "status": "blocked",
       "priority": "P1",
       "confirmed": false,
       "tags": [
         "extension",
         "gdocs"
       ],
-      "note": "2026-08-14 在他登录的 Chrome、真实新建的 Google Doc(已命名 Logue QA cuj-gdocs)上跑 S3g 发现,都是 live 验证:\n\n① **bar 不跟踪编辑面。** logue-host 注入了,但 dataset.logueTarget 一直是 null,bar 固定在 (34,183)——压在左侧大纲栏上,点进正文光标处它也不动。behaviors 明文禁止 \"parked in a corner\"。仿造页(docs-mimic)上这条是绿的:仿造页没有大纲栏,结构不同——这正是\"不许拿自制测试页当验证\"的又一实证。\n\n② **点 Voice 后卡在 \"Starting mic…\" 30 秒以上,无报错、无 Chrome 权限弹窗,只有 Cancel 能出来。** behaviors 要求麦克风打不开时给出路,不许无声地挂着。他的面板 dictation 是能录上的(有 0:01/0:02/0:14 的音频),所以不是全局权限问题,疑似 offscreen 录音路径在页面场景下的等待没有超时/错误分支。\n\n**结果:CUJ 走不完**——第 2 步就断。修完这两条 S3g 要在真 Doc 上重跑(QA 文档已在他 Drive 里,继续用它,不删)。",
-      "blocked_on": "",
+      "note": "两条都改了并过闸部署(commit 8fc34a33):①定位——根因是 .kix-appview-editor **包含左侧大纲栏**所以从 x=0 起算,+24 就落在大纲上;真正的正文面是 .kix-rotatingtilemanager(x=280)。更好的是:Docs 自己画了光标元素 .kix-cursor-caret,所以现在 bar 直接跟着光标走,和别处一致,anchorRect 只作兜底。②Starting mic 永挂——content script 的 send() 没有自己的超时,worker 一死 sendMessage 既不 resolve 也不 reject;现在 record-start 有 20 秒上限(比 background 自己的 15 秒长,真实原因优先)。**验证受阻于 X9**,不是修得不对。",
+      "blocked_on": "代码已修并部署,但他这台 Chrome 的扩展 worker 不应答(X9)——要他在 chrome://extensions 手动 reload 一次 Logue,新的 content script 才会进页面,我才能在真 Doc 上验证",
       "input_ids": [
         "in_s3g_2026_08"
       ],
       "created": "2026-08-14",
-      "updated": "2026-08-14"
+      "updated": "2026-08-19"
     },
     {
       "id": "X8",
       "title": "面板复审 29 条发现(copy 10 / behaviour 11 / fidelity 8),修前逐条在真面板验真",
       "type": "bug",
-      "status": "queued",
+      "status": "doing",
       "priority": "P1",
       "confirmed": true,
       "tags": [
         "extension",
         "review"
       ],
-      "note": "三个独立 subagent 按 review-process.md 复审已上线面板的产出,全文在 docs/spec/panel-review-2026-08-14.md,每条带文件:行号。**除 X7 那两条外没有在跑着的产品上验过**——修哪条之前先在真面板把那条读出来,验不出的写明。最重的几条:Host 关着同一条录音出两行两套说法;IME 选字的 Enter 直接把半句话发出去;分两段口述丢第一段音频;发送失败的行没有 Try again。两条要他裁决的(录音时输入框换不换形状、头部一行还是两行)已单列在报告末尾,攒进最后的 review,不挡修别的。",
+      "note": "已修并部署(8fc34a33)的确认项:IME 组字时按 Enter 直接把半截中文发出去(Composer 加 isComposing 守卫,这条对他影响最大);引用跨 tab 残留导致存错页面;排队中的录音不能播(WaitingRow 补上播放器,和旁边 HeldRow 一致);空态里第二个 Save this page(书签就在下面 40px);copy 一批(Saving→Keeping、Into · nowhere→No Document、'背景服务正在重启'、'the words did not come back'、'so far'、file→add、占位符)。**复审时发现有几条 worker 会话已经先修掉了**(引用带来源行、发送失败保留文字、录音中 Esc/Enter 的守卫)。**剩下两条是口味问题,留给他裁决,没动**:取消选中要不要清引用(源码里有明确反对理由,和 mock 冲突)、录音时输入框换不换形状(方案说不换,mock 画的换)。**未做**:存整页打出全文而非页名(Fidelity 1,要改 useEntries 取 take.text 的来源,风险高于收益,单列)。",
       "blocked_on": "",
       "input_ids": [
         "in_add_task_review_2"
       ],
       "created": "2026-08-14",
-      "updated": "2026-08-14"
+      "updated": "2026-08-19"
     },
     {
       "id": "F7",
@@ -783,6 +783,24 @@
       "blocked_on": "",
       "input_ids": [
         "in_also_use_design"
+      ],
+      "created": "2026-08-19",
+      "updated": "2026-08-19"
+    },
+    {
+      "id": "X9",
+      "title": "他这台 Chrome 里扩展的 service worker 不应答消息——录音、自更新、页面里的一切往返全挂",
+      "type": "bug",
+      "status": "queued",
+      "priority": "P0",
+      "confirmed": false,
+      "tags": [
+        "extension"
+      ],
+      "note": "2026-08-19 在他登录的 Chrome、真 Google Doc 上定位到的,证据链完整:\n\n`#logue-host` 上有 `data-logue-ready=1` 和 `data-logue-surface=voice`(content.tsx:690 和 :505,都在 build 请求之后),但**没有 `data-logue-build`**——而 content.tsx:672 是无条件发 `logue:build` 并在 `.then` 里写这个属性的,连失败都会写成 \"unknown\"。属性完全不存在,只有一种解释:**`chrome.runtime.sendMessage` 的 promise 既不 resolve 也不 reject**,worker 根本没应答。\n\n这一条解释了三件本来看着不相干的事:\n① X7② 的「Starting mic… 卡住不报错」——`logue:record-start` 同样永不返回;\n② 扩展从不自更新——`keepUpToDate()` 跑在 worker 里,worker 不活;\n③ 页面上的功能整体半死。\n\n**我这次的改动把①从静默挂起变成 20 秒后明确报错**(messages.ts 的 send 加了 withinMs,useVoice 的 record-start 用 20s),符合 behaviors「麦克风打不开要给出路」。但**根因是 worker 本身**,不是超时缺失。\n\n**要他做一次**:chrome://extensions 里把 Logue 手动 reload 一次(我不该也不能替他动他的浏览器扩展设置)。reload 之后 X7① 的定位修复才会真正加载进页面,我才能验。\n\n**待查**:worker 为什么会 wedge。怀疑和 offscreen 文档、或某个 return true 后没 respond 的分支有关——background.ts 里每个 `return true` 都必须保证 respond 一定被调用,漏一个就永久占住那条消息通道。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_x7"
       ],
       "created": "2026-08-19",
       "updated": "2026-08-19"
@@ -1109,6 +1127,12 @@
       "id": "in_also_use_design",
       "at": "2026-08-19 00:19",
       "text": "also use design like notion for doc list. improve ui",
+      "images": []
+    },
+    {
+      "id": "in_x7",
+      "at": "2026-08-19 00:29",
+      "text": "(X7 验证过程中定位到的,不是他报的)",
       "images": []
     }
   ]
