@@ -421,9 +421,21 @@ class App:
                 "version": {"id": kept["id"], "revision": kept["revision"], "author": kept.get("author")},
             }
 
+        # What the counted stand-ins used to write onto rows, before his ruling
+        # of 2026-08-19 ("计数行去掉只留徽标"). Stored lines are history and stay
+        # stored; the answer stops repeating what the counts beside them say.
+        counted_line = re.compile(r"\d+ added(, \d+ removed)?|\d+ removed")
+
         @route("GET", "/v1/documents/{id}/versions")
         def document_versions(request: Request) -> dict[str, Any]:
-            return {"versions": documents.versions(store, request.params["id"])}
+            versions = documents.versions(store, request.params["id"])
+            for one in versions:
+                line = str(one.get("summary") or "")
+                if counted_line.fullmatch(line):
+                    one["summary"] = ""
+                elif line == "no visible change":
+                    one["summary"] = "Formatting only"
+            return {"versions": versions}
 
         @route("GET", "/v1/documents/{id}/versions/{revision}/diff")
         def document_diff(request: Request) -> dict[str, Any]:

@@ -72,7 +72,7 @@ function looksLikeCopy(text) {
   // A trailing ellipsis is how a state in progress is written — `Summarizing…`,
   // `Autosaving…` — not a different shape of word.
   return (
-    /\s/.test(text) || /^[A-Z][a-z]+…?$/.test(text) || /^(esc|kept|current|sources?|pages?|now|agent)$/.test(text)
+    /\s/.test(text) || /^[A-Z][a-z]+…?$/.test(text) || /^(esc|kept|current|sources?|pages?|now|agent|review)$/.test(text)
   );
 }
 

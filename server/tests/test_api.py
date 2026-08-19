@@ -2377,19 +2377,23 @@ class VersionSummaries(Workspace, unittest.TestCase):
         rows = [r for r in self.app.store.doc_revisions.list() if r.get("doc_id") == document_id]
         self.assertEqual([r.get("summary_state") for r in rows], [summaries.PENDING, summaries.PENDING])
 
-    def test_without_a_model_the_counted_line_stands_in(self) -> None:
-        # Not an error and not a blank: a history row saying nothing at all
-        # reads as a broken row.
+    def test_without_a_model_the_counts_alone_carry_the_row(self) -> None:
+        # His ruling: the counted line said what the +a −r counts beside it
+        # already said. The row is done being described, and says nothing.
         document_id = self.edited()
         waiting = documents.unwritten(self.app.store, document_id)
         assert waiting
-        written = summaries.describe(self.app.store, None, waiting[-1])
-        self.assertEqual(written, "1 added")
+        self.assertEqual(summaries.describe(self.app.store, None, waiting[-1]), "")
         row = self.app.store.doc_revisions.find(waiting[-1])
         assert row
         self.assertEqual(row["summary_state"], summaries.READY)
+        told = self.call("GET", f"/v1/documents/{document_id}/versions")["versions"][1]
+        self.assertEqual((told["summary"], told["added"]), ("", 1), "the counts are on the row instead")
 
-    def test_a_model_that_fails_still_leaves_a_readable_line(self) -> None:
+    def test_a_save_the_diff_cannot_see_still_names_itself(self) -> None:
+        self.assertEqual(summaries.counted(0, 0), "Formatting only")
+
+    def test_a_model_that_fails_leaves_the_counts_to_speak(self) -> None:
         class Broken(FakeProvider):
             def generate(self, system: str, prompt: str) -> str:  # noqa: ARG002
                 raise RuntimeError("no")
@@ -2397,7 +2401,24 @@ class VersionSummaries(Workspace, unittest.TestCase):
         document_id = self.edited()
         waiting = documents.unwritten(self.app.store, document_id)
         assert waiting
-        self.assertEqual(summaries.describe(self.app.store, Broken(api_key="k"), waiting[-1]), "1 added")
+        self.assertEqual(summaries.describe(self.app.store, Broken(api_key="k"), waiting[-1]), "")
+
+    def test_stored_counted_lines_are_stripped_from_the_answer(self) -> None:
+        # Rows written before the ruling keep their stored words — history is
+        # history — but the answer stops repeating the counts beside them.
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        self.app.store.doc_revisions.put(
+            {"id": "rev_c1", "doc_id": doc["id"], "revision": 1, "content": "one",
+             "summary": "1 added, 2 removed", "summary_state": "ready", "created_at": "2026-08-01T00:00:00Z"}
+        )
+        self.app.store.doc_revisions.put(
+            {"id": "rev_c2", "doc_id": doc["id"], "revision": 2, "content": "one",
+             "summary": "no visible change", "summary_state": "ready", "created_at": "2026-08-02T00:00:00Z"}
+        )
+        told = self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"]
+        lines = {int(v["revision"]): v.get("summary") for v in told if not v.get("current")}
+        self.assertEqual(lines[1], "")
+        self.assertEqual(lines[2], "Formatting only")
 
     def test_the_line_is_kept_to_one_short_line(self) -> None:
         class Chatty(FakeProvider):

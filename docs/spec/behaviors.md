@@ -641,7 +641,9 @@ then measured in the real panel — see `scripts/qa/n14.mjs`.
   reads as that version. If the person edited meanwhile, the working copy is
   not touched: the result is kept beside the document as a pending change, to
   be read, applied or discarded — and applying it saves the person's words
-  first, the same rule again.
+  first, the same rule again. A waiting change is visible from the list too:
+  the page's row wears a `review` mark until it is ruled on (2026-08-19, his
+  word — an interim spot while the rows are being redesigned).
 - **Documents nest, and nothing is lost by moving them.** Each holds its own
   parent and its place among its siblings. Deleting a page moves its children
   up into its place; a page cannot be moved inside itself.
@@ -653,8 +655,10 @@ then measured in the real panel — see `scripts/qa/n14.mjs`.
   history.
 - **Each version says what it changed, in words.** A model writes the line
   after the save, never in front of it — autosave is a pause someone can feel.
-  Where no model can answer, the counted line stands in; a history row that
-  says nothing at all reads as a broken row.
+  Where no model can answer, the row's own `+a −r` counts carry it alone
+  (changed 2026-08-19, his ruling: *"计数行去掉只留徽标"* — the counted line
+  said what the counts beside it already said). The one save the counts
+  cannot see — spacing, markup — says `Formatting only`.
 - **A Skill's prompt has the same history, reached the same way.** The
   revision number on the Skill page opens it; every past prompt can be read,
   diffed and gone back to. Going back is a new revision, so the numbers Runs

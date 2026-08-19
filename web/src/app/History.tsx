@@ -64,8 +64,8 @@ function Entry({ version, onOpen }: { version: Version; onOpen: () => void }) {
       <span className="w-14 shrink-0 text-xs text-muted">{version.current ? "now" : `v${version.revision}`}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13px] text-ink">
-          {/* `||`, not `??`: an empty summary is a version that changed no
-              visible line, and it falls through to the plain word. */}
+          {/* `||`, not `??`: an empty line on a described row is his ruling —
+              the +a −r counts beside it carry the fact alone. */}
           {version.summary ||
             (version.summary_state === "pending" ? (
               <span className="text-muted">Summarizing…</span>
@@ -76,7 +76,9 @@ function Entry({ version, onOpen }: { version: Version; onOpen: () => void }) {
                 "As saved"
               )
             ) : (
-              "Edited"
+              // A held line box, not a word: the row keeps its shape while
+              // the counts on the right do the talking.
+              " "
             ))}
         </span>
         {version.created_at && <span className="text-xs text-muted">{timeAgo(version.created_at)}</span>}

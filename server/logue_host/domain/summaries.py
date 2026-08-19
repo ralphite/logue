@@ -41,19 +41,15 @@ INSTRUCTIONS = (
 def counted(added: int, removed: int) -> str:
     """The line to use when no model can write one.
 
-    Not an error and not a blank: it is the true, dull version of the same
-    fact, and a history row that says nothing at all reads as a broken row.
-    A version whose diff holds no lines still changed the text — a blank line
-    added, markup moved — and `no visible change` on a saved version was one
-    of the defects the review process exists to kill, so that one names what
-    actually happened instead.
+    Empty when the row's own `+a −r` counts already say it — his ruling of
+    2026-08-19, *"计数行去掉只留徽标"*: a line spelling the counts out beside
+    the counts said one thing twice. The one save the counts cannot see — a
+    blank line added, markup moved — still names what happened, because
+    `no visible change` on a saved version was one of the defects the review
+    process exists to kill.
     """
-    if added and removed:
-        return f"{added} added, {removed} removed"
-    if added:
-        return f"{added} added"
-    if removed:
-        return f"{removed} removed"
+    if added or removed:
+        return ""
     return "Formatting only"
 
 

@@ -283,6 +283,11 @@ def cmd_versions(args: argparse.Namespace) -> None:
             continue
         who = str(version.get("author") or "user")
         summary = str(version.get("summary") or "")
+        if not summary:
+            # No written line: the counts are the row's own description here,
+            # the way the +a −r marks carry it in the app.
+            added, removed = int(version.get("added") or 0), int(version.get("removed") or 0)
+            summary = " ".join(([f"+{added}"] if added else []) + ([f"−{removed}"] if removed else []))
         label = str(version.get("label") or "")
         tail = f"  [{label}]" if label else ""
         number = "v" + str(version.get("revision"))

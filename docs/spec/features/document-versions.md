@@ -58,11 +58,11 @@ does can cost them their words.
 - Top entry: `now` · `As saved` when the working copy matches the base,
   `Unsaved changes` when it does not. No chip — `now` is the whole fact.
 - Version rows: `v<n>` · the model's line, or `Summarizing…` while it is
-  being written, or the counted stand-in when no model could answer
-  (`3 added, 1 removed`; `Formatting only` for an edit the diff cannot
-  see) · time ago · `+a −r` counts · an `agent` chip on agent versions and
-  none on the person's. `Edited` appears only on rows from before lines
-  were written at all.
+  being written · time ago · `+a −r` counts · an `agent` chip on agent
+  versions and none on the person's. Where no model answered, the counts
+  alone carry the row — his ruling, 2026-08-19: *"计数行去掉只留徽标"* —
+  and stored counted lines from before are stripped from the answer the
+  same way. The one save the counts cannot see says `Formatting only`.
 - A row opens its diff against the version before it, titled `v<n>` — the
   top row's is titled `Now`; `No visible change.` when only markup moved.
   `Go back to this` restores; `History` returns to the list.
@@ -71,6 +71,11 @@ does can cost them their words.
 - Loading: `Reading` with a spinner. Failure: the error note, list stays.
 
 **Pending change** (only while an agent result waits):
+
+- The page's list row wears a `review` mark (tooltip: `An agent change is
+  waiting`), stepping aside when the pointer brings the row's own actions
+  in — so a waiting change can be seen without opening every page. Interim
+  spot, his word, while the rows are being redesigned.
 
 - Banner over the editor: `An agent finished a change while you were editing.
   Nothing was overwritten — review it to apply or discard.` with one `Review`
@@ -145,11 +150,9 @@ changed.
 - The one-slot pending change: a newer agent result replaces an unreviewed
   older one, and an applied commit clears it. Say the word and a second
   commit becomes a refusal instead.
-- A waiting agent change is visible only on the open document — the list
-  says nothing, so one can wait unseen until the page is next opened. Where
-  should it surface (the list row? somewhere global?) — the list rows are
-  mid-redesign, so nothing was added there without you.
-- The counted stand-in line (`3 added, 1 removed`) repeats the row's own
-  `+a −r` chips when a model never answers. behaviors.md says a bare row
-  reads as broken, so the line stays — say the word to drop it in favour of
-  the chips alone.
+- ~~Where should a waiting change surface beyond the open page?~~ Ruled
+  2026-08-19: *"pending 在列表行加个标记吧,等 redesign 定了再说"* — the
+  `review` mark above, to be revisited when the row redesign lands.
+- ~~Should the counted line yield to the `+a −r` chips?~~ Ruled the same
+  day: *"计数行去掉只留徽标"* — done, including stripping the stored ones
+  from the answer.

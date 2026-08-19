@@ -390,6 +390,19 @@ export function DocumentsRoute({
                 </button>
               )}
             </span>
+            {/* An agent change waits on this page — said here too, so it can
+                be seen without opening every page. It steps aside when the
+                pointer brings the row's own actions in. Interim spot, his
+                word, while the rows are being redesigned. */}
+            {one.pending_agent && (
+              <Tooltip label="An agent change is waiting">
+                <span className="absolute inset-y-0 right-3 flex items-center [div:hover>&]:pointer-events-none [div:hover>&]:opacity-0">
+                  <span className="rounded-full border border-accent-line bg-accent-soft px-1.5 text-[10px] font-[650] text-accent-ink">
+                    review
+                  </span>
+                </span>
+              </Tooltip>
+            )}
             <span className="absolute inset-y-0 right-3 flex items-center gap-0.5 opacity-0 focus-within:opacity-100 hover:opacity-100 [div:hover>&]:opacity-100">
               <Tooltip label="New page inside this one">
                 <IconButton
