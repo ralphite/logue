@@ -59,20 +59,20 @@
       "id": "N9b",
       "title": "redesign 第二轮:Markdown 渲染、Notice/EmptyState 统一、浮动条不压字段",
       "type": "design",
-      "status": "queued",
+      "status": "blocked",
       "priority": "P1",
       "confirmed": true,
       "tags": [
         "ui",
         "review"
       ],
-      "note": "ui-review.md「值得做、这轮没做的」全列表:①Documents 正文渲染 Markdown + [Source n] 用 citation chip(现在按字面显示还被折行拆开);②Notice/EmptyState 统一组件(现存 7 种错误写法、3 种空态位置);③注入浮动条改锚定策略,不再压住正在写的字段(要真机 Notion/Docs 复验);④⌘K 选中行 1.15:1 + 键盘提示;⑤波形按时长映射宽度;⑥Delete 确认 danger 填充;⑦Settings 解释句收敛;⑧快捷键用 kbd。**一条要他裁决**:三处浮层的 ✓ 位置不一致,但「勾落在麦克风原位」是 X29 的既有决定 —— 统一方向要他选。",
-      "blocked_on": "",
+      "note": "逐条核对了现状,**八条里六条已经落地**:①Documents 正文 Markdown + citation chip(F2/F7,引用现在是可点的胶囊);②Notice/EmptyState 统一(commit 145e4e14 把 Feedback.tsx 抽成一套,7 种错误写法收敛);④⌘K 选中行对比度 + 键盘提示(FindDialog);⑤波形按时长映射(Recording.tsx 读 duration/seconds);⑥Delete 确认已是 danger 实心(ConfirmDelete.tsx:84);⑦Settings 解释句已收敛(SettingsRoute -19 行);⑧快捷键已用 Keys 组件(7 处)。\\n\\n**③ 注入浮动条不压正在写的字段** —— 要在真 Notion/Google Docs 上改完再验,而现在他浏览器里扩展的 worker 是死的(X9),验不了。等他手动 reload 扩展后接着做。\\n\\n**要他裁决的一条**:三处浮层的 ✓ 位置不一致,但「勾落在麦克风原位」是 X29 的既有决定,统一往哪个方向靠要他选。",
+      "blocked_on": "只剩 ③(浮动条锚定,要真机 Notion/Docs 复验——被 X9 卡住)和一条要你裁决的 ✓ 位置统一方向",
       "input_ids": [
         "in_blocked_review_review"
       ],
       "created": "2026-08-11",
-      "updated": "2026-08-14"
+      "updated": "2026-08-19"
     },
     {
       "id": "N8",
@@ -401,7 +401,7 @@
       "id": "N11",
       "title": "Extension sidepanel + 注入 widgets 按 C2 语言重设计",
       "type": "design",
-      "status": "in_progress",
+      "status": "blocked",
       "priority": "P1",
       "confirmed": true,
       "tags": [
@@ -409,10 +409,11 @@
         "extension"
       ],
       "note": "他的话(2026-08-12,web 四页 impl 进行中):\"we need redesign of ext sidepanel and widgets as well. do it later\"。范围:sidepanel 三 tab(Dictation/This page/Chat)+ 页面注入件(VoiceBar/SelectionBar/hint)对齐 C2 设计语言(灰 verb、24px 徽章、28px 控件、Dropdown/Tooltip 组件、收据语言)。流程照旧:先 mock(自包含 HTML)审过再改代码。前置:web 四页 impl 落地。<br>**IA 定稿 + 面板落地**:他连发三条(one tab only / action btns on top / minimal friction / progressive)→ 方向 D(单面·动词置顶·渐进)mock 四帧过审(另有 A/B/C 三方向探索)。impl 已落:tabs 删除,Record(morph 原地)/Keep(有选区存选区,否则存整页)/Ask(点开才出输入框)置顶,单滚动流(takes+chat+kept 合并),⌘⇧K 开框即听,scope 换 Dropdown,⋯菜单加清空对话。四道门绿,QA Chrome 真机验证(三键渲染/Ask 渐进/tablist 死亡)。剩余:Insert-into-page 通道(content script)、流的时间混排(Thread 拆条)、注入件视觉对齐——排下轮。",
+      "blocked_on": "只剩注入 widgets 的视觉对齐,要在真 Notion/Docs 上验——被 X9 卡住(和 N9b③ 是同一块)",
       "input_ids": [
         "in_n11_sidepanel_n13"
       ],
-      "updated": "2026-08-14"
+      "updated": "2026-08-19"
     },
     {
       "id": "F1",
@@ -791,14 +792,14 @@
       "id": "X9",
       "title": "他这台 Chrome 里扩展的 service worker 不应答消息——录音、自更新、页面里的一切往返全挂",
       "type": "bug",
-      "status": "queued",
+      "status": "blocked",
       "priority": "P0",
       "confirmed": false,
       "tags": [
         "extension"
       ],
-      "note": "2026-08-19 在他登录的 Chrome、真 Google Doc 上定位到的,证据链完整:\n\n`#logue-host` 上有 `data-logue-ready=1` 和 `data-logue-surface=voice`(content.tsx:690 和 :505,都在 build 请求之后),但**没有 `data-logue-build`**——而 content.tsx:672 是无条件发 `logue:build` 并在 `.then` 里写这个属性的,连失败都会写成 \"unknown\"。属性完全不存在,只有一种解释:**`chrome.runtime.sendMessage` 的 promise 既不 resolve 也不 reject**,worker 根本没应答。\n\n这一条解释了三件本来看着不相干的事:\n① X7② 的「Starting mic… 卡住不报错」——`logue:record-start` 同样永不返回;\n② 扩展从不自更新——`keepUpToDate()` 跑在 worker 里,worker 不活;\n③ 页面上的功能整体半死。\n\n**我这次的改动把①从静默挂起变成 20 秒后明确报错**(messages.ts 的 send 加了 withinMs,useVoice 的 record-start 用 20s),符合 behaviors「麦克风打不开要给出路」。但**根因是 worker 本身**,不是超时缺失。\n\n**要他做一次**:chrome://extensions 里把 Logue 手动 reload 一次(我不该也不能替他动他的浏览器扩展设置)。reload 之后 X7① 的定位修复才会真正加载进页面,我才能验。\n\n**待查**:worker 为什么会 wedge。怀疑和 offscreen 文档、或某个 return true 后没 respond 的分支有关——background.ts 里每个 `return true` 都必须保证 respond 一定被调用,漏一个就永久占住那条消息通道。",
-      "blocked_on": "",
+      "note": "根因找到并修了(commit 90105f8b):orphaned() 读 chrome.runtime.id,而**上下文失效时这个读取会抛异常,不是返回 undefined**。于是这个专门用来检测「脚本活得比扩展久」的函数,恰好死在它要检测的那个状态上——send 捕获到 sendMessage 失败后调它,它又从 catch 里抛出去,promise 变成 reject。所有等回复的调用者被静默抛弃,连负责把死掉的浮条从页面上撤走的 handler 也没跑,所以页面上留着一个每个按钮都够不到任何东西的 Logue 界面,还什么都不说。\n\n现在它不会抛,调用它的 catch 也不会。三条回归测试钉住(messages.test.ts),含「回复永远不来时超时返回无答案」。\n\n**但这修不了你浏览器里已经卡住的那个 worker** —— 那需要你去 chrome://extensions 手动 reload 一次 Logue。reload 之后 X7 的定位修复才会进页面,我才能在真 Doc 上验。",
+      "blocked_on": "代码侧已修并有回归测试;要你在 chrome://extensions 手动 reload 一次 Logue,才能解开你这台浏览器里已经卡死的那个 worker",
       "input_ids": [
         "in_x7"
       ],
