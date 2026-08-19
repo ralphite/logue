@@ -719,10 +719,12 @@ already ahead — what was missing was ordinary editor furniture.)
 - **More than one caret.** ⌘D takes the next occurrence of what is selected,
   ⌥-click adds a caret, ⌥-drag selects a rectangle.
 - **Dragged text shows where it would land.**
-- **The footer says how much has been written and whether it is saved.** Words,
-  not characters — nobody writing a page thinks in characters — with markup
-  and fenced blocks left out, and Chinese counted by character, because a
-  Chinese sentence has no spaces to count between.
+- **Nothing sits under the page.** (Changed 2026-08-19, his instruction:
+  *"section below doc should be removed … move as two buttons in header"* —
+  this replaces the footer that carried the word count and the autosave line.)
+  History and Save version are two buttons in the page header, beside Export;
+  a save that fails says so in a note at the top of the page. The autosave
+  itself is unchanged — only its caption is gone.
 
 ## An agent that is not ours
 

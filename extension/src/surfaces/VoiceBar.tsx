@@ -150,10 +150,13 @@ export function VoiceBar({
             <span
               role="status"
               title={`${pending} recording${pending === 1 ? "" : "s"} still transcribing — you can keep going`}
-              className="mr-0.5 inline-flex items-center gap-1 text-xs text-muted"
+              className="mr-0.5 inline-flex items-center gap-1 text-xs whitespace-nowrap text-muted"
             >
               <Spinner size={11} />
-              {pending}
+              {/* Words, not a bare count: a lone "1" beside a spinner reads as
+                  nothing happening — and on a busy model this is the only sign
+                  of the half-minute the words are still on their way. */}
+              {pending === 1 ? "Transcribing…" : `Transcribing ${pending}…`}
             </span>
           )}
           <IconButton

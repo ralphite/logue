@@ -3,6 +3,22 @@
   "updated": "2026-08-10",
   "tasks": [
     {
+      "id": "X12",
+      "title": "编辑器里的麦克风不工作",
+      "type": "bug",
+      "status": "done",
+      "priority": "P0",
+      "confirmed": true,
+      "tags": [],
+      "note": "",
+      "blocked_on": "",
+      "input_ids": [
+        "in_mic_doesnot_work"
+      ],
+      "created": "2026-08-19",
+      "updated": "2026-08-19"
+    },
+    {
       "id": "X1",
       "title": "扩展 sidepanel/widget 和 Web 应用的数据要保持同步",
       "type": "bug",
@@ -820,7 +836,76 @@
       "note": "保存=与 Base 有差异才落一个新版本;编辑只动 Working Copy。Agent 改前先把用户未保存修改存成用户版本,改完存独立 Agent 版本;Agent 基于固定版本工作,期间用户改过则结果只作待处理修改不覆盖;Restore 等替换 Working Copy 的操作先保存现有修改;Agent 修改原子化,失败不留半成品。他在会话里要求直接实现,本会话在做。",
       "blocked_on": "",
       "input_ids": [
-        "in_working_copy_versions"
+        "in_working_copy_versions",
+        "in_copy_behaviour_design",
+        "in_pending_redesign"
+      ],
+      "created": "2026-08-19",
+      "updated": "2026-08-19"
+    },
+    {
+      "id": "N16",
+      "title": "文档页头收编 History 与 Save version,底部区整个去掉",
+      "type": "design",
+      "status": "done",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [],
+      "note": "",
+      "blocked_on": "",
+      "input_ids": [
+        "in_section_below_doc",
+        "in_follow_notion_design"
+      ],
+      "created": "2026-08-19",
+      "updated": "2026-08-19"
+    },
+    {
+      "id": "X10",
+      "title": "编辑器块悬停的 +/⠿ 按钮位置漂移",
+      "type": "bug",
+      "status": "done",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [],
+      "note": "",
+      "blocked_on": "",
+      "input_ids": [
+        "in_section_below_doc",
+        "in_follow_notion_design"
+      ],
+      "created": "2026-08-19",
+      "updated": "2026-08-19"
+    },
+    {
+      "id": "X11",
+      "title": "渲染态下 # 后的空格没有随标记一起隐藏",
+      "type": "bug",
+      "status": "done",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [],
+      "note": "",
+      "blocked_on": "",
+      "input_ids": [
+        "in_should_hide_the",
+        "in_follow_notion_design"
+      ],
+      "created": "2026-08-19",
+      "updated": "2026-08-19"
+    },
+    {
+      "id": "N17",
+      "title": "侧栏照 chatgpt.com 的设计(字体/间距,含收起态),他给了两张参考截图",
+      "type": "design",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [],
+      "note": "",
+      "blocked_on": "",
+      "input_ids": [
+        "in_use_same_design"
       ],
       "created": "2026-08-19",
       "updated": "2026-08-19"
@@ -1159,6 +1244,48 @@
       "id": "in_working_copy_versions",
       "at": "2026-08-19 10:40",
       "text": "文档版本管理设计\n每个文档包含：\n\n* 一个始终存在、可编辑的 Working Copy\n* 一组不可修改的历史 Versions\n* Working Copy 所基于的 Base Version\n\n编辑与保存\n用户编辑时，只更新 Working Copy。\n保存时：\n\n* Working Copy 与 Base Version 没有差异：忽略保存。\n* 有差异：将 Working Copy 保存为一个新 Version。\n* 新 Version 成为 Working Copy 的新 Base Version。\n\n因此，Working Copy 始终存在，但只有有意义的保存才会产生历史版本。\nAgent 修改\nAgent 修改前，如果 Working Copy 中有尚未保存的用户修改，先将这些修改保存为一个用户版本。\n然后 Agent 修改 Working Copy，并在完成后将实际变化保存为一个独立的 Agent 版本。\n这样可以保证：\n\n* 用户修改不会被 Agent 覆盖。\n* 用户修改和 Agent 修改在历史中分别可见。\n* Agent 没有产生实际变化时，不创建版本。\n\n历史版本\n任何历史版本都可以查看或恢复。\n恢复某个版本时，只是将该版本的内容放入 Working Copy，不删除它之后的任何版本。\n恢复后再次保存，会创建一个新的版本，而不是改写原有历史。\n\n对于单用户、顺序编辑的场景，已经够了。\n但还不能覆盖异步 Agent 和并发修改。至少再补三条规则：\n\n1. Agent 基于固定版本工作，不直接持续修改当前 Working Copy。\nAgent 完成后，再把修改应用到最新 Working Copy。若与用户期间的修改冲突，保留用户内容，Agent 结果作为待处理修改，不自动覆盖。\n2. 任何会替换 Working Copy 的操作都不能丢失现有修改。\n例如 Restore、Checkout 或切换分支前，如果 Working Copy 有修改，应先保存为版本，除非用户明确选择丢弃。\n3. Agent 修改必须是原子的。\nAgent 成功完成后才更新 Working Copy 并创建版本。Agent 失败或取消时，不留下半完成的修改。\n\n加上这三条后，就基本覆盖了实际产品中的主要情况：\n\n* 用户普通编辑与保存\n* 无变化保存\n* Agent 修改\n* Agent 执行期间用户继续编辑\n* Agent 失败或取消\n* 恢复旧版本\n* 避免用户修改被静默覆盖\n\n不需要在这一层继续描述多人协作、merge 算法或具体实现。\n\ncan you impl this?",
+      "images": []
+    },
+    {
+      "id": "in_copy_behaviour_design",
+      "at": "2026-08-19 11:48",
+      "text": "三方评审(copy/behaviour/design-fidelity)跑完:成立的已修并部署(422d9ab5),两个判断题在 docs/spec/features/document-versions.md 的 Open questions 里等他拍板",
+      "images": []
+    },
+    {
+      "id": "in_pending_redesign",
+      "at": "2026-08-19 11:57",
+      "text": "pending 在列表行加个标记吧,等 redesign 定了再说;计数行去掉只留徽标",
+      "images": []
+    },
+    {
+      "id": "in_section_below_doc",
+      "at": "2026-08-19 12:07",
+      "text": "1. section below doc should be removed\n2. move as two buttons in header\n3. when hover on blocks, buttons are at wrong location",
+      "images": []
+    },
+    {
+      "id": "in_should_hide_the",
+      "at": "2026-08-19 12:07",
+      "text": "4. `# A` should hide the space before A when rendered. same for others",
+      "images": []
+    },
+    {
+      "id": "in_mic_doesnot_work",
+      "at": "2026-08-19 12:07",
+      "text": "5. mic doesnot work. check why",
+      "images": []
+    },
+    {
+      "id": "in_follow_notion_design",
+      "at": "2026-08-19 12:07",
+      "text": "6. follow notion's design. use browser/computer/screenshot to check",
+      "images": []
+    },
+    {
+      "id": "in_use_same_design",
+      "at": "2026-08-19 12:25",
+      "text": "use same design as chatgpt.com (font, space etc)\n\ndo it at the end",
       "images": []
     }
   ]

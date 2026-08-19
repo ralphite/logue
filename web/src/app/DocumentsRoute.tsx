@@ -1,4 +1,4 @@
-import { ChevronRight, Download, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Download, History as HistoryIcon, MoreHorizontal, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, cn, Empty, ErrorNote, IconButton, Menu, MenuItem, Notice, Spinner, Tooltip } from "@logue/ui";
 import { api, ApiError, type Document as DocumentRecord, type Material } from "../api";
@@ -21,7 +21,7 @@ import {
 } from "./panes";
 import { PendingChange } from "./PendingChange";
 import { RewriteDialog } from "./RewriteDialog";
-import { timeAgo, useAction, useHost } from "./useHost";
+import { useAction, useHost } from "./useHost";
 
 const AUTOSAVE_MS = 900;
 /** How far the name follows the first line. The Host cuts it the same way. */
@@ -538,7 +538,6 @@ function DocumentEditor({
    * last saved.
    */
   const [text, setText] = useState("");
-  const [saved, setSaved] = useState<string>("");
   /** What this editor last saw. Sent with every save so a second writer is caught. */
   const [revision, setRevision] = useState(0);
   const [conflict, setConflict] = useState(false);
@@ -602,7 +601,6 @@ function DocumentEditor({
         ...(force ? {} : { expected_revision: revision }),
       });
       setRevision(document.revision);
-      setSaved(new Date().toISOString());
       setConflict(false);
       return true;
     } catch (cause) {
@@ -715,7 +713,19 @@ function DocumentEditor({
               {/* Rewrite is on the passage now — see the toolbar in
                   MarkdownEditor. A button in the header that is disabled
                   whenever nothing is selected is an action parked where the
-                  thing it acts on never is. */}
+                  thing it acts on never is. History and the save live here
+                  the way Notion's clock does — the strip under the page is
+                  gone, his word. */}
+              <Tooltip label="Every version of this document">
+                <Button onClick={() => setLooking(true)}>
+                  <HistoryIcon size={13} /> History
+                </Button>
+              </Tooltip>
+              <Tooltip label="Save the working copy as a version" keys="⌘S">
+                <Button onClick={saveVersion}>
+                  {editing.busy ? <Spinner size={13} /> : <Save size={13} />} {kept ?? "Save version"}
+                </Button>
+              </Tooltip>
               <Tooltip label="Download as Markdown">
                 <Button onClick={() => window.open(api.documentMarkdownUrl(id), "_blank")}>
                   <Download size={13} /> Export
@@ -759,6 +769,8 @@ function DocumentEditor({
             This document changed somewhere else. Your edits are still here, unsaved.
           </Notice>
         )}
+        {/* ⌘S is a deliberate act; failing silently reads as saved. */}
+        {editing.error && <ErrorNote className="mb-3">{editing.error}</ErrorNote>}
         {/* An agent finished while the working copy had moved; the person
             rules on the result here rather than being silently overwritten. */}
         {doc?.pending_agent && <PendingChange id={id} onSettled={() => void loaded.refresh()} />}
@@ -795,47 +807,6 @@ function DocumentEditor({
                 label="Document"
               />
 
-              <footer className="mt-6 flex items-center gap-2 border-t border-line pt-2 text-xs text-muted">
-                {draft && <span>Not saved yet</span>}
-                {!draft && (
-                  <Tooltip label="Every version of this document">
-                    <button
-                      type="button"
-                      onClick={() => setLooking(true)}
-                      className="-my-1 inline-flex min-h-6 items-center rounded-md py-1 text-xs text-muted underline decoration-line underline-offset-2 hover:text-ink"
-                    >
-                      History
-                    </button>
-                  </Tooltip>
-                )}
-                {/* Whether the words are on disk, said once and plainly. A
-                    document autosaves on a pause, and between the keystroke
-                    and the save this tab holds the only copy. "Autosaved",
-                    not "Saved": on this screen the bare word belongs to
-                    versions, and these two acts must not share it. */}
-                {waitingToSave ? <span>Autosaving…</span> : saved ? <span>Autosaved {timeAgo(saved)}</span> : null}
-                <span className="tabular-nums">{words(text)}</span>
-                {/* ⌘S is a deliberate act; failing silently reads as saved. */}
-                {editing.error && (
-                  <span role="alert" className="text-danger">
-                    {editing.error}
-                  </span>
-                )}
-                {/* Typing writes the working copy and nothing else; this is
-                    the save that makes history — when something changed. */}
-                {!draft && (
-                  <Tooltip label="Save the working copy as a version" keys="⌘S">
-                    <button
-                      type="button"
-                      onClick={saveVersion}
-                      className="-my-1 ml-auto inline-flex min-h-6 items-center gap-1 rounded-md py-1 text-xs text-muted underline decoration-line underline-offset-2 hover:text-ink"
-                    >
-                      {kept ?? "Save version"}
-                    </button>
-                  </Tooltip>
-                )}
-                {(action.busy || editing.busy) && <Spinner size={11} />}
-              </footer>
             </article>
 
             {(sources.length > 0 || outline.length > 1) && (

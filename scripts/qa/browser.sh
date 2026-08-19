@@ -48,6 +48,7 @@ nohup "${chrome}" \
   --use-fake-ui-for-media-stream \
   ${LOGUE_TEST_REAL_MIC:---use-fake-device-for-media-stream} \
   ${LOGUE_TEST_AUDIO:+--use-file-for-fake-audio-capture="${LOGUE_TEST_AUDIO}"} \
+  ${LOGUE_TEST_AUDIO:+--disable-features=AudioServiceSandbox} \
   --window-size=1400,900 "${page}" >"${here}/test-browser-${port}.log" 2>&1 &
 
 for _ in $(seq 1 60); do

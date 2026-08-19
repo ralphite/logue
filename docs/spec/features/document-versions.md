@@ -38,20 +38,21 @@ does can cost them their words.
 
 ## The surface
 
-**Editor footer** (documents only):
+**Page header** (documents only; the strip under the page is gone —
+2026-08-19, his instruction: *"section below doc should be removed … move as
+two buttons in header"*):
 
-- `History` — opens the history dialog. Tooltip: `Every version of this
-  document`.
-- `Save version` — the save. Tooltip: `Save the working copy as a version`,
-  with `⌘S` shown the way every shortcut is (the Tooltip's own `keys` slot).
-  After a press it reads `Saved as a version` or `No changes to save`, until
-  the next keystroke or a different text loads under the editor. A press
-  that fails says so in the footer, in red, and shows its spinner while it
-  runs.
-- The autosave line says `Autosaving…` / `Autosaved <time> ago` — never the
-  bare word `Saved`, which on this screen belongs to versions.
+- `History` — opens the history dialog, beside Export. Tooltip: `Every
+  version of this document`.
+- `Save version` — the save, beside it. Tooltip: `Save the working copy as a
+  version`, with `⌘S` in the Tooltip's own `keys` slot. After a press the
+  button reads `Saved as a version` or `No changes to save`, until the next
+  keystroke or a different text loads under the editor; while it runs its
+  icon is the spinner. A press that fails says so in a note at the top of
+  the page.
 - ⌘S inside the editor is the same act; the browser's save dialog never
-  answers.
+  answers. The autosave still runs on a pause — it just no longer captions
+  itself.
 
 **History dialog** (title `History`):
 

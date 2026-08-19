@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-1195 strings across 91 files.
+1193 strings across 91 files.
 
 ## extension/src/api.ts
 
@@ -246,8 +246,9 @@ state the fact, no justification, no chat register, no filler.
 - 139: `Try voice again`
 - 139: `Default voice`
 - 146: `Ask Logue`
-- 160: `Voice options`
-- 189: `Try again on the kept recording`
+- 159: `Transcribing…`
+- 163: `Voice options`
+- 192: `Try again on the kept recording`
 
 ## extension/src/takes.ts
 
@@ -1042,32 +1043,28 @@ state the fact, no justification, no chat register, no filler.
 - 460: `Every Source it cited stays in the workspace.`
 - 488: `Documents`
 - 490: `Nothing written yet — press + to start a page.`
-- 669: `Saved as a version`
-- 669: `No changes to save`
-- 678: `Documents`
-- 700: `Untitled`
-- 705: `New Document`
-- 705: `Untitled`
-- 719: `Download as Markdown`
-- 721: `Export`
-- 743: `Keep mine`
-- 754: `Discard mine`
-- 759: `This document changed somewhere else. Your edits are still here, unsaved.`
-- 767: `Loading`
-- 795: `Document`
-- 799: `Not saved yet`
-- 801: `Every version of this document`
-- 807: `History`
-- 813: `Autosaved`
-- 814: `Saved`
-- 816: `Autosaving…`
-- 827: `Save the working copy as a version`
-- 833: `Save version`
-- 847: `Outline`
-- 865: `Sources`
-- 945: `Name`
-- 950: `Enter`
-- 951: `Escape`
+- 667: `Saved as a version`
+- 667: `No changes to save`
+- 676: `Documents`
+- 698: `Untitled`
+- 703: `New Document`
+- 703: `Untitled`
+- 719: `Every version of this document`
+- 721: `History`
+- 724: `Save the working copy as a version`
+- 726: `Save version`
+- 729: `Download as Markdown`
+- 731: `Export`
+- 753: `Keep mine`
+- 764: `Discard mine`
+- 769: `This document changed somewhere else. Your edits are still here, unsaved.`
+- 779: `Loading`
+- 807: `Document`
+- 818: `Outline`
+- 836: `Sources`
+- 916: `Name`
+- 921: `Enter`
+- 922: `Escape`
 
 ## web/src/app/FindDialog.tsx
 
@@ -1132,53 +1129,54 @@ state the fact, no justification, no chat register, no filler.
 - 228: `Image`
 - 288: `Image`
 - 311: `Link`
-- 424: `2px solid var(--color-line-strong)`
-- 455: `1px solid var(--color-line)`
-- 456: `6px 8px`
-- 466: `0 7px`
-- 468: `1px solid var(--color-control-line)`
-- 476: `0 8px`
-- 478: `1px solid var(--color-control-line)`
-- 486: `0 6px`
-- 581: `Bulleted list`
-- 582: `Numbered list`
-- 584: `Quote`
-- 585: `Code block`
-- 588: `Table`
-- 593: `Divider`
-- 598: `Callout`
-- 599: `Equation`
-- 600: `Diagram`
-- 603: `Image`
-- 761: `Text`
-- 765: `Bulleted list`
-- 766: `Numbered list`
-- 768: `Quote`
-- 913: `Edit`
-- 921: `Unlink`
-- 936: `Type / for commands`
-- 1003: `Document`
-- 1160: `Enter`
-- 1168: `Escape`
-- 1199: `Tab`
-- 1243: `Start writing. The first line is the title.`
-- 1388: `Escape`
-- 1446: `Add a block below`
-- 1447: `Add a block below`
-- 1459: `Move or change this block`
-- 1460: `Drag to move · click for options`
-- 1492: `Format the selected passage`
-- 1496: `Bold`
-- 1499: `Italic`
-- 1500: `font-serif italic`
-- 1502: `Code`
-- 1505: `Link`
-- 1523: `Rewrite`
-- 1536: `This block`
-- 1541: `Duplicate`
-- 1542: `Delete`
-- 1561: `Turn into`
-- 1594: `Insert a block`
+- 432: `2px solid var(--color-line-strong)`
+- 463: `1px solid var(--color-line)`
+- 464: `6px 8px`
+- 474: `0 7px`
+- 476: `1px solid var(--color-control-line)`
+- 484: `0 8px`
+- 486: `1px solid var(--color-control-line)`
+- 494: `0 6px`
+- 589: `Bulleted list`
+- 590: `Numbered list`
+- 592: `Quote`
+- 593: `Code block`
+- 596: `Table`
+- 601: `Divider`
+- 606: `Callout`
+- 607: `Equation`
+- 608: `Diagram`
+- 611: `Image`
+- 769: `Text`
+- 773: `Bulleted list`
+- 774: `Numbered list`
+- 776: `Quote`
+- 921: `Edit`
+- 929: `Unlink`
+- 944: `Type / for commands`
+- 1011: `Document`
+- 1168: `Enter`
+- 1176: `Escape`
+- 1207: `Tab`
+- 1251: `Start writing. The first line is the title.`
+- 1347: `s left edge is the pane`
+- 1401: `Escape`
+- 1459: `Add a block below`
+- 1460: `Add a block below`
+- 1472: `Move or change this block`
+- 1473: `Drag to move · click for options`
+- 1505: `Format the selected passage`
+- 1509: `Bold`
+- 1512: `Italic`
+- 1513: `font-serif italic`
+- 1515: `Code`
+- 1518: `Link`
+- 1536: `Rewrite`
+- 1549: `This block`
+- 1554: `Duplicate`
+- 1555: `Delete`
+- 1574: `Turn into`
+- 1607: `Insert a block`
 
 ## web/src/app/MaterialPanel.tsx
 

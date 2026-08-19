@@ -310,7 +310,15 @@ function marks(
         // A URL is only noise inside a written link; a bare one is the text.
         if (node.name === "URL" && node.node.parent?.name !== "Link") return undefined;
         if (editing.has(view.state.doc.lineAt(node.from).number)) return undefined;
-        if (node.to > node.from) found.push({ from: node.from, to: node.to, with: hidden });
+        // The space after `#` or `>` is part of how the mark is typed, not of
+        // the words: `# A` rendered with the hash alone hidden began with a
+        // space, so every heading sat one space deep.
+        let until = node.to;
+        if (node.name === "HeaderMark" || node.name === "QuoteMark") {
+          const line = view.state.doc.lineAt(node.from);
+          while (until < line.to && /[ \t]/.test(view.state.doc.sliceString(until, until + 1))) until += 1;
+        }
+        if (until > node.from) found.push({ from: node.from, to: until, with: hidden });
         return undefined;
       },
     });
@@ -1332,17 +1340,22 @@ export function MarkdownEditor({
     [],
   );
 
-  /** Which block the pointer is beside, tracked on the editor as a whole. */
+  /** Which block the pointer is beside, tracked on the editor as a whole.
+
+      Anchored to the text column (`contentDOM`), never the editor frame: the
+      page is a centred column inside a wider editor, so in a wide window the
+      frame's left edge is the pane's, and a rail measured from it drew a
+      screen-width away from the words it belongs to. */
   const overBlock = (event: React.PointerEvent) => {
     const made = view.current;
     if (!made || dragging) return;
-    const frame = made.dom.getBoundingClientRect();
-    const inside = made.posAtCoords({ x: frame.left + 20, y: event.clientY });
+    const column = made.contentDOM.getBoundingClientRect();
+    const inside = made.posAtCoords({ x: column.left + 20, y: event.clientY });
     if (inside === null) return setRail(undefined);
     const block = blockAt(made.state, inside);
     const box = made.coordsAtPos(block.from);
     if (!box) return setRail(undefined);
-    return setRail({ block, top: box.top, left: frame.left });
+    return setRail({ block, top: box.top, left: column.left });
   };
 
   const onDrag = (event: React.PointerEvent) => {
@@ -1352,7 +1365,7 @@ export function MarkdownEditor({
     event.currentTarget.setPointerCapture(event.pointerId);
     const block = rail.block;
     const move = (moved: PointerEvent) => {
-      const under = made.posAtCoords({ x: made.dom.getBoundingClientRect().left + 20, y: moved.clientY });
+      const under = made.posAtCoords({ x: made.contentDOM.getBoundingClientRect().left + 20, y: moved.clientY });
       if (under === null) return;
       const over = blockAt(made.state, under);
       const box = made.coordsAtPos(over.from);
@@ -1361,7 +1374,7 @@ export function MarkdownEditor({
     const drop = (ended: PointerEvent) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", drop);
-      const under = made.posAtCoords({ x: made.dom.getBoundingClientRect().left + 20, y: ended.clientY });
+      const under = made.posAtCoords({ x: made.contentDOM.getBoundingClientRect().left + 20, y: ended.clientY });
       setDragging(undefined);
       setRail(undefined);
       if (under === null) return;
