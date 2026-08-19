@@ -126,6 +126,12 @@ export function EntryRow({
             take={entry.take}
             skills={skills}
             onApply={onApply}
+            // A saved page says which page. Everything else says what it says.
+            summary={
+              entry.kind === "saved"
+                ? entry.material?.source?.title || entry.material?.source?.url || "This page"
+                : undefined
+            }
             // Asking stands at the head of the Skills row, on the text it is
             // about — not on a strip of its own below the entry, which drew a
             // second divider through every row.
@@ -179,12 +185,22 @@ export function TakeText({
   skills,
   onApply,
   lead,
+  summary,
 }: {
   take: Take;
   skills?: Skill[];
   onApply: (takeId: string, skill: Skill) => void;
   /** Something that belongs at the head of this text's Skills row. */
   lead?: ReactNode;
+  /**
+   * What to show in place of the words themselves.
+   *
+   * A saved page *is* the whole article — that is what makes it worth citing
+   * — and the row printed all of it, so pressing the bookmark dropped six
+   * folded lines of someone else's prose into the list where the page's name
+   * belonged. The Source keeps every word; the row says which page it was.
+   */
+  summary?: ReactNode;
 }) {
   const [copied, setCopied] = useState(false);
   const [all, setAll] = useState(false);
@@ -198,6 +214,9 @@ export function TakeText({
   return (
     <div>
       {take.from && <div className="mt-1 text-[10.5px] font-[600] text-ai">{take.from}</div>}
+      {summary ? (
+        <div className="mt-1 truncate text-[12.5px] leading-[1.55] text-ink">{summary}</div>
+      ) : (
       <Folded
         className="mt-1 text-[12.5px] leading-[1.55] whitespace-pre-wrap text-ink"
         text={take.text}
@@ -209,6 +228,7 @@ export function TakeText({
             : undefined
         }
       />
+      )}
       {source && (
         <div className="mt-1.5 rounded-md bg-surface-muted p-2">
           <OriginMark origin={originOf(source.kind)} detail={source.source?.domain || "This Mac"} />
