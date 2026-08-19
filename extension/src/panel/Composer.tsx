@@ -241,7 +241,11 @@ export function Composer({
             value={text}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
+              // The Enter that picks a character out of an input method is not
+              // the Enter that sends. Without this, typing Chinese sent the
+              // half-written word the moment a candidate was chosen — and the
+              // person who reads this panel writes in Chinese.
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();
                 if (!nothingToSend && !busy) send();
               }
@@ -251,7 +255,7 @@ export function Composer({
               }
             }}
             rows={2}
-            placeholder={quote ? "Say something about this passage, or send it as it is" : "Type here, or press the mic and talk"}
+            placeholder={quote ? "Say something about this passage" : "Type, or talk"}
             aria-label="What to send"
             className="min-h-[34px] w-full resize-none bg-transparent text-[13px] leading-[1.5] text-ink outline-0 placeholder:text-faint"
           />
@@ -273,7 +277,7 @@ export function Composer({
                 value={into?.id ?? ""}
                 onChange={(next) => onInto(documents.find((one) => one.id === next))}
                 options={[
-                  { value: "", label: "Into · nowhere" },
+                  { value: "", label: "No Document" },
                   ...documents.map((one) => ({ value: one.id, label: `Into · ${one.title || "Untitled"}` })),
                 ]}
               />

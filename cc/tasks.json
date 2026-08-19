@@ -694,7 +694,7 @@
       "id": "X6",
       "title": "编辑器列表三个病:Enter 不续列表(markdownKeymap 是死代码)、无序列表没圆点没缩进、待办前面拖着 - ",
       "type": "bug",
-      "status": "queued",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
@@ -702,13 +702,13 @@
         "editor",
         "bug"
       ],
-      "note": "真实应用里重现并定位到行(新建了 QA lists test 文档验证,没动他的文档,按规矩没删):\n\n① **Enter 在列表行尾不续列表。** 光标在\"- two\"行尾按 Enter,新行是空的,不是\"- \"。根源:MarkdownEditor.tsx:809 把 markdownKeymap 排在 defaultKeymap 之后合进同一个数组,defaultKeymap 自己有 Enter(insertNewlineAndIndent)先接住,markdownKeymap 的 insertNewlineContinueMarkup **永远轮不到**——它的 Backspace(deleteMarkupBackward,退格删掉整个列表记号)也一样是死代码。修法:markdownKeymap 单独 keymap.of 且放在 defaultKeymap 之前(或 Prec.high)。\n\n② **无序列表就是字面横线。** MARKS 集合(MarkdownEditor.tsx:81)里没有 ListMark,\"- \"既不隐藏也没有圆点替身,没有缩进,嵌套列表也不分层。Notion 的做法:光标不在时\"- \"显示为 •,数字列表的记号灰色弱化,子列表逐级缩进。\n\n③ **待办渲染成\"- ☐ task\"。** TaskMarker 换成了勾选框(这个是好的),但它前面的 ListMark\"- \"还留在屏幕上。光标不在该行时应该连\"- \"一起藏掉,只剩勾选框+文字。\n\n验证方法记录:浏览器面板的 CDP key 注入(Return)到不了 CodeMirror,合成 KeyboardEvent 才是真的——差点把\"Enter 完全坏了\"当成 bug 报出去。",
+      "note": "并进 F7 的 A 节一起修的。根因:markdownKeymap 被 spread 在 defaultKeymap 之后,Enter 永远轮不到它——续列表和删记号的 Backspace 都是死代码。已在真浏览器验证:'- one' 行尾按 Enter 得到 '- '。",
       "blocked_on": "",
       "input_ids": [
         "in_why_list_ul"
       ],
       "created": "2026-08-14",
-      "updated": "2026-08-14"
+      "updated": "2026-08-18"
     },
     {
       "id": "X7",
@@ -752,20 +752,40 @@
       "id": "F7",
       "title": "编辑器缺失全清单:A 6 条病 / B 11 条 Notion 核心补齐 / C 上传类 / D 等确认排除",
       "type": "feature",
-      "status": "queued",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
         "documents",
         "editor"
       ],
-      "note": "全文 docs/spec/md-editor-gaps.md,通读现版 MarkdownEditor.tsx(1049 行,15f2fa5f)后列的,带行号。结构:**A** 现有功能的病 6 条(A1=X6 的 markdownKeymap 死代码;新发现:斜杠菜单只认空行行首、斜杠菜单和浮动条是手摆 absolute 没用 X4 抽的 floating.ts 会出视口、ArrowDown 无下界、列表折行不悬挂);**B** Notion 有我们没有且 md 表达干净的 11 条,按值得做排序:Tab/⇧Tab 缩进列表、块把手 ⋮⋮/＋、Turn into、粘贴 HTML→md、代码块围栏内高亮+语言标签、表格 Tab 走格、斜杠补块(H4/Callout/Page/Link to page/公式/Mermaid)、链接悬停卡、标题大纲、emoji 补全、图片语法路;**C** 要后端的(图片上传);**D** md 表达不干净等他确认排除的(toggle/多列/彩字/database/embeds/AI 块)。做的顺序写在文末。F5/F6 里和编辑器重叠的部分以这份为准。",
+      "note": "A 节 6 条 + B 节 11 条全部落地并在真浏览器逐条验证(commit a6e28cc6)。**顺带发现并修掉两个只有跑起来才会暴露的问题**:①AppShell 抢 ⌘1…5 时没判断 altKey,导致 ⌘⌥2 一边转换块一边跳走页面;②我自己新加的行中斜杠菜单,插入块级内容时会焊进句子中间(表格变成 '- one | Column |'),已改成块另起一行。**C 节(图片上传,要 Host 端点)和 D 节(toggle/多列/彩字/database/embeds,md 表达不干净)按清单没做,D 节等他确认排除。**",
       "blocked_on": "",
       "input_ids": [
-        "in_md_edit_is"
+        "in_md_edit_is",
+        "in_do_all"
       ],
       "created": "2026-08-18",
       "updated": "2026-08-18"
+    },
+    {
+      "id": "N15",
+      "title": "文档列表照 Notion 重做:一行一页、悬停才出 ⋯/＋、折叠箭头占位不挤字",
+      "type": "design",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "documents",
+        "ui"
+      ],
+      "note": "他发了 Notion 侧栏截图作参照。要点:①一行就是一行,不是两行卡片——现在每行下面还有\"written by hand\"和时间,占掉一半高度;②图标+标题,超出截断;③悬停才出 ⋯ 和 ＋,不悬停时那块是空的;④有子页的行悬停出折叠箭头,箭头位置平时留白,标题不左右跳;⑤子页缩进一层;⑥选中行整行浅底。落在 DocumentsRoute.tsx 列表那一半,配合 F4 的拖拽。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_also_use_design"
+      ],
+      "created": "2026-08-19",
+      "updated": "2026-08-19"
     }
   ],
   "inputs": [
@@ -1077,6 +1097,18 @@
       "id": "in_docs_spec_md",
       "at": "2026-08-18 20:52",
       "text": "编辑器相关的部分以 docs/spec/md-editor-gaps.md(F7)为准,这份是通读代码后的全清单;F5/F6 里重叠的条目不要重复做。",
+      "images": []
+    },
+    {
+      "id": "in_do_all",
+      "at": "2026-08-18 23:25",
+      "text": "do all",
+      "images": []
+    },
+    {
+      "id": "in_also_use_design",
+      "at": "2026-08-19 00:19",
+      "text": "also use design like notion for doc list. improve ui",
       "images": []
     }
   ]

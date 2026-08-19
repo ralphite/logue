@@ -1,4 +1,4 @@
-import { Bookmark, Download, ExternalLink, MoreHorizontal, Settings2, Trash2 } from "lucide-react";
+import { Download, ExternalLink, MoreHorizontal, Settings2, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
@@ -103,7 +103,7 @@ function WhereLogueIs({ server, onConnected }: { server: string; onConnected: (s
     const reply = await send<{ ok: boolean; message?: string }>({ type: "logue:server-probe", server: address });
     setBusy(false);
     if (!reply?.ok) {
-      setFailed(reply?.message ?? "Logue's background service is restarting. Try again in a moment.");
+      setFailed(reply?.message ?? "Logue did not answer. Try again.");
       return;
     }
     await rememberServer(address);
@@ -155,6 +155,24 @@ function WaitingRow({ one, onChanged }: { one: Waiting; onChanged: () => void })
   const [busy, setBusy] = useState(false);
   const [dropping, setDropping] = useState(false);
   const failed = (one.tries ?? 0) > 0;
+  /**
+   * The audio, playable where it is.
+   *
+   * This row reported a recording it would not let anyone hear — the row
+   * beside it, for a recording the Host is holding, has always had the
+   * player. Two rows about the same trouble looked like two products, and
+   * "your words are safe" is easier to believe when you can press play.
+   * Held as a blob because the bytes are here, not on the Host yet.
+   */
+  const audio = useMemo(() => {
+    try {
+      const bytes = Uint8Array.from(atob(one.audio), (c) => c.charCodeAt(0));
+      return URL.createObjectURL(new Blob([bytes], { type: one.mediaType }));
+    } catch {
+      return undefined;
+    }
+  }, [one.audio, one.mediaType]);
+  useEffect(() => () => (audio ? URL.revokeObjectURL(audio) : undefined), [audio]);
 
   return (
     <article className="grid grid-cols-[24px_minmax(0,1fr)] gap-x-2.5 border-b border-line px-3 py-2.5">
@@ -172,9 +190,14 @@ function WaitingRow({ one, onChanged }: { one: Waiting; onChanged: () => void })
             {new Date(one.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}
           </span>
         </div>
+        {audio && (
+          <div className="mt-1.5">
+            <Recording src={audio} seconds={one.seconds} shape={one.id} />
+          </div>
+        )}
         <Notice tone={failed ? "danger" : "warning"} className="mt-1.5">
           {failed
-            ? `${one.tries} attempt${one.tries === 1 ? "" : "s"} so far. The recording is kept here.`
+            ? `Tried ${one.tries}×. The recording is kept here.`
             : "Kept here. It will be transcribed when Logue starts."}
         </Notice>
         <div className="mt-1.5 flex flex-wrap items-center gap-1">
@@ -266,7 +289,7 @@ function HeldRow({ one, server, onChanged }: { one: Held; server: string; onChan
             come back" alone reads as Logue losing them, and three recordings
             said that on an evening the model was answering 503. */}
         <Notice className="mt-1.5">
-          {one.message || "Logue has this recording; the words did not come back."}
+          {one.message || "Not transcribed. The recording is kept."}
         </Notice>
         <div className="mt-1.5 flex flex-wrap gap-1">
           <Button
@@ -425,6 +448,18 @@ export function Panel() {
     };
     chrome.runtime.onMessage.addListener(onMessage);
     return () => chrome.runtime.onMessage.removeListener(onMessage);
+  }, [page?.id]);
+
+  /**
+   * A quote belongs to the page it was taken from.
+   *
+   * The panel follows whichever tab is in front, but the passage above the
+   * box did not: move to another tab and the quote from the last one was
+   * still sitting there, and what you wrote next was filed against this page
+   * with that page's words above it.
+   */
+  useEffect(() => {
+    setQuote(undefined);
   }, [page?.id]);
 
   // Chosen once, kept — including across the panel being closed, which is the
@@ -666,10 +701,10 @@ export function Panel() {
         {empty ? (
           <Empty>
             <b className="font-[600] text-ink-soft">Nothing said about this page yet.</b>
-            <span className="mt-1 block">Select a passage to comment on it, or just start typing.</span>
-            <Button className="mt-2.5" onClick={() => void keepPage()}>
-              <Bookmark size={12} /> Save this page
-            </Button>
+            {/* The bookmark that does this sits forty pixels below, in the
+                composer's own row. Two controls for one act, and the empty
+                state was the one that had to go. */}
+            <span className="mt-1 block">Select a passage, or type below.</span>
           </Empty>
         ) : (
           <>

@@ -34,13 +34,35 @@ export function editorTarget(root: Document = document): HTMLElement | undefined
 }
 
 /**
- * The rectangle to anchor a control against.
+ * Where the caret is, which Docs draws itself.
  *
- * A canvas gives no caret, so use the visible page surface. Docs marks the
- * scrollable editor region, which is a far better anchor than the whole window.
+ * "A canvas gives no caret" was true of the text, not of the cursor: Docs
+ * paints its own blinking caret as an element and keeps it positioned. So
+ * the bar can sit beside the cursor on Docs exactly as it does everywhere
+ * else, which is what was asked for — and what anchoring to the page surface
+ * could never do.
+ */
+export function caretRect(root: Document = document): DOMRect | undefined {
+  for (const caret of root.querySelectorAll(".kix-cursor-caret")) {
+    const box = caret.getBoundingClientRect();
+    // Docs keeps carets for other people in a shared document, and parks
+    // spent ones off-screen at zero height.
+    if (box.height > 0 && box.top > 0) return box;
+  }
+  return undefined;
+}
+
+/**
+ * The rectangle to anchor a control against when there is no caret.
+ *
+ * The text surface, not the editor region: `.kix-appview-editor` starts at
+ * x=0 because it *contains* the outline panel, so anchoring to it put the
+ * bar on top of the outline, 250 pixels from the nearest word — measured on
+ * a real document, where a mimic page with no outline panel had passed.
  */
 export function anchorRect(root: Document = document): DOMRect | undefined {
   const surface =
+    root.querySelector(".kix-rotatingtilemanager") ??
     root.querySelector(".kix-appview-editor") ??
     root.querySelector('[role="document"]') ??
     editorTarget(root)?.ownerDocument.defaultView?.frameElement;

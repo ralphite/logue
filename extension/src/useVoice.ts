@@ -225,10 +225,13 @@ export function useVoice() {
       }
     }
 
-    const result = await send<{ ok: boolean; message?: string; code?: string }>({
-      type: "logue:record-start",
-      sessionId: String(id),
-    });
+    // Past the background's own 15s deadline, so its message — which knows
+    // whether the microphone was blocked or the recorder broke — wins whenever
+    // it arrives. This is only for when nothing arrives at all.
+    const result = await send<{ ok: boolean; message?: string; code?: string }>(
+      { type: "logue:record-start", sessionId: String(id) },
+      20_000,
+    );
     if (session.current !== id) return false;
     if (!result?.ok) {
       const blocked = result?.code === MICROPHONE_BLOCKED;

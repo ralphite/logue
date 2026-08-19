@@ -87,7 +87,7 @@ export function EntryRow({
           <div className="mt-1.5 flex items-center gap-2">
             <Spinner size={13} className="text-muted" />
             <span className="flex-1 text-xs text-muted" role="status">
-              {entry.message ?? "Saving…"}
+              {entry.message ?? "Keeping…"}
             </span>
           </div>
         )}
@@ -310,7 +310,7 @@ export function proposed(proposal: { tool: string; title?: string }): string {
   const said: Record<string, string> = {
     draft_document: "Would draft a document",
     save_page: "Would save this page",
-    add_to_project: "Would file this into a Project",
+    add_to_project: "Would add this to a Project",
   };
   return said[proposal.tool] ?? "";
 }

@@ -132,9 +132,29 @@ function checkOrphaned(): void {
   handler?.();
 }
 
-export async function send<T = unknown>(message: ToBackground): Promise<T | undefined> {
+export async function send<T = unknown>(
+  message: ToBackground,
+  /**
+   * How long to wait before giving up on an answer.
+   *
+   * `sendMessage` promises a reply and does not always keep it: if the worker
+   * is torn down while a request is in flight the promise settles neither
+   * way, and the surface that was waiting waits for ever. A recording bar
+   * that says "Starting mic…" with no error and no way out was this — the
+   * background has its own 15s deadline, and the reply carrying that failure
+   * is exactly what the dead port swallowed. Left off, the wait is unbounded,
+   * which is right for anything a person is not watching.
+   */
+  withinMs?: number,
+): Promise<T | undefined> {
   try {
-    const reply: unknown = await chrome.runtime.sendMessage(message);
+    const asked = chrome.runtime.sendMessage(message);
+    const reply: unknown = withinMs
+      ? await Promise.race([
+          asked,
+          new Promise((resolve) => setTimeout(() => resolve(undefined), withinMs)),
+        ])
+      : await asked;
     // The background's replies are ours; the union above is the contract.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     return reply as T;

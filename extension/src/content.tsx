@@ -164,8 +164,18 @@ function Surfaces() {
   const track = useCallback(() => {
     // Docs has no focusable editable in the top document; its own sink stands in.
     if (googleDocs.isGoogleDocs()) {
-      const box = googleDocs.anchorRect();
       target.current = googleDocs.editorTarget() ?? null;
+      // Docs draws its own caret, so the bar goes beside the cursor here too.
+      // Only when there is none — nothing focused yet — does it fall back to
+      // the corner of the text surface.
+      const cursor = googleDocs.caretRect();
+      if (cursor) {
+        recordTarget(`caret ${Math.round(cursor.left)},${Math.round(cursor.bottom)}`);
+        setCaret({ left: cursor.left, top: cursor.top, bottom: cursor.bottom });
+        return;
+      }
+      const box = googleDocs.anchorRect();
+      recordTarget(box ? `surface ${Math.round(box.left)},${Math.round(box.top)}` : "none");
       setCaret(box ? { left: box.left + 24, top: box.top + 24, bottom: box.top + 44 } : undefined);
       return;
     }
