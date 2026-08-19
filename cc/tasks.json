@@ -684,10 +684,11 @@
       "note": "F6 已落地能直接做的那批(格式化快捷键、选区工具条、空行 / 提示、面包屑、粘贴链接、⌘F、多光标、字数),见 docs/spec/features/documents.md。剩下五条按代价和是否动数据模型分两组。\n\n**不动数据模型,纯前端,可以直接做**:①**块拖拽把手** —— 正文左侧的 ⋮⋮,拖动整块换位置(现在只有 ⌥↑/↓ 逐行移动)。要在 Markdown 里判块边界(段落/列表项/代码围栏/表格),中等工程量。②**目录大纲** —— 右侧列出各级标题、点击跳转、滚动高亮当前节。\n\n**要他先点头,因为会改文档是什么**:③**@ 提另一个页面** —— 存成 [标题](/documents/id) 就够,但要定 @ 菜单的检索范围、被删页面的链接怎么显示、要不要反链。④**页面图标/封面** —— 和 F2「标题就是正文第一行」冲突:要么占用正文,要么新加字段,两条路都得他选(F4 note 里已经提过)。⑤**评论** —— 要新后端(评论表、锚点、未读),是本条里最大的一件。\n\n建议顺序:①②直接做;③④⑤等他一句话。",
       "blocked_on": "",
       "input_ids": [
-        "in_blocked_review_review"
+        "in_blocked_review_review",
+        "in_docs_spec_md"
       ],
       "created": "2026-08-14",
-      "updated": "2026-08-14"
+      "updated": "2026-08-18"
     },
     {
       "id": "X6",
@@ -746,6 +747,25 @@
       ],
       "created": "2026-08-14",
       "updated": "2026-08-14"
+    },
+    {
+      "id": "F7",
+      "title": "编辑器缺失全清单:A 6 条病 / B 11 条 Notion 核心补齐 / C 上传类 / D 等确认排除",
+      "type": "feature",
+      "status": "queued",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "documents",
+        "editor"
+      ],
+      "note": "全文 docs/spec/md-editor-gaps.md,通读现版 MarkdownEditor.tsx(1049 行,15f2fa5f)后列的,带行号。结构:**A** 现有功能的病 6 条(A1=X6 的 markdownKeymap 死代码;新发现:斜杠菜单只认空行行首、斜杠菜单和浮动条是手摆 absolute 没用 X4 抽的 floating.ts 会出视口、ArrowDown 无下界、列表折行不悬挂);**B** Notion 有我们没有且 md 表达干净的 11 条,按值得做排序:Tab/⇧Tab 缩进列表、块把手 ⋮⋮/＋、Turn into、粘贴 HTML→md、代码块围栏内高亮+语言标签、表格 Tab 走格、斜杠补块(H4/Callout/Page/Link to page/公式/Mermaid)、链接悬停卡、标题大纲、emoji 补全、图片语法路;**C** 要后端的(图片上传);**D** md 表达不干净等他确认排除的(toggle/多列/彩字/database/embeds/AI 块)。做的顺序写在文末。F5/F6 里和编辑器重叠的部分以这份为准。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_md_edit_is"
+      ],
+      "created": "2026-08-18",
+      "updated": "2026-08-18"
     }
   ],
   "inputs": [
@@ -1045,6 +1065,18 @@
       "id": "in_add_task_review_2",
       "at": "2026-08-14 09:39",
       "text": "add task: review feature design with subagent (always). review ext panel design. too many issues",
+      "images": []
+    },
+    {
+      "id": "in_md_edit_is",
+      "at": "2026-08-18 20:52",
+      "text": "md edit is far from complete. review code and list all missing features relatd to it",
+      "images": []
+    },
+    {
+      "id": "in_docs_spec_md",
+      "at": "2026-08-18 20:52",
+      "text": "编辑器相关的部分以 docs/spec/md-editor-gaps.md(F7)为准,这份是通读代码后的全清单;F5/F6 里重叠的条目不要重复做。",
       "images": []
     }
   ]
