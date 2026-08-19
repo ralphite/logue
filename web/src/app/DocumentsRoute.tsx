@@ -543,6 +543,21 @@ function DocumentEditor({
   const action = useAction();
   const doc = loaded.data?.document;
   const sources = loaded.data?.sources ?? [];
+  // Headings, in the order they are written. The first line is the document's
+  // name, so it is not one of them — it is already the title on screen.
+  const outline = useMemo(() => {
+    const found: { at: number; depth: number; text: string }[] = [];
+    let at = 0;
+    const lines = text.split("\n");
+    for (const [index, line] of lines.entries()) {
+      const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+      if (heading && index > 0 && heading[2]?.trim()) {
+        found.push({ at, depth: heading[1]?.length ?? 1, text: heading[2].trim() });
+      }
+      at += line.length + 1;
+    }
+    return found;
+  }, [text]);
   const title = firstLine(text) || (draft ? "" : doc?.title || "Untitled");
 
   useEffect(() => {
@@ -701,7 +716,9 @@ function DocumentEditor({
         ) : (
           <div
             className={
-              sources.length > 0 ? "grid grid-cols-[minmax(0,1fr)_216px] items-start gap-5" : undefined
+              sources.length > 0 || outline.length > 1
+                ? "grid grid-cols-[minmax(0,1fr)_216px] items-start gap-5"
+                : undefined
             }
           >
             <article className="min-w-0">
@@ -764,9 +781,31 @@ function DocumentEditor({
               </footer>
             </article>
 
-            {sources.length > 0 && (
-              <aside className="min-w-0">
-                <Section cap="Sources" count={sources.length} first>
+            {(sources.length > 0 || outline.length > 1) && (
+              <aside className="min-w-0 grid gap-4">
+                {/* The shape of a long document, from its own headings. Only
+                    once there is a shape to show: two headings is a document
+                    with a heading, not one that needs a map. */}
+                {outline.length > 1 && (
+                  <Section cap="Outline" count={outline.length} first>
+                    <nav className="mt-2 grid gap-0.5">
+                      {outline.map((heading) => (
+                        <button
+                          key={heading.at}
+                          type="button"
+                          onClick={() => editor.current?.goto(heading.at)}
+                          style={{ paddingLeft: `${(heading.depth - 1) * 10}px` }}
+                          className="truncate rounded-md py-1 pr-1.5 text-left text-xs text-muted hover:bg-hover hover:text-ink"
+                          title={heading.text}
+                        >
+                          {heading.text}
+                        </button>
+                      ))}
+                    </nav>
+                  </Section>
+                )}
+                {sources.length > 0 && (
+                <Section cap="Sources" count={sources.length} first={outline.length <= 1}>
                   <div className="mt-2 grid gap-0.5">
                     {sources.map((source, index) => (
                       <QuietRow
@@ -783,6 +822,7 @@ function DocumentEditor({
                     ))}
                   </div>
                 </Section>
+                )}
               </aside>
             )}
           </div>

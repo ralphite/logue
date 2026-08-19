@@ -1,8 +1,13 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown";
+import { languages as codeLanguages } from "./codeLanguages";
+import { htmlToMarkdown } from "./htmlToMarkdown";
+import { blockAt, blocks as blockList, duplicateBlock, insertAfter, moveBlock, removeBlock, type Block } from "./blockHandles";
 import { GFM } from "@lezer/markdown";
 import { HighlightStyle, syntaxHighlighting, syntaxTree } from "@codemirror/language";
 import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
+import { autocompletion, completionKeymap, type CompletionContext } from "@codemirror/autocomplete";
+import { EMOJI } from "./emoji";
 import { Annotation, EditorSelection, EditorState, RangeSetBuilder, type Extension } from "@codemirror/state";
 import {
   type Command,
@@ -12,6 +17,7 @@ import {
   drawSelection,
   dropCursor,
   EditorView,
+  hoverTooltip,
   keymap,
   placeholder,
   rectangularSelection,
@@ -20,7 +26,7 @@ import {
   WidgetType,
 } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
-import { cn } from "@logue/ui";
+import { cn, floatingStyle, usePlacement } from "@logue/ui";
 import { useEffect, useImperativeHandle, useRef, useState, type RefObject } from "react";
 
 /**
@@ -70,6 +76,8 @@ export interface MarkdownHandle {
   replace: (passage: string, next: string) => void;
   /** What is selected right now, empty when nothing is. */
   selection: () => string;
+  /** Put the caret on a line and bring it into view — what the outline does. */
+  goto: (offset: number) => void;
 }
 
 /**
@@ -79,6 +87,12 @@ export interface MarkdownHandle {
  * hiding it leaves an indented line with nothing to say it is an item.
  */
 const MARKS = new Set(["HeaderMark", "EmphasisMark", "CodeMark", "QuoteMark", "LinkMark", "URL"]);
+
+/** What a list line starts with: nesting, marker, and a task's box. */
+const ITEM = /^(\s*)([-*+]|\d+[.)])(\s+)(\[[ xX]\]\s+)?/;
+
+/** A line whose marker is a checkbox rather than a bullet. */
+const TASK = /^\s*([-*+]|\d+[.)])\s+\[[ xX]\]/;
 
 /** `[Source 3]`, as it is written in every document a generation produced. */
 const CITATION = /\[Source (\d+)\]/g;
@@ -284,6 +298,14 @@ function marks(
           }
           return undefined;
         }
+        // The bullet on a task line, where the box is already the marker.
+        // Everywhere else `ListMark` stays (see MARKS): a bullet is how a list
+        // looks. On `- [ ] milk` the checkbox says "item" on its own, and the
+        // dash in front of it read as a stray character.
+        if (node.name === "ListMark" && TASK.test(view.state.doc.lineAt(node.from).text)) {
+          found.push({ from: node.from, to: Math.min(node.to + 1, view.state.doc.lineAt(node.from).to), with: hidden });
+          return undefined;
+        }
         if (!MARKS.has(node.name)) return undefined;
         // A URL is only noise inside a written link; a bare one is the text.
         if (node.name === "URL" && node.node.parent?.name !== "Link") return undefined;
@@ -355,6 +377,19 @@ const written = HighlightStyle.define([
   { tag: tags.link, color: "var(--color-accent)", textDecoration: "underline", textUnderlineOffset: "2px" },
   { tag: tags.url, color: "var(--color-muted)" },
   { tag: [tags.processingInstruction, tags.punctuation, tags.meta], color: "var(--color-faint)" },
+  // Inside a fence. Naming a language and then rendering it in one flat grey
+  // is the editor not reading its own document: the grammar was being parsed
+  // and then thrown away, because a custom highlight style answers for every
+  // tag and this one only knew about Markdown's.
+  { tag: [tags.keyword, tags.modifier, tags.controlKeyword, tags.operatorKeyword], color: "var(--color-accent)" },
+  { tag: [tags.string, tags.special(tags.string), tags.regexp], color: "var(--color-act-saved)" },
+  { tag: [tags.number, tags.bool, tags.null, tags.atom], color: "var(--color-act-kept)" },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: "var(--color-muted)", fontStyle: "italic" },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: "var(--color-act-generated)" },
+  { tag: [tags.typeName, tags.className, tags.namespace], color: "var(--color-act-dictated)" },
+  { tag: [tags.propertyName, tags.attributeName], color: "var(--color-ink-soft)" },
+  { tag: [tags.operator, tags.derefOperator, tags.separator], color: "var(--color-muted-strong)" },
+  { tag: tags.definition(tags.variableName), color: "var(--color-ink)" },
 ]);
 
 /**
@@ -457,9 +492,17 @@ const page = EditorView.theme({
   ".cm-selectionMatch": { backgroundColor: "var(--color-surface-muted)" },
 });
 
-/** The block shapes that are drawn around whole lines, not inside them. */
+/**
+ * The block shapes that are drawn around whole lines, not inside them.
+ *
+ * Two kinds: the shells a quote, a fence and a table sit in, which come from
+ * the syntax tree; and the hanging indent every list item needs, which comes
+ * from the line itself. Collected together and sorted once, because a
+ * `RangeSetBuilder` takes them in order and the tree does not walk in line
+ * order.
+ */
 function blocks(view: EditorView): DecorationSet {
-  const built = new RangeSetBuilder<Decoration>();
+  const found: { at: number; with: Decoration }[] = [];
   const of: Record<string, Decoration> = {
     Blockquote: Decoration.line({ class: "cm-quote-line" }),
     FencedCode: Decoration.line({ class: "cm-code-line" }),
@@ -478,12 +521,33 @@ function blocks(view: EditorView): DecorationSet {
         const first = view.state.doc.lineAt(node.from).number;
         const last = view.state.doc.lineAt(node.to).number;
         for (let at = first; at <= last; at += 1) {
-          built.add(view.state.doc.line(at).from, view.state.doc.line(at).from, line);
+          found.push({ at: view.state.doc.line(at).from, with: line });
         }
         return undefined;
       },
     });
+
+    // A list item that wrapped began the next line under its own bullet, so a
+    // long item and a new item were the same shape. The text hangs: the marker
+    // sits in the margin the indent creates, and every wrapped line lines up
+    // with the first word. Nesting comes free — the spaces are still in the
+    // text, so a sub-item's margin is simply wider.
+    for (let row = view.state.doc.lineAt(from).number; row <= view.state.doc.lineAt(to).number; row += 1) {
+      const line = view.state.doc.line(row);
+      const item = ITEM.exec(line.text);
+      if (!item) continue;
+      // The box that replaces `- [ ] ` is narrower than the six characters it
+      // is written as; the rest is measured in `ch`, which is what the markers
+      // are made of.
+      const width = item[4] ? (item[1]?.length ?? 0) + 2.4 : item[0].length;
+      found.push({
+        at: line.from,
+        with: Decoration.line({ attributes: { style: `padding-left:${width}ch;text-indent:-${width}ch` } }),
+      });
+    }
   }
+  const built = new RangeSetBuilder<Decoration>();
+  for (const one of found.toSorted((a, b) => a.at - b.at)) built.add(one.at, one.at, one.with);
   return built.finish();
 }
 
@@ -527,6 +591,16 @@ const BLOCKS: { key: string; label: string; hint: string; insert: string; caret?
     caret: 2,
   },
   { key: "rule", label: "Divider", hint: "---", insert: "---\n" },
+  { key: "h4", label: "Heading 4", hint: "####", insert: "#### " },
+  // Notion's callout, written as the one thing Markdown already has for an
+  // aside. It reads as a quote everywhere else, which is the point: nothing
+  // here invents a syntax that only this editor can open.
+  { key: "callout", label: "Callout", hint: "> 💡", insert: "> 💡 " },
+  { key: "equation", label: "Equation", hint: "$$", insert: "$$\n\n$$", caret: 3 },
+  { key: "mermaid", label: "Diagram", hint: "mermaid", insert: "```mermaid\n\n```", caret: 11 },
+  // The caret lands between the brackets of the address, which is the only
+  // part anyone types: `![](…)`.
+  { key: "image", label: "Image", hint: "![]", insert: "![](  )", caret: 4 },
 ];
 
 /**
@@ -589,6 +663,139 @@ export const link: Command = (view) => {
 };
 
 /**
+ * Tab and ⇧Tab, on a list item.
+ *
+ * The first thing anyone who has written in Notion reaches for, and the one
+ * key CodeMirror spends on focus by default. It moves the item and everything
+ * nested under it, so indenting a parent does not orphan its children — two
+ * spaces, which is what the Markdown parser reads back as a level.
+ */
+function shift(by: 1 | -1): Command {
+  return (view) => {
+    const { state } = view;
+    const lines = new Set<number>();
+    for (const range of state.selection.ranges) {
+      const first = state.doc.lineAt(range.from).number;
+      const last = state.doc.lineAt(range.to).number;
+      for (let at = first; at <= last; at += 1) lines.add(at);
+    }
+    // Only lists take Tab. In a paragraph it still belongs to the browser, so
+    // the keyboard can leave the editor.
+    if (![...lines].some((at) => ITEM.test(state.doc.line(at).text))) return false;
+
+    // Whatever is nested under the last selected item travels with it: a
+    // sub-list left behind becomes a list of its own at the old depth.
+    const last = Math.max(...lines);
+    const depth = (at: number) => /^\s*/.exec(state.doc.line(at).text)?.[0].length ?? 0;
+    for (let at = last + 1; at <= state.doc.lines; at += 1) {
+      const text = state.doc.line(at).text;
+      if (!text.trim()) break;
+      if (depth(at) <= depth(last)) break;
+      lines.add(at);
+    }
+
+    const changes = [];
+    for (const at of [...lines].toSorted((a, b) => a - b)) {
+      const line = state.doc.line(at);
+      if (by === 1) {
+        changes.push({ from: line.from, insert: "  " });
+      } else {
+        const room = /^ {1,2}/.exec(line.text)?.[0];
+        if (room) changes.push({ from: line.from, to: line.from + room.length });
+      }
+    }
+    if (changes.length === 0) return true;
+    view.dispatch(state.update({ changes, userEvent: "input.indent" }));
+    return true;
+  };
+}
+
+/**
+ * Tab inside a table: the next cell, and a new row past the last one.
+ *
+ * A pipe table is text, so nothing stops the caret walking into the middle of
+ * a border. This moves it cell to cell the way every table in every editor
+ * does, and adds the row when you tab off the end — the alternative being to
+ * type six pipes by hand.
+ */
+const tableTab: Command = (view) => {
+  const { state } = view;
+  const head = state.selection.main.head;
+  const line = state.doc.lineAt(head);
+  if (!/^\s*\|/.test(line.text)) return false;
+
+  const stops = [...line.text.matchAll(/\|/g)].map((m) => line.from + (m.index ?? 0));
+  const next = stops.find((at) => at >= head);
+  if (next !== undefined && next !== stops.at(-1)) {
+    // Just past the pipe, and past the space that follows it.
+    const after = state.doc.sliceString(next + 1, next + 2) === " " ? next + 2 : next + 1;
+    view.dispatch({ selection: { anchor: after } });
+    return true;
+  }
+
+  // Off the end of the last cell: the next row, made if it is not there.
+  const below = line.number < state.doc.lines ? state.doc.line(line.number + 1) : undefined;
+  if (below && /^\s*\|/.test(below.text)) {
+    const first = below.text.indexOf("|");
+    view.dispatch({ selection: { anchor: below.from + first + (below.text[first + 1] === " " ? 2 : 1) } });
+    return true;
+  }
+  const cells = Math.max(1, (line.text.match(/\|/g)?.length ?? 2) - 1);
+  const row = `\n|${Array.from({ length: cells }, () => "  ").join("|")}|`;
+  view.dispatch({
+    changes: { from: line.to, insert: row },
+    selection: { anchor: line.to + 3 },
+  });
+  return true;
+};
+
+/**
+ * Turn this block into that one.
+ *
+ * The same list Notion opens on ⌘⌥1-7 and in its block menu, done the only way
+ * that keeps the file honest: rewrite the line's first characters. A heading
+ * becomes a quote by losing `## ` and gaining `> `, and nothing else about the
+ * line moves.
+ */
+export const TURNS: { key: string; label: string; mark: string; shortcut?: string }[] = [
+  { key: "text", label: "Text", mark: "", shortcut: "Mod-Alt-0" },
+  { key: "h1", label: "Heading 1", mark: "# ", shortcut: "Mod-Alt-1" },
+  { key: "h2", label: "Heading 2", mark: "## ", shortcut: "Mod-Alt-2" },
+  { key: "h3", label: "Heading 3", mark: "### ", shortcut: "Mod-Alt-3" },
+  { key: "list", label: "Bulleted list", mark: "- ", shortcut: "Mod-Alt-4" },
+  { key: "numbers", label: "Numbered list", mark: "1. ", shortcut: "Mod-Alt-5" },
+  { key: "task", label: "To-do", mark: "- [ ] ", shortcut: "Mod-Alt-6" },
+  { key: "quote", label: "Quote", mark: "> ", shortcut: "Mod-Alt-7" },
+];
+
+/** Everything a line can begin with, so turning one into another can undo it. */
+const ANY_MARK = /^(\s*)(?:(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?|#{1,6}\s+|>\s+)?/;
+
+export function turn(mark: string): Command {
+  return (view) => {
+    const { state } = view;
+    const changes = [];
+    const seen = new Set<number>();
+    for (const range of state.selection.ranges) {
+      const first = state.doc.lineAt(range.from).number;
+      const last = state.doc.lineAt(range.to).number;
+      for (let at = first; at <= last; at += 1) {
+        if (seen.has(at)) continue;
+        seen.add(at);
+        const line = state.doc.line(at);
+        const had = ANY_MARK.exec(line.text)?.[0] ?? "";
+        const keep = /^\s*/.exec(line.text)?.[0] ?? "";
+        changes.push({ from: line.from, to: line.from + had.length, insert: keep + mark });
+      }
+    }
+    if (changes.length === 0) return false;
+    view.dispatch(state.update({ changes, userEvent: "input.turn" }));
+    view.focus();
+    return true;
+  };
+}
+
+/**
  * An address pasted over a passage makes that passage a link.
  *
  * The one paste everybody has muscle memory for, from every editor that has
@@ -609,6 +816,117 @@ const pasteAsLink = EditorView.domEventHandlers({
     return true;
   },
 });
+
+/**
+ * Copied from a page, pasted as Markdown.
+ *
+ * Everything anyone pastes into a document comes from somewhere that had
+ * formatting — a Notion page, a wiki, an article — and the clipboard carries
+ * it as HTML alongside the flat text. Taking the flat text threw away every
+ * heading, list and link on the way in, so the first minute with a pasted
+ * document was spent putting the structure back by hand.
+ */
+const pasteAsMarkdown = EditorView.domEventHandlers({
+  paste(event, view) {
+    const html = event.clipboardData?.getData("text/html") ?? "";
+    if (!html.trim()) return false;
+    const { from, to } = view.state.selection.main;
+    const plain = event.clipboardData?.getData("text/plain") ?? "";
+    // An address over a passage is the other paste, and it goes first.
+    if (isUrl(plain) && from !== to) return false;
+    const made = htmlToMarkdown(html);
+    if (!made || made === plain.trim()) return false;
+    event.preventDefault();
+    view.dispatch({ changes: { from, to, insert: made }, selection: { anchor: from + made.length } });
+    return true;
+  },
+});
+
+/**
+ * `:smile:` becomes a face.
+ *
+ * Typed the same way it is typed in every chat window; what lands in the file
+ * is the character itself, so the document stays plain text and a reader that
+ * has never heard of this editor still sees the emoji.
+ */
+function emoji(context: CompletionContext) {
+  const typed = context.matchBefore(/:[a-z0-9_+-]{2,}/);
+  if (!typed) return null;
+  const query = typed.text.slice(1).toLowerCase();
+  const found = EMOJI.filter(([name]) => name.includes(query)).slice(0, 12);
+  if (found.length === 0) return null;
+  return {
+    from: typed.from,
+    options: found.map(([name, char]) => ({ label: `:${name}:`, detail: char, apply: char, type: "text" })),
+  };
+}
+
+/** A written link, and where in the text its two halves are. */
+function linkAt(view: EditorView, pos: number) {
+  const line = view.state.doc.lineAt(pos);
+  for (const match of line.text.matchAll(/\[([^\]]*)\]\(([^)\s]+)\)|(?<!\()(https?:\/\/\S+)/g)) {
+    const from = line.from + (match.index ?? 0);
+    const to = from + match[0].length;
+    if (pos < from || pos > to) continue;
+    return { from, to, text: match[1] ?? "", url: match[2] ?? match[3] ?? "", written: Boolean(match[2]) };
+  }
+  return undefined;
+}
+
+/**
+ * What a link is, and what can be done to it, without opening the line.
+ *
+ * ⌘-click already followed one, but changing an address meant putting the
+ * caret in the line to make the markup appear and editing inside brackets.
+ * The three things anyone wants from a link are here instead: go to it,
+ * change it, take it off and keep the words.
+ */
+const linkCard = hoverTooltip((made, pos) => {
+  const found = linkAt(made, pos);
+  if (!found) return null;
+  return {
+    pos: found.from,
+    end: found.to,
+    above: true,
+    create: () => {
+      const card = document.createElement("div");
+      card.className =
+        "logue-float flex max-w-80 items-center gap-1 p-1 text-[12px] text-ink-soft";
+      const address = document.createElement("a");
+      address.href = found.url;
+      address.target = "_blank";
+      address.rel = "noreferrer";
+      address.textContent = found.url;
+      address.className = "min-w-0 flex-1 truncate px-1 text-accent hover:underline";
+      card.append(address);
+      const act = (label: string, run: () => void) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = label;
+        button.className = "shrink-0 rounded-[5px] px-1.5 py-0.5 hover:bg-hover hover:text-ink";
+        button.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+          run();
+        });
+        card.append(button);
+      };
+      act("Edit", () => {
+        // Inside the address, where the change is made. The markup is there
+        // because the caret is — the editor's one rule.
+        const into = found.written ? found.from + found.text.length + 3 : found.from;
+        made.dispatch({ selection: { anchor: into, head: into + found.url.length } });
+        made.focus();
+      });
+      if (found.written) {
+        act("Unlink", () => {
+          made.dispatch({ changes: { from: found.from, to: found.to, insert: found.text } });
+          made.focus();
+        });
+      }
+      return { dom: card };
+    },
+  };
+}, { hoverTime: 400 });
 
 /** The hint on the empty line the caret is in — Notion's, and it is true here. */
 class Hint extends WidgetType {
@@ -651,13 +969,27 @@ const hint = ViewPlugin.fromClass(
   { decorations: (plugin) => plugin.decorations },
 );
 
+/**
+ * A box in the window, which a floating thing hangs off.
+ *
+ * The caret is not an element, and `usePlacement` measures elements — so the
+ * coordinates CodeMirror reports are given to a zero-width span and that is
+ * what gets measured. Viewport coordinates, because everything that floats in
+ * this product is `fixed`: an editor inside a scrolling pane clipped its own
+ * menu when these were relative.
+ */
+interface Spot {
+  left: number;
+  top: number;
+  bottom: number;
+}
+
 /** Where the slash menu sits, and what it is filtering on. */
 interface Slash {
   /** Where the `/` is, so the menu can replace it with the block. */
   at: number;
   query: string;
-  left: number;
-  top: number;
+  spot: Spot;
 }
 
 export function MarkdownEditor({
@@ -684,7 +1016,7 @@ export function MarkdownEditor({
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>(null);
   /** The toolbar over a selected passage, when something is selected. */
-  const [bar, setBar] = useState<{ left: number; top: number }>();
+  const [bar, setBar] = useState<Spot>();
   /** The slash menu, when there is one. */
   const [slash, setSlash] = useState<Slash>();
   const [at, setAt] = useState(0);
@@ -694,7 +1026,36 @@ export function MarkdownEditor({
    * The editor is built once; the menu is state. A keymap closed over the
    * first render would answer for a menu that had long since changed.
    */
+  /**
+   * Both popovers are placed by the same hook as every other floating thing.
+   *
+   * They were `absolute` with hand-arithmetic — the menu ran off the bottom of
+   * the window on a long document, and the toolbar's `top - 38` went negative
+   * and clipped whenever the passage was in the first two lines. That is the
+   * third and fourth place the bug X4 fixed had been written out by hand.
+   */
+  /**
+   * The rail beside the block the pointer is over: ＋ and ⠿.
+   *
+   * Notion's, and the one part of it people miss most in a plain Markdown
+   * editor — not because dragging is faster than cutting and pasting, but
+   * because it is the only way to move a paragraph without first working out
+   * where it ends.
+   */
+  const [rail, setRail] = useState<{ block: Block; top: number; left: number }>();
+  /** The block being dragged, and the line its drop line is drawn at. */
+  const [dragging, setDragging] = useState<{ block: Block; overLine: number; y: number }>();
+  const [blockMenu, setBlockMenu] = useState<{ block: Block; spot: Spot }>();
+  const handleRail = useRef<HTMLDivElement>(null);
+  const blockMenuAnchor = useRef<HTMLSpanElement>(null);
+  const blockMenuPanel = useRef<HTMLDivElement>(null);
+  const slashAnchor = useRef<HTMLSpanElement>(null);
+  const slashPanel = useRef<HTMLDivElement>(null);
+  const barAnchor = useRef<HTMLSpanElement>(null);
+  const barPanel = useRef<HTMLDivElement>(null);
   const slashOpen = useRef(false);
+  /** How many rows the menu is showing, so ArrowDown knows where the end is. */
+  const shownCount = useRef(0);
   const chosen = useRef<() => void>(undefined);
   // Read inside CodeMirror's own callbacks, which outlive the render that made them.
   const latest = useRef({ onChange, onSelection, onCite, onRewrite });
@@ -711,17 +1072,21 @@ export function MarkdownEditor({
     if (!cursor.empty) return setSlash(undefined);
     const line = made.state.doc.lineAt(cursor.head);
     const before = made.state.doc.sliceString(line.from, cursor.head);
-    const opened = /^\/(\w*)$/.exec(before);
+    // A `/` anywhere a word could start, not only on an empty line. Notion
+    // opens it mid-sentence and so does everything that copied Notion; the
+    // old rule meant reaching for a table halfway down a paragraph was a
+    // thing you had to know was impossible. Preceded by a space or nothing,
+    // so a date and a path never open a menu.
+    const opened = /(?:^|\s)\/(\w*)$/.exec(before);
     if (!opened) return setSlash(undefined);
-    const box = made.coordsAtPos(line.from);
-    const frame = made.dom.getBoundingClientRect();
+    const start = cursor.head - (opened[1]?.length ?? 0) - 1;
+    const box = made.coordsAtPos(start);
     if (!box) return setSlash(undefined);
     setAt(0);
     return setSlash({
-      at: line.from,
+      at: start,
       query: opened[1] ?? "",
-      left: box.left - frame.left,
-      top: box.bottom - frame.top + 4,
+      spot: { left: box.left, top: box.top, bottom: box.bottom },
     });
   };
 
@@ -736,9 +1101,8 @@ export function MarkdownEditor({
     const passage = made.state.selection.main;
     if (passage.empty || !made.hasFocus) return setBar(undefined);
     const box = made.coordsAtPos(passage.from);
-    const frame = made.dom.getBoundingClientRect();
     if (!box) return setBar(undefined);
-    return setBar({ left: Math.max(0, box.left - frame.left), top: box.top - frame.top - 38 });
+    return setBar({ left: box.left, top: box.top, bottom: box.bottom });
   };
 
   /** Write the block, replacing the `/…` that asked for it. */
@@ -746,9 +1110,15 @@ export function MarkdownEditor({
     const made = view.current;
     if (!made || !slash) return;
     const to = made.state.selection.main.head;
+    // A block starts its own line. The menu opens mid-sentence now, and a
+    // table dropped where the caret was made `- one | Column | Column |` —
+    // one line that is half a list item and half a table, and neither.
+    const line = made.state.doc.lineAt(slash.at);
+    const ahead = made.state.doc.sliceString(line.from, slash.at).trim() ? "\n" : "";
+    const insert = ahead + block.insert;
     made.dispatch({
-      changes: { from: slash.at, to, insert: block.insert },
-      selection: { anchor: slash.at + (block.caret ?? block.insert.length) },
+      changes: { from: slash.at, to, insert },
+      selection: { anchor: slash.at + ahead.length + (block.caret ?? block.insert.length) },
     });
     setSlash(undefined);
     made.focus();
@@ -768,7 +1138,10 @@ export function MarkdownEditor({
           key: "ArrowDown",
           run: () => {
             if (!slashOpen.current) return false;
-            setAt((was) => was + 1);
+            // Stops at the last one. It used to count past the end and get
+            // clamped only when drawing, so ten presses down took ten presses
+            // back up before the highlight moved at all.
+            setAt((was) => Math.min(shownCount.current - 1, was + 1));
             return true;
           },
         },
@@ -806,10 +1179,29 @@ export function MarkdownEditor({
         { key: "Mod-Shift-x", run: wrap("~~") },
         { key: "Mod-k", run: link },
       ]),
-      keymap.of([...defaultKeymap, ...historyKeymap, ...markdownKeymap, ...searchKeymap]),
+      // Tab belongs to a list before it belongs to focus, and to a table
+      // before either. Both hand it back when the caret is in neither.
+      keymap.of([
+        { key: "Tab", run: (made) => tableTab(made) || shift(1)(made) },
+        { key: "Shift-Tab", run: shift(-1) },
+      ]),
+      keymap.of(TURNS.filter((one) => one.shortcut).map((one) => ({ key: one.shortcut!, run: turn(one.mark) }))),
+      // Markdown's own keys, ahead of the defaults.
+      //
+      // These were spread into the same array as `defaultKeymap`, after it —
+      // so `defaultKeymap`'s plain Enter answered first and `Enter` at the end
+      // of `- one` made an empty line instead of `- `. The whole of Markdown's
+      // list, quote and table continuation was unreachable code, and so was
+      // its Backspace, which takes a list marker off in one press. A keymap
+      // that is shadowed does not fail; it does nothing, which is why this
+      // survived review twice.
+      keymap.of(markdownKeymap),
+      keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
       // Find and replace, ⌘F. The panel is CodeMirror's own — a document
       // people write in for an hour needs one, and writing a second one would
       // only be a worse version of this.
+      autocompletion({ override: [emoji], icons: false, activateOnTyping: true }),
+      keymap.of(completionKeymap),
       search({ top: true }),
       highlightSelectionMatches(),
       // More than one caret: ⌘D takes the next occurrence of what is selected,
@@ -825,7 +1217,9 @@ export function MarkdownEditor({
       dropCursor(),
       // GitHub's Markdown, because that is the Markdown people write:
       // tables, task lists, strikethrough, bare links.
-      markdown({ base: markdownLanguage, extensions: [GFM], addKeymap: false }),
+      // A fenced block is highlighted in whatever it says it is. ```ts is a
+      // promise the editor was not keeping: the code sat in one flat grey.
+      markdown({ base: markdownLanguage, extensions: [GFM], addKeymap: false, codeLanguages }),
       syntaxHighlighting(written),
       livePreview((n) => latest.current.onCite?.(n)),
       shapes,
@@ -835,6 +1229,8 @@ export function MarkdownEditor({
       placeholder("Start writing. The first line is the title."),
       hint,
       pasteAsLink,
+      pasteAsMarkdown,
+      linkCard,
       EditorView.updateListener.of((update) => {
         const mine = !update.transactions.some((one) => one.annotation(fromTheHost));
         if (update.docChanged && mine) latest.current.onChange(update.state.doc.toString());
@@ -907,11 +1303,102 @@ export function MarkdownEditor({
         const { from, to } = made.state.selection.main;
         return made.state.sliceDoc(from, to);
       },
+      goto: (offset: number) => {
+        const made = view.current;
+        if (!made) return;
+        const target = Math.max(0, Math.min(offset, made.state.doc.length));
+        made.dispatch({ selection: { anchor: target }, scrollIntoView: true });
+        made.focus();
+      },
     }),
     [],
   );
 
+  /** Which block the pointer is beside, tracked on the editor as a whole. */
+  const overBlock = (event: React.PointerEvent) => {
+    const made = view.current;
+    if (!made || dragging) return;
+    const frame = made.dom.getBoundingClientRect();
+    const inside = made.posAtCoords({ x: frame.left + 20, y: event.clientY });
+    if (inside === null) return setRail(undefined);
+    const block = blockAt(made.state, inside);
+    const box = made.coordsAtPos(block.from);
+    if (!box) return setRail(undefined);
+    return setRail({ block, top: box.top, left: frame.left });
+  };
+
+  const onDrag = (event: React.PointerEvent) => {
+    const made = view.current;
+    if (!made || !rail) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const block = rail.block;
+    const move = (moved: PointerEvent) => {
+      const under = made.posAtCoords({ x: made.dom.getBoundingClientRect().left + 20, y: moved.clientY });
+      if (under === null) return;
+      const over = blockAt(made.state, under);
+      const box = made.coordsAtPos(over.from);
+      setDragging({ block, overLine: made.state.doc.lineAt(over.from).number, y: box?.top ?? moved.clientY });
+    };
+    const drop = (ended: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", drop);
+      const under = made.posAtCoords({ x: made.dom.getBoundingClientRect().left + 20, y: ended.clientY });
+      setDragging(undefined);
+      setRail(undefined);
+      if (under === null) return;
+      const over = blockAt(made.state, under);
+      if (over.from === block.from) return;
+      // Below the block it is over, unless it is the first one on screen.
+      const all = blockList(made.state);
+      const index = all.findIndex((one) => one.from === over.from);
+      const landing = over.from > block.from ? made.state.doc.lineAt(over.to).number + 1 : made.state.doc.lineAt(over.from).number;
+      moveBlock(made, block, index === 0 && over.from < block.from ? 1 : landing);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", drop);
+  };
+
+  // A menu that only closes by choosing something is a menu you are stuck in.
+  useEffect(() => {
+    if (!blockMenu) return;
+    const away = (event: PointerEvent) => {
+      if (event.target instanceof Node && blockMenuPanel.current?.contains(event.target)) return;
+      setBlockMenu(undefined);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setBlockMenu(undefined);
+      view.current?.focus();
+    };
+    document.addEventListener("pointerdown", away, true);
+    document.addEventListener("keydown", escape, true);
+    return () => {
+      document.removeEventListener("pointerdown", away, true);
+      document.removeEventListener("keydown", escape, true);
+    };
+  }, [blockMenu]);
+
+  const { at: blockMenuAt } = usePlacement({
+    open: Boolean(blockMenu),
+    anchor: blockMenuAnchor,
+    panel: blockMenuPanel,
+  });
+  const { at: slashAt } = usePlacement({
+    open: Boolean(slash) && shown.length > 0,
+    anchor: slashAnchor,
+    panel: slashPanel,
+  });
+  const { at: barAt } = usePlacement({
+    open: Boolean(bar) && !slash,
+    anchor: barAnchor,
+    panel: barPanel,
+    prefer: "above",
+  });
+
   slashOpen.current = Boolean(slash) && shown.length > 0;
+  shownCount.current = shown.length;
   chosen.current = () => {
     const block = shown[Math.min(at, shown.length - 1)];
     if (block) put(block);
@@ -925,18 +1412,68 @@ export function MarkdownEditor({
   };
 
   return (
-    <div className="relative">
+    <div className="relative" onPointerMove={overBlock} onPointerLeave={() => !dragging && setRail(undefined)}>
       <div ref={host} className="min-h-72" />
+      {/* The rail, outside the text so it never reflows a line. It follows the
+          pointer down the page rather than being drawn on every block: a
+          margin full of controls is a margin nobody reads next to. */}
+      {rail && !dragging && (
+        <div
+          ref={handleRail}
+          style={{ position: "fixed", left: rail.left - 46, top: rail.top }}
+          className="z-popover flex items-center gap-0.5"
+        >
+          <button
+            type="button"
+            aria-label="Add a block below"
+            title="Add a block below"
+            onMouseDown={(event) => {
+              event.preventDefault();
+              const made = view.current;
+              if (made) insertAfter(made, rail.block);
+            }}
+            className="flex size-5 items-center justify-center rounded-[5px] text-muted hover:bg-hover hover:text-ink"
+          >
+            <Plus />
+          </button>
+          <button
+            type="button"
+            aria-label="Move or change this block"
+            title="Drag to move · click for options"
+            onPointerDown={onDrag}
+            onClick={() => {
+              const made = view.current;
+              const box = made?.coordsAtPos(rail.block.from);
+              if (box) setBlockMenu({ block: rail.block, spot: { left: box.left - 46, top: box.top, bottom: box.bottom } });
+            }}
+            className="flex size-5 cursor-grab items-center justify-center rounded-[5px] text-muted hover:bg-hover hover:text-ink"
+          >
+            <Grip />
+          </button>
+        </div>
+      )}
+      {/* Where it would land. A block that jumps to a new place with no line
+          drawn first is a block you have to undo to find out about. */}
+      {dragging && (
+        <div
+          aria-hidden
+          style={{ position: "fixed", left: (rail?.left ?? 0) - 8, top: dragging.y - 1, width: "44rem" }}
+          className="z-popover h-0.5 rounded-full bg-accent"
+        />
+      )}
       {/* What can be done to a passage, where the passage is. It used to be one
           button in the page header, disabled whenever nothing was selected and
           explaining its own disabled-ness in a tooltip — an action parked
           where the thing it acts on never is. */}
       {bar && !slash && (
+        <>
+          <span aria-hidden ref={barAnchor} style={spotStyle(bar)} />
         <div
+          ref={barPanel}
           role="toolbar"
           aria-label="Format the selected passage"
-          style={{ left: bar.left, top: bar.top }}
-          className="logue-float absolute z-popover flex items-center gap-0.5 p-0.5"
+          style={floatingStyle(barAt)}
+          className="logue-float z-popover flex items-center gap-0.5 p-0.5"
         >
           <Key label="Bold" keys="⌘B" onMouseDown={run(wrap("**"))}>
             <span className="font-[750]">B</span>
@@ -970,13 +1507,75 @@ export function MarkdownEditor({
             </>
           )}
         </div>
+        </>
+      )}
+      {blockMenu && (
+        <>
+          <span aria-hidden ref={blockMenuAnchor} style={spotStyle(blockMenu.spot)} />
+          <div
+            ref={blockMenuPanel}
+            role="menu"
+            aria-label="This block"
+            style={floatingStyle(blockMenuAt)}
+            className="logue-float z-popover w-52 overflow-y-auto py-1"
+          >
+            {[
+              { label: "Duplicate", run: (made: EditorView) => duplicateBlock(made, blockMenu.block) },
+              { label: "Delete", run: (made: EditorView) => removeBlock(made, blockMenu.block) },
+            ].map((one) => (
+              <button
+                key={one.label}
+                type="button"
+                role="menuitem"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  const made = view.current;
+                  if (made) one.run(made);
+                  setBlockMenu(undefined);
+                  setRail(undefined);
+                }}
+                className="flex w-full items-center px-2.5 py-1 text-left text-[12.5px] text-ink-soft hover:bg-hover"
+              >
+                {one.label}
+              </button>
+            ))}
+            <div role="separator" className="my-1 h-px bg-line" />
+            <p className="px-2.5 py-0.5 text-[10.5px] font-[560] tracking-[0.04em] text-muted uppercase">Turn into</p>
+            {TURNS.map((one) => (
+              <button
+                key={one.key}
+                type="button"
+                role="menuitem"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  const made = view.current;
+                  if (!made) return;
+                  // The command works on the selection, so the block is put
+                  // under it first — a menu acting on a different line than
+                  // the one it opened over would be the worst kind of surprise.
+                  made.dispatch({ selection: { anchor: blockMenu.block.from, head: blockMenu.block.to } });
+                  turn(one.mark)(made);
+                  setBlockMenu(undefined);
+                  setRail(undefined);
+                }}
+                className="flex w-full items-center gap-2 px-2.5 py-1 text-left text-[12.5px] text-ink-soft hover:bg-hover"
+              >
+                <span className="flex-1">{one.label}</span>
+                <span className="font-mono text-[10.5px] text-muted">{one.mark.trim() || "¶"}</span>
+              </button>
+            ))}
+          </div>
+        </>
       )}
       {slash && shown.length > 0 && (
+        <>
+          <span aria-hidden ref={slashAnchor} style={spotStyle(slash.spot)} />
         <div
+          ref={slashPanel}
           role="listbox"
           aria-label="Insert a block"
-          style={{ left: slash.left, top: slash.top }}
-          className="logue-float absolute z-popover w-56 overflow-hidden py-1"
+          style={floatingStyle(slashAt)}
+          className="logue-float z-popover w-56 overflow-y-auto py-1"
         >
           {shown.map((block, index) => (
             <button
@@ -1001,9 +1600,15 @@ export function MarkdownEditor({
             </button>
           ))}
         </div>
+        </>
       )}
     </div>
   );
+}
+
+/** The zero-width stand-in for a caret or a selection's first character. */
+function spotStyle(spot: Spot): React.CSSProperties {
+  return { position: "fixed", left: spot.left, top: spot.top, width: 1, height: spot.bottom - spot.top };
 }
 
 /** One key on the passage toolbar: a letter, and the shortcut it doubles. */
@@ -1028,6 +1633,27 @@ function Key({
     >
       {children}
     </button>
+  );
+}
+
+function Plus() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+function Grip() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden>
+      <circle cx="9" cy="6" r="1.4" />
+      <circle cx="15" cy="6" r="1.4" />
+      <circle cx="9" cy="12" r="1.4" />
+      <circle cx="15" cy="12" r="1.4" />
+      <circle cx="9" cy="18" r="1.4" />
+      <circle cx="15" cy="18" r="1.4" />
+    </svg>
   );
 }
 

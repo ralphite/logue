@@ -43,6 +43,7 @@ export function usePlacement({
   panel,
   align = "start",
   match = false,
+  prefer = "below",
 }: {
   open: boolean;
   /** What it hangs off. */
@@ -53,6 +54,15 @@ export function usePlacement({
   align?: "start" | "end";
   /** Whether it should be at least as wide as its trigger — a select does. */
   match?: boolean;
+  /**
+   * Which side to take when both would fit.
+   *
+   * A menu belongs under the thing that opened it. A toolbar over a selected
+   * passage belongs above it — put below, it covers the words it acts on,
+   * which is the one place it must not be. Either way the other side is still
+   * taken when this one does not fit.
+   */
+  prefer?: "below" | "above";
 }): { at?: Placement; width?: number } {
   const [at, setAt] = useState<Placement>();
   const [width, setWidth] = useState<number>();
@@ -75,7 +85,7 @@ export function usePlacement({
       const above = from.top - EDGE - GAP;
       // Up only when there is genuinely more room up there: flipping into a
       // smaller space to avoid a scrollbar helps nobody.
-      const goesUp = size.height > below && above > below;
+      const goesUp = prefer === "above" ? size.height <= above || above > below : size.height > below && above > below;
       const wanted = align === "end" ? from.right - size.width : from.left;
       setWidth(match ? Math.max(from.width, size.width) : undefined);
       setAt({
@@ -99,7 +109,7 @@ export function usePlacement({
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [open, anchor, panel, align, match]);
+  }, [open, anchor, panel, align, match, prefer]);
 
   return { at, width };
 }

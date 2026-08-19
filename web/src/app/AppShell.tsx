@@ -95,6 +95,11 @@ export function AppShell({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!event.metaKey && !event.ctrlKey) return;
+      // ⌘⌥1…7 turns the block the caret is in into a heading or a list, and
+      // this used to answer for it as well: the block changed *and* the app
+      // walked off to another section. A chord with ⌥ in it is not one of the
+      // chords bound here.
+      if (event.altKey) return;
       if (event.key === "\\") {
         event.preventDefault();
         setCollapsed((was) => !was);
