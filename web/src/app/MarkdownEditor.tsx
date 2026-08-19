@@ -1297,6 +1297,10 @@ export function MarkdownEditor({
     if (!made || made.state.doc.toString() === value) return;
     made.dispatch({
       changes: { from: 0, to: made.state.doc.length, insert: value },
+      // The caret stays where the person left it, clamped to the new end.
+      // A whole-document insert would otherwise carry it to the bottom of
+      // the page — an automatic write must not take the caret with it.
+      selection: { anchor: Math.min(made.state.selection.main.head, value.length) },
       annotations: fromTheHost.of(true),
     });
   }, [value]);

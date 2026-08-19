@@ -741,7 +741,10 @@ already ahead — what was missing was ordinary editor furniture.)
   pending change for the person when it has, and dropped without a version when
   nothing actually changed. `begin` still refuses a stale `--revision`, so an
   agent that read an old working copy is told to read again rather than build
-  on air. Appending needs none of this — it cannot overwrite anything.
+  on air. Appending needs no base — it cannot overwrite anything — but an
+  agent's addition still lands as an agent version, with the person's unsaved
+  words kept as a user version first: in the history the two stay tellable
+  apart whichever write the agent used.
 - **The outside agent adds; it does not tidy up.** It may read, append, replace
   and create. Deleting a document is not something it does on its own — that is
   the same rule the in-product agent lives under, applied to a bigger blast

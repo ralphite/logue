@@ -107,6 +107,7 @@ of a broken one either — read the reason before either.**
 | `f3a` · `f3b` | ⌘⇧K opens and listens; the agent shows its working and asks before it writes |
 | `mic-level` | whether the fake microphone is feeding audio at all — the gate for every check below |
 | `speech` | real speech through the real model, and silence transcribing to nothing (no browser) |
+| `f8-versions` | the version model over the real Host: saves dedup, an outrun agent commit waits, apply keeps the person's words first, restore deletes nothing (no browser) |
 | `d2d3` | a kept item's words edited in the panel; a Skill's answer landing there and nowhere else |
 | `f5` | words learned from decisions, suggested from writing, never from transcripts |
 | `f6` | the transcription Skill is the one in the slot, and its words are the plan |

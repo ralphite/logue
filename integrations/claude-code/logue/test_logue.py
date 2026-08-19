@@ -123,8 +123,9 @@ class AgentProtocol(unittest.TestCase):
             "/agent/commit": {"result": "pending", "document": {}},
         }
         said = self.write()
-        self.assertIn("nothing was overwritten", said)
+        self.assertIn("Nothing was overwritten", said)
         self.assertIn("apply or discard", said)
+        self.assertIn("do not try to force", said)
 
     def test_an_unchanged_result_says_no_version_was_written(self) -> None:
         FakeHost.answers = {
@@ -142,14 +143,16 @@ class AgentProtocol(unittest.TestCase):
         self.assertEqual(path, "/v1/documents/doc_t1/agent/commit")
         self.assertEqual(payload, {"base_version_id": "rev_2", "content": "done", "label": "tidy"})
 
-    def test_append_sends_the_markdown_verbatim(self) -> None:
+    def test_append_sends_the_markdown_verbatim_as_an_agent(self) -> None:
         FakeHost.answers = {"/append": {"document": {"revision": 7}}}
         args = argparse.Namespace(document=self.link, text="## Found\n\n- one", file=None)
         with redirect_stdout(io.StringIO()):
             cmd_append(args)
         path, payload = FakeHost.seen[-1]
         self.assertEqual(path, "/v1/documents/doc_t1/append")
-        self.assertEqual(payload, {"text": "## Found\n\n- one"})
+        # `author` is what makes the Host keep the person's unsaved words as a
+        # user version and land this addition as an agent version.
+        self.assertEqual(payload, {"text": "## Found\n\n- one", "author": "agent"})
 
 
 if __name__ == "__main__":

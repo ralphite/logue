@@ -55,6 +55,12 @@ def main(argv: list[str] | None = None) -> int:
     if converted:
         print(f"Rewrote {converted} documents from HTML into Markdown.", flush=True)
 
+    # Versions used to be filed under the document's edit counter, so a real
+    # history read v1, v48, v56 — as if the middle had been thrown away.
+    renumbered = documents.renumber_versions(app.store)
+    if renumbered:
+        print(f"Renumbered {renumbered} document versions into 1…n.", flush=True)
+
     # Same reason: a version stuck on "working out what changed" is worse than
     # the counted line it would have fallen back to.
     described = summaries.catch_up(app.store, app.provider())

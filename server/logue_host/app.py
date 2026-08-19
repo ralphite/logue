@@ -358,8 +358,11 @@ class App:
         @route("POST", "/v1/documents/{id}/append")
         def append_to_document(request: Request) -> dict[str, Any]:
             body = request.json()
+            author = str(body.get("author") or "") or None
+            if author not in (None, documents.USER, documents.AGENT):
+                raise BadRequest("author can be user or agent")
             document = documents.append(
-                store, request.params["id"], str(body.get("text") or ""), body.get("source_ids")
+                store, request.params["id"], str(body.get("text") or ""), body.get("source_ids"), author=author
             )
             _describe_new_version(request.params["id"])
             return {"document": document}

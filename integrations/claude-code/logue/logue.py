@@ -165,7 +165,7 @@ def cmd_read(args: argparse.Namespace) -> None:
     print(f"link: {link_to(base, document_id)}")
     print(f"sources: {len(sources)}")
     if document.get("pending_agent"):
-        print("pending: an earlier agent result is waiting for the person's review")
+        print("pending: an agent result is waiting for the person's review")
     print("---")
     print(body)
     if sources:
@@ -187,10 +187,11 @@ def report_commit(answer: dict[str, Any], base: str, document_id: str) -> None:
     if result == "unchanged":
         print("No change against the base; no version was written.")
         return
+    # The first line is the report; the second is for you, the agent.
     print(
-        "The person edited this document while you worked, so nothing was overwritten.\n"
-        "Your result is waiting on the document for them to apply or discard —\n"
-        "tell them it is there, and do not try to force it in."
+        "The person edited this document while you worked. Nothing was overwritten; "
+        "your result is waiting on the document for them to apply or discard.\n"
+        "(Report that and stop — do not try to force the change in.)"
     )
 
 
@@ -201,7 +202,7 @@ def cmd_write(args: argparse.Namespace) -> None:
         die(
             "A replacing write must say which revision it read: --revision N "
             "(the number `read` printed), or --force to write regardless.\n"
-            "Without it, an edit the person made while you were thinking would go unnoticed."
+            "Without it, an edit made since you read is built over instead of read again."
         )
     text = incoming(args)
     payload: dict[str, Any] = {} if args.revision is None else {"expected_revision": int(args.revision)}
@@ -243,8 +244,10 @@ def cmd_commit(args: argparse.Namespace) -> None:
 
 def cmd_append(args: argparse.Namespace) -> None:
     base, document_id = resolve(args.document)
-    document = call(base, "POST", f"/v1/documents/{document_id}/append", {"text": incoming(args)})["document"]
-    print(f"Appended. Now revision {document.get('revision')} — {link_to(base, document_id)}")
+    document = call(
+        base, "POST", f"/v1/documents/{document_id}/append", {"text": incoming(args), "author": "agent"}
+    )["document"]
+    print(f"Appended, as an agent version. Now revision {document.get('revision')} — {link_to(base, document_id)}")
 
 
 def cmd_create(args: argparse.Namespace) -> None:
@@ -311,7 +314,7 @@ def main() -> None:
     write.add_argument("document")
     write.add_argument("--revision", type=int, help="the revision `read` reported")
     write.add_argument("--force", action="store_true", help="write without checking the revision")
-    write.add_argument("--label", help="a few words naming this change in the history")
+    write.add_argument("--label", help="a few words `versions` shows beside your version")
     with_text(write)
     write.set_defaults(run=cmd_write)
 
@@ -323,7 +326,7 @@ def main() -> None:
     commit = subs.add_parser("commit", help="land the finished result against the base `begin` printed")
     commit.add_argument("document")
     commit.add_argument("--base", required=True, help="the base id `begin` printed (empty string when it printed none)")
-    commit.add_argument("--label", help="a few words naming this change in the history")
+    commit.add_argument("--label", help="a few words `versions` shows beside your version")
     with_text(commit)
     commit.set_defaults(run=cmd_commit)
 

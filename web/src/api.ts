@@ -149,8 +149,6 @@ export interface Version {
   /** Who saved this state. Everything not an agent's is the person's. */
   author?: "user" | "agent";
   label?: string;
-  /** What rows from before authorship called themselves; `manual` was chosen. */
-  kind?: "autosave" | "manual" | null;
   /** What changed, in words. Written by a model, so it arrives late — documents only. */
   summary?: string;
   summary_state?: "pending" | "ready" | "failed";

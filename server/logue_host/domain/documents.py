@@ -115,9 +115,11 @@ def update(
 
     current = int(document.get("revision", 1))
     if expected_revision is not None and expected_revision != current:
+        # Worded once, here and in agent_begin: two endings on one refusal
+        # taught callers to match on the prefix and guess the rest.
         raise Conflict(
-            f"This document has moved on to revision {current}; your edit was written against "
-            f"revision {expected_revision}."
+            f"This document has moved on to revision {current}; you read revision {expected_revision}. "
+            "Read it again."
         )
 
     changed = any(changes.get(key) != document.get(key) for key in changes)
@@ -140,15 +142,25 @@ def update(
     return store.documents.put(document)
 
 
-def append(store: Store, document_id: str, text: str, source_ids: list[str] | None = None) -> Record:
+def append(
+    store: Store, document_id: str, text: str, source_ids: list[str] | None = None, *, author: str | None = None
+) -> Record:
     """Add to the end of a document, bringing the Sources with it.
 
     A read-modify-write from a caller that cannot see the document — the Side
     Panel, say — would overwrite whatever else was typed meanwhile. Appending
     is the operation that is actually meant, so it is the one offered.
+
+    An agent's addition is still an agent change, and keeps both of that
+    change's promises: the person's unsaved words become a user version
+    first, and the addition lands as an agent version — so it stays visible
+    in the history, and survives even a later "keep mine" over the working
+    copy. Appending needs no base for this: it cannot overwrite anything.
     """
     if not text.strip():
         raise BadRequest("there is nothing to add")
+    if author == AGENT:
+        save(store, document_id, author=USER)
     document = store.documents.get(document_id)
     body = str(document.get("content") or "")
     document["content"] = f"{body}\n\n{text.strip()}" if body.strip() else text.strip()
@@ -156,7 +168,10 @@ def append(store: Store, document_id: str, text: str, source_ids: list[str] | No
     document["revision"] = int(document.get("revision", 1)) + 1
     document["title"] = named(str(document.get("content") or ""))
     document["updated_at"] = now()
-    return store.documents.put(document)
+    appended = store.documents.put(document)
+    if author == AGENT:
+        save(store, document_id, author=AGENT)
+    return appended
 
 
 # -- a tree of documents ----------------------------------------------------
@@ -402,6 +417,33 @@ def to_markdown_store(store: Store) -> int:
     return changed
 
 
+def renumber_versions(store: Store) -> int:
+    """Number every document's versions 1…n, once.
+
+    Rows kept before 2026-08-19 were filed under the document's edit counter
+    of the day they were written, so a real history read v1, v48, v56 — under
+    a note promising nothing is thrown away. The number is the only handle a
+    person has on a version; it has to count the way it reads. Returns how
+    many rows moved, so the Host can say so at startup.
+    """
+    settings = store.settings()
+    if settings.get("doc_versions_renumbered"):
+        return 0
+    by_doc: dict[str, list[Record]] = {}
+    for row in store.doc_revisions.all():
+        by_doc.setdefault(str(row.get("doc_id") or ""), []).append(row)
+    changed = 0
+    for rows in by_doc.values():
+        rows.sort(key=lambda r: (int(r.get("revision") or 0), str(r.get("created_at") or "")))
+        for at, row in enumerate(rows, start=1):
+            if int(row.get("revision") or 0) != at:
+                row["revision"] = at
+                store.doc_revisions.put(row)
+                changed += 1
+    store.save_settings({**store.settings(), "doc_versions_renumbered": True})
+    return changed
+
+
 # -- versions -------------------------------------------------------------
 #
 # His design of 2026-08-19, in his own terms. Each document is one **working
@@ -424,14 +466,11 @@ def to_markdown_store(store: Store) -> int:
 # copy that moved while the agent worked is left alone, the result kept
 # beside the document as a pending change to apply or discard.
 
-#: Who a version was saved by.
+#: Who a version was saved by. Rows from before 2026-08-19 carried a `kind`
+#: (autosave/manual) instead; they read as the person's, like everything else
+#: no agent wrote, and stay restorable the same way.
 USER = "user"
 AGENT = "agent"
-
-#: What rows written before 2026-08-19 called themselves. A `manual` row was
-#: a state somebody chose to keep; both kinds stay readable and restorable.
-AUTOSAVE = "autosave"
-MANUAL = "manual"
 
 
 def content_hash(content: str) -> str:
@@ -541,6 +580,10 @@ def agent_commit(
         return {"result": "pending", "document": document}
 
     updated = update(store, document_id, {"content": content}, expected_revision=int(document.get("revision") or 1))
+    # An applied commit is the newest result. An older one still waiting must
+    # not outlive it: its Apply would roll the document back.
+    if updated.pop("pending_agent", None) is not None:
+        store.documents.put(updated)
     version = save(store, document_id, author=AGENT, label=label or None)
     return {"result": "applied", "document": updated, "version": version}
 
@@ -671,9 +714,6 @@ def versions(store: Store, document_id: str) -> list[Record]:
                 # from the person's own editing.
                 "author": AGENT if r.get("author") == AGENT else USER,
                 "label": r.get("label"),
-                # What older rows called themselves; `manual` still draws its
-                # "kept" mark.
-                "kind": str(r.get("kind") or "") or None,
             }
         )
     return history.stack(entries, _lines)

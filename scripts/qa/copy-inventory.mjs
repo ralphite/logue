@@ -23,8 +23,10 @@ import { join, relative } from "node:path";
 const ROOT = new URL("../..", import.meta.url).pathname.replace(/\/$/, "");
 const OUT = join(ROOT, "docs/spec/copy.md");
 
-/** Where the product speaks. Tests, stories and QA scripts are not the product. */
-const ROOTS = ["web/src", "extension/src", "packages/ui/src", "server/logue_host"];
+/** Where the product speaks. Tests, stories and QA scripts are not the product.
+ *  `integrations` is: what `logue.py` prints is read by an agent and repeated
+ *  to the person, and the versions review found its strings invisible here. */
+const ROOTS = ["web/src", "extension/src", "packages/ui/src", "server/logue_host", "integrations/claude-code"];
 const SKIP = /(\.test\.|\.stories\.|storybook-static|node_modules|__pycache__|\/dist\/)/;
 
 /**
@@ -38,6 +40,17 @@ const SKIP = /(\.test\.|\.stories\.|storybook-static|node_modules|__pycache__|\/
  *    words in the product.
  *  * **Anything with brackets.** `Discard (Esc)` was dropped by a rule meant
  *    to catch code. A shortcut in a label is not code.
+ *
+ * And on 2026-08-19, after the versions review found the two sentences that
+ * hold a semicolon — `Your words were kept; nothing was overwritten.` — were
+ * invisible to it: a `;` followed by a space is prose, not a statement. The
+ * same review found icon-labelled controls (`<X /> Discard`) and in-progress
+ * words (`Summarizing…`) invisible; both are widened below.
+ *
+ * Known hole, left honestly: a Python string carrying an escape (`"…\n"`) or
+ * split across concatenated lines never matches — reading those needs a real
+ * parser, not a wider net. logue.py's multi-line reports are in that hole;
+ * they are declared verbatim in docs/spec/features/document-versions.md.
  */
 function looksLikeCopy(text) {
   if (text.length < 2 || text.length > 400) return false;
@@ -49,14 +62,18 @@ function looksLikeCopy(text) {
   if (/^[A-Z_]+$/.test(text)) return false;
   // Code caught in a string: signatures, operators, keyword soup. A sentence
   // shown to a person has none of these — but `(Esc)` and `+1 −1` are words.
-  if (/[[\]=|&;]|=>|\bconst\b|\bfunction\b|\breturn\b|\bawait\b/.test(text)) return false;
+  if (/[[\]=|&]|;(?!\s)|=>|\bconst\b|\bfunction\b|\breturn\b|\bawait\b/.test(text)) return false;
   if (/\(\s*\)|\(.*[.=:].*\)/.test(text)) return false;
   // A fragment, not a sentence: begins or ends on punctuation that only makes
   // sense glued to something else.
   if (/^[\s,.:;+*/-]|[,:;+*/\\-]\s*$/.test(text)) return false;
   // A phrase, or a word standing as a label. A label is capitalised or is one
   // of the few lowercase ones the product deliberately uses.
-  return /\s/.test(text) || /^[A-Z][a-z]+$/.test(text) || /^(esc|kept|current|sources?|pages?)$/.test(text);
+  // A trailing ellipsis is how a state in progress is written — `Summarizing…`,
+  // `Autosaving…` — not a different shape of word.
+  return (
+    /\s/.test(text) || /^[A-Z][a-z]+…?$/.test(text) || /^(esc|kept|current|sources?|pages?|now|agent)$/.test(text)
+  );
 }
 
 function walk(dir, found = []) {
@@ -82,6 +99,18 @@ function stringsIn(source, path) {
     }
     // JSX text between tags: >Some words<
     for (const match of code.matchAll(/>([^<>{}\n]{2,200})</g)) {
+      const text = match[1].trim();
+      if (text && looksLikeCopy(text)) found.push({ at: index + 1, text });
+    }
+    // Text sharing its line with an element on one side only — `<X /> Discard`,
+    // `<Spinner /> Reading`, `Go back to this` before a closing tag on the next
+    // line. This is how every icon-labelled control is written, and the 2026-08-19
+    // review found all of them invisible here.
+    for (const match of code.matchAll(/[>}]\s*([^<>{}\n]{2,200}?)\s*$/g)) {
+      const text = match[1].trim();
+      if (text && looksLikeCopy(text)) found.push({ at: index + 1, text });
+    }
+    for (const match of code.matchAll(/^\s*([^<>{}\n]{2,200}?)\s*(?=<\/)/g)) {
       const text = match[1].trim();
       if (text && looksLikeCopy(text)) found.push({ at: index + 1, text });
     }

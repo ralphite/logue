@@ -567,8 +567,11 @@ function DocumentEditor({
     setRevision(doc.revision);
     setConflict(false);
     // A different text is under the editor now — a restore, an applied agent
-    // change, another page — so the save control stops answering for the old one.
-    setKept(undefined);
+    // change, another page — so the save control stops answering for the old
+    // one. Only for a *different* text: the save's own write moves the
+    // workspace counter, and the refresh that follows must not eat the
+    // "Saved as a version" it is the receipt for.
+    if (doc.content !== written.current) setKept(undefined);
   }, [doc]);
 
   const write = async (changes: { content?: string }, force = false): Promise<boolean> => {
@@ -609,7 +612,10 @@ function DocumentEditor({
    * of a sentence is in this tab.
    */
   const [waitingToSave, setWaitingToSave] = useState(false);
-  useHoldsUnsaved(waitingToSave || action.busy);
+  // Conflict is a dirty state too: the tab holds the only copy of the words
+  // the 409 refused, and a quiet refresh would put the other writer's text
+  // over them. Held until the person chooses Keep or Discard.
+  useHoldsUnsaved(waitingToSave || action.busy || conflict);
 
   /** Autosave on a pause, not on every keystroke — history should read as edits. */
   const queueSave = (changes: { content?: string }) => {
@@ -639,7 +645,11 @@ function DocumentEditor({
    */
   const saveVersion = () => {
     if (draft) return;
+    // This flush replaces the queued autosave; the flag has to fall with the
+    // timer, or "Autosaving…" stands forever and holds the whole tab's
+    // refreshes with it.
     window.clearTimeout(timer.current);
+    setWaitingToSave(false);
     void editing.run(async () => {
       if (!(await write(mine()))) return;
       const answer = await api.saveVersion(id);
@@ -713,6 +723,7 @@ function DocumentEditor({
                 <Button
                   onClick={() => {
                     window.clearTimeout(timer.current);
+                    setWaitingToSave(false);
                     void action.run(() => write(mine(), true));
                   }}
                 >
@@ -722,6 +733,8 @@ function DocumentEditor({
                   variant="ghost"
                   onClick={() => {
                     window.clearTimeout(timer.current);
+                    setWaitingToSave(false);
+                    setConflict(false);
                     void loaded.refresh();
                   }}
                 >
@@ -772,7 +785,7 @@ function DocumentEditor({
               <footer className="mt-6 flex items-center gap-2 border-t border-line pt-2 text-xs text-muted">
                 {draft && <span>Not saved yet</span>}
                 {!draft && (
-                  <Tooltip label="Every saved version is kept">
+                  <Tooltip label="Every version of this document">
                     <button
                       type="button"
                       onClick={() => setLooking(true)}
@@ -784,13 +797,21 @@ function DocumentEditor({
                 )}
                 {/* Whether the words are on disk, said once and plainly. A
                     document autosaves on a pause, and between the keystroke
-                    and the save this tab holds the only copy. */}
-                {waitingToSave ? <span>Saving…</span> : saved ? <span>Saved {timeAgo(saved)}</span> : null}
+                    and the save this tab holds the only copy. "Autosaved",
+                    not "Saved": on this screen the bare word belongs to
+                    versions, and these two acts must not share it. */}
+                {waitingToSave ? <span>Autosaving…</span> : saved ? <span>Autosaved {timeAgo(saved)}</span> : null}
                 <span className="tabular-nums">{words(text)}</span>
+                {/* ⌘S is a deliberate act; failing silently reads as saved. */}
+                {editing.error && (
+                  <span role="alert" className="text-danger">
+                    {editing.error}
+                  </span>
+                )}
                 {/* Typing writes the working copy and nothing else; this is
                     the save that makes history — when something changed. */}
                 {!draft && (
-                  <Tooltip label="Save the working copy as a version to come back to (⌘S)">
+                  <Tooltip label="Save the working copy as a version" keys="⌘S">
                     <button
                       type="button"
                       onClick={saveVersion}
@@ -800,7 +821,7 @@ function DocumentEditor({
                     </button>
                   </Tooltip>
                 )}
-                {action.busy && <Spinner size={11} />}
+                {(action.busy || editing.busy) && <Spinner size={11} />}
               </footer>
             </article>
 

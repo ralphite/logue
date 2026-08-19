@@ -23,14 +23,16 @@ export const DOCUMENT: Kind = {
   versions: api.documentVersions,
   diff: api.documentDiff,
   restore: api.restoreDocument,
-  note: "Restoring keeps every version; unsaved changes are saved first.",
+  // The button's verb, used for the whole act: one word or the person is
+  // left wondering whether restoring and going back are two things.
+  note: "Going back keeps every version; unsaved changes are saved first.",
 };
 
 export const SKILL: Kind = {
   versions: api.skillVersions,
   diff: api.skillDiff,
   restore: api.restoreSkill,
-  note: "Restoring writes a new revision; Runs keep the prompt they ran with.",
+  note: "Going back writes a new revision; Runs keep the prompt they ran with.",
 };
 
 /** How long to wait between asking whether the missing lines have arrived. */
@@ -81,19 +83,13 @@ function Entry({ version, onOpen }: { version: Version; onOpen: () => void }) {
       </span>
       <Change added={version.added} removed={version.removed} />
       {/* An agent's save, told apart from the person's: the history is where
-          the two must stay tellable apart. */}
+          the two must stay tellable apart. The current row needs no chip —
+          "now" on the left is the whole fact. */}
       {version.author === "agent" && !version.current && (
         <span className="shrink-0 rounded-full border border-accent-line bg-accent-soft px-1.5 text-[10px] font-[650] text-accent-ink">
           agent
         </span>
       )}
-      {/* A version somebody chose to keep, from before saves carried authors. */}
-      {version.kind === "manual" && !version.current && (
-        <span className="shrink-0 rounded-full border border-accent-line bg-accent-soft px-1.5 text-[10px] font-[650] text-accent-ink">
-          kept
-        </span>
-      )}
-      {version.current && <span className="shrink-0 text-xs text-muted">current</span>}
     </button>
   );
 }
@@ -192,7 +188,13 @@ export function History({
   };
 
   return (
-    <Dialog open={open} onClose={close} title={looking ? `Version ${looking.revision}` : "History"}>
+    <Dialog
+      open={open}
+      onClose={close}
+      // The row's own name: `v4` the way every surface writes it, and the
+      // working copy is "Now" — never a number no save has written.
+      title={looking ? (looking.current ? "Now" : `v${looking.revision}`) : "History"}
+    >
       {versions.error && <ErrorNote>{versions.error}</ErrorNote>}
       {action.error && <ErrorNote>{action.error}</ErrorNote>}
 
@@ -203,7 +205,7 @@ export function History({
             onClick={() => setLooking(undefined)}
             className="flex items-center gap-1 self-start rounded-md py-0.5 text-xs text-muted hover:text-ink"
           >
-            <ChevronLeft size={13} /> All versions
+            <ChevronLeft size={13} /> History
           </button>
           <Diff kind={kind} id={id} revision={looking.revision} />
           <DialogActions>

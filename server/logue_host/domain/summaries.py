@@ -43,6 +43,10 @@ def counted(added: int, removed: int) -> str:
 
     Not an error and not a blank: it is the true, dull version of the same
     fact, and a history row that says nothing at all reads as a broken row.
+    A version whose diff holds no lines still changed the text — a blank line
+    added, markup moved — and `no visible change` on a saved version was one
+    of the defects the review process exists to kill, so that one names what
+    actually happened instead.
     """
     if added and removed:
         return f"{added} added, {removed} removed"
@@ -50,7 +54,7 @@ def counted(added: int, removed: int) -> str:
         return f"{added} added"
     if removed:
         return f"{removed} removed"
-    return "no visible change"
+    return "Formatting only"
 
 
 def _as_prompt(lines: list[Record]) -> str:

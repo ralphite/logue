@@ -1448,6 +1448,23 @@ class DocumentHistory(Workspace, unittest.TestCase):
         with self.assertRaises(NotFound):
             self.call("POST", f"/v1/documents/{document_id}/versions/99/restore", {})
 
+    def test_legacy_version_numbers_are_renumbered_once(self) -> None:
+        # Rows filed under the old edit counter read v1, v48, v56 — as if the
+        # middle had been thrown away. The number has to count the way it reads.
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        for revision, when in ((1, "2026-08-01T00:00:00Z"), (48, "2026-08-02T00:00:00Z"), (56, "2026-08-03T00:00:00Z")):
+            self.app.store.doc_revisions.put(
+                {"id": f"rev_old_{revision}", "doc_id": doc["id"], "revision": revision,
+                 "content": f"body {revision}", "created_at": when}
+            )
+        self.assertEqual(documents.renumber_versions(self.app.store), 2, "v1 stays; v48 and v56 move")
+        rows = sorted(
+            (r for r in self.app.store.doc_revisions.all() if r["doc_id"] == doc["id"]),
+            key=lambda r: int(r["revision"]),
+        )
+        self.assertEqual([r["revision"] for r in rows], [1, 2, 3])
+        self.assertEqual(documents.renumber_versions(self.app.store), 0, "it runs once")
+
 
 class AgentWrites(Workspace, unittest.TestCase):
     """An outside agent's writes: a fixed base, an atomic landing, and the
@@ -1552,6 +1569,43 @@ class AgentWrites(Workspace, unittest.TestCase):
         dropped = self.call("POST", f"/v1/documents/{doc['id']}/pending/discard", {})["document"]
         self.assertNotIn("pending_agent", dropped)
         self.assertEqual(dropped["content"], "one\n\nperson typed")
+
+    def test_an_applied_commit_replaces_an_older_waiting_result(self) -> None:
+        # One slot: the newest result owns it. An older one left waiting would
+        # offer an Apply that rolls the document back past the newer version.
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        first = self.call("POST", f"/v1/documents/{doc['id']}/agent/begin", {})
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\nperson typed"})
+        self.call(
+            "POST",
+            f"/v1/documents/{doc['id']}/agent/commit",
+            {"base_version_id": first["base_version"]["id"], "content": "one\n\nolder result"},
+        )
+        second = self.call("POST", f"/v1/documents/{doc['id']}/agent/begin", {})
+        answer = self.call(
+            "POST",
+            f"/v1/documents/{doc['id']}/agent/commit",
+            {"base_version_id": second["base_version"]["id"], "content": "one\n\nperson typed\n\nnewer result"},
+        )
+        self.assertEqual(answer["result"], "applied")
+        held = self.call("GET", f"/v1/documents/{doc['id']}")["document"]
+        self.assertNotIn("pending_agent", held, "the older waiting result must not outlive the applied one")
+
+    def test_an_agent_append_lands_as_versions(self) -> None:
+        # The same two promises as a replacing write: his unsaved words become
+        # a user version first, and the addition is an agent version.
+        doc = self.call("POST", "/v1/documents", {"content": "his words"})["document"]
+        self.call("POST", f"/v1/documents/{doc['id']}/append", {"text": "the agent's section", "author": "agent"})
+        versions = self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"]
+        saved = [v["author"] for v in versions if not v.get("current")]
+        self.assertEqual(saved, ["agent", "user"], "newest first: the addition over his kept words")
+        self.assertFalse(versions[0]["unsaved"], "the appended state is the agent version")
+
+    def test_a_plain_append_stays_a_plain_edit(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "his words"})["document"]
+        self.call("POST", f"/v1/documents/{doc['id']}/append", {"text": "typed through the panel"})
+        versions = self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"]
+        self.assertEqual(len(versions), 1, "no author, no version: the panel append is the person's own edit")
 
     def test_a_base_from_another_document_is_refused(self) -> None:
         other = self.call("POST", "/v1/documents", {"content": "elsewhere"})["document"]

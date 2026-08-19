@@ -74,9 +74,11 @@ The build fails because ...
 EOF
 ```
 
-`append` cannot overwrite anything, so it needs no revision and writes no
-version. Prefer it whenever the job is "add a section", "write your findings
-here", "leave a summary".
+`append` cannot overwrite anything, so it needs no revision. Prefer it
+whenever the job is "add a section", "write your findings here", "leave a
+summary". It keeps the same two promises as a replacing write: the person's
+unsaved words are saved as their version first, and your addition lands as an
+agent version.
 
 ## Replacing the body
 
@@ -85,15 +87,17 @@ python3 ~/.claude/skills/logue/logue.py write <link> --revision 36 --file draft.
 ```
 
 Read, change what needs changing, send the **whole** new body. `--label` is a
-few words the history shows beside your version.
+few words `versions` shows beside your version; the person's own History list
+shows a written line instead.
 
 The answer tells you what happened — repeat it to the person:
 
 - `Applied as v4 (agent version)` — it landed.
 - `No change against the base; no version was written.` — your output matched
   what you started from.
-- `The person edited this document while you worked …` — nothing was
-  overwritten; your result is waiting on the document for their review.
+- `The person edited this document while you worked. Nothing was overwritten …`
+  — your result is waiting on the document for their review. Report that and
+  stop.
 
 If it answers `Refused: This document has moved on to revision N` — read
 again, re-apply your change, write again with the new number. Never reach for

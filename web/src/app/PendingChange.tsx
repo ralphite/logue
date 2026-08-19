@@ -41,7 +41,7 @@ export function PendingChange({ id, onSettled }: { id: string; onSettled: () => 
           </Button>
         }
       >
-        An agent finished a change while you were editing. Your words were kept; nothing was overwritten.
+        An agent finished a change while you were editing. Nothing was overwritten — review it to apply or discard.
       </Notice>
       {action.error && <ErrorNote className="mb-3">{action.error}</ErrorNote>}
 
@@ -51,6 +51,8 @@ export function PendingChange({ id, onSettled }: { id: string; onSettled: () => 
           <p className="flex items-center gap-2 px-2 py-4 text-xs text-muted">
             <Spinner size={12} /> Reading
           </p>
+        ) : (pending.data?.lines ?? []).every((line) => line.kind === "same") ? (
+          <p className="px-2 py-4 text-xs text-muted">No visible change.</p>
         ) : (
           <div className="logue-scroll max-h-80 rounded-md border border-line">
             {(pending.data?.lines ?? []).map((line) => (
@@ -71,7 +73,8 @@ export function PendingChange({ id, onSettled }: { id: string; onSettled: () => 
             ))}
           </div>
         )}
-        <p className="text-xs text-muted">Applying saves your current text as a version first.</p>
+        {/* The same promise the history dialog makes, in the same words. */}
+        <p className="text-xs text-muted">Applying keeps every version; unsaved changes are saved first.</p>
         <DialogActions>
           <Button disabled={action.busy} onClick={() => settle(() => api.discardPendingChange(id))}>
             <X size={13} /> Discard
