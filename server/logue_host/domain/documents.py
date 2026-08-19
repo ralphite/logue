@@ -1,14 +1,14 @@
 """Documents: generated results the user keeps editing.
 
-Autosave writes a revision only when the text actually changed, so the history
-records edits rather than keystrokes.
+Each document is one working copy over a set of immutable versions. Editing
+writes the working copy and nothing else; a version exists because a save —
+the person's, or an agent's — changed something.
 """
 
 from __future__ import annotations
 
 import hashlib
 import re
-from datetime import UTC, datetime
 from typing import Any
 
 from ..errors import BadRequest, Conflict, NotFound
@@ -62,12 +62,14 @@ def create(
     content: str = "",
     source_ids: list[str] | None = None,
     parent: str | None = None,
+    author: str | None = None,
 ) -> Record:
     """A new document. A name handed in becomes its first line, not a field.
 
     Generations and the agent both arrive with a name they chose — and that
     name has to live in the text now, or it is exactly the separate title this
-    change removed.
+    change removed. A document born with an agent's words gets that state as
+    its first version, so what was handed over can always be come back to.
     """
     timestamp = now()
     body = str(content or "")
@@ -75,7 +77,7 @@ def create(
         body = f"# {title.strip()}\n\n{body}" if body.strip() else f"# {title.strip()}"
     if parent:
         store.documents.get(parent)
-    return store.documents.put(
+    document = store.documents.put(
         {
             "id": new_id("document"),
             "title": named(body),
@@ -90,6 +92,9 @@ def create(
             "updated_at": timestamp,
         }
     )
+    if author == AGENT and body.strip():
+        save(store, str(document["id"]), author=AGENT)
+    return document
 
 
 def update(
@@ -123,7 +128,8 @@ def update(
         return document
 
     if "content" in changes:
-        _mark_sitting(store, document)
+        # The working copy and nothing else. A version is made by a save,
+        # never by the fact of typing.
         document["revision"] = document.get("revision", 1) + 1
 
     document.update(changes)
@@ -147,16 +153,6 @@ def append(store: Store, document_id: str, text: str, source_ids: list[str] | No
     body = str(document.get("content") or "")
     document["content"] = f"{body}\n\n{text.strip()}" if body.strip() else text.strip()
     document["source_ids"] = list(dict.fromkeys([*(document.get("source_ids") or []), *(source_ids or [])]))
-    store.doc_revisions.put(
-        {
-            "id": new_id("revision"),
-            "doc_id": document_id,
-            "revision": document.get("revision", 1),
-            "content": body,
-            "created_at": now(),
-            "summary_state": "pending",
-        }
-    )
     document["revision"] = int(document.get("revision", 1)) + 1
     document["title"] = named(str(document.get("content") or ""))
     document["updated_at"] = now()
@@ -408,23 +404,32 @@ def to_markdown_store(store: Store) -> int:
 
 # -- versions -------------------------------------------------------------
 #
-# Two things, kept apart, which is the whole of what he asked for on
-# 2026-08-13: *"版本管理照 Vibedoc 的做法"*.
+# His design of 2026-08-19, in his own terms. Each document is one **working
+# copy** — always there, always editable — over a set of immutable
+# **versions**. The newest version is the **base**: the state the working
+# copy grew out of, and the state a save is measured against.
 #
-#  * The **working copy** is the document. Autosave writes it and nothing else,
-#    so typing costs one file write and leaves no trail to wade through.
-#  * A **version** is a state you can go back to. One per sitting, and one
-#    whenever a person says so — never one per save, which is how a single
-#    sentence used to produce `v2..v7`.
+#  * Editing writes the working copy and nothing else.
+#  * Saving with nothing changed does nothing; a difference becomes one new
+#    version, which is the new base. Only meaningful saves make history.
+#  * A version records who saved it — the person, or an agent — because the
+#    two must stay tellable apart in the history.
 #
-# Each version carries a hash of what it holds, so going back to what a version
-# already says does not mint another identical one — vibedoc's `content_hash`
-# dedup, for the same reason: a history that repeats itself cannot be read.
+# An agent is asynchronous and must never cost the person their words, so its
+# writes follow three more of his rules: it works from a fixed version
+# (`agent_begin` saves any unsaved edits as a user version first, and hands
+# that base back); its result lands atomically (`agent_commit` applies the
+# whole change and its version together, or nothing — an agent that fails or
+# is cancelled simply never commits); and the person wins a race — a working
+# copy that moved while the agent worked is left alone, the result kept
+# beside the document as a pending change to apply or discard.
 
-#: Two saves this far apart are two sittings, and two versions.
-SITTING_SECONDS = 15 * 60
+#: Who a version was saved by.
+USER = "user"
+AGENT = "agent"
 
-#: Written by the autosave, and by a person.
+#: What rows written before 2026-08-19 called themselves. A `manual` row was
+#: a state somebody chose to keep; both kinds stay readable and restorable.
 AUTOSAVE = "autosave"
 MANUAL = "manual"
 
@@ -433,106 +438,170 @@ def content_hash(content: str) -> str:
     return hashlib.sha256(str(content or "").encode("utf-8")).hexdigest()
 
 
-def _seconds_since(iso: str) -> float:
-    try:
-        when = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
-    except ValueError:
-        return SITTING_SECONDS + 1
-    return (datetime.now(tz=UTC) - when).total_seconds()
+def _base(rows: list[Record]) -> Record | None:
+    """The version the working copy is based on: the newest one."""
+    return rows[-1] if rows else None
 
 
-def _mark_sitting(store: Store, document: Record) -> Record | None:
-    """Keep the state this sitting started from, once per sitting.
-
-    Called with the document as it stands *before* the edit, which is what a
-    person means by "go back": the version holds where you were, and the
-    document holds where you are.
-    """
-    document_id = str(document["id"])
-    rows = _kept(store, document_id)
-    newest = rows[-1] if rows else None
-    before = str(document.get("content") or "")
-
-    if newest is not None:
-        # Already inside a sitting, and not one a person closed: nothing new to
-        # be able to go back to.
-        if not newest.get("closed") and _seconds_since(str(newest.get("created_at") or "")) < SITTING_SECONDS:
-            return None
-        # The same words again — going back here would go nowhere.
-        if str(newest.get("content_hash") or "") == content_hash(before):
-            return None
-        # The sitting that just ended can be described now that it is finished.
-        newest["summary_state"] = "pending"
-        store.doc_revisions.put(newest)
-
-    return store.doc_revisions.put(
-        {
-            "id": new_id("revision"),
-            "doc_id": document_id,
-            "revision": document.get("revision", 1),
-            "content": before,
-            "content_hash": content_hash(before),
-            "kind": AUTOSAVE,
-            "created_at": now(),
-            # The line saying what this changed is written afterwards, by
-            # a model, so the save itself stays instant.
-            "summary_state": "pending",
-        }
-    )
+def unsaved(document: Record, base: Record | None) -> bool:
+    """Whether the working copy holds anything no version does."""
+    content = str(document.get("content") or "")
+    if base is None:
+        return bool(content.strip())
+    return str(base.get("content_hash") or "") != content_hash(content)
 
 
-def keep_version(store: Store, document_id: str) -> Record:
-    """Mark this state as a version, because a person said so.
+def save(store: Store, document_id: str, *, author: str = USER, label: str | None = None) -> Record | None:
+    """The working copy as a new version — if it differs from the base.
 
-    It holds the document as it reads now — press it and this is what "go
-    back" comes back to — and it ends the sitting, so the next edit starts a
-    new one. Refused when the newest version already says the same thing:
-    pressing it twice is not two versions.
+    A save that changed nothing is ignored rather than recorded: only
+    meaningful saves make history. The row returned is immutable from here
+    on; nothing writes into a version again.
     """
     document = store.documents.get(document_id)
-    content = str(document.get("content") or "")
     rows = _kept(store, document_id)
-    newest = rows[-1] if rows else None
-    if newest is not None and str(newest.get("content_hash") or "") == content_hash(content):
-        newest["kind"] = MANUAL
-        newest["closed"] = True
-        return store.doc_revisions.put(newest)
+    base = _base(rows)
+    if not unsaved(document, base):
+        return None
+    content = str(document.get("content") or "")
+    row: Record = {
+        "id": new_id("revision"),
+        "doc_id": document_id,
+        "revision": (int(base.get("revision") or 0) + 1) if base else 1,
+        "content": content,
+        "content_hash": content_hash(content),
+        "author": AGENT if author == AGENT else USER,
+        "created_at": now(),
+        # The line saying what this changed is written afterwards, by a
+        # model, so the save itself stays instant.
+        "summary_state": "pending",
+    }
+    if label:
+        row["label"] = str(label)[:120]
+    return store.doc_revisions.put(row)
 
-    if newest is not None:
-        newest["summary_state"] = "pending"
-        store.doc_revisions.put(newest)
 
-    kept = store.doc_revisions.put(
-        {
-            "id": new_id("revision"),
-            "doc_id": document_id,
-            "revision": int(document.get("revision") or 1),
-            "content": content,
-            "content_hash": content_hash(content),
-            "kind": MANUAL,
-            "closed": True,
-            "created_at": now(),
-            "summary_state": "pending",
-        }
+def agent_begin(store: Store, document_id: str, *, expected_revision: int | None = None) -> dict[str, Any]:
+    """Fix the version an agent will work from, keeping the person's words first.
+
+    Unsaved edits become a user version before anything else — the agent must
+    never be what cost the person theirs. What returns is the base: the exact
+    text the agent's result is measured against at commit. A stale
+    `expected_revision` is refused, so an agent that read an old working copy
+    reads again instead of building on air.
+    """
+    document = store.documents.get(document_id)
+    current = int(document.get("revision") or 1)
+    if expected_revision is not None and expected_revision != current:
+        raise Conflict(
+            f"This document has moved on to revision {current}; you read revision {expected_revision}. Read it again."
+        )
+    save(store, document_id, author=USER)
+    base = _base(_kept(store, document_id))
+    return {
+        "document": store.documents.get(document_id),
+        "base_version": {
+            "id": str(base["id"]) if base else "",
+            "revision": int(base.get("revision") or 0) if base else 0,
+            "content": str(base.get("content") or "") if base else "",
+        },
+    }
+
+
+def agent_commit(
+    store: Store, document_id: str, *, base_version_id: str, content: str, label: str = ""
+) -> dict[str, Any]:
+    """An agent's finished change: applied whole, held for review, or dropped.
+
+    Measured against the base `agent_begin` handed out, never against a
+    working copy that moves. Output matching the base leaves no version.
+    A working copy the person edited while the agent worked is not touched:
+    the result waits beside the document as a pending change instead of
+    silently winning.
+    """
+    document = store.documents.get(document_id)
+    rows = _kept(store, document_id)
+    base = next((r for r in rows if str(r["id"]) == str(base_version_id or "")), None)
+    if base_version_id and base is None:
+        raise BadRequest("That base version does not belong to this document. Begin again.")
+    base_content = str(base.get("content") or "") if base else ""
+    content = str(content or "")
+    if content == base_content:
+        return {"result": "unchanged", "document": document}
+
+    if str(document.get("content") or "") != base_content:
+        held: Record = {"content": content, "base_version_id": str(base_version_id or ""), "created_at": now()}
+        if label:
+            held["label"] = str(label)[:120]
+        # Not an edit: `updated_at` stays, so a proposal does not reorder the
+        # person's list. The write still moves the change counter, which is
+        # how an open editor learns there is something to review.
+        document["pending_agent"] = held
+        store.documents.put(document)
+        return {"result": "pending", "document": document}
+
+    updated = update(store, document_id, {"content": content}, expected_revision=int(document.get("revision") or 1))
+    version = save(store, document_id, author=AGENT, label=label or None)
+    return {"result": "applied", "document": updated, "version": version}
+
+
+def pending_change(store: Store, document_id: str) -> dict[str, Any]:
+    """The agent result waiting for a decision, and what applying it would change."""
+    document = store.documents.get(document_id)
+    held = document.get("pending_agent")
+    if not held:
+        return {"pending": None, "lines": []}
+    return {
+        "pending": held,
+        "lines": history.compare(
+            _lines(str(document.get("content") or "")), _lines(str(held.get("content") or ""))
+        ),
+    }
+
+
+def pending_apply(store: Store, document_id: str) -> dict[str, Any]:
+    """Take the waiting agent change, keeping the person's words first.
+
+    Applying replaces the working copy, and nothing that replaces the working
+    copy may lose it: unsaved edits are saved as a user version before the
+    agent's content lands as an agent version.
+    """
+    document = store.documents.get(document_id)
+    held = document.get("pending_agent")
+    if not held:
+        raise NotFound("There is no agent change waiting on this document.")
+    save(store, document_id, author=USER)
+    document = store.documents.get(document_id)
+    updated = update(
+        store,
+        document_id,
+        {"content": str(held.get("content") or "")},
+        expected_revision=int(document.get("revision") or 1),
     )
-    # The document moves on so the version is behind it rather than beside it:
-    # a version and a working copy holding the same revision number would make
-    # the next edit's concurrency check meaningless.
-    document["revision"] = int(document.get("revision") or 1) + 1
-    document["updated_at"] = now()
-    store.documents.put(document)
-    return kept
+    updated.pop("pending_agent", None)
+    store.documents.put(updated)
+    version = save(store, document_id, author=AGENT, label=str(held.get("label") or "") or None)
+    return {"document": updated, "version": version}
+
+
+def pending_discard(store: Store, document_id: str) -> Record:
+    """Drop the waiting agent change, touching nothing else."""
+    document = store.documents.get(document_id)
+    if document.pop("pending_agent", None) is not None:
+        store.documents.put(document)
+    return document
 
 
 # -- history --------------------------------------------------------------
 
 
 def _kept(store: Store, document_id: str) -> list[Record]:
-    """Every stored revision of one document, oldest first.
+    """Every version of one document, oldest first.
 
-    A stored row holds the content *before* the edit that replaced it, filed
-    under the revision number it was. The newest version is not in here — it is
-    the document itself.
+    A row holds the working copy as it read when somebody saved it. (Rows from
+    before 2026-08-19 hold the state a sitting started from instead — still a
+    state to go back to, read the same way.) The working copy is not in here:
+    it is the document itself.
     """
     rows = [r for r in store.doc_revisions.list() if r.get("doc_id") == document_id]
     return sorted(rows, key=lambda r: int(r.get("revision") or 0))
@@ -547,45 +616,72 @@ def _lines(content: str) -> list[str]:
     return [line for line in as_text(content).splitlines() if line.strip()]
 
 
+def _timeline(store: Store, document_id: str) -> list[Record]:
+    """The versions and then the working copy, oldest first.
+
+    The working copy sits one past the newest version, so the history's top
+    entry is addressable the same way a version is — without ever colliding
+    with a number a version already holds.
+    """
+    document = store.documents.get(document_id)
+    rows = _kept(store, document_id)
+    base = _base(rows)
+    return [
+        *rows,
+        {
+            "revision": (int(base.get("revision") or 0) + 1) if base else 1,
+            "content": document.get("content"),
+            "created_at": document.get("updated_at"),
+            "current": True,
+            "unsaved": unsaved(document, base),
+        },
+    ]
+
+
 def versions(store: Store, document_id: str) -> list[Record]:
     """The document's history, newest first, each saying what it changed.
 
-    The current text is version one of these too. Leaving it out made the list
-    read as "the old ones", with nothing saying where they end and now begins.
+    The working copy is the top entry — flagged `current`, and `unsaved` when
+    it differs from the base version — so the list says where the saved states
+    end and now begins.
     """
-    document = store.documents.get(document_id)
-    return history.stack(
-        [
-            *[
+    entries: list[Record] = []
+    for r in _timeline(store, document_id):
+        if r.get("current"):
+            entries.append(
                 {
-                    "id": r["id"],
+                    "id": "",
                     "revision": int(r.get("revision") or 0),
                     "text": str(r.get("content") or ""),
                     "created_at": r.get("created_at"),
-                    "summary": r.get("summary"),
-                    "summary_state": r.get("summary_state"),
-                    # Whether a person marked this state or the sitting did.
-                    "kind": str(r.get("kind") or AUTOSAVE),
+                    "current": True,
+                    "unsaved": bool(r.get("unsaved")),
                 }
-                for r in _kept(store, document_id)
-            ],
+            )
+            continue
+        entries.append(
             {
-                "id": "",
-                "revision": int(document.get("revision") or 1),
-                "text": str(document.get("content") or ""),
-                "created_at": document.get("updated_at"),
-                "current": True,
-            },
-        ],
-        _lines,
-    )
+                "id": r["id"],
+                "revision": int(r.get("revision") or 0),
+                "text": str(r.get("content") or ""),
+                "created_at": r.get("created_at"),
+                "summary": r.get("summary"),
+                "summary_state": r.get("summary_state"),
+                # Who saved this state. Rows from before authorship all came
+                # from the person's own editing.
+                "author": AGENT if r.get("author") == AGENT else USER,
+                "label": r.get("label"),
+                # What older rows called themselves; `manual` still draws its
+                # "kept" mark.
+                "kind": str(r.get("kind") or "") or None,
+            }
+        )
+    return history.stack(entries, _lines)
 
 
 def diff(store: Store, document_id: str, revision: int) -> list[Record]:
     """What one version changed, line by line, against the one before it."""
-    document = store.documents.get(document_id)
-    rows = _kept(store, document_id)
-    timeline = [*rows, {"revision": int(document.get("revision") or 1), "content": document.get("content")}]
+    timeline = _timeline(store, document_id)
     at = next((i for i, r in enumerate(timeline) if int(r.get("revision") or 0) == revision), None)
     if at is None:
         raise NotFound(f"This document has no version {revision}.")
@@ -595,23 +691,30 @@ def diff(store: Store, document_id: str, revision: int) -> list[Record]:
     )
 
 
-def newest_unwritten(store: Store, document_id: str) -> str | None:
-    """The most recent version still waiting for its line, if there is one."""
-    waiting = [r for r in _kept(store, document_id) if r.get("summary_state") == "pending"]
-    return str(waiting[-1]["id"]) if waiting else None
+def unwritten(store: Store, document_id: str) -> list[str]:
+    """The versions still waiting for their line, oldest first.
+
+    Plural because one act can save two: an agent's begin keeps the person's
+    unsaved edits and its commit keeps its own — and a line that never arrives
+    reads as a broken row.
+    """
+    return [str(r["id"]) for r in _kept(store, document_id) if r.get("summary_state") == "pending"]
 
 
-def restore(store: Store, document_id: str, revision: int) -> Record:
-    """Bring an old version back as a new edit.
+def restore(store: Store, document_id: str, revision: int, *, discard: bool = False) -> Record:
+    """Bring a version's text back into the working copy.
 
-    Written forward rather than rolled back: the versions in between stay, and
-    coming back from a restore is itself a restore. A history that loses its
-    tail every time someone looks at it is not a history.
+    Nothing after it is deleted: saving again writes a new version rather than
+    rewriting history. Restoring replaces the working copy, and nothing that
+    replaces the working copy may lose it — unsaved edits are saved as a user
+    version first, unless the person explicitly chose to discard them.
     """
     rows = _kept(store, document_id)
     found = next((r for r in rows if int(r.get("revision") or 0) == revision), None)
     if found is None:
         raise NotFound(f"This document has no version {revision} to go back to.")
+    if not discard:
+        save(store, document_id, author=USER)
     document = store.documents.get(document_id)
     return update(store, document_id, {"content": str(found.get("content") or "")},
                   expected_revision=int(document.get("revision") or 1))

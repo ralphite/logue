@@ -313,6 +313,9 @@ class App:
         @route("POST", "/v1/documents")
         def create_document(request: Request) -> dict[str, Any]:
             body = request.json()
+            author = str(body.get("author") or "") or None
+            if author not in (None, documents.USER, documents.AGENT):
+                raise BadRequest("author can be user or agent")
             return {
                 "document": documents.create(
                     store,
@@ -320,6 +323,7 @@ class App:
                     content=str(body.get("content") or ""),
                     source_ids=body.get("source_ids"),
                     parent=str(body.get("parent_id") or "") or None,
+                    author=author,
                 )
             }
 
@@ -331,14 +335,13 @@ class App:
             }
 
         def _describe_new_version(document_id: str) -> None:
-            """Ask a model what the version just written changed.
+            """Ask a model what the versions just written changed.
 
             After the save has already been answered, never before it: the
             editor autosaves on a pause and a model call in that path would be
             a pause someone can feel.
             """
-            waiting = documents.newest_unwritten(store, document_id)
-            if waiting:
+            for waiting in documents.unwritten(store, document_id):
                 summaries.in_background(store, self.provider(), waiting)
 
         @route("PATCH", "/v1/documents/{id}")
@@ -398,16 +401,22 @@ class App:
             )
 
         @route("POST", "/v1/documents/{id}/versions")
-        def keep_version(request: Request) -> dict[str, Any]:
-            """Mark this state as a version, because a person said so.
+        def save_version(request: Request) -> dict[str, Any]:
+            """Save the working copy as a version — when something changed.
 
-            The autosave keeps one version per sitting on its own; this is the
-            other half of vibedoc's model — a point somebody chose, which also
-            ends the sitting so the next edit starts a new one.
+            A working copy that still reads as its base version saves nothing:
+            only meaningful saves make history, so this answers `saved: false`
+            rather than minting a twin.
             """
-            kept = documents.keep_version(store, request.params["id"])
+            body = request.json()
+            kept = documents.save(store, request.params["id"], label=str(body.get("label") or "") or None)
+            if kept is None:
+                return {"saved": False, "version": None}
             summaries.in_background(store, self.provider(), str(kept["id"]))
-            return {"version": {"id": kept["id"], "revision": kept["revision"], "kind": kept.get("kind")}}
+            return {
+                "saved": True,
+                "version": {"id": kept["id"], "revision": kept["revision"], "author": kept.get("author")},
+            }
 
         @route("GET", "/v1/documents/{id}/versions")
         def document_versions(request: Request) -> dict[str, Any]:
@@ -419,7 +428,63 @@ class App:
 
         @route("POST", "/v1/documents/{id}/versions/{revision}/restore")
         def restore_document(request: Request) -> dict[str, Any]:
-            return {"document": documents.restore(store, request.params["id"], int(request.params["revision"]))}
+            body = request.json()
+            restored = documents.restore(
+                store, request.params["id"], int(request.params["revision"]), discard=bool(body.get("discard"))
+            )
+            # The save that kept the unsaved edits, if there was one, wants
+            # its line written.
+            _describe_new_version(request.params["id"])
+            return {"document": restored}
+
+        # -- an agent's writes ----------------------------------------------
+        #
+        # An outside agent works from a fixed version and lands its result
+        # whole. `begin` saves the person's unsaved edits as a user version
+        # and answers with the base; `commit` applies the result as an agent
+        # version — unless the person edited meanwhile, in which case it waits
+        # beside the document as a pending change for them to rule on.
+
+        @route("POST", "/v1/documents/{id}/agent/begin")
+        def agent_begin(request: Request) -> dict[str, Any]:
+            body = request.json()
+            expected = body.get("expected_revision")
+            answer = documents.agent_begin(
+                store, request.params["id"], expected_revision=None if expected is None else int(expected)
+            )
+            _describe_new_version(request.params["id"])
+            return answer
+
+        @route("POST", "/v1/documents/{id}/agent/commit")
+        def agent_commit(request: Request) -> dict[str, Any]:
+            body = request.json()
+            answer = documents.agent_commit(
+                store,
+                request.params["id"],
+                base_version_id=str(body.get("base_version_id") or ""),
+                content=str(body.get("content") or ""),
+                label=str(body.get("label") or ""),
+            )
+            version = answer.get("version")
+            if version:
+                summaries.in_background(store, self.provider(), str(version["id"]))
+            return answer
+
+        @route("GET", "/v1/documents/{id}/pending")
+        def pending_change(request: Request) -> dict[str, Any]:
+            return documents.pending_change(store, request.params["id"])
+
+        @route("POST", "/v1/documents/{id}/pending/apply")
+        def apply_pending(request: Request) -> dict[str, Any]:
+            answer = documents.pending_apply(store, request.params["id"])
+            # Applying can save twice — the person's unsaved edits, then the
+            # agent's change — and both rows want their line.
+            _describe_new_version(request.params["id"])
+            return answer
+
+        @route("POST", "/v1/documents/{id}/pending/discard")
+        def discard_pending(request: Request) -> dict[str, Any]:
+            return {"document": documents.pending_discard(store, request.params["id"])}
 
         @route("GET", "/v1/documents/{id}/markdown")
         def export_document(request: Request) -> Response:

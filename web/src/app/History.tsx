@@ -23,7 +23,7 @@ export const DOCUMENT: Kind = {
   versions: api.documentVersions,
   diff: api.documentDiff,
   restore: api.restoreDocument,
-  note: "Restoring writes a new version.",
+  note: "Restoring keeps every version; unsaved changes are saved first.",
 };
 
 export const SKILL: Kind = {
@@ -57,7 +57,9 @@ function Entry({ version, onOpen }: { version: Version; onOpen: () => void }) {
       onClick={onOpen}
       className="group flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left hover:bg-hover"
     >
-      <span className="w-14 shrink-0 text-xs text-muted">v{version.revision}</span>
+      {/* The top entry is the working copy, not a version, so it does not
+          wear a number a save has not written yet. */}
+      <span className="w-14 shrink-0 text-xs text-muted">{version.current ? "now" : `v${version.revision}`}</span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13px] text-ink">
           {/* `||`, not `??`: an empty summary is a version that changed no
@@ -66,7 +68,11 @@ function Entry({ version, onOpen }: { version: Version; onOpen: () => void }) {
             (version.summary_state === "pending" ? (
               <span className="text-muted">Summarizing…</span>
             ) : version.current ? (
-              "Now"
+              version.unsaved ? (
+                "Unsaved changes"
+              ) : (
+                "As saved"
+              )
             ) : (
               "Edited"
             ))}
@@ -74,8 +80,14 @@ function Entry({ version, onOpen }: { version: Version; onOpen: () => void }) {
         {version.created_at && <span className="text-xs text-muted">{timeAgo(version.created_at)}</span>}
       </span>
       <Change added={version.added} removed={version.removed} />
-      {/* A version somebody chose to keep, told apart from the ones a sitting
-          left behind: the whole reason for marking one. */}
+      {/* An agent's save, told apart from the person's: the history is where
+          the two must stay tellable apart. */}
+      {version.author === "agent" && !version.current && (
+        <span className="shrink-0 rounded-full border border-accent-line bg-accent-soft px-1.5 text-[10px] font-[650] text-accent-ink">
+          agent
+        </span>
+      )}
+      {/* A version somebody chose to keep, from before saves carried authors. */}
       {version.kind === "manual" && !version.current && (
         <span className="shrink-0 rounded-full border border-accent-line bg-accent-soft px-1.5 text-[10px] font-[650] text-accent-ink">
           kept

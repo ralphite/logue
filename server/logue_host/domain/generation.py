@@ -241,7 +241,11 @@ def to_document(store: Store, run_id: str, title: str = "") -> Record:
         "created_at": timestamp,
         "updated_at": timestamp,
     }
-    return store.documents.put(document)
+    store.documents.put(document)
+    # A model's words: keep the state handed over as version one, so editing
+    # away from it is never a one-way door.
+    documents.save(store, str(document["id"]), author=documents.AGENT)
+    return document
 
 
 def _source_id(entry: Any) -> str:

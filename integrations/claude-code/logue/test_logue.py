@@ -1,188 +1,155 @@
-"""What the skill's tool has to get right, pinned.
+"""The tool an outside agent holds, tested without a real Host.
 
-Nearly all of it is the two conversions, because that is where a mistake is
-silent: a write goes through, the Host is happy, and the person finds their
-document reformatted the next time they open it.
+The document format needs no tests any more — documents are Markdown and this
+tool sends and prints them verbatim. What is worth pinning is the protocol: a
+replacing write goes through `begin` and `commit`, says which revision it
+read, and repeats the Host's answer honestly — including the one where the
+person edited meanwhile and nothing was overwritten.
 """
 
 from __future__ import annotations
 
-import re
+import argparse
+import io
+import json
 import sys
+import threading
 import unittest
-from html.parser import HTMLParser
+from contextlib import redirect_stdout
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from logue import html_to_markdown, markdown_to_html, read_link  # noqa: E402
-
-
-class _Visible(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self.seen: list[str] = []
-
-    def handle_data(self, data: str) -> None:
-        self.seen.append(data)
-
-
-def visible(html: str) -> str:
-    """Every character a person can read, tags gone and whitespace ignored."""
-    parser = _Visible()
-    parser.feed(html)
-    parser.close()
-    return re.sub(r"\s+", "", "".join(parser.seen))
-
-
-class WhatAnAgentWrites(unittest.TestCase):
-    def test_markdown_becomes_the_editor_s_markup(self) -> None:
-        html = markdown_to_html("# Title\n\nA line.\n- one\n- two")
-        self.assertEqual(
-            html,
-            "<h1>Title</h1><div><br></div><div>A line.</div><ul><li>one</li><li>two</li></ul>",
-        )
-
-    def test_a_blank_line_survives_as_a_blank_line(self) -> None:
-        self.assertEqual(markdown_to_html("a\n\n\nb").count("<div><br></div>"), 2)
-
-    def test_adjacent_lines_stay_two_blocks(self) -> None:
-        self.assertEqual(markdown_to_html("a\nb"), "<div>a</div><div>b</div>")
-
-    def test_inline_marks(self) -> None:
-        html = markdown_to_html("**bold** *soft* `code` [text](http://x.test) ==lit==")
-        self.assertIn("<strong>bold</strong>", html)
-        self.assertIn("<em>soft</em>", html)
-        self.assertIn("<code>code</code>", html)
-        self.assertIn('<a href="http://x.test">text</a>', html)
-        self.assertIn("<mark>lit</mark>", html)
-
-    def test_a_document_is_never_a_way_to_run_html(self) -> None:
-        html = markdown_to_html("<script>alert(1)</script> a & b")
-        self.assertNotIn("<script>", html)
-        self.assertIn("&lt;script&gt;", html)
-        self.assertIn("a &amp; b", html)
-
-    def test_a_lone_backtick_stays_a_backtick(self) -> None:
-        self.assertEqual(markdown_to_html("```"), "<div>```</div>")
-
-    def test_a_stray_fence_does_not_swallow_what_follows_it(self) -> None:
-        # It used to pair with the next backtick on the line and eat the text
-        # in between, bold and all.
-        html = markdown_to_html("孤立的 ``` 被吃掉。现在 **零差异**,见 `npm test`。")
-        self.assertIn("孤立的 ``` 被吃掉", html)
-        self.assertIn("<strong>零差异</strong>", html)
-        self.assertIn("<code>npm test</code>", html)
-
-    def test_code_may_hold_a_backtick(self) -> None:
-        self.assertIn("<code>a ` b</code>", markdown_to_html("``a ` b``"))
-
-
-class WhatAnAgentReads(unittest.TestCase):
-    def test_the_editor_s_markup_becomes_markdown(self) -> None:
-        markdown = html_to_markdown("<h2>Head</h2><div>Body</div><ul><li>one</li><li>two</li></ul>")
-        self.assertEqual(markdown, "## Head\nBody\n- one\n- two")
-
-    def test_a_blank_line_is_a_br_and_nothing_else(self) -> None:
-        # Two adjacent blocks are two lines; only `<div><br></div>` is a gap.
-        self.assertEqual(html_to_markdown("<div>a</div><div>b</div>"), "a\nb")
-        self.assertEqual(html_to_markdown("<div>a</div><div><br></div><div>b</div>"), "a\n\nb")
-
-    def test_inline_tags(self) -> None:
-        markdown = html_to_markdown('<div><strong>b</strong> <em>i</em> <a href="http://x.test">t</a></div>')
-        self.assertEqual(markdown, "**b** *i* [t](http://x.test)")
-
-    def test_an_ordered_list_keeps_counting(self) -> None:
-        self.assertEqual(html_to_markdown("<ol><li>a</li><li>b</li></ol>"), "1. a\n2. b")
-
-    def test_a_typed_nbsp_is_a_character_not_padding(self) -> None:
-        self.assertIn("\xa0", html_to_markdown("<div>done.&nbsp;</div>"))
-
-
-class TextThatOnlyLooksLikeMarkup(unittest.TestCase):
-    """The rule that cost the most to find: real documents are full of this.
-
-    Logue's editor has no headings, so `## 需求` typed into it is four
-    characters. A document made straight from a generation is plain Markdown
-    text with no tags at all, for the same reason. Reading either as markup and
-    writing it back would rewrite somebody's document while passing through.
-    """
-
-    def unchanged(self, content: str) -> None:
-        markdown = html_to_markdown(content)
-        back = markdown_to_html(markdown)
-        self.assertEqual(visible(content), visible(back), f"text moved: {markdown!r} -> {back!r}")
-        self.assertEqual(markdown, html_to_markdown(back), "reading it again gives something else")
-
-    def test_a_hash_typed_into_the_editor_stays_a_hash(self) -> None:
-        self.unchanged("<div>## 需求</div><div>设计一个小的产品。</div>")
-
-    def test_stars_typed_into_the_editor_do_not_become_bold(self) -> None:
-        self.unchanged("<div>* **保存与写入顺序**：先保存</div>")
-
-    def test_a_numbered_line_is_not_promoted_to_a_list(self) -> None:
-        self.unchanged("<div>1. 执行前验证参数。</div><div>2. 可重试操作。</div>")
-
-    def test_a_document_stored_as_plain_text_with_newlines(self) -> None:
-        self.unchanged("## 目标\n\n让工具调用具备明确意图。\n\n1. 执行前验证参数。")
-
-    def test_a_fence_and_a_quote_and_a_dash(self) -> None:
-        self.unchanged("<div>```</div><div>&gt; quoted</div><div>- dashed</div>")
-
-    def test_a_backslash_is_a_backslash(self) -> None:
-        self.unchanged("<div>C:\\path\\to and \\*not bold\\*</div>")
-
-    def test_inside_code_there_are_no_escapes(self) -> None:
-        # `tab === "talk"` came back as `tab \=\== "talk"`, and a code span
-        # holding `* **顺序**` came back with four backslashes in it.
-        self.unchanged('<div>代码里 <code>tab === "talk"</code> 这类标识</div>')
-        self.unchanged("<div>所以 <code>* **顺序**</code> 在真文档里就是字</div>")
-        self.unchanged("<div>路径 <code>C:\\temp</code> 照抄</div>")
-
-    def test_code_holding_a_backtick_comes_back_whole(self) -> None:
-        self.unchanged("<div>写作 <code>a ` b</code> 的时候</div>")
-
-    def test_citations_are_left_exactly_as_they_are(self) -> None:
-        self.unchanged("<div>Evidence stays traceable [Source 1], [Source 2, 7].</div>")
-
-
-class RoundTrip(unittest.TestCase):
-    def test_markdown_an_agent_wrote_reads_back_as_itself(self) -> None:
-        written = (
-            "# Findings\n"
-            "\n"
-            "The build fails in **two** places, see `app.py`.\n"
-            "\n"
-            "## Where\n"
-            "- one\n"
-            "- two\n"
-            "\n"
-            "1. first\n"
-            "2. second\n"
-            "\n"
-            "> a quotation\n"
-            "\n"
-            "A [link](http://example.test) and a ==highlight==.\n"
-        )
-        self.assertEqual(html_to_markdown(markdown_to_html(written)), written.strip())
+from logue import cmd_append, cmd_commit, cmd_write, read_link  # noqa: E402
 
 
 class Links(unittest.TestCase):
     def test_a_document_link(self) -> None:
         self.assertEqual(
-            read_link("http://127.0.0.1:8787/documents/doc_1a2b3c"),
-            ("http://127.0.0.1:8787", "doc_1a2b3c"),
+            read_link("http://127.0.0.1:8787/documents/doc_7c5095ec3f0daffa"),
+            ("http://127.0.0.1:8787", "doc_7c5095ec3f0daffa"),
         )
 
     def test_a_link_from_somewhere_the_api_is_not(self) -> None:
-        self.assertEqual(read_link("http://localhost:5173/documents/doc_9f"), ("http://localhost:5173", "doc_9f"))
+        self.assertEqual(read_link("http://localhost:5173/documents/doc_1a"), ("http://localhost:5173", "doc_1a"))
 
     def test_a_bare_id_names_no_host(self) -> None:
-        self.assertEqual(read_link("doc_1a2b3c"), ("", "doc_1a2b3c"))
+        self.assertEqual(read_link("doc_1a2b"), ("", "doc_1a2b"))
 
     def test_anything_else_is_refused(self) -> None:
-        self.assertIsNone(read_link("http://127.0.0.1:8787/projects/prj_1"))
-        self.assertIsNone(read_link("the document about pricing"))
+        self.assertIsNone(read_link("https://example.com/a-page"))
+        self.assertIsNone(read_link("not a link"))
+
+
+class FakeHost(BaseHTTPRequestHandler):
+    """Just enough Host to watch what the tool sends and answer it."""
+
+    #: Written by the test: path suffix → the JSON to answer with.
+    answers: dict[str, Any] = {}
+    #: Read by the test: (path, payload) per POST, in order.
+    seen: list[tuple[str, Any]] = []
+
+    def log_message(self, *args: Any) -> None:  # noqa: ARG002 - quiet
+        pass
+
+    def _reply(self, payload: Any) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:  # noqa: N802 - http.server's spelling
+        if self.path == "/v1/status":
+            self._reply({"ok": True})
+            return
+        self._reply(self.answers.get(self.path, {}))
+
+    def do_POST(self) -> None:  # noqa: N802 - http.server's spelling
+        raw = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        payload = json.loads(raw) if raw else {}
+        FakeHost.seen.append((self.path, payload))
+        for suffix, answer in self.answers.items():
+            if self.path.endswith(suffix):
+                self._reply(answer)
+                return
+        self._reply({})
+
+
+class AgentProtocol(unittest.TestCase):
+    """A replacing write is begin + commit, reported as the Host ruled."""
+
+    def setUp(self) -> None:
+        FakeHost.answers = {}
+        FakeHost.seen = []
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), FakeHost)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+        self.link = f"{self.base}/documents/doc_t1"
+
+    def write(self, **extra: Any) -> str:
+        args = argparse.Namespace(
+            document=self.link, revision=3, force=False, label=None, text="# New\n\nbody", file=None
+        )
+        for key, value in extra.items():
+            setattr(args, key, value)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            cmd_write(args)
+        return out.getvalue()
+
+    def test_write_begins_with_the_revision_it_read_and_commits_the_base(self) -> None:
+        FakeHost.answers = {
+            "/agent/begin": {"document": {}, "base_version": {"id": "rev_9", "revision": 2, "content": "old"}},
+            "/agent/commit": {"result": "applied", "version": {"revision": 3, "author": "agent"}},
+        }
+        said = self.write()
+        calls = [c for c in FakeHost.seen if "/agent/" in c[0]]
+        self.assertEqual(calls[0][0], "/v1/documents/doc_t1/agent/begin")
+        self.assertEqual(calls[0][1], {"expected_revision": 3})
+        self.assertEqual(calls[1][0], "/v1/documents/doc_t1/agent/commit")
+        self.assertEqual(calls[1][1]["base_version_id"], "rev_9", "committed against the base begin fixed")
+        self.assertEqual(calls[1][1]["content"], "# New\n\nbody", "the Markdown goes verbatim")
+        self.assertIn("Applied as v3", said)
+
+    def test_a_result_the_person_outran_is_reported_not_forced(self) -> None:
+        FakeHost.answers = {
+            "/agent/begin": {"document": {}, "base_version": {"id": "rev_9", "revision": 2, "content": "old"}},
+            "/agent/commit": {"result": "pending", "document": {}},
+        }
+        said = self.write()
+        self.assertIn("nothing was overwritten", said)
+        self.assertIn("apply or discard", said)
+
+    def test_an_unchanged_result_says_no_version_was_written(self) -> None:
+        FakeHost.answers = {
+            "/agent/begin": {"document": {}, "base_version": {"id": "rev_9", "revision": 2, "content": "old"}},
+            "/agent/commit": {"result": "unchanged", "document": {}},
+        }
+        self.assertIn("no version was written", self.write())
+
+    def test_commit_carries_the_base_it_was_given(self) -> None:
+        FakeHost.answers = {"/agent/commit": {"result": "applied", "version": {"revision": 5}}}
+        args = argparse.Namespace(document=self.link, base="rev_2", label="tidy", text="done", file=None)
+        with redirect_stdout(io.StringIO()):
+            cmd_commit(args)
+        path, payload = FakeHost.seen[-1]
+        self.assertEqual(path, "/v1/documents/doc_t1/agent/commit")
+        self.assertEqual(payload, {"base_version_id": "rev_2", "content": "done", "label": "tidy"})
+
+    def test_append_sends_the_markdown_verbatim(self) -> None:
+        FakeHost.answers = {"/append": {"document": {"revision": 7}}}
+        args = argparse.Namespace(document=self.link, text="## Found\n\n- one", file=None)
+        with redirect_stdout(io.StringIO()):
+            cmd_append(args)
+        path, payload = FakeHost.seen[-1]
+        self.assertEqual(path, "/v1/documents/doc_t1/append")
+        self.assertEqual(payload, {"text": "## Found\n\n- one"})
 
 
 if __name__ == "__main__":

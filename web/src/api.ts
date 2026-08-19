@@ -92,6 +92,8 @@ export interface Document {
   source_ids: string[];
   revision: number;
   run_id?: string;
+  /** An agent finished while the working copy had moved; its result waits here. */
+  pending_agent?: PendingAgent | null;
   created_at: string;
   updated_at: string;
 }
@@ -135,18 +137,31 @@ export interface Run {
 
 /** One version of something that keeps a history — a document, or a Skill's prompt. */
 export interface Version {
-  /** Empty for the version that is the thing as it stands. */
+  /** Empty for the entry that is the working copy as it stands. */
   id: string;
   revision: number;
   created_at?: string;
   added: number;
   removed: number;
   current?: boolean;
-  /** Who marked this state: the sitting, or a person. */
-  kind?: "autosave" | "manual";
+  /** On the current entry: the working copy holds words no version does. */
+  unsaved?: boolean;
+  /** Who saved this state. Everything not an agent's is the person's. */
+  author?: "user" | "agent";
+  label?: string;
+  /** What rows from before authorship called themselves; `manual` was chosen. */
+  kind?: "autosave" | "manual" | null;
   /** What changed, in words. Written by a model, so it arrives late — documents only. */
   summary?: string;
   summary_state?: "pending" | "ready" | "failed";
+}
+
+/** An agent result waiting beside a document for the person to rule on. */
+export interface PendingAgent {
+  content: string;
+  base_version_id?: string;
+  label?: string;
+  created_at?: string;
 }
 
 /** One decision in a proposed rewrite: a kept stretch, or a change with both sides. */
@@ -370,9 +385,20 @@ export const api = {
     send<{ document: Document }>("POST", `/v1/documents/${id}/move`, body),
   reorderDocuments: (parent: string | null, order: string[]) =>
     send<{ documents: Document[] }>("POST", "/v1/documents/reorder", { parent_id: parent, order }),
-  /** Mark this state as a version, and end the sitting. */
-  keepVersion: (id: string) =>
-    send<{ version: { id: string; revision: number; kind: string } }>("POST", `/v1/documents/${id}/versions`, {}),
+  /** The working copy as a new version — `saved: false` when nothing changed. */
+  saveVersion: (id: string) =>
+    send<{ saved: boolean; version: { id: string; revision: number; author: string } | null }>(
+      "POST",
+      `/v1/documents/${id}/versions`,
+      {},
+    ),
+  /** The agent change waiting for a decision, with what applying it would change. */
+  pendingChange: (id: string) =>
+    request<{ pending: PendingAgent | null; lines: DiffLine[] }>(`/v1/documents/${id}/pending`),
+  applyPendingChange: (id: string) =>
+    send<{ document: Document }>("POST", `/v1/documents/${id}/pending/apply`, {}),
+  discardPendingChange: (id: string) =>
+    send<{ document: Document }>("POST", `/v1/documents/${id}/pending/discard`, {}),
   /** `expected_revision` is what the editor last saw; a mismatch comes back 409. */
   updateDocument: (
     id: string,

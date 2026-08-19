@@ -999,6 +999,7 @@ export function MarkdownEditor({
   handle,
   onCite,
   onRewrite,
+  onSave,
   label = "Document",
 }: {
   /** The text as it stands on the Host. Sent in again only when it really changed. */
@@ -1011,6 +1012,8 @@ export function MarkdownEditor({
   onCite?: (n: number) => void;
   /** Rewrite this passage — the toolbar's one act that is not formatting. */
   onRewrite?: (passage: string) => void;
+  /** ⌘S: save the working copy as a version. The browser's own save is eaten either way. */
+  onSave?: () => void;
   label?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
@@ -1058,8 +1061,8 @@ export function MarkdownEditor({
   const shownCount = useRef(0);
   const chosen = useRef<() => void>(undefined);
   // Read inside CodeMirror's own callbacks, which outlive the render that made them.
-  const latest = useRef({ onChange, onSelection, onCite, onRewrite });
-  latest.current = { onChange, onSelection, onCite, onRewrite };
+  const latest = useRef({ onChange, onSelection, onCite, onRewrite, onSave });
+  latest.current = { onChange, onSelection, onCite, onRewrite, onSave };
 
   /**
    * Watch for `/` at the start of an empty line, and for what is typed after it.
@@ -1178,6 +1181,17 @@ export function MarkdownEditor({
         { key: "Mod-e", run: wrap("`") },
         { key: "Mod-Shift-x", run: wrap("~~") },
         { key: "Mod-k", run: link },
+      ]),
+      // ⌘S saves the working copy as a version. Claimed even with no handler,
+      // so the browser's own save dialog never answers a writing surface.
+      keymap.of([
+        {
+          key: "Mod-s",
+          run: () => {
+            latest.current.onSave?.();
+            return true;
+          },
+        },
       ]),
       // Tab belongs to a list before it belongs to focus, and to a table
       // before either. Both hand it back when the caret is in neither.

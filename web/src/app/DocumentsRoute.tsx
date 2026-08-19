@@ -19,6 +19,7 @@ import {
   RowShell,
   Section,
 } from "./panes";
+import { PendingChange } from "./PendingChange";
 import { RewriteDialog } from "./RewriteDialog";
 import { timeAgo, useAction, useHost } from "./useHost";
 
@@ -529,9 +530,9 @@ function DocumentEditor({
   const [revision, setRevision] = useState(0);
   const [conflict, setConflict] = useState(false);
   const [looking, setLooking] = useState(false);
-  /** When a version was last marked by hand, so the control can say so. */
+  /** What the last save answered, so the control can say so until the next keystroke. */
   const [kept, setKept] = useState<string>();
-  /** Marking a version is its own act; it must not blank the editor's spinner. */
+  /** Saving a version is its own act; it must not blank the editor's spinner. */
   const editing = useAction();
   /** The selected passage, frozen when Rewrite was pressed. */
   const [rewriting, setRewriting] = useState<string>();
@@ -565,9 +566,12 @@ function DocumentEditor({
     setText(doc.content);
     setRevision(doc.revision);
     setConflict(false);
+    // A different text is under the editor now — a restore, an applied agent
+    // change, another page — so the save control stops answering for the old one.
+    setKept(undefined);
   }, [doc]);
 
-  const write = async (changes: { content?: string }, force = false) => {
+  const write = async (changes: { content?: string }, force = false): Promise<boolean> => {
     try {
       // The first save is what brings it into being.
       if (draft) {
@@ -575,7 +579,7 @@ function DocumentEditor({
           content: changes.content ?? written.current,
         });
         onCreated(born.id);
-        return;
+        return true;
       }
       const { document } = await api.updateDocument(id, {
         ...changes,
@@ -584,13 +588,14 @@ function DocumentEditor({
       setRevision(document.revision);
       setSaved(new Date().toISOString());
       setConflict(false);
+      return true;
     } catch (cause) {
       // Someone else wrote while this editor had the document open. Stop
       // autosaving rather than overwrite them, and keep what is on screen —
       // it is the only copy of these edits.
       if (cause instanceof ApiError && cause.status === 409) {
         setConflict(true);
-        return;
+        return false;
       }
       throw cause;
     }
@@ -620,7 +625,26 @@ function DocumentEditor({
   /** Every keystroke: the name follows the first line, so the header follows too. */
   const onTyped = (next: string) => {
     setText(next);
+    // The words moved past the last saved version, so the control offers again.
+    setKept(undefined);
     queueSave({ content: next });
+  };
+
+  /**
+   * The working copy as a version, because the person said so.
+   *
+   * The words on screen are flushed first — the version is of what the Host
+   * holds — and a save that changed nothing is answered honestly rather than
+   * minting a twin.
+   */
+  const saveVersion = () => {
+    if (draft) return;
+    window.clearTimeout(timer.current);
+    void editing.run(async () => {
+      if (!(await write(mine()))) return;
+      const answer = await api.saveVersion(id);
+      setKept(answer.saved ? "Saved as a version" : "No changes to save");
+    });
   };
 
   // A link to something that has been deleted is a normal thing to click.
@@ -709,6 +733,9 @@ function DocumentEditor({
             This document changed somewhere else. Your edits are still here, unsaved.
           </Notice>
         )}
+        {/* An agent finished while the working copy had moved; the person
+            rules on the result here rather than being silently overwritten. */}
+        {doc?.pending_agent && <PendingChange id={id} onSettled={() => void loaded.refresh()} />}
         {!doc ? (
           <div className="flex items-center gap-2 text-xs text-muted">
             <Spinner /> Loading
@@ -728,6 +755,8 @@ function DocumentEditor({
                 value={text}
                 onChange={onTyped}
                 handle={editor}
+                // ⌘S in the editor is the same save as the footer's control.
+                onSave={saveVersion}
                 // Frozen at the press: opening a dialog steals focus, and a
                 // selection read afterwards is empty.
                 onRewrite={(passage) => setRewriting(passage)}
@@ -743,13 +772,13 @@ function DocumentEditor({
               <footer className="mt-6 flex items-center gap-2 border-t border-line pt-2 text-xs text-muted">
                 {draft && <span>Not saved yet</span>}
                 {!draft && (
-                  <Tooltip label="Every version is kept">
+                  <Tooltip label="Every saved version is kept">
                     <button
                       type="button"
                       onClick={() => setLooking(true)}
                       className="-my-1 inline-flex min-h-6 items-center rounded-md py-1 text-xs text-muted underline decoration-line underline-offset-2 hover:text-ink"
                     >
-                      Version {doc.revision}
+                      History
                     </button>
                   </Tooltip>
                 )}
@@ -758,22 +787,16 @@ function DocumentEditor({
                     and the save this tab holds the only copy. */}
                 {waitingToSave ? <span>Saving…</span> : saved ? <span>Saved {timeAgo(saved)}</span> : null}
                 <span className="tabular-nums">{words(text)}</span>
-                {/* Typing keeps a working copy; this marks a state to come
-                    back to. One per sitting happens on its own — this is for
-                    the moments a person wants to name. */}
+                {/* Typing writes the working copy and nothing else; this is
+                    the save that makes history — when something changed. */}
                 {!draft && (
-                  <Tooltip label="Mark this state as a version to come back to">
+                  <Tooltip label="Save the working copy as a version to come back to (⌘S)">
                     <button
                       type="button"
-                      onClick={() =>
-                        void editing.run(async () => {
-                          await api.keepVersion(id);
-                          setKept(new Date().toISOString());
-                        })
-                      }
+                      onClick={saveVersion}
                       className="-my-1 ml-auto inline-flex min-h-6 items-center gap-1 rounded-md py-1 text-xs text-muted underline decoration-line underline-offset-2 hover:text-ink"
                     >
-                      {kept ? "Version kept" : "Keep this version"}
+                      {kept ?? "Save version"}
                     </button>
                   </Tooltip>
                 )}

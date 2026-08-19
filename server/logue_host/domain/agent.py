@@ -276,6 +276,9 @@ def accept(store: Store, proposal: dict[str, Any], *, page: dict[str, Any] | Non
             store,
             title=str(proposal.get("title") or ""),
             content=str(proposal.get("body") or ""),
+            # An agent's words: the state handed over becomes version one, so
+            # editing away from it is never a one-way door.
+            author=documents.AGENT,
         )
         return {"did": "draft_document", "document": document}
 

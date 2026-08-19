@@ -1322,12 +1322,11 @@ class DocumentHistory(Workspace, unittest.TestCase):
     """A document's past, and going back to it without losing the present."""
 
     def three_versions(self) -> str:
-        """Three states you can go back to.
+        """Two saved versions, and a working copy that moved past them.
 
-        Marked deliberately, because that is what a version is now: the
-        autosave keeps one per sitting, and three saves a second apart are one
-        sitting — which is the whole point of the change. Pressing "keep this
-        version" is how a test, or a person, says otherwise.
+        Saved deliberately, because that is what a version is: editing writes
+        the working copy and nothing else, and only a save that changed
+        something makes history.
         """
         doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
         self.call("POST", f"/v1/documents/{doc['id']}/versions", {})
@@ -1338,8 +1337,9 @@ class DocumentHistory(Workspace, unittest.TestCase):
 
     def test_the_current_text_is_in_the_history(self) -> None:
         versions = self.call("GET", f"/v1/documents/{self.three_versions()}/versions")["versions"]
-        self.assertEqual(len(versions), 3, "two marked versions and the document itself")
-        self.assertTrue(versions[0]["current"], "the newest version is the document itself")
+        self.assertEqual(len(versions), 3, "two saved versions and the working copy")
+        self.assertTrue(versions[0]["current"], "the top entry is the working copy")
+        self.assertTrue(versions[0]["unsaved"], "and it says it holds words no version does")
         self.assertGreater(versions[0]["revision"], versions[1]["revision"], "newest first")
 
     def test_each_version_says_what_it_changed(self) -> None:
@@ -1347,48 +1347,42 @@ class DocumentHistory(Workspace, unittest.TestCase):
         self.assertEqual((versions[0]["added"], versions[0]["removed"]), (1, 0), "one line added since the last")
         self.assertEqual((versions[-1]["added"], versions[-1]["removed"]), (1, 0), "the first version is all new")
 
-    def test_a_sitting_is_one_version_however_many_saves(self) -> None:
-        # A sentence typed in one go used to produce v2..v7. The autosave is a
-        # working copy; a version is a state you can go back to.
+    def test_editing_alone_makes_no_version(self) -> None:
+        # His design: the working copy is always there, and only a meaningful
+        # save makes history. Typing is not saving.
         doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
         for words in ["one t", "one tw", "one two", "one two three"]:
             self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": words})
         versions = self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"]
-        self.assertEqual(len(versions), 2, f"one sitting and the document: {[v['revision'] for v in versions]}")
+        self.assertEqual(len(versions), 1, f"the working copy alone: {[v['revision'] for v in versions]}")
+        self.assertTrue(versions[0]["unsaved"])
 
-    def test_the_same_words_again_are_not_another_version(self) -> None:
-        # vibedoc's content_hash dedup, for the same reason: a history that
-        # repeats itself cannot be read.
+    def test_a_save_that_changed_nothing_is_ignored(self) -> None:
+        # The working copy still reads as its base version, so there is
+        # nothing to keep: a history that repeats itself cannot be read.
         doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
-        first = self.call("POST", f"/v1/documents/{doc['id']}/versions", {})["version"]
-        again = self.call("POST", f"/v1/documents/{doc['id']}/versions", {})["version"]
-        self.assertEqual(first["id"], again["id"], "the same state is the same version")
-
-    def test_a_version_a_person_marked_says_so(self) -> None:
-        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
-        self.call("POST", f"/v1/documents/{doc['id']}/versions", {})
-        marked = [v for v in self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"] if not v.get("current")]
-        self.assertEqual(marked[0]["kind"], "manual")
-
-    def test_and_the_next_edit_starts_a_new_sitting(self) -> None:
-        # Marking a version closes the sitting, so the edit after it is a new
-        # one — and the state it started from is already the marked version, so
-        # nothing is written twice.
-        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
-        self.call("POST", f"/v1/documents/{doc['id']}/versions", {})
-        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\ntwo"})
-        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\ntwo\n\nthree"})
+        first = self.call("POST", f"/v1/documents/{doc['id']}/versions", {})
+        again = self.call("POST", f"/v1/documents/{doc['id']}/versions", {})
+        self.assertTrue(first["saved"])
+        self.assertFalse(again["saved"], "the same state is not another version")
+        self.assertIsNone(again["version"])
         versions = self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"]
-        self.assertEqual(len(versions), 3, "the marked one, the sitting that followed it, and the document")
-        # And the first edit after the mark wrote nothing of its own: the state
-        # it started from is the version that was just marked.
-        self.assertEqual([v.get("kind") for v in versions if not v.get("current")], ["autosave", "manual"])
+        self.assertEqual(len(versions), 2, "one version and the working copy")
+        self.assertFalse(versions[0]["unsaved"], "the working copy reads as its base")
+
+    def test_a_version_says_who_saved_it(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        self.call("POST", f"/v1/documents/{doc['id']}/versions", {})
+        saved = [v for v in self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"] if not v.get("current")]
+        self.assertEqual(saved[0]["author"], "user")
 
     def test_the_diff_is_of_the_words_not_the_markup(self) -> None:
         document = self.call("POST", "/v1/documents", {"content": "<p>kept</p>"})["document"]
+        self.call("POST", f"/v1/documents/{document['id']}/versions", {})
         # Only the wrapper changes; a person sees the same line.
         self.call("PATCH", f"/v1/documents/{document['id']}", {"content": "<div>kept</div>"})
-        lines = self.call("GET", f"/v1/documents/{document['id']}/versions/2/diff")["lines"]
+        current = self.call("GET", f"/v1/documents/{document['id']}/versions")["versions"][0]
+        lines = self.call("GET", f"/v1/documents/{document['id']}/versions/{current['revision']}/diff")["lines"]
         self.assertEqual([line["kind"] for line in lines], ["same"])
 
     def test_the_diff_marks_both_sides(self) -> None:
@@ -1402,7 +1396,7 @@ class DocumentHistory(Workspace, unittest.TestCase):
         document_id = self.three_versions()
         was = self.call("GET", f"/v1/documents/{document_id}")["document"]["revision"]
         oldest = self.call("GET", f"/v1/documents/{document_id}/versions")["versions"][-1]
-        self.call("POST", f"/v1/documents/{document_id}/versions/{oldest['revision']}/restore")
+        self.call("POST", f"/v1/documents/{document_id}/versions/{oldest['revision']}/restore", {})
 
         after = self.call("GET", f"/v1/documents/{document_id}")["document"]
         self.assertGreater(after["revision"], was, "going back is itself an edit")
@@ -1412,12 +1406,169 @@ class DocumentHistory(Workspace, unittest.TestCase):
         versions = self.call("GET", f"/v1/documents/{document_id}/versions")["versions"]
         self.assertGreaterEqual(len(versions), 3, "nothing was thrown away to make room")
 
+    def test_restoring_saves_unsaved_edits_first(self) -> None:
+        # Nothing that replaces the working copy may lose it: the words typed
+        # since the last save become a version before the old text lands.
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        self.call("POST", f"/v1/documents/{doc['id']}/versions", {})
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\nmine"})
+        self.call("POST", f"/v1/documents/{doc['id']}/versions/1/restore", {})
+
+        self.assertEqual(self.call("GET", f"/v1/documents/{doc['id']}")["document"]["content"], "one")
+        versions = self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"]
+        self.assertEqual(len(versions), 3, "the base, the kept edits, and the working copy")
+        kept = self.call("GET", f"/v1/documents/{doc['id']}/versions/{versions[1]['revision']}/diff")["lines"]
+        self.assertIn("mine", [line["text"] for line in kept if line["kind"] == "added"])
+
+    def test_a_restore_may_discard_instead_when_told_to(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        self.call("POST", f"/v1/documents/{doc['id']}/versions", {})
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\nmine"})
+        self.call("POST", f"/v1/documents/{doc['id']}/versions/1/restore", {"discard": True})
+
+        self.assertEqual(self.call("GET", f"/v1/documents/{doc['id']}")["document"]["content"], "one")
+        versions = self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"]
+        self.assertEqual(len(versions), 2, "the person chose to drop the edits, so nothing kept them")
+
+    def test_saving_after_a_restore_writes_forward(self) -> None:
+        # Restoring only fills the working copy; the save afterwards writes a
+        # new version rather than rewriting the one it came from.
+        document_id = self.three_versions()
+        self.call("POST", f"/v1/documents/{document_id}/versions", {})
+        self.call("POST", f"/v1/documents/{document_id}/versions/1/restore", {})
+        saved = self.call("POST", f"/v1/documents/{document_id}/versions", {})
+        self.assertTrue(saved["saved"], "coming back to an old state is a new version")
+        versions = self.call("GET", f"/v1/documents/{document_id}/versions")["versions"]
+        self.assertEqual(versions[1]["revision"], saved["version"]["revision"], "written at the top, not in place")
+
     def test_asking_for_a_version_that_never_existed_says_so(self) -> None:
         document_id = self.three_versions()
         with self.assertRaises(NotFound):
             self.call("GET", f"/v1/documents/{document_id}/versions/99/diff")
         with self.assertRaises(NotFound):
-            self.call("POST", f"/v1/documents/{document_id}/versions/99/restore")
+            self.call("POST", f"/v1/documents/{document_id}/versions/99/restore", {})
+
+
+class AgentWrites(Workspace, unittest.TestCase):
+    """An outside agent's writes: a fixed base, an atomic landing, and the
+    person winning every race."""
+
+    def test_begin_saves_unsaved_edits_as_a_user_version(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "his words"})["document"]
+        begun = self.call("POST", f"/v1/documents/{doc['id']}/agent/begin", {})
+        self.assertEqual(begun["base_version"]["content"], "his words")
+        saved = [v for v in self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"] if not v.get("current")]
+        self.assertEqual([v["author"] for v in saved], ["user"], "the person's words, kept before anything else")
+
+    def test_begin_refuses_a_stale_read(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "two"})
+        with self.assertRaises(Conflict):
+            self.call("POST", f"/v1/documents/{doc['id']}/agent/begin", {"expected_revision": 1})
+
+    def test_commit_lands_whole_as_an_agent_version(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "his words"})["document"]
+        begun = self.call("POST", f"/v1/documents/{doc['id']}/agent/begin", {})
+        answer = self.call(
+            "POST",
+            f"/v1/documents/{doc['id']}/agent/commit",
+            {"base_version_id": begun["base_version"]["id"], "content": "his words\n\nagent line"},
+        )
+        self.assertEqual(answer["result"], "applied")
+        self.assertEqual(answer["document"]["content"], "his words\n\nagent line")
+        versions = self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"]
+        self.assertFalse(versions[0]["unsaved"], "the working copy and the agent version moved together")
+        self.assertEqual(versions[1]["author"], "agent")
+
+    def test_commit_with_no_change_leaves_no_version(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "his words"})["document"]
+        begun = self.call("POST", f"/v1/documents/{doc['id']}/agent/begin", {})
+        answer = self.call(
+            "POST",
+            f"/v1/documents/{doc['id']}/agent/commit",
+            {"base_version_id": begun["base_version"]["id"], "content": "his words"},
+        )
+        self.assertEqual(answer["result"], "unchanged")
+        versions = self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"]
+        self.assertEqual(len(versions), 2, "begin's user version and the working copy, nothing of the agent's")
+
+    def test_commit_into_an_empty_document_applies(self) -> None:
+        doc = self.call("POST", "/v1/documents", {})["document"]
+        begun = self.call("POST", f"/v1/documents/{doc['id']}/agent/begin", {})
+        self.assertEqual(begun["base_version"]["id"], "", "an empty never-saved document has no base yet")
+        answer = self.call(
+            "POST",
+            f"/v1/documents/{doc['id']}/agent/commit",
+            {"base_version_id": "", "content": "# Draft\n\nwritten"},
+        )
+        self.assertEqual(answer["result"], "applied")
+
+    def test_a_person_editing_meanwhile_wins(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        begun = self.call("POST", f"/v1/documents/{doc['id']}/agent/begin", {})
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\nperson typed"})
+        answer = self.call(
+            "POST",
+            f"/v1/documents/{doc['id']}/agent/commit",
+            {"base_version_id": begun["base_version"]["id"], "content": "one\n\nagent wrote"},
+        )
+        self.assertEqual(answer["result"], "pending", "the agent's result waits instead of winning")
+        held = self.call("GET", f"/v1/documents/{doc['id']}")["document"]
+        self.assertEqual(held["content"], "one\n\nperson typed", "the working copy was not touched")
+        self.assertTrue(held.get("pending_agent"))
+
+        pending = self.call("GET", f"/v1/documents/{doc['id']}/pending")
+        self.assertIn("agent wrote", [line["text"] for line in pending["lines"] if line["kind"] == "added"])
+
+    def test_applying_a_pending_change_keeps_the_persons_words_first(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        begun = self.call("POST", f"/v1/documents/{doc['id']}/agent/begin", {})
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\nperson typed"})
+        self.call(
+            "POST",
+            f"/v1/documents/{doc['id']}/agent/commit",
+            {"base_version_id": begun["base_version"]["id"], "content": "one\n\nagent wrote"},
+        )
+        applied = self.call("POST", f"/v1/documents/{doc['id']}/pending/apply", {})
+        self.assertEqual(applied["document"]["content"], "one\n\nagent wrote")
+        self.assertNotIn("pending_agent", applied["document"])
+
+        versions = self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"]
+        self.assertEqual(
+            [v.get("author") for v in versions if not v.get("current")],
+            ["agent", "user", "user"],
+            "begin kept his start, apply kept his typing, then the agent's change landed",
+        )
+
+    def test_a_pending_change_can_be_discarded(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "one"})["document"]
+        begun = self.call("POST", f"/v1/documents/{doc['id']}/agent/begin", {})
+        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "one\n\nperson typed"})
+        self.call(
+            "POST",
+            f"/v1/documents/{doc['id']}/agent/commit",
+            {"base_version_id": begun["base_version"]["id"], "content": "one\n\nagent wrote"},
+        )
+        dropped = self.call("POST", f"/v1/documents/{doc['id']}/pending/discard", {})["document"]
+        self.assertNotIn("pending_agent", dropped)
+        self.assertEqual(dropped["content"], "one\n\nperson typed")
+
+    def test_a_base_from_another_document_is_refused(self) -> None:
+        other = self.call("POST", "/v1/documents", {"content": "elsewhere"})["document"]
+        begun = self.call("POST", f"/v1/documents/{other['id']}/agent/begin", {})
+        doc = self.call("POST", "/v1/documents", {"content": "here"})["document"]
+        with self.assertRaises(BadRequest):
+            self.call(
+                "POST",
+                f"/v1/documents/{doc['id']}/agent/commit",
+                {"base_version_id": begun["base_version"]["id"], "content": "anything"},
+            )
+
+    def test_an_agent_created_document_starts_with_an_agent_version(self) -> None:
+        doc = self.call("POST", "/v1/documents", {"content": "# Draft\n\nwords", "author": "agent"})["document"]
+        versions = self.call("GET", f"/v1/documents/{doc['id']}/versions")["versions"]
+        self.assertEqual(len(versions), 2, "what was handed over is version one")
+        self.assertEqual(versions[1]["author"], "agent")
 
 
 class ARecordingOutlivesItsTranscription(Workspace, unittest.TestCase):
@@ -2155,24 +2306,32 @@ class VersionSummaries(Workspace, unittest.TestCase):
     """The line saying what a version changed, and what stands in for it."""
 
     def edited(self) -> str:
+        """One saved starting state, and one saved edit whose line is unwritten.
+
+        Saved through the domain rather than the route: the route asks a model
+        in the background, and these tests are about the states before and
+        after that ask.
+        """
         doc = self.call("POST", "/v1/documents", {"content": "<p>one</p>"})["document"]
-        self.call("PATCH", f"/v1/documents/{doc['id']}", {"content": "<p>one</p><p>two</p>"})
+        documents.save(self.app.store, doc["id"])
+        documents.update(self.app.store, doc["id"], {"content": "<p>one</p><p>two</p>"})
+        documents.save(self.app.store, doc["id"])
         return doc["id"]
 
     def test_a_new_version_is_marked_as_still_being_described(self) -> None:
         document_id = self.edited()
         rows = [r for r in self.app.store.doc_revisions.list() if r.get("doc_id") == document_id]
-        self.assertEqual([r.get("summary_state") for r in rows], [summaries.PENDING])
+        self.assertEqual([r.get("summary_state") for r in rows], [summaries.PENDING, summaries.PENDING])
 
     def test_without_a_model_the_counted_line_stands_in(self) -> None:
         # Not an error and not a blank: a history row saying nothing at all
         # reads as a broken row.
         document_id = self.edited()
-        revision_id = documents.newest_unwritten(self.app.store, document_id)
-        assert revision_id
-        written = summaries.describe(self.app.store, None, revision_id)
+        waiting = documents.unwritten(self.app.store, document_id)
+        assert waiting
+        written = summaries.describe(self.app.store, None, waiting[-1])
         self.assertEqual(written, "1 added")
-        row = self.app.store.doc_revisions.find(revision_id)
+        row = self.app.store.doc_revisions.find(waiting[-1])
         assert row
         self.assertEqual(row["summary_state"], summaries.READY)
 
@@ -2182,9 +2341,9 @@ class VersionSummaries(Workspace, unittest.TestCase):
                 raise RuntimeError("no")
 
         document_id = self.edited()
-        revision_id = documents.newest_unwritten(self.app.store, document_id)
-        assert revision_id
-        self.assertEqual(summaries.describe(self.app.store, Broken(api_key="k"), revision_id), "1 added")
+        waiting = documents.unwritten(self.app.store, document_id)
+        assert waiting
+        self.assertEqual(summaries.describe(self.app.store, Broken(api_key="k"), waiting[-1]), "1 added")
 
     def test_the_line_is_kept_to_one_short_line(self) -> None:
         class Chatty(FakeProvider):
@@ -2192,16 +2351,17 @@ class VersionSummaries(Workspace, unittest.TestCase):
                 return '"Rewrote the whole thing at considerable length, going well past any sane limit"\nand more'
 
         document_id = self.edited()
-        revision_id = documents.newest_unwritten(self.app.store, document_id)
-        assert revision_id
-        written = summaries.describe(self.app.store, Chatty(api_key="k"), revision_id)
+        waiting = documents.unwritten(self.app.store, document_id)
+        assert waiting
+        written = summaries.describe(self.app.store, Chatty(api_key="k"), waiting[-1])
         self.assertLessEqual(len(written), summaries.LIMIT)
         self.assertNotIn("\n", written)
         self.assertFalse(written.startswith('"'))
 
     def test_a_run_that_was_interrupted_is_picked_up_again(self) -> None:
+        # Both saves above went unasked-for, so both are still waiting.
         self.edited()
-        self.assertEqual(summaries.catch_up(self.app.store, None), 1)
+        self.assertEqual(summaries.catch_up(self.app.store, None), 2)
 
 
 class ServingTheApp(unittest.TestCase):

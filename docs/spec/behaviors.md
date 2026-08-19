@@ -619,16 +619,38 @@ then measured in the real panel — see `scripts/qa/n14.mjs`.
   to notion"*.) Tables, task lists, strikethrough and bare links are
   understood; a task box is pressed rather than typed; an image is shown;
   `/` on an empty line offers the blocks, and what it writes is Markdown.
-- **The document is a working copy; a version is a state you can go back to.**
-  Autosave writes the working copy and nothing else. A version is kept once
-  per sitting, and whenever a person says so — never one per save, which is
-  how one sentence used to produce `v2..v7`. Two versions never say the same
-  thing: each carries a hash of what it holds.
+- **The document is a working copy; a version is a save that changed something.**
+  (2026-08-19, his design: *"用户编辑时，只更新 Working Copy … 只有有意义的保存
+  才会产生历史版本"*.) Editing — typing, appending from the panel, applying a
+  rewrite — writes the working copy and nothing else; no version is written by
+  the passage of time. Saving compares the working copy with the version it is
+  based on: no difference, no version; a difference becomes a new immutable
+  version, which is what the next save is compared against. (This replaces the
+  one-version-per-sitting autosave of F3.)
+- **A version says who made it: the person, or an agent.** His design's point:
+  *"用户修改和 Agent 修改在历史中分别可见"*. Agent versions are marked in the
+  history; everything unmarked is the person's.
+- **An agent change never costs the person unsaved words.** Before an agent's
+  change lands, unsaved edits in the working copy are saved as a *user*
+  version. The agent's change then lands whole, as an *agent* version — an
+  agent that fails or is cancelled leaves nothing behind, and an agent whose
+  output matches what it started from leaves no version.
+- **An agent works from a fixed version, and the person wins the race.**
+  `begin` saves the person's unsaved edits and hands the agent the version its
+  work is based on; `commit` applies the result only if the working copy still
+  reads as that version. If the person edited meanwhile, the working copy is
+  not touched: the result is kept beside the document as a pending change, to
+  be read, applied or discarded — and applying it saves the person's words
+  first, the same rule again.
 - **Documents nest, and nothing is lost by moving them.** Each holds its own
   parent and its place among its siblings. Deleting a page moves its children
   up into its place; a page cannot be moved inside itself.
-- **Every version of a document can be read back and gone back to.** Going
-  back is written forward as a new version; the ones it skipped over survive.
+- **Every version of a document can be read back and gone back to.** Restoring
+  puts that version's text into the working copy and deletes nothing — and
+  anything that replaces the working copy wholesale (restore included) saves
+  unsaved edits as a version first, unless the person explicitly discards
+  them. Saving after a restore writes a new version rather than rewriting
+  history.
 - **Each version says what it changed, in words.** A model writes the line
   after the save, never in front of it — autosave is a pause someone can feel.
   Where no model can answer, the counted line stands in; a history row that
@@ -705,14 +727,21 @@ already ahead — what was missing was ordinary editor furniture.)
   back into it. Nothing else is set up first: no key, no account, no config
   file naming a port. The link says which Host and which document, and the Host
   already answers a local tool that arrives without an `Origin`.
-- **The outside agent speaks Markdown, and Logue stores what its own editor
-  stores.** What comes out is Markdown; what goes in is turned back into the
-  editor's own markup. An agent that hands over `## Heading` must not leave two
-  hash marks sitting in the person's document.
-- **A replacing write says which version it read.** Full-content writes carry
-  `expected_revision`, so an agent that read at revision 4 and writes after the
-  person typed something is refused rather than silently winning. Appending
-  needs no version — it cannot overwrite anything.
+- **The outside agent speaks Markdown, because Logue stores Markdown.** Since
+  the editor became a Markdown editor (F2) there is no other format: what the
+  agent reads is the stored text, and what it writes is stored as sent. The
+  converter the first integration shipped — built when documents were HTML —
+  wrote HTML into a Markdown workspace and escaped Markdown on the way out, so
+  it is gone rather than kept for compatibility with a store that no longer
+  exists.
+- **A replacing write is an agent change, and lands as one.** The outside agent
+  begins against a fixed version — the Host saves the person's unsaved edits as
+  a user version first and hands back the base — and commits its whole result:
+  applied as an agent version when the working copy has not moved, kept as a
+  pending change for the person when it has, and dropped without a version when
+  nothing actually changed. `begin` still refuses a stale `--revision`, so an
+  agent that read an old working copy is told to read again rather than build
+  on air. Appending needs none of this — it cannot overwrite anything.
 - **The outside agent adds; it does not tidy up.** It may read, append, replace
   and create. Deleting a document is not something it does on its own — that is
   the same rule the in-product agent lives under, applied to a bigger blast
