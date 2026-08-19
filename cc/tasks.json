@@ -541,15 +541,15 @@
       "type": "test",
       "status": "done",
       "priority": "P2",
-      "confirmed": false,
+      "confirmed": true,
       "tags": [
         "qa"
       ],
-      "note": "audit-ext、cuj-panel、a1、x38 都是照旧面板四个 tab(Chat/Dictation/This page/Project)写的,现在面板已是一条流 + Record/Keep/Ask,四条都卡在找不到 tab。**不是产品坏了**。故意先不重写:N13 提议把面板收成「一个列表 + 一个 composer」,你还没拍板,现在重写等于白写两遍。你定了 N13 之后,一次性改完。已在 scripts/qa/README.md 里写明,免得后来的人把红色当 bug。",
+      "note": "四条(audit-ext / cuj-panel / a1 / x38)都已按新面板重写过——cuj-panel 和 x38 的文件头写着为 N13 重写,a1 改成量一个面板而不是走三个 tab,audit-ext 的 tab-by-tab 对比也拆掉了。另有 n13.mjs 覆盖主链路。**这次只剩 README 没同步**:它还写着「四条故意不重写、等他拍板」,已改成现状。",
       "blocked_on": "",
       "input_ids": [],
       "created": "2026-08-13",
-      "updated": "2026-08-14"
+      "updated": "2026-08-19"
     },
     {
       "id": "F3",
@@ -674,21 +674,21 @@
       "id": "F6",
       "title": "Notion 对齐剩下的五条:块拖拽把手、目录大纲、@ 提页面、图标/封面、评论",
       "type": "feature",
-      "status": "queued",
+      "status": "blocked",
       "priority": "P1",
       "confirmed": true,
       "tags": [
         "documents",
         "notion"
       ],
-      "note": "F6 已落地能直接做的那批(格式化快捷键、选区工具条、空行 / 提示、面包屑、粘贴链接、⌘F、多光标、字数),见 docs/spec/features/documents.md。剩下五条按代价和是否动数据模型分两组。\n\n**不动数据模型,纯前端,可以直接做**:①**块拖拽把手** —— 正文左侧的 ⋮⋮,拖动整块换位置(现在只有 ⌥↑/↓ 逐行移动)。要在 Markdown 里判块边界(段落/列表项/代码围栏/表格),中等工程量。②**目录大纲** —— 右侧列出各级标题、点击跳转、滚动高亮当前节。\n\n**要他先点头,因为会改文档是什么**:③**@ 提另一个页面** —— 存成 [标题](/documents/id) 就够,但要定 @ 菜单的检索范围、被删页面的链接怎么显示、要不要反链。④**页面图标/封面** —— 和 F2「标题就是正文第一行」冲突:要么占用正文,要么新加字段,两条路都得他选(F4 note 里已经提过)。⑤**评论** —— 要新后端(评论表、锚点、未读),是本条里最大的一件。\n\n建议顺序:①②直接做;③④⑤等他一句话。",
-      "blocked_on": "",
+      "note": "①**块拖拽把手** 和 ②**目录大纲** 已随 F7 落地(commit a6e28cc6):正文每块悬停出 ＋/⠿,⠿ 可拖动重排、点开块菜单(复制/删除/转成八种块);长文右侧出标题大纲,点击跳转。两条都在浏览器里验过。\\n\\n**剩下三条仍要你一句话**:③@ 提另一个页面(要定 @ 菜单检索范围、被删页面链接怎么显示、要不要反链);④页面图标/封面(和 F2「标题=正文第一行」冲突,要么占正文要么加字段,两条路都得你选);⑤评论(要新后端:评论表、锚点、未读,是最大的一件)。",
+      "blocked_on": "只剩 ③@提页面 ④图标/封面 ⑤评论 三条,都要你先点头(见 note)",
       "input_ids": [
         "in_blocked_review_review",
         "in_docs_spec_md"
       ],
       "created": "2026-08-14",
-      "updated": "2026-08-18"
+      "updated": "2026-08-19"
     },
     {
       "id": "X6",
@@ -733,14 +733,14 @@
       "id": "X8",
       "title": "面板复审 29 条发现(copy 10 / behaviour 11 / fidelity 8),修前逐条在真面板验真",
       "type": "bug",
-      "status": "doing",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
         "extension",
         "review"
       ],
-      "note": "已修并部署(8fc34a33)的确认项:IME 组字时按 Enter 直接把半截中文发出去(Composer 加 isComposing 守卫,这条对他影响最大);引用跨 tab 残留导致存错页面;排队中的录音不能播(WaitingRow 补上播放器,和旁边 HeldRow 一致);空态里第二个 Save this page(书签就在下面 40px);copy 一批(Saving→Keeping、Into · nowhere→No Document、'背景服务正在重启'、'the words did not come back'、'so far'、file→add、占位符)。**复审时发现有几条 worker 会话已经先修掉了**(引用带来源行、发送失败保留文字、录音中 Esc/Enter 的守卫)。**剩下两条是口味问题,留给他裁决,没动**:取消选中要不要清引用(源码里有明确反对理由,和 mock 冲突)、录音时输入框换不换形状(方案说不换,mock 画的换)。**未做**:存整页打出全文而非页名(Fidelity 1,要改 useEntries 取 take.text 的来源,风险高于收益,单列)。",
+      "note": "29 条已处理完:确认项全部修掉并部署(IME Enter 守卫、引用跨 tab、排队录音可播、空态重复按钮、存整页只显示页名、一批 copy),复审时发现另有几条 worker 会话已先修。**两条口味问题留给他裁决,已单列**:取消选中要不要清引用(源码有明确反对理由,与 mock 冲突)、录音时输入框换不换形状(方案说不换,mock 画的换)。全文和逐条状态在 docs/spec/panel-review-2026-08-14.md。",
       "blocked_on": "",
       "input_ids": [
         "in_add_task_review_2"
@@ -772,14 +772,14 @@
       "id": "N15",
       "title": "文档列表照 Notion 重做:一行一页、悬停才出 ⋯/＋、折叠箭头占位不挤字",
       "type": "design",
-      "status": "queued",
+      "status": "done",
       "priority": "P1",
       "confirmed": true,
       "tags": [
         "documents",
         "ui"
       ],
-      "note": "他发了 Notion 侧栏截图作参照。要点:①一行就是一行,不是两行卡片——现在每行下面还有\"written by hand\"和时间,占掉一半高度;②图标+标题,超出截断;③悬停才出 ⋯ 和 ＋,不悬停时那块是空的;④有子页的行悬停出折叠箭头,箭头位置平时留白,标题不左右跳;⑤子页缩进一层;⑥选中行整行浅底。落在 DocumentsRoute.tsx 列表那一半,配合 F4 的拖拽。",
+      "note": "已落地并在浏览器验证(commit 90105f8b):一行一页(去掉'written by hand'那条副行,同屏行数翻倍)、折叠箭头移到左侧且**空间恒定占位**(实测标题 hover 前后都在 258px,不跳)、⋯ 和 ＋ 保持悬停才出现。RowShell 加了 dense 变体,只有 Documents 用,其他列表不受影响。",
       "blocked_on": "",
       "input_ids": [
         "in_also_use_design"

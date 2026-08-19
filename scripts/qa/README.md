@@ -79,17 +79,15 @@ Logged-in sites (Notion, Google Docs) are **not** in here. Those must be driven
 in the owner's own Chrome — their rule, and the only honest way to test a page
 that needs their account.
 
-## Stale, and why (2026-08-13)
+## Rewritten for the panel N13 left behind (2026-08-19)
 
 Four checks were written against the panel's old four tabs — Chat · Dictation ·
-This page · Project — which the C2 panel work replaced with one stream and
-Record · Keep · Ask. They fail on the shape, not on the product:
-`audit-ext`, `cuj-panel`, `a1`, `x38`.
-
-They are **not** being rewritten yet, on purpose: N13 proposes collapsing the
-panel to one list and one composer, and the owner has not ruled on it. Rewriting
-them against a panel that is about to change is work thrown away twice. Queued
-as **X4**; when the panel settles, they are rewritten in one pass.
+This page · Project. They were left failing on purpose while N13 was still a
+proposal, because rewriting them against a panel about to change is work thrown
+away twice. The panel settled, and all four have been rewritten against one
+list and one composer: `audit-ext`, `cuj-panel`, `a1`, `x38`. `n13` covers the
+journey itself — a passage pushed from the page, and the entry that comes of
+keeping it.
 
 `cuj-web` still points at `http://127.0.0.1:5173`, a dev server. Everything
 else reads the installed app at `:8787`.
