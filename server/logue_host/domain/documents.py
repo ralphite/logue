@@ -43,7 +43,10 @@ def first_line(content: str, limit: int = TITLE_LIMIT) -> str:
     """
     for line in str(content or "").replace("\r\n", "\n").split("\n"):
         bare = re.sub(r"^\s*(#{1,6}\s+|>\s*|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+)", "", line).strip()
-        # Inline marks are markup too: **Tuesday** is called Tuesday.
+        # Inline marks are markup too: **Tuesday** is called Tuesday — and a
+        # link is called its words, never its address. Without this, a page
+        # whose first line is a page link was named the whole raw link.
+        bare = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", bare)
         bare = re.sub(r"(\*\*|__|\*|_|`)", "", bare).strip()
         if bare:
             return bare[:limit]
@@ -98,7 +101,12 @@ def create(
 
 
 def update(
-    store: Store, document_id: str, changes: dict[str, Any], *, expected_revision: int | None = None
+    store: Store,
+    document_id: str,
+    changes: dict[str, Any],
+    *,
+    expected_revision: int | None = None,
+    propagate: bool = True,
 ) -> Record:
     """Apply an edit, refusing one written against a version that has moved on.
 
@@ -134,12 +142,43 @@ def update(
         # never by the fact of typing.
         document["revision"] = document.get("revision", 1) + 1
 
+    was = str(document.get("title") or "")
     document.update(changes)
     # The name is a copy of the first line, refreshed by the write that could
     # have changed it. Nothing else names a document.
     document["title"] = named(str(document.get("content") or ""))
     document["updated_at"] = now()
-    return store.documents.put(document)
+    saved = store.documents.put(document)
+    # A page link's text is a cache of the page's name, the way `title` is a
+    # cache of the first line — so a rename reaches the links wearing it.
+    if propagate and "content" in changes:
+        _retitle_links(store, document_id, was, str(document.get("title") or ""))
+    return saved
+
+
+def _retitle_links(store: Store, document_id: str, was: str, name: str) -> None:
+    """Links that were wearing this page's old name put the new one on.
+
+    Only text that tracked the name is a cache of it: the old title, and
+    `Untitled` — the text `/page` writes at birth, and what every link made
+    before this rule stored. Words somebody chose for a link
+    (`see [my notes](/documents/…)`) are theirs, and stay. One level only:
+    a rename updates the pages pointing at this one, and stops — the loop a
+    pair of pages naming each other in their first lines would otherwise run.
+    """
+    if not name or was == name:
+        return
+    worn = {f"[{was}](/documents/{document_id})", f"[Untitled](/documents/{document_id})"}
+    replacement = f"[{name}](/documents/{document_id})"
+    for other in store.documents.all():
+        if str(other.get("id")) == document_id:
+            continue
+        content = str(other.get("content") or "")
+        renamed = content
+        for old in worn:
+            renamed = renamed.replace(old, replacement)
+        if renamed != content:
+            update(store, str(other["id"]), {"content": renamed}, propagate=False)
 
 
 def append(
@@ -415,6 +454,34 @@ def to_markdown_store(store: Store) -> int:
             store.doc_revisions.put(revision)
     store.save_settings({**settings, "documents_are_markdown": True})
     return changed
+
+
+def heal_untitled_links(store: Store) -> int:
+    """Links still wearing the birth name of a page that has one now.
+
+    The rename rule reaches forward — it rewrites links when a page is
+    renamed — so links made before the rule, or whose page was named before
+    the link landed, stayed `Untitled` for good. Idempotent and cheap, so it
+    simply runs at every start. Returns how many documents were touched.
+    """
+    names = {str(one["id"]): str(one.get("title") or "") for one in store.documents.all()}
+    worn = re.compile(r"\[Untitled\]\(/documents/(doc_[0-9a-zA-Z_-]+)\)")
+
+    def named_target(match: re.Match[str]) -> str:
+        target = match.group(1)
+        name = names.get(target, "")
+        if not name or name == "Untitled":
+            return match.group(0)
+        return f"[{name}](/documents/{target})"
+
+    healed = 0
+    for one in store.documents.all():
+        content = str(one.get("content") or "")
+        renamed = worn.sub(named_target, content)
+        if renamed != content:
+            update(store, str(one["id"]), {"content": renamed}, propagate=False)
+            healed += 1
+    return healed
 
 
 def renumber_versions(store: Store) -> int:

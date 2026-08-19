@@ -683,7 +683,48 @@ the file is not a different thing from the page.)
 - **An empty line offers the block menu.** `Type / for commands`, on the line
   the caret is in. The one habit this editor borrowed from Notion was
   otherwise findable only by someone who already knew it.
+- **`/page` makes a page inside this one, the way Notion's does.** (2026-08-19,
+  his ask: *"add slash page for subpage creation and rendering support similar
+  to notion's"*.) The menu's Page creates a child of the open document, writes
+  a link to it where the `/` was, and opens it **with the caret already in it**
+  (his bug: *"new page should be focused for editing"* — a page arrived at
+  empty is a page about to be typed into). What is stored is a plain Markdown
+  link — `[name](/documents/doc_…)` — so the export stands alone. On every
+  line the caret is not in, that link draws as Notion draws a subpage: a page
+  glyph and the page's name, pressed to open (Enter too — it is a button).
+  The name drawn is the child's current name when the workspace knows it.
+- **A page link's text is a cache of the page's name, and renames reach it.**
+  (Same day, his bug: *"should not be untitled"*.) Renaming a page rewrites
+  the links that were wearing its old name — or `Untitled`, the text every
+  `/page` link is born with — wherever they are, one level deep and no
+  further. Words somebody chose for a link (`see [my notes](…)`) are theirs
+  and stay. So the stored text, and the export with it, says the page's real
+  name once the page has one.
+- **The menu offers Page only where a page can be made.** A draft is not a
+  document yet; on one the item is absent rather than present and silently
+  dead. A Host that refuses the child says why, at the top of the page.
 - **A page inside another page says so**, in the header, each step a link.
+- **The page list and the page are Notion's, to the number** (2026-08-19:
+  *"do not stop until doc list and markdown viewer/editor matches
+  notion.com"*). Measured off app.notion.com in his own browser and kept true
+  by `scripts/qa/notion-shape.mjs`:
+
+  | | |
+  |---|---|
+  | page row | 30px tall, 31px apart, 6px corner, inside an 8px gutter, no rule between rows |
+  | its glyph | 12px, 13px in — and the fold **takes that same slot** under the pointer, never a column of its own |
+  | its name | 38px in, 14px/21px, weight 500 |
+  | a page inside a page | 8px further in |
+  | the page | a 720px column, centred in the pane |
+  | its name | 40px/48px, weight 700 — the first written line, whether or not it was typed as a heading |
+  | body | 16px/24px |
+  | headings | 30/39, 24/31.2, 20/26, all weight 600, with 40 · 36 · 32px of air above |
+  | a blank line | 16px, which is what makes one paragraph to the next 40px, as it is there |
+  | a list item | 26px, its marker hanging 9px into the margin, drawn `•` `◦` `▪` by depth |
+
+  The outline floats over the right margin rather than taking a column, so the
+  page stays centred; Sources still sit beside it, because a citation is part
+  of what the page says.
 
 ### The list is rearranged by hand (2026-08-14)
 

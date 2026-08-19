@@ -99,11 +99,76 @@ const CITATION = /\[Source (\d+)\]/g;
 /**
  * A citation, drawn the way it is drawn everywhere else in the product.
  *
- * The literal `[Source 3]` was not only ugly: at 44rem it wrapped, and a
+ * The literal `[Source 3]` was not only ugly: in a 720px column it wrapped, and a
  * citation split across two lines is two pieces of punctuation rather than
  * one chip you can follow. Same pill as `Citation` in the answer, built by
  * hand because CodeMirror widgets are DOM, not React.
  */
+/** The one shape drawn as a page block — any host's address, or none. */
+const PAGE_LINK = /^\[([^\]]*)\]\((?:https?:\/\/[^/)]+)?\/documents\/(doc_[0-9a-zA-Z_-]+)\)$/;
+
+/** What a page link says, when a run of text is exactly one. */
+function pageLinkOf(written: string): { name: string; id: string } | undefined {
+  const parts = PAGE_LINK.exec(written.trim());
+  return parts?.[2] ? { name: parts[1] || "Untitled", id: parts[2] } : undefined;
+}
+
+/**
+ * A link to another page, drawn as Notion draws a subpage.
+ *
+ * The stored text stays a plain Markdown link — `[name](/documents/doc_…)` —
+ * so the export stands alone; this is only how it reads on the lines the
+ * caret is not in. The name is looked up so a renamed child shows through
+ * without this document being edited.
+ */
+class Subpage extends WidgetType {
+  constructor(
+    readonly id: string,
+    readonly name: string,
+    readonly follow?: (id: string) => void,
+  ) {
+    super();
+  }
+
+  override eq(other: Subpage): boolean {
+    return other.id === this.id && other.name === this.name;
+  }
+
+  toDOM(): HTMLElement {
+    const page = document.createElement("button");
+    page.type = "button";
+    page.className =
+      "inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-md px-1 py-0.5 text-left " +
+      "align-baseline font-[500] text-ink hover:bg-hover";
+    page.setAttribute("aria-label", `Page ${this.name}`);
+    const glyph = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    glyph.setAttribute("viewBox", "0 0 24 24");
+    glyph.setAttribute("fill", "none");
+    glyph.setAttribute("stroke", "currentColor");
+    glyph.setAttribute("stroke-width", "1.8");
+    glyph.setAttribute("stroke-linejoin", "round");
+    glyph.setAttribute("class", "h-[16px] w-[16px] shrink-0 text-muted");
+    glyph.innerHTML = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>';
+    const name = document.createElement("span");
+    name.className = "truncate underline decoration-line underline-offset-2";
+    name.textContent = this.name;
+    page.append(glyph, name);
+    if (this.follow) {
+      // The press must not move the caret into the line and unmask the raw
+      // link, so the mousedown's default goes; the open rides the click,
+      // which is also what Enter fires on a button.
+      page.addEventListener("mousedown", (event) => event.preventDefault());
+      page.addEventListener("click", () => this.follow?.(this.id));
+    }
+    return page;
+  }
+
+  /** The editor keeps its hands off the page block, like the citation chip. */
+  override ignoreEvent(): boolean {
+    return true;
+  }
+}
+
 class Cite extends WidgetType {
   constructor(
     readonly n: number,
@@ -262,6 +327,7 @@ function marks(
   view: EditorView,
   cite?: (n: number) => void,
   toggle: (at: number, done: boolean) => void = () => undefined,
+  page?: { open?: (id: string) => void; name?: (id: string) => string | undefined },
 ): DecorationSet {
   const editing = open(view);
   const hidden = Decoration.replace({});
@@ -272,6 +338,26 @@ function marks(
       from,
       to,
       enter(node) {
+        // A link to another page draws as a subpage block away from the
+        // caret: a page glyph and the page's name, pressed to open. Whole,
+        // and without descending — the link's own marks must not also hide
+        // themselves inside a range this replaces.
+        if (node.name === "Link" && !editing.has(view.state.doc.lineAt(node.from).number)) {
+          const line = view.state.doc.lineAt(node.from);
+          // Alone on its line, or it is prose: `see [the plan](…) first`
+          // keeps the words it was written with.
+          const written = view.state.doc.sliceString(node.from, node.to);
+          const sub = line.text.trim() === written.trim() ? pageLinkOf(written) : undefined;
+          if (sub) {
+            const shown = page?.name?.(sub.id) ?? sub.name;
+            found.push({
+              from: node.from,
+              to: node.to,
+              with: Decoration.replace({ widget: new Subpage(sub.id, shown, page?.open) }),
+            });
+            return false;
+          }
+        }
         // A task box is a box wherever the caret is: a checkbox you cannot
         // press while you happen to be on its line is not a checkbox.
         if (node.name === "TaskMarker") {
@@ -341,13 +427,19 @@ function marks(
   return built.finish();
 }
 
-function livePreview(cite?: (n: number) => void) {
+/** Something outside the text moved — a page in it was renamed — redraw. */
+const refreshMarks = Annotation.define<boolean>();
+
+function livePreview(
+  cite?: (n: number) => void,
+  page?: { open?: (id: string) => void; name?: (id: string) => string | undefined },
+) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
 
       constructor(readonly view: EditorView) {
-        this.decorations = marks(view, cite, this.toggle);
+        this.decorations = marks(view, cite, this.toggle, page);
       }
 
       /** Pressing a task box writes the other state where the state lives. */
@@ -361,8 +453,14 @@ function livePreview(cite?: (n: number) => void) {
         // The caret moving is the whole point: it is what puts the markup of
         // one line back and takes the last one's away. Focus counts as a move
         // — clicking in and clicking away change which lines are being edited.
-        if (update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged) {
-          this.decorations = marks(update.view, cite, this.toggle);
+        if (
+          update.docChanged ||
+          update.viewportChanged ||
+          update.selectionSet ||
+          update.focusChanged ||
+          update.transactions.some((one) => one.annotation(refreshMarks))
+        ) {
+          this.decorations = marks(update.view, cite, this.toggle, page);
         }
       }
     },
@@ -372,11 +470,14 @@ function livePreview(cite?: (n: number) => void) {
 
 /** Everything the type system already decides, said in the type system's terms. */
 const written = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: "1.5em", fontWeight: "650", lineHeight: "1.3" },
-  { tag: tags.heading2, fontSize: "1.2em", fontWeight: "650", lineHeight: "1.35" },
-  { tag: tags.heading3, fontSize: "1.05em", fontWeight: "650" },
-  { tag: [tags.heading4, tags.heading5, tags.heading6], fontWeight: "650" },
-  { tag: tags.strong, fontWeight: "650", color: "var(--color-ink)" },
+  // Notion's scale, measured on app.notion.com on 2026-08-19: 30 / 24 / 20 at
+  // 1.3 and 600, over a 16px body. `em` rather than px because the title line
+  // raises its own font size and every heading on it has to follow.
+  { tag: tags.heading1, fontSize: "1.875em", fontWeight: "600", lineHeight: "1.3" },
+  { tag: tags.heading2, fontSize: "1.5em", fontWeight: "600", lineHeight: "1.3" },
+  { tag: tags.heading3, fontSize: "1.25em", fontWeight: "600", lineHeight: "1.3" },
+  { tag: [tags.heading4, tags.heading5, tags.heading6], fontWeight: "600" },
+  { tag: tags.strong, fontWeight: "600", color: "var(--color-ink)" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strikethrough, textDecoration: "line-through", color: "var(--color-muted)" },
   { tag: tags.monospace, fontFamily: "var(--font-mono)", fontSize: "0.9em", color: "var(--color-ink-soft)" },
@@ -581,13 +682,16 @@ const shapes = ViewPlugin.fromClass(
  * be something else: the menu writes Markdown, and what it wrote stays
  * editable as text.
  */
-const BLOCKS: { key: string; label: string; hint: string; insert: string; caret?: number }[] = [
+const BLOCKS: { key: string; label: string; hint: string; insert?: string; caret?: number }[] = [
   { key: "h1", label: "Heading 1", hint: "#", insert: "# " },
   { key: "h2", label: "Heading 2", hint: "##", insert: "## " },
   { key: "h3", label: "Heading 3", hint: "###", insert: "### " },
   { key: "list", label: "Bulleted list", hint: "-", insert: "- " },
   { key: "numbers", label: "Numbered list", hint: "1.", insert: "1. " },
   { key: "task", label: "To-do", hint: "[ ]", insert: "- [ ] " },
+  // Notion's Page: a child of this document, linked where the caret is. The
+  // insert is written by `put` once the page exists, so it has no template.
+  { key: "page", label: "Page", hint: "[]()" },
   { key: "quote", label: "Quote", hint: ">", insert: "> " },
   { key: "code", label: "Code block", hint: "```", insert: "```\n\n```", caret: 4 },
   {
@@ -891,6 +995,11 @@ function linkAt(view: EditorView, pos: number) {
 const linkCard = hoverTooltip((made, pos) => {
   const found = linkAt(made, pos);
   if (!found) return null;
+  // A link drawn as a page block has its own press; the card would only
+  // show the address the block exists to hide. The caret's line shows raw
+  // markup, and there the card earns its place again.
+  const row = made.state.doc.lineAt(found.from);
+  if (pageLinkOf(row.text) && !open(made).has(row.number)) return null;
   return {
     pos: found.from,
     end: found.to,
@@ -1007,6 +1116,10 @@ export function MarkdownEditor({
   onCite,
   onRewrite,
   onSave,
+  autoFocus,
+  onSubpage,
+  onOpenPage,
+  pageTitle,
   label = "Document",
 }: {
   /** The text as it stands on the Host. Sent in again only when it really changed. */
@@ -1021,6 +1134,14 @@ export function MarkdownEditor({
   onRewrite?: (passage: string) => void;
   /** ⌘S: save the working copy as a version. The browser's own save is eaten either way. */
   onSave?: () => void;
+  /** Put the caret in the page on arrival — a page just made is typed into. */
+  autoFocus?: boolean;
+  /** `/page`: make a child of this document and answer with it. */
+  onSubpage?: () => Promise<{ id: string; title: string } | undefined>;
+  /** A drawn page link was pressed, or `/page` finished making one. */
+  onOpenPage?: (id: string) => void;
+  /** What a page is called right now, for the block that draws it. */
+  pageTitle?: (id: string) => string | undefined;
   label?: string;
 }) {
   const host = useRef<HTMLDivElement>(null);
@@ -1052,12 +1173,21 @@ export function MarkdownEditor({
   const barAnchor = useRef<HTMLSpanElement>(null);
   const barPanel = useRef<HTMLDivElement>(null);
   const slashOpen = useRef(false);
+  /** One `/page` round trip at a time. */
+  const makingPage = useRef(false);
   /** How many rows the menu is showing, so ArrowDown knows where the end is. */
   const shownCount = useRef(0);
   const chosen = useRef<() => void>(undefined);
+  // The names the subpage blocks draw live outside the text. When the caller
+  // hands a new lookup — the workspace list moved — the decorations are asked
+  // to draw again, or a rename shows only after the next keystroke.
+  useEffect(() => {
+    view.current?.dispatch({ annotations: refreshMarks.of(true) });
+  }, [pageTitle]);
+
   // Read inside CodeMirror's own callbacks, which outlive the render that made them.
-  const latest = useRef({ onChange, onSelection, onCite, onRewrite, onSave });
-  latest.current = { onChange, onSelection, onCite, onRewrite, onSave };
+  const latest = useRef({ onChange, onSelection, onCite, onRewrite, onSave, onSubpage, onOpenPage, pageTitle });
+  latest.current = { onChange, onSelection, onCite, onRewrite, onSave, onSubpage, onOpenPage, pageTitle };
 
   /**
    * Watch for `/` at the start of an empty line, and for what is typed after it.
@@ -1107,23 +1237,68 @@ export function MarkdownEditor({
   const put = (block: (typeof BLOCKS)[number]) => {
     const made = view.current;
     if (!made || !slash) return;
+    if (block.key === "page") {
+      // The page has to exist before there is anything to link to, so the
+      // link is written after its round trip. One at a time: a double press
+      // must not mint two pages.
+      if (makingPage.current) return;
+      makingPage.current = true;
+      const asked = slash.at;
+      const typed = made.state.doc.sliceString(asked, made.state.selection.main.head) || "/";
+      setSlash(undefined);
+      void (async () => {
+        try {
+          const created = await latest.current.onSubpage?.();
+          const now = view.current;
+          if (!created || !now) return;
+          // The document may have moved under the round trip. Replace the
+          // exact `/…` that asked, wherever it sits now — never a window of
+          // stale offsets that could have drifted onto a sentence.
+          const whole = now.state.doc.toString();
+          let from = whole.startsWith(typed, asked) ? asked : whole.indexOf(typed);
+          let to = from >= 0 ? from + typed.length : -1;
+          if (from < 0) {
+            // The ask was edited away meanwhile; the page exists, so the
+            // link lands at the caret rather than nowhere.
+            from = to = now.state.selection.main.head;
+          }
+          const line = now.state.doc.lineAt(from);
+          const ahead = now.state.doc.sliceString(line.from, from).trim() ? "\n" : "";
+          const insert = `${ahead}[${created.title}](/documents/${created.id})\n`;
+          now.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length } });
+          latest.current.onOpenPage?.(created.id);
+        } finally {
+          makingPage.current = false;
+        }
+      })();
+      made.focus();
+      return;
+    }
     const to = made.state.selection.main.head;
     // A block starts its own line. The menu opens mid-sentence now, and a
     // table dropped where the caret was made `- one | Column | Column |` —
     // one line that is half a list item and half a table, and neither.
     const line = made.state.doc.lineAt(slash.at);
     const ahead = made.state.doc.sliceString(line.from, slash.at).trim() ? "\n" : "";
-    const insert = ahead + block.insert;
+    const body = block.insert ?? "";
+    const insert = ahead + body;
     made.dispatch({
       changes: { from: slash.at, to, insert },
-      selection: { anchor: slash.at + ahead.length + (block.caret ?? block.insert.length) },
+      selection: { anchor: slash.at + ahead.length + (block.caret ?? body.length) },
     });
     setSlash(undefined);
     made.focus();
   };
 
   const shown = slash
-    ? BLOCKS.filter((one) => !slash.query || one.label.toLowerCase().includes(slash.query.toLowerCase()))
+    ? BLOCKS.filter(
+        (one) =>
+          // Page needs a document to be the child of; a draft is not one
+          // yet, and a menu item that silently does nothing is worse than
+          // its absence.
+          (one.key !== "page" || Boolean(latest.current.onSubpage)) &&
+          (!slash.query || one.label.toLowerCase().includes(slash.query.toLowerCase())),
+      )
     : [];
 
   useEffect(() => {
@@ -1230,7 +1405,10 @@ export function MarkdownEditor({
       // promise the editor was not keeping: the code sat in one flat grey.
       markdown({ base: markdownLanguage, extensions: [GFM], addKeymap: false, codeLanguages }),
       syntaxHighlighting(written),
-      livePreview((n) => latest.current.onCite?.(n)),
+      livePreview((n) => latest.current.onCite?.(n), {
+        open: (id) => latest.current.onOpenPage?.(id),
+        name: (id) => latest.current.pageTitle?.(id),
+      }),
       shapes,
       page,
       EditorView.lineWrapping,
@@ -1284,6 +1462,14 @@ export function MarkdownEditor({
     // with it.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [label]);
+
+  // A page arrived at empty is a page about to be typed into — the caret
+  // goes in without a click, at the name line, the way Notion opens one.
+  // Defined after the build on purpose: this editor mounts with the text
+  // already loaded, so on the first run the view must already exist.
+  useEffect(() => {
+    if (autoFocus) view.current?.focus();
+  }, [autoFocus]);
 
   // The document being replaced under the editor — a restore from the history,
   // another tab's version being taken. Never a keystroke's own round trip.

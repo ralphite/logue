@@ -38,6 +38,7 @@ export function firstLine(text: string, limit = TITLE_LIMIT): string {
   for (const line of (text ?? "").replace(/\r\n/g, "\n").split("\n")) {
     const bare = line
       .replace(/^\s*(#{1,6}\s+|>\s*|[-*+]\s+(\[[ xX]\]\s+)?|\d+[.)]\s+)/, "")
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
       .replace(/(\*\*|__|\*|_|`)/g, "")
       .trim();
     if (bare) return bare.slice(0, limit);
@@ -126,6 +127,10 @@ export function DocumentsRoute({
   const opening = useRef<{ id: string; timer: number }>(undefined);
 
   const all = useMemo(() => documents.data?.documents ?? [], [documents.data]);
+
+  /** What a page is called right now — stable per list, so the editor can
+      redraw its subpage blocks exactly when the workspace moved. */
+  const titleOf = useCallback((target: string) => all.find((one) => one.id === target)?.title, [all]);
 
   /** A page cannot be dropped inside itself — the one move that breaks a tree. */
   const subtreeOf = useCallback(
@@ -482,6 +487,7 @@ export function DocumentsRoute({
           onOpenSource={onOpenSource}
           trail={trail}
           onOpen={onOpen}
+          titleOf={titleOf}
         />
       ) : (
         <DetailPane>
@@ -518,6 +524,7 @@ function DocumentEditor({
   onOpenSource,
   trail = NO_TRAIL,
   onOpen,
+  titleOf,
 }: {
   id: string;
   onCreated: (id: string) => void;
@@ -525,6 +532,8 @@ function DocumentEditor({
   /** The pages this one sits inside, outermost first. */
   trail?: { id: string; title: string }[];
   onOpen?: (id: string) => void;
+  /** What a page is called right now, for the subpage blocks in the text. */
+  titleOf?: (id: string) => string | undefined;
 }) {
   // Nothing is in the workspace yet. It goes in at the first keystroke, so
   // pressing `+` and walking away leaves no trace.
@@ -642,6 +651,10 @@ function DocumentEditor({
   /** Every keystroke: the name follows the first line, so the header follows too. */
   const onTyped = (next: string) => {
     setText(next);
+    // Written now, not at the render: a flush that follows this keystroke in
+    // the same tick — opening a just-made subpage — must not read the text
+    // from one edit ago.
+    written.current = next;
     // The words moved past the last saved version, so the control offers again.
     setKept(undefined);
     queueSave({ content: next });
@@ -771,6 +784,8 @@ function DocumentEditor({
         )}
         {/* ⌘S is a deliberate act; failing silently reads as saved. */}
         {editing.error && <ErrorNote className="mb-3">{editing.error}</ErrorNote>}
+        {/* So is choosing Page: a Host that refused the child says why here. */}
+        {action.error && <ErrorNote className="mb-3">{action.error}</ErrorNote>}
         {/* An agent finished while the working copy had moved; the person
             rules on the result here rather than being silently overwritten. */}
         {doc?.pending_agent && <PendingChange id={id} onSettled={() => void loaded.refresh()} />}
@@ -779,22 +794,55 @@ function DocumentEditor({
             <Spinner /> Loading
           </div>
         ) : (
-          <div
-            className={
-              sources.length > 0 || outline.length > 1
-                ? "grid grid-cols-[minmax(0,1fr)_216px] items-start gap-5"
-                : undefined
-            }
-          >
-            <article className="min-w-0">
+          /*
+           * Sources sit beside the page, because a citation is part of what
+           * the page says. The outline is not: it is a way of moving around,
+           * and Notion floats its own over the right margin so the page stays
+           * where the eye left it. In a window too narrow to float it, it
+           * gives way to the words.
+           */
+          <div className={sources.length > 0 ? "grid grid-cols-[minmax(0,1fr)_216px] items-start gap-5" : "relative"}>
+            {/* Notion opens a page with room above its name. The pane's own
+                header is only 48px away otherwise, and the title reads as a
+                toolbar label rather than as the page. */}
+            <article className="min-w-0 pt-8">
               {/* No title field: the first line is the name. Nothing sits
                   above the text but the text. */}
               <MarkdownEditor
                 value={text}
                 onChange={onTyped}
                 handle={editor}
-                // ⌘S in the editor is the same save as the footer's control.
+                // ⌘S in the editor is the same save as the header's control.
                 onSave={saveVersion}
+                // `/page`: a child of this document, born Untitled; the link
+                // lands in the text and the page opens, the way Notion's does.
+                onSubpage={
+                  draft
+                    ? undefined
+                    : async () => {
+                        // Through the action so a Host that refuses is said
+                        // out loud, not swallowed into an empty menu press.
+                        let born: DocumentRecord | undefined;
+                        const ok = await action.run(async () => {
+                          born = (await api.createDocument({ parent_id: id })).document;
+                        });
+                        return ok && born ? { id: born.id, title: born.title || "Untitled" } : undefined;
+                      }
+                }
+                // Opening leaves this page, so what was just typed is flushed
+                // first — the same promise every working-copy replacement keeps.
+                onOpenPage={(target) => {
+                  window.clearTimeout(timer.current);
+                  setWaitingToSave(false);
+                  void action.run(async () => {
+                    // A refused flush means these words have nowhere else to
+                    // live yet; the conflict notice takes it from here.
+                    if (!(await write(mine()))) return;
+                    onOpen?.(target);
+                  });
+                }}
+                autoFocus={!draft && doc?.content === ""}
+                pageTitle={titleOf}
                 // Frozen at the press: opening a dialog steals focus, and a
                 // selection read afterwards is empty.
                 onRewrite={(passage) => setRewriting(passage)}

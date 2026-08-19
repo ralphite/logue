@@ -287,6 +287,51 @@ class HostTest(Workspace, unittest.TestCase):
         document = self.call("POST", "/v1/documents", {"title": "   "})["document"]
         self.assertEqual(document["title"], "Untitled")
 
+    def test_renaming_a_page_renames_the_links_wearing_its_name(self) -> None:
+        # The link text is a cache of the page's name, like `title` is of the
+        # first line — including the `Untitled` every /page link is born with.
+        child = self.call("POST", "/v1/documents", {})["document"]
+        parent = self.call(
+            "POST", "/v1/documents", {"content": f"# Parent\n\n[Untitled](/documents/{child['id']})"}
+        )["document"]
+        self.call("PATCH", f"/v1/documents/{child['id']}", {"content": "# Real Name"})
+        told = self.call("GET", f"/v1/documents/{parent['id']}")["document"]
+        self.assertIn(f"[Real Name](/documents/{child['id']})", told["content"])
+        # And again, off the previous name rather than off Untitled.
+        self.call("PATCH", f"/v1/documents/{child['id']}", {"content": "# Newer Name"})
+        told = self.call("GET", f"/v1/documents/{parent['id']}")["document"]
+        self.assertIn(f"[Newer Name](/documents/{child['id']})", told["content"])
+
+    def test_a_first_line_that_is_a_link_is_named_by_its_words(self) -> None:
+        # `/page` on the first line of an empty page must not name the page
+        # after the raw link — a name is words, never an address.
+        target = self.call("POST", "/v1/documents", {"content": "# Elsewhere"})["document"]
+        named = self.call(
+            "POST", "/v1/documents", {"content": f"[Elsewhere](/documents/{target['id']})"}
+        )["document"]
+        self.assertEqual(named["title"], "Elsewhere")
+
+    def test_links_born_untitled_heal_at_startup(self) -> None:
+        child = self.call("POST", "/v1/documents", {})["document"]
+        parent = self.call(
+            "POST", "/v1/documents", {"content": f"# P\n\n[Untitled](/documents/{child['id']})"}
+        )["document"]
+        # The child was named while the rule was not looking (no propagation).
+        documents.update(self.app.store, child["id"], {"content": "# Found Name"}, propagate=False)
+        self.assertEqual(documents.heal_untitled_links(self.app.store), 1)
+        told = self.call("GET", f"/v1/documents/{parent['id']}")["document"]
+        self.assertIn(f"[Found Name](/documents/{child['id']})", told["content"])
+        self.assertEqual(documents.heal_untitled_links(self.app.store), 0, "and healing is idempotent")
+
+    def test_link_text_somebody_chose_stays_theirs(self) -> None:
+        child = self.call("POST", "/v1/documents", {"content": "# Old Name"})["document"]
+        parent = self.call(
+            "POST", "/v1/documents", {"content": f"see [my notes](/documents/{child['id']})"}
+        )["document"]
+        self.call("PATCH", f"/v1/documents/{child['id']}", {"content": "# New Name"})
+        told = self.call("GET", f"/v1/documents/{parent['id']}")["document"]
+        self.assertIn(f"[my notes](/documents/{child['id']})", told["content"], "chosen words are not a cache")
+
     def test_markdown_export_lists_its_sources(self) -> None:
         source = self.call("POST", "/v1/materials", {"kind": "selection", "content": "Quoted.", "source": {"url": "https://example.com", "title": "Example"}})["material"]
         document = self.call("POST", "/v1/documents", {"title": "Report", "content": "<p>Body [Source 1]</p>", "source_ids": [source["id"]]})["document"]

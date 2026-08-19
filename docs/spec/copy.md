@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-1183 strings across 91 files.
+1196 strings across 91 files.
 
 ## extension/src/api.ts
 
@@ -454,8 +454,8 @@ state the fact, no justification, no chat register, no filler.
 - 17: `Run the Logue Host.`
 - 18: `host:port to listen on`
 - 39: `Sources the old review queue was holding; "`
-- 70: `app + API`
-- 70: `API only — run 'npm run dev:web' for the app`
+- 75: `app + API`
+- 75: `API only — run 'npm run dev:web' for the app`
 
 ## server/logue_host/app.py
 
@@ -573,63 +573,67 @@ state the fact, no justification, no chat register, no filler.
 
 - 5: `s, or an agent`
 - 40: `Tuesday`
-- 54: `The name to store, including the one an empty document gets.`
-- 55: `Untitled`
-- 122: `Read it again.`
-- 155: `s promises: the person`
-- 157: `keep mine`
-- 161: `there is nothing to add`
-- 200: `A sort key that puts later timestamps first.`
-- 206: `Give one parent's children positions 0…n, in 'order' if one is given.`
-- 217: `Everything under a document, so nothing can be moved inside itself.`
-- 236: `add to a Document`
-- 244: `), int(one.get(`
-- 259: `A document cannot be moved inside itself.`
-- 275: `Set the order of one parent's children, and answer with it.`
-- 313: `", re.I)`
-- 319: `next line`
-- 319: `' — the first`
-- 338: `", "", text)`
-- 339: `", "\n", body)`
-- 341: `", r"**\2**", body)`
-- 342: `", r"*\2*", body)`
-- 343: `", r"'\1'", body)`
-- 346: `\n\n", body)`
-- 355: `", match.group(1))`
-- 358: `", numbered, body)`
-- 359: `\n", body)`
-- 363: `", "\n\n", body)`
-- 364: `", "", body)`
-- 402: `Untitled`
-- 473: `agent`
-- 481: `The version the working copy is based on: the newest one.`
-- 486: `Whether the working copy holds anything no version does.`
-- 545: `) if base else `
-- 565: `That base version does not belong to this document. Begin again.`
-- 566: `) if base else `
-- 592: `The agent result waiting for a decision, and what applying it would change.`
-- 600: `)), _lines(str(held.get(`
-- 600: `) or `
-- 615: `There is no agent change waiting on this document.`
-- 631: `Drop the waiting agent change, touching nothing else.`
-- 678: `current`
-- 687: `current`
-- 693: `current`
-- 700: `current`
-- 723: `What one version changed, line by line, against the one before it.`
-- 737: `s begin keeps the person`
-- 755: `to go back to.")`
-- 764: `Rewrite the passage below as instructed. Return only the rewritten passage — `
-- 765: `no preamble, no commentary, no quotation marks around it. Keep the meaning `
-- 766: `unless the instruction says otherwise, and keep the original language.`
-- 779: `why does it say this now`
-- 783: `Select the passage to rewrite first.`
-- 785: `Say how it should change.`
-- 799: `sources`
-- 820: `source`
-- 820: `This Mac`
-- 820: `).get("url") or "This Mac"`
-- 821: `source`
+- 57: `The name to store, including the one an empty document gets.`
+- 58: `Untitled`
+- 130: `Read it again.`
+- 163: `Untitled`
+- 194: `s promises: the person`
+- 196: `keep mine`
+- 200: `there is nothing to add`
+- 239: `A sort key that puts later timestamps first.`
+- 245: `Give one parent's children positions 0…n, in 'order' if one is given.`
+- 256: `Everything under a document, so nothing can be moved inside itself.`
+- 275: `add to a Document`
+- 283: `), int(one.get(`
+- 298: `A document cannot be moved inside itself.`
+- 314: `Set the order of one parent's children, and answer with it.`
+- 352: `", re.I)`
+- 358: `next line`
+- 358: `' — the first`
+- 377: `", "", text)`
+- 378: `", "\n", body)`
+- 380: `", r"**\2**", body)`
+- 381: `", r"*\2*", body)`
+- 382: `", r"'\1'", body)`
+- 385: `\n\n", body)`
+- 394: `", match.group(1))`
+- 397: `", numbered, body)`
+- 398: `\n", body)`
+- 402: `", "\n\n", body)`
+- 403: `", "", body)`
+- 441: `Untitled`
+- 464: `Untitled`
+- 467: `) or `
+- 473: `Untitled`
+- 540: `agent`
+- 548: `The version the working copy is based on: the newest one.`
+- 553: `Whether the working copy holds anything no version does.`
+- 612: `) if base else `
+- 632: `That base version does not belong to this document. Begin again.`
+- 633: `) if base else `
+- 659: `The agent result waiting for a decision, and what applying it would change.`
+- 667: `)), _lines(str(held.get(`
+- 667: `) or `
+- 682: `There is no agent change waiting on this document.`
+- 698: `Drop the waiting agent change, touching nothing else.`
+- 745: `current`
+- 754: `current`
+- 760: `current`
+- 767: `current`
+- 790: `What one version changed, line by line, against the one before it.`
+- 804: `s begin keeps the person`
+- 822: `to go back to.")`
+- 831: `Rewrite the passage below as instructed. Return only the rewritten passage — `
+- 832: `no preamble, no commentary, no quotation marks around it. Keep the meaning `
+- 833: `unless the instruction says otherwise, and keep the original language.`
+- 846: `why does it say this now`
+- 850: `Select the passage to rewrite first.`
+- 852: `Say how it should change.`
+- 866: `sources`
+- 887: `source`
+- 887: `This Mac`
+- 887: `).get("url") or "This Mac"`
+- 888: `source`
 
 ## server/logue_host/domain/finding.py
 
@@ -1018,53 +1022,54 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/DocumentsRoute.tsx
 
-- 218: `Untitled`
-- 266: `Documents`
-- 268: `New Document`
-- 279: `Loading`
-- 286: `Untitled`
-- 363: `Untitled`
-- 376: `Show what is inside`
-- 376: `Fold this away`
-- 377: `Show what is inside`
-- 377: `Fold this away`
-- 398: `An agent change is waiting`
-- 401: `review`
-- 407: `New page inside this one`
-- 409: `New page inside this one`
-- 426: `More`
-- 429: `More`
-- 435: `Rename`
-- 438: `Delete…`
-- 450: `Delete this page`
-- 451: `Untitled`
-- 456: `page`
-- 456: `pages`
-- 460: `Every Source it cited stays in the workspace.`
-- 488: `Documents`
-- 490: `Nothing written yet — press + to start a page.`
-- 667: `Saved as a version`
-- 667: `No changes to save`
-- 676: `Documents`
-- 698: `Untitled`
-- 703: `New Document`
-- 703: `Untitled`
-- 719: `Every version of this document`
-- 721: `History`
-- 724: `Save the working copy as a version`
-- 726: `Save version`
-- 729: `Download as Markdown`
-- 731: `Export`
-- 753: `Keep mine`
-- 764: `Discard mine`
-- 769: `This document changed somewhere else. Your edits are still here, unsaved.`
-- 779: `Loading`
-- 807: `Document`
-- 818: `Outline`
-- 836: `Sources`
-- 916: `Name`
-- 921: `Enter`
-- 922: `Escape`
+- 223: `Untitled`
+- 271: `Documents`
+- 273: `New Document`
+- 284: `Loading`
+- 291: `Untitled`
+- 368: `Untitled`
+- 381: `Show what is inside`
+- 381: `Fold this away`
+- 382: `Show what is inside`
+- 382: `Fold this away`
+- 403: `An agent change is waiting`
+- 406: `review`
+- 412: `New page inside this one`
+- 414: `New page inside this one`
+- 431: `More`
+- 434: `More`
+- 440: `Rename`
+- 443: `Delete…`
+- 455: `Delete this page`
+- 456: `Untitled`
+- 461: `page`
+- 461: `pages`
+- 465: `Every Source it cited stays in the workspace.`
+- 494: `Documents`
+- 496: `Nothing written yet — press + to start a page.`
+- 680: `Saved as a version`
+- 680: `No changes to save`
+- 689: `Documents`
+- 711: `Untitled`
+- 716: `New Document`
+- 716: `Untitled`
+- 732: `Every version of this document`
+- 734: `History`
+- 737: `Save the working copy as a version`
+- 739: `Save version`
+- 742: `Download as Markdown`
+- 744: `Export`
+- 766: `Keep mine`
+- 777: `Discard mine`
+- 782: `This document changed somewhere else. Your edits are still here, unsaved.`
+- 794: `Loading`
+- 829: `Untitled`
+- 855: `Document`
+- 866: `Outline`
+- 884: `Sources`
+- 964: `Name`
+- 969: `Enter`
+- 970: `Escape`
 
 ## web/src/app/FindDialog.tsx
 
@@ -1124,49 +1129,57 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/MarkdownEditor.tsx
 
-- 188: `Enter`
-- 219: `my-1 block`
-- 227: `Image`
-- 287: `Image`
-- 310: `Link`
-- 431: `2px solid var(--color-line-strong)`
-- 462: `1px solid var(--color-line)`
-- 463: `6px 8px`
-- 473: `0 7px`
-- 475: `1px solid var(--color-control-line)`
-- 483: `0 8px`
-- 485: `1px solid var(--color-control-line)`
-- 493: `0 6px`
-- 588: `Bulleted list`
-- 589: `Numbered list`
-- 591: `Quote`
-- 592: `Code block`
-- 595: `Table`
-- 600: `Divider`
-- 605: `Callout`
-- 606: `Equation`
-- 607: `Diagram`
-- 610: `Image`
-- 768: `Text`
-- 772: `Bulleted list`
-- 773: `Numbered list`
-- 775: `Quote`
-- 920: `Edit`
-- 928: `Unlink`
-- 943: `Type / for commands`
-- 1010: `Document`
-- 1155: `Enter`
-- 1163: `Escape`
-- 1194: `Tab`
-- 1238: `Start writing. The first line is the title.`
-- 1369: `Format the selected passage`
-- 1373: `Bold`
-- 1376: `Italic`
-- 1377: `font-serif italic`
-- 1379: `Code`
-- 1382: `Link`
-- 1400: `Rewrite`
-- 1413: `Insert a block`
+- 113: `Untitled`
+- 153: `truncate underline decoration-line underline-offset-2`
+- 253: `Enter`
+- 284: `my-1 block`
+- 292: `Image`
+- 345: `Link`
+- 373: `Image`
+- 396: `Link`
+- 532: `2px solid var(--color-line-strong)`
+- 563: `1px solid var(--color-line)`
+- 564: `6px 8px`
+- 574: `0 7px`
+- 576: `1px solid var(--color-control-line)`
+- 584: `0 8px`
+- 586: `1px solid var(--color-control-line)`
+- 594: `0 6px`
+- 689: `Bulleted list`
+- 690: `Numbered list`
+- 694: `page`
+- 694: `Page`
+- 695: `Quote`
+- 696: `Code block`
+- 699: `Table`
+- 704: `Divider`
+- 709: `Callout`
+- 710: `Equation`
+- 711: `Diagram`
+- 714: `Image`
+- 872: `Text`
+- 876: `Bulleted list`
+- 877: `Numbered list`
+- 879: `Quote`
+- 1029: `Edit`
+- 1037: `Unlink`
+- 1052: `Type / for commands`
+- 1123: `Document`
+- 1140: `Promise`
+- 1240: `page`
+- 1299: `page`
+- 1330: `Enter`
+- 1338: `Escape`
+- 1369: `Tab`
+- 1416: `Start writing. The first line is the title.`
+- 1555: `Format the selected passage`
+- 1559: `Bold`
+- 1562: `Italic`
+- 1563: `font-serif italic`
+- 1565: `Code`
+- 1568: `Link`
+- 1586: `Rewrite`
+- 1599: `Insert a block`
 
 ## web/src/app/MaterialPanel.tsx
 

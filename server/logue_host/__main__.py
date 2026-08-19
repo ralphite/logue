@@ -61,6 +61,11 @@ def main(argv: list[str] | None = None) -> int:
     if renumbered:
         print(f"Renumbered {renumbered} document versions into 1…n.", flush=True)
 
+    # Page links wearing the birth name of a page that has a real one now.
+    healed = documents.heal_untitled_links(app.store)
+    if healed:
+        print(f"Renamed the Untitled page links in {healed} documents.", flush=True)
+
     # Same reason: a version stuck on "working out what changed" is worse than
     # the counted line it would have fallen back to.
     described = summaries.catch_up(app.store, app.provider())

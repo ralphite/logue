@@ -941,6 +941,38 @@
       ],
       "created": "2026-08-19",
       "updated": "2026-08-19"
+    },
+    {
+      "id": "F9",
+      "title": "斜杠菜单加 /page:创建子页面并按 Notion 方式渲染",
+      "type": "feature",
+      "status": "done",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [],
+      "note": "",
+      "blocked_on": "",
+      "input_ids": [
+        "in_add_slash_page"
+      ],
+      "created": "2026-08-19",
+      "updated": "2026-08-19"
+    },
+    {
+      "id": "X13",
+      "title": "/page 两个 bug:链接文本停在 Untitled;新页未聚焦",
+      "type": "bug",
+      "status": "done",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [],
+      "note": "",
+      "blocked_on": "",
+      "input_ids": [
+        "in_bugs_should_not"
+      ],
+      "created": "2026-08-19",
+      "updated": "2026-08-19"
     }
   ],
   "inputs": [
@@ -1330,6 +1362,18 @@
       "id": "in_we_dont_need_2",
       "at": "2026-08-19 12:51",
       "text": "we dont need the hover btns for add and drag here.\n\nalso allow smaller width of doc list panel",
+      "images": []
+    },
+    {
+      "id": "in_add_slash_page",
+      "at": "2026-08-19 13:30",
+      "text": "add slash page for subpage creation and rendering support similar to notion's",
+      "images": []
+    },
+    {
+      "id": "in_bugs_should_not",
+      "at": "2026-08-19 13:45",
+      "text": "bugs: 1. should not be untitled 2. new page should be focused for editing",
       "images": []
     }
   ]
