@@ -1008,7 +1008,8 @@
       "note": "他给了测试文档截图:引用块、代码块、标题、列表、子页面行等渲染块要以 Notion 的设计为准改进。做法:在他登录的浏览器里实测 Notion 的块样式数值,声明后落地,QA 脚本固化数值。",
       "blocked_on": "",
       "input_ids": [
-        "in_notion_has_better"
+        "in_notion_has_better",
+        "in_notion_20_335a3ce8"
       ],
       "created": "2026-08-19",
       "updated": "2026-08-19"
@@ -1431,6 +1432,12 @@
       "id": "in_notion_has_better",
       "at": "2026-08-19 20:46",
       "text": "notion has better style for rendered blocks. improve ours based on their design",
+      "images": []
+    },
+    {
+      "id": "in_notion_20_335a3ce8",
+      "at": "2026-08-19 21:46",
+      "text": "已完成并部署:引用块/代码卡/分隔线/页面块按 Notion 实测数值重做,三轮评审共 20 条发现全部修复,提交 335a3ce8,QA 脚本 scripts/qa/rendered-blocks.mjs 钉住全部数值。",
       "images": []
     }
   ]
