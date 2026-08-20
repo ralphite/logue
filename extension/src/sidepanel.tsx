@@ -229,11 +229,11 @@ function WaitingRow({ one, onChanged }: { one: Waiting; onChanged: () => void })
               </IconButton>
             )}
           >
-            <MenuItem onClick={() => download(one)}>
-              <Download size={12} /> Export audio
+            <MenuItem icon={<Download size={12} />} onClick={() => download(one)}>
+              Export audio
             </MenuItem>
-            <MenuItem onClick={() => setDropping(true)}>
-              <Trash2 size={12} /> Delete recording…
+            <MenuItem icon={<Trash2 size={12} />} onClick={() => setDropping(true)}>
+              Delete recording…
             </MenuItem>
           </Menu>
         </div>
@@ -655,14 +655,14 @@ export function Panel() {
               </IconButton>
             )}
           >
-            <MenuItem onClick={() => window.open(server, "_blank", "noreferrer")}>
-              <ExternalLink size={12} /> Open Logue
+            <MenuItem icon={<ExternalLink size={12} />} onClick={() => window.open(server, "_blank", "noreferrer")}>
+              Open Logue
             </MenuItem>
             <MenuItem onClick={() => setShortcuts(true)}>
               <Keys>⌘⇧K</Keys> Keyboard shortcuts
             </MenuItem>
-            <MenuItem onClick={() => setChangingServer((was) => !was)}>
-              <Settings2 size={12} /> Server address…
+            <MenuItem icon={<Settings2 size={12} />} onClick={() => setChangingServer((was) => !was)}>
+              Server address…
             </MenuItem>
           </Menu>
         </div>

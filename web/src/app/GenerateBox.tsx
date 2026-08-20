@@ -22,16 +22,15 @@ export function GenerateBox({
   onOpenDocument: (documentId: string) => void;
   onStale?: () => void;
 }) {
-  // Asking is not transcribing or filing: only Skills that produce something to
-  // read belong in this picker, and Ask leads because it is what people reach for.
-  const usable = skills
-    .filter(
-      (skill) =>
-        skill.enabled &&
-        skill.contexts.includes("project") &&
-        ["insert", "document", "qa"].includes(skill.output),
-    )
-    .toSorted((a, b) => Number(Boolean(b.built_in_key)) - Number(Boolean(a.built_in_key)));
+  // Asking is not transcribing or filing: only Skills that produce something
+  // to read belong in this picker. The Host serves Skills in the order the
+  // person gave them, and no picker keeps a private sort on top of that.
+  const usable = skills.filter(
+    (skill) =>
+      skill.enabled &&
+      skill.contexts.includes("project") &&
+      ["insert", "document", "qa"].includes(skill.output),
+  );
 
   const [skillId, setSkillId] = useState("");
   const [instruction, setInstruction] = useState("");

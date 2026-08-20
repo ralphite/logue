@@ -189,7 +189,13 @@ async function pageSkills(): Promise<PageSkill[]> {
   }
 }
 
+/** When the menus were last rebuilt, so a tab switch does not rebuild them
+    again within the half-minute. Worker-lifetime only, which is enough: a
+    fresh worker rebuilds on start anyway. */
+let menusBuiltAt = 0;
+
 async function buildMenus(): Promise<void> {
+  menusBuiltAt = Date.now();
   try {
     await chrome.contextMenus.removeAll();
     chrome.contextMenus.create({
@@ -722,6 +728,23 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   // back should not need a page opened before it hears what it missed.
   void sendPending();
   void retryHeld();
+  // Skills can be renamed, rearranged or turned off in the app; the beat
+  // keeps the right-click menu from trailing the workspace indefinitely.
+  void buildMenus();
+});
+
+// The flow that matters is arrange-then-right-click-somewhere-else: switching
+// tabs — or windows, which fires no tab event — is the moment between those
+// two, so both are when the menu is refreshed. Throttled, because switches
+// are constant and the menu changes rarely; the throttle is short enough
+// that arranging in one tab and returning ten seconds later reads fresh.
+const rebuildMenusSoon = () => {
+  if (Date.now() - menusBuiltAt < 10_000) return;
+  void buildMenus();
+};
+chrome.tabs.onActivated.addListener(rebuildMenusSoon);
+chrome.windows.onFocusChanged.addListener((window) => {
+  if (window !== chrome.windows.WINDOW_ID_NONE) rebuildMenusSoon();
 });
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, respond) => {

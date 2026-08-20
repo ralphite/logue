@@ -107,11 +107,20 @@ export function MenuItem({
   className,
   children,
   tone = "default",
+  icon,
   accelerator,
   submenu = false,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   tone?: "default" | "danger";
+  /**
+   * The small glyph at the start of the line, beside the name.
+   *
+   * A slot rather than a child because the label span truncates: the CSS
+   * reset makes an <svg> in flowing text a block of its own, which stacked
+   * the glyph over the name and printed every item onto the next one.
+   */
+  icon?: ReactNode;
   /**
    * One letter that runs this item while the menu is open.
    *
@@ -140,7 +149,16 @@ export function MenuItem({
       )}
       {...props}
     >
-      <span className="min-w-0 flex-1 truncate">{children}</span>
+      {icon && (
+        <span aria-hidden className="flex shrink-0 items-center justify-center">
+          {icon}
+        </span>
+      )}
+      {/* A glyph still in the children — a caller this kit cannot see —
+          stays on the line instead of becoming a block above it. */}
+      <span className="min-w-0 flex-1 truncate [&_svg]:mr-1.5 [&_svg]:inline-block [&_svg]:align-[-2px]">
+        {children}
+      </span>
       {accelerator && (
         <span className="shrink-0 font-mono text-[11px] text-muted uppercase">{accelerator}</span>
       )}

@@ -163,12 +163,12 @@ export function SelectionBar({
               {overflow.map((skill) => (
                 <MenuItem
                   key={skill.id}
+                  icon={<Sparkles size={13} />}
                   onClick={() => {
                     setRunning(skill.id);
                     onSkill(skill.id);
                   }}
                 >
-                  <Sparkles size={13} />
                   {skill.name}
                 </MenuItem>
               ))}

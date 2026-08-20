@@ -6,49 +6,45 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-1196 strings across 91 files.
+1179 strings across 91 files.
 
 ## extension/src/api.ts
 
-- 48: `Answered`
-- 48: `As Markdown`
 - 118: `Logue's background service is restarting. Try again in a moment.`
-- 230: `never used`
 
 ## extension/src/background.ts
 
 - 35: `Record the microphone for voice capture.`
 - 59: `The microphone did not come up.`
 - 186: `page`
-- 197: `Save to Logue`
-- 207: `page`
-- 238: `Simplify, on the passage you selected`
-- 241: `page`
-- 246: `There was nothing to read.`
-- 260: `Logue could not keep this.`
-- 268: `this page`
-- 273: `The model did not answer.`
-- 276: `The model answered with nothing.`
-- 299: `Logue: could not run`
-- 304: `this page`
-- 315: `page`
-- 329: `That Skill`
-- 490: `Logue is not running on this computer.`
-- 503: `Something answered there, but it is not a Logue Host.`
-- 809: `Logue could not reach the Host.`
-- 817: `That address could not be reached.`
+- 203: `Save to Logue`
+- 213: `page`
+- 247: `page`
+- 252: `There was nothing to read.`
+- 266: `Logue could not keep this.`
+- 274: `this page`
+- 279: `The model did not answer.`
+- 282: `The model answered with nothing.`
+- 305: `Logue: could not run`
+- 310: `this page`
+- 321: `page`
+- 335: `That Skill`
+- 496: `Logue is not running on this computer.`
+- 509: `Something answered there, but it is not a Logue Host.`
+- 832: `Logue could not reach the Host.`
+- 840: `That address could not be reached.`
 
 ## extension/src/content.tsx
 
 - 130: `Backspace`
 - 130: `Enter`
-- 159: `Logue is not running on this Mac.`
-- 309: `Enter`
-- 314: `Escape`
-- 406: `Could not save.`
-- 423: `Could not reach the microphone.`
-- 443: `Could not save.`
-- 589: `That Skill`
+- 184: `Logue is not running on this Mac.`
+- 334: `Enter`
+- 339: `Escape`
+- 431: `Could not save.`
+- 448: `Could not reach the microphone.`
+- 468: `Could not save.`
+- 614: `That Skill`
 
 ## extension/src/editable.ts
 
@@ -129,7 +125,6 @@ state the fact, no justification, no chat register, no filler.
 ## extension/src/pending.ts
 
 - 77: `): Promise`
-- 95: `tried twice`
 
 ## extension/src/recorder.ts
 
@@ -271,7 +266,6 @@ state the fact, no justification, no chat register, no filler.
 
 ## extension/src/useVoice.ts
 
-- 23: `Transcribing…`
 - 24: `The model was busy. Trying again…`
 - 84: `Something went wrong.`
 - 149: `Nothing was heard in that recording. The audio is still kept.`
@@ -475,27 +469,27 @@ state the fact, no justification, no chat register, no filler.
 - 415: `) or `
 - 436: `no visible change`
 - 437: `Formatting only`
-- 562: `instruction is required`
-- 596: `sources`
-- 622: `) or `
-- 632: `audio is required`
-- 636: `audio must be base64`
-- 670: `source`
-- 681: `Every recording here that never became words, so it can be tried again.`
-- 686: `What shaped a transcription, including one that produced nothing.`
-- 721: `page`
-- 721: `page`
-- 738: `a proposal is required`
-- 739: `page`
-- 739: `page`
-- 754: `) or `
-- 771: `current`
-- 777: `That recording is no longer available.`
-- 785: `Range`
-- 834: `) or `
-- 853: `Default voice`
-- 991: `backup_id or bundle is required`
-- 1008: `Unnamed device`
+- 567: `instruction is required`
+- 601: `sources`
+- 627: `) or `
+- 637: `audio is required`
+- 641: `audio must be base64`
+- 675: `source`
+- 686: `Every recording here that never became words, so it can be tried again.`
+- 691: `What shaped a transcription, including one that produced nothing.`
+- 726: `page`
+- 726: `page`
+- 743: `a proposal is required`
+- 744: `page`
+- 744: `page`
+- 759: `) or `
+- 776: `current`
+- 782: `That recording is no longer available.`
+- 790: `Range`
+- 839: `) or `
+- 858: `Default voice`
+- 994: `backup_id or bundle is required`
+- 1011: `Unnamed device`
 
 ## server/logue_host/build.py
 
@@ -758,13 +752,14 @@ state the fact, no justification, no chat register, no filler.
 - 105: `Write a document grounded in the Project's Sources.`
 - 107: `Write a clear, well-structured document that answers the request using only the numbered `
 - 122: `Answer questions`
-- 180: `name is required`
-- 245: `A prompt's lines. Blank ones are spacing, not instructions.`
-- 273: `current`
-- 281: `What one prompt version changed, line by line, against the one before it.`
-- 304: `to go back to.")`
-- 309: `What stops working if this Skill goes away.`
-- 321: `Built-in Skills can be edited but not deleted.`
+- 195: `order must be a list of Skill ids`
+- 217: `name is required`
+- 282: `A prompt's lines. Blank ones are spacing, not instructions.`
+- 310: `current`
+- 318: `What one prompt version changed, line by line, against the one before it.`
+- 341: `to go back to.")`
+- 346: `What stops working if this Skill goes away.`
+- 358: `Built-in Skills can be edited but not deleted.`
 
 ## server/logue_host/domain/summaries.py
 
@@ -961,10 +956,8 @@ state the fact, no justification, no chat register, no filler.
 ## web/src/api.ts
 
 - 14: `page`
-- 149: `s is the person`
-- 150: `agent`
-- 270: `Logue is not running on this Mac.`
-- 386: `saved: false`
+- 152: `agent`
+- 272: `Logue is not running on this Mac.`
 
 ## web/src/app/ActivitiesPage.tsx
 
@@ -979,10 +972,8 @@ state the fact, no justification, no chat register, no filler.
 - 178: `Empty`
 - 224: `kept`
 - 225: `page`
-- 239: `Mar 4`
 - 243: `Today`
 - 244: `Yesterday`
-- 249: `s own clock — the day is already the group`
 
 ## web/src/app/App.tsx
 
@@ -1012,7 +1003,6 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/ConfirmDelete.tsx
 
-- 27: `Delete this Source`
 - 32: `Promise`
 - 64: `Checking what depends on it`
 - 67: `Nothing else depends on it.`
@@ -1093,13 +1083,13 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/GenerateBox.tsx
 
-- 75: `Enter`
-- 82: `What to ask`
-- 87: `Skill`
-- 98: `Run`
-- 118: `This Mac`
-- 139: `Open as Document`
-- 148: `Keep`
+- 74: `Enter`
+- 81: `What to ask`
+- 86: `Skill`
+- 97: `Run`
+- 117: `This Mac`
+- 138: `Open as Document`
+- 147: `Keep`
 
 ## web/src/app/History.tsx
 
@@ -1112,7 +1102,6 @@ state the fact, no justification, no chat register, no filler.
 - 71: `Summarizing…`
 - 74: `Unsaved changes`
 - 76: `As saved`
-- 87: `s save, told apart from the person`
 - 89: `now`
 - 90: `agent`
 - 92: `agent`
@@ -1237,14 +1226,11 @@ state the fact, no justification, no chat register, no filler.
 - 670: `Nothing yet.`
 - 681: `Untitled`
 - 711: `This Mac`
-- 725: `Today · 10:18`
 - 731: `Today`
 - 733: `Yesterday`
 
 ## web/src/app/NewNamed.tsx
 
-- 21: `Projects`
-- 23: `Project`
 - 27: `Promise`
 - 50: `Enter`
 - 51: `Escape`
@@ -1276,7 +1262,6 @@ state the fact, no justification, no chat register, no filler.
 - 107: `Mobile research`
 - 125: `Projects`
 - 128: `No Projects yet — press + to start one.`
-- 137: `read and closed`
 - 141: `kept`
 - 144: `made a Document`
 - 192: `source`
@@ -1411,36 +1396,36 @@ state the fact, no justification, no chat register, no filler.
 - 16: `Offered on the toolbar over selected text.`
 - 17: `Dictation`
 - 17: `Offered on anything spoken into the panel.`
-- 26: `offered nowhere`
-- 26: `no prompt yet`
-- 70: `Skills`
-- 72: `New Skill`
-- 83: `Loading`
-- 93: `Untitled Skill`
-- 103: `Skills`
-- 104: `Skill`
-- 105: `Draft a reply`
-- 123: `Skills`
-- 125: `No Skills yet — press + to write one.`
-- 154: `Skills`
-- 156: `This Skill is gone.`
-- 186: `Untitled Skill`
-- 187: `Built-in · `
-- 191: `Delete this Skill`
-- 193: `Delete`
-- 198: `Save`
-- 207: `Name`
-- 213: `Result`
-- 215: `What this Skill produces`
-- 219: `Text to insert`
-- 220: `Document`
-- 225: `Used where`
-- 261: `Tell the model exactly what to produce.`
-- 262: `Instructions`
-- 266: `No prompt yet, so it is offered nowhere.`
-- 269: `Runs keep the exact revision they used`
-- 294: `Delete this Skill`
-- 298: `Runs that used it keep the exact prompt they ran with.`
+- 32: `offered nowhere`
+- 32: `no prompt yet`
+- 120: `Skills`
+- 122: `New Skill`
+- 143: `Loading`
+- 193: `Untitled Skill`
+- 204: `Skills`
+- 205: `Skill`
+- 206: `Draft a reply`
+- 224: `Skills`
+- 226: `No Skills yet — press + to write one.`
+- 255: `Skills`
+- 257: `This Skill is gone.`
+- 287: `Untitled Skill`
+- 288: `Built-in · `
+- 292: `Delete this Skill`
+- 294: `Delete`
+- 299: `Save`
+- 308: `Name`
+- 314: `Result`
+- 316: `What this Skill produces`
+- 320: `Text to insert`
+- 321: `Document`
+- 326: `Used where`
+- 362: `Tell the model exactly what to produce.`
+- 363: `Instructions`
+- 367: `No prompt yet, so it is offered nowhere.`
+- 370: `Runs keep the exact revision they used`
+- 395: `Delete this Skill`
+- 399: `Runs that used it keep the exact prompt they ran with.`
 
 ## web/src/app/StreamRoute.tsx
 
@@ -1452,8 +1437,6 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/panes.tsx
 
-- 29: `Newest first`
-- 41: `New Project`
 - 103: `Escape`
 - 108: `Search`
 - 114: `Clear the search`

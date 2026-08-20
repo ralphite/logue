@@ -9,6 +9,7 @@ independent agents. The template and the rules are in
 | Documents (editor, autosave, history) | [documents.md](documents.md) | 2026-08-12 · rewritten 2026-08-13 | in progress |
 | A busy model (automatic retry) | [busy-model.md](busy-model.md) | 2026-08-13 | — |
 | Two surfaces, one workspace (staying in step) | [in-step.md](in-step.md) | 2026-08-13 | — |
+| Skills in the person's own order | [skill-order.md](skill-order.md) | 2026-08-19 | fixed |
 | Activities + Source detail | — | — | — |
 | Projects | — | — | — |
 | Skills | — | — | — |

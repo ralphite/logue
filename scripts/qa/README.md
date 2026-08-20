@@ -119,6 +119,7 @@ of a broken one either — read the reason before either.**
 | `n4` | Dictation: one control that morphs where it is, a transcript, and Skills chained over it (needs `LOGUE_TEST_REAL_MIC=1`) |
 | `n5` | nothing said is lost: no Host at all, and a Host whose model refuses (`n5-hosts.sh start` first; needs `LOGUE_TEST_REAL_MIC=1`) |
 | `n7.py` | the spans the Host writes are spans Phoenix accepts, nests and shows (`phoenix serve` first) |
+| `skill-order` | Skills follow the person's order on the toolbar, its menu and the Skills page — and the menu stacks one line per Skill |
 
 ## S3 — the day a real key arrives
 

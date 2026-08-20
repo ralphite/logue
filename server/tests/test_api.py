@@ -170,6 +170,39 @@ class HostTest(Workspace, unittest.TestCase):
         kept = [r for r in self.app.store.skill_revisions.all() if r["skill_id"] == skill["id"]]
         self.assertEqual(kept[0]["instructions"], "Be brief.")
 
+    def test_skills_keep_the_order_the_person_gave_them(self) -> None:
+        before = [s["id"] for s in self.call("GET", "/v1/skills")["skills"]]
+        turned = list(reversed(before))
+        answered = [s["id"] for s in self.call("POST", "/v1/skills/reorder", {"order": turned})["skills"]]
+        self.assertEqual(answered, turned)
+        self.assertEqual([s["id"] for s in self.call("GET", "/v1/skills")["skills"]], turned)
+        # The extension reads the same order, filtered to what can run.
+        served = [s["id"] for s in self.call("GET", "/v1/context")["skills"]]
+        self.assertEqual(served, [one for one in turned if one in set(served)])
+
+    def test_moving_a_skill_is_not_editing_it(self) -> None:
+        skill = self.call("POST", "/v1/skills", {"name": "Mine", "instructions": "Say it plainly."})["skill"]
+        order = [s["id"] for s in self.call("GET", "/v1/skills")["skills"]]
+        order.remove(skill["id"])
+        order.insert(0, skill["id"])
+        moved = next(s for s in self.call("POST", "/v1/skills/reorder", {"order": order})["skills"] if s["id"] == skill["id"])
+        self.assertEqual(moved["revision"], skill["revision"])
+        self.assertEqual(moved["updated_at"], skill["updated_at"])
+
+    def test_a_skill_nobody_placed_follows_the_placed_ones(self) -> None:
+        placed = [s["id"] for s in self.call("GET", "/v1/skills")["skills"]]
+        self.call("POST", "/v1/skills/reorder", {"order": placed})
+        # Alphabetically first, but never placed — so it joins at the end.
+        fresh = self.call("POST", "/v1/skills", {"name": "AAA newest", "instructions": "New."})["skill"]
+        self.assertEqual([s["id"] for s in self.call("GET", "/v1/skills")["skills"]], [*placed, fresh["id"]])
+
+    def test_reorder_skips_an_id_that_is_gone_and_refuses_junk(self) -> None:
+        before = [s["id"] for s in self.call("GET", "/v1/skills")["skills"]]
+        kept = [s["id"] for s in self.call("POST", "/v1/skills/reorder", {"order": ["skill_gone", *before]})["skills"]]
+        self.assertEqual(kept, before, "a deleted id moves nothing and fails nothing")
+        with self.assertRaises(BadRequest):
+            self.call("POST", "/v1/skills/reorder", {"order": "not-a-list"})
+
     def test_deleting_a_source_does_not_leave_children_pointing_at_nothing(self) -> None:
         parent = self.call("POST", "/v1/materials", {"kind": "selection", "content": "Quoted line."})["material"]
         child = self.call(

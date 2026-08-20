@@ -1,5 +1,5 @@
 import { Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Button, Dropdown, ErrorNote, Field, Input, Spinner, Textarea, Tooltip, cn } from "@logue/ui";
 import { api, type Skill } from "../api";
 import { DRAFT } from "./AppShell";
@@ -16,6 +16,12 @@ const WHERE: { key: string; label: string; hint: string }[] = [
   { key: "selection", label: "A selection", hint: "Offered on the toolbar over selected text." },
   { key: "dictation", label: "Dictation", hint: "Offered on anything spoken into the panel." },
 ];
+
+/** Which side of the row under the pointer a dropped Skill would land on. */
+function zoneOf(event: DragEvent<HTMLElement>): "above" | "below" {
+  const box = event.currentTarget.getBoundingClientRect();
+  return event.clientY - box.top < box.height / 2 ? "above" : "below";
+}
 
 /** Where this Skill shows up, as one quiet line for the list. */
 function offeredAt(skill: Skill): string {
@@ -50,8 +56,41 @@ export function SkillsRoute({
 }) {
   const skills = useHost(() => api.skills(), [made]);
   const [query, setQuery] = useState("");
+  const action = useAction();
+
+  /**
+   * The Skill being dragged, and the row the pointer is over.
+   *
+   * The same shape Documents use, for the same reason: `dragover` can fire in
+   * the tick `dragstart` set the state, so a ref carries the id between them.
+   */
+  const [dragging, setDragging] = useState<string>();
+  const dragged = useRef<string>(undefined);
+  const [over, setOver] = useState<{ id: string; zone: "above" | "below" }>();
 
   const all = useMemo(() => skills.data?.skills ?? [], [skills.data]);
+
+  /** Put the dragged Skill where the pointer says, and tell the Host once. */
+  const drop = (targetId: string, zone: "above" | "below") => {
+    const moving = dragged.current;
+    dragged.current = undefined;
+    setDragging(undefined);
+    setOver(undefined);
+    // One write at a time: a drop while the last one is still being written
+    // is ignored, so the Host never holds an order nobody saw.
+    if (!moving || moving === targetId || action.busy) return;
+    const order = all.map((one) => one.id).filter((id) => id !== moving);
+    const at = order.indexOf(targetId);
+    if (at < 0) return;
+    order.splice(zone === "above" ? at : at + 1, 0, moving);
+    if (order.join() === all.map((one) => one.id).join()) return;
+    void action.run(async () => {
+      await api.reorderSkills(order);
+      // Quiet: the rows move; a Loading line standing in for them would
+      // shove the list down for a frame to say nothing.
+      await skills.refresh(true);
+    });
+  };
   const shown = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return all;
@@ -62,7 +101,18 @@ export function SkillsRoute({
     onVisibleOrder?.(shown.map((one) => one.id));
   }, [shown, onVisibleOrder]);
 
-  const selectedId = openId && openId !== DRAFT ? openId : openId === DRAFT ? undefined : all[0]?.id;
+  /**
+   * With nothing chosen in the URL, the pane shows the first Skill — but
+   * "first" is pinned to the list as it loaded, not recomputed. Recomputing
+   * meant a drag that changed row one silently swapped the open Skill and
+   * threw away an unsaved prompt. The pin only moves if its Skill is gone.
+   */
+  const shownByDefault = useRef<string>(undefined);
+  if (!shownByDefault.current || !all.some((one) => one.id === shownByDefault.current)) {
+    shownByDefault.current = all[0]?.id;
+  }
+  const selectedId =
+    openId && openId !== DRAFT ? openId : openId === DRAFT ? undefined : shownByDefault.current;
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -71,30 +121,81 @@ export function SkillsRoute({
         onNew={() => onOpen(DRAFT)}
         newLabel="New Skill"
         count={all.length}
-        controls={<ListSearch value={query} onChange={setQuery} />}
+        controls={
+          // One block, not two flex items: the controls slot lays out as a
+          // row, and a sentence beside the search box halves it.
+          <div className="min-w-0 flex-1">
+            <ListSearch value={query} onChange={setQuery} />
+            {/* A refused drag explains itself up here, above the rows, where
+                it is on screen at any scroll position. Cleared when the next
+                drag starts. */}
+            {action.error && <ErrorNote className="mt-2">{action.error}</ErrorNote>}
+          </div>
+        }
       >
         {skills.error && (
           <div className="p-4">
             <ErrorNote>{skills.error}</ErrorNote>
           </div>
         )}
-        {skills.loading && (
+        {skills.loading && all.length === 0 && (
           <div className="flex items-center gap-2 p-4 text-xs text-muted">
             <Spinner /> Loading
           </div>
         )}
         {shown.map((one) => (
-          <RowShell
+          <div
             key={one.id}
-            badge={<IconBadge name="skills" tinted={one.id === selectedId} />}
-            selected={one.id === selectedId}
-            onSelect={() => onOpen(one.id)}
+            // The Skill being carried is faded where it came from, the way a
+            // dragged page is. The whole row is the handle, and dragging is
+            // off while a query is on: a filtered list has no order to change.
+            className={cn("relative", dragging === one.id && "opacity-40")}
+            draggable={!query}
+            onDragStart={(event) => {
+              dragged.current = one.id;
+              setDragging(one.id);
+              // A new attempt retires the last refusal's explanation.
+              action.setError("");
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", one.id);
+            }}
+            onDragEnd={() => {
+              dragged.current = undefined;
+              setDragging(undefined);
+              setOver(undefined);
+            }}
+            onDragOver={(event) => {
+              if (!dragged.current || dragged.current === one.id) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              setOver({ id: one.id, zone: zoneOf(event) });
+            }}
+            onDragLeave={() => setOver((was) => (was?.id === one.id ? undefined : was))}
+            onDrop={(event) => {
+              event.preventDefault();
+              // Read off the event, not off `over`: a drop can arrive in the
+              // same tick as the dragover that set it.
+              drop(one.id, zoneOf(event));
+            }}
           >
-            <RowName>{one.name || "Untitled Skill"}</RowName>
-            <RowMeta>
-              <span className="truncate">{offeredAt(one)}</span>
-            </RowMeta>
-          </RowShell>
+            {/* Where it would land, drawn where it would land. */}
+            {over?.id === one.id && (
+              <span
+                aria-hidden
+                className={`absolute inset-x-0 z-10 h-[2px] bg-accent ${over.zone === "above" ? "top-0" : "bottom-0"}`}
+              />
+            )}
+            <RowShell
+              badge={<IconBadge name="skills" tinted={one.id === selectedId} />}
+              selected={one.id === selectedId}
+              onSelect={() => onOpen(one.id)}
+            >
+              <RowName>{one.name || "Untitled Skill"}</RowName>
+              <RowMeta>
+                <span className="truncate">{offeredAt(one)}</span>
+              </RowMeta>
+            </RowShell>
+          </div>
         ))}
       </ListPane>
 

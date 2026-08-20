@@ -510,11 +510,16 @@ class App:
 
         @route("GET", "/v1/skills")
         def list_skills(_: Request) -> dict[str, Any]:
-            return {"skills": store.skills.list(sort_key="name", reverse=False)}
+            return {"skills": skills.ordered(store)}
 
         @route("POST", "/v1/skills")
         def create_skill(request: Request) -> dict[str, Any]:
             return {"skill": skills.create(store, request.json())}
+
+        # The same shape Documents reorder with: the whole order, ids in a list.
+        @route("POST", "/v1/skills/reorder")
+        def reorder_skills(request: Request) -> dict[str, Any]:
+            return {"skills": skills.reorder(store, request.json().get("order") or [])}
 
         @route("PATCH", "/v1/skills/{id}")
         def patch_skill(request: Request) -> dict[str, Any]:
@@ -870,9 +875,7 @@ class App:
                 # Only the ones that can actually run. A Skill is named first
                 # and written afterwards, and one with nothing to say would
                 # otherwise sit in every picker, sending an empty prompt.
-                "skills": [
-                    s for s in store.skills.list(sort_key="name", reverse=False) if skills.usable(s)
-                ],
+                "skills": [s for s in skills.ordered(store) if skills.usable(s)],
                 "defaults": defaults.chosen(store),
             }
 

@@ -973,6 +973,25 @@
       ],
       "created": "2026-08-19",
       "updated": "2026-08-19"
+    },
+    {
+      "id": "X14",
+      "title": "Selection bar 技能菜单:项重叠要改成一行一个,并允许配置技能顺序",
+      "type": "bug",
+      "status": "done",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "extension",
+        "selection-bar"
+      ],
+      "note": "溢出菜单里技能项互相叠压(图标压在上一项文字上)。修好堆叠,并让技能顺序可配置——直排按钮取前两个,菜单、右键菜单、面板同一顺序。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_update_extension_so"
+      ],
+      "created": "2026-08-19",
+      "updated": "2026-08-19"
     }
   ],
   "inputs": [
@@ -1374,6 +1393,12 @@
       "id": "in_bugs_should_not",
       "at": "2026-08-19 13:45",
       "text": "bugs: 1. should not be untitled 2. new page should be focused for editing",
+      "images": []
+    },
+    {
+      "id": "in_update_extension_so",
+      "at": "2026-08-19 18:58",
+      "text": "update extension so that the skills are stacked. also we should allow configuring the order",
       "images": []
     }
   ]

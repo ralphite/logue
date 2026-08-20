@@ -148,6 +148,31 @@ function Surfaces() {
 
   const [hostError, setHostError] = useState<string>();
 
+  // Skills can be rearranged, renamed or turned off while this tab sits in
+  // the background. Coming back to the tab asks for the context again, so
+  // the bar never argues with the app about the order — one fetch per
+  // return, never a poll from every open page. Both listeners, because they
+  // cover different returns: `visibilitychange` fires on a tab switch,
+  // `focus` on coming back from another window — which no tab ever left.
+  const [shownAgain, setShownAgain] = useState(0);
+  useEffect(() => {
+    let last = 0;
+    const onShow = () => {
+      if (document.visibilityState !== "visible") return;
+      // A tab switch fires both events back to back; one return, one fetch.
+      const now = Date.now();
+      if (now - last < 1000) return;
+      last = now;
+      setShownAgain((count) => count + 1);
+    };
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("focus", onShow);
+    return () => {
+      document.removeEventListener("visibilitychange", onShow);
+      window.removeEventListener("focus", onShow);
+    };
+  }, []);
+
   useEffect(() => {
     void host.context(project).then(
       (loaded) => {
@@ -158,7 +183,7 @@ function Surfaces() {
       // reads as the product being broken rather than the Host being off.
       (cause: unknown) => setHostError(cause instanceof Error ? cause.message : "Logue is not running on this Mac."),
     );
-  }, [project]);
+  }, [project, shownAgain]);
 
   // -- track the editor and the caret ------------------------------------
   const track = useCallback(() => {

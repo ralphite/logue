@@ -166,6 +166,43 @@ def usable(skill: Record) -> bool:
     return bool(skill.get("enabled")) and bool(str(skill.get("instructions") or "").strip())
 
 
+def ordered(store: Store) -> list[Record]:
+    """Every Skill, in the order the person put them.
+
+    A placed Skill carries `position`; one nobody has placed follows the
+    placed ones, by name — the order everything used before there was a
+    choice, so an untouched workspace keeps exactly the list it had.
+    """
+
+    def place(skill: Record) -> tuple[int, int, str]:
+        position = skill.get("position")
+        if isinstance(position, int) and not isinstance(position, bool):
+            return (0, position, "")
+        return (1, 0, str(skill.get("name") or ""))
+
+    return sorted(store.skills.all(), key=place)
+
+
+def reorder(store: Store, order: list[Any]) -> list[Record]:
+    """Store one order: each id's place in the given list.
+
+    Only what is named moves. An id that no longer exists is skipped — a
+    Skill deleted in another window is not worth refusing the whole order.
+    Moving a Skill is not editing it: revision and `updated_at` stay, so a
+    Run's history is not re-explained by a drag.
+    """
+    if not isinstance(order, list) or not all(isinstance(one, str) for one in order):
+        raise BadRequest("order must be a list of Skill ids")
+    for position, skill_id in enumerate(order):
+        skill = store.skills.find(skill_id)
+        if skill is None:
+            continue
+        if skill.get("position") != position:
+            skill["position"] = position
+            store.skills.put(skill)
+    return ordered(store)
+
+
 def create(store: Store, payload: dict[str, Any]) -> Record:
     """A Skill starts as a name. The prompt is written on its own page.
 

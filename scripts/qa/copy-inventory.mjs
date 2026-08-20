@@ -91,8 +91,11 @@ function stringsIn(source, path) {
   const found = [];
   const lines = source.split("\n");
   lines.forEach((line, index) => {
-    // Comments are not shown to anyone.
-    const code = line.replace(/^\s*(\/\/|#|\*).*$/, "");
+    // Comments are not shown to anyone. Block comments too: a quoted example
+    // inside `/* … */` or `{/* … */}` reads exactly like a label in this list
+    // — the review that caught it was handed `Accurate tr…` as if it were on
+    // screen. Only whole comment lines are dropped; code before `/*` stays.
+    const code = line.replace(/^\s*(\/\/|#|\*|\{?\/\*).*$/, "");
     for (const match of code.matchAll(/"([^"\\]{3,400})"|'([^'\\]{3,400})'|`([^`\\$]{3,400})`/g)) {
       const text = match[1] ?? match[2] ?? match[3];
       if (looksLikeCopy(text)) found.push({ at: index + 1, text });

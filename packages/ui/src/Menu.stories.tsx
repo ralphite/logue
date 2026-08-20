@@ -1,4 +1,4 @@
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Sparkles } from "lucide-react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button, IconButton } from "./Button";
 import { Menu, MenuItem } from "./Menu";
@@ -28,5 +28,27 @@ export const RowActions: Story = {
         </Menu>
       </span>
     </div>
+  ),
+};
+
+/**
+ * Items with a glyph: the `icon` slot keeps it beside the name, on one line,
+ * while a long name ends in an ellipsis. This is the shape the toolbar's
+ * "More Skills" menu has.
+ */
+export const WithIcons: Story = {
+  render: () => (
+    <Menu
+      label="More Skills"
+      trigger={(props) => (
+        <IconButton label="More Skills" {...props}>
+          <MoreHorizontal size={15} />
+        </IconButton>
+      )}
+    >
+      <MenuItem icon={<Sparkles size={13} />}>Draft reply</MenuItem>
+      <MenuItem icon={<Sparkles size={13} />}>中文翻译</MenuItem>
+      <MenuItem icon={<Sparkles size={13} />}>A Skill with a name long enough to be cut</MenuItem>
+    </Menu>
   ),
 };

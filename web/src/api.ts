@@ -111,6 +111,8 @@ export interface Skill {
   system?: boolean;
   built_in_key?: string;
   revision: number;
+  /** Where the person put it. Absent until the first reorder places it. */
+  position?: number;
 }
 
 export interface Run {
@@ -424,6 +426,8 @@ export const api = {
     send<{ document: Document }>("POST", `/v1/documents/${id}/versions/${revision}/restore`, {}),
 
   skills: () => request<{ skills: Skill[] }>("/v1/skills"),
+  /** The whole order, ids in a list — the same shape Documents reorder with. */
+  reorderSkills: (order: string[]) => send<{ skills: Skill[] }>("POST", "/v1/skills/reorder", { order }),
   createSkill: (body: Partial<Skill>) => send<{ skill: Skill }>("POST", "/v1/skills", body),
   updateSkill: (id: string, changes: Partial<Skill>) => send<{ skill: Skill }>("PATCH", `/v1/skills/${id}`, changes),
   skillImpact: (id: string) => request<{ runs: number; projects: string[] }>(`/v1/skills/${id}/archive-impact`),

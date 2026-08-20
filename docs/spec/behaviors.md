@@ -961,6 +961,19 @@ already ahead — what was missing was ordinary editor furniture.)
   decides what to show from a Skill's contexts, so a Skill can be written and
   then appear nowhere; the page that says where it is used is the page that
   sets it.
+- **Skills keep the order the person gave them.** (2026-08-19, his request.)
+  A row on the Skills page is dragged to its place — the same gesture, and the
+  same dragging-is-off-while-searching rule, as Documents. Every surface that
+  lists Skills — the toolbar's own buttons, its "More Skills" menu, the page's
+  right-click menu, the panel, the web pickers — follows that one order,
+  served by the Host; no surface keeps a private sort. The product never
+  re-sorts on its own; a Skill nobody has placed joins after the placed ones,
+  by name; moving a Skill never bumps its revision. The Skill chosen in
+  Settings under Selection still takes the selection toolbar's first slot.
+- **A menu item is one line.** The glyph sits beside the name, never above it;
+  a long name ends in an ellipsis; items never print over one another.
+  (2026-08-19, from his screenshot: the selection toolbar's Skills menu drew
+  every item onto the one before it.)
 - **Context spells what was said; it never supplies it.** Whatever surrounds
   the words — the page being read, the document being written into — goes to
   the model as quoted material, to get names and terms spelled the way they are
