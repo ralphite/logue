@@ -1024,7 +1024,9 @@
       "tags": [],
       "note": "用 markdown-it sample.md 在两边渲染对比(Notion 页 'MD kitchen sink QA (safe to delete)'、Logue 文档 doc_de1bc0e2e55c8d43)。差距按影响排序:1) 软换行的列表项续行断开成段落(Notion 合并+悬挂);2) ~~删除线~~ 记号可见;3) 嵌套引用压平成一层(Notion 多层竖线);4) 4空格缩进代码无容器(Notion 转真代码块);5) 有序列表按原文印数字不重编号;6) h4-6 无字号/间距阶梯(Notion 51px 小标题);7) 链接 title 泄漏进正文;8) 引用式图片 ![x][id] 不解析(Notion 出真图并吃掉定义行)。表格已在既有队列。一致的:段落40/标题h1-3/嵌套列表记号•○▪/围栏代码容器/分隔线/任务列表/行内图片。",
       "blocked_on": "",
-      "input_ids": [],
+      "input_ids": [
+        "in_c543793c_redesign_main"
+      ],
       "created": "2026-08-19",
       "updated": "2026-08-20"
     }
@@ -1452,6 +1454,12 @@
       "id": "in_notion_20_335a3ce8",
       "at": "2026-08-19 21:46",
       "text": "已完成并部署:引用块/代码卡/分隔线/页面块按 Notion 实测数值重做,三轮评审共 20 条发现全部修复,提交 335a3ce8,QA 脚本 scripts/qa/rendered-blocks.mjs 钉住全部数值。",
+      "images": []
+    },
+    {
+      "id": "in_c543793c_redesign_main",
+      "at": "2026-08-20 01:23",
+      "text": "八项全部完成并部署:提交 c543793c,已推 redesign-c 和 main。两轮三人评审共 57 条发现全部处置;markdown-parity.mjs 按字/几何/字节断言八项;顺带修了 [TODO] 括号消失、定义行冒号被吃、定义行编辑逐键发图片请求三个旧 bug。",
       "images": []
     }
   ]
