@@ -59,6 +59,11 @@ function looksLikeCopy(text) {
   if (/^[a-z][a-z0-9]*([-_][a-z0-9]+)+$/i.test(text)) return false;
   if (/[<>{}$#]|\.\.\/|https?:|^\/|^[a-z-]+:[a-z-]+$/.test(text)) return false;
   if (/(^|\s)(flex|grid|rounded|border|text-|bg-|px-|py-|min-w|max-w|shrink|gap-)/.test(text)) return false;
+  // A CSS value in a theme object — `3px solid var(--color-ink)`, `0 7px` —
+  // is paint, not prose. The review read one as a new line of copy. Numbers
+  // with words survive: `3 Sources` and `1.5 hours` are sentences.
+  if (/var\(--/.test(text)) return false;
+  if (/^[\d. ]+(px|em|rem|%|ch|fr|vh|vw)( [\d. ]*(px|em|rem|%|ch|fr|vh|vw))*$/.test(text)) return false;
   if (/^[A-Z_]+$/.test(text)) return false;
   // Code caught in a string: signatures, operators, keyword soup. A sentence
   // shown to a person has none of these — but `(Esc)` and `+1 −1` are words.

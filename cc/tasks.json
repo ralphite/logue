@@ -993,6 +993,25 @@
       ],
       "created": "2026-08-19",
       "updated": "2026-08-19"
+    },
+    {
+      "id": "N20",
+      "title": "文档编辑器的渲染块按 Notion 的样式重做",
+      "type": "design",
+      "status": "done",
+      "priority": "P1",
+      "confirmed": true,
+      "tags": [
+        "editor",
+        "ui"
+      ],
+      "note": "他给了测试文档截图:引用块、代码块、标题、列表、子页面行等渲染块要以 Notion 的设计为准改进。做法:在他登录的浏览器里实测 Notion 的块样式数值,声明后落地,QA 脚本固化数值。",
+      "blocked_on": "",
+      "input_ids": [
+        "in_notion_has_better"
+      ],
+      "created": "2026-08-19",
+      "updated": "2026-08-19"
     }
   ],
   "inputs": [
@@ -1406,6 +1425,12 @@
       "id": "in_icon_skills_post",
       "at": "2026-08-19 20:01",
       "text": "已完成并部署:菜单一行一个(icon 槽+兜底,量过几何),技能顺序可配置(Skills 页拖拽,POST /v1/skills/reorder,全部界面同一顺序)。提交 5792c1ed,QA 脚本 scripts/qa/skill-order.mjs。",
+      "images": []
+    },
+    {
+      "id": "in_notion_has_better",
+      "at": "2026-08-19 20:46",
+      "text": "notion has better style for rendered blocks. improve ours based on their design",
       "images": []
     }
   ]

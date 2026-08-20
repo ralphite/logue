@@ -10,6 +10,7 @@ independent agents. The template and the rules are in
 | A busy model (automatic retry) | [busy-model.md](busy-model.md) | 2026-08-13 | — |
 | Two surfaces, one workspace (staying in step) | [in-step.md](in-step.md) | 2026-08-13 | — |
 | Skills in the person's own order | [skill-order.md](skill-order.md) | 2026-08-19 | fixed |
+| Rendered blocks, at Notion's numbers | [rendered-blocks.md](rendered-blocks.md) | 2026-08-19 | fixed |
 | Activities + Source detail | — | — | — |
 | Projects | — | — | — |
 | Skills | — | — | — |

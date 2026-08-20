@@ -983,6 +983,21 @@ already ahead — what was missing was ordinary editor furniture.)
   a long name ends in an ellipsis; items never print over one another.
   (2026-08-19, from his screenshot: the selection toolbar's Skills menu drew
   every item onto the one before it.)
+- **Rendered blocks wear Notion's measured numbers.** (2026-08-19, his
+  request: "notion has better style for rendered blocks. improve ours based on
+  their design".) A quote is a 3px bar in the product's ink with ink words
+  14px to its right; a fenced code block, once closed, is one rounded
+  container — 10px radius, Notion's warm tint, 36px above and below the code,
+  22px beside it, mono at 0.85em, ink — an unclosed fence gets no container,
+  only the flat band, and inside a fence every line is code: no list paint,
+  no blank-line squeeze; a horizontal-rule line paints as the product's own
+  hairline;
+  the page block's glyph is 20px. Each measured number traces to a reading
+  off app.notion.com on a named date; the two deliberate exceptions — the
+  bar's ink, the divider's hairline — are the product's own tokens.
+  `scripts/qa/rendered-blocks.mjs` asserts it all on the running product, on
+  the words themselves, not the boxes around them. The stored document stays
+  plain Markdown — paint, never data.
 - **Context spells what was said; it never supplies it.** Whatever surrounds
   the words — the page being read, the document being written into — goes to
   the model as quoted material, to get names and terms spelled the way they are

@@ -149,7 +149,9 @@ class Subpage extends WidgetType {
     glyph.setAttribute("stroke", "currentColor");
     glyph.setAttribute("stroke-width", "1.8");
     glyph.setAttribute("stroke-linejoin", "round");
-    glyph.setAttribute("class", "h-[16px] w-[16px] shrink-0 text-muted");
+    // Notion's page icon, at its size and in its grey: 20px, filled
+    // rgb(142,139,134) there, which is the faint token's neighbourhood here.
+    glyph.setAttribute("class", "h-[20px] w-[20px] shrink-0 text-faint");
     glyph.innerHTML = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>';
     const name = document.createElement("span");
     name.className = "truncate underline decoration-line underline-offset-2";
@@ -168,6 +170,26 @@ class Subpage extends WidgetType {
   /** The editor keeps its hands off the page block, like the citation chip. */
   override ignoreEvent(): boolean {
     return true;
+  }
+}
+
+/**
+ * The hairline a `---` is read as. The slash menu sells "Divider"; until now
+ * the block it wrote rendered as the three dashes themselves. The dashes stay
+ * what is written, and come back under the caret like every other marker.
+ */
+class Rule extends WidgetType {
+  /** Every rule is the same rule, so the DOM node survives unrelated edits. */
+  override eq(): boolean {
+    return true;
+  }
+
+  toDOM(): HTMLElement {
+    const line = document.createElement("span");
+    line.className = "cm-rule";
+    // What a screen reader is handed: a separator, not three dashes.
+    line.setAttribute("role", "separator");
+    return line;
   }
 }
 
@@ -354,6 +376,22 @@ function open(view: EditorView): Set<number> {
   return lines;
 }
 
+/**
+ * Whether this position sits inside a fenced code block — asked on both
+ * sides. At the document's end a fence *ends* on the position, and a
+ * one-sided resolve walked past it while `blocks()` counted the same line as
+ * fenced: the hint said "Type / for commands" inside the container.
+ */
+function inFence(state: EditorState, at: number): boolean {
+  for (const side of [1, -1] as const) {
+    for (let up = syntaxTree(state).resolveInner(at, side); ; up = up.parent!) {
+      if (up.name === "FencedCode") return true;
+      if (!up.parent) break;
+    }
+  }
+  return false;
+}
+
 function marks(
   view: EditorView,
   cite?: (n: number) => void,
@@ -399,6 +437,14 @@ function marks(
             with: Decoration.replace({ widget: new Task(done, node.from, toggle) }),
           });
           return undefined;
+        }
+        // A divider draws as the hairline it means, away from the caret. The
+        // whole line is replaced, not just the marks: a leading space left as
+        // text pushed the full-width hairline onto a second visual line.
+        if (node.name === "HorizontalRule" && !editing.has(view.state.doc.lineAt(node.from).number)) {
+          const line = view.state.doc.lineAt(node.from);
+          found.push({ from: line.from, to: line.to, with: Decoration.replace({ widget: new Rule() }) });
+          return false;
         }
         // A picture is shown where it is written, away from the caret.
         if (node.name === "Image" && !editing.has(view.state.doc.lineAt(node.from).number)) {
@@ -458,6 +504,9 @@ function marks(
     for (const match of text.matchAll(CITATION)) {
       const at = from + (match.index ?? 0);
       if (editing.has(view.state.doc.lineAt(at).number)) continue;
+      // Inside a fence every line is code: `[Source 3]` written there is
+      // written characters, not a chip.
+      if (inFence(view.state, at)) continue;
       found.push({
         from: at,
         to: at + match[0].length,
@@ -525,10 +574,17 @@ const written = HighlightStyle.define([
   { tag: tags.strong, fontWeight: "600", color: "var(--color-ink)" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strikethrough, textDecoration: "line-through", color: "var(--color-muted)" },
-  { tag: tags.monospace, fontFamily: "var(--font-mono)", fontSize: "0.9em", color: "var(--color-ink-soft)" },
-  { tag: tags.quote, color: "var(--color-ink-soft)" },
+  // Code is ink, inline and fenced alike — greying it read as a disabled
+  // control. The size is inline code's own; inside a fence the line
+  // overrules it (see `.cm-code-line span`).
+  { tag: tags.monospace, fontFamily: "var(--font-mono)", fontSize: "0.9em", color: "var(--color-ink)" },
+  // A quote is not faded — the bar carries the shape, the words stay ink.
+  { tag: tags.quote, color: "var(--color-ink)" },
   { tag: tags.link, color: "var(--color-accent)", textDecoration: "underline", textUnderlineOffset: "2px" },
   { tag: tags.url, color: "var(--color-muted)" },
+  // labelName is left alone on purpose: it is a fence's language name AND a
+  // reference link's [ref] in running prose — one tag, and fading it painted
+  // prose with a token whose charter is "never running text".
   { tag: [tags.processingInstruction, tags.punctuation, tags.meta], color: "var(--color-faint)" },
   // Inside a fence. Naming a language and then rendering it in one flat grey
   // is the editor not reading its own document: the grammar was being parsed
@@ -607,16 +663,50 @@ const page = EditorView.theme({
   // the document.
   ".cm-hint": { color: "var(--color-line-strong)", pointerEvents: "none", userSelect: "none" },
   // A quote and a fenced block are the two shapes that need more than type.
+  // Both wear Notion's measured numbers — docs/spec/features/rendered-blocks.md.
   ".cm-quote-line": {
-    borderLeft: "2px solid var(--color-line-strong)",
-    paddingLeft: "0.8em",
+    borderLeft: "3px solid var(--color-ink)",
+    paddingLeft: "14px",
   },
   ".cm-code-line": {
     fontFamily: "var(--font-mono)",
-    fontSize: "0.9em",
-    backgroundColor: "var(--color-surface-muted)",
-    paddingLeft: "0.6em",
-    paddingRight: "0.6em",
+    // 0.85em of 16 at the page's 1.5: Notion's 13.6px/20.4, exactly.
+    fontSize: "0.85em",
+    color: "var(--color-ink)",
+    backgroundColor: "var(--color-code-bg)",
+    paddingLeft: "22px",
+    paddingRight: "22px",
+  },
+  // The size lives on the line and only there: the mono span's own 0.9em
+  // compounded to 12.96px inside a fence. Colours stay the spans' — this
+  // touches nothing about language highlighting.
+  ".cm-code-line span": { fontSize: "1em" },
+  /*
+   * The fence's marker lines are the container's caps. A cap line is itself
+   * a code line — 20.4px — so 15.6px of padding puts the code 36px from the
+   * container's edge, Notion's own 36, as is the 10px radius.
+   * Only a closed fence gets them: see `blocks()`.
+   */
+  ".cm-code-first": {
+    paddingTop: "15.6px",
+    borderTopLeftRadius: "10px",
+    borderTopRightRadius: "10px",
+  },
+  ".cm-code-last": {
+    paddingBottom: "15.6px",
+    borderBottomLeftRadius: "10px",
+    borderBottomRightRadius: "10px",
+  },
+  // The hairline a rule line is read as. The span is the whole line box
+  // (1lh) with the 1px painted at its exact centre — vertical-align: middle
+  // sat on the x-height and left the line 1.8px low. The dashes come back
+  // under the caret.
+  ".cm-rule": {
+    display: "inline-block",
+    width: "100%",
+    height: "1lh",
+    verticalAlign: "top",
+    background: "linear-gradient(var(--color-line), var(--color-line)) 50% 50% / 100% 1px no-repeat",
   },
   ".cm-table-line": {
     fontFamily: "var(--font-mono)",
@@ -721,17 +811,49 @@ function blocks(view: EditorView): DecorationSet {
     SetextHeading1: Decoration.line({ class: "cm-h1-line" }),
     SetextHeading2: Decoration.line({ class: "cm-h2-line" }),
   };
+  const caps = {
+    first: Decoration.line({ class: "cm-code-first" }),
+    last: Decoration.line({ class: "cm-code-last" }),
+  };
   for (const { from, to } of view.visibleRanges) {
+    /** Lines inside a fence. Everything on them is code, whatever it looks
+        like — a `- ` there is a diff or a YAML key, never a list. */
+    const fenced = new Set<number>();
+    /** Rule lines: `* * *` matches the list regex and took a list's indent,
+        which put its hairline out of line with every other one. */
+    const ruled = new Set<number>();
     syntaxTree(view.state).iterate({
       from,
       to,
       enter(node) {
+        if (node.name === "HorizontalRule") {
+          ruled.add(view.state.doc.lineAt(node.from).number);
+          return undefined;
+        }
         const line = of[node.name];
         if (!line) return undefined;
         const first = view.state.doc.lineAt(node.from).number;
         const last = view.state.doc.lineAt(node.to).number;
         for (let at = first; at <= last; at += 1) {
           found.push({ at: view.state.doc.line(at).from, with: line });
+        }
+        if (node.name === "FencedCode") {
+          for (let at = first; at <= last; at += 1) fenced.add(at);
+          // The container belongs to a finished fence. An unclosed one runs
+          // to the end of the document by Markdown's own rules, and a rounded
+          // container swallowing everything below the caret would read as
+          // done and wrong — it keeps the flat band until the fence closes.
+          // The tree is asked, not the text: a closing fence is the node's
+          // last child, a CodeMark on the last line. Reading the line text
+          // called ````…``` closed (it is not — too short) and never closed
+          // a fence inside a quote, whose last line starts with ">".
+          const close = node.node.lastChild;
+          const closed =
+            last > first && close?.name === "CodeMark" && view.state.doc.lineAt(close.from).number === last;
+          if (closed) {
+            found.push({ at: view.state.doc.line(first).from, with: caps.first });
+            found.push({ at: view.state.doc.line(last).from, with: caps.last });
+          }
         }
         return undefined;
       },
@@ -743,6 +865,7 @@ function blocks(view: EditorView): DecorationSet {
     // with the first word. Nesting comes free — the spaces are still in the
     // text, so a sub-item's margin is simply wider.
     for (let row = view.state.doc.lineAt(from).number; row <= view.state.doc.lineAt(to).number; row += 1) {
+      if (fenced.has(row) || ruled.has(row)) continue;
       const line = view.state.doc.line(row);
       // The document's name is its first written line, and a page's name is
       // the one thing on it that is not body text.
@@ -1188,6 +1311,9 @@ const hint = ViewPlugin.fromClass(
       if (!view.hasFocus || !cursor.empty || view.state.doc.length === 0) return Decoration.none;
       const line = view.state.doc.lineAt(cursor.head);
       if (line.text.trim()) return Decoration.none;
+      // Inside a fence a blank line is code, and "Type / for commands" on a
+      // line the container claims would offer blocks where none can go.
+      if (inFence(view.state, line.from)) return Decoration.none;
       return Decoration.set([Decoration.widget({ widget: new Hint(), side: 1 }).range(line.from)]);
     }
   },

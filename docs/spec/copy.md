@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-1180 strings across 91 files.
+1172 strings across 91 files.
 
 ## extension/src/api.ts
 
@@ -1119,56 +1119,48 @@ state the fact, no justification, no chat register, no filler.
 ## web/src/app/MarkdownEditor.tsx
 
 - 115: `Untitled`
-- 155: `truncate underline decoration-line underline-offset-2`
-- 284: `Enter`
-- 315: `my-1 block`
-- 323: `Image`
-- 376: `Link`
-- 404: `Image`
-- 441: `Link`
-- 611: `2px solid var(--color-line-strong)`
-- 642: `1px solid var(--color-line)`
-- 643: `6px 8px`
-- 653: `0 7px`
-- 655: `1px solid var(--color-control-line)`
-- 663: `0 8px`
-- 665: `1px solid var(--color-control-line)`
-- 673: `0 6px`
-- 798: `Bulleted list`
-- 799: `Numbered list`
-- 803: `page`
-- 803: `Page`
-- 804: `Quote`
-- 805: `Code block`
-- 808: `Table`
-- 813: `Divider`
-- 818: `Callout`
-- 819: `Equation`
-- 820: `Diagram`
-- 823: `Image`
-- 981: `Text`
-- 985: `Bulleted list`
-- 986: `Numbered list`
-- 988: `Quote`
-- 1138: `Edit`
-- 1146: `Unlink`
-- 1161: `Type / for commands`
-- 1232: `Document`
-- 1249: `Promise`
-- 1349: `page`
-- 1408: `page`
-- 1439: `Enter`
-- 1447: `Escape`
-- 1478: `Tab`
-- 1525: `Start writing. The first line is the title.`
-- 1664: `Format the selected passage`
-- 1668: `Bold`
-- 1671: `Italic`
-- 1672: `font-serif italic`
-- 1674: `Code`
-- 1677: `Link`
-- 1695: `Rewrite`
-- 1708: `Insert a block`
+- 157: `truncate underline decoration-line underline-offset-2`
+- 306: `Enter`
+- 337: `my-1 block`
+- 345: `Image`
+- 414: `Link`
+- 450: `Image`
+- 487: `Link`
+- 921: `Bulleted list`
+- 922: `Numbered list`
+- 926: `page`
+- 926: `Page`
+- 927: `Quote`
+- 928: `Code block`
+- 931: `Table`
+- 936: `Divider`
+- 941: `Callout`
+- 942: `Equation`
+- 943: `Diagram`
+- 946: `Image`
+- 1104: `Text`
+- 1108: `Bulleted list`
+- 1109: `Numbered list`
+- 1111: `Quote`
+- 1261: `Edit`
+- 1269: `Unlink`
+- 1284: `Type / for commands`
+- 1358: `Document`
+- 1375: `Promise`
+- 1475: `page`
+- 1534: `page`
+- 1565: `Enter`
+- 1573: `Escape`
+- 1604: `Tab`
+- 1651: `Start writing. The first line is the title.`
+- 1790: `Format the selected passage`
+- 1794: `Bold`
+- 1797: `Italic`
+- 1798: `font-serif italic`
+- 1800: `Code`
+- 1803: `Link`
+- 1821: `Rewrite`
+- 1834: `Insert a block`
 
 ## web/src/app/MaterialPanel.tsx
 

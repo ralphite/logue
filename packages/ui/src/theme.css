@@ -33,6 +33,12 @@
   --color-line: #e8e8e4;
   --color-line-strong: #ddddda;
 
+  /* A fenced code block's container: Notion's 3% over the page, read off
+     app.notion.com on 2026-08-19. Not surface-muted — that grey is opaque
+     and sits twice as far from the page; this one is a wash that takes
+     whatever is behind it with it. */
+  --color-code-bg: rgba(66, 35, 3, 0.03);
+
   --color-accent: #6759dc;
   --color-accent-hover: #5b4dd0;
   --color-accent-soft: #f0eefc;
