@@ -255,7 +255,6 @@ export function SettingsRoute() {
                   <span className="truncate text-ink-soft">{fix.preferred}</span>
                   <IconButton
                     label={`Forget ${fix.spoken}`}
-                    className="ml-auto"
                     disabled={action.busy}
                     onClick={() =>
                       void action
@@ -285,7 +284,6 @@ export function SettingsRoute() {
                   <span className="truncate text-muted">{known.reason}</span>
                   <IconButton
                     label={`Forget ${known.term}`}
-                    className="ml-auto"
                     disabled={action.busy}
                     onClick={() =>
                       void action.run(() => api.forgetTerm(known.term)).then(() => vocabulary.refresh())

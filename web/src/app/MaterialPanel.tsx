@@ -122,7 +122,7 @@ export function MaterialPanel({
               {material.organization?.decided === "auto" &&
                 ((material.organization.accepted_projects?.length ?? 0) > 0 ||
                   (material.organization.accepted_tags?.length ?? 0) > 0) && (
-                  <div className="mt-5 flex min-h-[38px] min-w-0 items-start gap-2 border-y border-line py-[7px] text-[11.5px] text-muted-strong">
+                  <div className="mt-5 flex min-h-[38px] min-w-0 items-start gap-2 border-y border-line py-[7px] text-[11.5px] text-ink-soft">
                     {/* line-clamp: reasons written before the length rule
                         existed run to 280 characters, and they are data now. */}
                     <span className="line-clamp-2 min-w-0 flex-1 leading-[1.5]" title={material.organization.reason}>
@@ -377,7 +377,7 @@ function Membership({
               type="button"
               disabled={busy}
               {...props}
-              className="inline-flex h-7 items-center gap-[5px] rounded-md border border-dashed border-control-line bg-surface px-[9px] text-[10.8px] font-[550] text-muted-strong hover:border-muted hover:bg-panel hover:text-ink-soft"
+              className="inline-flex h-7 items-center gap-[5px] rounded-md border border-dashed border-control-line bg-surface px-[9px] text-[10.8px] font-[550] text-ink-soft hover:border-muted hover:bg-panel hover:text-ink-soft"
             >
               <Glyph name="plus" className="h-[12px] w-[12px]" />
               Add project
@@ -526,7 +526,7 @@ function TextAction({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex items-center gap-[5px] rounded-md px-1.5 py-1 text-[11.5px] font-[550] text-muted-strong hover:bg-hover hover:text-ink disabled:opacity-50"
+      className="inline-flex items-center gap-[5px] rounded-md px-1.5 py-1 text-[11.5px] font-[550] text-ink-soft hover:bg-hover hover:text-ink disabled:opacity-50"
     >
       <Glyph name={glyph} className="h-[13px] w-[13px]" />
       {children}

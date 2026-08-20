@@ -119,6 +119,13 @@ of a broken one either — read the reason before either.**
 | `n4` | Dictation: one control that morphs where it is, a transcript, and Skills chained over it (needs `LOGUE_TEST_REAL_MIC=1`) |
 | `n5` | nothing said is lost: no Host at all, and a Host whose model refuses (`n5-hosts.sh start` first; needs `LOGUE_TEST_REAL_MIC=1`) |
 | `n7.py` | the spans the Host writes are spans Phoenix accepts, nests and shows (`phoenix serve` first) |
+| `notion-shape` | the page list and the page against Notion's own measurements — row, column, and the whole type scale |
+| `tree-hover` | the fold takes the page glyph's slot under the pointer, the way Notion's does |
+| `editor-typing` | the drawn bullet is still text: the caret opens it, typing lands, and the document is left as it was found |
+| `contrast` | every piece of text on the five routes, against what is really behind it |
+| `probe-hosts` | where the injected bar lands on a real chat composer (`PROBE_URL=`) |
+| `bar-anchor` | the selection toolbar sits on the selection, with Skill names you can read |
+| `shots` · `panel-shot` | the screens a review needs, captured from the running product (`LOGUE_SHOTS=`) |
 | `skill-order` | Skills follow the person's order on the toolbar, its menu and the Skills page — and the menu stacks one line per Skill |
 
 ## S3 — the day a real key arrives

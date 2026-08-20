@@ -83,7 +83,9 @@ export interface MarkdownHandle {
  * The marks that are hidden away from the caret.
  *
  * `ListMark` is deliberately not here: a bullet is how a list looks, and
- * hiding it leaves an indented line with nothing to say it is an item.
+ * hiding it leaves an indented line with nothing to say it is an item. It is
+ * *drawn* instead — see `Bullet` — so the line reads as Notion's list while
+ * the dash is still what is written.
  */
 const MARKS = new Set(["HeaderMark", "EmphasisMark", "CodeMark", "QuoteMark", "LinkMark", "URL"]);
 
@@ -218,6 +220,35 @@ class Cite extends WidgetType {
  * and it was two brackets and a space. Pressing it writes the other state
  * into the text, which is the only place the state lives.
  */
+/**
+ * The bullet a list is read with, in place of the character it is written
+ * with — Notion's `•`, `◦`, `▪` by depth, away from the caret. The dash comes
+ * back the moment the caret enters the line, like every other mark here, so
+ * the list is still text.
+ */
+const BULLETS = ["•", "◦", "▪"];
+
+class Bullet extends WidgetType {
+  constructor(readonly depth: number) {
+    super();
+  }
+
+  override eq(other: Bullet): boolean {
+    return other.depth === this.depth;
+  }
+
+  toDOM(): HTMLElement {
+    const dot = document.createElement("span");
+    dot.textContent = BULLETS[Math.min(this.depth, BULLETS.length - 1)] ?? "•";
+    dot.className = "text-ink";
+    return dot;
+  }
+
+  override get estimatedHeight(): number {
+    return -1;
+  }
+}
+
 class Task extends WidgetType {
   constructor(
     readonly done: boolean,
@@ -387,8 +418,22 @@ function marks(
         // Everywhere else `ListMark` stays (see MARKS): a bullet is how a list
         // looks. On `- [ ] milk` the checkbox says "item" on its own, and the
         // dash in front of it read as a stray character.
-        if (node.name === "ListMark" && TASK.test(view.state.doc.lineAt(node.from).text)) {
-          found.push({ from: node.from, to: Math.min(node.to + 1, view.state.doc.lineAt(node.from).to), with: hidden });
+        if (node.name === "ListMark") {
+          const line = view.state.doc.lineAt(node.from);
+          if (TASK.test(line.text)) {
+            found.push({ from: node.from, to: Math.min(node.to + 1, line.to), with: hidden });
+            return undefined;
+          }
+          // A dash is how a list is written; a dot is how one is read. Only
+          // for bullets: a number is already the marker it is printed as.
+          const text = view.state.doc.sliceString(node.from, node.to);
+          if (editing.has(line.number)) return undefined;
+          if (/^[-*+]$/.test(text)) {
+            const lead = /^\s*/.exec(line.text)?.[0].length ?? 0;
+            found.push({ from: node.from, to: node.to, with: Decoration.replace({ widget: new Bullet(Math.floor(lead / 2)) }) });
+          } else {
+            found.push({ from: node.from, to: node.to, with: Decoration.mark({ class: "cm-ordered-mark" }) });
+          }
           return undefined;
         }
         if (!MARKS.has(node.name)) return undefined;
@@ -496,7 +541,7 @@ const written = HighlightStyle.define([
   { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: "var(--color-act-generated)" },
   { tag: [tags.typeName, tags.className, tags.namespace], color: "var(--color-act-dictated)" },
   { tag: [tags.propertyName, tags.attributeName], color: "var(--color-ink-soft)" },
-  { tag: [tags.operator, tags.derefOperator, tags.separator], color: "var(--color-muted-strong)" },
+  { tag: [tags.operator, tags.derefOperator, tags.separator], color: "var(--color-ink-soft)" },
   { tag: tags.definition(tags.variableName), color: "var(--color-ink)" },
 ]);
 
@@ -508,17 +553,51 @@ const written = HighlightStyle.define([
  * why this is written in JavaScript at all.
  */
 const page = EditorView.theme({
-  "&": { fontSize: "15px", color: "var(--color-ink)", backgroundColor: "transparent" },
+  // 16px/1.5 in a 720px column, centred: Notion's page, measured.
+  "&": { fontSize: "16px", color: "var(--color-ink)", backgroundColor: "transparent" },
   "&.cm-focused": { outline: "none" },
   ".cm-content": {
     padding: "0",
     fontFamily: "var(--font-sans)",
-    lineHeight: "1.65",
+    lineHeight: "1.5",
     caretColor: "var(--color-ink)",
-    maxWidth: "44rem",
+    maxWidth: "720px",
+    marginInline: "auto",
   },
   ".cm-line": { padding: "0" },
-  ".cm-scroller": { fontFamily: "var(--font-sans)", lineHeight: "1.65" },
+  ".cm-scroller": { fontFamily: "var(--font-sans)", lineHeight: "1.5" },
+  /*
+   * The rhythm of a Notion page, made out of the lines a Markdown file has.
+   *
+   * Notion pays 8px above and below every paragraph, so one paragraph to the
+   * next is 40px. A Markdown file spends that gap on a blank line, which at
+   * 24px would make 48. So a blank line is 16px here and the arithmetic comes
+   * out at Notion's 40 exactly.
+   *
+   * The headings then need Notion's space above *minus* that blank line —
+   * 40 − 16, 36 − 16, 32 − 16 — and nothing below, because the blank line
+   * after them already pays what Notion pays.
+   */
+  ".cm-blank-line": { height: "16px", lineHeight: "16px" },
+  ".cm-h1-line": { paddingTop: "24px" },
+  ".cm-h2-line": { paddingTop: "20px" },
+  ".cm-h3-line": { paddingTop: "16px" },
+  /*
+   * The document's own name, at the size Notion gives a page title: 40px/48,
+   * bold. It is the first line whether or not it was written as a heading —
+   * in this product the first line *is* the name — so the size is stated here
+   * rather than inherited from `# `, and the heading style is overruled
+   * inside it.
+   */
+  ".cm-title-line": { fontSize: "40px", lineHeight: "1.2", fontWeight: "700", paddingTop: "0", paddingBottom: "8px" },
+  ".cm-title-line span": { fontSize: "1em", lineHeight: "1.2", fontWeight: "700" },
+  // Notion gives a list item 1px above and below, not a paragraph's 8, and
+  // sets the whole line 9px in from the paragraph margin so the marker hangs
+  // in the gutter rather than in the text.
+  ".cm-item-line": { paddingTop: "1px", paddingBottom: "1px", marginLeft: "9px" },
+  // A number is the marker it is printed as, so it is ink, not punctuation.
+  // The highlighter paints the span inside, so the rule has to reach it.
+  ".cm-ordered-mark, .cm-ordered-mark span": { color: "var(--color-ink)" },
   ".cm-cursor": { borderLeftColor: "var(--color-ink)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": {
     backgroundColor: "var(--color-accent-soft)",
@@ -609,8 +688,23 @@ const page = EditorView.theme({
  * `RangeSetBuilder` takes them in order and the tree does not walk in line
  * order.
  */
+/**
+ * The line the page is named by: the first one with anything on it.
+ *
+ * Not line 1 — a document written by the model often opens with a blank one,
+ * and the name would have been given to the emptiness above it.
+ */
+function titleRow(view: EditorView): number {
+  const last = Math.min(view.state.doc.lines, 40);
+  for (let row = 1; row <= last; row += 1) {
+    if (view.state.doc.line(row).text.trim()) return row;
+  }
+  return 1;
+}
+
 function blocks(view: EditorView): DecorationSet {
   const found: { at: number; with: Decoration }[] = [];
+  const title = titleRow(view);
   const of: Record<string, Decoration> = {
     Blockquote: Decoration.line({ class: "cm-quote-line" }),
     FencedCode: Decoration.line({ class: "cm-code-line" }),
@@ -618,6 +712,14 @@ function blocks(view: EditorView): DecorationSet {
     // above it and the shading behind it are what make it read as a table
     // while every cell stays a piece of text you can edit.
     Table: Decoration.line({ class: "cm-table-line" }),
+    // The space a heading stands in. The size is the type system's job; only
+    // the room around it is drawn here, because padding belongs to the line
+    // and a highlight style can only reach the words.
+    ATXHeading1: Decoration.line({ class: "cm-h1-line" }),
+    ATXHeading2: Decoration.line({ class: "cm-h2-line" }),
+    ATXHeading3: Decoration.line({ class: "cm-h3-line" }),
+    SetextHeading1: Decoration.line({ class: "cm-h1-line" }),
+    SetextHeading2: Decoration.line({ class: "cm-h2-line" }),
   };
   for (const { from, to } of view.visibleRanges) {
     syntaxTree(view.state).iterate({
@@ -642,8 +744,15 @@ function blocks(view: EditorView): DecorationSet {
     // text, so a sub-item's margin is simply wider.
     for (let row = view.state.doc.lineAt(from).number; row <= view.state.doc.lineAt(to).number; row += 1) {
       const line = view.state.doc.line(row);
+      // The document's name is its first written line, and a page's name is
+      // the one thing on it that is not body text.
+      if (row === title) found.push({ at: line.from, with: Decoration.line({ class: "cm-title-line" }) });
+      // A blank line is the gap between two paragraphs, so it is drawn as a
+      // gap rather than as an empty line of prose.
+      else if (!line.text.trim()) found.push({ at: line.from, with: Decoration.line({ class: "cm-blank-line" }) });
       const item = ITEM.exec(line.text);
       if (!item) continue;
+      found.push({ at: line.from, with: Decoration.line({ class: "cm-item-line" }) });
       // The box that replaces `- [ ] ` is narrower than the six characters it
       // is written as; the rest is measured in `ch`, which is what the markers
       // are made of.

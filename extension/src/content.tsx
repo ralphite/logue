@@ -1,7 +1,7 @@
 import { StrictMode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { host, type Context } from "./api";
-import { caretRect } from "./caret";
+import { caretRect, fieldBox } from "./caret";
 import * as googleDocs from "./googleDocs";
 import { locate, reveal } from "./anchor";
 import { readablePageText } from "./readable";
@@ -84,7 +84,13 @@ function Surfaces() {
   const target = useRef<Editable | null>(null);
   /** The editor and caret the transcript belongs to, held across a focus change. */
   const destination = useRef<{ editor: Editable; caret: CaretPosition | undefined } | null>(null);
-  const [caret, setCaret] = useState<{ left: number; top: number; bottom: number }>();
+  // `field`: the composer the caret is in, so the bar can stay off it.
+  const [caret, setCaret] = useState<{
+    left: number;
+    top: number;
+    bottom: number;
+    field?: { top: number; bottom: number };
+  }>();
   const [moved, setMoved] = useState<{ left: number; top: number }>();
   /**
    * Where the selection bar was dragged to, if it was.
@@ -211,15 +217,16 @@ function Surfaces() {
       setCaret(undefined);
       return;
     }
+    const field = fieldBox(editable);
     const rect = caretRect(editable);
     if (rect) {
       recordTarget(`caret ${Math.round(rect.left)},${Math.round(rect.bottom)}`);
-      setCaret({ left: rect.left, top: rect.top, bottom: rect.bottom });
+      setCaret({ left: rect.left, top: rect.top, bottom: rect.bottom, field });
       return;
     }
     const box = editable.getBoundingClientRect();
     recordTarget(`field ${Math.round(box.left)},${Math.round(box.bottom)}`);
-    setCaret({ left: box.left, top: box.top, bottom: box.bottom });
+    setCaret({ left: box.left, top: box.top, bottom: box.bottom, field });
   }, []);
 
   useEffect(() => {
@@ -501,11 +508,26 @@ function Surfaces() {
   // to act on. Letting the dragged position stand on its own left it floating
   // over pages with nothing focused, which is how it read as stuck.
   const barAt = caret
-    ? (moved ?? besideCaret(caret, viewport(), barSize.width, barSize.height))
+    ? (moved ?? besideCaret(caret, viewport(), barSize.width, barSize.height, caret.field))
     : undefined;
+  /**
+   * Centring only works with the width the bar really has.
+   *
+   * `SELECTION.width` is a guess made before the bar mounts, and the bar is as
+   * wide as the Skill names on it: measured on this product's own editor, a
+   * declared 220 against a rendered 392 put the toolbar 86px to the right of
+   * the words it belongs to. So the guess places the first paint and the
+   * measurement places every one after it.
+   */
+  const [selectionWidth, setSelectionWidth] = useState<number>();
   const selectionAt = selection
     ? (selectionMoved ??
-      aboveSelection(selection.rect, viewport(), writing ? 320 : SELECTION.width, writing ? 140 : SELECTION.height))
+      aboveSelection(
+        selection.rect,
+        viewport(),
+        writing ? 320 : (selectionWidth ?? SELECTION.width),
+        writing ? 140 : SELECTION.height,
+      ))
     : undefined;
 
   // The toolbar shows the first two without opening a menu, so the Skill chosen
@@ -529,6 +551,18 @@ function Surfaces() {
     const element = document.getElementById("logue-host");
     if (element) element.dataset.logueSurface = showing;
   }, [showing]);
+
+  // The measurement the centring above needs, taken once the bar with these
+  // Skills on it is on screen. The state only moves when the width really
+  // changes, so the correction is one extra layout pass and never a loop.
+  useLayoutEffect(() => {
+    const bar = document
+      .getElementById("logue-host")
+      ?.shadowRoot?.querySelector('[aria-label="Selection actions"]');
+    const width = bar?.getBoundingClientRect().width;
+    if (!width) return;
+    setSelectionWidth((was) => (Math.abs((was ?? 0) - width) > 1 ? width : was));
+  }, [showing, selection, writing, context]);
 
   return (
     <>

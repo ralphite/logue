@@ -126,6 +126,15 @@ export function ListSearch({ value, onChange }: { value: string; onChange: (valu
  * A list row's shell: the selected bar, the 24px badge, the hairline below.
  * What goes beside the badge is the page's own sentence.
  */
+/**
+ * Notion's page row, measured off app.notion.com on 2026-08-19: 30px tall,
+ * 6px radius inside an 8px gutter, a 12px glyph at 13px from the row's edge,
+ * the name at 38px in 14px/500, and 8px of indent per level. No rule between
+ * rows and no accent bar on the selected one — a page tree is a list of
+ * places, and ruling every line turns it into a table.
+ */
+const TREE = { gutter: 8, radius: 6, height: 30, icon: 13, name: 38, step: 8 };
+
 export function RowShell({
   badge,
   selected,
@@ -133,6 +142,7 @@ export function RowShell({
   title,
   indent = 0,
   dense = false,
+  tree = false,
   children,
 }: {
   badge: ReactNode;
@@ -148,6 +158,8 @@ export function RowShell({
    * every row. Documents' said "written by hand" under almost all of them.
    */
   dense?: boolean;
+  /** Documents only: the page tree, shaped like the one people already know. */
+  tree?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -156,16 +168,31 @@ export function RowShell({
       title={title}
       aria-current={selected ? "true" : undefined}
       onClick={onSelect}
-      // The step is 16px because the badge is 24: any less and a child looks
-      // like a sibling that happens to be drawn badly.
-      style={indent ? { paddingLeft: 16 + indent * 16 } : undefined}
+      style={
+        tree
+          ? { paddingLeft: TREE.icon + indent * TREE.step }
+          : // The step is 16px because the badge is 24: any less and a child
+            // looks like a sibling that happens to be drawn badly.
+            indent
+            ? { paddingLeft: 16 + indent * 16 }
+            : undefined
+      }
       className={cn(
-        "relative grid w-full grid-cols-[24px_minmax(0,1fr)] items-center gap-x-[9px] border-b border-line pr-4 pl-4 text-left transition-colors",
-        dense ? "py-[5px]" : "py-[7px]",
-        selected ? "bg-accent-soft" : "hover:bg-hover-soft",
+        "relative grid w-full items-center text-left transition-colors",
+        tree
+          ? "h-[30px] grid-cols-[12px_minmax(0,1fr)] gap-x-[13px] rounded-[6px] pr-2"
+          : "grid-cols-[24px_minmax(0,1fr)] gap-x-[9px] border-b border-line pr-4 pl-4",
+        !tree && (dense ? "py-[5px]" : "py-[7px]"),
+        tree
+          ? selected
+            ? "bg-active"
+            : "hover:bg-hover"
+          : selected
+            ? "bg-accent-soft"
+            : "hover:bg-hover-soft",
       )}
     >
-      {selected && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-accent" />}
+      {!tree && selected && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-accent" />}
       {badge}
       <span className="min-w-0">{children}</span>
     </button>
@@ -173,10 +200,19 @@ export function RowShell({
 }
 
 /** The row's first line: a name, and the fact that sits at the right edge. */
-export function RowName({ children, edge }: { children: ReactNode; edge?: ReactNode }) {
+export function RowName({ children, edge, tree = false }: { children: ReactNode; edge?: ReactNode; tree?: boolean }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
-      <span className="truncate text-[12px] font-[600] tracking-[-0.005em] text-ink">{children}</span>
+      <span
+        className={cn(
+          "truncate text-ink",
+          // A page's name, at the size Notion gives it. The 12px/600 next to
+          // it belongs to lists whose rows carry a second line.
+          tree ? "text-[14px] leading-[21px] font-[500]" : "text-[12px] font-[600] tracking-[-0.005em]",
+        )}
+      >
+        {children}
+      </span>
       {edge && <span className="ml-auto flex-none text-[10.5px] tabular-nums text-muted">{edge}</span>}
     </span>
   );

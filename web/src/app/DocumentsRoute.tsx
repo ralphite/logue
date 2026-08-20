@@ -1,4 +1,4 @@
-import { ChevronRight, Download, History as HistoryIcon, MoreHorizontal, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { ChevronRight, Download, FileText, History as HistoryIcon, MoreHorizontal, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, cn, Empty, ErrorNote, IconButton, Menu, MenuItem, Notice, Spinner, Tooltip } from "@logue/ui";
 import { api, ApiError, type Document as DocumentRecord, type Material } from "../api";
@@ -284,6 +284,9 @@ export function DocumentsRoute({
             <Spinner /> Loading
           </div>
         )}
+        {/* The 8px gutter Notion's rows sit in: a rounded row flush to the
+            pane's edge reads as a strip, not as a place. */}
+        <div className="grid gap-px px-2 py-1">
         {shown.map(({ one, depth, children }) =>
           renaming === one.id ? (
             <RenameRow
@@ -346,36 +349,45 @@ export function DocumentsRoute({
               <span
                 aria-hidden
                 className={`absolute inset-x-0 z-10 h-[2px] bg-accent ${over.zone === "above" ? "top-0" : "bottom-0"}`}
-                style={{ marginLeft: 16 + depth * 16 }}
+                style={{ marginLeft: 8 + depth * 8 }}
               />
             )}
             {over?.id === one.id && over.zone === "into" && (
               <span aria-hidden className="pointer-events-none absolute inset-0 z-10 rounded-sm ring-2 ring-accent ring-inset" />
             )}
             <RowShell
-              badge={<IconBadge name="document" tinted={one.id === selectedId} />}
+              badge={
+                /* The page glyph, 12px and bare — the tinted 24px chip belongs
+                   to lists whose rows carry two lines. On a parent the fold
+                   takes this slot under the pointer, which is where Notion
+                   puts it: one column, never two, so a name never shifts. */
+                <FileText
+                  size={12}
+                  className={cn(
+                    "text-muted",
+                    children > 0 && "[div:hover>button>&]:opacity-0",
+                  )}
+                />
+              }
               selected={one.id === selectedId}
               onSelect={() => onOpen(one.id)}
               indent={depth}
-              /* One page, one line — his instruction of 2026-08-19, with
-                 Notion's sidebar beside it. The second line said "written by
-                 hand" under almost every row and cost half the height of the
-                 list to say nothing: what a page is made of belongs in the
-                 page, and the time it changed is in its footer. Twice as many
-                 pages now fit on a screen, which is what a list is for. */
-              dense
+              tree
             >
-              <RowName>{one.title || "Untitled"}</RowName>
+              <RowName tree>{one.title || "Untitled"}</RowName>
             </RowShell>
-            {/* The fold, on the left where the tree is, and never moving the
-                title: the space it needs is always there, and only the arrow
-                comes and goes. A control that appears and shoves the words
-                sideways is read as the list twitching. */}
-            <span
-              className="pointer-events-none absolute inset-y-0 flex items-center"
-              style={{ left: 16 + depth * 16 - 15 }}
-            >
-              {children > 0 && (
+            {/* The fold, in the glyph's place and only while the pointer is on
+                the row. Notion swaps the two rather than reserving a second
+                column, and the row keeps its 30px whether a page has pages
+                inside it or not. */}
+            {children > 0 && (
+              <span
+                // The row button fills this div, so the slot is measured from
+                // the row's own edge — with the list's 8px gutter added on
+                // top, the fold sat 8px right of the glyph it replaces.
+                className="pointer-events-none absolute inset-y-0 flex items-center opacity-0 focus-within:opacity-100 [div:hover>&]:opacity-100"
+                style={{ left: 13 + depth * 8 }}
+              >
                 <button
                   type="button"
                   aria-label={shut.has(one.id) ? "Show what is inside" : "Fold this away"}
@@ -389,12 +401,12 @@ export function DocumentsRoute({
                       return next;
                     });
                   }}
-                  className="pointer-events-auto flex size-[15px] items-center justify-center rounded-[4px] text-muted opacity-0 hover:bg-hover hover:text-ink focus-visible:opacity-100 [div:hover>&]:opacity-100"
+                  className="pointer-events-auto flex size-3 items-center justify-center rounded-[3px] text-muted hover:text-ink"
                 >
                   <ChevronRight size={12} className={shut.has(one.id) ? undefined : "rotate-90"} />
                 </button>
-              )}
-            </span>
+              </span>
+            )}
             {/* An agent change waits on this page — said here too, so it can
                 be seen without opening every page. It steps aside when the
                 pointer brings the row's own actions in. Interim spot, his
@@ -447,6 +459,7 @@ export function DocumentsRoute({
           </div>
           ),
         )}
+        </div>
       </ListPane>
 
       {dropping && (
@@ -858,7 +871,12 @@ function DocumentEditor({
             </article>
 
             {(sources.length > 0 || outline.length > 1) && (
-              <aside className="min-w-0 grid gap-4">
+              <aside
+                className={cn(
+                  "grid min-w-0 gap-4",
+                  sources.length === 0 && "absolute top-8 right-0 w-[216px] max-[1439px]:hidden",
+                )}
+              >
                 {/* The shape of a long document, from its own headings. Only
                     once there is a shape to show: two headings is a document
                     with a heading, not one that needs a map. */}
@@ -953,11 +971,12 @@ function RenameRow({
 }) {
   const [draft, setDraft] = useState(name);
   return (
+    // The row it replaces, to the pixel: renaming must not make the list jump.
     <div
-      className="grid w-full grid-cols-[24px_minmax(0,1fr)] gap-x-[9px] border-b border-line py-[7px] pr-4 pl-4"
-      style={depth ? { paddingLeft: 16 + depth * 16 } : undefined}
+      className="grid h-[30px] w-full grid-cols-[12px_minmax(0,1fr)] items-center gap-x-[13px] rounded-[6px] pr-2"
+      style={{ paddingLeft: 13 + depth * 8 }}
     >
-      <IconBadge name="document" tinted />
+      <FileText size={12} className="text-muted" />
       <input
         // eslint-disable-next-line jsx-a11y/no-autofocus
         autoFocus
@@ -970,7 +989,7 @@ function RenameRow({
           if (event.key === "Escape") onCancel();
         }}
         onFocus={(event) => event.target.select()}
-        className="h-5 w-full rounded-sm border border-accent-line bg-surface px-1 text-[12px] font-[600] text-ink outline-0"
+        className="h-[22px] w-full rounded-sm border border-accent-line bg-surface px-1 text-[14px] font-[500] text-ink outline-0"
       />
     </div>
   );

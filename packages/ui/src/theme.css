@@ -20,10 +20,15 @@
 
   --color-ink: #242423;
   --color-ink-soft: #62625f;
-  --color-muted: #92928d;
-  /* Between ink-soft and muted: running copy that is quiet, not faded. */
-  --color-muted-strong: #6f6f6a;
-  --color-faint: #a3a39e;
+  /*
+   * The quiet grey, measured rather than chosen: 5.3:1 on white, 4.6:1 on the
+   * selected row's tint. Everything it labels — timestamps, counts, "built-in",
+   * "Where it came from" — is 10.5–12px, which is where WCAG asks for 4.5:1 and
+   * where #92928d (3.1:1) had been failing on every route.
+   */
+  --color-muted: #6b6c66;
+  /* Icons, placeholders and Markdown punctuation only — never running text. */
+  --color-faint: #83847d;
 
   --color-line: #e8e8e4;
   --color-line-strong: #ddddda;

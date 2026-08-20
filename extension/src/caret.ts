@@ -183,3 +183,43 @@ export function caretRect(target: HTMLElement | null | undefined): Rect | undefi
     return undefined;
   }
 }
+
+/**
+ * The box the field sits in, chrome and all.
+ *
+ * A page's composer is rarely the editable alone: chatgpt.com and Gemini both
+ * wrap theirs in a rounded container that carries the send button, the model
+ * picker and the attach control. Anchoring to the editable puts our bar on top
+ * of those. So walk out while the ancestor is still recognisably the same box
+ * — it must contain the field and be no more than a control's worth bigger —
+ * and stop the moment it starts to look like the page.
+ */
+const SLACK = 96;
+/**
+ * Deep enough for the wrappers a framework leaves behind. Gemini stacks five
+ * elements with the field's exact rect before the box that is actually drawn,
+ * so a walk that stopped at four never saw the composer at all.
+ */
+const LEVELS = 10;
+
+export function fieldBox(target: HTMLElement | null | undefined): Rect | undefined {
+  if (!target?.isConnected) return undefined;
+  const field = rectOf(target);
+  let box = field;
+  let node = target.parentElement;
+  for (let level = 0; node && level < LEVELS; level += 1, node = node.parentElement) {
+    const rect = rectOf(node);
+    const contains =
+      rect.left <= field.left + 1 &&
+      rect.right >= field.right - 1 &&
+      rect.top <= field.top + 1 &&
+      rect.bottom >= field.bottom - 1;
+    if (!contains) break;
+    // Height alone says whether this is still the composer. Width does not: a
+    // composer is wider than its text — Gemini's pill is 660px around a 445px
+    // field — while the page containers we must not take are tall.
+    if (rect.bottom - rect.top > field.bottom - field.top + SLACK) break;
+    box = rect;
+  }
+  return box;
+}

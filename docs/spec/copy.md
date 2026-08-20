@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-1179 strings across 91 files.
+1180 strings across 91 files.
 
 ## extension/src/api.ts
 
@@ -36,15 +36,15 @@ state the fact, no justification, no chat register, no filler.
 
 ## extension/src/content.tsx
 
-- 130: `Backspace`
-- 130: `Enter`
-- 184: `Logue is not running on this Mac.`
-- 334: `Enter`
-- 339: `Escape`
-- 431: `Could not save.`
-- 448: `Could not reach the microphone.`
-- 468: `Could not save.`
-- 614: `That Skill`
+- 136: `Backspace`
+- 136: `Enter`
+- 190: `Logue is not running on this Mac.`
+- 341: `Enter`
+- 346: `Escape`
+- 438: `Could not save.`
+- 455: `Could not reach the microphone.`
+- 475: `Could not save.`
+- 648: `That Skill`
 
 ## extension/src/editable.ts
 
@@ -103,14 +103,14 @@ state the fact, no justification, no chat register, no filler.
 - 154: `Do it`
 - 156: `Leave it`
 - 234: `This Mac`
-- 247: `More Skills`
-- 256: `Copied`
-- 256: `Copy`
-- 314: `Less`
-- 314: `More`
-- 331: `Would draft a document`
-- 332: `Would save this page`
-- 333: `Would add this to a Project`
+- 254: `More Skills`
+- 261: `Copied`
+- 261: `Copy`
+- 319: `Less`
+- 319: `More`
+- 336: `Would draft a document`
+- 337: `Would save this page`
+- 338: `Would add this to a Project`
 
 ## extension/src/panel/chrome.stories-helper.tsx
 
@@ -225,8 +225,8 @@ state the fact, no justification, no chat register, no filler.
 - 120: `Write comment`
 - 130: `Saved`
 - 134: `Save selection`
-- 156: `More Skills`
-- 158: `More Skills`
+- 160: `More Skills`
+- 162: `More Skills`
 
 ## extension/src/surfaces/VoiceBar.tsx
 
@@ -995,11 +995,11 @@ state the fact, no justification, no chat register, no filler.
 - 178: `Find anything`
 - 188: `Find`
 - 202: `page`
-- 229: `Logue is not running on this Mac.`
-- 232: `mt-auto justify-center`
-- 236: `Logue is not running on this Mac.`
-- 237: `Logue is not running on this Mac.`
-- 246: `Resize the sidebar`
+- 231: `Logue is not running on this Mac.`
+- 234: `mt-auto justify-center`
+- 238: `Logue is not running on this Mac.`
+- 239: `Logue is not running on this Mac.`
+- 248: `Resize the sidebar`
 
 ## web/src/app/ConfirmDelete.tsx
 
@@ -1016,50 +1016,50 @@ state the fact, no justification, no chat register, no filler.
 - 271: `Documents`
 - 273: `New Document`
 - 284: `Loading`
-- 291: `Untitled`
-- 368: `Untitled`
-- 381: `Show what is inside`
-- 381: `Fold this away`
-- 382: `Show what is inside`
-- 382: `Fold this away`
-- 403: `An agent change is waiting`
-- 406: `review`
-- 412: `New page inside this one`
-- 414: `New page inside this one`
-- 431: `More`
-- 434: `More`
-- 440: `Rename`
-- 443: `Delete…`
-- 455: `Delete this page`
-- 456: `Untitled`
-- 461: `page`
-- 461: `pages`
-- 465: `Every Source it cited stays in the workspace.`
-- 494: `Documents`
-- 496: `Nothing written yet — press + to start a page.`
-- 680: `Saved as a version`
-- 680: `No changes to save`
-- 689: `Documents`
-- 711: `Untitled`
-- 716: `New Document`
-- 716: `Untitled`
-- 732: `Every version of this document`
-- 734: `History`
-- 737: `Save the working copy as a version`
-- 739: `Save version`
-- 742: `Download as Markdown`
-- 744: `Export`
-- 766: `Keep mine`
-- 777: `Discard mine`
-- 782: `This document changed somewhere else. Your edits are still here, unsaved.`
-- 794: `Loading`
-- 829: `Untitled`
-- 855: `Document`
-- 866: `Outline`
-- 884: `Sources`
-- 964: `Name`
-- 969: `Enter`
-- 970: `Escape`
+- 294: `Untitled`
+- 377: `Untitled`
+- 393: `Show what is inside`
+- 393: `Fold this away`
+- 394: `Show what is inside`
+- 394: `Fold this away`
+- 415: `An agent change is waiting`
+- 418: `review`
+- 424: `New page inside this one`
+- 426: `New page inside this one`
+- 443: `More`
+- 446: `More`
+- 452: `Rename`
+- 455: `Delete…`
+- 468: `Delete this page`
+- 469: `Untitled`
+- 474: `page`
+- 474: `pages`
+- 478: `Every Source it cited stays in the workspace.`
+- 507: `Documents`
+- 509: `Nothing written yet — press + to start a page.`
+- 693: `Saved as a version`
+- 693: `No changes to save`
+- 702: `Documents`
+- 724: `Untitled`
+- 729: `New Document`
+- 729: `Untitled`
+- 745: `Every version of this document`
+- 747: `History`
+- 750: `Save the working copy as a version`
+- 752: `Save version`
+- 755: `Download as Markdown`
+- 757: `Export`
+- 779: `Keep mine`
+- 790: `Discard mine`
+- 795: `This document changed somewhere else. Your edits are still here, unsaved.`
+- 807: `Loading`
+- 842: `Untitled`
+- 868: `Document`
+- 884: `Outline`
+- 902: `Sources`
+- 983: `Name`
+- 988: `Enter`
+- 989: `Escape`
 
 ## web/src/app/FindDialog.tsx
 
@@ -1118,57 +1118,57 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/MarkdownEditor.tsx
 
-- 113: `Untitled`
-- 153: `truncate underline decoration-line underline-offset-2`
-- 253: `Enter`
-- 284: `my-1 block`
-- 292: `Image`
-- 345: `Link`
-- 373: `Image`
-- 396: `Link`
-- 532: `2px solid var(--color-line-strong)`
-- 563: `1px solid var(--color-line)`
-- 564: `6px 8px`
-- 574: `0 7px`
-- 576: `1px solid var(--color-control-line)`
-- 584: `0 8px`
-- 586: `1px solid var(--color-control-line)`
-- 594: `0 6px`
-- 689: `Bulleted list`
-- 690: `Numbered list`
-- 694: `page`
-- 694: `Page`
-- 695: `Quote`
-- 696: `Code block`
-- 699: `Table`
-- 704: `Divider`
-- 709: `Callout`
-- 710: `Equation`
-- 711: `Diagram`
-- 714: `Image`
-- 872: `Text`
-- 876: `Bulleted list`
-- 877: `Numbered list`
-- 879: `Quote`
-- 1029: `Edit`
-- 1037: `Unlink`
-- 1052: `Type / for commands`
-- 1123: `Document`
-- 1140: `Promise`
-- 1240: `page`
-- 1299: `page`
-- 1330: `Enter`
-- 1338: `Escape`
-- 1369: `Tab`
-- 1416: `Start writing. The first line is the title.`
-- 1555: `Format the selected passage`
-- 1559: `Bold`
-- 1562: `Italic`
-- 1563: `font-serif italic`
-- 1565: `Code`
-- 1568: `Link`
-- 1586: `Rewrite`
-- 1599: `Insert a block`
+- 115: `Untitled`
+- 155: `truncate underline decoration-line underline-offset-2`
+- 284: `Enter`
+- 315: `my-1 block`
+- 323: `Image`
+- 376: `Link`
+- 404: `Image`
+- 441: `Link`
+- 611: `2px solid var(--color-line-strong)`
+- 642: `1px solid var(--color-line)`
+- 643: `6px 8px`
+- 653: `0 7px`
+- 655: `1px solid var(--color-control-line)`
+- 663: `0 8px`
+- 665: `1px solid var(--color-control-line)`
+- 673: `0 6px`
+- 798: `Bulleted list`
+- 799: `Numbered list`
+- 803: `page`
+- 803: `Page`
+- 804: `Quote`
+- 805: `Code block`
+- 808: `Table`
+- 813: `Divider`
+- 818: `Callout`
+- 819: `Equation`
+- 820: `Diagram`
+- 823: `Image`
+- 981: `Text`
+- 985: `Bulleted list`
+- 986: `Numbered list`
+- 988: `Quote`
+- 1138: `Edit`
+- 1146: `Unlink`
+- 1161: `Type / for commands`
+- 1232: `Document`
+- 1249: `Promise`
+- 1349: `page`
+- 1408: `page`
+- 1439: `Enter`
+- 1447: `Escape`
+- 1478: `Tab`
+- 1525: `Start writing. The first line is the title.`
+- 1664: `Format the selected passage`
+- 1668: `Bold`
+- 1671: `Italic`
+- 1672: `font-serif italic`
+- 1674: `Code`
+- 1677: `Link`
+- 1695: `Rewrite`
+- 1708: `Insert a block`
 
 ## web/src/app/MaterialPanel.tsx
 
@@ -1252,40 +1252,41 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/ProjectsRoute.tsx
 
-- 69: `Projects`
-- 71: `New Project`
-- 82: `Loading`
-- 95: `source`
-- 95: `sources`
-- 105: `Projects`
-- 106: `Project`
-- 107: `Mobile research`
-- 125: `Projects`
-- 128: `No Projects yet — press + to start one.`
-- 141: `kept`
-- 144: `made a Document`
-- 192: `source`
-- 192: `sources`
-- 195: `Delete this Project — its Sources stay`
-- 197: `Delete`
-- 208: `Loading`
-- 220: `What this Project is about`
-- 223: `Cancel`
-- 225: `Save`
-- 230: `Read by the filer and by every answer — click to edit`
-- 239: `Add context for this Project…`
-- 256: `Answers`
-- 272: `underline decoration-line underline-offset-2`
-- 273: `sources`
-- 286: `Undo`
-- 295: `Sources`
-- 295: `newest first`
-- 297: `Nothing here yet — capture with the extension.`
-- 299: `mt-2 -mx-4`
-- 308: `Empty`
-- 311: `this Mac`
-- 332: `Delete this Project`
-- 336: `Every Source stays in Activities. Only the grouping goes.`
+- 81: `Projects`
+- 83: `New Project`
+- 94: `Loading`
+- 107: `source`
+- 107: `sources`
+- 117: `Projects`
+- 118: `Project`
+- 119: `Mobile research`
+- 137: `Projects`
+- 140: `No Projects yet — press + to start one.`
+- 153: `kept`
+- 156: `made a Document`
+- 204: `source`
+- 204: `sources`
+- 212: `More`
+- 215: `More`
+- 221: `Delete Project…`
+- 232: `Loading`
+- 244: `What this Project is about`
+- 247: `Cancel`
+- 249: `Save`
+- 254: `Read by the filer and by every answer — click to edit`
+- 263: `Add context for this Project…`
+- 280: `Answers`
+- 296: `underline decoration-line underline-offset-2`
+- 297: `sources`
+- 310: `Undo`
+- 319: `Sources`
+- 319: `newest first`
+- 321: `Nothing here yet — capture with the extension.`
+- 323: `mt-2 -mx-4`
+- 332: `Empty`
+- 335: `this Mac`
+- 356: `Delete this Project`
+- 360: `Every Source stays in Activities. Only the grouping goes.`
 
 ## web/src/app/PromptDialog.tsx
 
@@ -1353,33 +1354,33 @@ state the fact, no justification, no chat register, no filler.
 - 243: `Corrections`
 - 245: `Words Logue has misheard before. Every recording is transcribed knowing these.`
 - 248: `None yet — fix a word on a recording.`
-- 274: `Words Logue knows`
-- 275: `Spelled this way in every recording.`
-- 278: `None yet — fix a word on a recording, or approve one below.`
-- 303: `Written by hand more than once, never heard right.`
-- 317: `You approved this from your own writing.`
-- 322: `Remember`
-- 341: `Default Skills`
-- 343: `What each surface reaches for, so you are not asked every time.`
-- 366: `Data`
-- 367: `This Mac`
-- 368: `Stored`
-- 370: `Contents`
-- 382: `Back up now`
-- 385: `Export everything`
-- 390: `Backups`
-- 391: `Restoring replaces everything here, after backing it up.`
-- 393: `None yet.`
-- 401: `Restore`
-- 409: `Restore this backup`
-- 426: `Cancel`
-- 441: `Replace everything`
-- 448: `Keyboard shortcuts`
-- 480: `Responded to the last test`
-- 480: `Run Test to check`
-- 483: `Ready`
-- 483: `Not tested`
-- 483: `Needs attention`
+- 273: `Words Logue knows`
+- 274: `Spelled this way in every recording.`
+- 277: `None yet — fix a word on a recording, or approve one below.`
+- 301: `Written by hand more than once, never heard right.`
+- 315: `You approved this from your own writing.`
+- 320: `Remember`
+- 339: `Default Skills`
+- 341: `What each surface reaches for, so you are not asked every time.`
+- 364: `Data`
+- 365: `This Mac`
+- 366: `Stored`
+- 368: `Contents`
+- 380: `Back up now`
+- 383: `Export everything`
+- 388: `Backups`
+- 389: `Restoring replaces everything here, after backing it up.`
+- 391: `None yet.`
+- 399: `Restore`
+- 407: `Restore this backup`
+- 424: `Cancel`
+- 439: `Replace everything`
+- 446: `Keyboard shortcuts`
+- 478: `Responded to the last test`
+- 478: `Run Test to check`
+- 481: `Ready`
+- 481: `Not tested`
+- 481: `Needs attention`
 
 ## web/src/app/ShortcutsDialog.tsx
 

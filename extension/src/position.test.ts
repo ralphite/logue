@@ -29,3 +29,28 @@ describe("placing a floating control", () => {
     expect(placed.top).toBeGreaterThan(30);
   });
 });
+
+describe("staying off the composer it is typed into", () => {
+  const short = { top: 300, bottom: 342 };
+
+  it("drops below a one-line field instead of covering its buttons", () => {
+    const placed = besideCaret({ left: 400, top: 306, bottom: 336 }, viewport, 96, 32, short);
+    expect(placed.top).toBe(352);
+  });
+
+  it("goes above the field when there is no room under it", () => {
+    const low = { top: 720, bottom: 762 };
+    const placed = besideCaret({ left: 400, top: 726, bottom: 756 }, viewport, 96, 32, low);
+    expect(placed.top).toBe(678);
+  });
+
+  it("leaves a page-sized editor alone: the bar belongs beside the caret", () => {
+    const page = { top: 100, bottom: 700 };
+    const placed = besideCaret({ left: 400, top: 300, bottom: 318 }, viewport, 96, 32, page);
+    expect(placed.top).toBe(328);
+  });
+
+  it("places the same as before when nothing says where the field is", () => {
+    expect(besideCaret({ left: 400, top: 300, bottom: 318 }, viewport, 96, 32)).toEqual({ left: 410, top: 328 });
+  });
+})

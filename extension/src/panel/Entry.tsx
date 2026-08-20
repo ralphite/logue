@@ -235,24 +235,29 @@ export function TakeText({
           <p className="mt-1 line-clamp-6 text-[11.5px] leading-[1.5] text-ink-soft">{source.content}</p>
         </div>
       )}
-      <div className="mt-1.5 flex flex-wrap items-center gap-1">
-        {lead}
-        {shown.map((skill) => (
-          <Button key={skill.id} disabled={Boolean(take.running)} onClick={() => onApply(take.id, skill)}>
-            {take.running === skill.name && <Spinner size={11} />}
-            {skill.name}
-          </Button>
-        ))}
-        {!all && usable.length > shown.length && (
-          <IconButton label="More Skills" onClick={() => setAll(true)}>
-            <MoreHorizontal size={14} />
-          </IconButton>
-        )}
+      <div className="mt-1.5 flex items-start gap-1">
+        {/* The Skills are a list that wraps; copying is not one of them.
+            `ml-auto` inside the same wrapping row was not enough — at the
+            panel's real 400px the Skills wrapped and carried Copy onto a line
+            of its own, where it read as a control nobody had placed. It is a
+            sibling of the list now, so it stays on the first line whatever the
+            Skills do. */}
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+          {lead}
+          {shown.map((skill) => (
+            <Button key={skill.id} disabled={Boolean(take.running)} onClick={() => onApply(take.id, skill)}>
+              {take.running === skill.name && <Spinner size={11} />}
+              {skill.name}
+            </Button>
+          ))}
+          {!all && usable.length > shown.length && (
+            <IconButton label="More Skills" onClick={() => setAll(true)}>
+              <MoreHorizontal size={14} />
+            </IconButton>
+          )}
+        </div>
         <IconButton
-          // Pushed to the end of the row: the Skills are a list that can wrap,
-          // and copying is not one of them. Without this it wrapped onto a
-          // line of its own and read as a control nobody had placed.
-          className="ml-auto"
+          className="flex-none"
           label={copied ? "Copied" : "Copy"}
           onClick={() => {
             void navigator.clipboard.writeText(take.text).then(() => {

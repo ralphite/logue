@@ -181,7 +181,7 @@ export function AppShell({
             className="flex h-9 items-center gap-2 rounded-lg px-2 text-left text-sm text-ink-soft hover:bg-hover hover:text-ink"
           >
             <span className={ICON_SLOT}>
-              <Glyph name="search" className="h-[20px] w-[20px] text-muted-strong" />
+              <Glyph name="search" className="h-[20px] w-[20px] text-ink-soft" />
             </span>
             {!collapsed && (
               <>
@@ -212,7 +212,9 @@ export function AppShell({
                 )}
               >
                 <span className={ICON_SLOT}>
-                  <Glyph name={icon} className="h-[20px] w-[20px] text-muted-strong" />
+                  {/* No colour of its own: the icon takes the row's, so the
+                      selected row darkens whole instead of half. */}
+                  <Glyph name={icon} className="h-[20px] w-[20px]" />
                 </span>
                 {!collapsed && <span className="truncate">{label}</span>}
               </button>

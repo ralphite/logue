@@ -148,7 +148,11 @@ export function SelectionBar({
               }}
             >
               {running === skill.id ? <Spinner size={12} /> : <Sparkles size={12} />}
-              <span className="max-w-20 truncate">{skill.name}</span>
+              {/* 80px cut "Accurate transcription" to "Accurate tr…" — a word
+                  broken mid-syllable on a surface that disappears when you
+                  move. Wide enough for the names people actually have, and
+                  still capped so one absurd name cannot own the bar. */}
+              <span className="max-w-40 truncate">{skill.name}</span>
             </Button>
           ))}
           {overflow.length > 0 && (

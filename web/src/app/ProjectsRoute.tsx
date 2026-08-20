@@ -1,6 +1,18 @@
-import { Sparkles, Trash2 } from "lucide-react";
+import { MoreHorizontal, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { ACTS, ActBadge, Button, Empty, ErrorNote, Spinner, Textarea, Tooltip } from "@logue/ui";
+import {
+  ACTS,
+  ActBadge,
+  Button,
+  Empty,
+  ErrorNote,
+  IconButton,
+  Menu,
+  MenuItem,
+  Spinner,
+  Textarea,
+  Tooltip,
+} from "@logue/ui";
 import { api, type Run } from "../api";
 import { kindOf } from "./ActivitiesPage";
 import { DRAFT } from "./AppShell";
@@ -191,12 +203,24 @@ function ProjectDetail({
         name={project?.name ?? ""}
         sub={project ? `${materials.length} ${materials.length === 1 ? "source" : "sources"}` : undefined}
         actions={
+          // Deleting a Project is the rarest thing anyone does here and the
+          // only one that cannot be undone. It sat in the header as a bare
+          // button, the same weight as the things people came to do; it now
+          // lives where every other destructive action in the app does.
           project && (
-            <Tooltip label="Delete this Project — its Sources stay">
-              <Button variant="ghost" onClick={() => setDeleting(project)}>
-                <Trash2 size={13} /> Delete
-              </Button>
-            </Tooltip>
+            <Menu
+              label="More"
+              align="end"
+              trigger={(props) => (
+                <IconButton label="More" {...props}>
+                  <MoreHorizontal size={13} />
+                </IconButton>
+              )}
+            >
+              <MenuItem onClick={() => setDeleting(project)}>
+                <Trash2 size={12} /> Delete Project…
+              </MenuItem>
+            </Menu>
           )
         }
       />

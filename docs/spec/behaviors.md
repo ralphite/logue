@@ -414,6 +414,15 @@ rewrite too. If an entry is ever deliberately changed, edit it and say when.
   differ in what they offer, never in how they are put together — and a change
   to one is a change to both. Built as shared parts used twice, because two
   copies of a design drift apart the first time anybody touches one of them.
+- **The bar never covers the box it is being typed into.** On a field small
+  enough to see all of — chatgpt.com's ask box, Gemini's, a comment field — the
+  bar goes under the whole composer, or over it when there is no room under,
+  and it counts the composer's own chrome as part of the box: the send button,
+  the model picker, the attach control. It stays beside the caret only where
+  "outside the field" would mean the far end of a document — a page in Notion,
+  Docs, or this product's own editor. (2026-08-19, after both reviews of the
+  screenshots said the same thing and it was measured on chatgpt.com: the bar
+  covered the last six pixels of the field and sat across the send row.)
 - **Every floating surface can be dragged, and its handle is always visible.**
   Not on hover, not in some states and not others — if it floats over someone's
   page, there is something to take hold of. A bar that lands on the sentence
