@@ -47,6 +47,36 @@ export function somethingUnsaved(): boolean {
   return holding > 0;
 }
 
+/** How long hands must be off before a swap may happen in front of someone. */
+const IDLE_MS = 120_000;
+
+/** The last moment the person did anything in this tab. */
+let lastActiveAt = Date.now();
+
+export function noteActivity(): void {
+  lastActiveAt = Date.now();
+}
+
+/**
+ * Whether the page may trade itself for the newer build right now.
+ *
+ * "Nothing unsaved" alone was not enough: autosave makes a page clean
+ * between two keystrokes, and the swap fired there — under his hands, the
+ * caret and half a sentence went with it. The page swaps when nobody is
+ * watching (the tab hidden or the window elsewhere) or when the hands have
+ * been off for a while; never over unsaved words, as before.
+ */
+export function swapVerdict(unsaved: boolean, watching: boolean, idleMs: number): boolean {
+  if (unsaved) return false;
+  if (!watching) return true;
+  return idleMs >= IDLE_MS;
+}
+
+export function canSwapNow(): boolean {
+  const watching = document.visibilityState === "visible" && document.hasFocus();
+  return swapVerdict(somethingUnsaved(), watching, Date.now() - lastActiveAt);
+}
+
 /**
  * The build the Host is serving, once it differs from the one we loaded with.
  *

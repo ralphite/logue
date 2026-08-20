@@ -3,7 +3,7 @@ import { api } from "../api";
 import { AppShell, ROUTES, type Route } from "./AppShell";
 import { DocumentsRoute } from "./DocumentsRoute";
 import { FindDialog, type FindTarget } from "./FindDialog";
-import { somethingUnsaved, useNewerBuild } from "./freshness";
+import { canSwapNow, noteActivity, useNewerBuild } from "./freshness";
 import { PinsProvider } from "./pins";
 import { ProjectsRoute } from "./ProjectsRoute";
 import { SettingsRoute } from "./SettingsRoute";
@@ -85,11 +85,35 @@ export function App() {
 
   useEffect(() => {
     if (!newerBuild || postponed) return;
-    // Nothing of the person's is in the air: just go. Something is: say so
-    // and let them press it, because a reload that eats a paragraph is a
-    // worse bug than the one it fixes.
-    if (!somethingUnsaved()) window.location.reload();
+    // Nothing of the person's is in the air and nobody is watching — or the
+    // hands have been off long enough: go. Unsaved words: say so and let
+    // them press it, because a reload that eats a paragraph is a worse bug
+    // than the one it fixes. It used to go the moment the page was clean,
+    // which is any gap between two autosaves — the page swapped under his
+    // hands mid-sentence.
+    const swap = () => {
+      if (canSwapNow()) window.location.reload();
+    };
+    swap();
+    window.addEventListener("blur", swap);
+    document.addEventListener("visibilitychange", swap);
+    const timer = window.setInterval(swap, 5_000);
+    return () => {
+      window.removeEventListener("blur", swap);
+      document.removeEventListener("visibilitychange", swap);
+      window.clearInterval(timer);
+    };
   }, [newerBuild, postponed]);
+
+  // What "hands off" means, measured: any key or press in this tab.
+  useEffect(() => {
+    window.addEventListener("keydown", noteActivity, true);
+    window.addEventListener("pointerdown", noteActivity, true);
+    return () => {
+      window.removeEventListener("keydown", noteActivity, true);
+      window.removeEventListener("pointerdown", noteActivity, true);
+    };
+  }, []);
 
   // What the rail is showing, in the order it shows it. A ref rather than
   // state: it changes on every filter keystroke and nothing renders from it.

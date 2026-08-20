@@ -196,6 +196,21 @@ class HostTest(Workspace, unittest.TestCase):
         fresh = self.call("POST", "/v1/skills", {"name": "AAA newest", "instructions": "New."})["skill"]
         self.assertEqual([s["id"] for s in self.call("GET", "/v1/skills")["skills"]], [*placed, fresh["id"]])
 
+    def test_the_host_sheds_idle_connections_and_raises_its_descriptor_ceiling(self) -> None:
+        import resource
+
+        from logue_host.http import Router, serve
+
+        server = serve(Router(), "127.0.0.1", 0)
+        try:
+            # 240 pooled-but-idle proxy connections once starved the default
+            # 256-descriptor limit; every file open answered Errno 24.
+            self.assertEqual(server.RequestHandlerClass.timeout, 75)
+            soft, _hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+            self.assertGreaterEqual(soft, 4096)
+        finally:
+            server.server_close()
+
     def test_reorder_skips_an_id_that_is_gone_and_refuses_junk(self) -> None:
         before = [s["id"] for s in self.call("GET", "/v1/skills")["skills"]]
         kept = [s["id"] for s in self.call("POST", "/v1/skills/reorder", {"order": ["skill_gone", *before]})["skills"]]

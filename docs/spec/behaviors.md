@@ -595,6 +595,16 @@ then measured in the real panel — see `scripts/qa/n14.mjs`.
   files. The answer arrives without a spinner — a row appearing must not blank
   the pane it appears in — and a surface nobody is looking at does not ask at
   all.
+- **A newer build swaps in only behind the person's back.** (2026-08-20,
+  from his report: pages refreshed while he was editing — text landed in the
+  wrong places, and during a Host outage the reload came back blank.) The
+  page still trades itself for the build the Host serves, but only when the
+  tab is hidden, the window is elsewhere, or hands have been off for two
+  minutes — never over unsaved words, as before. "Clean" alone was the old
+  gate, and autosave makes a page clean between two keystrokes. The Host
+  also sheds idle keep-alive connections after 75s and raises its descriptor
+  ceiling: a port-forwarding proxy pooled 240 idle connections and starved
+  the default 256, and every request that opened a file answered Errno 24.
 - **Nothing reloads over words that are not saved yet.** An editor holding
   something unsaved is left alone until it is saved; the next change picks it
   up. A reload that costs a paragraph is worse than the staleness it fixes.

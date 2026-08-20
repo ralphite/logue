@@ -1029,6 +1029,20 @@
       ],
       "created": "2026-08-19",
       "updated": "2026-08-20"
+    },
+    {
+      "id": "X15",
+      "title": "Host /v1/status、/v1/settings 抛 500 + 连接重置;编辑中页面被刷新,输入错位、白屏",
+      "type": "bug",
+      "status": "queued",
+      "priority": "P2",
+      "confirmed": true,
+      "tags": [],
+      "note": "",
+      "blocked_on": "",
+      "input_ids": [],
+      "created": "2026-08-20",
+      "updated": "2026-08-20"
     }
   ],
   "inputs": [

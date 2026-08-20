@@ -163,6 +163,13 @@ def serve(router: Router, host: str, port: int, web: Path | None = None) -> Thre
     class RequestHandler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
         server_version = "Logue"
+        # An idle keep-alive connection is let go after this long. Without a
+        # timeout, each one holds a thread and a file descriptor forever —
+        # VS Code's port-forwarding proxy pooled 240 of them and starved the
+        # process's 256-descriptor default: every request that opened a file
+        # answered `[Errno 24] Too many open files`. A dropped pool entry
+        # costs the client one reconnect; a hoarded one cost the workspace.
+        timeout = 75
 
         def log_message(self, *_: Any) -> None:
             """Silence per-request logging; the Host is a background service."""
@@ -279,5 +286,18 @@ def serve(router: Router, host: str, port: int, web: Path | None = None) -> Thre
             # know, or the browser goes on to send the write.
             refusal = self._guard()
             self._send(Response({"error": refusal}, 403) if refusal else Response(status=204))
+
+    # Room for the connections a proxy legitimately holds: launchd starts the
+    # process with a 256-descriptor ceiling, which the incident above filled.
+    try:
+        import resource
+
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        wanted = 8192 if hard == resource.RLIM_INFINITY else min(8192, hard)
+        if soft < wanted:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (wanted, hard))
+    except (ImportError, ValueError, OSError):
+        # A platform that refuses still gets the idle timeout above.
+        pass
 
     return ThreadingHTTPServer((host, port), RequestHandler)
