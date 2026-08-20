@@ -62,7 +62,12 @@ export async function run(api) {
   check("a page inside a page is 8px further in", step === 8, `${step}px (${indents.join(", ")}) ${steps.length}`);
 
   // -- the page ----------------------------------------------------------
-  const docId = DOC ?? (await api.eval(`fetch('/v1/documents', { headers: { 'X-Logue-Client': 'web' } }).then(r => r.json()).then(d => (d.documents.find(x => /^#{1,3}\\s/m.test(x.content ?? '')) ?? d.documents[0])?.id)`));
+  // A document that holds everything asserted below: a heading, and a real
+  // paragraph — one that follows a blank line, because a plain line right
+  // under a list item is that item's continuation now and wears the item's
+  // paint, which is how a lists-only fixture stopped having any "paragraph"
+  // line at all and this check went red on it.
+  const docId = DOC ?? (await api.eval(`fetch('/v1/documents', { headers: { 'X-Logue-Client': 'web' } }).then(r => r.json()).then(d => (d.documents.find(x => /^#{1,3}\\s/m.test(x.content ?? '') && /\\n\\n[^\\s#>*+\\d\`|![-]/.test(x.content ?? '')) ?? d.documents[0])?.id)`));
   await api.goto(`${HOST}/documents/${docId}`);
   await api.sleep(3200);
   const page = JSON.parse(await api.eval(`(() => {

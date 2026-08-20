@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-1172 strings across 91 files.
+1165 strings across 91 files.
 
 ## extension/src/api.ts
 
@@ -371,7 +371,6 @@ state the fact, no justification, no chat register, no filler.
 - 33: `Escape`
 - 39: `Enter`
 - 47: `Tab`
-- 81: `logue-float p-3`
 - 85: `Close`
 
 ## packages/ui/src/Dropdown.tsx
@@ -423,7 +422,6 @@ state the fact, no justification, no chat register, no filler.
 - 83: `Pause`
 - 83: `Play`
 - 101: `Position`
-- 120: `h-5 w-full`
 
 ## packages/ui/src/Resizer.tsx
 
@@ -996,7 +994,6 @@ state the fact, no justification, no chat register, no filler.
 - 188: `Find`
 - 202: `page`
 - 231: `Logue is not running on this Mac.`
-- 234: `mt-auto justify-center`
 - 238: `Logue is not running on this Mac.`
 - 239: `Logue is not running on this Mac.`
 - 248: `Resize the sidebar`
@@ -1118,49 +1115,46 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/MarkdownEditor.tsx
 
-- 115: `Untitled`
-- 157: `truncate underline decoration-line underline-offset-2`
-- 306: `Enter`
-- 337: `my-1 block`
-- 345: `Image`
-- 414: `Link`
-- 450: `Image`
-- 487: `Link`
-- 921: `Bulleted list`
-- 922: `Numbered list`
-- 926: `page`
-- 926: `Page`
-- 927: `Quote`
-- 928: `Code block`
-- 931: `Table`
-- 936: `Divider`
-- 941: `Callout`
-- 942: `Equation`
-- 943: `Diagram`
-- 946: `Image`
-- 1104: `Text`
-- 1108: `Bulleted list`
-- 1109: `Numbered list`
-- 1111: `Quote`
-- 1261: `Edit`
-- 1269: `Unlink`
-- 1284: `Type / for commands`
-- 1358: `Document`
-- 1375: `Promise`
-- 1475: `page`
-- 1534: `page`
-- 1565: `Enter`
-- 1573: `Escape`
-- 1604: `Tab`
-- 1651: `Start writing. The first line is the title.`
-- 1790: `Format the selected passage`
-- 1794: `Bold`
-- 1797: `Italic`
-- 1798: `font-serif italic`
-- 1800: `Code`
-- 1803: `Link`
-- 1821: `Rewrite`
-- 1834: `Insert a block`
+- 154: `Untitled`
+- 196: `truncate underline decoration-line underline-offset-2`
+- 390: `Enter`
+- 421: `my-1 block`
+- 429: `Image`
+- 1265: `Bulleted list`
+- 1266: `Numbered list`
+- 1270: `page`
+- 1270: `Page`
+- 1271: `Quote`
+- 1272: `Code block`
+- 1275: `Table`
+- 1280: `Divider`
+- 1285: `Callout`
+- 1286: `Equation`
+- 1287: `Diagram`
+- 1290: `Image`
+- 1448: `Text`
+- 1452: `Bulleted list`
+- 1453: `Numbered list`
+- 1455: `Quote`
+- 1620: `Edit`
+- 1629: `Unlink`
+- 1644: `Type / for commands`
+- 1718: `Document`
+- 1735: `Promise`
+- 1835: `page`
+- 1894: `page`
+- 1925: `Enter`
+- 1933: `Escape`
+- 1964: `Tab`
+- 2012: `Start writing. The first line is the title.`
+- 2147: `Format the selected passage`
+- 2151: `Bold`
+- 2154: `Italic`
+- 2155: `font-serif italic`
+- 2157: `Code`
+- 2160: `Link`
+- 2178: `Rewrite`
+- 2191: `Insert a block`
 
 ## web/src/app/MaterialPanel.tsx
 
@@ -1200,7 +1194,6 @@ state the fact, no justification, no chat register, no filler.
 - 464: `…should be`
 - 465: `What it should be`
 - 474: `Fix and remember`
-- 481: `cursor-pointer select-none`
 - 481: `What it said before`
 - 501: `Use this`
 - 552: `Voice`

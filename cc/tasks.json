@@ -1013,6 +1013,20 @@
       ],
       "created": "2026-08-19",
       "updated": "2026-08-19"
+    },
+    {
+      "id": "N21",
+      "title": "Markdown 渲染与 Notion 的逐块对比:八处差距(kitchen-sink 实测)",
+      "type": "design",
+      "status": "done",
+      "priority": "P2",
+      "confirmed": true,
+      "tags": [],
+      "note": "用 markdown-it sample.md 在两边渲染对比(Notion 页 'MD kitchen sink QA (safe to delete)'、Logue 文档 doc_de1bc0e2e55c8d43)。差距按影响排序:1) 软换行的列表项续行断开成段落(Notion 合并+悬挂);2) ~~删除线~~ 记号可见;3) 嵌套引用压平成一层(Notion 多层竖线);4) 4空格缩进代码无容器(Notion 转真代码块);5) 有序列表按原文印数字不重编号;6) h4-6 无字号/间距阶梯(Notion 51px 小标题);7) 链接 title 泄漏进正文;8) 引用式图片 ![x][id] 不解析(Notion 出真图并吃掉定义行)。表格已在既有队列。一致的:段落40/标题h1-3/嵌套列表记号•○▪/围栏代码容器/分隔线/任务列表/行内图片。",
+      "blocked_on": "",
+      "input_ids": [],
+      "created": "2026-08-19",
+      "updated": "2026-08-20"
     }
   ],
   "inputs": [

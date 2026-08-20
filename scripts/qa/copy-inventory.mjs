@@ -57,6 +57,9 @@ function looksLikeCopy(text) {
   if (!/[a-z]{2}/i.test(text)) return false;
   // Machinery: class lists, ids, urls, keys, formats, imports.
   if (/^[a-z][a-z0-9]*([-_][a-z0-9]+)+$/i.test(text)) return false;
+  // A run of hyphenated lowercase words is a class list, not a sentence —
+  // `cm-ordered-mark cm-ordered-num` read as copy in review.
+  if (/^[a-z][a-z0-9]*(-[a-z0-9]+)+( [a-z][a-z0-9]*(-[a-z0-9]+)+)+$/.test(text)) return false;
   if (/[<>{}$#]|\.\.\/|https?:|^\/|^[a-z-]+:[a-z-]+$/.test(text)) return false;
   if (/(^|\s)(flex|grid|rounded|border|text-|bg-|px-|py-|min-w|max-w|shrink|gap-)/.test(text)) return false;
   // A CSS value in a theme object — `3px solid var(--color-ink)`, `0 7px` —
@@ -101,6 +104,9 @@ function stringsIn(source, path) {
     // — the review that caught it was handed `Accurate tr…` as if it were on
     // screen. Only whole comment lines are dropped; code before `/*` stays.
     const code = line.replace(/^\s*(\/\/|#|\*|\{?\/\*).*$/, "");
+    // A syntax-tree comparison names grammar nodes ("Link", "Paragraph"),
+    // which read as labels. The line says what its strings are.
+    if (/\.name\s*[!=]==|getChild\(/.test(code)) return;
     for (const match of code.matchAll(/"([^"\\]{3,400})"|'([^'\\]{3,400})'|`([^`\\$]{3,400})`/g)) {
       const text = match[1] ?? match[2] ?? match[3];
       if (looksLikeCopy(text)) found.push({ at: index + 1, text });

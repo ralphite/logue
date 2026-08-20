@@ -87,7 +87,46 @@ export interface MarkdownHandle {
  * *drawn* instead — see `Bullet` — so the line reads as Notion's list while
  * the dash is still what is written.
  */
-const MARKS = new Set(["HeaderMark", "EmphasisMark", "CodeMark", "QuoteMark", "LinkMark", "URL"]);
+const MARKS = new Set([
+  "HeaderMark",
+  "EmphasisMark",
+  "CodeMark",
+  "QuoteMark",
+  "LinkMark",
+  "URL",
+  "StrikethroughMark",
+  "LinkTitle",
+  "LinkLabel",
+]);
+
+/** `[id]: url` lines, wherever in the document they are — usually the
+    bottom, which is why the table is read from the whole text and never
+    from the viewport. */
+const DEFINITION = /^ {0,3}\[([^\]]+)\]:[ \t]*(\S+)/gm;
+
+/** CommonMark's label fold, our reading: trim, collapse, lowercase. */
+const foldLabel = (label: string) => label.trim().replace(/\s+/g, " ").toLowerCase();
+
+/** The reference table of one document: folded label → address. The first
+    definition of a label wins, CommonMark's rule. */
+function referenceTable(doc: { toString(): string }): Map<string, string> {
+  const table = new Map<string, string>();
+  for (const match of doc.toString().matchAll(DEFINITION)) {
+    const label = foldLabel(match[1] ?? "");
+    if (label && !table.has(label)) table.set(label, match[2] ?? "");
+  }
+  return table;
+}
+
+/** What a reference names: `[text][label]`, collapsed `[text][]`, or the
+    shortcut `[text]`, image forms included. */
+function referenceLabelOf(written: string): { text: string; label: string } | undefined {
+  const full = /^!?\[([^\]]*)\]\[([^\]]*)\]$/.exec(written);
+  if (full) return { text: full[1] ?? "", label: full[2] || full[1] || "" };
+  const shortcut = /^!?\[([^\]]+)\]$/.exec(written);
+  if (shortcut) return { text: shortcut[1] ?? "", label: shortcut[1] ?? "" };
+  return undefined;
+}
 
 /** What a list line starts with: nesting, marker, and a task's box. */
 const ITEM = /^(\s*)([-*+]|\d+[.)])(\s+)(\[[ xX]\]\s+)?/;
@@ -170,6 +209,51 @@ class Subpage extends WidgetType {
   /** The editor keeps its hands off the page block, like the citation chip. */
   override ignoreEvent(): boolean {
     return true;
+  }
+}
+
+/**
+ * The number an ordered item is read as: the list's own counting, in a box
+ * exactly the written marker's width — so the text column never moves, not
+ * when the shown number differs and not when the caret enters the line. A
+ * number shown wider than what is written runs into the gap after it.
+ */
+class Num extends WidgetType {
+  constructor(
+    readonly shown: string,
+    readonly written: string,
+  ) {
+    super();
+  }
+
+  override eq(other: Num): boolean {
+    return other.shown === this.shown && other.written === this.written;
+  }
+
+  toDOM(): HTMLElement {
+    const mark = document.createElement("span");
+    mark.className = "cm-ordered-mark cm-ordered-num";
+    // The box is sized by the written marker itself, kept invisible under
+    // the shown number — the same glyphs the caret's line shows, so the
+    // words after it sit still as the caret comes and goes. A `ch` box was
+    // 9px off: a period is not a digit's width in this face.
+    const ghost = document.createElement("span");
+    ghost.className = "cm-ordered-ghost";
+    ghost.textContent = this.written;
+    const digits = document.createElement("span");
+    digits.className = "cm-ordered-shown";
+    digits.textContent = this.shown;
+    mark.append(ghost, digits);
+    return mark;
+  }
+
+  /** Clicking the number puts the caret in it, as clicking text would. */
+  override ignoreEvent(): boolean {
+    return false;
+  }
+
+  override get estimatedHeight(): number {
+    return -1;
   }
 }
 
@@ -385,7 +469,7 @@ function open(view: EditorView): Set<number> {
 function inFence(state: EditorState, at: number): boolean {
   for (const side of [1, -1] as const) {
     for (let up = syntaxTree(state).resolveInner(at, side); ; up = up.parent!) {
-      if (up.name === "FencedCode") return true;
+      if (up.name === "FencedCode" || up.name === "CodeBlock") return true;
       if (!up.parent) break;
     }
   }
@@ -397,6 +481,7 @@ function marks(
   cite?: (n: number) => void,
   toggle: (at: number, done: boolean) => void = () => undefined,
   page?: { open?: (id: string) => void; name?: (id: string) => string | undefined },
+  defs: Map<string, string> = new Map(),
 ): DecorationSet {
   const editing = open(view);
   const hidden = Decoration.replace({});
@@ -425,6 +510,35 @@ function marks(
               with: Decoration.replace({ widget: new Subpage(sub.id, shown, page?.open) }),
             });
             return false;
+          }
+        }
+        // A wrapped item's indented continuation: the leading spaces are how
+        // the continuation is typed, not the words — hidden away from the
+        // caret so the words sit at the item's text column, and back on the
+        // caret's line like every mark. (`blocks()` sets the column itself.)
+        if ((node.name === "Paragraph" || node.name === "Task") && node.node.parent?.name === "ListItem") {
+          // "Task", because the task-list extension swaps a to-do's leaf for
+          // its own node — a to-do's continuation is still a continuation.
+          const itemLine = view.state.doc.lineAt(node.node.parent.from);
+          // A half-typed marker has no column to land on; hiding the spaces
+          // without one dropped the line left of its own bullet.
+          if (!ITEM.test(itemLine.text)) return undefined;
+          const first = view.state.doc.lineAt(node.from).number;
+          const last = view.state.doc.lineAt(node.to).number;
+          for (let row = first; row <= last; row += 1) {
+            if (row === itemLine.number || editing.has(row)) continue;
+            const line = view.state.doc.line(row);
+            const lead = /^[ \t]*/.exec(line.text)?.[0].length ?? 0;
+            if (lead > 0) found.push({ from: line.from, to: line.from + lead, with: hidden });
+          }
+          return undefined;
+        }
+        // An unresolved reference is written text — the grammar still calls
+        // it a link and would paint it one, so the paint is taken back.
+        if ((node.name === "Link" || node.name === "Image") && !node.node.getChild("URL")) {
+          const ref = referenceLabelOf(view.state.doc.sliceString(node.from, node.to));
+          if (!ref || !defs.has(foldLabel(ref.label))) {
+            found.push({ from: node.from, to: node.to, with: Decoration.mark({ class: "cm-ref-dead" }) });
           }
         }
         // A task box is a box wherever the caret is: a checkbox you cannot
@@ -458,6 +572,18 @@ function marks(
             });
             return false;
           }
+          // The reference forms draw the image their definition names; an
+          // unresolved reference stays the written text.
+          const ref = referenceLabelOf(written);
+          const address = ref && defs.get(foldLabel(ref.label));
+          if (address) {
+            found.push({
+              from: node.from,
+              to: node.to,
+              with: Decoration.replace({ widget: new Picture(address, ref.text) }),
+            });
+            return false;
+          }
           return undefined;
         }
         // The bullet on a task line, where the box is already the marker.
@@ -470,27 +596,68 @@ function marks(
             found.push({ from: node.from, to: Math.min(node.to + 1, line.to), with: hidden });
             return undefined;
           }
-          // A dash is how a list is written; a dot is how one is read. Only
-          // for bullets: a number is already the marker it is printed as.
+          // A dash is how a list is written; a dot is how one is read.
           const text = view.state.doc.sliceString(node.from, node.to);
           if (editing.has(line.number)) return undefined;
           if (/^[-*+]$/.test(text)) {
             const lead = /^\s*/.exec(line.text)?.[0].length ?? 0;
             found.push({ from: node.from, to: node.to, with: Decoration.replace({ widget: new Bullet(Math.floor(lead / 2)) }) });
           } else {
-            found.push({ from: node.from, to: node.to, with: Decoration.mark({ class: "cm-ordered-mark" }) });
+            // The number shown is the list's own counting — the written
+            // start, then up by one, the written separator kept — not the
+            // written digits, which stay in the text and on the caret's
+            // line. Blank lines do not end a list, so `1. 1.` two blanks
+            // under `1. 2. 3.` reads `4. 5.`.
+            const item = node.node.parent;
+            const list = item?.parent;
+            let shown = text;
+            if (item?.name === "ListItem" && list?.name === "OrderedList") {
+              let index = 0;
+              for (let sib = item.prevSibling; sib; sib = sib.prevSibling) {
+                if (sib.name === "ListItem") index += 1;
+              }
+              let head = list.firstChild;
+              while (head && head.name !== "ListItem") head = head.nextSibling;
+              const first = head?.getChild("ListMark");
+              const start = first ? parseInt(view.state.doc.sliceString(first.from, first.to), 10) : NaN;
+              if (!Number.isNaN(start)) shown = `${start + index}${text.endsWith(")") ? ")" : "."}`;
+            }
+            found.push(
+              shown === text
+                ? { from: node.from, to: node.to, with: Decoration.mark({ class: "cm-ordered-mark" }) }
+                : { from: node.from, to: node.to, with: Decoration.replace({ widget: new Num(shown, text) }) },
+            );
           }
           return undefined;
         }
         if (!MARKS.has(node.name)) return undefined;
+        const parent = node.node.parent;
+        // A definition line shows verbatim, dimmed — nothing on it hides.
+        // (Its own colon used to be eaten by the LinkMark rule.)
+        if (parent?.name === "LinkReference") return undefined;
         // A URL is only noise inside a written link; a bare one is the text.
-        if (node.name === "URL" && node.node.parent?.name !== "Link") return undefined;
+        if (node.name === "URL" && parent?.name !== "Link") return undefined;
+        // A title hides only inside an inline link or image.
+        if (node.name === "LinkTitle" && parent?.name !== "Link" && parent?.name !== "Image") return undefined;
+        // A reference's brackets — and its [label], which is an address in
+        // costume — hide only when it resolves. An unresolved [word] is a
+        // bracketed word; its brackets used to vanish quietly.
+        if (
+          (node.name === "LinkMark" || node.name === "LinkLabel") &&
+          (parent?.name === "Link" || parent?.name === "Image") &&
+          !parent.getChild("URL")
+        ) {
+          const ref = referenceLabelOf(view.state.doc.sliceString(parent.from, parent.to));
+          if (!ref || !defs.has(foldLabel(ref.label))) return undefined;
+        }
         if (editing.has(view.state.doc.lineAt(node.from).number)) return undefined;
         // The space after `#` or `>` is part of how the mark is typed, not of
         // the words: `# A` rendered with the hash alone hidden began with a
-        // space, so every heading sat one space deep.
+        // space, so every heading sat one space deep. The space after an
+        // address is the same: without this, hiding the title left a double
+        // gap where `(url "title")` was written.
         let until = node.to;
-        if (node.name === "HeaderMark" || node.name === "QuoteMark") {
+        if (node.name === "HeaderMark" || node.name === "QuoteMark" || node.name === "URL") {
           const line = view.state.doc.lineAt(node.from);
           while (until < line.to && /[ \t]/.test(view.state.doc.sliceString(until, until + 1))) until += 1;
         }
@@ -524,6 +691,48 @@ function marks(
 /** Something outside the text moved — a page in it was renamed — redraw. */
 const refreshMarks = Annotation.define<boolean>();
 
+/**
+ * Enter in a renumbered list continues the count as read, not as written.
+ *
+ * The continue-markup command copies the written number and adds one — under
+ * a list showing `3. 4.` off a written `1. 1.`, it typed `2. `, and the list
+ * read 3, 2, 5 until the caret left. The marker being typed is the person's
+ * own new text, so it is written at the shown count.
+ */
+const continueAsRead = EditorState.transactionFilter.of((tr) => {
+  if (!tr.docChanged || !tr.isUserEvent("input")) return tr;
+  let fix: { from: number; to: number; insert: string } | undefined;
+  tr.changes.iterChanges((fromA, _toA, fromB, _toB, inserted) => {
+    if (fix) return;
+    const match = /^\n( *)(\d+)([.)]) $/.exec(inserted.toString());
+    if (!match) return;
+    const tree = syntaxTree(tr.startState);
+    for (let up = tree.resolveInner(fromA, -1); ; up = up.parent!) {
+      if (up.name === "ListItem" && up.parent?.name === "OrderedList") {
+        let index = 0;
+        for (let sib = up.prevSibling; sib; sib = sib.prevSibling) {
+          if (sib.name === "ListItem") index += 1;
+        }
+        let head = up.parent.firstChild;
+        while (head && head.name !== "ListItem") head = head.nextSibling;
+        const first = head?.getChild("ListMark");
+        const start = first ? parseInt(tr.startState.doc.sliceString(first.from, first.to), 10) : NaN;
+        if (!Number.isNaN(start)) {
+          const next = String(start + index + 1);
+          const written = match[2] ?? "";
+          if (next !== written) {
+            const at = fromB + 1 + (match[1]?.length ?? 0);
+            fix = { from: at, to: at + written.length, insert: next };
+          }
+        }
+        break;
+      }
+      if (!up.parent) break;
+    }
+  });
+  return fix ? [tr, { changes: fix, sequential: true }] : tr;
+});
+
 function livePreview(
   cite?: (n: number) => void,
   page?: { open?: (id: string) => void; name?: (id: string) => string | undefined },
@@ -531,9 +740,20 @@ function livePreview(
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
+      /** The reference table, read from the whole document — not the
+          viewport, where the definitions at the bottom would never be —
+          and only when the document changes, not on every caret move. */
+      defs: Map<string, string>;
+      /** The rebuild waiting for a definition line to be finished. */
+      settle: number | undefined;
 
       constructor(readonly view: EditorView) {
-        this.decorations = marks(view, cite, this.toggle, page);
+        this.defs = referenceTable(view.state.doc);
+        this.decorations = marks(view, cite, this.toggle, page, this.defs);
+      }
+
+      destroy() {
+        window.clearTimeout(this.settle);
       }
 
       /** Pressing a task box writes the other state where the state lives. */
@@ -547,6 +767,25 @@ function livePreview(
         // The caret moving is the whole point: it is what puts the markup of
         // one line back and takes the last one's away. Focus counts as a move
         // — clicking in and clicking away change which lines are being edited.
+        if (update.docChanged) {
+          // Typing inside a definition line resolves half-written addresses
+          // — one image request per keystroke, to hosts that do not exist,
+          // while the image's line thrashed. The table settles 600ms after
+          // the last keystroke there; every other edit reads back at once.
+          let definitionOnly = true;
+          update.changes.iterChangedRanges((_fromA, _toA, fromB) => {
+            if (!/^ {0,3}\[/.test(update.state.doc.lineAt(fromB).text)) definitionOnly = false;
+          });
+          if (definitionOnly) {
+            window.clearTimeout(this.settle);
+            this.settle = window.setTimeout(() => {
+              this.defs = referenceTable(this.view.state.doc);
+              this.view.dispatch({ annotations: refreshMarks.of(true) });
+            }, 600);
+          } else {
+            this.defs = referenceTable(update.state.doc);
+          }
+        }
         if (
           update.docChanged ||
           update.viewportChanged ||
@@ -554,7 +793,7 @@ function livePreview(
           update.focusChanged ||
           update.transactions.some((one) => one.annotation(refreshMarks))
         ) {
-          this.decorations = marks(update.view, cite, this.toggle, page);
+          this.decorations = marks(update.view, cite, this.toggle, page, this.defs);
         }
       }
     },
@@ -570,7 +809,12 @@ const written = HighlightStyle.define([
   { tag: tags.heading1, fontSize: "1.875em", fontWeight: "600", lineHeight: "1.3" },
   { tag: tags.heading2, fontSize: "1.5em", fontWeight: "600", lineHeight: "1.3" },
   { tag: tags.heading3, fontSize: "1.25em", fontWeight: "600", lineHeight: "1.3" },
-  { tag: [tags.heading4, tags.heading5, tags.heading6], fontWeight: "600" },
+  // The minor headings' own steps — 18/16/14, h6 softened. The product's
+  // choice: Notion has no fourth heading. h5 shares bold text's size and
+  // earns its difference as room; size steps again at h6.
+  { tag: tags.heading4, fontSize: "1.125em", fontWeight: "600", lineHeight: "1.3" },
+  { tag: tags.heading5, fontSize: "1em", fontWeight: "600", lineHeight: "1.3" },
+  { tag: tags.heading6, fontSize: "0.875em", fontWeight: "600", lineHeight: "1.3", color: "var(--color-ink-soft)" },
   { tag: tags.strong, fontWeight: "600", color: "var(--color-ink)" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strikethrough, textDecoration: "line-through", color: "var(--color-muted)" },
@@ -638,6 +882,18 @@ const page = EditorView.theme({
   ".cm-h1-line": { paddingTop: "24px" },
   ".cm-h2-line": { paddingTop: "20px" },
   ".cm-h3-line": { paddingTop: "16px" },
+  // The minor headings' room, our own step: the scale above was falling by
+  // four, and 12px is the next fall. Notion has no fourth heading to read.
+  ".cm-h4-line": { paddingTop: "12px" },
+  ".cm-h5-line": { paddingTop: "12px" },
+  ".cm-h6-line": { paddingTop: "12px" },
+  // A definition line ([id]: url) shows verbatim, dimmed to the running-text
+  // grey (5.3:1) — someone edits this line, so faint would be too little.
+  // One grey for the whole line: its address and title otherwise keep the
+  // highlighter's own colours and the line reads as three things.
+  ".cm-ref-line, .cm-ref-line span": { color: "var(--color-muted)" },
+  // An unresolved reference is not a link, whatever the grammar calls it.
+  ".cm-ref-dead, .cm-ref-dead span": { color: "var(--color-ink)", textDecoration: "none" },
   /*
    * The document's own name, at the size Notion gives a page title: 40px/48,
    * bold. It is the first line whether or not it was written as a heading —
@@ -651,9 +907,17 @@ const page = EditorView.theme({
   // sets the whole line 9px in from the paragraph margin so the marker hangs
   // in the gutter rather than in the text.
   ".cm-item-line": { paddingTop: "1px", paddingBottom: "1px", marginLeft: "9px" },
-  // A number is the marker it is printed as, so it is ink, not punctuation.
-  // The highlighter paints the span inside, so the rule has to reach it.
+  // An ordered marker is ink, not punctuation. The highlighter paints the
+  // span inside, so the rule has to reach it. When the shown number differs
+  // from the written one it is drawn in a box the written marker's width —
+  // see `Num` — so the text column never moves.
   ".cm-ordered-mark, .cm-ordered-mark span": { color: "var(--color-ink)" },
+  // text-indent inherits into the inline-block and shoved the ghost out of
+  // the box, collapsing it to nothing — the line's hanging indent is the
+  // line's, not the widget's.
+  ".cm-ordered-num": { position: "relative", display: "inline-block", whiteSpace: "pre", textIndent: "0" },
+  ".cm-ordered-ghost": { visibility: "hidden" },
+  ".cm-ordered-shown": { position: "absolute", left: "0" },
   ".cm-cursor": { borderLeftColor: "var(--color-ink)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": {
     backgroundColor: "var(--color-accent-soft)",
@@ -798,6 +1062,12 @@ function blocks(view: EditorView): DecorationSet {
   const of: Record<string, Decoration> = {
     Blockquote: Decoration.line({ class: "cm-quote-line" }),
     FencedCode: Decoration.line({ class: "cm-code-line" }),
+    // Indented code is the band, never the card: four spaces are a keystroke
+    // of habit, and Markdown re-reads neighbouring lines as you edit, so a
+    // full container would grow and vanish under ordinary typing.
+    CodeBlock: Decoration.line({ class: "cm-code-line" }),
+    // A definition line ([id]: url) is not prose; it shows verbatim, dimmed.
+    LinkReference: Decoration.line({ class: "cm-ref-line" }),
     // A pipe table lines up in a monospace column and nowhere else. The rule
     // above it and the shading behind it are what make it read as a table
     // while every cell stays a piece of text you can edit.
@@ -808,6 +1078,9 @@ function blocks(view: EditorView): DecorationSet {
     ATXHeading1: Decoration.line({ class: "cm-h1-line" }),
     ATXHeading2: Decoration.line({ class: "cm-h2-line" }),
     ATXHeading3: Decoration.line({ class: "cm-h3-line" }),
+    ATXHeading4: Decoration.line({ class: "cm-h4-line" }),
+    ATXHeading5: Decoration.line({ class: "cm-h5-line" }),
+    ATXHeading6: Decoration.line({ class: "cm-h6-line" }),
     SetextHeading1: Decoration.line({ class: "cm-h1-line" }),
     SetextHeading2: Decoration.line({ class: "cm-h2-line" }),
   };
@@ -816,12 +1089,15 @@ function blocks(view: EditorView): DecorationSet {
     last: Decoration.line({ class: "cm-code-last" }),
   };
   for (const { from, to } of view.visibleRanges) {
-    /** Lines inside a fence. Everything on them is code, whatever it looks
-        like — a `- ` there is a diff or a YAML key, never a list. */
+    /** Lines inside a fence or an indented block. Everything on them is
+        code, whatever it looks like — a `- ` there is a diff or a YAML key,
+        never a list. */
     const fenced = new Set<number>();
     /** Rule lines: `* * *` matches the list regex and took a list's indent,
         which put its hairline out of line with every other one. */
     const ruled = new Set<number>();
+    /** How many quotes deep each line is, capped at the three bars drawn. */
+    const quoted = new Map<number, number>();
     syntaxTree(view.state).iterate({
       from,
       to,
@@ -837,8 +1113,26 @@ function blocks(view: EditorView): DecorationSet {
         for (let at = first; at <= last; at += 1) {
           found.push({ at: view.state.doc.line(at).from, with: line });
         }
-        if (node.name === "FencedCode") {
+        if (node.name === "Blockquote") {
+          for (let at = first; at <= last; at += 1) quoted.set(at, Math.min(3, (quoted.get(at) ?? 0) + 1));
+        }
+        if (node.name === "FencedCode" || node.name === "CodeBlock") {
           for (let at = first; at <= last; at += 1) fenced.add(at);
+          // A code block inside a list item is inset whole — the item's
+          // column as a margin — so its band does not run to the page edge
+          // while the prose around it hangs at the item's column.
+          for (let up = node.node.parent; up; up = up.parent) {
+            if (up.name !== "ListItem") continue;
+            const head = ITEM.exec(view.state.doc.lineAt(up.from).text);
+            const column = head ? (head[4] ? (head[1]?.length ?? 0) + 2.4 : head[0].length) : 0;
+            if (column > 0) {
+              const inset = Decoration.line({ attributes: { style: `margin-left:${column}ch` } });
+              for (let at = first; at <= last; at += 1) found.push({ at: view.state.doc.line(at).from, with: inset });
+            }
+            break;
+          }
+        }
+        if (node.name === "FencedCode") {
           // The container belongs to a finished fence. An unclosed one runs
           // to the end of the document by Markdown's own rules, and a rounded
           // container swallowing everything below the caret would read as
@@ -873,8 +1167,58 @@ function blocks(view: EditorView): DecorationSet {
       // A blank line is the gap between two paragraphs, so it is drawn as a
       // gap rather than as an empty line of prose.
       else if (!line.text.trim()) found.push({ at: line.from, with: Decoration.line({ class: "cm-blank-line" }) });
+      // A quote inside a quote is one level deeper: the first level keeps
+      // the border the first pass measured; each level after is a background
+      // bar 17px on from the last — 3px of bar and the same 14px, our own
+      // step — and the words sit 14px right of the innermost one.
+      const depth = quoted.get(row) ?? 0;
+      if (depth >= 2) {
+        const bars: string[] = [];
+        for (let level = 1; level < depth; level += 1) {
+          bars.push(`linear-gradient(var(--color-ink), var(--color-ink)) ${level * 17}px 0 / 3px 100% no-repeat`);
+        }
+        found.push({
+          at: line.from,
+          with: Decoration.line({
+            attributes: {
+              // border-box, or every bar sits 3px right of its number: the
+              // first bar is the border, and positions measured from the
+              // padding box gave gaps of 17, 14, 11 instead of three 14s.
+              style: `padding-left:${14 + (depth - 1) * 17}px;background:${bars.join(",")};background-origin:border-box`,
+            },
+          }),
+        });
+      }
       const item = ITEM.exec(line.text);
-      if (!item) continue;
+      if (!item) {
+        // A wrapped item's continuation line — indented or lazy — sits at
+        // the item's text column, its own leading spaces cancelled so both
+        // spellings land on the same column. Only the item's plain prose:
+        // a line wearing quote, code, rule or title paint keeps its own,
+        // and a half-typed marker (`-` alone, its own item to the parser)
+        // takes no column until the space completes it.
+        if (!line.text.trim() || depth > 0 || row === title) continue;
+        for (let up = syntaxTree(view.state).resolveInner(line.from, 1); ; up = up.parent!) {
+          if (up.name === "ListItem") {
+            if (view.state.doc.lineAt(up.from).number === row) break;
+            const head = ITEM.exec(view.state.doc.lineAt(up.from).text);
+            const column = head ? (head[4] ? (head[1]?.length ?? 0) + 2.4 : head[0].length) : 0;
+            if (column > 0) {
+              // The line's own leading spaces are hidden by `marks()` — a
+              // `ch` is not a space's width in this face, so cancelling them
+              // with text-indent overshot by half.
+              found.push({ at: line.from, with: Decoration.line({ class: "cm-item-line" }) });
+              found.push({
+                at: line.from,
+                with: Decoration.line({ attributes: { style: `padding-left:${column}ch` } }),
+              });
+            }
+            break;
+          }
+          if (!up.parent) break;
+        }
+        continue;
+      }
       found.push({ at: line.from, with: Decoration.line({ class: "cm-item-line" }) });
       // The box that replaces `- [ ] ` is narrower than the six characters it
       // is written as; the rest is measured in `ch`, which is what the markers
@@ -1211,7 +1555,18 @@ function linkAt(view: EditorView, pos: number) {
     const from = line.from + (match.index ?? 0);
     const to = from + match[0].length;
     if (pos < from || pos > to) continue;
-    return { from, to, text: match[1] ?? "", url: match[2] ?? match[3] ?? "", written: Boolean(match[2]) };
+    return { from, to, text: match[1] ?? "", url: match[2] ?? match[3] ?? "", written: Boolean(match[2]), reference: false };
+  }
+  // The reference forms follow their definitions through the same table
+  // the paint reads — ⌘-click and the hover card, one address.
+  for (const match of line.text.matchAll(/\[([^\]]*)\](?:\[([^\]]*)\])?(?![([:])/g)) {
+    const from = line.from + (match.index ?? 0);
+    const to = from + match[0].length;
+    if (pos < from || pos > to) continue;
+    const label = match[2] || match[1] || "";
+    const url = referenceTable(view.state.doc).get(foldLabel(label));
+    if (!url) continue;
+    return { from, to, text: match[1] ?? "", url, written: true, reference: true };
   }
   return undefined;
 }
@@ -1258,13 +1613,18 @@ const linkCard = hoverTooltip((made, pos) => {
         });
         card.append(button);
       };
-      act("Edit", () => {
-        // Inside the address, where the change is made. The markup is there
-        // because the caret is — the editor's one rule.
-        const into = found.written ? found.from + found.text.length + 3 : found.from;
-        made.dispatch({ selection: { anchor: into, head: into + found.url.length } });
-        made.focus();
-      });
+      // A reference's address is not on this line — it is on the definition
+      // line, which is where it is edited. Selecting "where the address
+      // would be" here reached into the next two lines.
+      if (!found.reference) {
+        act("Edit", () => {
+          // Inside the address, where the change is made. The markup is
+          // there because the caret is — the editor's one rule.
+          const into = found.written ? found.from + found.text.length + 3 : found.from;
+          made.dispatch({ selection: { anchor: into, head: into + found.url.length } });
+          made.focus();
+        });
+      }
       if (found.written) {
         act("Unlink", () => {
           made.dispatch({ changes: { from: found.from, to: found.to, insert: found.text } });
@@ -1615,6 +1975,7 @@ export function MarkdownEditor({
       // that is shadowed does not fail; it does nothing, which is why this
       // survived review twice.
       keymap.of(markdownKeymap),
+      continueAsRead,
       keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
       // Find and replace, ⌘F. The panel is CodeMirror's own — a document
       // people write in for an hour needs one, and writing a second one would
@@ -1663,23 +2024,19 @@ export function MarkdownEditor({
         }
       }),
       // ⌘-click follows a link. A plain click is a caret: this is a document,
-      // not a page, and the address stays editable.
+      // not a page, and the address stays editable. `linkAt` is the one
+      // reader — inline, bare and reference forms alike — and is also what
+      // the hover card uses, so the two can never disagree.
       EditorView.domEventHandlers({
         mousedown(event, made) {
           if (!event.metaKey && !event.ctrlKey) return false;
           const pressed = made.posAtCoords({ x: event.clientX, y: event.clientY });
           if (pressed === null) return false;
-          const line = made.state.doc.lineAt(pressed);
-          for (const match of line.text.matchAll(/\[[^\]]*\]\(([^)\s]+)\)|(https?:\/\/\S+)/g)) {
-            const from = line.from + (match.index ?? 0);
-            if (pressed < from || pressed > from + match[0].length) continue;
-            const url = match[1] ?? match[2];
-            if (!url) continue;
-            event.preventDefault();
-            window.open(url, "_blank", "noreferrer");
-            return true;
-          }
-          return false;
+          const found = linkAt(made, pressed);
+          if (!found?.url) return false;
+          event.preventDefault();
+          window.open(found.url, "_blank", "noreferrer");
+          return true;
         },
       }),
     ];

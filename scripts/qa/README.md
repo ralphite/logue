@@ -128,6 +128,7 @@ of a broken one either — read the reason before either.**
 | `shots` · `panel-shot` | the screens a review needs, captured from the running product (`LOGUE_SHOTS=`) |
 | `skill-order` | Skills follow the person's order on the toolbar, its menu and the Skills page — and the menu stacks one line per Skill |
 | `rendered-blocks` | the quote, the fence, the divider and the page link hold Notion's measured numbers, read off the words themselves |
+| `markdown-parity` | the second pass's eight parities — continuation columns, hidden tildes, quote depth, the band, renumbering, h4–h6, link titles, references — on the words and the bytes |
 
 ## S3 — the day a real key arrives
 

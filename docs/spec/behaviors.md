@@ -983,6 +983,26 @@ already ahead — what was missing was ordinary editor furniture.)
   a long name ends in an ellipsis; items never print over one another.
   (2026-08-19, from his screenshot: the selection toolbar's Skills menu drew
   every item onto the one before it.)
+- **The second rendered-blocks pass: eight parities.** (2026-08-19, his
+  "yes, fix all 8 in order", off the kitchen-sink comparison; the numbers
+  are docs/spec/features/markdown-parity.md's.) A wrapped list item's
+  continuation lines sit at the item's text column, both spellings, own
+  leading spaces cancelled; `~~struck~~` hides its tildes; nested quotes
+  draw one 3px bar per level, 17px apart, three deep at most; indented code
+  wears an unclosed fence's band — the tint and sides, never the container,
+  which never grows under ordinary typing; ordered lists display the list's
+  own counting from the written start, written separator and written width
+  kept (`57. / 1.` reads `57. 58.`; blank lines do not end a list; Enter
+  continues the count as read; the bytes never change and the check reads
+  them back); h4–h6 step 18/16/14
+  at 600, h6 in ink-soft, 12px above each — the product's own steps, Notion
+  has no fourth heading; a link's `"title"` stays out of the prose, its
+  space with it; reference images and links resolve through a whole-document
+  definition table, an unresolved reference keeps its brackets (today they
+  vanish — fixed), and the definition line shows verbatim, dimmed to muted,
+  never deleted. Every hidden or redrawn mark returns as written on the
+  caret's line, and none of it lands on a code line. `scripts/qa/
+  markdown-parity.mjs` asserts all eight on the running product.
 - **Rendered blocks wear Notion's measured numbers.** (2026-08-19, his
   request: "notion has better style for rendered blocks. improve ours based on
   their design".) A quote is a 3px bar in the product's ink with ink words
