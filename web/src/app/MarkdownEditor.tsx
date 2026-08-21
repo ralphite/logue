@@ -128,6 +128,26 @@ function referenceLabelOf(written: string): { text: string; label: string } | un
   return undefined;
 }
 
+/**
+ * Whether an arriving `value` may replace the editor's document.
+ *
+ * React can render with the text from two keystrokes ago while the document
+ * is already ahead: comparing against the live document alone called that
+ * stale echo "a replacement", rolled the newest characters back, and threw
+ * the caret — the faster the typing, the more often. An echo of the
+ * editor's own reporting, at any age, is never a reset.
+ */
+export function resetVerdict(
+  value: string,
+  emitted: readonly string[],
+  docText: () => string,
+): "caught-up" | "echo" | "same" | "apply" {
+  if (value === emitted.at(-1)) return "caught-up";
+  if (emitted.includes(value)) return "echo";
+  if (docText() === value) return "same";
+  return "apply";
+}
+
 /** What a list line starts with: nesting, marker, and a task's box. */
 const ITEM = /^(\s*)([-*+]|\d+[.)])(\s+)(\[[ xX]\]\s+)?/;
 
@@ -1783,6 +1803,9 @@ export function MarkdownEditor({
   // Read inside CodeMirror's own callbacks, which outlive the render that made them.
   const latest = useRef({ onChange, onSelection, onCite, onRewrite, onSave, onSubpage, onOpenPage, pageTitle });
   latest.current = { onChange, onSelection, onCite, onRewrite, onSave, onSubpage, onOpenPage, pageTitle };
+  /** Texts this editor itself reported up, until the round trip catches up.
+      A `value` matching one of them is an echo, never a reset. */
+  const emitted = useRef<string[]>([]);
 
   /**
    * Watch for `/` at the start of an empty line, and for what is typed after it.
@@ -2016,7 +2039,14 @@ export function MarkdownEditor({
       linkCard,
       EditorView.updateListener.of((update) => {
         const mine = !update.transactions.some((one) => one.annotation(fromTheHost));
-        if (update.docChanged && mine) latest.current.onChange(update.state.doc.toString());
+        if (update.docChanged && mine) {
+          const next = update.state.doc.toString();
+          // Remembered so a late round trip of this very text is never
+          // mistaken for a reset — see the value effect below.
+          emitted.current.push(next);
+          if (emitted.current.length > 32) emitted.current.shift();
+          latest.current.onChange(next);
+        }
         if (update.selectionSet || update.docChanged || update.focusChanged) {
           latest.current.onSelection?.(!update.state.selection.main.empty);
           readSlash(update.view);
@@ -2067,7 +2097,15 @@ export function MarkdownEditor({
   // another tab's version being taken. Never a keystroke's own round trip.
   useEffect(() => {
     const made = view.current;
-    if (!made || made.state.doc.toString() === value) return;
+    if (!made) return;
+    const verdict = resetVerdict(value, emitted.current, () => made.state.doc.toString());
+    if (verdict === "caught-up") {
+      // The round trip has caught up; older echoes can no longer arrive.
+      emitted.current = [value];
+      return;
+    }
+    if (verdict !== "apply") return;
+    emitted.current = [];
     made.dispatch({
       changes: { from: 0, to: made.state.doc.length, insert: value },
       // The caret stays where the person left it, clamped to the new end.

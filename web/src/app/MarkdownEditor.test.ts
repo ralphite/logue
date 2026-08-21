@@ -79,3 +79,26 @@ describe("how much has been written", () => {
     expect(words("Real words here\n\n```\nnot counted at all\n```")).toBe("3 words");
   });
 });
+
+describe("resetVerdict", () => {
+  it("a caught-up echo shrinks the memory and never resets", async () => {
+    const { resetVerdict } = await import("./MarkdownEditor");
+    expect(resetVerdict("abc", ["ab", "abc"], () => "abc")).toBe("caught-up");
+  });
+
+  it("a stale echo — two keystrokes behind — never resets", async () => {
+    const { resetVerdict } = await import("./MarkdownEditor");
+    // The document is at "abcd"; React renders with "ab" from earlier.
+    expect(resetVerdict("ab", ["ab", "abc", "abcd"], () => "abcd")).toBe("echo");
+  });
+
+  it("a genuinely external text applies", async () => {
+    const { resetVerdict } = await import("./MarkdownEditor");
+    expect(resetVerdict("restored text", ["ab", "abc"], () => "abc")).toBe("apply");
+  });
+
+  it("an identical text is left alone — replacing it would move the caret", async () => {
+    const { resetVerdict } = await import("./MarkdownEditor");
+    expect(resetVerdict("same", [], () => "same")).toBe("same");
+  });
+});

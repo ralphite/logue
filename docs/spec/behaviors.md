@@ -605,6 +605,18 @@ then measured in the real panel — see `scripts/qa/n14.mjs`.
   also sheds idle keep-alive connections after 75s and raises its descriptor
   ceiling: a port-forwarding proxy pooled 240 idle connections and starved
   the default 256, and every request that opened a file answered Errno 24.
+- **An echo is never a reset.** (2026-08-20, his "we still have the issue
+  when we type fast" + "the cursor moves to other places".) The editor
+  remembers the texts it reported up until the round trip catches up; a
+  `value` matching any of them — however stale React rendered it — never
+  replaces the document. Only a genuinely external text (a restore, an
+  adoption, an agent's write) does. `resetVerdict` is a pure function with
+  its own tests; `scripts/qa/fast-typing.mjs` holds typing integrity — a
+  72-key unwaited burst under fourfold CPU throttle lands whole, in order,
+  caret at its end, saved whole. Said plainly: that check did not reproduce
+  the original race in the harness (CDP paces input too evenly); the fix
+  stands on the verdict's own tests and on the mechanism — the replace path
+  now requires a text outside the editor's own reporting.
 - **One writer, one refusal — and the stream stops there.** (2026-08-20,
   from his console: a 409 per autosave pause, alone on the document.) Saves
   run one after another and each reads the revision as it runs, so a save

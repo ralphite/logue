@@ -130,6 +130,7 @@ of a broken one either — read the reason before either.**
 | `rendered-blocks` | the quote, the fence, the divider and the page link hold Notion's measured numbers, read off the words themselves |
 | `markdown-parity` | the second pass's eight parities — continuation columns, hidden tildes, quote depth, the band, renumbering, h4–h6, link titles, references — on the words and the bytes |
 | `save-conflict` | one writer, one refusal: saves run in turn, a 409 stops the stream, Keep mine recovers |
+| `fast-typing` | a 72-key unwaited burst under 4x CPU throttle lands whole and in order, caret at its end, saved whole |
 
 ## S3 — the day a real key arrives
 
