@@ -605,6 +605,15 @@ then measured in the real panel — see `scripts/qa/n14.mjs`.
   also sheds idle keep-alive connections after 75s and raises its descriptor
   ceiling: a port-forwarding proxy pooled 240 idle connections and starved
   the default 256, and every request that opened a file answered Errno 24.
+- **One writer, one refusal — and the stream stops there.** (2026-08-20,
+  from his console: a 409 per autosave pause, alone on the document.) Saves
+  run one after another and each reads the revision as it runs, so a save
+  can never overtake a slow one and conflict with its own editor; a refused
+  save stops autosaving — the notice owns the next move, and typing sends
+  nothing more until Keep mine or Discard; and a refresh that lands while
+  words are unsaved adopts neither the Host's text nor its revision — the
+  next save is refused instead of silently overwriting the other writer.
+  `scripts/qa/save-conflict.mjs` holds all of it on the running product.
 - **Nothing reloads over words that are not saved yet.** An editor holding
   something unsaved is left alone until it is saved; the next change picks it
   up. A reload that costs a paragraph is worse than the staleness it fixes.

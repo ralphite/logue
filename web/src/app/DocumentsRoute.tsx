@@ -562,7 +562,17 @@ function DocumentEditor({
   const [text, setText] = useState("");
   /** What this editor last saw. Sent with every save so a second writer is caught. */
   const [revision, setRevision] = useState(0);
+  /**
+   * The same number, read at the moment a save actually runs. Saves are
+   * queued and chained; a chained save that read the state its closure was
+   * born with sent the number from before the save ahead of it — and this
+   * editor conflicted with itself, alone on the document.
+   */
+  const revisionAt = useRef(0);
+  revisionAt.current = revision;
   const [conflict, setConflict] = useState(false);
+  const conflicted = useRef(false);
+  conflicted.current = conflict;
   const [looking, setLooking] = useState(false);
   /** What the last save answered, so the control can say so until the next keystroke. */
   const [kept, setKept] = useState<string>();
@@ -595,17 +605,30 @@ function DocumentEditor({
   }, [text]);
   const title = firstLine(text) || (draft ? "" : doc?.title || "Untitled");
 
+  /** Unsaved words are on screen, or a save is in the air. */
+  const dirty = useRef(false);
+
   useEffect(() => {
     if (!doc) return;
-    setText(doc.content);
+    // A refresh that lands while words are unsaved must not put the Host's
+    // text under the caret: the fetch was allowed when the editor was clean,
+    // and the keystrokes since live only here. The stale revision is kept
+    // too — adopting a newer number without its text would let the next
+    // save silently overwrite whoever wrote it; kept stale, that save is
+    // refused instead and the conflict notice takes over.
+    if (dirty.current) return;
     setRevision(doc.revision);
     setConflict(false);
+    // Same words, no rewrite: setting the editor to the text it already
+    // shows still moves the caret.
+    if (doc.content === written.current) return;
+    setText(doc.content);
     // A different text is under the editor now — a restore, an applied agent
     // change, another page — so the save control stops answering for the old
     // one. Only for a *different* text: the save's own write moves the
     // workspace counter, and the refresh that follows must not eat the
     // "Saved as a version" it is the receipt for.
-    if (doc.content !== written.current) setKept(undefined);
+    setKept(undefined);
   }, [doc]);
 
   const write = async (changes: { content?: string }, force = false): Promise<boolean> => {
@@ -620,7 +643,7 @@ function DocumentEditor({
       }
       const { document } = await api.updateDocument(id, {
         ...changes,
-        ...(force ? {} : { expected_revision: revision }),
+        ...(force ? {} : { expected_revision: revisionAt.current }),
       });
       setRevision(document.revision);
       setConflict(false);
@@ -649,13 +672,23 @@ function DocumentEditor({
   // the 409 refused, and a quiet refresh would put the other writer's text
   // over them. Held until the person chooses Keep or Discard.
   useHoldsUnsaved(waitingToSave || action.busy || conflict);
+  dirty.current = waitingToSave || action.busy || conflict;
+
+  /** Saves run one after another: a save that overtook a slow one carried a
+      revision from before it, and the editor conflicted with itself. */
+  const inTurn = useRef<Promise<unknown>>(Promise.resolve());
 
   /** Autosave on a pause, not on every keystroke — history should read as edits. */
   const queueSave = (changes: { content?: string }) => {
     window.clearTimeout(timer.current);
+    // A refused save already said stop: the notice owns the next move, and
+    // each keystroke re-sending the same doomed write was a 409 per pause.
+    if (conflicted.current) return;
     setWaitingToSave(true);
     timer.current = window.setTimeout(() => {
-      void action.run(() => write(changes)).finally(() => setWaitingToSave(false));
+      inTurn.current = inTurn.current.then(() =>
+        action.run(() => (conflicted.current ? Promise.resolve(false) : write(changes))).finally(() => setWaitingToSave(false)),
+      );
     }, AUTOSAVE_MS);
   };
 
