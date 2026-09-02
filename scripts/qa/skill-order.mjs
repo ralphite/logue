@@ -1,18 +1,20 @@
 /**
- * Skills in the person's own order, and a menu that stacks.
+ * Skills in the person's own order, stacked on the toolbar itself.
  *
  *   ./scripts/qa/browser.sh 9899
  *   node scripts/qa/cdp.mjs 9899 ./scripts/qa/skill-order.mjs
  *
  * Reorders the workspace's Skills over the real Host, reads the selection
- * toolbar and its "More Skills" menu off a real document, drags a row on the
- * Skills page, then puts the order back exactly as it was found and asserts
- * the restore — the f7 rule: a check only changes what it can read back and
- * write again. The API alone cannot un-place a Skill (`position`, once
- * written, has no endpoint that removes it), so the restore finishes on the
- * Host's own record files: every Skill's `position` is snapshotted at the
- * start and put back verbatim — value or absence — at the end, and asserted.
- * This is why the check must run on the machine the Host runs on.
+ * toolbar's column off a real document (2026-09-02, his correction: every
+ * Skill on the panel, one per line — no "More Skills" menu on this surface),
+ * drags a row on the Skills page, then puts the order back exactly as it was
+ * found and asserts the restore — the f7 rule: a check only changes what it
+ * can read back and write again. The API alone cannot un-place a Skill
+ * (`position`, once written, has no endpoint that removes it), so the restore
+ * finishes on the Host's own record files: every Skill's `position` is
+ * snapshotted at the start and put back verbatim — value or absence — at the
+ * end, and asserted. This is why the check must run on the machine the Host
+ * runs on.
  */
 const HOST = process.env.LOGUE_HOST ?? "http://127.0.0.1:8787";
 const SR = `document.getElementById('logue-host').shadowRoot`;
@@ -29,13 +31,12 @@ const SELECT = `(() => {
   document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
 })()`;
 
-// A Skill button carries its name twice: as the title and as the truncating
-// span. The icon-only controls (voice, note, save, "More Skills") have a
-// title and no span, which is what tells them apart.
+// The Skills stand in their own group on the panel; a line's title is the
+// Skill's full name even when the shown span truncates.
 const READ_BAR = `(() => {
-  const bar = ${SR}.querySelector('[aria-label="Selection actions"]');
-  if (!bar) return JSON.stringify(null);
-  return JSON.stringify([...bar.querySelectorAll('button[title]')].filter((b) => b.querySelector('span.truncate')).map((b) => b.title));
+  const group = ${SR}.querySelector('[aria-label="Selection actions"] [aria-label="Skills"]');
+  if (!group) return JSON.stringify(null);
+  return JSON.stringify([...group.querySelectorAll('button[title]')].map((b) => b.title));
 })()`;
 
 export async function run(api) {
@@ -86,59 +87,51 @@ export async function run(api) {
     await api.eval(SELECT);
     await api.sleep(2500);
 
-    const bar = JSON.parse(
+    // Measure the CONTENT, not the line: a row is a fixed 24px box, so the
+    // broken shape — a glyph gone block, shoving the name to a second line —
+    // never changes the row's own rect. It overflows it. What is read here
+    // is where the children actually end.
+    const panel = JSON.parse(
       await api.eval(`(() => {
         const sr = ${SR};
         const bar = sr.querySelector('[aria-label="Selection actions"]');
-        const direct = JSON.parse(${READ_BAR});
-        const more = sr.querySelector('[aria-label="More Skills"]')?.getBoundingClientRect();
-        return JSON.stringify({ direct, more: more ? { x: more.x + more.width / 2, y: more.y + more.height / 2 } : null });
-      })()`),
-    );
-    const expectDirect = names.slice(0, 2);
-    if (JSON.stringify(bar.direct) !== JSON.stringify(expectDirect))
-      throw new Error(`the bar offers ${JSON.stringify(bar.direct)}, the order says ${JSON.stringify(expectDirect)}`);
-    if (!bar.more) throw new Error("no More Skills button to open");
-
-    await api.click(bar.more.x, bar.more.y);
-    await api.sleep(600);
-
-    // Measure the CONTENT, not the button: the row is a fixed 24px box, so
-    // the broken shape — a glyph gone block, shoving the name to a second
-    // line — never changes the button's own rect. It overflows it. What is
-    // read here is where the children actually end.
-    const menu = JSON.parse(
-      await api.eval(`(() => {
-        const sr = ${SR};
-        const items = [...sr.querySelectorAll('[role="menu"] [role="menuitem"]')];
-        return JSON.stringify(items.map((el) => {
+        if (!bar) return JSON.stringify(null);
+        const box = bar.getBoundingClientRect();
+        const rows = [...bar.querySelectorAll('[aria-label="Skills"] button')].map((el) => {
           const r = el.getBoundingClientRect();
           const spill = Math.max(r.bottom, ...[...el.children].map((c) => c.getBoundingClientRect().bottom));
           const svg = el.querySelector('svg')?.getBoundingClientRect();
-          return { name: el.textContent.trim(), top: r.top, bottom: r.bottom, spill,
+          return { name: el.title, top: r.top, bottom: r.bottom, spill,
                    iconInRow: svg ? svg.top >= r.top - 1 && svg.bottom <= r.bottom + 1 : true };
-        }));
+        });
+        const range = getSelection().rangeCount ? getSelection().getRangeAt(0).getBoundingClientRect() : null;
+        return JSON.stringify({ rows, more: Boolean(bar.querySelector('[aria-label="More Skills"]')),
+          box: { top: box.top, bottom: box.bottom },
+          sel: range ? { top: range.top, bottom: range.bottom } : null });
       })()`),
     );
-    if (menu.length !== names.length - 2)
-      throw new Error(`the menu holds ${menu.length} Skills, the order says ${names.length - 2}`);
-    const expectMenu = names.slice(2);
-    menu.forEach((item, at) => {
-      if (item.name !== expectMenu[at])
-        throw new Error(`menu item ${at} is "${item.name}", the order says "${expectMenu[at]}"`);
-      // One item, one line: everything in the row ends inside the row.
-      if (item.spill > item.bottom + 1)
-        throw new Error(`"${item.name}"'s content runs ${Math.round(item.spill - item.bottom)}px past its row`);
-      if (!item.iconInRow) throw new Error(`"${item.name}"'s glyph escapes its row`);
-      if (at > 0 && item.top < menu[at - 1].spill - 0.5)
-        throw new Error(`"${item.name}" prints over "${menu[at - 1].name}"`);
+    if (!panel) throw new Error("no selection panel on screen");
+    // His correction, held: every Skill stands on the panel, none behind a menu.
+    if (panel.more) throw new Error("a More Skills menu is still on the panel");
+    if (panel.rows.length !== names.length)
+      throw new Error(`the panel stacks ${panel.rows.length} Skills, the order says ${names.length}`);
+    panel.rows.forEach((row, at) => {
+      if (row.name !== names[at]) throw new Error(`line ${at} is "${row.name}", the order says "${names[at]}"`);
+      // One Skill, one line: everything in the row ends inside the row.
+      if (row.spill > row.bottom + 1)
+        throw new Error(`"${row.name}"'s content runs ${Math.round(row.spill - row.bottom)}px past its line`);
+      if (!row.iconInRow) throw new Error(`"${row.name}"'s glyph escapes its line`);
+      if (at > 0 && row.top < panel.rows[at - 1].spill - 0.5)
+        throw new Error(`"${row.name}" prints over "${panel.rows[at - 1].name}"`);
     });
+    // The panel acts on the selection, so it must never stand on top of it.
+    if (panel.sel && panel.box.top < panel.sel.bottom && panel.box.bottom > panel.sel.top)
+      throw new Error("the panel covers the selection it acts on");
     await api.screenshot(`${OUT}/skill-order-menu.png`);
-    console.log(`PASS the menu stacks ${menu.length} Skills in the person's order, one line each`);
+    console.log(`PASS the toolbar stacks ${panel.rows.length} Skills in the person's order, one line each`);
 
     // The same tab, left open while the order changes somewhere else: coming
     // back to it must show the new order without a reload.
-    await api.eval(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
     await api.send("Target.createTarget", { url: "about:blank" });
     await api.sleep(600);
     const rotated = [...turned.slice(1), turned[0]];
@@ -149,7 +142,7 @@ export async function run(api) {
     // and the bar redraws when it lands. Two rounds, because the promise is
     // "the return shows the new order", not "it shows it within 1200ms" —
     // a freshly started browser missed the first read once (2026-09-02).
-    const wantOnReturn = JSON.stringify((await barNames(preferred)).slice(0, 2));
+    const wantOnReturn = JSON.stringify(await barNames(preferred));
     let shownOnReturn = JSON.stringify(null);
     for (let round = 0; round < 2 && shownOnReturn !== wantOnReturn; round += 1) {
       await api.eval(SELECT);

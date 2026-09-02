@@ -37,6 +37,7 @@ export function FloatingBar({
   onMove,
   onResetPosition,
   moved,
+  stacked = false,
 }: Draggable & {
   /** What a screen reader calls this bar. */
   label: string;
@@ -44,6 +45,12 @@ export function FloatingBar({
   children: ReactNode;
   onPointerDown?: (event: PointerEvent<HTMLDivElement>) => void;
   className?: string;
+  /**
+   * A column rather than a row: the frame loses its fixed bar height and the
+   * handle stretches down the left edge. Everything else — dragging, nudging,
+   * snapping back — is the same bar.
+   */
+  stacked?: boolean;
 }) {
   const [dragging, setDragging] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -142,9 +149,9 @@ export function FloatingBar({
       role="group"
       aria-label={label}
       onPointerDown={beginFromBody}
-      className={`logue-float group fixed z-surface flex h-bar max-w-[calc(100vw-16px)] items-center gap-0.5 p-0.5 ${
-        dragging ? "cursor-grabbing" : ""
-      } ${className ?? ""}`}
+      className={`logue-float group fixed z-surface flex max-w-[calc(100vw-16px)] gap-0.5 p-0.5 ${
+        stacked ? "items-stretch" : "h-bar items-center"
+      } ${dragging ? "cursor-grabbing" : ""} ${className ?? ""}`}
     >
       {onMove && (
         // Always visible, never on hover. A handle nobody can see is a handle
@@ -156,9 +163,9 @@ export function FloatingBar({
           onPointerDown={begin}
           onKeyDown={nudge}
           onDoubleClick={() => onResetPosition?.()}
-          className={`inline-flex h-control w-3.5 min-w-3.5 items-center justify-center rounded-sm text-line-strong hover:bg-surface-muted hover:!text-muted focus-visible:text-muted [touch-action:none] ${
-            dragging ? "cursor-grabbing !text-muted" : "cursor-grab"
-          }`}
+          className={`inline-flex w-3.5 min-w-3.5 items-center justify-center rounded-sm text-line-strong hover:bg-surface-muted hover:!text-muted focus-visible:text-muted [touch-action:none] ${
+            stacked ? "self-stretch" : "h-control"
+          } ${dragging ? "cursor-grabbing !text-muted" : "cursor-grab"}`}
         >
           <GripVertical size={13} />
         </button>

@@ -1,8 +1,20 @@
 # Skills in the person's own order — declaration
 
 Status: **declared and built** (2026-08-19, task X14; the declaration was
-revised after the three-agent review, and the build reviewed again).
-Written from his screenshot of the selection toolbar's
+revised after the three-agent review, and the build reviewed again. The
+2026-09-02 revision below went through the same two passes — three agents on
+the declaration, three on the build, findings verified on the running
+product).
+**Revised 2026-09-02** — X14 reopened: "the skills are stacked" meant the
+toolbar itself, not its menu. He circled the two Skills sitting side by side
+on the selection toolbar and drew them as a column: *"this is not what i
+asked for. we need the skills to show like this."* The first build read
+"stacked" as the menu defect below; the menu got fixed, and the toolbar kept
+its row-of-two-plus-menu shape. This revision replaces that shape: **every
+Skill offered on a selection stands in one column on the toolbar itself, one
+line each, no menu.**
+
+Originally written from his screenshot of the selection toolbar's
 "More Skills" menu — five Skills printed onto each other, every sparkle glyph
 over the name above it — and his words: *"update extension so that the skills
 are stacked. also we should allow configuring the order"*.
@@ -20,8 +32,8 @@ surface, without the product ever re-sorting behind their back.
 
 ## The surface
 
-**A menu item, anywhere** (the toolbar's "More Skills" menu, the panel's
-menus, the web app's row menus)
+**A menu item, anywhere** (the side panel's menus, the web app's row menus —
+and, until 2026-09-02 retired it, the toolbar's "More Skills" menu)
 
 - One line: the glyph sits beside the name, never above it. A long name ends in
   an ellipsis. Items follow one another; nothing overlaps.
@@ -49,12 +61,44 @@ menus, the web app's row menus)
 
 **Every list of Skills** (no new words on any of them)
 
-- The selection toolbar: the first two Skills offered on a selection sit on the
-  bar, in this order; the rest keep this order behind "More Skills". The one
-  exception, written into behaviors.md with this feature (it lived only in a
-  code comment before): the Skill chosen in Settings under `Selection` takes
-  the toolbar's first slot when one is chosen — otherwise choosing it would
-  change nothing. The order rules everything after it.
+- The selection toolbar (revised 2026-09-02): **every** Skill offered on a
+  selection stands on the toolbar itself, stacked — one Skill per line, in
+  this order, none behind a gesture. Up to the scroll cap below they are all
+  on screen at once; past it the column scrolls, which is still the toolbar
+  holding every Skill — what went away is the menu, not the screen's height.
+  The icons (voice, comment, save) keep their row at the top, the Skills
+  form the column under them, behind one hairline. The one exception stands:
+  the Skill chosen in Settings under `Selection` takes the first line when
+  one is chosen — otherwise choosing it would change nothing. The order
+  rules everything after it.
+  - Zero Skills offered on a selection: the icon row alone, in the old
+    one-line shape — no hairline, no empty column under it.
+  - Choosing a Skill stands the toolbar down, column and all, and the run
+    lives in the side panel — its working, its answer, its failure. That is
+    D3's rule, unchanged: the answer lands where every Skill's answer lands,
+    never unfolding over the page. (Declared from the running product,
+    2026-09-02 — the first draft of this line described a spinner in the
+    column that a person never actually sees, because the toolbar is gone
+    before a frame is drawn.)
+  - The toolbar's own error bubble belongs to its other two hands — a save
+    or a voice comment that failed. A Skill's failure is the panel's to
+    tell. No new words anywhere.
+  - A long name ends in an ellipsis; the full name is the line's tooltip. The
+    column is as wide as its widest line, within the same cap the old buttons
+    had — one absurd name cannot own the toolbar.
+  - The column scrolls inside the toolbar once it passes 320px, or 60% of
+    the window when the window is shorter — about twelve Skills before a
+    scrollbar exists at all. The toolbar itself never leaves the viewport and
+    never covers the selection it acts on — placement uses the toolbar's real
+    measured height, the way centring already uses its real width.
+  - Going away is what it always was, now said out loud: the toolbar lives
+    exactly as long as the selection. Escape collapses the selection and the
+    toolbar goes with it; so does clicking anywhere else. Nothing new was
+    added — no close button, because the column dies with one keystroke the
+    way the old row did.
+  - Only the resting toolbar stacks. Recording, starting and saving keep
+    their one-line shape: those states offer no Skills, and a wide toolbar
+    saying "Starting mic…" is noise.
 - The page's right-click menu, the panel's Skills row, the web app's pickers
   (the Settings slots, the Project generate box): the same order. The generate
   box today sorts built-in Skills first; that private sort goes — the default
@@ -103,6 +147,13 @@ None. No prompt produces any of these words.
 - **Never print a menu item over another.** The defect this began with.
 - **Never open a Skill because it was dragged.** A drag is not a click; the
   detail pane stays where it was, and unsaved prompt edits stay on screen.
+- **Never cover the selection with the toolbar** (2026-09-02). The column
+  made the toolbar tall; a tall toolbar placed with a guessed height lands on
+  the words it acts on. Placement gets the real height, and above-or-below
+  keeps choosing the side with room.
+- **Never hide a Skill behind a gesture on this surface** (2026-09-02). The
+  column exists so that what a selection offers is all on screen; a menu,
+  an overflow, a "show more" would re-create the thing he corrected.
 
 ## Open questions
 
@@ -131,6 +182,20 @@ Judgement calls made here, named so they can be overruled:
   better is one gesture. Predictable beats clever.
 - **Disabled Skills are arranged too.** Every Skill has a place; surfaces that
   skip disabled ones keep the order of what remains.
+- **Only the resting toolbar stacks** (2026-09-02). His screenshot circled
+  the resting state; recording, starting and saving keeping their one-line
+  shape is this revision's own call, made because those states offer no
+  Skills and a wide toolbar saying "Starting mic…" is noise. Named here so
+  it can be overruled — stacking them too would only add empty height.
+- **Below the selection, the column may cover what follows** (2026-09-02).
+  Near the top of a window the toolbar flips under the selection, as it
+  always has — and the column is taller than the row was, so it can sit over
+  the next lines of the page until the selection collapses or the toolbar is
+  dragged aside. Accepted rather than shrunk: the alternative — fewer lines
+  when space is short — would hide Skills behind exactly the scarcity he
+  corrected. The wider rule ("no surface covers what the person is reading")
+  bends here the way it already bent for the one-line row, just by more
+  pixels, and Escape ends it in one keystroke.
 
 ## The mechanism (for the reviewers)
 
@@ -144,3 +209,13 @@ by name. Code changes: the Host (order + endpoint), the web Skills page
 the name), the extension's content script (fetch context again when the tab is
 next shown) and worker (rebuild the right-click menu on tab switch, throttled,
 and on its five-minute beat).
+
+The 2026-09-02 column: `FloatingBar` learns a stacked layout (the drag
+handle stretches down the toolbar's left edge; everything else about
+dragging, nudging and snapping back is shared and unchanged);
+`SelectionBar`'s resting state renders the icon row, a hairline, and one
+line per Skill — the same line shape the menus use, without menu semantics,
+under `role="group" aria-label="Skills"`; the Menu import leaves this file.
+The content script measures the toolbar's rendered height alongside its
+width and hands both to `aboveSelection`, and its first-paint guess becomes
+a function of how many Skills the selection offers.

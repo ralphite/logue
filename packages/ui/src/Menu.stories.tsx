@@ -33,8 +33,9 @@ export const RowActions: Story = {
 
 /**
  * Items with a glyph: the `icon` slot keeps it beside the name, on one line,
- * while a long name ends in an ellipsis. This is the shape the toolbar's
- * "More Skills" menu has.
+ * while a long name ends in an ellipsis. (The menu that taught this shape —
+ * the selection toolbar's "More Skills" — retired 2026-09-02 when its Skills
+ * moved onto the toolbar itself; the shape holds for every menu with icons.)
  */
 export const WithIcons: Story = {
   render: () => (

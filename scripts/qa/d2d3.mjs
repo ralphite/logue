@@ -156,6 +156,10 @@ export async function run(api) {
   })()`),
   );
   check("no answer unfolded over the page", page.insert === false && page.sources === false, JSON.stringify(page));
+  // Choosing a Skill stands the toolbar down in the same commit — the run
+  // lives in the panel (D3, restated by 2026-09-02's stacked column). This
+  // used to be read into the log line and never enforced.
+  check("choosing the Skill stood the toolbar down", page.surface !== "selection", JSON.stringify(page.surface));
 
   await api.goto(panelUrl);
   await api.sleep(2500);

@@ -15,7 +15,13 @@ import { SelectionBar, type SelectionPhase } from "./surfaces/SelectionBar";
 import { VoiceBar } from "./surfaces/VoiceBar";
 import styles from "./surface.css?inline";
 
-const SELECTION = { width: 220, height: 32 };
+/**
+ * A first-paint guess at the selection toolbar's size, before it mounts: the
+ * icon row, a hairline, and one 24px line per Skill. The measurement below
+ * replaces it — this only places the first frame.
+ */
+const guessSelectionSize = (skillCount: number) =>
+  skillCount > 0 ? { width: 210, height: 42 + Math.min(skillCount * 24, 320) } : { width: 128, height: 32 };
 
 function viewport() {
   return { width: window.innerWidth, height: window.innerHeight };
@@ -510,32 +516,34 @@ function Surfaces() {
   const barAt = caret
     ? (moved ?? besideCaret(caret, viewport(), barSize.width, barSize.height, caret.field))
     : undefined;
+  // The Skills stand in a column on the toolbar, so the Skill chosen in
+  // Settings takes the first line — otherwise choosing it changed nothing.
+  const preferred = context?.defaults?.extension;
+  const selectionSkills = (context?.skills ?? [])
+    .filter((skill) => skill.enabled && skill.contexts.includes("selection"))
+    .toSorted((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
+
   /**
-   * Centring only works with the width the bar really has.
+   * Placing only works with the size the toolbar really has.
    *
-   * `SELECTION.width` is a guess made before the bar mounts, and the bar is as
-   * wide as the Skill names on it: measured on this product's own editor, a
-   * declared 220 against a rendered 392 put the toolbar 86px to the right of
-   * the words it belongs to. So the guess places the first paint and the
-   * measurement places every one after it.
+   * The guess places the first paint: the toolbar is as wide as the Skill names
+   * on it (measured here once, a declared 220 against a rendered 392 put the
+   * toolbar 86px to the right of the words it belongs to) and, stacked, as
+   * tall as the Skills are many — a guessed 32 against a rendered column
+   * would draw the toolbar over the selection it acts on. So the measurement
+   * places every frame after the first, height and width both.
    */
-  const [selectionWidth, setSelectionWidth] = useState<number>();
+  const [selectionSize, setSelectionSize] = useState<{ width: number; height: number }>();
+  const guessed = guessSelectionSize(selectionSkills.length);
   const selectionAt = selection
     ? (selectionMoved ??
       aboveSelection(
         selection.rect,
         viewport(),
-        writing ? 320 : (selectionWidth ?? SELECTION.width),
-        writing ? 140 : SELECTION.height,
+        writing ? 320 : (selectionSize?.width ?? guessed.width),
+        writing ? 140 : (selectionSize?.height ?? guessed.height),
       ))
     : undefined;
-
-  // The toolbar shows the first two without opening a menu, so the Skill chosen
-  // in Settings has to be one of them — otherwise choosing it changed nothing.
-  const preferred = context?.defaults?.extension;
-  const selectionSkills = (context?.skills ?? [])
-    .filter((skill) => skill.enabled && skill.contexts.includes("selection"))
-    .toSorted((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
 
   const showing = visibleSurface({
     selection: Boolean(selection && selectionAt),
@@ -552,17 +560,23 @@ function Surfaces() {
     if (element) element.dataset.logueSurface = showing;
   }, [showing]);
 
-  // The measurement the centring above needs, taken once the bar with these
-  // Skills on it is on screen. The state only moves when the width really
+  // The measurement the placing above needs, taken once the toolbar with these
+  // Skills on it is on screen. The state only moves when the size really
   // changes, so the correction is one extra layout pass and never a loop.
+  // The phase is a dependency because the toolbar changes shape with it: the
+  // resting column is ten lines where "Starting mic…" is one.
   useLayoutEffect(() => {
     const bar = document
       .getElementById("logue-host")
       ?.shadowRoot?.querySelector('[aria-label="Selection actions"]');
-    const width = bar?.getBoundingClientRect().width;
-    if (!width) return;
-    setSelectionWidth((was) => (Math.abs((was ?? 0) - width) > 1 ? width : was));
-  }, [showing, selection, writing, context]);
+    const box = bar?.getBoundingClientRect();
+    if (!box?.width) return;
+    setSelectionSize((was) =>
+      was && Math.abs(was.width - box.width) <= 1 && Math.abs(was.height - box.height) <= 1
+        ? was
+        : { width: box.width, height: box.height },
+    );
+  }, [showing, selection, writing, context, selectionPhase]);
 
   return (
     <>

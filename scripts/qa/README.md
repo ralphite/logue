@@ -126,7 +126,7 @@ of a broken one either — read the reason before either.**
 | `probe-hosts` | where the injected bar lands on a real chat composer (`PROBE_URL=`) |
 | `bar-anchor` | the selection toolbar sits on the selection, with Skill names you can read |
 | `shots` · `panel-shot` | the screens a review needs, captured from the running product (`LOGUE_SHOTS=`) |
-| `skill-order` | Skills follow the person's order on the toolbar, its menu and the Skills page — and the menu stacks one line per Skill |
+| `skill-order` | every Skill stands on the selection toolbar in the person's order, one line each, none behind a menu — and the Skills page drag writes that order once |
 | `rendered-blocks` | the quote, the fence, the divider and the page link hold Notion's measured numbers, read off the words themselves |
 | `markdown-parity` | the second pass's eight parities — continuation columns, hidden tildes, quote depth, the band, renumbering, h4–h6, link titles, references — on the words and the bytes |
 | `save-conflict` | one writer, one refusal: saves run in turn, a 409 stops the stream, Keep mine recovers |

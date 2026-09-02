@@ -976,23 +976,24 @@
     },
     {
       "id": "X14",
-      "title": "Selection bar 技能菜单:项重叠要改成一行一个,并允许配置技能顺序",
+      "title": "Selection bar 的 Skills 要竖排堆叠直接显示——不是横排两个+菜单收其余",
       "type": "bug",
-      "status": "done",
+      "status": "doing",
       "priority": "P1",
       "confirmed": true,
       "tags": [
         "extension",
         "selection-bar"
       ],
-      "note": "溢出菜单里技能项互相叠压(图标压在上一项文字上)。修好堆叠,并让技能顺序可配置——直排按钮取前两个,菜单、右键菜单、面板同一顺序。",
+      "note": "2026-09-02 他圈出横排的 Simplify/Accurate transcription 并画竖排箭头:Skills 本身要 stacked(竖排列表),当初把'stacked'理解成修菜单内重叠是理解错了对象。顺序配置那半仍然有效。",
       "blocked_on": "",
       "input_ids": [
         "in_update_extension_so",
-        "in_icon_skills_post"
+        "in_icon_skills_post",
+        "in_this_is_not"
       ],
       "created": "2026-08-19",
-      "updated": "2026-08-19"
+      "updated": "2026-09-02"
     },
     {
       "id": "N20",
@@ -1496,6 +1497,12 @@
       "id": "in_a206cf91_409_save",
       "at": "2026-08-20 17:47",
       "text": "已修复部署 a206cf91:三个洞(保存越车带旧版本号自我冲突、409 后不止流、刷新落地覆盖在途击键)。save-conflict.mjs 全链真机断言。'Measure loop' 告警是回滚风暴的伴生症状,风暴止后应消失;若健康态还出现请说一声,单独立案。",
+      "images": []
+    },
+    {
+      "id": "in_this_is_not",
+      "at": "2026-09-02 11:22",
+      "text": "this is not what i asked for. we need the skills to show like this",
       "images": []
     }
   ]

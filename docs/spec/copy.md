@@ -6,7 +6,7 @@ This file is committed so that changing a word on screen changes a diff.
 Read a new line against `docs/spec/review-process.md` before it ships:
 state the fact, no justification, no chat register, no filler.
 
-1165 strings across 91 files.
+1164 strings across 91 files.
 
 ## extension/src/api.ts
 
@@ -36,15 +36,15 @@ state the fact, no justification, no chat register, no filler.
 
 ## extension/src/content.tsx
 
-- 136: `Backspace`
-- 136: `Enter`
-- 190: `Logue is not running on this Mac.`
-- 341: `Enter`
-- 346: `Escape`
-- 438: `Could not save.`
-- 455: `Could not reach the microphone.`
-- 475: `Could not save.`
-- 648: `That Skill`
+- 142: `Backspace`
+- 142: `Enter`
+- 196: `Logue is not running on this Mac.`
+- 347: `Enter`
+- 352: `Escape`
+- 444: `Could not save.`
+- 461: `Could not reach the microphone.`
+- 481: `Could not save.`
+- 662: `That Skill`
 
 ## extension/src/editable.ts
 
@@ -188,12 +188,12 @@ state the fact, no justification, no chat register, no filler.
 
 ## extension/src/surfaces/FloatingBar.tsx
 
-- 116: `Escape`
-- 154: `Move — Escape puts it back`
-- 154: `Move`
-- 155: `Drag to move · double-click to snap back`
-- 155: `Drag to move`
-- 160: `cursor-grabbing !text-muted`
+- 123: `Escape`
+- 161: `Move — Escape puts it back`
+- 161: `Move`
+- 162: `Drag to move · double-click to snap back`
+- 162: `Drag to move`
+- 168: `cursor-grabbing !text-muted`
 
 ## extension/src/surfaces/ProfilePicker.tsx
 
@@ -209,24 +209,23 @@ state the fact, no justification, no chat register, no filler.
 
 ## extension/src/surfaces/SelectionBar.tsx
 
-- 59: `Comment on selection`
-- 62: `Cancel`
-- 62: `absolute top-1 right-1 z-10`
-- 71: `Escape`
-- 72: `Enter`
-- 74: `Comment on this selection…`
-- 75: `Comment`
-- 91: `Selection actions`
-- 101: `Accept (Enter)`
-- 104: `Cancel`
-- 112: `Starting mic…`
-- 112: `Saving…`
-- 117: `Voice comment`
-- 120: `Write comment`
-- 130: `Saved`
-- 134: `Save selection`
-- 160: `More Skills`
-- 162: `More Skills`
+- 62: `Comment on selection`
+- 65: `Cancel`
+- 65: `absolute top-1 right-1 z-10`
+- 74: `Escape`
+- 75: `Enter`
+- 77: `Comment on this selection…`
+- 78: `Comment`
+- 94: `Selection actions`
+- 105: `Accept (Enter)`
+- 108: `Cancel`
+- 116: `Starting mic…`
+- 116: `Saving…`
+- 122: `Voice comment`
+- 125: `Write comment`
+- 135: `Saved`
+- 139: `Save selection`
+- 151: `Skills`
 
 ## extension/src/surfaces/VoiceBar.tsx
 
@@ -865,20 +864,20 @@ state the fact, no justification, no chat register, no filler.
 - 107: `' segments, matched in registration order."""`
 - 161: `'web' is the built web app, served at '/' so the product needs no terminal.`
 - 165: `Logue`
-- 168: `Silence per-request logging; the Host is a background service.`
-- 185: `Origin`
-- 188: `Vary`
-- 188: `Origin`
-- 190: `GET, POST, PATCH, DELETE, OPTIONS`
-- 202: `What is wrong with this request, before a handler ever sees it.`
-- 203: `Host`
-- 204: `This Host only answers requests addressed to localhost.`
-- 205: `Origin`
-- 207: `This Host only answers Logue.`
-- 221: `This page is not allowed to change anything in Logue.`
-- 243: `not found`
-- 243: `method not allowed`
-- 249: `request too large`
+- 175: `Silence per-request logging; the Host is a background service.`
+- 192: `Origin`
+- 195: `Vary`
+- 195: `Origin`
+- 197: `GET, POST, PATCH, DELETE, OPTIONS`
+- 209: `What is wrong with this request, before a handler ever sees it.`
+- 210: `Host`
+- 211: `This Host only answers requests addressed to localhost.`
+- 212: `Origin`
+- 214: `This Host only answers Logue.`
+- 228: `This page is not allowed to change anything in Logue.`
+- 250: `not found`
+- 250: `method not allowed`
+- 256: `request too large`
 
 ## server/logue_host/ids.py
 
@@ -975,9 +974,9 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/App.tsx
 
-- 279: `A newer Logue is ready. This page is running the previous one.`
-- 285: `Reload`
-- 292: `Not yet`
+- 303: `A newer Logue is ready. This page is running the previous one.`
+- 309: `Reload`
+- 316: `Not yet`
 
 ## web/src/app/AppShell.tsx
 
@@ -1034,29 +1033,29 @@ state the fact, no justification, no chat register, no filler.
 - 478: `Every Source it cited stays in the workspace.`
 - 507: `Documents`
 - 509: `Nothing written yet — press + to start a page.`
-- 693: `Saved as a version`
-- 693: `No changes to save`
-- 702: `Documents`
-- 724: `Untitled`
-- 729: `New Document`
-- 729: `Untitled`
-- 745: `Every version of this document`
-- 747: `History`
-- 750: `Save the working copy as a version`
-- 752: `Save version`
-- 755: `Download as Markdown`
-- 757: `Export`
-- 779: `Keep mine`
-- 790: `Discard mine`
-- 795: `This document changed somewhere else. Your edits are still here, unsaved.`
-- 807: `Loading`
-- 842: `Untitled`
-- 868: `Document`
-- 884: `Outline`
-- 902: `Sources`
-- 983: `Name`
-- 988: `Enter`
-- 989: `Escape`
+- 726: `Saved as a version`
+- 726: `No changes to save`
+- 735: `Documents`
+- 757: `Untitled`
+- 762: `New Document`
+- 762: `Untitled`
+- 778: `Every version of this document`
+- 780: `History`
+- 783: `Save the working copy as a version`
+- 785: `Save version`
+- 788: `Download as Markdown`
+- 790: `Export`
+- 812: `Keep mine`
+- 823: `Discard mine`
+- 828: `This document changed somewhere else. Your edits are still here, unsaved.`
+- 840: `Loading`
+- 875: `Untitled`
+- 901: `Document`
+- 917: `Outline`
+- 935: `Sources`
+- 1016: `Name`
+- 1021: `Enter`
+- 1022: `Escape`
 
 ## web/src/app/FindDialog.tsx
 
@@ -1115,46 +1114,46 @@ state the fact, no justification, no chat register, no filler.
 
 ## web/src/app/MarkdownEditor.tsx
 
-- 154: `Untitled`
-- 196: `truncate underline decoration-line underline-offset-2`
-- 390: `Enter`
-- 421: `my-1 block`
-- 429: `Image`
-- 1265: `Bulleted list`
-- 1266: `Numbered list`
-- 1270: `page`
-- 1270: `Page`
-- 1271: `Quote`
-- 1272: `Code block`
-- 1275: `Table`
-- 1280: `Divider`
-- 1285: `Callout`
-- 1286: `Equation`
-- 1287: `Diagram`
-- 1290: `Image`
-- 1448: `Text`
-- 1452: `Bulleted list`
-- 1453: `Numbered list`
-- 1455: `Quote`
-- 1620: `Edit`
-- 1629: `Unlink`
-- 1644: `Type / for commands`
-- 1718: `Document`
-- 1735: `Promise`
-- 1835: `page`
-- 1894: `page`
-- 1925: `Enter`
-- 1933: `Escape`
-- 1964: `Tab`
-- 2012: `Start writing. The first line is the title.`
-- 2147: `Format the selected passage`
-- 2151: `Bold`
-- 2154: `Italic`
-- 2155: `font-serif italic`
-- 2157: `Code`
-- 2160: `Link`
-- 2178: `Rewrite`
-- 2191: `Insert a block`
+- 174: `Untitled`
+- 216: `truncate underline decoration-line underline-offset-2`
+- 410: `Enter`
+- 441: `my-1 block`
+- 449: `Image`
+- 1285: `Bulleted list`
+- 1286: `Numbered list`
+- 1290: `page`
+- 1290: `Page`
+- 1291: `Quote`
+- 1292: `Code block`
+- 1295: `Table`
+- 1300: `Divider`
+- 1305: `Callout`
+- 1306: `Equation`
+- 1307: `Diagram`
+- 1310: `Image`
+- 1468: `Text`
+- 1472: `Bulleted list`
+- 1473: `Numbered list`
+- 1475: `Quote`
+- 1640: `Edit`
+- 1649: `Unlink`
+- 1664: `Type / for commands`
+- 1738: `Document`
+- 1755: `Promise`
+- 1858: `page`
+- 1917: `page`
+- 1948: `Enter`
+- 1956: `Escape`
+- 1987: `Tab`
+- 2035: `Start writing. The first line is the title.`
+- 2185: `Format the selected passage`
+- 2189: `Bold`
+- 2192: `Italic`
+- 2193: `font-serif italic`
+- 2195: `Code`
+- 2198: `Link`
+- 2216: `Rewrite`
+- 2229: `Insert a block`
 
 ## web/src/app/MaterialPanel.tsx
 

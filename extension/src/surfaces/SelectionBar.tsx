@@ -1,6 +1,6 @@
-import { Bookmark, Check, MessageSquarePlus, Mic, MoreHorizontal, Sparkles, X } from "lucide-react";
-import { useState, type CSSProperties, type SyntheticEvent } from "react";
-import { Button, ErrorBubble, IconButton, Menu, MenuItem, RecordingDot, Spinner } from "@logue/ui";
+import { Bookmark, Check, MessageSquarePlus, Mic, Sparkles, X } from "lucide-react";
+import type { CSSProperties, SyntheticEvent } from "react";
+import { Button, ErrorBubble, IconButton, RecordingDot, Spinner } from "@logue/ui";
 import { FloatingBar, type Draggable } from "./FloatingBar";
 import type { Skill } from "../api";
 
@@ -11,8 +11,10 @@ export type SelectionPhase = "idle" | "starting" | "recording" | "saving" | "sav
 
 /**
  * The toolbar over a selection: keep it, say something about it, or run a
- * Skill on it. Icons with tooltips, one divider, overflow behind "…" — the
- * shape of an editor's selection toolbar, because that is what it is.
+ * Skill on it. The icons keep a row; the Skills stand under them in one
+ * column, one per line, all of them — he circled the row-of-two and drew
+ * this shape ("we need the skills to show like this"), so nothing hides
+ * behind a menu here any more.
  */
 export function SelectionBar({
   phase,
@@ -48,9 +50,9 @@ export function SelectionBar({
   onCancel: () => void;
   onSkill: (skillId: string) => void;
 }) {
-  const [running, setRunning] = useState<string>();
-  const direct = skills.slice(0, 2);
-  const overflow = skills.slice(2);
+  // Only the resting toolbar stacks: recording, starting and saving offer no
+  // Skills, and a wide toolbar saying "Starting mic…" is noise.
+  const resting = phase === "idle" || phase === "saved";
 
   if (writing) {
     return (
@@ -94,6 +96,7 @@ export function SelectionBar({
       onMove={onMove}
       onResetPosition={onResetPosition}
       moved={moved}
+      stacked={resting && skills.length > 0}
     >
       {phase === "recording" ? (
         <>
@@ -113,72 +116,63 @@ export function SelectionBar({
           </span>
         </>
       ) : (
-        <>
-          <IconButton label="Voice comment" className="text-accent hover:bg-accent-soft" onClick={onVoice}>
-            <Mic size={15} />
-          </IconButton>
-          <IconButton label="Write comment" onClick={onOpenNote}>
-            <MessageSquarePlus size={15} />
-          </IconButton>
-          {/*
-            The confirmation lands on the button that earned it rather than
-            replacing the toolbar. Standing the whole bar down for a second and
-            a half stranded the obvious next move — you keep a quote in order to
-            say something about it.
-          */}
-          {phase === "saved" ? (
-            <IconButton label="Saved" className="text-success" disabled>
-              <Check size={15} />
+        <div className="flex min-w-0 flex-col">
+          <div className="flex items-center gap-0.5">
+            <IconButton label="Voice comment" className="text-accent hover:bg-accent-soft" onClick={onVoice}>
+              <Mic size={15} />
             </IconButton>
-          ) : (
-            <IconButton label="Save selection" onClick={onSave}>
-              <Bookmark size={15} />
+            <IconButton label="Write comment" onClick={onOpenNote}>
+              <MessageSquarePlus size={15} />
             </IconButton>
+            {/*
+              The confirmation lands on the button that earned it rather than
+              replacing the toolbar. Standing the whole bar down for a second and
+              a half stranded the obvious next move — you keep a quote in order to
+              say something about it.
+            */}
+            {phase === "saved" ? (
+              <IconButton label="Saved" className="text-success" disabled>
+                <Check size={15} />
+              </IconButton>
+            ) : (
+              <IconButton label="Save selection" onClick={onSave}>
+                <Bookmark size={15} />
+              </IconButton>
+            )}
+          </div>
+          {skills.length > 0 && (
+            <>
+              <span aria-hidden className="mx-1 my-0.5 h-px bg-line" />
+              {/* One column, every Skill on it, scrolling only when the window
+                  runs out — never an overflow menu on this surface. The line
+                  is the menus' line shape without their semantics: this list
+                  is always on screen, not a popup. */}
+              <div role="group" aria-label="Skills" className="logue-scroll flex max-h-[min(60vh,320px)] flex-col overflow-y-auto">
+                {skills.map((skill) => (
+                  <button
+                    key={skill.id}
+                    type="button"
+                    title={skill.name}
+                    // No spinner, no disabling: choosing a Skill stands the
+                    // whole toolbar down in the same commit (the run lives in
+                    // the side panel), so an in-line running state would
+                    // never reach the screen.
+                    onClick={() => onSkill(skill.id)}
+                    className="flex h-6 w-full shrink-0 items-center gap-2 rounded-sm px-2 text-left text-xs whitespace-nowrap text-ink-soft outline-none hover:bg-surface-muted hover:text-ink focus-visible:bg-surface-muted focus-visible:text-ink [&_svg]:shrink-0"
+                  >
+                    <Sparkles size={12} />
+                    {/* 80px cut "Accurate transcription" to "Accurate tr…" — a
+                        word broken mid-syllable on a surface that disappears
+                        when you move. Wide enough for the names people
+                        actually have, and still capped so one absurd name
+                        cannot own the toolbar. */}
+                    <span className="min-w-0 max-w-40 truncate">{skill.name}</span>
+                  </button>
+                ))}
+              </div>
+            </>
           )}
-          {direct.length > 0 && <span aria-hidden className="mx-0.5 h-4.5 w-px bg-line" />}
-          {direct.map((skill) => (
-            <Button
-              key={skill.id}
-              variant="ghost"
-              disabled={Boolean(running)}
-              title={skill.name}
-              onClick={() => {
-                setRunning(skill.id);
-                onSkill(skill.id);
-              }}
-            >
-              {running === skill.id ? <Spinner size={12} /> : <Sparkles size={12} />}
-              {/* 80px cut "Accurate transcription" to "Accurate tr…" — a word
-                  broken mid-syllable on a surface that disappears when you
-                  move. Wide enough for the names people actually have, and
-                  still capped so one absurd name cannot own the bar. */}
-              <span className="max-w-40 truncate">{skill.name}</span>
-            </Button>
-          ))}
-          {overflow.length > 0 && (
-            <Menu
-              label="More Skills"
-              trigger={(props) => (
-                <IconButton label="More Skills" {...props}>
-                  <MoreHorizontal size={15} />
-                </IconButton>
-              )}
-            >
-              {overflow.map((skill) => (
-                <MenuItem
-                  key={skill.id}
-                  icon={<Sparkles size={13} />}
-                  onClick={() => {
-                    setRunning(skill.id);
-                    onSkill(skill.id);
-                  }}
-                >
-                  {skill.name}
-                </MenuItem>
-              ))}
-            </Menu>
-          )}
-        </>
+        </div>
       )}
 
       {/* The shared bubble, not a hand-typed one: these colours were spelled
