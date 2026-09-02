@@ -11,10 +11,11 @@ export type SelectionPhase = "idle" | "starting" | "recording" | "saving" | "sav
 
 /**
  * The toolbar over a selection: keep it, say something about it, or run a
- * Skill on it. The icons keep a row; the Skills stand under them in one
- * column, one per line, all of them — he circled the row-of-two and drew
- * this shape ("we need the skills to show like this"), so nothing hides
- * behind a menu here any more.
+ * Skill on it. The icons keep a row; the Skills stand in one column, one
+ * per line, all of them — he circled the row-of-two and drew this shape
+ * ("we need the skills to show like this"), so nothing hides behind a menu
+ * here any more. The icon row takes whichever end of the column is nearest
+ * the selected words ("the 3 buttons should be close to the selected text").
  */
 export function SelectionBar({
   phase,
@@ -34,6 +35,7 @@ export function SelectionBar({
   onMove,
   onResetPosition,
   moved,
+  iconsAtBottom = false,
 }: Draggable & {
   phase: SelectionPhase;
   style?: CSSProperties;
@@ -49,10 +51,78 @@ export function SelectionBar({
   onAccept: () => void;
   onCancel: () => void;
   onSkill: (skillId: string) => void;
+  /**
+   * The icon row hugs the selection — "the 3 buttons should be close to the
+   * selected text". With the toolbar above the selection the icons take the
+   * column's bottom edge and the Skills stack away from them; flipped below,
+   * the icons top the column.
+   */
+  iconsAtBottom?: boolean;
 }) {
   // Only the resting toolbar stacks: recording, starting and saving offer no
   // Skills, and a wide toolbar saying "Starting mic…" is noise.
   const resting = phase === "idle" || phase === "saved";
+
+  // The three pieces of the resting toolbar, assembled in whichever order
+  // hugs the selection. The DOM order follows the visual order, so Tab walks
+  // the column the way the eye does — a CSS-only reversal left keyboard
+  // focus jumping backwards through a panel that read top-to-bottom. The
+  // keys let React move the pieces instead of rebuilding them when the
+  // order flips, so a focused button keeps its focus.
+  const iconRow = (
+    <div key="icons" className="flex items-center gap-0.5">
+      <IconButton label="Voice comment" className="text-accent hover:bg-accent-soft" onClick={onVoice}>
+        <Mic size={15} />
+      </IconButton>
+      <IconButton label="Write comment" onClick={onOpenNote}>
+        <MessageSquarePlus size={15} />
+      </IconButton>
+      {/*
+        The confirmation lands on the button that earned it rather than
+        replacing the toolbar. Standing the whole bar down for a second and
+        a half stranded the obvious next move — you keep a quote in order to
+        say something about it.
+      */}
+      {phase === "saved" ? (
+        <IconButton label="Saved" className="text-success" disabled>
+          <Check size={15} />
+        </IconButton>
+      ) : (
+        <IconButton label="Save selection" onClick={onSave}>
+          <Bookmark size={15} />
+        </IconButton>
+      )}
+    </div>
+  );
+  const hairline = <span key="hairline" aria-hidden className="mx-1 my-0.5 h-px bg-line" />;
+  const skillColumn = (
+    /* One column, every Skill on it, scrolling only when the window runs
+       out — never an overflow menu on this surface. The line is the menus'
+       line shape without their semantics: this list is always on screen,
+       not a popup. */
+    <div key="skills" role="group" aria-label="Skills" className="logue-scroll flex max-h-[min(60vh,320px)] flex-col overflow-y-auto">
+      {skills.map((skill) => (
+        <button
+          key={skill.id}
+          type="button"
+          title={skill.name}
+          // No spinner, no disabling: choosing a Skill stands the whole
+          // toolbar down in the same commit (the run lives in the side
+          // panel), so an in-line running state would never reach the
+          // screen.
+          onClick={() => onSkill(skill.id)}
+          className="flex h-6 w-full shrink-0 items-center gap-2 rounded-sm px-2 text-left text-xs whitespace-nowrap text-ink-soft outline-none hover:bg-surface-muted hover:text-ink focus-visible:bg-surface-muted focus-visible:text-ink [&_svg]:shrink-0"
+        >
+          <Sparkles size={12} />
+          {/* 80px cut "Accurate transcription" to "Accurate tr…" — a word
+              broken mid-syllable on a surface that disappears when you
+              move. Wide enough for the names people actually have, and
+              still capped so one absurd name cannot own the toolbar. */}
+          <span className="min-w-0 max-w-40 truncate">{skill.name}</span>
+        </button>
+      ))}
+    </div>
+  );
 
   if (writing) {
     return (
@@ -97,6 +167,7 @@ export function SelectionBar({
       onResetPosition={onResetPosition}
       moved={moved}
       stacked={resting && skills.length > 0}
+      stackedGlyphAt={iconsAtBottom ? "bottom" : "top"}
     >
       {phase === "recording" ? (
         <>
@@ -116,62 +187,15 @@ export function SelectionBar({
           </span>
         </>
       ) : (
+        // The icon row hugs the selection's side: at the bottom edge when
+        // the toolbar stands above the words, so the three most-reached
+        // buttons are the nearest thing to them.
         <div className="flex min-w-0 flex-col">
-          <div className="flex items-center gap-0.5">
-            <IconButton label="Voice comment" className="text-accent hover:bg-accent-soft" onClick={onVoice}>
-              <Mic size={15} />
-            </IconButton>
-            <IconButton label="Write comment" onClick={onOpenNote}>
-              <MessageSquarePlus size={15} />
-            </IconButton>
-            {/*
-              The confirmation lands on the button that earned it rather than
-              replacing the toolbar. Standing the whole bar down for a second and
-              a half stranded the obvious next move — you keep a quote in order to
-              say something about it.
-            */}
-            {phase === "saved" ? (
-              <IconButton label="Saved" className="text-success" disabled>
-                <Check size={15} />
-              </IconButton>
-            ) : (
-              <IconButton label="Save selection" onClick={onSave}>
-                <Bookmark size={15} />
-              </IconButton>
-            )}
-          </div>
-          {skills.length > 0 && (
-            <>
-              <span aria-hidden className="mx-1 my-0.5 h-px bg-line" />
-              {/* One column, every Skill on it, scrolling only when the window
-                  runs out — never an overflow menu on this surface. The line
-                  is the menus' line shape without their semantics: this list
-                  is always on screen, not a popup. */}
-              <div role="group" aria-label="Skills" className="logue-scroll flex max-h-[min(60vh,320px)] flex-col overflow-y-auto">
-                {skills.map((skill) => (
-                  <button
-                    key={skill.id}
-                    type="button"
-                    title={skill.name}
-                    // No spinner, no disabling: choosing a Skill stands the
-                    // whole toolbar down in the same commit (the run lives in
-                    // the side panel), so an in-line running state would
-                    // never reach the screen.
-                    onClick={() => onSkill(skill.id)}
-                    className="flex h-6 w-full shrink-0 items-center gap-2 rounded-sm px-2 text-left text-xs whitespace-nowrap text-ink-soft outline-none hover:bg-surface-muted hover:text-ink focus-visible:bg-surface-muted focus-visible:text-ink [&_svg]:shrink-0"
-                  >
-                    <Sparkles size={12} />
-                    {/* 80px cut "Accurate transcription" to "Accurate tr…" — a
-                        word broken mid-syllable on a surface that disappears
-                        when you move. Wide enough for the names people
-                        actually have, and still capped so one absurd name
-                        cannot own the toolbar. */}
-                    <span className="min-w-0 max-w-40 truncate">{skill.name}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+          {skills.length === 0
+            ? iconRow
+            : iconsAtBottom
+              ? [skillColumn, hairline, iconRow]
+              : [iconRow, hairline, skillColumn]}
         </div>
       )}
 

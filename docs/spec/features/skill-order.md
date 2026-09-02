@@ -66,8 +66,9 @@ and, until 2026-09-02 retired it, the toolbar's "More Skills" menu)
   this order, none behind a gesture. Up to the scroll cap below they are all
   on screen at once; past it the column scrolls, which is still the toolbar
   holding every Skill — what went away is the menu, not the screen's height.
-  The icons (voice, comment, save) keep their row at the top, the Skills
-  form the column under them, behind one hairline. The one exception stands:
+  The icons (voice, comment, save) keep their own row, set off from the
+  column by one hairline — which end of the column that row takes is the
+  hug rule below. The one exception stands:
   the Skill chosen in Settings under `Selection` takes the first line when
   one is chosen — otherwise choosing it would change nothing. The order
   rules everything after it.
@@ -91,6 +92,17 @@ and, until 2026-09-02 retired it, the toolbar's "More Skills" menu)
     scrollbar exists at all. The toolbar itself never leaves the viewport and
     never covers the selection it acts on — placement uses the toolbar's real
     measured height, the way centring already uses its real width.
+  - The icon row hugs the selection (2026-09-02, his second correction:
+    *"the 3 buttons should be close to the selected text"*). With the
+    toolbar above the selection, the icons sit at the column's bottom edge —
+    nearest the words — and the Skills stack upward away from them; flipped
+    below the selection, the icons top the column. The drag handle's glyph
+    keeps to the same end. The hand travels least to the three it reaches
+    for most. Tab order follows the eye: the DOM is assembled in the visual
+    order, so keyboard focus never walks backwards through the column. A
+    toolbar dragged across the selection re-hugs live — the same one rule,
+    applied wherever the toolbar is, rather than a frozen exception for
+    dragging.
   - Going away is what it always was, now said out loud: the toolbar lives
     exactly as long as the selection. Escape collapses the selection and the
     toolbar goes with it; so does clicking anywhere else. Nothing new was

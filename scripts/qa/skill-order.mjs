@@ -6,7 +6,7 @@
  *
  * Reorders the workspace's Skills over the real Host, reads the selection
  * toolbar's column off a real document (2026-09-02, his correction: every
- * Skill on the panel, one per line — no "More Skills" menu on this surface),
+ * Skill on the toolbar, one per line — no "More Skills" menu on this surface),
  * drags a row on the Skills page, then puts the order back exactly as it was
  * found and asserts the restore — the f7 rule: a check only changes what it
  * can read back and write again. The API alone cannot un-place a Skill
@@ -21,17 +21,22 @@ const SR = `document.getElementById('logue-host').shadowRoot`;
 const OUT = process.env.LOGUE_SHOTS ?? "/tmp/logue-shots";
 const HEADERS = `{ 'X-Logue-Client': 'web', 'Content-Type': 'application/json' }`;
 
+// Lines are picked by their RENDERED width, not their text length: widgets
+// hide URLs and marks, so a 100-character source line can render 20
+// characters wide — which is how a text-length pick found nothing on a
+// document whose long lines were all links (2026-09-02).
 const SELECT = `(() => {
   const editor = document.querySelector('main [contenteditable="true"]');
-  const ps = [...editor.querySelectorAll('p, div, li, h1, h2, h3')].filter((p) => !p.querySelector('p, div, li') && p.textContent.trim().length > 40);
+  const ps = [...editor.querySelectorAll('.cm-line')].filter((l) => l.getBoundingClientRect().width > 120 && l.textContent.trim().length > 10);
   const target = ps.find((p) => p.getBoundingClientRect().top > 300) ?? ps[0];
+  if (!target) return 'no line wide enough to select';
   const range = document.createRange();
   range.selectNodeContents(target);
   const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
   document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
 })()`;
 
-// The Skills stand in their own group on the panel; a line's title is the
+// The Skills stand in their own group on the toolbar; a line's title is the
 // Skill's full name even when the shown span truncates.
 const READ_BAR = `(() => {
   const group = ${SR}.querySelector('[aria-label="Selection actions"] [aria-label="Skills"]');
@@ -105,16 +110,20 @@ export async function run(api) {
                    iconInRow: svg ? svg.top >= r.top - 1 && svg.bottom <= r.bottom + 1 : true };
         });
         const range = getSelection().rangeCount ? getSelection().getRangeAt(0).getBoundingClientRect() : null;
+        const icons = bar.querySelector('[aria-label="Voice comment"]')?.parentElement?.getBoundingClientRect() ?? null;
+        const column = bar.querySelector('[aria-label="Skills"]')?.getBoundingClientRect() ?? null;
         return JSON.stringify({ rows, more: Boolean(bar.querySelector('[aria-label="More Skills"]')),
           box: { top: box.top, bottom: box.bottom },
+          icons: icons ? { top: icons.top, bottom: icons.bottom } : null,
+          column: column ? { top: column.top, bottom: column.bottom } : null,
           sel: range ? { top: range.top, bottom: range.bottom } : null });
       })()`),
     );
-    if (!panel) throw new Error("no selection panel on screen");
-    // His correction, held: every Skill stands on the panel, none behind a menu.
-    if (panel.more) throw new Error("a More Skills menu is still on the panel");
+    if (!panel) throw new Error("no selection toolbar on screen");
+    // His correction, held: every Skill stands on the toolbar, none behind a menu.
+    if (panel.more) throw new Error("a More Skills menu is still on the toolbar");
     if (panel.rows.length !== names.length)
-      throw new Error(`the panel stacks ${panel.rows.length} Skills, the order says ${names.length}`);
+      throw new Error(`the toolbar stacks ${panel.rows.length} Skills, the order says ${names.length}`);
     panel.rows.forEach((row, at) => {
       if (row.name !== names[at]) throw new Error(`line ${at} is "${row.name}", the order says "${names[at]}"`);
       // One Skill, one line: everything in the row ends inside the row.
@@ -124,11 +133,20 @@ export async function run(api) {
       if (at > 0 && row.top < panel.rows[at - 1].spill - 0.5)
         throw new Error(`"${row.name}" prints over "${panel.rows[at - 1].name}"`);
     });
-    // The panel acts on the selection, so it must never stand on top of it.
+    // The toolbar acts on the selection, so it must never stand on top of it.
     if (panel.sel && panel.box.top < panel.sel.bottom && panel.box.bottom > panel.sel.top)
-      throw new Error("the panel covers the selection it acts on");
+      throw new Error("the toolbar covers the selection it acts on");
+    // "The 3 buttons should be close to the selected text": whichever side
+    // the toolbar stands on, the icon row is nearer the selection than the
+    // Skills column — the column stacks away from the words, never between.
+    if (panel.sel && panel.icons && panel.column) {
+      const mid = (r) => (r.top + r.bottom) / 2;
+      const selMid = mid(panel.sel);
+      if (Math.abs(mid(panel.icons) - selMid) >= Math.abs(mid(panel.column) - selMid))
+        throw new Error("the Skills column sits between the icon row and the selection");
+    }
     await api.screenshot(`${OUT}/skill-order-menu.png`);
-    console.log(`PASS the toolbar stacks ${panel.rows.length} Skills in the person's order, one line each`);
+    console.log(`PASS the toolbar stacks ${panel.rows.length} Skills in the person's order, one line each, icons nearest the words`);
 
     // The same tab, left open while the order changes somewhere else: coming
     // back to it must show the new order without a reload.
@@ -139,12 +157,12 @@ export async function run(api) {
     await api.send("Page.bringToFront", {});
     await api.sleep(1500);
     // The refetch races the read: coming back triggers one context fetch,
-    // and the bar redraws when it lands. Two rounds, because the promise is
-    // "the return shows the new order", not "it shows it within 1200ms" —
-    // a freshly started browser missed the first read once (2026-09-02).
+    // and the bar redraws when it lands. Three rounds, because the promise
+    // is "the return shows the new order", not "it shows it within 1200ms"
+    // — two rounds still missed once on a busy machine (2026-09-02, twice).
     const wantOnReturn = JSON.stringify(await barNames(preferred));
     let shownOnReturn = JSON.stringify(null);
-    for (let round = 0; round < 2 && shownOnReturn !== wantOnReturn; round += 1) {
+    for (let round = 0; round < 3 && shownOnReturn !== wantOnReturn; round += 1) {
       await api.eval(SELECT);
       await api.sleep(1200);
       shownOnReturn = await api.eval(READ_BAR);

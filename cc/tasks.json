@@ -990,7 +990,8 @@
       "input_ids": [
         "in_update_extension_so",
         "in_icon_skills_post",
-        "in_this_is_not"
+        "in_this_is_not",
+        "in_not_like_this"
       ],
       "created": "2026-08-19",
       "updated": "2026-09-02"
@@ -1503,6 +1504,12 @@
       "id": "in_this_is_not",
       "at": "2026-09-02 11:22",
       "text": "this is not what i asked for. we need the skills to show like this",
+      "images": []
+    },
+    {
+      "id": "in_not_like_this",
+      "at": "2026-09-02 14:39",
+      "text": "not like this. the 3 buttons should be close to the selected text",
       "images": []
     }
   ]

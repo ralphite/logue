@@ -535,15 +535,20 @@ function Surfaces() {
    */
   const [selectionSize, setSelectionSize] = useState<{ width: number; height: number }>();
   const guessed = guessSelectionSize(selectionSkills.length);
+  const toolbarWidth = writing ? 320 : (selectionSize?.width ?? guessed.width);
+  const toolbarHeight = writing ? 140 : (selectionSize?.height ?? guessed.height);
   const selectionAt = selection
-    ? (selectionMoved ??
-      aboveSelection(
-        selection.rect,
-        viewport(),
-        writing ? 320 : (selectionSize?.width ?? guessed.width),
-        writing ? 140 : (selectionSize?.height ?? guessed.height),
-      ))
+    ? (selectionMoved ?? aboveSelection(selection.rect, viewport(), toolbarWidth, toolbarHeight))
     : undefined;
+  // The icon row hugs the selection — "the 3 buttons should be close to the
+  // selected text": whenever the toolbar's middle sits above the selection's
+  // middle (anchored above, or dragged there), the icons take the bottom
+  // edge, so the Skills stack away from the words rather than between.
+  const iconsAtBottom = Boolean(
+    selection &&
+      selectionAt &&
+      selectionAt.top + toolbarHeight / 2 < (selection.rect.top + selection.rect.bottom) / 2,
+  );
 
   const showing = visibleSurface({
     selection: Boolean(selection && selectionAt),
@@ -628,6 +633,7 @@ function Surfaces() {
           phase={selectionPhase}
           style={{ left: selectionAt.left, top: selectionAt.top }}
           error={selectionError}
+          iconsAtBottom={iconsAtBottom}
           skills={selectionSkills}
           writing={writing}
           note={note}

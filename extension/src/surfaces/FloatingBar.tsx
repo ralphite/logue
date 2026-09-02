@@ -38,6 +38,7 @@ export function FloatingBar({
   onResetPosition,
   moved,
   stacked = false,
+  stackedGlyphAt = "top",
 }: Draggable & {
   /** What a screen reader calls this bar. */
   label: string;
@@ -51,6 +52,11 @@ export function FloatingBar({
    * snapping back — is the same bar.
    */
   stacked?: boolean;
+  /**
+   * Where the stretched handle's glyph sits — hugging the same end as
+   * whatever the column keeps nearest the words it acts on.
+   */
+  stackedGlyphAt?: "top" | "bottom";
 }) {
   const [dragging, setDragging] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -163,8 +169,10 @@ export function FloatingBar({
           onPointerDown={begin}
           onKeyDown={nudge}
           onDoubleClick={() => onResetPosition?.()}
-          className={`inline-flex w-3.5 min-w-3.5 items-center justify-center rounded-sm text-line-strong hover:bg-surface-muted hover:!text-muted focus-visible:text-muted [touch-action:none] ${
-            stacked ? "self-stretch" : "h-control"
+          className={`inline-flex w-3.5 min-w-3.5 justify-center rounded-sm text-line-strong hover:bg-surface-muted hover:!text-muted focus-visible:text-muted [touch-action:none] ${
+            stacked
+              ? `self-stretch ${stackedGlyphAt === "bottom" ? "items-end pb-1" : "items-start pt-1"}`
+              : "h-control items-center"
           } ${dragging ? "cursor-grabbing !text-muted" : "cursor-grab"}`}
         >
           <GripVertical size={13} />

@@ -1015,14 +1015,16 @@ already ahead — what was missing was ordinary editor furniture.)
   column — "this is not what i asked for. we need the skills to show like
   this.") Every Skill offered on a selection stands on the toolbar itself,
   one per line, in the person's order, none behind a gesture — no "More
-  Skills" menu on this surface. The icons keep their row above the column;
-  recording, starting and saving keep their one-line shape; with zero Skills
-  the icon row stands alone. A long name ends in an ellipsis and the full
+  Skills" menu on this surface. The icons keep their own row beside the
+  column; recording, starting and saving keep their one-line shape; with
+  zero Skills the icon row stands alone. A long name ends in an ellipsis and the full
   name is the tooltip; past 320px (or 60% of a short window) the column
   scrolls inside the toolbar; placement uses the toolbar's real height, so
-  the column never covers the selection it acts on. The toolbar still lives
-  exactly as long as the selection — Escape or a click elsewhere collapses
-  both.
+  the column never covers the selection it acts on. The icon row hugs the
+  selection's side — above the selection the icons take the column's bottom
+  edge, below it the top ("the 3 buttons should be close to the selected
+  text", his second correction). The toolbar still lives exactly as long as
+  the selection — Escape or a click elsewhere collapses both.
 - **A menu item is one line.** The glyph sits beside the name, never above it;
   a long name ends in an ellipsis; items never print over one another.
   (2026-08-19, from his screenshot: the selection toolbar's Skills menu drew
