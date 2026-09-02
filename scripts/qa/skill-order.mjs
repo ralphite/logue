@@ -145,10 +145,17 @@ export async function run(api) {
     await post("/v1/skills/reorder", { order: rotated });
     await api.send("Page.bringToFront", {});
     await api.sleep(1500);
-    await api.eval(SELECT);
-    await api.sleep(1200);
-    const shownOnReturn = await api.eval(READ_BAR);
+    // The refetch races the read: coming back triggers one context fetch,
+    // and the bar redraws when it lands. Two rounds, because the promise is
+    // "the return shows the new order", not "it shows it within 1200ms" —
+    // a freshly started browser missed the first read once (2026-09-02).
     const wantOnReturn = JSON.stringify((await barNames(preferred)).slice(0, 2));
+    let shownOnReturn = JSON.stringify(null);
+    for (let round = 0; round < 2 && shownOnReturn !== wantOnReturn; round += 1) {
+      await api.eval(SELECT);
+      await api.sleep(1200);
+      shownOnReturn = await api.eval(READ_BAR);
+    }
     if (shownOnReturn !== wantOnReturn)
       throw new Error(`back on the tab, the bar offers ${shownOnReturn}, the new order says ${wantOnReturn}`);
     console.log("PASS an open tab shows the new order on return, without a reload");

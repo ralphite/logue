@@ -11,6 +11,12 @@ const mod = await import(pathToFileURL(resolve(process.cwd(), process.argv[3])).
 const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
 
 let seq = 0;
+// A command the browser never answers must become an error, not a hang: a
+// hung send leaves run()'s finally — the restore — unreached, and the check
+// walks away with the workspace still rearranged. Happened 2026-09-02 on
+// Chrome 152: the connection went quiet after Target.createTarget, Node
+// drained its event loop, and skill-order's restore never ran.
+const SEND_TIMEOUT = 30_000;
 function connect(wsUrl) {
   const ws = new WebSocket(wsUrl);
   const pending = new Map();
@@ -30,10 +36,19 @@ function connect(wsUrl) {
       else events.push(msg);
     }
   };
+  ws.onclose = () => {
+    for (const [, p] of pending) p.reject(new Error(`the browser connection closed with ${p.method} unanswered`));
+    pending.clear();
+  };
   const send = (method, params = {}, sessionId) =>
     new Promise((resolve, reject) => {
       const id = ++seq;
-      pending.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`${method} unanswered after ${SEND_TIMEOUT / 1000}s`));
+      }, SEND_TIMEOUT);
+      const settle = (fn) => (v) => { clearTimeout(timer); fn(v); };
+      pending.set(id, { method, resolve: settle(resolve), reject: settle(reject) });
       ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
     });
   const waitEvent = (method, timeout = 8000) =>
